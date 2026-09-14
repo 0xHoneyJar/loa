@@ -104,6 +104,50 @@ invoke_notify() {
     fi
 }
 
+prepare_from_workflow() {
+    local job="$1" pr_type="$2"
+    yq eval -r ".jobs[\"$job\"].steps[] | select(.name == \"Prepare release candidate\") | .run" \
+      "$ROOT/.github/workflows/post-merge.yml" > "$CASE_DIR/prepare.sh"
+    (
+        cd "$PROJECT_ROOT"
+        export PM_PR_NUMBER=7 PM_PR_TYPE="$pr_type" PM_MERGE_SHA="$SHA"
+        export GITHUB_STEP_SUMMARY="$CASE_DIR/summary.md"
+        bash -e "$CASE_DIR/prepare.sh"
+    )
+}
+
+assert_workflow_candidate() {
+    [ "$status" -eq 0 ]
+    [ ! -x "$PROJECT_ROOT/.claude/scripts/bootstrap.sh" ]
+    git -C "$PROJECT_ROOT" diff --exit-code -- .claude/scripts
+    jq -e '.state == "PREPARED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ -f "$PROJECT_ROOT/.run/post-merge-candidate.patch" ]
+    git -C "$PROJECT_ROOT" bundle verify .run/post-merge-candidate.bundle
+    (cd "$PROJECT_ROOT" && sha256sum -c .run/post-merge-candidate.sha256)
+    [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
+    if [[ -f "$GH_LOG" ]]; then
+        ! grep -Eq 'release create|pr comment|--method POST' "$GH_LOG"
+    fi
+}
+
+@test "publication: simple-release workflow prepares artifacts without changing script modes" {
+    run prepare_from_workflow simple-release other
+    assert_workflow_candidate
+}
+
+@test "publication: full-pipeline workflow prepares artifacts without changing script modes" {
+    run prepare_from_workflow full-pipeline cycle
+    assert_workflow_candidate
+}
+
+@test "publication: generation still refuses a tracked script mode change" {
+    chmod +x "$PROJECT_ROOT/.claude/scripts/bootstrap.sh"
+    run bash "$SCRIPT" --generate --pr 7 --type other --sha "$SHA"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Candidate generation requires a clean tracked checkout and index"* ]]
+    [ ! -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+}
+
 @test "publication: empty Unreleased section is filled from classified commits" {
     run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
     [ "$status" -eq 0 ]

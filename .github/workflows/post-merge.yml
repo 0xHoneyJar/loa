@@ -150,7 +150,8 @@ jobs:
           for _s in .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh; do
             test -f "$_s" || { echo "::error::Loa script '$_s' unresolved — reconcile the submodule mount (#1085)."; exit 1; }
           done
-          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh
+          # bootstrap.sh is sourced; preserve its non-executable tracked mode.
+          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh
           .claude/scripts/post-merge-orchestrator.sh --generate \
             --pr "$PM_PR_NUMBER" --type "$PM_PR_TYPE" --sha "$PM_MERGE_SHA"
           git diff "$PM_MERGE_SHA" HEAD > .run/post-merge-candidate.patch
@@ -219,7 +220,8 @@ jobs:
           for _s in .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh; do
             test -f "$_s" || { echo "::error::Loa script '$_s' unresolved — reconcile the submodule mount (#1085)."; exit 1; }
           done
-          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh
+          # bootstrap.sh is sourced; preserve its non-executable tracked mode.
+          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh
           .claude/scripts/post-merge-orchestrator.sh --generate \
             --pr "$PM_PR_NUMBER" --type "$PM_PR_TYPE" --sha "$PM_MERGE_SHA"
           git diff "$PM_MERGE_SHA" HEAD > .run/post-merge-candidate.patch

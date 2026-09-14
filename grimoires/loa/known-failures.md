@@ -79,6 +79,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 3 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
+| [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 
 ---
 
@@ -1414,3 +1415,28 @@ Run the portability contract alongside shell behavior tests. Do not replace name
 ### Reading guide
 
 Do not repeat the failed GraphQL convenience call or infer a missing repository permission. Use the authorized REST operation with structured input and verify its returned identity and content.
+
+---
+
+## KF-032: post-merge preparation dirties its own checkout before the clean-tree gate
+
+**Status**: OPEN — local repair verified; hosted confirmation pending
+**Feature**: Post-Merge Pipeline release-candidate preparation
+**Symptom**: Preparation exits with `Candidate generation requires a clean tracked checkout and index` before retaining a candidate artifact.
+**First observed**: 2026-09-14, PR #1251 merge, main `d834575a3586257e9d32bb270da9a3a57f9d0c62`
+**Recurrence count**: 1 hosted execution, confirmed by isolated workflow regressions
+**Current workaround**: Remove sourced `bootstrap.sh` from both preparation jobs' chmod commands; retain the clean-tree guard.
+**Upstream issue**: Observed after #1251; no separate issue filed
+**Related visions / lore**: Test the workflow setup together with the script it invokes
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Automatic preparation after merging #1251 | FAILED — chmod changed bootstrap.sh from tracked mode `100644` to `100755`, causing the clean-tree check to fail. | Actions run `34838888080`, attempt 1, main `d834575a3586257e9d32bb270da9a3a57f9d0c62` |
+| 2026-09-14 | Execute each workflow preparation block in a committed test repository | Both jobs reproduced the same clean-tree failure before the fix. | `tests/unit/post-merge-publication.bats`, workflow preparation regressions |
+| 2026-09-14 | Preserve bootstrap.sh permissions in both jobs; execute the same workflow blocks | Both produce candidate JSON, patch, bundle and checksum. The tracked-mode rejection test still passes; all 27 publication/preflight/reconcile cases pass. | `post-merge-publication.bats`, `post-merge-preflight-guard.bats`, `bug-986-post-merge-symlink-reconcile.bats` |
+
+### Reading guide
+
+`bootstrap.sh` is sourced and does not need executable permission. Do not weaken the clean-tree guard or rerun the unchanged workflow. The publication tests now execute the actual YAML preparation blocks, including artifact creation, and BATS CI includes changes to `post-merge.yml` in both event filters. Local tests use a fixture repository and mocked GitHub operations; final confirmation requires the repaired workflow to run on main.
