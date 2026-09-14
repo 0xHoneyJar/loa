@@ -143,6 +143,28 @@ function buildPipeline(opts?: {
 }
 
 describe("ReviewPipeline", () => {
+  it("preserves an explicit REQUEST_CHANGES verdict and HIGH severity in handoff (#1171)", async () => {
+    let event = "";
+    const content = '## Summary\nVerdict: REQUEST_CHANGES\n\n## Findings\n' +
+      '<!-- bridge-findings-start -->\n```json\n' + JSON.stringify({ schema_version: 1,
+        findings: [{ id: "INV2-001", title: "Fixture ownership", severity: "HIGH", category: "correctness" }] }) +
+      '\n```\n<!-- bridge-findings-end -->';
+    const summary = await buildPipeline({
+      llm: { generateReview: async () => ({ content, inputTokens: 1, outputTokens: 1, model: "mock" }) },
+      poster: { postReview: async (review) => { event = review.event; return true; } },
+    }).run("verdict-handoff");
+    assert.equal(event, "REQUEST_CHANGES");
+    assert.equal(summary.results[0].verdict, "REQUEST_CHANGES");
+    assert.equal(summary.results[0].highestSeverity, "HIGH");
+    assert.equal(summary.results[0].mergeBlocked, true);
+  });
+
+  it("an unparsed verdict never grants merge clearance (#1171)", async () => {
+    const summary = await buildPipeline().run("ambiguous-handoff");
+    assert.equal(summary.results[0].verdict, "UNKNOWN");
+    assert.equal(summary.results[0].mergeBlocked, true);
+  });
+
   describe("skip on existing review", () => {
     it("skips when poster reports existing review", async () => {
       const pipeline = buildPipeline({

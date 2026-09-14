@@ -310,6 +310,14 @@ function printSummary(summary) {
         errors: summary.errors,
         startTime: summary.startTime,
         endTime: summary.endTime,
+        verdicts: summary.results.map((result) => ({
+            repo: `${result.item.owner}/${result.item.repo}`,
+            pr: result.item.pr.number,
+            headSha: result.item.pr.headSha,
+            verdict: result.verdict ?? "UNKNOWN",
+            highestSeverity: result.highestSeverity ?? null,
+            mergeBlocked: result.mergeBlocked ?? true,
+        })),
         ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
         ...(Object.keys(errorCodes).length > 0 ? { errorCodes } : {}),
     }, null, 2));
@@ -447,6 +455,7 @@ async function main() {
             adapters.logger.info(`[bridgebuilder] cross-repo (manual, hoisted): fetched ${manualRefContext.context.length}/${manualRefs.length} refs ` +
                 `(${manualRefContext.errors.length} errors) in ${Date.now() - manualFetchStart}ms`);
         }
+        const verdicts = [];
         for (const item of items) {
             // Use convergence prompt so models return findings JSON parseable by
             // extractFindingsFromContent() (bug-20260413-9f9b39).
@@ -509,6 +518,10 @@ async function main() {
             // when active weaving is disabled — template inclusion is gated by
             // depth_5.lore_active_weaving, so passing [] is a safe no-op.
             { template, persona, loreEntries });
+            verdicts.push({
+                repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha,
+                ...mmResult.reviewVerdict,
+            });
             for (const mr of mmResult.modelResults) {
                 progress.updateModel(mr.provider, mr.model, {
                     phase: mr.error ? "error" : "complete",
@@ -552,7 +565,7 @@ async function main() {
                 console.error(`[bridgebuilder] Rating capture failed: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
-        console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length }, null, 2));
+        console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length, verdicts }, null, 2));
     }
     else {
         // Single-model path — existing behavior, unchanged

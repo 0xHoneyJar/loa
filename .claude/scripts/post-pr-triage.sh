@@ -344,11 +344,6 @@ process_findings_file() {
     return 0
   fi
 
-  if [[ "$total_findings" -eq 0 ]]; then
-    log "No findings in $findings_file"
-    return 0
-  fi
-
   # cycle-109 Sprint 2 T2.7 — CONSUMER #7: surface verdict_quality from the
   # findings artifact (when present). BB cheval-delegate (T2.6) writes
   # verdict_quality alongside findings in the per-iteration output; this
@@ -356,16 +351,31 @@ process_findings_file() {
   # on upstream shape) and logs the status banner so operators see the
   # substrate health at triage time. NFR-Rel-1: a degraded substrate
   # produced these findings; triage decisions should account for that.
-  local vq_status vq_chain_health
-  vq_status=$(jq -r '(.verdict_quality.status // .metadata.verdict_quality.status // "")' \
-      "$findings_file" 2>/dev/null || echo "")
-  vq_chain_health=$(jq -r '(.verdict_quality.chain_health // .metadata.verdict_quality.chain_health // "")' \
-      "$findings_file" 2>/dev/null || echo "")
+  local vq_status="" vq_chain_health="" vq_fields
+  if ! vq_fields=$(JQ_STRICT_CTX="post-pr-triage:verdict-quality" jq_strict -r '
+      (.verdict_quality as $direct |
+        if $direct == null then .metadata.verdict_quality else $direct end) as $vq |
+      if $vq == null then ["", ""]
+      elif ($vq | type) != "object" then error("invalid verdict_quality shape")
+      elif (["APPROVED","DEGRADED","FAILED"] | index($vq.status)) == null or
+           (["ok","degraded","exhausted"] | index($vq.chain_health)) == null
+        then error("invalid verdict_quality status or chain_health")
+      else [$vq.status, $vq.chain_health] end | @tsv' "$findings_file"); then
+    log "ERROR: verdict quality extraction failed in $findings_file — DEGRADED (#1025)"
+    PARSE_FAILURES=$((PARSE_FAILURES + 1))
+  else
+    IFS=$'\t' read -r vq_status vq_chain_health <<< "$vq_fields"
+  fi
   if [[ -n "$vq_status" && "$vq_status" != "null" ]]; then
     log "Substrate verdict_quality: status=$vq_status chain_health=${vq_chain_health:-?}"
     if [[ "$vq_status" == "FAILED" || "$vq_chain_health" == "exhausted" ]]; then
       log "[vq-warn] Findings produced by a FAILED/exhausted substrate — triage decisions are advisory only (NFR-Rel-1)."
     fi
+  fi
+
+  if [[ "$total_findings" -eq 0 ]]; then
+    log "No findings in $findings_file"
+    return 0
   fi
 
   log "Processing $total_findings findings from $findings_file (iter $iteration)"

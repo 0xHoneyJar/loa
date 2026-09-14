@@ -478,6 +478,8 @@ phase_flatline_pr() {
 #     silently marking the phase 'skipped' and reaching READY_FOR_HITL.
 phase_bridgebuilder_review() {
   log_phase "BRIDGEBUILDER_REVIEW"
+  local degraded_summary="$(pwd)/.run/post-pr-degraded-summary.json"
+  rm -f "$degraded_summary"
 
   # Feature flag check (default OFF per progressive rollout plan)
   local enabled
@@ -588,11 +590,21 @@ phase_bridgebuilder_review() {
       local actionable_high
       actionable_high=$(jq -r '.actionable_high // 0' "$convergence_file" 2>/dev/null || echo "0")
       log_info "Iteration $iter: state=$convergence_state actionable_high=$actionable_high"
+      if [[ "$convergence_state" == "DEGRADED" ]]; then
+        local summary_tmp
+        summary_tmp=$(mktemp "${degraded_summary}.XXXXXX") || return 1
+        jq -n --arg pr "$pr_number" --argjson iteration "$iter" \
+          --arg evidence "$convergence_file" \
+          '{state:"DEGRADED", pr_number:$pr, iteration:$iteration, evidence:$evidence}' > "$summary_tmp"
+        mv -f "$summary_tmp" "$degraded_summary"
+      fi
     fi
   done
 
   if [[ "$convergence_state" == "FLATLINE" ]]; then
     log_success "Kaironic convergence reached after $iter iteration(s) — FLATLINE"
+  elif [[ "$convergence_state" == "DEGRADED" ]]; then
+    log_error "DEGRADED: Bridgebuilder triage could not validate the findings; human review required."
   else
     log_info "Max iterations ($max_iters) reached without flatline; continuing with final state"
   fi
@@ -635,6 +647,13 @@ phase_bridgebuilder_review() {
       return 3
       ;;
   esac
+}
+
+surface_degraded_handoff() {
+  local summary="$(pwd)/.run/post-pr-degraded-summary.json"
+  if [[ -s "$summary" ]]; then
+    log_error "READY_FOR_HITL includes a DEGRADED Bridgebuilder review. Inspect $summary before deciding."
+  fi
 }
 
 # ============================================================================
@@ -751,12 +770,14 @@ run_orchestration() {
       if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
         update_state "$STATE_READY_FOR_HITL"
         log_success "Post-PR validation complete - READY_FOR_HITL"
+        surface_degraded_handoff
         return 0
       fi
       ;;
 
     "$STATE_READY_FOR_HITL")
       log_info "Already at READY_FOR_HITL"
+      surface_degraded_handoff
       return 0
       ;;
 

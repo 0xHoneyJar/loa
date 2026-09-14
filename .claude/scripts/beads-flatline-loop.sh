@@ -112,12 +112,12 @@ done
 # =============================================================================
 
 log() {
-    echo "[BLF] $*"
+    echo "[BLF] $*" >&2
 }
 
 log_verbose() {
     if [[ "$VERBOSE" == "true" ]]; then
-        echo "[BLF] $*"
+        echo "[BLF] $*" >&2
     fi
 }
 
@@ -160,8 +160,9 @@ run_flatline_review() {
 
     # Check if flatline-orchestrator exists
     if [[ ! -f "$SCRIPT_DIR/flatline-orchestrator.sh" ]]; then
-        log_verbose "Flatline orchestrator not found, skipping review"
-        return 0
+        log "ERROR: Flatline orchestrator not found; review incomplete"
+        echo '{}'
+        return 3
     fi
 
     # Create temp file with beads for review (tracked for cleanup on interrupt - H5)
@@ -172,7 +173,7 @@ run_flatline_review() {
     echo "$beads_json" > "$temp_file"
 
     # Run Flatline review
-    local result
+    local result review_rc=0
     if [[ "$DRY_RUN" == "true" ]]; then
         log "[DRY RUN] Would run: flatline-orchestrator.sh --doc $temp_file --phase beads"
         result="{}"
@@ -180,12 +181,26 @@ run_flatline_review() {
         result=$("$SCRIPT_DIR/flatline-orchestrator.sh" \
             --doc "$temp_file" \
             --phase beads \
-            --context "task_graph_review" \
-            --json 2>/dev/null) || result="{}"
+            --domain "task_graph_review" \
+            --json) || review_rc=$?
     fi
 
     rm -f "$temp_file"
 
+    if [[ -z "$result" ]]; then
+        result="{}"
+        [[ "$DRY_RUN" == "true" || $review_rc -ne 0 ]] || review_rc=3
+    elif ! jq -e 'type == "object"' <<< "$result" >/dev/null 2>&1; then
+        log "ERROR: Flatline returned an invalid result"
+        return 3
+    fi
+    if [[ "$DRY_RUN" != "true" && $review_rc -eq 0 ]] &&
+       [[ "$(jq -r '.verdict_quality.status // "UNKNOWN"' <<< "$result")" != "APPROVED" ]]; then
+        review_rc=6
+    fi
+    if [[ $review_rc -ne 0 ]]; then
+        log "Flatline review incomplete (exit=$review_rc); partial findings follow with verdict quality"
+    fi
     # Extract findings count
     local high_consensus disputed blockers
     high_consensus=$(echo "$result" | jq -r '.metrics.high_consensus // 0' 2>/dev/null) || high_consensus=0
@@ -195,6 +210,7 @@ run_flatline_review() {
     log_verbose "  HIGH_CONSENSUS: $high_consensus, DISPUTED: $disputed, BLOCKERS: $blockers"
 
     echo "$result"
+    return "$review_rc"
 }
 
 # Apply Flatline suggestions to beads
@@ -292,7 +308,12 @@ main() {
 
         # Run Flatline review
         local findings
-        findings=$(run_flatline_review "$iteration" "$beads_json")
+        local review_rc=0
+        findings=$(run_flatline_review "$iteration" "$beads_json") || review_rc=$?
+        if [[ $review_rc -ne 0 ]]; then
+            printf '%s\n' "$findings"
+            return "$review_rc"
+        fi
 
         # Apply suggestions
         apply_flatline_suggestions "$findings"

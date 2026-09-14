@@ -161,6 +161,10 @@ export interface ReviewResult {
     personaHash?: string;
     /** Whether Pass 1 findings were served from cache (Sprint 70). */
     pass1CacheHit?: boolean;
+    /** Explicit review-body decision; absence is never merge clearance. */
+    verdict?: "REQUEST_CHANGES" | "APPROVE" | "COMMENT" | "UNKNOWN";
+    highestSeverity?: string | null;
+    mergeBlocked?: boolean;
 }
 export interface RunSummary {
     reviewed: number;

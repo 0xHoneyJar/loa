@@ -4,6 +4,7 @@ import type { IReviewPoster } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
 import type { ILogger } from "../ports/logger.js";
 import type { BridgebuilderConfig, ReviewItem, ReviewError } from "./types.js";
+import { type ReviewVerdict } from "./review-verdict.js";
 import type { ScoringResult } from "./scoring.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
 export declare function deriveTimeoutMs(provider: string, modelId: string, config: BridgebuilderConfig): number;
@@ -22,6 +23,7 @@ export interface MultiModelReviewResult {
     posted: boolean;
     /** Combined content from all models. */
     combinedContent: string;
+    reviewVerdict: ReviewVerdict;
 }
 export interface PipelineAdapters {
     poster: IReviewPoster;

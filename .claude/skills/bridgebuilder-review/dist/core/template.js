@@ -79,11 +79,13 @@ export class PRReviewTemplate {
         const items = [];
         for (const { owner, repo } of this.config.repos) {
             const prs = await this.git.listOpenPRs(owner, repo);
-            for (const pr of prs.slice(0, this.config.maxPrs)) {
-                // Skip PRs that don't match --pr filter
-                if (this.config.targetPr != null && pr.number !== this.config.targetPr) {
-                    continue;
-                }
+            const selected = this.config.targetPr != null
+                ? prs.filter((pr) => pr.number === this.config.targetPr)
+                : prs.slice(0, this.config.maxPrs);
+            if (this.config.targetPr != null && selected.length === 0) {
+                throw new Error(`PR #${this.config.targetPr} not found among open PRs in ${owner}/${repo}`);
+            }
+            for (const pr of selected) {
                 const files = await this.git.getPRFiles(owner, repo, pr.number);
                 // Canonical hash: sha256(headSha + "\n" + sorted filenames)
                 // Excludes patch content — only structural identity

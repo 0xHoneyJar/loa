@@ -114,6 +114,11 @@
       "type": "boolean",
       "description": "FR-2.9 IMP-010: when 1 voice planned (e.g., BB single-pass), suppresses consensus inference. Classifier skips the consensus algorithm and routes per the single voice's outcome directly."
     },
+    "scoring_degraded": {
+      "type": "boolean",
+      "default": false,
+      "description": "Post-review cross-scoring is incomplete or has rejected responses. Prevents APPROVED without changing the qualified review-voice denominator or claiming a fallback-chain failure."
+    },
     "chunked": {
       "type": "boolean",
       "description": "FR-4 chunked-review aggregation occurred (sprint-4 surface). When true, chunks_reviewed + chunks_dropped + chunks_aggregated_findings fields carry the per-chunk telemetry."

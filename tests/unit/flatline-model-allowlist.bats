@@ -15,7 +15,7 @@ setup() {
 
 # Extract just the validate_model function + its supporting arrays for unit testing
 _extract_validator() {
-    awk '/^# Valid model names/,/^}$/' "$ORCH" > "$TEST_DIR/validator.sh"
+    awk '/^# Valid model names/ {copy=1} copy {print} /^validate_model\(\)/ {validator=1} validator && /^}$/ {exit}' "$ORCH" > "$TEST_DIR/validator.sh"
 }
 
 # =========================================================================

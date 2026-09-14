@@ -194,8 +194,9 @@ def compute_verdict_status(envelope: Dict[str, Any]) -> str:
         for d in voices_dropped
     )
     chunks_clean = chunks_dropped == 0 or truncation_waiver_applied
+    scoring_clean = not envelope.get("scoring_degraded", False)
 
-    if full_success and chain_ok and consensus_ok and no_med_drops and chunks_clean:
+    if full_success and chain_ok and consensus_ok and no_med_drops and chunks_clean and scoring_clean:
         return _STATUS_APPROVED
 
     # Anything that survived FAILED auto-promotion and didn't make APPROVED

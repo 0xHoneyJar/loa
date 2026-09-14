@@ -12,6 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
+source "$SCRIPT_DIR/compat-lib.sh"
 
 SANITIZER="$SCRIPT_DIR/red-team-sanitizer.sh"
 SCORING_ENGINE="$SCRIPT_DIR/scoring-engine.sh"
@@ -330,6 +331,20 @@ run_phase0_sanitize() {
     return $sanitize_exit
 }
 
+# Validate the complete producer document before allowing its usage to enter
+# budget arithmetic. A missing count is unknown usage, not a free model call.
+pipeline_tokens() {
+    jq_strict -ers '
+        if length != 1 or (.[0] | type) != "object" then
+            error("expected one adapter response")
+        else .[0].tokens_used end |
+        if type != "number" then error("missing or invalid token usage")
+        elif . < 0 or . > 9007199254740991 or floor != . then
+            error("token usage must be a nonnegative safe integer")
+        else . end
+    ' "$1"
+}
+
 run_phase1_attacks() {
     local prompt_file="$1"
     local execution_mode="$2"
@@ -354,6 +369,11 @@ run_phase1_attacks() {
             --budget "$BUDGET_LIMIT" \
             --timeout "$timeout" \
             "$ADAPTER_MODE_FLAG" 2>/dev/null || {
+            local adapter_rc=$?
+            if [[ "$adapter_rc" -eq 5 ]]; then
+                error "Phase 1: Adapter rejected its response content or usage"
+                return 5
+            fi
             log "Phase 1: Model adapter failed, using empty result"
             jq -n '{ attacks: [], summary: "Model adapter failed", models_used: 0, tokens_used: 0 }' > "$result_file"
             PHASE1_MS=$(phase_elapsed_ms "$phase_start")
@@ -363,7 +383,7 @@ run_phase1_attacks() {
 
         # Record tokens from adapter output
         local tokens_used
-        tokens_used=$(jq '.tokens_used // 0' "$attacker_output" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        tokens_used=$(pipeline_tokens "$attacker_output") || return 1
         record_tokens "phase1" "$tokens_used" || true
 
         cp "$attacker_output" "$result_file"
@@ -477,13 +497,22 @@ run_phase2_validation() {
             done
 
             # Wait for all parallel calls; count successes.
-            local successes=0 i=0
+            local successes=0 i=0 parse_rejected=false
             for pid in "${pids[@]}"; do
                 if wait "$pid"; then
                     successes=$((successes + 1))
+                else
+                    local adapter_rc=$?
+                    if [[ "$adapter_rc" -eq 5 ]]; then
+                        parse_rejected=true
+                    fi
                 fi
                 i=$((i + 1))
             done
+            if [[ "$parse_rejected" == "true" ]]; then
+                error "Phase 2: Adapter rejected its response content or usage"
+                return 5
+            fi
             log "Phase 2: ${successes} of ${#pids[@]} evaluator models succeeded"
 
             # Pick first non-empty valid-JSON output as canonical for downstream.
@@ -514,7 +543,7 @@ run_phase2_validation() {
             local total_tokens=0
             for out in "${outputs[@]}"; do
                 local t
-                t=$(jq '.tokens_used // 0' "$out" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+                t=$(pipeline_tokens "$out") || return 1
                 total_tokens=$((total_tokens + t))
             done
             record_tokens "phase2" "$total_tokens" || true
@@ -531,12 +560,17 @@ run_phase2_validation() {
                 --budget "$BUDGET_LIMIT" \
                 --timeout "$timeout" \
                 "$ADAPTER_MODE_FLAG" 2>/dev/null || {
+                local adapter_rc=$?
+                if [[ "$adapter_rc" -eq 5 ]]; then
+                    error "Phase 2: Adapter rejected its response content or usage"
+                    return 5
+                fi
                 log "Phase 2: Model adapter failed, using unsanitized attacks"
                 cp "$sanitized_attacks" "$result_file"
             }
 
             local tokens_used
-            tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            tokens_used=$(pipeline_tokens "$result_file") || return 1
             record_tokens "phase2" "$tokens_used" || true
         fi
     else
@@ -678,17 +712,25 @@ run_phase4_counter_design() {
                 --budget "$BUDGET_LIMIT" \
                 --timeout 300 \
                 "$ADAPTER_MODE_FLAG" 2>/dev/null || {
+                local adapter_rc=$?
+                if [[ "$adapter_rc" -eq 5 ]]; then
+                    error "Phase 4: Adapter rejected its response content or usage"
+                    return 5
+                fi
                 log "Phase 4: Model adapter failed"
                 jq '. + {counter_designs: []}' "$consensus_file" > "$result_file"
             }
 
             local tokens_used
-            tokens_used=$(jq '.tokens_used // 0' "$result_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            tokens_used=$(pipeline_tokens "$result_file") || return 1
             record_tokens "phase4" "$tokens_used" || true
 
             # Merge counter-designs into consensus result
             local counter_designs
-            counter_designs=$(jq '.counter_designs // []' "$result_file" 2>/dev/null || echo "[]")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+            counter_designs=$(jq_strict -ecs '
+                if length == 1 and (.[0].counter_designs | type) == "array"
+                then .[0].counter_designs else error("expected counter-design array") end
+            ' "$result_file") || return 1
             jq --argjson cds "$counter_designs" '. + {counter_designs: $cds}' "$consensus_file" > "$result_file"
         else
             log "Phase 4: Counter-design synthesis (placeholder — requires model-adapter.sh)"

@@ -169,6 +169,20 @@ describe("PRReviewTemplate", () => {
       assert.ok(items[0].hash.length > 0);
     });
 
+    it("selects an explicit PR before maxPrs truncation (#1206)", async () => {
+      const prs = Array.from({ length: 12 }, (_, i) => ({
+        number: i + 1, title: "PR", headSha: `sha${i}`, baseBranch: "main", labels: [], author: "u",
+      }));
+      const template = new PRReviewTemplate(mockGitProvider({ listOpenPRs: async () => prs }),
+        mockHasher(), mockConfig({ maxPrs: 10, targetPr: 12 }));
+      assert.deepEqual((await template.resolveItems()).map((item) => item.pr.number), [12]);
+    });
+
+    it("rejects an explicit missing PR instead of a success-shaped empty run (#1206)", async () => {
+      const template = new PRReviewTemplate(mockGitProvider(), mockHasher(), mockConfig({ targetPr: 999 }));
+      await assert.rejects(template.resolveItems(), /PR #999.*not found/);
+    });
+
     it("computes canonical hash from headSha + sorted filenames", async () => {
       const git = mockGitProvider({
         getPRFiles: async () => [

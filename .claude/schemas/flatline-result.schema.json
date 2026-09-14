@@ -62,7 +62,7 @@
                 "high_consensus_count": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Number of items with high consensus (both models >700)"
+                    "description": "Number of items with at least two independent scorer votes >700"
                 },
                 "disputed_count": {
                     "type": "integer",
@@ -90,7 +90,12 @@
         "high_consensus": {
             "type": "array",
             "items": {"$ref": "#/definitions/consensus_item"},
-            "description": "Items where both models scored >700"
+            "description": "Items where at least two independent scorers scored >700"
+        },
+        "medium_value": {
+            "type": "array",
+            "items": {"$ref": "#/definitions/consensus_item"},
+            "description": "Items with medium scores or insufficient independent scores"
         },
         "disputed": {
             "type": "array",
@@ -184,28 +189,28 @@
                     "description": "Priority level"
                 },
                 "gpt_score": {
-                    "type": "integer",
+                    "type": ["integer", "null"],
                     "minimum": 0,
                     "maximum": 1000,
-                    "description": "GPT's score for this item"
+                    "description": "GPT's score for this item, or null when unavailable"
                 },
                 "opus_score": {
-                    "type": "integer",
+                    "type": ["integer", "null"],
                     "minimum": 0,
                     "maximum": 1000,
-                    "description": "Opus's score for this item"
+                    "description": "Opus's score for this item, or null when unavailable"
                 },
                 "average_score": {
                     "type": "number",
-                    "description": "Average of both scores"
+                    "description": "Average of available independent scorer votes, including real zeros"
                 },
                 "delta": {
-                    "type": "integer",
-                    "description": "Absolute difference between scores"
+                    "type": ["integer", "null"],
+                    "description": "Range of available scores, or null with fewer than two scorers"
                 },
                 "agreement": {
                     "type": "string",
-                    "enum": ["HIGH", "MEDIUM", "LOW"],
+                    "enum": ["HIGH", "MEDIUM", "LOW", "INSUFFICIENT"],
                     "description": "Level of model agreement"
                 },
                 "would_integrate": {
@@ -231,10 +236,10 @@
                     "type": "string"
                 },
                 "gpt_score": {
-                    "type": "integer"
+                    "type": ["integer", "null"]
                 },
                 "opus_score": {
-                    "type": "integer"
+                    "type": ["integer", "null"]
                 },
                 "delta": {
                     "type": "integer",

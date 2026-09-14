@@ -453,6 +453,7 @@ def test_aggregate_cli_main_reads_envelope_files_from_argv(tmp_path):
         env={
             "PYTHONPATH": str(repo_root / ".claude" / "adapters"),
             "PATH": "/usr/bin:/bin",
+            "PYTHONDONTWRITEBYTECODE": "1",
         },
     )
     assert result.returncode == 0, (
@@ -461,3 +462,155 @@ def test_aggregate_cli_main_reads_envelope_files_from_argv(tmp_path):
     parsed = json.loads(result.stdout)
     assert parsed["voices_planned"] == 2
     assert parsed["status"] == "APPROVED"
+
+
+@pytest.mark.parametrize("stdlib_only", [False, True], ids=["jsonschema", "stdlib"])
+@pytest.mark.parametrize(
+    "case,path,validator",
+    [
+        ("long_rationale", "rationale", "maxLength"),
+        ("enum", "status", "enum"),
+        ("extra_key", "<root>", "additionalProperties"),
+        ("voice_pattern", "voices_succeeded_ids.0", "pattern"),
+        ("nested_type", "voices_dropped.0.chain_walk.0", "type"),
+    ],
+)
+def test_rejected_schema_cli_diagnostic_is_bounded_and_value_free(
+    tmp_path, stdlib_only, case, path, validator
+):
+    import json
+    import os
+    import subprocess
+
+    secret = "PRIVATE_REJECTED_INSTANCE\x1b[31m\r\n\t\u0085\u202e"
+    envelope = _single_voice_approved()
+    if case == "long_rationale":
+        envelope["rationale"] = secret * 100
+    elif case == "enum":
+        envelope["status"] = secret
+    elif case == "extra_key":
+        envelope[secret] = secret
+    elif case == "voice_pattern":
+        envelope["voices_succeeded_ids"] = [secret]
+    else:
+        envelope = _single_voice_failed()
+        envelope["voices_dropped"][0]["chain_walk"] = [{secret: secret}]
+    input_file = tmp_path / "rejected.json"
+    input_file.write_text(json.dumps(envelope), encoding="utf-8")
+
+    # -S exercises the real bootstrap CLI without optional site packages.
+    python_args = [sys.executable] + (["-S"] if stdlib_only else [])
+    result = subprocess.run(
+        python_args + ["-m", "loa_cheval.verdict.aggregate", str(input_file)],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(__file__).resolve().parents[1]),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "PRIVATE_REJECTED_INSTANCE" not in result.stderr
+    assert result.stderr == (
+        "[verdict-aggregate] invariant violation: "
+        f"VERDICT_SCHEMA_REJECTED path={path} validator={validator}\n"
+    )
+    assert len(result.stderr) <= 256
+    assert all(32 <= ord(char) <= 126 for char in result.stderr.rstrip("\n"))
+
+
+@pytest.mark.parametrize(
+    "schema,value,validator",
+    [
+        ({"type": "integer"}, True, "type"),
+        ({"enum": ["ok"]}, "PRIVATE_REJECTED_INSTANCE", "enum"),
+        ({"required": ["expected"]}, {}, "required"),
+        ({"additionalProperties": False}, {"PRIVATE_REJECTED_INSTANCE": 1}, "additionalProperties"),
+        ({"uniqueItems": True}, ["PRIVATE_REJECTED_INSTANCE"] * 2, "uniqueItems"),
+        ({"minLength": 1}, "", "minLength"),
+        ({"maxLength": 1}, "PRIVATE_REJECTED_INSTANCE", "maxLength"),
+        ({"pattern": "^safe$"}, "PRIVATE_REJECTED_INSTANCE", "pattern"),
+        ({"minimum": 1}, 0, "minimum"),
+        ({"maximum": 255}, 256, "maximum"),
+    ],
+)
+def test_fallback_schema_keywords_keep_safe_rejection_diagnostics(schema, value, validator):
+    from loa_cheval.verdict.aggregate import _validate_schema_subset
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    with pytest.raises(EnvelopeInvariantViolation) as rejected:
+        _validate_schema_subset(value, schema)
+    assert str(rejected.value) == (
+        f"VERDICT_SCHEMA_REJECTED path=<root> validator={validator}"
+    )
+
+
+def test_schema_diagnostic_bounds_metadata_without_reading_raw_error(monkeypatch):
+    import jsonschema
+    from loa_cheval.verdict.aggregate import validate_single_voice_envelope
+    from loa_cheval.verdict.quality import EnvelopeInvariantViolation
+
+    class HostileValidationError:
+        absolute_path = ["rationale\x1b\r\n\t\u0085\u202e" + "x" * 500]
+        validator = "maxLength\x1b\r\n\t\u0085\u202e" + "y" * 500
+
+        @property
+        def message(self):
+            raise AssertionError("Raw ValidationError.message must never be read")
+
+        @property
+        def instance(self):
+            raise AssertionError("Rejected instance must never be read")
+
+    class Validator:
+        def __init__(self, schema):
+            pass
+
+        @staticmethod
+        def check_schema(schema):
+            pass
+
+        def iter_errors(self, envelope):
+            yield HostileValidationError()
+
+    monkeypatch.setattr(jsonschema.validators, "validator_for", lambda schema: Validator)
+    with pytest.raises(EnvelopeInvariantViolation) as rejected:
+        validate_single_voice_envelope(_single_voice_approved())
+    diagnostic = str(rejected.value)
+    assert diagnostic.startswith("VERDICT_SCHEMA_REJECTED ")
+    fields = dict(field.split("=", 1) for field in diagnostic.split()[1:])
+    assert fields["path"].startswith("rationale")
+    assert len(fields["path"]) <= 128
+    assert fields["validator"].startswith("maxLength")
+    assert len(fields["validator"]) <= 32
+    assert all(32 <= ord(char) <= 126 for char in diagnostic)
+
+
+@pytest.mark.parametrize("scoring_degraded,expected", [(False, "APPROVED"), (True, "DEGRADED")])
+def test_canonical_scoring_degradation_preserves_review_quorum(scoring_degraded, expected):
+    from loa_cheval.verdict.aggregate import aggregate_envelopes, _validate_against_verdict_schema
+    from loa_cheval.verdict.quality import emit_envelope_with_status
+
+    envelope = aggregate_envelopes([_single_voice_approved(voice) for voice in ("a", "b", "c")])
+    envelope["scoring_degraded"] = scoring_degraded
+    result = emit_envelope_with_status(envelope)
+    assert result["status"] == expected
+    assert result["voices_planned"] == result["voices_succeeded"] == 3
+    assert result["voices_dropped"] == []
+    assert result["chain_health"] == "ok"
+    _validate_against_verdict_schema(result)
+
+
+def test_aggregator_preserves_upstream_scoring_degradation():
+    from loa_cheval.verdict.aggregate import aggregate_envelopes
+    from loa_cheval.verdict.quality import emit_envelope_with_status
+
+    failed_scoring = _single_voice_approved("a")
+    failed_scoring["scoring_degraded"] = True
+    failed_scoring = emit_envelope_with_status(failed_scoring)
+    result = aggregate_envelopes([failed_scoring, _single_voice_approved("b")])
+    assert result["status"] == "DEGRADED"
+    assert result["scoring_degraded"] is True
+    assert result["voices_planned"] == result["voices_succeeded"] == 2
