@@ -19,6 +19,7 @@ import type {
   ReviewResult,
   ReviewError,
 } from "./types.js";
+import { summarizeReviewVerdict, type ReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
@@ -85,6 +86,7 @@ export interface MultiModelReviewResult {
   posted: boolean;
   /** Combined content from all models. */
   combinedContent: string;
+  reviewVerdict: ReviewVerdict;
 }
 
 export interface PipelineAdapters {
@@ -358,7 +360,7 @@ export async function executeMultiModelReview(
       );
       if (enrichedContent) {
         // Prepend stats to enriched prose for quick-scan visibility
-        consensusBody = formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
+        consensusBody = verdictHeader + formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
         logger.info("[multi-model] Enrichment complete", {
           enrichedBytes: enrichedContent.length,
         });
@@ -395,12 +397,25 @@ export async function executeMultiModelReview(
     .filter((r) => r.response)
     .map((r) => r.response!.content)
     .join("\n\n---\n\n");
+  const findings = findingsPerModel.flatMap((result) => result.findings);
+  let reviewVerdict = summarizeReviewVerdict(combinedContent, findings);
+  // Enrichment may surface a blocker; it cannot approve unparsed reviews.
+  if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
+    reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
+  }
+  // Incomplete or degraded participation can never clear a merge.
+  if (modelResults.length !== multiConfig.models.length ||
+      modelResults.some((result) => result.error || !result.response) ||
+      computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
+    reviewVerdict.mergeBlocked = true;
+  }
 
   return {
     modelResults,
     consensus,
     posted: overallPosted || modelResults.some((r) => r.posted),
     combinedContent,
+    reviewVerdict,
   };
 }
 

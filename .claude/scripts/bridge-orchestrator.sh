@@ -16,6 +16,7 @@
 #   --from PHASE             Start from phase (sprint-plan)
 #   --single-iteration       Process one iteration then exit (Issue #473)
 #   --no-silent-noop-detect  Disable post-loop no-findings check (Issue #473)
+#   --allow-empty            Allow a run with no findings, sprints or new commits
 #   --help                   Show help
 #
 # Exit Codes:
@@ -124,6 +125,7 @@ Options:
                              pair with --resume to advance step by step
   --no-silent-noop-detect    Disable post-loop check that fails when the run
                              produced zero findings (Issue #473; for tests/CI)
+  --allow-empty              Allow a run with no findings, sprints or new commits
   --help                     Show help
 
 Exit Codes:
@@ -166,6 +168,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-silent-noop-detect)
       # Issue #473: opt out of the post-run no-findings check (for tests, CI)
+      DETECT_SILENT_NOOP=false
+      shift
+      ;;
+    --allow-empty)
       DETECT_SILENT_NOOP=false
       shift
       ;;
@@ -415,6 +421,10 @@ bridge_main() {
     branch=$(git branch --show-current 2>/dev/null || echo "unknown")
 
     init_bridge_state "$bridge_id" "$DEPTH" "$PER_SPRINT" "$FLATLINE_THRESHOLD" "$branch" "$BRIDGE_REPO" "$CONSECUTIVE_FLATLINE"
+    local initial_head
+    initial_head=$(git rev-parse HEAD)
+    jq --arg head "$initial_head" '.initial_head = $head' "$BRIDGE_STATE_FILE" > "$BRIDGE_STATE_FILE.tmp"
+    mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
     update_bridge_state "JACK_IN"
 
     echo ""
@@ -1076,19 +1086,33 @@ bridge_main() {
     mv "$BRIDGE_STATE_FILE.tmp" "$BRIDGE_STATE_FILE"
   fi
 
-  # Issue #473: silent-no-op detection. If the full-depth run completed but
-  # .run/bridge-reviews/ contains no findings files, the SIGNAL:* lines fired
-  # but no skill acted on them. Fail loud instead of claiming JACKED_OUT
-  # with 0 findings — silent success is the worst kind of failure.
+  # #1174: require current-run work. Empty or unrelated findings files cannot
+  # prove that a caller acted on the SIGNAL:* lines.
   if [[ "$DETECT_SILENT_NOOP" == "true" ]]; then
     local findings_dir="$PROJECT_ROOT/.run/bridge-reviews"
     local findings_count=0
-    if [[ -d "$findings_dir" ]]; then
-      findings_count=$(find "$findings_dir" -name '*.json' -type f 2>/dev/null | wc -l | tr -d ' ')
+    local current_bridge_id sprints_executed new_commits=0 initial_head findings_file count
+    current_bridge_id=$(jq -r '.bridge_id' "$BRIDGE_STATE_FILE")
+    sprints_executed=$(jq '[([.iterations[]?.sprints_executed // 0] | add // 0),
+        (.metrics.total_sprints_executed // 0)] | max' "$BRIDGE_STATE_FILE")
+    initial_head=$(jq -r '.initial_head // empty' "$BRIDGE_STATE_FILE")
+    if [[ -n "$initial_head" ]]; then
+      new_commits=$(git rev-list --count "${initial_head}..HEAD" 2>/dev/null) || new_commits=0
     fi
-    if [[ "$findings_count" -eq 0 ]]; then
+    if [[ -d "$findings_dir" ]]; then
+      for findings_file in "$findings_dir/${current_bridge_id}"-iter*-findings.json; do
+        [[ -f "$findings_file" ]] || continue
+        count=$(jq -e '.findings | select(type == "array") |
+            if all(.[]; type == "object" and
+                (.id | type == "string" and length > 0) and
+                (.severity | type == "string" and length > 0))
+            then length else error("invalid finding") end' "$findings_file" 2>/dev/null) || count=0
+        findings_count=$((findings_count + count))
+      done
+    fi
+    if [[ "$findings_count" -eq 0 && "$sprints_executed" -eq 0 && "$new_commits" -eq 0 ]]; then
       echo "" >&2
-      echo "ERROR: Bridge completed $DEPTH iterations but produced no findings files." >&2
+      echo "ERROR: Bridge completed $DEPTH iterations with no current-run findings, sprints or new commits." >&2
       echo "" >&2
       echo "This usually means the calling skill did not act on the SIGNAL:*" >&2
       echo "lines emitted by the orchestrator. The orchestrator emits signals" >&2

@@ -2,8 +2,8 @@
 # post-merge-orchestrator.sh - Post-merge automation pipeline
 # Version: 1.0.0
 #
-# Orchestrates post-merge phases: classify → semver → changelog →
-# gt_regen → rtfm → tag → release → notify.
+# Prepares a local release candidate; publishes only a separately approved
+# candidate digest and verifies the resulting tag, release, and PR comment.
 #
 # Usage:
 #   .claude/scripts/post-merge-orchestrator.sh \
@@ -11,9 +11,9 @@
 #     [--dry-run] [--skip-gt] [--skip-rtfm]
 #
 # Exit Codes:
-#   0 - All phases completed (some may have failed non-fatally)
-#   1 - Invalid arguments
-#   2 - Fatal error (state file corruption, missing dependencies)
+#   0 - Candidate prepared or publication verified (RTFM/lore are advisory)
+#   1 - Invalid arguments, generation failure, or publication failure
+#   2 - Fatal setup error (state file corruption, missing dependencies)
 
 #
 # Pipeline invariants (C-MERGE-003/004/005, cycle-121: these live HERE and in
@@ -22,8 +22,8 @@
 #   C-MERGE-003  RTFM gaps are logged, never block the pipeline
 #   C-MERGE-004  every phase is idempotent (check for existing tag/release/
 #                CHANGELOG entry before acting)
-#   C-MERGE-005  full pipeline (CHANGELOG/GT/RTFM/Release) only for cycle-type
-#                PRs; bugfix/other get patch bump + tag only
+#   C-MERGE-005  cycle PRs include GT/RTFM; bugfix PRs include changelog/release;
+#                other PRs prepare a tag and notification
 
 set -euo pipefail
 
@@ -44,6 +44,14 @@ DRY_RUN=false
 SKIP_GT=false
 SKIP_RTFM=false
 DOWNSTREAM=false
+PUBLISH_CANDIDATE=""
+APPROVED_DIGEST=""
+RELEASE_BODY=""
+NOTIFICATION_BODY=""
+TARGET_COMMIT=""
+PUSH_URL=""
+GITHUB_HOST=""
+GITHUB_REPOSITORY=""
 
 # Phase matrix: which phases run for each PR type.
 # lore_promote (cycle-061, #484) runs after release for every PR type when
@@ -74,6 +82,9 @@ Options:
   --skip-gt            Skip ground truth regeneration
   --skip-rtfm          Skip RTFM validation
   --downstream         Filter commits to app-zone only (for downstream repos)
+  --generate           Prepare an inspectable local candidate (the default)
+  --publish FILE       Publish a previously generated candidate
+  --approve-sha256 HEX  Digest of the exact candidate approved for publication
   --help               Show this help
 USAGE
 }
@@ -198,6 +209,18 @@ check_gh() {
   return 0
 }
 
+fail_phase() {
+  local phase="$1" reason="$2"
+  local result
+  result=$(jq -c --arg phase "$phase" --arg reason "$reason" \
+    '(.phases[$phase].result // {}) + {reason:$reason}' "$STATE_FILE")
+  update_phase "$phase" "failed" "$result"
+  log_error "$phase" "$reason"
+  increment_metric "phases_failed"
+  echo "[$phase] $reason" >&2
+  return 1
+}
+
 # Read a field from the state file
 read_state() {
   local field="$1"
@@ -306,7 +329,7 @@ phase_semver() {
   fi
 
   local result
-  if result=$("$semver_script" "${semver_args[@]}" 2>/dev/null); then
+  if result=$("$semver_script" "${semver_args[@]}"); then
     update_phase "semver" "completed" "$result"
     increment_metric "phases_completed"
     local current next bump
@@ -407,10 +430,10 @@ phase_version_bump() {
 
   # Commit only when the bump produced changes (idempotent — a no-op re-run
   # leaves a clean index and skips the commit; same guard as changelog/gt_regen).
-  git -C "$PROJECT_ROOT" add .loa-version.json .claude/loa/CLAUDE.loa.md 2>/dev/null || true
+  git -C "$PROJECT_ROOT" add .loa-version.json .claude/loa/CLAUDE.loa.md || return 1
   local committed=false
   if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
-    git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — sync framework version markers" --quiet 2>/dev/null || true
+    git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — sync framework version markers" --quiet || return 1
     committed=true
   fi
 
@@ -472,7 +495,7 @@ auto_generate_changelog_entry() {
     pathspec_args+=("${extra[@]}")
   fi
 
-  local feat_commits fix_commits
+  local feat_commits fix_commits other_commits
   if [[ -n "$range" ]]; then
     feat_commits=$(git -C "$PROJECT_ROOT" log "$range" --format='%s' \
         ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^feat' || true)
@@ -484,11 +507,14 @@ auto_generate_changelog_entry() {
     fix_commits=$(git -C "$PROJECT_ROOT" log --format='%s' \
         ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^fix' || true)
   fi
+  other_commits=$(git -C "$PROJECT_ROOT" log "${range:-HEAD}" --format='%s' \
+    ${pathspec_args[@]+"${pathspec_args[@]}"} |
+    grep -E '^(perf|refactor|chore|docs|test|ci|style|build)(\([^)]*\))?!?: ' || true)
 
   # If pathspec filtering left no commits in this domain, skip writing entirely
   # — the entry would be vacuous. Caller (phase_changelog) treats this as
   # "no domain content for this version".
-  if [[ -z "$feat_commits" && -z "$fix_commits" ]]; then
+  if [[ -z "$feat_commits" && -z "$fix_commits" && -z "$other_commits" ]]; then
     return 1
   fi
 
@@ -565,6 +591,12 @@ auto_generate_changelog_entry() {
       fi
     done <<< "$fix_commits"
   fi
+  if [[ -n "$other_commits" ]]; then
+    entry+=$'\n'"### Changed"$'\n\n'
+    while IFS= read -r commit; do
+      entry+="- ${commit#*: }"$'\n'
+    done <<< "$other_commits"
+  fi
 
   if [[ -n "${PR_NUMBER:-}" ]]; then
     entry+=$'\n'"_Source: PR #${PR_NUMBER}_"$'\n'
@@ -631,6 +663,10 @@ _write_changelog_entry() {
   # If `[Unreleased]` exists, finalize it (existing pre-#697 behavior — applies
   # equally per-file in multi-changelog repos so each curated section lands).
   if grep -q '## \[Unreleased\]' "$changelog"; then
+    local unreleased
+    unreleased=$(awk '/^## \[Unreleased\]/{f=1;next} f && /^## /{exit} f && NF && $0 !~ /^### /{print}' "$changelog")
+    # An empty placeholder is not release content. Generate real entries below.
+    if [[ -n "$unreleased" ]]; then
     local date_str
     date_str=$(date +%Y-%m-%d)
     local tmpfile
@@ -640,6 +676,7 @@ _write_changelog_entry() {
 ## [${version}] — ${date_str}/" "$changelog" > "$tmpfile" && mv "$tmpfile" "$changelog"
     echo "[CHANGELOG/$domain_label] Finalized v${version} in $(basename "$changelog")"
     return 0
+    fi
   fi
 
   # Auto-generate path: respect pathspec filter so commits outside this domain
@@ -675,10 +712,14 @@ phase_changelog() {
   changelog_count=$(printf '%s\n' "$changelogs" | grep -c . || true)
 
   if [[ "$changelog_count" -eq 0 ]]; then
-    update_phase "changelog" "skipped" '{"reason": "no CHANGELOG.md found"}'
-    increment_metric "phases_skipped"
-    echo "[CHANGELOG] No CHANGELOG files found — skipped"
-    return 0
+    if [[ "$DRY_RUN" == true ]]; then
+      update_phase "changelog" "completed" '{"dry_run":true,"reason":"would create initial changelog"}'
+      increment_metric "phases_completed"
+      return 0
+    fi
+    changelogs="${PROJECT_ROOT}/CHANGELOG.md"
+    printf '# Changelog\n\n' > "$changelogs"
+    changelog_count=1
   fi
 
   # Pre-check idempotency across ALL discovered changelogs. If every target
@@ -713,9 +754,12 @@ phase_changelog() {
     # backward-compat with existing test suite + production behavior.
     local changelog="$changelogs"
     if _write_changelog_entry "$version" "$changelog" "" "default"; then
-      git -C "$PROJECT_ROOT" add "$changelog"
+      git -C "$PROJECT_ROOT" add "$changelog" || return 1
       if ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
-        git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — finalize CHANGELOG"
+        if ! git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — finalize CHANGELOG"; then
+          fail_phase changelog "Generated changelog commit failed"
+          return 1
+        fi
       fi
       update_phase "changelog" "completed" '{"mode": "single-changelog"}'
       increment_metric "phases_completed"
@@ -752,20 +796,23 @@ phase_changelog() {
 
   if [[ -n "$framework_changelog" ]]; then
     if _write_changelog_entry "$version" "$framework_changelog" ".claude/" "framework"; then
-      git -C "$PROJECT_ROOT" add "$framework_changelog"
+      git -C "$PROJECT_ROOT" add "$framework_changelog" || return 1
       any_written=true
     fi
   fi
   if [[ -n "$project_changelog" ]]; then
     if _write_changelog_entry "$version" "$project_changelog" ":!.claude/" "project"; then
-      git -C "$PROJECT_ROOT" add "$project_changelog"
+      git -C "$PROJECT_ROOT" add "$project_changelog" || return 1
       any_written=true
     fi
   fi
 
   if [[ "$any_written" == "true" ]]; then
     if ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
-      git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — finalize multi-changelog routing"
+      if ! git -C "$PROJECT_ROOT" commit -m "chore(release): v${version} — finalize multi-changelog routing"; then
+        fail_phase changelog "Generated changelog commit failed"
+        return 1
+      fi
       any_committed=true
     fi
     update_phase "changelog" "completed" "{\"mode\": \"multi-changelog\", \"committed\": ${any_committed}}"
@@ -828,9 +875,9 @@ phase_gt_regen() {
 
   if [[ "$gt_exit" -eq 0 ]]; then
     # Commit if there are changes
-    git -C "$PROJECT_ROOT" add grimoires/loa/ground-truth/ 2>/dev/null || true
+    git -C "$PROJECT_ROOT" add grimoires/loa/ground-truth/ || return 1
     if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
-      git -C "$PROJECT_ROOT" commit -m "chore(gt): regenerate ground truth checksums"
+      git -C "$PROJECT_ROOT" commit -m "chore(gt): regenerate ground truth checksums" || return 1
     fi
     update_phase "gt_regen" "completed"
     increment_metric "phases_completed"
@@ -962,14 +1009,6 @@ phase_tag() {
 
   local tag="v${version}"
 
-  # Idempotency: check if tag already exists
-  if git -C "$PROJECT_ROOT" tag -l "$tag" | grep -q "$tag"; then
-    update_phase "tag" "skipped" "{\"reason\": \"tag ${tag} already exists\"}"
-    increment_metric "phases_skipped"
-    echo "[TAG] Tag ${tag} already exists — skipped"
-    return 0
-  fi
-
   if [[ "$DRY_RUN" == true ]]; then
     echo "[TAG] Would create tag ${tag} (dry-run)"
     update_phase "tag" "completed" "{\"tag\": \"${tag}\", \"dry_run\": true}"
@@ -977,20 +1016,31 @@ phase_tag() {
     return 0
   fi
 
-  # Create annotated tag
-  git -C "$PROJECT_ROOT" tag -a "$tag" -m "Release ${tag}"
-
-  # Push tag
-  if git -C "$PROJECT_ROOT" push origin "$tag" 2>/dev/null; then
-    update_phase "tag" "completed" "{\"tag\": \"${tag}\"}"
-    increment_metric "phases_completed"
-    echo "[TAG] Created and pushed ${tag}"
-  else
-    # Tag created locally but push failed — still report success
-    update_phase "tag" "completed" "{\"tag\": \"${tag}\", \"pushed\": false}"
-    increment_metric "phases_completed"
-    echo "[TAG] Created ${tag} (push to remote failed)"
+  local target="${TARGET_COMMIT:-}" existing remote
+  [[ -n "$target" ]] || target=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
+  if existing=$(git -C "$PROJECT_ROOT" rev-parse --verify "refs/tags/${tag}^{commit}" 2>/dev/null); then
+    if [[ "$existing" != "$target" ]]; then
+      fail_phase tag "Existing tag points to a different commit"
+      return 1
+    fi
+  elif ! git -C "$PROJECT_ROOT" tag -a "$tag" "$target" -m "Release ${tag}"; then
+    fail_phase tag "Local tag creation failed"
+    return 1
   fi
+  local tag_object
+  tag_object=$(git -C "$PROJECT_ROOT" rev-parse "refs/tags/$tag") || return 1
+  if ! git -C "$PROJECT_ROOT" push "${PUSH_URL:-origin}" "${tag_object}:refs/tags/$tag"; then
+    fail_phase tag "Tag push failed"
+    return 1
+  fi
+  if ! remote=$(git -C "$PROJECT_ROOT" ls-remote --exit-code "${PUSH_URL:-origin}" "refs/tags/${tag}^{}") ||
+      [[ "${remote%%$'\t'*}" != "$target" ]]; then
+    fail_phase tag "Remote tag read-back mismatch"
+    return 1
+  fi
+  update_phase tag completed "$(jq -nc --arg tag "$tag" --arg target "$target" '{tag:$tag, target:$target, verified:true}')"
+  increment_metric phases_completed
+  echo "[TAG] Verified ${tag} at ${target}"
 }
 
 phase_release() {
@@ -1008,18 +1058,8 @@ phase_release() {
   local tag="v${version}"
 
   if ! check_gh 2>/dev/null; then
-    update_phase "release" "skipped" '{"reason": "gh CLI not available"}'
-    increment_metric "phases_skipped"
-    echo "[RELEASE] gh CLI not available — skipped"
-    return 0
-  fi
-
-  # Idempotency: check if release already exists
-  if gh release view "$tag" &>/dev/null; then
-    update_phase "release" "skipped" "{\"reason\": \"release ${tag} already exists\"}"
-    increment_metric "phases_skipped"
-    echo "[RELEASE] Release ${tag} already exists — skipped"
-    return 0
+    fail_phase release "GitHub CLI is required for publication"
+    return 1
   fi
 
   if [[ "$DRY_RUN" == true ]]; then
@@ -1031,8 +1071,10 @@ phase_release() {
 
   # Generate release notes
   local notes_script="${SCRIPT_DIR}/release-notes-gen.sh"
-  local notes=""
-  if [[ -f "$notes_script" ]]; then
+  local notes="${RELEASE_BODY:-}"
+  if [[ -n "$notes" ]]; then
+    : # Publication uses the exact reviewed body.
+  elif [[ -f "$notes_script" ]]; then
     notes=$("$notes_script" --version "$version" --pr "$PR_NUMBER" --type "$PR_TYPE" 2>/dev/null || echo "Release ${tag}")
   else
     notes="Release ${tag}"
@@ -1041,7 +1083,7 @@ phase_release() {
   # Extract release title with subtitle (FR-4, cycle-016)
   local release_title="${tag}"
   local pr_title_raw
-  if [[ -n "${PR_NUMBER:-}" ]] && check_gh 2>/dev/null; then
+  if [[ -z "$PUBLISH_CANDIDATE" && -n "${PR_NUMBER:-}" ]] && check_gh 2>/dev/null; then
     pr_title_raw=$(gh pr view "$PR_NUMBER" --json title --jq '.title' 2>/dev/null || true)
     if [[ -n "$pr_title_raw" ]]; then
       local subtitle=""
@@ -1056,17 +1098,25 @@ phase_release() {
     fi
   fi
 
-  # Create release
-  if gh release create "$tag" --title "$release_title" --notes "$notes" --verify-tag 2>/dev/null; then
-    update_phase "release" "completed" "{\"tag\": \"${tag}\"}"
-    increment_metric "phases_completed"
-    echo "[RELEASE] Created GitHub Release ${tag}"
-  else
-    update_phase "release" "failed" '{"reason": "gh release create failed"}'
-    log_error "release" "gh release create failed"
-    increment_metric "phases_failed"
-    echo "[RELEASE] Failed to create GitHub Release"
+  local response id readback
+  if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"); then
+    if ! response=$(jq -nc --arg tag "$tag" --arg body "$notes" --arg title "$release_title" \
+      '{tag_name:$tag,name:$title,body:$body,draft:false}' |
+      gh api --hostname "$GITHUB_HOST" --method POST "repos/${GITHUB_REPOSITORY}/releases" --input -); then
+      fail_phase release "Release creation failed"
+      return 1
+    fi
   fi
+  if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response") ||
+      ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}") ||
+      ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" \
+        '.id == $id and .tag_name == $tag and .body == $body and .draft == false' <<< "$readback" >/dev/null; then
+    fail_phase release "Release identifier or read-back mismatch"
+    return 1
+  fi
+  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" '{id:$id,tag:$tag,verified:true}')"
+  increment_metric phases_completed
+  echo "[RELEASE] Verified release ${id}"
 }
 
 phase_lore_promote() {
@@ -1125,9 +1175,7 @@ phase_lore_promote() {
   fi
 }
 
-phase_notify() {
-  update_phase "notify" "in_progress"
-
+build_notification_body() {
   # Build summary table from state
   local summary=""
   summary+="## Post-Merge Pipeline Results\n\n"
@@ -1187,26 +1235,59 @@ phase_notify() {
   if [[ -n "$started" ]]; then
     summary+="\n_Started: ${started}_\n"
   fi
+  printf '%b' "$summary"
+}
+
+phase_notify() {
+  local previous
+  previous=$(read_state '.phases.notify.result // {}')
+  update_phase "notify" "in_progress" "$previous"
+  local summary="${NOTIFICATION_BODY:-}"
+  [[ -n "$summary" ]] || summary=$(build_notification_body)
 
   if [[ "$DRY_RUN" == true ]]; then
-    printf '%b' "$summary"
+    printf '%s\n' "$summary"
     echo "[NOTIFY] Would post summary (dry-run)"
     update_phase "notify" "completed" '{"dry_run": true}'
     increment_metric "phases_completed"
     return 0
   fi
 
-  # Post as PR comment if gh is available
-  if check_gh 2>/dev/null && [[ -n "$PR_NUMBER" ]]; then
-    printf '%b' "$summary" | gh pr comment "$PR_NUMBER" --body-file - 2>/dev/null || true
-    echo "[NOTIFY] Posted summary to PR #${PR_NUMBER}"
-  else
-    printf '%b' "$summary"
-    echo "[NOTIFY] Summary displayed (gh not available for PR comment)"
+  local response id readback issue_url
+  if ! check_gh || [[ -z "$PR_NUMBER" ]]; then
+    fail_phase notify "GitHub CLI and PR number are required"
+    return 1
   fi
-
-  update_phase "notify" "completed"
+  if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}") ||
+      ! issue_url=$(jq -er --argjson pr "$PR_NUMBER" \
+        'select(.number == $pr) | .url | select(type == "string" and length > 0)' <<< "$response"); then
+    fail_phase notify "Cannot verify the approved PR"
+    return 1
+  fi
+  id=$(jq -r '.id // empty' <<< "$previous")
+  if [[ -z "$id" ]]; then
+    if ! response=$(jq -nc --arg body "$summary" '{body:$body}' |
+        gh api --hostname "$GITHUB_HOST" --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --input -); then
+      fail_phase notify "Comment creation failed"
+      return 1
+    fi
+    if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response"); then
+      fail_phase notify "Comment response has no identifier"
+      return 1
+    fi
+    # Retain the identifier before verification, so a read-back failure can
+    # retry the same object instead of posting a second comment.
+    update_phase notify in_progress "$(jq -nc --argjson id "$id" '{id:$id, verified:false}')"
+  fi
+  if ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/issues/comments/${id}") ||
+      ! jq -e --argjson id "$id" --arg body "$summary" --arg issue "$issue_url" \
+        '.id == $id and .body == $body and .issue_url == $issue' <<< "$readback" >/dev/null; then
+    fail_phase notify "Comment read-back mismatch"
+    return 1
+  fi
+  update_phase "notify" "completed" "$(jq -nc --argjson id "$id" '{id:$id, verified:true}')"
   increment_metric "phases_completed"
+  echo "[NOTIFY] Verified comment ${id} on PR #${PR_NUMBER}"
 }
 
 # =============================================================================
@@ -1234,13 +1315,22 @@ archive_cycle_in_ledger() {
   local ledger_lock="${ledger}.lock"
   local active_cycle=""
 
-  (
-    flock -w 5 200 || { echo "[LEDGER] Lock timeout — skipping" >&2; return 1; }
+  active_cycle=$(
+    (
+    flock -w 5 200 || { echo "[LEDGER] Lock timeout" >&2; return 1; }
 
     # Find active cycle inside lock to prevent race condition
-    active_cycle=$(jq -r '.cycles[] | select(.status == "active") | .id' "$ledger" 2>/dev/null || echo "")
+    active_cycle=$(jq -ers '
+      if length != 1 or (.[0] | type) != "object" then error("invalid ledger") else .[0] end |
+      if (.cycles | type) != "array" then error("invalid cycles") else . end |
+      if has("active_cycle") then .active_cycle
+      else [.cycles[] | select(.status == "active") | (.cycle_id // .id)] |
+        if length > 1 then error("ambiguous active cycles") else .[0] end
+      end |
+      if . == null then "" elif type == "string" and length > 0 then .
+      else error("invalid active cycle") end' "$ledger") || return 1
     if [[ -z "$active_cycle" ]]; then
-      echo "[LEDGER] No active cycle found — skipping"
+      echo "[LEDGER] No active cycle found — skipping" >&2
       return 0
     fi
 
@@ -1250,49 +1340,198 @@ archive_cycle_in_ledger() {
     # are still in flight. The cycle remains `active` until every sprint
     # closes; subsequent merges retry the gate idempotently.
     local incomplete_count
-    incomplete_count=$(jq -r --arg cycle "$active_cycle" \
-      '[(.cycles[] | select(.id == $cycle)).sprints[]? | select(.status != "completed")] | length' \
-      "$ledger" 2>/dev/null || echo "0")
+    incomplete_count=$(jq -er --arg cycle "$active_cycle" '
+      [.cycles[] | select((.cycle_id // .id) == $cycle)] |
+      if length != 1 then error("active cycle missing or duplicated") else .[0] end |
+      if (.sprints | type) != "array" then error("invalid sprints") else . end |
+      [.sprints[] | select(if type == "object" then .status != "completed" else true end)] | length
+    ' "$ledger") || return 1
 
     if [[ "${incomplete_count:-0}" -gt 0 ]]; then
-      echo "[LEDGER] Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); skipping archive"
+      echo "[LEDGER] Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); skipping archive" >&2
       return 0
     fi
 
-    jq --arg cycle "$active_cycle" --arg now "$now" '
+    local tmp
+    tmp=$(mktemp "${ledger}.tmp.XXXXXXXX") || return 1
+    if ! jq -ae --arg cycle "$active_cycle" --arg now "$now" '
       .cycles = [.cycles[] |
-        if .id == $cycle then
+        if (.cycle_id // .id) == $cycle then
           .status = "archived" | .archived_at = $now
         else . end
-      ]
-    ' "$ledger" > "${ledger}.tmp"
-
-    if [[ -s "${ledger}.tmp" ]]; then
-      mv "${ledger}.tmp" "$ledger"
-    else
-      rm -f "${ledger}.tmp"
-      echo "[LEDGER] Failed to update ledger — skipping"
+      ] | if has("active_cycle") then .active_cycle = null else . end
+    ' "$ledger" > "$tmp" || [[ ! -s "$tmp" ]]; then
+      rm -f "$tmp"
+      echo "[LEDGER] Failed to update ledger" >&2
       return 1
     fi
-  ) 200>"$ledger_lock"
-
-  local flock_exit=$?
-  if [[ "$flock_exit" -eq 0 ]]; then
+    mv "$tmp" "$ledger" || return 1
+    printf '%s\n' "$active_cycle"
+    ) 200>"$ledger_lock"
+  ) || return 1
+  if [[ -n "$active_cycle" ]]; then
     echo "[LEDGER] Archived cycle ${active_cycle}"
 
     # Commit the ledger change
-    git -C "$PROJECT_ROOT" add "$ledger" 2>/dev/null
-    if ! git -C "$PROJECT_ROOT" diff --cached --quiet 2>/dev/null; then
-      git -C "$PROJECT_ROOT" commit -m "chore(ledger): archive ${active_cycle} after merge" --quiet 2>/dev/null || true
+    git -C "$PROJECT_ROOT" add "$ledger" || return 1
+    if ! git -C "$PROJECT_ROOT" diff --cached --quiet -- "$ledger"; then
+      git -C "$PROJECT_ROOT" commit --only -m "chore(ledger): archive ${active_cycle} after merge" --quiet -- "$ledger" || return 1
     fi
-  else
-    echo "[LEDGER] Failed to update ledger — skipping"
   fi
 }
 
 # =============================================================================
 # Orchestration
 # =============================================================================
+
+candidate_digest() {
+  python3 - "$1" <<'PY'
+import hashlib
+import sys
+with open(sys.argv[1], "rb") as stream:
+    print(hashlib.sha256(stream.read()).hexdigest())
+PY
+}
+
+bind_github_origin() {
+  local identity
+  identity=$(python3 - "$1" <<'PY'
+import re
+import sys
+from urllib.parse import urlsplit
+
+origin = sys.argv[1]
+try:
+    if origin.startswith(("https://", "ssh://")):
+        url = urlsplit(origin)
+        if url.query or url.fragment or url.password or not url.hostname:
+            raise ValueError()
+        host = url.hostname + (f":{url.port}" if url.port else "")
+        path = url.path.lstrip("/")
+    else:
+        match = re.fullmatch(r"git@([A-Za-z0-9.-]+):(.+)", origin)
+        if not match:
+            raise ValueError()
+        host, path = match.groups()
+    if not re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]+)?", host):
+        raise ValueError()
+    path = path.removesuffix(".git")
+    if not re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9_.-]+", path):
+        raise ValueError()
+    print(f"{host.lower()}\t{path}")
+except ValueError:
+    print("ERROR: Publication requires an approved GitHub repository origin", file=sys.stderr)
+    sys.exit(1)
+PY
+  ) || return 1
+  IFS=$'\t' read -r GITHUB_HOST GITHUB_REPOSITORY <<< "$identity"
+}
+
+prepare_candidate() {
+  local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
+  local version target tree origin push_url notes notification tmp
+  if ! git -C "$PROJECT_ROOT" diff --quiet || ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
+    echo "ERROR: Generated files are not committed; no candidate will be prepared" >&2
+    return 1
+  fi
+  version=$(read_state '.phases.semver.result.next')
+  target=$(git -C "$PROJECT_ROOT" rev-parse HEAD) || return 1
+  tree=$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}') || return 1
+  origin=$(git -C "$PROJECT_ROOT" remote get-url origin) || return 1
+  push_url=$(git -C "$PROJECT_ROOT" remote get-url --push --all origin) || return 1
+  if [[ -z "$push_url" || "$push_url" == *$'\n'* ]]; then
+    echo "ERROR: Candidate requires exactly one push destination" >&2
+    return 1
+  fi
+  notes=$(jq -r '"## Release v" + .phases.semver.result.next + "\n\n" +
+    ([.phases.semver.result.commits[] | "- " + .subject] | join("\n"))' "$STATE_FILE") || return 1
+  notification=$(printf '## Prepared release v%s\n\nThe table records generation results. Publication is verified separately in the retained run record.\n\n' "$version"; build_notification_body)
+  atomic_state_update '.state = "PREPARED"'
+  tmp=$(mktemp "${candidate}.tmp.XXXXXXXX") || return 1
+  if ! jq -n --slurpfile state "$STATE_FILE" \
+    --arg target "$target" --arg tree "$tree" --arg origin "$origin" \
+    --arg push_url "$push_url" \
+    --arg tag "v${version}" --arg notes "$notes" --arg notification "$notification" \
+    '{
+      schema_version:1, pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
+      merge_sha:$state[0].merge_sha, target_commit:$target, target_tree:$tree,
+      remote_origin:$origin, remote_push_url:$push_url, tag:$tag, release_body:$notes,
+      notification_body:$notification, prepared_state:$state[0]
+    }' > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$candidate" || return 1
+  echo "[PREPARED] Inspect ${candidate} and commit ${target}"
+  echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
+  echo "[PREPARED] Publish only after inspection with --publish FILE --approve-sha256 DIGEST"
+}
+
+publish_candidate() (
+  local snapshot
+  snapshot=$(mktemp "${TMPDIR:-/tmp}/loa-release-candidate.XXXXXXXX") || return 1
+  trap 'rm -f "$snapshot"' EXIT
+  cp "$PUBLISH_CANDIDATE" "$snapshot" || return 1
+  PUBLISH_CANDIDATE="$snapshot"
+  if [[ ! "$APPROVED_DIGEST" =~ ^[0-9a-f]{64}$ ]] ||
+      [[ "$(candidate_digest "$PUBLISH_CANDIDATE")" != "$APPROVED_DIGEST" ]]; then
+    echo "ERROR: An exact approved candidate SHA256 is required" >&2
+    return 1
+  fi
+  if ! jq -e -s 'length == 1 and (.[0] |
+    .schema_version == 1 and (.pr_number | type == "number" and . > 0) and
+    (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
+    (.target_commit | test("^[0-9a-f]{40}$")) and
+    (.target_tree | test("^[0-9a-f]{40}$")) and
+    (.remote_push_url | type == "string" and length > 0) and
+    (.release_body | type == "string" and length > 0) and
+    (.notification_body | type == "string" and length > 0) and
+    .tag == ("v" + .prepared_state.phases.semver.result.next))' "$PUBLISH_CANDIDATE" >/dev/null; then
+    echo "ERROR: Invalid release candidate" >&2
+    return 1
+  fi
+  TARGET_COMMIT=$(jq -r '.target_commit' "$PUBLISH_CANDIDATE")
+  if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$TARGET_COMMIT" ]] ||
+      [[ "$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}')" != "$(jq -r '.target_tree' "$PUBLISH_CANDIDATE")" ]] ||
+      [[ "$(git -C "$PROJECT_ROOT" remote get-url origin)" != "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" ]] ||
+      [[ "$(git -C "$PROJECT_ROOT" remote get-url --push --all origin)" != "$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")" ]] ||
+      ! git -C "$PROJECT_ROOT" diff --quiet ||
+      ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
+    echo "ERROR: Checkout or origin differs from the approved candidate" >&2
+    return 1
+  fi
+  PR_NUMBER=$(jq -r '.pr_number' "$PUBLISH_CANDIDATE")
+  PR_TYPE=$(jq -r '.pr_type' "$PUBLISH_CANDIDATE")
+  MERGE_SHA=$(jq -r '.merge_sha' "$PUBLISH_CANDIDATE")
+  RELEASE_BODY=$(jq -r '.release_body' "$PUBLISH_CANDIDATE")
+  NOTIFICATION_BODY=$(jq -r '.notification_body' "$PUBLISH_CANDIDATE")
+  PUSH_URL=$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")
+  # Bind both host and repository before any publication side effect.
+  # Explicit API arguments take precedence over ambient GH_HOST/GH_REPO.
+  bind_github_origin "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" || return 1
+  mkdir -p "$(dirname "$STATE_FILE")"
+  # Only receipt identifiers may survive a retry. Every publication input
+  # (including semver) is reconstructed from the approved snapshot.
+  local comment_receipt='{}'
+  if [[ -f "$STATE_FILE" ]] &&
+      [[ "$(jq -r '.candidate_digest // ""' "$STATE_FILE")" == "$APPROVED_DIGEST" ]]; then
+    comment_receipt=$(jq -c '.phases.notify.result |
+      if (.id | type) == "number" then {id:.id} else {} end' "$STATE_FILE") || return 1
+  fi
+  jq --argjson receipt "$comment_receipt" \
+    '.prepared_state | .phases.notify.result = $receipt' "$PUBLISH_CANDIDATE" > "$STATE_FILE" || return 1
+  atomic_state_update --arg digest "$APPROVED_DIGEST" '.candidate_digest = $digest | .state = "PUBLISHING"'
+  local phase
+  for phase in tag release notify; do
+    should_run_phase "$phase" || continue
+    if ! "phase_${phase}"; then
+      atomic_state_update '.state = "FAILED"'
+      return 1
+    fi
+  done
+  atomic_state_update '.state = "DONE" | .timestamps.completed = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+  echo "[PUBLISH] All published objects verified"
+)
 
 run_pipeline() {
   echo ""
@@ -1305,8 +1544,20 @@ run_pipeline() {
 
   for phase in "${PHASE_ORDER[@]}"; do
     if should_run_phase "$phase"; then
-      # Run the phase function
-      "phase_${phase}" || true  # Don't let phase failure stop the pipeline
+      if [[ "$DRY_RUN" != true && "$phase" =~ ^(tag|release|notify)$ ]]; then
+        update_phase "$phase" "pending" '{"reason":"awaiting candidate inspection and explicit publication"}'
+        continue
+      fi
+      if ! "phase_${phase}"; then
+        # RTFM/lore remain advisory; release-critical failures stop generation.
+        if [[ "$DRY_RUN" != true && "$phase" != rtfm && "$phase" != lore_promote ]]; then
+          atomic_state_update '.state = "FAILED"'
+          if [[ "$(read_state ".phases.${phase}.status")" != failed ]]; then
+            fail_phase "$phase" "Phase returned nonzero; candidate generation stopped"
+          fi
+          return 1
+        fi
+      fi
     else
       update_phase "$phase" "skipped" '{"reason": "not in phase matrix for this PR type"}'
       increment_metric "phases_skipped"
@@ -1315,7 +1566,16 @@ run_pipeline() {
 
   # Post-pipeline: archive cycle in ledger for cycle-type PRs
   if [[ "$PR_TYPE" == "cycle" && "$DRY_RUN" != true ]]; then
-    archive_cycle_in_ledger || true
+    archive_cycle_in_ledger || return 1
+  fi
+  if [[ "$DRY_RUN" != true ]]; then
+    if jq -e '[.phases | to_entries[] | select(.key != "rtfm" and .key != "lore_promote") |
+        select(.value.status == "failed")] | length > 0' "$STATE_FILE" >/dev/null; then
+      atomic_state_update '.state = "FAILED"'
+      return 1
+    fi
+    prepare_candidate
+    return $?
   fi
 
   # Finalize state
@@ -1350,10 +1610,21 @@ main() {
       --skip-gt) SKIP_GT=true; shift ;;
       --skip-rtfm) SKIP_RTFM=true; shift ;;
       --downstream) DOWNSTREAM=true; shift ;;
+      --generate) shift ;;
+      --publish) PUBLISH_CANDIDATE="$2"; shift 2 ;;
+      --approve-sha256) APPROVED_DIGEST="$2"; shift 2 ;;
       --help|-h) usage; exit 0 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
     esac
   done
+  if [[ -n "$PUBLISH_CANDIDATE" ]]; then
+    [[ "$DRY_RUN" != true ]] || { echo "ERROR: --publish and --dry-run are exclusive" >&2; return 1; }
+    mkdir -p "$(dirname "$STATE_FILE")"
+    exec 201>"${STATE_FILE}.run.lock"
+    flock -n 201 || { echo "ERROR: Another post-merge run is active" >&2; return 1; }
+    publish_candidate
+    return $?
+  fi
 
   # Auto-detect downstream mode (cycle-052)
   # If no explicit --downstream flag, check if this is a non-loa repo
@@ -1397,6 +1668,27 @@ main() {
   if ! [[ "$MERGE_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
     echo "ERROR: --sha must be a valid git commit hash" >&2
     exit 1
+  fi
+  if [[ "$DRY_RUN" != true ]]; then
+    mkdir -p "$(dirname "$STATE_FILE")"
+    exec 201>"${STATE_FILE}.run.lock"
+    flock -n 201 || { echo "ERROR: Another post-merge run is active" >&2; return 1; }
+    if ! git -C "$PROJECT_ROOT" diff --quiet || ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
+      echo "ERROR: Candidate generation requires a clean tracked checkout and index" >&2
+      return 1
+    fi
+    local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
+    if [[ -f "$candidate" ]] &&
+        [[ "$(jq -r '.merge_sha // ""' "$candidate")" == "$MERGE_SHA" ]] &&
+        [[ "$(jq -r '.target_commit // ""' "$candidate")" == "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" ]]; then
+      echo "[PREPARED] Existing candidate: ${candidate}"
+      echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
+      return 0
+    fi
+    if [[ "$(git -C "$PROJECT_ROOT" rev-parse "${MERGE_SHA}^{commit}")" != "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" ]]; then
+      echo "ERROR: Generate from the exact merge commit checkout" >&2
+      return 1
+    fi
   fi
 
   # Initialize state

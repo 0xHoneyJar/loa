@@ -28,7 +28,7 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
 
 ## Field Definitions
 
-- `id` (string, required): References the finding ID from Phase 1 (IMP-NNN or SKP-NNN)
+- `id` (string, required): Copy the input finding's `id` exactly, including its source prefix (for example `gpt:0:IMP-001`). Do not substitute `original_id`, renumber, or remove the prefix.
 - `score` (integer, required): 0-1000 calibrated score
   - 800-1000: Critical — clear ROI, low cost, addresses real gap
   - 600-799: Valuable — good idea, some trade-offs

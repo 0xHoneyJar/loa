@@ -4,9 +4,9 @@ import { GitProviderError } from "../ports/git-provider.js";
 import { LLMProviderError } from "../ports/llm-provider.js";
 import { FindingsBlockSchema } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
+import { summarizeReviewVerdict } from "./review-verdict.js";
 import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
 import { truncateFiles, progressiveTruncate, getTokenBudget, deriveCallConfig, } from "./truncation.js";
-const CRITICAL_PATTERN = /\b(critical|security vulnerability|sql injection|xss|secret leak|must fix)\b/i;
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
 /** Patterns that indicate an LLM token rejection (Task 1.8). */
 const TOKEN_REJECTION_PATTERNS = [
@@ -15,9 +15,6 @@ const TOKEN_REJECTION_PATTERNS = [
     "context_length_exceeded",
     "token limit",
 ];
-function classifyEvent(content) {
-    return CRITICAL_PATTERN.test(content) ? "REQUEST_CHANGES" : "COMMENT";
-}
 function isValidResponse(content) {
     if (!content || content.length < 50)
         return false;
@@ -478,7 +475,8 @@ export class ReviewPipeline {
             });
         }
         const sanitizedBody = sanitized.sanitizedContent;
-        const event = classifyEvent(sanitizedBody);
+        const decision = summarizeReviewVerdict(body);
+        const event = decision.verdict === "REQUEST_CHANGES" ? "REQUEST_CHANGES" : "COMMENT";
         // Re-check guard (race condition mitigation) with retry
         let recheck = false;
         try {
@@ -511,6 +509,7 @@ export class ReviewPipeline {
             posted: !this.config.dryRun,
             skipped: false,
             ...resultFields,
+            ...decision,
         };
         await this.context.finalizeReview(item, result);
         return result;

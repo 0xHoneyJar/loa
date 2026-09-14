@@ -13,6 +13,7 @@ setup() {
     export LOA_FLATLINE_OUTPUT_DIR_OVERRIDE="$SCRATCH/output"
     log() { :; }
     log_trajectory() { :; }
+    degraded_verdict_maybe_emit() { :; }
 }
 
 teardown() {
@@ -60,7 +61,7 @@ reasoned_empty_review() {
     qualify_and_aggregate_reviews "sprint" "$first" "$cursor" "$third"
 
     [ "${#QUALIFIED_REVIEW_FILES[@]}" -eq 2 ]
-    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
+    local consensus="$(final_consensus_path sprint)"
     [ "$(jq -r '.voices_planned' "$consensus")" -eq 3 ]
     [ "$(jq -r '.voices_succeeded' "$consensus")" -eq 2 ]
     [ "$(jq -r '.chain_health' "$consensus")" = "degraded" ]
@@ -78,7 +79,7 @@ reasoned_empty_review() {
 
     qualify_and_aggregate_reviews "sprint" "$first" "$second" "$third"
 
-    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
+    local consensus="$(final_consensus_path sprint)"
     [ "$(jq -r '.voices_planned' "$consensus")" -eq 3 ]
     [ "$(jq -r '.voices_succeeded' "$consensus")" -eq 3 ]
     [ "$(jq -r '.chain_health' "$consensus")" = "ok" ]
@@ -87,7 +88,7 @@ reasoned_empty_review() {
 }
 
 @test "CQ-3: phase start removes stale APPROVED consensus before provider work" {
-    local consensus="$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
+    local consensus="$(final_consensus_path sprint)"
     mkdir -p "$(dirname "$consensus")"
     printf '%s\n' '{"status":"APPROVED","voices_planned":3,"voices_succeeded":3}' > "$consensus"
 
@@ -124,7 +125,7 @@ reasoned_empty_review() {
     run qualify_and_aggregate_reviews "sprint" "$forged" "" ""
 
     [ "$status" -ne 0 ]
-    [ ! -e "$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json" ]
+    [ ! -e "$(final_consensus_path sprint)" ]
 }
 
 @test "CQ-5: main embeds canonical verdict and skips scoring when it is not APPROVED" {
@@ -154,5 +155,5 @@ reasoned_empty_review() {
     run qualify_and_aggregate_reviews "sprint" "$hollow" "" ""
 
     [ "$status" -ne 0 ]
-    [ ! -e "$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json" ]
+    [ ! -e "$(final_consensus_path sprint)" ]
 }

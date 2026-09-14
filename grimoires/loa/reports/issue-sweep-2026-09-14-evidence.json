@@ -1,0 +1,671 @@
+{
+  "base_sha": "76458ff24ce078ec9765bae7c3764f8fdc62425a",
+  "branch": "fix/open-issues-20260914",
+  "scope": "Bugs and concrete maintenance first",
+  "issues": [
+    {
+      "issue": 1249,
+      "disposition": "Implemented",
+      "scope": "Separate local generation from approved publication; bind commit/tree/origin/push/API destinations; verify returned release and PR-comment identities; reject unsupported semver and incomplete generated commits."
+    },
+    {
+      "issue": 1248,
+      "disposition": "Implemented",
+      "scope": "Validate the compound ledger input/output under a full transaction lock; preserve bytes on failure. Canonical ledger concurrency and nonexistent sprint updates are included in the follow-up tests. The separate blank-write fix in PR #1247 remains separate."
+    },
+    {
+      "issue": 1246,
+      "disposition": "Deferred proposal",
+      "scope": "Hermes/Buffer publishing adapter is new research/integration work."
+    },
+    {
+      "issue": 1245,
+      "disposition": "Partial; exact examples missing",
+      "scope": "Fix inert metadata, quoted cat heredocs, bounded print-only loops and literal-only Python data, plus three rotted expectations. Escaped quotes and live trailing writes remain blocked. Full original sed, hook-probing loop and Python commands were not provided."
+    },
+    {
+      "issue": 1244,
+      "disposition": "Implemented",
+      "scope": "Implementation AC checks resolve the owning sprint; micro-sprints no longer inherit the unrelated root sprint path."
+    },
+    {
+      "issue": 1243,
+      "disposition": "Implemented",
+      "scope": "Accumulate all appendix sections, match whole goal IDs and avoid large-input SIGPIPE false negatives."
+    },
+    {
+      "issue": 1242,
+      "disposition": "Implemented",
+      "scope": "Refuse the legacy updater on submodule installations before update/check/list/rollback work."
+    },
+    {
+      "issue": 1241,
+      "disposition": "Implemented",
+      "scope": "Stage the exact pinned Aleph bundle outside the consumer; execute the real immutable installer without relaxing its overlap guard."
+    },
+    {
+      "issue": 1240,
+      "disposition": "Implemented",
+      "scope": "Preserve qualified partial findings and DEGRADED evidence with a nonzero result before stabilization/suggestion logic."
+    },
+    {
+      "issue": 1236,
+      "disposition": "Deferred proposal",
+      "scope": "Cross-repository cognitive frontier is new controller architecture."
+    },
+    {
+      "issue": 1235,
+      "disposition": "Implemented",
+      "scope": "Classified greenfield history can bootstrap `0.1.0`; unclassified history stops with explicit evidence."
+    },
+    {
+      "issue": 1234,
+      "disposition": "Implemented",
+      "scope": "Honor authoritative active-cycle pointers and legacy IDs; reject ambiguous/missing selections, preserve incomplete cycles, emit ASCII ledger JSON and a named archive commit."
+    },
+    {
+      "issue": 1233,
+      "disposition": "Implemented",
+      "scope": "Linked-worktree status checks the exact active cycle against cached default-branch history and warns on an explicitly shipped cycle without changing local state."
+    },
+    {
+      "issue": 1232,
+      "disposition": "Implemented",
+      "scope": "External Aleph staging fixes the overlap path; child execution preserves parent lock/temp cleanup and exit status."
+    },
+    {
+      "issue": 1230,
+      "disposition": "Implemented",
+      "scope": "Direct verdict CLI and shell rejection logs expose bounded code/path/validator diagnostics without rejected values or control characters."
+    },
+    {
+      "issue": 1229,
+      "disposition": "Implemented",
+      "scope": "Final consensus artifacts are owned by phase/run ID; an atomic latest symlink is published after each run consumes its own artifact."
+    },
+    {
+      "issue": 1216,
+      "disposition": "Implemented",
+      "scope": "The bug validator consumes its own template using portable whitespace syntax."
+    },
+    {
+      "issue": 1215,
+      "disposition": "Implemented",
+      "scope": "Cache test helper honors the injected sanitizer, with a populated-cache rejection test."
+    },
+    {
+      "issue": 1214,
+      "disposition": "Implemented",
+      "scope": "L7 header matches silent missing-file/disabled behavior; runtime bytes below the header are unchanged."
+    },
+    {
+      "issue": 1213,
+      "disposition": "Implemented",
+      "scope": "State and repository lookup use the intended consumer root across standalone and canonicalized submodule scheduler execution."
+    },
+    {
+      "issue": 1211,
+      "disposition": "Implemented",
+      "scope": "Bash/Python verification shares authoritative signed writer bindings; policy and pinned-root bytes are captured coherently and cache invalidation follows both identities."
+    },
+    {
+      "issue": 1209,
+      "disposition": "Deferred proposal",
+      "scope": "Instrument enumeration and negative-claim publication gate require a new authority/transport design."
+    },
+    {
+      "issue": 1208,
+      "disposition": "Deferred proposal",
+      "scope": "Checkout freshness hook is a new gate. Cached status advice in #1233 is included separately."
+    },
+    {
+      "issue": 1207,
+      "disposition": "Deferred proposal",
+      "scope": "URL provenance hook is a new gate."
+    },
+    {
+      "issue": 1206,
+      "disposition": "Implemented",
+      "scope": "Explicit PR selection precedes batch truncation; a missing selected PR fails instead of returning an empty success."
+    },
+    {
+      "issue": 1199,
+      "disposition": "Implemented",
+      "scope": "Flatline validates and dispatches configured models/aliases. Normalize one complete scorer envelope, retain absent scores as null and real zero votes, and bind votes to the same source-qualified finding. Incomplete coverage preserves validated votes and all qualified raw findings, reaches the canonical DEGRADED verdict and exit 6; qualified empty reviews remain valid."
+    },
+    {
+      "issue": 1197,
+      "disposition": "Implemented",
+      "scope": "The three cleanup path-resolution sites use the existing portable resolver and preserve containment rejection."
+    },
+    {
+      "issue": 1196,
+      "disposition": "Assessed; no actionable defect",
+      "scope": "\u201cLoa(fable)\u201d is an operating-manual prompt without a concrete failure or acceptance criteria."
+    },
+    {
+      "issue": 1195,
+      "disposition": "Implemented",
+      "scope": "Review/audit capabilities permit required State feedback writes and the verdict command, while retaining System/App restrictions and disallowing general shell writes."
+    },
+    {
+      "issue": 1181,
+      "disposition": "Implemented",
+      "scope": "Remove fabricated System-Zone grants; transport the original task to all eight dispatch paths and preserve phase-specific authority limits."
+    },
+    {
+      "issue": 1174,
+      "disposition": "Implemented",
+      "scope": "Undriven zero-work bridge runs fail; current-run findings, recorded work or new commits provide positive evidence. Explicit empty-run opt-out remains visible."
+    },
+    {
+      "issue": 1172,
+      "disposition": "Implemented",
+      "scope": "All registered hook commands and wrapped targets use quoted Git-root paths across nested worktree/cwd placements."
+    },
+    {
+      "issue": 1171,
+      "disposition": "Implemented",
+      "scope": "Body verdicts and blocking findings drive a conservative merge handoff bound to repository/PR/head; unknown or conflicting verdicts cannot clear it."
+    },
+    {
+      "issue": 1168,
+      "disposition": "Concrete subset implemented; epic remains open",
+      "scope": "Missing operands, ref/symlink boundaries and literal logging were already fixed and re-proved. Add pinned yq verification, required auxiliary downloads, and content/root-mode-verified private relocation with atomic destination refusal. Broader architecture/process proposals remain deferred."
+    },
+    {
+      "issue": 1166,
+      "disposition": "Partial; live evidence required",
+      "scope": "Fix local Cursor/model validation, retained evidence and qualified tertiary partial results. Keep native structured-output requirements blocked: the Cursor JSON transport still permits prose and does not enforce a response schema. Historical GPT empty output and subscription authentication/availability remain unverified."
+    },
+    {
+      "issue": 1105,
+      "disposition": "Deferred conditional proposal",
+      "scope": "User-facing refusal classification is explicitly future work; no present failing behavior was supplied."
+    },
+    {
+      "issue": 1104,
+      "disposition": "Implemented",
+      "scope": "Strict Bash/Python parity, effective cutoff and signature enforcement reach the real signed-rollup caller; consumers bind verification to the bytes they aggregate/archive."
+    },
+    {
+      "issue": 1099,
+      "disposition": "Implemented",
+      "scope": "CLI-reported cost reaches integer-microUSD ledger/rollup/envelope accounting and a once-per-process warning. This does not infer current provider billing policy."
+    },
+    {
+      "issue": 1095,
+      "disposition": "Implemented",
+      "scope": "Custom/OpenAI-compatible declared providers resolve through the same configured Flatline validation/dispatch path."
+    },
+    {
+      "issue": 1088,
+      "disposition": "Partial; host incident unresolved",
+      "scope": "Repair relative-path State exceptions and zone-guard parser/cache handling. Original Claude/macOS permission state and denial evidence are unavailable; no host fix is claimed."
+    },
+    {
+      "issue": 1065,
+      "disposition": "Implemented",
+      "scope": "Eight construct extraction fallbacks use contextual strict parsing; construct-index is in the scanner, and construct-only YAML works with Mike Farah yq."
+    },
+    {
+      "issue": 1047,
+      "disposition": "Assessed; deferred hardening",
+      "scope": "Document and execute harmless examples of the accepted regex-fence limits. Effective-write interception or a full shell parser remains a separate design."
+    },
+    {
+      "issue": 1037,
+      "disposition": "Implemented",
+      "scope": "BSD parsing of Z-suffixed timestamps explicitly uses UTC in the shared helper and both constructs-library fallback sites."
+    },
+    {
+      "issue": 1036,
+      "disposition": "Implemented",
+      "scope": "DEGRADED triage leaves an explicit human-checkpoint warning/summary; a later clean result clears the stale marker."
+    },
+    {
+      "issue": 1033,
+      "disposition": "Deferred proposal",
+      "scope": "Chain-witness orientation tool is new functionality."
+    },
+    {
+      "issue": 1032,
+      "disposition": "Implemented",
+      "scope": "Remove unused Bash cost registries, refresh maps/headers/allowlist and prove pricing/default registry parity."
+    },
+    {
+      "issue": 1031,
+      "disposition": "Assessment completed",
+      "scope": "Retain the reported host-enforced primary shape and document remaining Bash writes, same-batch ordering and stale-Edit gaps. Host ordering semantics were not measured here."
+    },
+    {
+      "issue": 1030,
+      "disposition": "Deferred proposal",
+      "scope": "Evidence-gated completion transitions require a new lifecycle protocol."
+    },
+    {
+      "issue": 1029,
+      "disposition": "Deferred optimization",
+      "scope": "Issue discussions clarify that in-context phase invocation still accumulates skill context. Per-phase JIT isolation and its before/after runtime occupancy benchmark are separate from the implemented correctness fixes; source inspection does not close this request."
+    },
+    {
+      "issue": 1027,
+      "disposition": "Implemented",
+      "scope": "Shared headless completion/validation flow retains provider transport, environment, cleanup and parsing contracts; migration tests exercise the live adapters."
+    },
+    {
+      "issue": 1026,
+      "disposition": "Implemented",
+      "scope": "Delete dead chain routing and migrate surviving behavioral assertions to live resolution paths."
+    },
+    {
+      "issue": 1025,
+      "disposition": "Implemented scoped guard",
+      "scope": "Extend the existing parser tripwire to continued commands/constructs and migrate all 16 explicitly suppressed gate-critical sites in scoring, Flatline and red-team consumers, including caller error propagation. This is not an exhaustive shell parser or a repo-wide cosmetic-read migration."
+    },
+    {
+      "issue": 1006,
+      "disposition": "Deferred RFC",
+      "scope": "Model-aware canonical dispatch is a new routing contract."
+    },
+    {
+      "issue": 1001,
+      "disposition": "Deferred RFC",
+      "scope": "Budget DOWNGRADE actuator and tier-group application require a new routing policy."
+    }
+  ],
+  "validation": [
+    {
+      "suite": "python-ci-selection",
+      "passed": 2151,
+      "skipped": 9,
+      "subtests_passed": 693,
+      "log_sha256": "d2ee37514ccdf5471dffd2279d0a89eef9e6677a69467d56520107dd71f7c7dc",
+      "log": "ci-maintenance-python-final.log"
+    },
+    {
+      "suite": "maintenance-integration",
+      "passed": 127,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "6ac3e74040d112ed5f76f1662f07aceae52f4b04910ee33cbfedbe58621232a8",
+      "log": "ci-maintenance-integration-clean.log"
+    },
+    {
+      "suite": "release-semver-compound",
+      "passed": 186,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "5b2dbd08e3a8f23d7dc8d6331eb00e924a42196fc02a017ff1c072d237d42208",
+      "log": "release-complete-final.log"
+    },
+    {
+      "suite": "scorer-shell-final",
+      "passed": 97,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "e12119f2700b15ae6098ab07f246d251585f9fd18e98268303c687e837d768c1",
+      "log": "flatline-f4-shell-final.log"
+    },
+    {
+      "suite": "scorer-python-final",
+      "passed": 92,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "15862d4628cacb8cae6d42fa26b53752ced1a2e3cb35dd9d3f600dba5d6f60e3",
+      "log": "flatline-f4-python-final.log"
+    },
+    {
+      "suite": "parser-final-after-scorer",
+      "passed": 116,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "6fa187e1edae5e61c43faa70544da616dfac013b2c4ba5415138332fca9d76fa",
+      "log": "gate-after-f4-final.log"
+    },
+    {
+      "suite": "ledger-transaction-and-unit",
+      "passed": 52,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "7edc11757a3f16fb95284e65d0b03405beb9659b820bb17ac707e6266ba7863c",
+      "log": "peer-ledger-rereview-evidence/repaired-unit-transaction.log"
+    },
+    {
+      "suite": "ledger-pr1247-composition",
+      "passed": 57,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "5f8bffe2521452c6b25cb4c18f0deeaa64169dcf7aa195d69d0e42f713833913",
+      "log": "peer-ledger-rereview-evidence/combined-pr1247-unit-transaction.log"
+    },
+    {
+      "suite": "ci-portability-ledger-map",
+      "passed": 96,
+      "skipped": 1,
+      "subtests_passed": null,
+      "log_sha256": "83d8f8b61111122b1b2ca9519f45550aca3e1a95b4720b8ccf73efb1fe98ac2e",
+      "log": "ci-repair-targeted.log"
+    },
+    {
+      "suite": "ci-ledger-pr1247-composition",
+      "passed": 82,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "f8b7df238f0ecbfb037a25ed283bff957c03e447d1be13347d53d1e79e5bb6e1",
+      "log": "ci-repair-composition.log"
+    },
+    {
+      "suite": "ci-script-suite",
+      "passed": 398,
+      "skipped": 1,
+      "subtests_passed": null,
+      "log_sha256": "5d3f4714805b6f03711e3d8ff957d662d7a2c3f1c963643eae981b50f67e64cb",
+      "log": "ci-repair-script-tests.log"
+    },
+    {
+      "suite": "ci-final-metadata-gates",
+      "passed": 8,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "5f19806e30cb8dd8095077ec0750bc0f98014d535631a1a8f90051b261997401",
+      "log": "ci-repair-final-gates.log"
+    },
+    {
+      "suite": "publication-tooling-failure-log",
+      "passed": 8,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "cf793263c1860950217d3fc3d8b08409b53433cc7046b4b6a9c02d3ebb754bbf",
+      "log": "ci-publication-metadata-gates.log"
+    }
+  ],
+  "validation_note": "Suite counts overlap and must not be summed. The final F4 scorer change was followed by the 97 shell, 92 focused Python and 116 parser runs; unaffected Python paths retain the broad CI selection result. Hosted run 34823549793 confirms the broad Python and integration selections on a3a7281. The subsequent portable ledger lock, KF fixture and generated-map correction is parent-tested by the four appended suites; earlier peer reviews retain their recorded hashes.",
+  "source_sha256": {
+    ".claude/adapters/loa_cheval/audit_envelope.py": "14fed7b970352a6016cbfd73b3734535dbef796a5e460eda9deef699c64a01a6",
+    ".claude/adapters/loa_cheval/metering/budget.py": "7123ae22cd517e8686e1c576ba32d04d8d10389ab752d1fe869cfa04411a9d8d",
+    ".claude/adapters/loa_cheval/metering/ledger.py": "e36cfee5a808fd5b0ee6017d7b18e2a354cc654b00aa91c3b4de733d54fd2040",
+    ".claude/adapters/loa_cheval/metering/pricing.py": "2f36586763f543159e08588e31f338ee3cbc11932b9fbd999a9c34f537494ab1",
+    ".claude/adapters/loa_cheval/metering/rollup.py": "55769153f70584b6cb01f8292991eef30da779978b5160b767ff16159568c8c0",
+    ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py": "85cda2c1a89dbbdcffe7e721db10716870376e3756a66b21d55b1b05404fda9b",
+    ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py": "61a793b34e9e30b24527bd1bf4c1b10d112175af88612ceb97605fb01f3ed61a",
+    ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py": "4930d10305124d07df44fa5ec1454122d658d759ee879cbcae57ec93ad1b96e6",
+    ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py": "a3125ef9abfb00bb741973938916683824f48d3ad093e6d9a6e94382de39a5ea",
+    ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py": "7c7f315da7f2e610900cd1a6d2899b2b9c068d88a64d1ff8399c9c9dab7977dd",
+    ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py": "11afa1c5a0ea56264fdb7fa2e56096e237ac5708a81e8fcf2909aee4d47fa714",
+    ".claude/adapters/loa_cheval/providers/headless_cli.py": "7d9f87952f547d0d6fba47607ecbd86e29fa806972d3d071283906b83119854c",
+    ".claude/adapters/loa_cheval/routing/__init__.py": "55d7483de2c461fffbc19efe3b314f1b0cc7b25601280741f793d0184f89f9fb",
+    ".claude/adapters/loa_cheval/routing/capability_gate.py": "e4e520853fe115bcd65db93a50d9beffad89e8eb0d7d739a32232b2e52bbd555",
+    ".claude/adapters/loa_cheval/routing/chain_resolver.py": "c40820a6b9bb0cac6f97cfb2beeabba3f9a8b9c9513b2b90c8ac46b3803821c1",
+    ".claude/adapters/loa_cheval/types.py": "f58b0ac5f8776bdb3d7a63f6f79cfda4e265f5984b09ee7fb2b6debd5dcc0ca9",
+    ".claude/adapters/loa_cheval/verdict/aggregate.py": "6ae40715cdb813eff8c482ef7a90a9c7ac6b5b7b9138dea69bf0511d6e087f15",
+    ".claude/adapters/loa_cheval/verdict/quality.py": "e73fa78923a16483bfd645a935fe161f7443a9eb1b3e415105d3c9a275697db2",
+    ".claude/adapters/tests/test_aggregate_expected_count.py": "552df6e79829ca6b501e461ab5f21a823d8847ba9b61a674659a311ef60860ed",
+    ".claude/adapters/tests/test_audit_envelope_strict_verify.py": "08fb7190440b8debc5cbf43ee7d9d9e424358fdd09e1f4075ea0427922354f6e",
+    ".claude/adapters/tests/test_bedrock_adapter.py": "f38ca74d70aff556f356fd4ce414c215c4473f1cd09a184e2d0c75e8d6fe3baf",
+    ".claude/adapters/tests/test_budget_fallback.py": "c887212a691eecd7b4b43be52e6f102ddf30f4ec39aaf5defbba7672c2dff607",
+    ".claude/adapters/tests/test_chain_walk_audit_envelope.py": "d7ed0b66195f38ea61aaed50aa4c3d145b9dd31d01cb0db37c1d6a205c7de54f",
+    ".claude/adapters/tests/test_cheval_exception_scoping.py": "6781068d9160cd365c91b860b1fa0268ec7b47f7b329f2c492ddd56d197a632b",
+    ".claude/adapters/tests/test_cli_reported_cost.py": "b25a5001880872ec8d45200391008a3d67fc91a46f02069dcd5db774992246bd",
+    ".claude/adapters/tests/test_connection_lost_classification.py": "33030970a0e80a2cc8ab0a2c599f644c991a0fb4d7de7a7393b9807cb6829b51",
+    ".claude/adapters/tests/test_cursor_structured_capability.py": "19c72ce2efe11f4b3e168ebbb6f417cd7a26569a55df37c277e874aaf5e2e080",
+    ".claude/adapters/tests/test_feature_flags.py": "1ebf8d276368bbf89e112049a940870bbdfd2269b032f9e8e6b240c2d1ffe736",
+    ".claude/adapters/tests/test_flatline_routing.py": "692f53c92424f7a0baa56633a58ad666b48f21517817f5b088af6c49388ec384",
+    ".claude/adapters/tests/test_headless_shared_contract.py": "8a00fb5ee69e230fafc6644502286f8bf706aa9c3a7987a5af142d82b1815373",
+    ".claude/adapters/tests/test_live_chain_contracts.py": "89bb878bd8a52e1c0abdea5238b25af30a7d36723a201c2829d580ff6f8c7ad4",
+    ".claude/adapters/tests/test_mock_fixture_dir.py": "fe8922212dab1760441ec04c7e7d4baddd43f55035c1745c6a7fce2e5da32a00",
+    ".claude/adapters/tests/test_model_registry_parity.py": "36612c58956416b233754565e926080803df5a44eafc156a4ec125191e6f3d7a",
+    ".claude/adapters/tests/test_multi_adapter.py": "4f274828e6712f90d0e313643163394bacb388999d68580e30ddd8adb582501b",
+    ".claude/adapters/tests/test_preflight_preempt_modelinv.py": "ba98c1d421513057aec6885807def178b4ca346987eb934b7bff2f1ed47f3347",
+    ".claude/adapters/tests/test_verdict_quality_aggregate.py": "919f9fe0ea513dbdd0eebf6a65941bd9b03af858202d92ba9670e79123c860bb",
+    ".claude/data/schemas/verdict-quality.schema.json": "fa0988541299e4de6a37a18ac69985b5fa4398ab0ae2274819db307d854ef269",
+    ".claude/defaults/model-config.yaml": "ea94f7d8167e1a1d31b19f929216bf00b5b9d56bd90e7920c0c72575c5d3a5aa",
+    ".claude/defaults/model-config.yaml.checksum": "0aa2cfd5bf795aa97fd5024e6a50a35b3d54ceaf757a6f90237a4f6923b3f64c",
+    ".claude/hooks/safety/block-destructive-bash.sh": "b249275d811b357e60de1408ec2989c11e95568dbb51fe931b5f1738602604ad",
+    ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
+    ".claude/hooks/safety/zone-write-guard.sh": "9e2ccc640126b55ccb098f3c099a78bb9bca5148942dcaf9c766645021cc7a84",
+    ".claude/hooks/session-start/loa-l7-surface-soul.sh": "20526336118686c2bd4081750ee3fc0d0ba90739eb6b99a62f1353ecbd8fa8b2",
+    ".claude/hooks/settings.hooks.json": "ab038a387d5fd65ab76e855bb5f455474acfe50dac4f5e3c23ea6412ad7a873d",
+    ".claude/rules/skill-invariants.md": "1780ba09fd8e94246b293218fc77c77fea29281b6a64137a13e2a2d15af321c8",
+    ".claude/schemas/flatline-result.schema.json": "648a32f68bf0afd9370cde6678d9b0a366de80df687261f76abcbf8496b9772c",
+    ".claude/scripts/audit-envelope.sh": "edea0b3963d0d502f60fd832c8b475220f87867a20c1d9fc3761003c77912d41",
+    ".claude/scripts/audit/audit-snapshot.sh": "26ee3d9641fba17ded1550079f42d503aba629c07f92167d932373ec03f42c41",
+    ".claude/scripts/beads-flatline-loop.sh": "5cc429a3d9e7a79e14a7e40aba3d18edaddf59d853b205cffa32bfce257019f5",
+    ".claude/scripts/bridge-orchestrator.sh": "80d8a21bd9fc7434583e0009c0e09eb06eeb7748e859ce3a6e0eec0105a696ca",
+    ".claude/scripts/compat-lib.sh": "66c84b3056b2c6095888867fd44375d12d6922bbea12f2b5448b8dc24f7cc446",
+    ".claude/scripts/construct-index-gen.sh": "fe414c7f0884ba9571927ca821a4eaa003e95e639830f5274ed3beabebac8bce",
+    ".claude/scripts/constructs-lib.sh": "b22dfc37a4baa24d38033b97c15abec4d9c27c17867e176cd1d6b672f2bf6adb",
+    ".claude/scripts/flatline-orchestrator.sh": "a6f866db83c6ece0dbc0a88798c76e0467e0ec5d346a4374ddd398abbf7a4db2",
+    ".claude/scripts/gen-adapter-maps.sh": "2bfa39416dd333b21a94b53753653d8aceaa9eb6b87a5e18ec356bfa2119ac77",
+    ".claude/scripts/generated-model-maps.sh": "3abd0676aaa4ffd9a5c03620646bf972a25231773b061090cfb9051c55c143e3",
+    ".claude/scripts/ledger-lib.sh": "bf665fdae46952ac88036f96990d6364a4e701fa31267d1c86eb5497391f8fb7",
+    ".claude/scripts/lib/normalize-json.sh": "374f2facdd8e8cc6a9b6b304324e91819d6c3d51a5cc92d6f8749d622c29259b",
+    ".claude/scripts/lint-invariants.sh": "2c4f558b44b7334c28ef286fb4cc48c7436cec6ea9de8df24fda44bea9d4ee15",
+    ".claude/scripts/loa-status.sh": "509d1791ca3ac8c2ab4036b5f863ae8c60b284f938d2076fd5d2e2adb8168477",
+    ".claude/scripts/model-adapter.sh": "49f38d99e2f6713b8ee7d9ce62d8a624c43a08b499858684854af4b77935972b",
+    ".claude/scripts/mount-loa.sh": "3e4fcfe61193b9b3f1c2037490814b94903cfc9b4f3ecd9e32e29940e03620f5",
+    ".claude/scripts/mount-submodule.sh": "a690065e7c70a4c295be94f88236e4724e450056c170ff12a38c2745f832855d",
+    ".claude/scripts/post-merge-orchestrator.sh": "3353f1991ee5d75714ce1502fae76bad825cba2da6f093a46c9ded37e9080a4c",
+    ".claude/scripts/post-pr-orchestrator.sh": "47e85fe4e51754bd18dd8500f1e9a51b910bd96163b70d2d31241bbbabe89c14",
+    ".claude/scripts/post-pr-triage.sh": "e0a7f8a65dba12545226f7173c6b9cf934c6981952470ae42ebbf0be366063bd",
+    ".claude/scripts/red-team-model-adapter.sh": "8e8b0d2aabb359901ca79d803948de53584b6af97dd0801416fe4d7743a46db8",
+    ".claude/scripts/red-team-pipeline.sh": "9276d5239013fb6df305c5a5e8d7a6106c7cee1fa631bc9814f54fec3893e4df",
+    ".claude/scripts/scoring-engine.sh": "3ebb09823f0532fe9fb007aecc56979a5500108e490b1c3b4ef6b83a09c107b1",
+    ".claude/scripts/semver-bump.sh": "83b3a2b0cb0a60d33f337d2f93e4595aaccd156e85b29cf59b57d0760e0a4831",
+    ".claude/scripts/spiral-harness.sh": "2b828a78953b83a4ffcc01c6223d64b928822adeeddf591e7fafeabf02322387",
+    ".claude/scripts/test-safety-hooks.sh": "f66b41218595bd05a4d5da4bf251a47c70d36acb5d3d4b46819f29898e273487",
+    ".claude/scripts/tests/test-mount-submodule-default.bats": "459dae851115c37741aca3250f1a7a555889a4d30256821cdf9b359b97ee89aa",
+    ".claude/scripts/tests/test-mount-symlinks.bats": "7d79f3e823eb56f4e7518d695bf3a1ff530cb16f2cf6bf97c6cfe8f04603cd2b",
+    ".claude/scripts/update-ledger-compound.sh": "faaca564e2dbda0c428a8d92d95717cc6e38633da6b4c3430005f2e797863207",
+    ".claude/scripts/update.sh": "ed50e1156559bd715761a77ef31db90b9be01339668685236413aa645c62b49c",
+    ".claude/scripts/validate-artifact.sh": "e17938d8e9f336b63e0b0855b2af3696ddaba61c80d329028e5f227689e41813",
+    ".claude/scripts/validate-skill-capabilities.sh": "638039a412c0b9e9699cd94baec8952312fa69f0d524c14495d05c9b8e04a8a9",
+    ".claude/scripts/workspace-cleanup.sh": "23bfe72ad292bdb836a51ed25d5779bb15bea4c11ccffc0e59b3710ff0220fec",
+    ".claude/settings.json": "e72335587934fb25e4a6b9a767b2f5899d14779f6f294d64c35479307a77bc36",
+    ".claude/skills/auditing-security/SKILL.md": "1ceb6a37f50e2d7e1506dd7c11eed426620676207f099fbc7258df28d974b2a3",
+    ".claude/skills/bridgebuilder-review/SKILL.md": "ea0bf8e0a3867e853298ce0ed94fabfa7b848caf9e898d31262af49d2dcb43d1",
+    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "17d5ace2822f8301a4570affe732081937216768a4ac1aca1334046b9b7639c5",
+    ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts": "8da20a1d94dc7461d4f83f1efea33641d4b0a815c32035bb520ec4f859cf2773",
+    ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.d.ts.map": "9fcc5253f001cc6d75500bce28705c07d1df0ab802f50e75da358bc7ff4e62bd",
+    ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js": "7db3c574c44bf3dbb72912b58e604b75ad20ed333046c99dcabaf4a3bd3ab830",
+    ".claude/skills/bridgebuilder-review/dist/core/multi-model-pipeline.js.map": "b2ff9664645c1ec650a2f6e4d6f0e65f320596dfbb56be93e41829406e978acb",
+    ".claude/skills/bridgebuilder-review/dist/core/review-verdict.d.ts": "80ae73f4aa54d596c816c4458d5480d56545763f563378bba257c3f0bd5ebe34",
+    ".claude/skills/bridgebuilder-review/dist/core/review-verdict.d.ts.map": "3689c0f61e9a7c836b01e71384ca8a55f52d5b9b12200d798b41abc7d2bd716c",
+    ".claude/skills/bridgebuilder-review/dist/core/review-verdict.js": "db2233882bf19e4f16f44d0ffa98d0f489acc5ef502b8959d2470ef3f3c370c7",
+    ".claude/skills/bridgebuilder-review/dist/core/review-verdict.js.map": "575310b9cabe9147f520ade4eb0b755030bf2297db9a6aa95d2079a35baa8fba",
+    ".claude/skills/bridgebuilder-review/dist/core/reviewer.d.ts.map": "60da63aba4ca1c806dcbcb64ea62236e877a66ec414d24ca9b10170b4863738a",
+    ".claude/skills/bridgebuilder-review/dist/core/reviewer.js": "c9b7e3f04575be8bf51834c42cdb19d48855e6a82708e38729a483535bda5397",
+    ".claude/skills/bridgebuilder-review/dist/core/reviewer.js.map": "083d6eada91a69da9be1ddd421ea3f921c6aa3c8b6de142b248464351dbc85e3",
+    ".claude/skills/bridgebuilder-review/dist/core/template.d.ts.map": "3feab2e12cc3ac7a1e0a71b255c99bea22460d444ea00775f3e08c59552ac1a6",
+    ".claude/skills/bridgebuilder-review/dist/core/template.js": "44d9edd7989d35d496de4805756627e55ace8c673ae8440cc955b86616526926",
+    ".claude/skills/bridgebuilder-review/dist/core/template.js.map": "ef946e2a897ea821e467ec3d9b4c6824342981b1d295348b03f10b5648a9313f",
+    ".claude/skills/bridgebuilder-review/dist/core/types.d.ts": "d6d67bcccb2b782c20ce6920b47717df92a8f20f6ca4d0c048cd1ca830f2e764",
+    ".claude/skills/bridgebuilder-review/dist/core/types.d.ts.map": "b664d63540db4e3bced5075dc7596a420b14ee1bc7c11366d64f6f8235cc435c",
+    ".claude/skills/bridgebuilder-review/dist/main.js": "ed39f5c75c6e08c1bd7e51f9f9cabf0ebe2f5e179c9e9c531155f303f903f4da",
+    ".claude/skills/bridgebuilder-review/dist/main.js.map": "85d4fd321286151314ea539abb187798c6dd84ddb34b7eeaa0d35db86277470c",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/cache.test.ts": "013c8c8b1247fb1c52082a88be2ed07b87543f99729b29ed5e6fac84582f242a",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-verdict.test.ts": "33ef54e9824aba9f8843f40c887f68619b8a40892e38a7e3b49370887f2d56f3",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/review-verdict.test.ts": "fb7e0f01d0cf96a69d76105d679113ef256a072b2e4ab946602abcdd48a82b76",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts": "d9ad02037211659a2d70bd002839ce6c9e390fecec7ceebf9547535ca059387d",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts": "5cbb3374dbe51f75e9cba8b6ed479d2810a157fb13bd2ce977d1f0976c0e625a",
+    ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts": "4d51529acbacb8604d99412636716f9c25df5a62f4d100a3d4478a9e5412927f",
+    ".claude/skills/bridgebuilder-review/resources/core/review-verdict.ts": "be87841aa516aae732397ab2f1c469e3ca78c206bf4d04206641078bc92475ea",
+    ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts": "5f045f33accaed9fee903d7947f6b720c3411f1dcdc84c32468e334b4408bad6",
+    ".claude/skills/bridgebuilder-review/resources/core/template.ts": "9b0163d3aca18196e5701fe27575e5d27249763b42f59ea09680719e978b215f",
+    ".claude/skills/bridgebuilder-review/resources/core/types.ts": "b2550acecccd39fe9c14583742f19870db0835e543995f1208543f82283318fe",
+    ".claude/skills/bridgebuilder-review/resources/main.ts": "09ef7aedea7d9fb528bab348641c1b04efe93607d2da2353db68580be7dcb360",
+    ".claude/skills/deploying-infrastructure/SKILL.md": "db12567d0412fcac4a3f5ac10dc8506bd9ab931807246d91a98b425051824cd1",
+    ".claude/skills/flatline-scorer/persona.md": "5e66b8fc2071532a89b59fb9cbf229ca940d8dc0ebc79e36822ae88eb6d05a6d",
+    ".claude/skills/implementing-tasks/SKILL.md": "a48022fca1085ce76495161103bc216144257be0ba0fbc538531e37a27455f3a",
+    ".claude/skills/planning-sprints/SKILL.md": "ce38b43c4dff16c47b628d0718a0d36c565ac32332995af41b0da0b8437c4bd1",
+    ".claude/skills/reviewing-code/SKILL.md": "1786e6d1cd0cfa1ead748b2a030fc6ded84c563fb26291109fe24aed4bc9a50e",
+    ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh": "37ec612a4aff03887f087ccc2d0af33bf6b83d06af6f8b23eb02c28933860c63",
+    ".claude/skills/scheduled-cycle-template/contracts/session-cap-bb/reader.sh": "43a74ad80ba505faa21a5ffbf4c18d8b305cfb31ad786dd6646e0902dfac2fe5",
+    ".github/workflows/bats-tests.yml": "8bed2492cc609c5956f4df5001c1c7c34ee62f26017e113c5b233dc64699e5e8",
+    ".github/workflows/post-merge.yml": "7548e69e38d767249ed8dab6f106b58b89d560d981d0cac8bfd61687ad7e1074",
+    "docs/audit-trust-verification.md": "77ad4c0472a6567fbad2971d3e7ba452e9ae86d35458a559b7295e74a1d2345f",
+    "docs/flatline-bridgebuilder-results.md": "95409b11945c880ae674b36578d8e7c703aad9865aed02f6f695fb37618871b2",
+    "docs/runbooks/hook-safety.md": "34ae86a0961d7f65d90494aff704a836cd64380845b8c0bc61eb03e2cec0e81e",
+    "docs/runbooks/installer-integrity.md": "318025f21e996b69e5342eb8f2ed4f5b21178358ff3be9720ee2a4bb92cb011b",
+    "evals/fixtures/loa-skill-dir/.claude/scripts/mount-loa.sh": "3e4fcfe61193b9b3f1c2037490814b94903cfc9b4f3ecd9e32e29940e03620f5",
+    "grimoires/loa/REPO-MAP.md": "0fd0803ce6cd3722a8147edfaf849ddb5cd097d1c4eb38839d9e233fbeb335b8",
+    "grimoires/loa/REPO-MAP.md.checksum": "25ebc16cf7fe257b43ff3f34017f8cf224ea14a021b0c1f43d612dc95b889697",
+    "grimoires/loa/known-failures.md": "da231787a82855034088c8659e6208586229e2d1533aa6670d3a966250a58c92",
+    "grimoires/loa/runbooks/post-merge-candidates.md": "936ee0bfbce82055c9f0c56f8913132e8083be8547dfde3e05b7c0f0313d6d01",
+    "tests/integration/audit-envelope-signing.bats": "51a3bc5462eb49da5e44ed82dcd1b70555ceb76b3ed059bc1ad08dc916a18c50",
+    "tests/integration/audit-snapshot.bats": "c2daa336c42f9f79ad37388323430623f84710066c3a7ccfd92dc4de9bb522f9",
+    "tests/integration/flatline-content-qualified-quorum.bats": "544bace943eab0c6da1b43bc60a544c6ee99cc79a70aacac5e9f1184aadd0e5b",
+    "tests/integration/flatline-issue-sweep.bats": "0c5e770c10447e524f3b1291e65bb64a29bbefd8cdb6b43d5ee6fd53a9530099",
+    "tests/integration/ledger-workflow.bats": "fd395d030c2fc1e85f32b0c0756339e338a5f8ff718324221317762d1ea8bbba",
+    "tests/integration/post-merge-pipeline-697.bats": "29bc67d23f0bd2b29c3f958b241670b6cb32855d33e2c450c31541103be2e9f4",
+    "tests/integration/session-cap-bb-dispatch.bats": "63dd685e0ea2ae1ec1a950000b4ab7722e10de5066671bca9d965901da25dd55",
+    "tests/integration/soul-identity-7b.bats": "6c221a2691e76add4aef8fdb7775ecdbd88ebc631b16f4e490b8ec6972e4ac29",
+    "tests/security/audit-envelope-strip-attack.bats": "8508beff5e31de31db19e65de55af6cc9257296b12a597acfd187ddb6b4416c2",
+    "tests/security/test_audit_consumer_snapshots.py": "b9405caeec72c34ca3a842cb8afcc9c78f3a00fe2b5467a122cdc4e3f47468ba",
+    "tests/security/test_audit_trust_policy.py": "1b43e70a7a01f2b2242ac051eefadae7387253f7b5e6ccc0e766c15553efa295",
+    "tests/security/test_installer_epic_proofs.py": "552a127efe0b9b4ef4fa8bc3e3a759d26d73c3052193170455e3b0ca147255d5",
+    "tests/security/test_installer_epic_remaining.py": "7e702c273be844208a0045a578be602b8eabb9d1c0bd998482efc850ea9149c4",
+    "tests/unit/aleph-submodule-real-installer.bats": "1591792bb165cb6d66fa1c048b83a84c22b008266f8edaec42b2d663ca0b6bec",
+    "tests/unit/block-destructive-bash.bats": "05783bfb144f0fdb18fdd899b11e659e8224e1c0a557a2d8510e2b85113eafc3",
+    "tests/unit/bridge-issue-sweep.bats": "d4a02e38754d7700b41d98ac29d50b56dfb2a69ed84ce1a33a301af9833461c7",
+    "tests/unit/check-no-swallowed-jq-residual.bats": "48f854791836e214c94bac53b3dc3b42830072413d0af4b4ec87f18479f99d4f",
+    "tests/unit/compat-date-utc.bats": "c04f60b63ad892d8904be1bf1ba25dc14052c7fd03241d9e03277f6c713f934c",
+    "tests/unit/construct-index-swallowed.bats": "c716b43b5508c96665db47d8e0160f32db3c74dad667ff2be6d385a0d624f719",
+    "tests/unit/flatline-model-allowlist.bats": "fe63f40e27b9535ed8c3cea1739e7370d2ae88833abc6741edf31e6afe8587e8",
+    "tests/unit/flatline-scorer-availability.bats": "1991f33115ab5de4ea270dd6f9b50734239a61902cf15fe2f8415990f41a58bc",
+    "tests/unit/gen-adapter-maps.bats": "e4cd6fd3058dcb68882eeae6be5e58de91c2ee82e1ee9e1dea0620a72dbe7fc7",
+    "tests/unit/issue-759-scoring-engine-degraded-output.bats": "3151ff42e13f309264265bc05dcfa5186412fada12abebc7c12579560581b653",
+    "tests/unit/kf-surface.bats": "19473af8e0113abeeabb6fe9b457cfbce7a1927fb94fd14a466e2b876ddad9f3",
+    "tests/unit/ledger-compound-validation.bats": "37adbdbf151bd100e1de75175079a5d10422eeeb5fbe6f71ab73b71f41bf0b4e",
+    "tests/unit/ledger-transactions.bats": "32faf351688f2dd2374310bb5cf5a25cb254d8bea27323afea8af494a82879bf",
+    "tests/unit/loa-status-stale-worktree.bats": "7f86f2d67972ea1a10cecd7c767e79f5b243d6a98efa2786a8b7cc23398a6e63",
+    "tests/unit/mount-submodule-lock-lifecycle.bats": "c36331db9dd88ada4bbda9349cf0602414f40de85376dcf2117aed270668a70b",
+    "tests/unit/post-merge-archive-gate.bats": "f4e12880c6269077e27c8b20c243b1e55ab28ab3aff30f90326c4a97c28dc495",
+    "tests/unit/post-merge-changelog-routing.bats": "393e8a9fa16d989e07f1a053a11b2968be981743e62675f1aae44e6ca69110a1",
+    "tests/unit/post-merge-gt-regen.bats": "68a01503cb771ebf3fbe309d3e84082ebe21bbb6b693872bc3da5af63741eabe",
+    "tests/unit/post-merge-orchestrator.bats": "ae2ec1de38e2bb680e500156208c5d80be5cdd8533333b0043090f8a33736913",
+    "tests/unit/post-merge-publication.bats": "411ea6edafdd5e8ddc36b2d46bd1920c6c580bfb70c608383f23217a01cc7776",
+    "tests/unit/semver-bump.bats": "af92d851e767d6edc3fa0b8e7f41a58722fb08479fe623d3e1aaa8a97a290772",
+    "tests/unit/semver-evidence.bats": "7e6cf7acadd00ed1e1cc4c3ce54871338066e3c7b1080db733dc3ccbb22a148e",
+    "tests/unit/skill-capabilities.bats": "dbc73d9143508281591ec1776cd2d85f22f55be4f13c611f7fec11f2822c9cd5",
+    "tests/unit/test_gate_critical_jq.py": "fd41210ab8b097aea1a8bb9e241848c3635da23600537dda3241922276ed939e",
+    "tests/unit/test_hook_issue_regressions.py": "9c8c9425988f6344f0c3a1bad1682181aa7aab12d4a2e62597c291e492ec9e1e",
+    "tests/unit/test_hook_limit_assessments.py": "76cbd5edf151769586530d8d86d27a96f60f194eb852d3a7147dc3b1be93c81b",
+    "tests/unit/test_spiral_task_authority.py": "e91bf05d140af8440d1cfac5c35901cc49da386504a5cef6a6fe81bd0851ddcb",
+    "tests/unit/update-submodule-refusal.bats": "0996dea8edd17ae64dd32508891cb0aa29c794d1f17eb1f12e329a014c8f188c",
+    "tests/unit/validate-artifact-bsd.bats": "d6792c3e070fbfe1ffc41e62377f1fed2e1c352fb053aa1e0e2efa66ef777883",
+    "tests/unit/validate-artifact.bats": "d0a7e7fb36be6ff7e2c4be7177f731ac6510febab8ab0ff1b1601c9387c4af9b",
+    "tests/unit/validation-skill-contracts.bats": "6b90d06c97a266e5efdc33aaf22c8b2b301e063a5833c98674dfb628e0cb5891",
+    "tests/unit/workspace-cleanup-portability.bats": "b74ccbade9cdbf351fca1592f3e67ab6fdb22726f239d0f9005dbc1e94e6e9f1",
+    "tools/check-no-direct-llm-fetch.allowlist": "3dc0c4037186a800622f04b2121221b4f50cecfcfebde16f6536daae774f4c70",
+    "tools/check-no-swallowed-jq.sh": "1075f830027a364a895ef2305d45177b28762b896e0755bca5c83200ba26551e",
+    "tools/modelinv-rollup.sh": "d38649bea73de2dc1b7a5e066d10f6200083e161d8312f0b22764404cbfc418c"
+  },
+  "dependencies": {
+    "1247": {
+      "head": "483a4ea3fb28e65f374f7e75e4566a4daaeb3503",
+      "state": "OPEN, REVIEW_REQUIRED",
+      "remaining": "Canonical blank-write validation; composed fixture tested separately."
+    },
+    "1250": {
+      "head": "b63cfe5a23b7daf81802c4387a497d9070d75dbc",
+      "state": "OPEN, REVIEW_REQUIRED",
+      "remaining": "Separate scheduled CI repair; this sweep now reuses its exact tests/unit/kf-surface.bats correction."
+    }
+  },
+  "deleted_paths": [
+    ".claude/adapters/loa_cheval/routing/chains.py",
+    ".claude/adapters/tests/test_chains.py",
+    ".claude/adapters/tests/test_gemini_smoke.sh",
+    "tests/integration/legacy-adapter-openai-endpoint-routing.bats"
+  ],
+  "peer_reviews": {
+    "release": {
+      "report": "peer-release-review.md",
+      "sha256": "95af3ce5826d514daa5e8edb5c6eb73fec3c1a0e10ed54a625587bdb48e84a92",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "installer": {
+      "report": "peer-installer-review.md",
+      "sha256": "aef740d9ad222c8ca84bb3914e94b5e6bd52f10859c4637216568bbb9756c42a",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "audit": {
+      "report": "peer-audit-review.md",
+      "sha256": "498bbeab9a1f52d6840ea25d437b25acf361a3dc44c199f6a9bae20f4b1cc8b8",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "ledger": {
+      "report": "peer-ledger-rereview.md",
+      "sha256": "c4e63c5c00509b2c9985d180fe9eb3750bcae3abc6a5db9d4b660ad2ae238b01",
+      "status": "Scoped P1/P2 findings closed at the report hashes. Later numeric-descriptor portability correction has parent concurrency, caller-lock and composition checks; human PR review remains required."
+    },
+    "scorer": {
+      "report": "peer-flatline-review.md",
+      "sha256": "5b71c040e5f5face3214533c1b3ba7e22a461c18d31d9be127616aa43ddd1e96",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "parser": {
+      "report": "parent-gate-review/review.md",
+      "sha256": "de067d1e7d272236e6c9e2141b3beda7d82dbfdad0cc84365d8f4e12273a6558",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "ci": {
+      "report": "peer-ci-review.md",
+      "sha256": "462a3311a3813520ee179835bbc152804851d43066c60c2b73a2a631e8ccea0a",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "installer-and-lifecycle-subset": {
+      "report": "peer-installer-validation-review.md",
+      "sha256": "f42b2f9ed31f82c484564b64c618407faccc7f346c87ebf07793feedf2871100",
+      "status": "Scoped findings closed; see limitations in report"
+    },
+    "adapters-and-final-hook-repair": {
+      "report": "peer-cheval-review.md",
+      "sha256": "9117bdc68a4a7243fca3b8d1b688f85ef3e88c784091bb80b757cd55892ba642",
+      "status": "Scoped findings closed; see limitations in report"
+    }
+  },
+  "ci_follow_up": {
+    "first_run": 34823549793,
+    "first_head": "a3a72819404939a39330d4b539c08a9892449bc8",
+    "first_log": "hosted-bats-first.log",
+    "first_log_sha256": "3b12cf3497da4d8144dc0700284e08164fa775388258c50e48cb126f58168f87",
+    "unit_cases": 5317,
+    "failures": [
+      {
+        "case": 316,
+        "name": "G-2: no exec {var}>{>,<,<>}file named-fd patterns in .claude/scripts/"
+      },
+      {
+        "case": 2372,
+        "name": "TEST-1: generated INDEX.md kf section lists all 23 ## KF- headings"
+      },
+      {
+        "case": 3478,
+        "name": "repo-map: --validate passes against the committed REPO-MAP.md"
+      }
+    ],
+    "corrections": [
+      "Subshell-owned fd 9 preserves nested transaction ownership and caller lock without Bash 4 named descriptors.",
+      "Reuse exact KF live-ID comparison from PR #1250 at b63cfe5a23b7daf81802c4387a497d9070d75dbc.",
+      "Regenerate REPO-MAP and its checksum."
+    ],
+    "source_changes": {
+      ".claude/scripts/ledger-lib.sh": {
+        "before": "2a9858646ac3e5d7b3db7be8685652be3fe293229b8ef5d70b6485ee7b2bb188",
+        "after": "bf665fdae46952ac88036f96990d6364a4e701fa31267d1c86eb5497391f8fb7"
+      },
+      "grimoires/loa/known-failures.md": {
+        "before": "8ba7ea97c741c8d342de713488e4a89bf16a92381be7bc1ac62c5ea697016269",
+        "after": "16bc854171277bbf5a14a460158fd0e253156095f41fd40235fc7fa202777787"
+      },
+      "tests/unit/ledger-transactions.bats": {
+        "before": "a6a9bcc99c726e275c006d2e7cbb09e8bc1ffede2e03b8e0e2fc98c0516175d8",
+        "after": "32faf351688f2dd2374310bb5cf5a25cb254d8bea27323afea8af494a82879bf"
+      }
+    },
+    "hosted_follow_up": "Pending on the next pushed commit."
+  },
+  "publication_tooling_note": "KF-031 records the failed legacy gh pr edit GraphQL call and verified REST body update. This documentation-only follow-up reruns all eight KF surface tests; the portable ledger source remains as tested in 73facd11."
+}

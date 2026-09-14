@@ -23,7 +23,7 @@
 #   --json                  Output as JSON (default)
 #
 # Thresholds (defaults from .loa.config.yaml or built-in):
-#   high_consensus: 700     Both models score >700 = auto-integrate
+#   high_consensus: 700     Two independent scores >700 = auto-integrate
 #   dispute_delta: 300      Score difference >300 = disputed
 #   low_value: 400          Both models score <400 = discard
 #   blocker: 700            Skeptic concern >700 = blocker
@@ -41,6 +41,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 SCHEMA_FILE="$PROJECT_ROOT/.claude/schemas/flatline-result.schema.json"
+source "$SCRIPT_DIR/lib/normalize-json.sh"
+source "$SCRIPT_DIR/compat-lib.sh"
 
 # Default thresholds
 DEFAULT_HIGH_CONSENSUS=700
@@ -88,6 +90,19 @@ get_threshold() {
 # Scoring Logic
 # =============================================================================
 
+read_score_response() {
+    local file="$1" content
+    if [[ -z "$file" ]]; then
+        printf '%s\n' '{"scores":[]}'
+    elif content=$(jq -cs 'if length == 1 then .[0] else error("expected one response") end' "$file" 2>/dev/null) &&
+         validate_agent_response "$content" flatline-scorer 2>/dev/null; then
+        printf '%s\n' "$content"
+    else
+        log "WARNING: Invalid scorer response; excluding its scores"
+        printf '%s\n' '{"scores":[],"scoring_status":"unavailable"}'
+    fi
+}
+
 # Merge scores from all models and calculate consensus
 # Supports 2-model (GPT + Opus) and 3-model (GPT + Opus + Tertiary) modes.
 # In 3-model mode, tertiary-authored items join the consensus pool, and
@@ -108,58 +123,20 @@ calculate_consensus() {
     local gpt_scores_tertiary_file="${12:-}"
     local opus_scores_tertiary_file="${13:-}"
 
-    # Parse and validate input files (Task 1.2: JSON validation before --argjson)
+    # Unavailable scores remain absent; they are not negative votes.
     local gpt_scores opus_scores
-    local gpt_degraded=false opus_degraded=false
-
-    if ! gpt_scores=$(jq -c '.' "$gpt_scores_file" 2>/dev/null); then
-        log "WARNING: GPT scores file contains invalid JSON: $gpt_scores_file"
-        gpt_scores='{"scores":[]}'
-        gpt_degraded=true
-    elif ! jq -e '.scores | type == "array"' "$gpt_scores_file" >/dev/null 2>&1; then
-        log "WARNING: GPT scores file missing .scores array: $gpt_scores_file"
-        gpt_scores='{"scores":[]}'
-        gpt_degraded=true
-    fi
-
-    if ! opus_scores=$(jq -c '.' "$opus_scores_file" 2>/dev/null); then
-        log "WARNING: Opus scores file contains invalid JSON: $opus_scores_file"
-        opus_scores='{"scores":[]}'
-        opus_degraded=true
-    elif ! jq -e '.scores | type == "array"' "$opus_scores_file" >/dev/null 2>&1; then
-        log "WARNING: Opus scores file missing .scores array: $opus_scores_file"
-        opus_scores='{"scores":[]}'
-        opus_degraded=true
-    fi
-
-    if [[ "$gpt_degraded" == "true" && "$opus_degraded" == "true" ]]; then
-        error "Both model score files are invalid — cannot calculate consensus"
-        return 1
-    fi
+    gpt_scores=$(read_score_response "$gpt_scores_file")
+    opus_scores=$(read_score_response "$opus_scores_file")
 
     # FR-3: Load tertiary cross-scoring files (graceful degradation if missing/empty)
     local has_tertiary=false
-    local gpt_scores_tertiary='{"scores":[]}'
-    local opus_scores_tertiary='{"scores":[]}'
-    local tertiary_scores_opus='{"scores":[]}'
-    local tertiary_scores_gpt='{"scores":[]}'
-
-    if [[ -n "$gpt_scores_tertiary_file" && -f "$gpt_scores_tertiary_file" ]]; then
-        if gpt_scores_tertiary=$(jq -c '.' "$gpt_scores_tertiary_file" 2>/dev/null); then
-            has_tertiary=true
-        else
-            log "WARNING: GPT scores of tertiary items invalid JSON, skipping"
-            gpt_scores_tertiary='{"scores":[]}'
-        fi
-    fi
-    if [[ -n "$opus_scores_tertiary_file" && -f "$opus_scores_tertiary_file" ]]; then
-        opus_scores_tertiary=$(jq -c '.' "$opus_scores_tertiary_file" 2>/dev/null) || opus_scores_tertiary='{"scores":[]}'
-    fi
-    if [[ -n "$tertiary_scores_opus_file" && -f "$tertiary_scores_opus_file" ]]; then
-        tertiary_scores_opus=$(jq -c '.' "$tertiary_scores_opus_file" 2>/dev/null) || tertiary_scores_opus='{"scores":[]}'
-    fi
-    if [[ -n "$tertiary_scores_gpt_file" && -f "$tertiary_scores_gpt_file" ]]; then
-        tertiary_scores_gpt=$(jq -c '.' "$tertiary_scores_gpt_file" 2>/dev/null) || tertiary_scores_gpt='{"scores":[]}'
+    local gpt_scores_tertiary opus_scores_tertiary tertiary_scores_opus tertiary_scores_gpt
+    gpt_scores_tertiary=$(read_score_response "$gpt_scores_tertiary_file")
+    opus_scores_tertiary=$(read_score_response "$opus_scores_tertiary_file")
+    tertiary_scores_opus=$(read_score_response "$tertiary_scores_opus_file")
+    tertiary_scores_gpt=$(read_score_response "$tertiary_scores_gpt_file")
+    if [[ -n "$gpt_scores_tertiary_file$opus_scores_tertiary_file$tertiary_scores_opus_file$tertiary_scores_gpt_file" ]]; then
+        has_tertiary=true
     fi
 
     [[ "$has_tertiary" == "true" ]] && log "3-model consensus mode: including tertiary items and cross-scores"
@@ -176,8 +153,6 @@ calculate_consensus() {
         --argjson delta "$dispute_delta" \
         --argjson low "$low_threshold" \
         --argjson blocker "$blocker_threshold" \
-        --argjson gpt_degraded "$gpt_degraded" \
-        --argjson opus_degraded "$opus_degraded" \
         --argjson has_tertiary "$has_tertiary" \
         --slurpfile skeptic_gpt <(if [[ -n "$skeptic_gpt_file" && -f "$skeptic_gpt_file" ]]; then cat "$skeptic_gpt_file"; else echo '{"concerns":[]}'; fi) \
         --slurpfile skeptic_opus <(if [[ -n "$skeptic_opus_file" && -f "$skeptic_opus_file" ]]; then cat "$skeptic_opus_file"; else echo '{"concerns":[]}'; fi) \
@@ -198,7 +173,16 @@ def build_score_map:
 
 # Get all unique item IDs (including tertiary-authored items)
 ([$gpt.scores[].id, $opus.scores[].id,
-  ($g_tert.scores // [])[].id, ($o_tert.scores // [])[].id] | unique) as $all_ids |
+  $g_tert.scores[].id, $o_tert.scores[].id,
+  $t_opus.scores[].id, $t_gpt.scores[].id] | unique) as $all_ids |
+
+def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomplete";
+([if any($gpt, $g_tert; incomplete) then "gpt" else empty end,
+  if any($opus, $o_tert; incomplete) then "opus" else empty end,
+  if any($t_opus, $t_gpt; incomplete) then "tertiary" else empty end]) as $degraded_models |
+([if any($gpt, $g_tert; (.scores | length) > 0) then "gpt" else empty end,
+  if any($opus, $o_tert; (.scores | length) > 0) then "opus" else empty end,
+  if any($t_opus, $t_gpt; (.scores | length) > 0) then "tertiary" else empty end] | length) as $models_available |
 
 # Classify each item
 (reduce $all_ids[] as $id (
@@ -209,42 +193,23 @@ def build_score_map:
         medium_value: []
     };
 
-    # Primary pair: GPT and Opus cross-scores (existing 2-model behavior)
-    ($gpt_map[$id] // 0) as $g_primary |
-    ($opus_map[$id] // 0) as $o_primary |
-
-    # Tertiary cross-scores of this item (additional signal)
-    ($t_opus_map[$id] // 0) as $t_on_opus |
-    ($t_gpt_map[$id] // 0) as $t_on_gpt |
-
-    # GPT/Opus scores of tertiary items (for tertiary-authored items)
-    ($g_tert_map[$id] // 0) as $g_on_tert |
-    ($o_tert_map[$id] // 0) as $o_on_tert |
-
-    # Resolve effective score pair:
-    # - For existing items (in gpt_map or opus_map): use primary pair
-    # - For tertiary-authored items (in g_tert_map or o_tert_map only): use GPT+Opus scores
-    (if ($g_primary > 0 or $o_primary > 0) then $g_primary
-     elif $g_on_tert > 0 then $g_on_tert
-     else 0 end) as $g |
-    (if ($g_primary > 0 or $o_primary > 0) then $o_primary
-     elif $o_on_tert > 0 then $o_on_tert
-     else 0 end) as $o |
-
-    # Tertiary confirmation: max of tertiary cross-scores for this item
-    ([$t_on_opus, $t_on_gpt] | map(select(. > 0)) | if length > 0 then max else null end) as $tertiary_confirm |
-
-    (($g - $o) | if . < 0 then -. else . end) as $d |
-    (if ($g > 0 and $o > 0) then (($g + $o) / 2)
-     elif ($g > 0) then $g
-     elif ($o > 0) then $o
-     else 0 end) as $avg |
+    # One vote per scorer. Null means absent; a real zero remains a vote.
+    ($gpt_map[$id] // $g_tert_map[$id]) as $g |
+    ($opus_map[$id] // $o_tert_map[$id]) as $o |
+    ($t_opus_map[$id] // $t_gpt_map[$id]) as $tertiary_confirm |
+    ([$g, $o, $tertiary_confirm] | map(select(. != null))) as $observed |
+    ($observed | length) as $scorers_available |
+    (if $scorers_available >= 2 then ($observed | max - min) else null end) as $d |
+    ($observed | add / length) as $avg |
+    ([$observed[] | select(. > $high)] | length >= 2) as $high_agreement |
 
     # Find original item details from any source
     (($gpt.scores[] | select(.id == $id)) //
      ($opus.scores[] | select(.id == $id)) //
      ($g_tert.scores[] | select(.id == $id)) //
      ($o_tert.scores[] | select(.id == $id)) //
+     ($t_opus.scores[] | select(.id == $id)) //
+     ($t_gpt.scores[] | select(.id == $id)) //
      {id: $id}) as $item |
 
     # Determine item source
@@ -253,7 +218,7 @@ def build_score_map:
      elif ($g_tert_map[$id] != null or $o_tert_map[$id] != null) then "tertiary_authored"
      else "unknown" end) as $source |
 
-    {
+    ({
         id: $id,
         description: ($item.description // $item.evaluation // ""),
         gpt_score: $g,
@@ -261,15 +226,20 @@ def build_score_map:
         tertiary_score: $tertiary_confirm,
         delta: $d,
         average_score: $avg,
+        scorers_available: $scorers_available,
         source: $source,
-        would_integrate: (($item.would_integrate // false) or ($g > $high and $o > $high))
-    } as $scored_item |
+        would_integrate: $high_agreement
+    } + (if $item | has("review_source") then
+        {review_source: $item.review_source, original_id: $item.original_id}
+    else {} end)) as $scored_item |
 
-    if ($g > $high and $o > $high) then
+    if $high_agreement then
         .high_consensus += [$scored_item + {agreement: "HIGH"}]
+    elif $scorers_available < 2 then
+        .medium_value += [$scored_item + {agreement: "INSUFFICIENT"}]
     elif $d > $delta then
         .disputed += [$scored_item + {agreement: "DISPUTED"}]
-    elif ($g < $low and $o < $low) then
+    elif all($observed[]; . < $low) then
         .low_value += [$scored_item + {agreement: "LOW"}]
     else
         .medium_value += [$scored_item + {agreement: "MEDIUM"}]
@@ -292,12 +262,17 @@ def build_score_map:
 
 # Calculate model agreement percentage
 ($all_ids | length) as $total |
-(($classified.high_consensus | length) + ($classified.medium_value | length)) as $agreed |
+(($classified.high_consensus | length) +
+ ([$classified.medium_value[] | select(.scorers_available >= 2)] | length)) as $agreed |
 (if $total > 0 then ($agreed / $total * 100 | floor) else 0 end) as $agreement_pct |
 
 # Count tertiary-authored items
 ([$classified.high_consensus[], $classified.disputed[], $classified.low_value[], $classified.medium_value[]
   | select(.source == "tertiary_authored")] | length) as $tertiary_items |
+(if ($degraded_models | length) > 0 or $total == 0 then "degraded"
+ elif $models_available < 2 then "single_model"
+ elif any($classified.medium_value[]; .scorers_available < 2) then "degraded"
+ else "full" end) as $confidence |
 
 # Build final output
 {
@@ -308,26 +283,20 @@ def build_score_map:
         blocker_count: ($blockers | length),
         model_agreement_percent: $agreement_pct,
         models: (if $has_tertiary then 3 else 2 end),
+        models_available: $models_available,
         tertiary_items: $tertiary_items,
-        confidence: (
-            if ($gpt_degraded or $opus_degraded) then "degraded"
-            elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
-            else "full"
-            end
-        )
+        confidence: $confidence
     },
     high_consensus: $classified.high_consensus,
     disputed: $classified.disputed,
     low_value: $classified.low_value,
+    medium_value: $classified.medium_value,
     blockers: $blockers,
-    degraded: (if ($gpt_degraded or $opus_degraded) then true else false end),
-    degraded_model: (if $gpt_degraded then "gpt" elif $opus_degraded then "opus" else null end),
-    confidence: (
-        if ($gpt_degraded or $opus_degraded) then "degraded"
-        elif (($gpt.scores | length) == 0 or ($opus.scores | length) == 0) then "single_model"
-        else "full"
-        end
-    )
+    degraded: (($degraded_models | length) > 0 or $total == 0 or
+               any($classified.medium_value[]; .scorers_available < 2)),
+    degraded_model: ($degraded_models[0] // null),
+    degraded_models: $degraded_models,
+    confidence: $confidence
 }
 '
 }
@@ -556,7 +525,7 @@ Options:
   -h, --help              Show this help
 
 Thresholds (from config or defaults):
-  high_consensus: 700     Both >700 = auto-integrate
+  high_consensus: 700     Two independent scores >700 = auto-integrate
   dispute_delta: 300      Delta >300 = disputed
   low_value: 400          Both <400 = discard
   blocker: 700            Skeptic >700 = blocker
@@ -584,6 +553,18 @@ Output Format:
   "blockers": [...]
 }
 EOF
+}
+
+# Slurp before extracting so empty input, multiple documents, and a valid
+# prefix followed by truncated JSON cannot become a zero-item consensus.
+scoring_item_count() {
+    jq_strict -ers --arg mode "$2" '
+        if length != 1 or (.[0] | type) != "object" then
+            error("expected one score document")
+        else .[0] end |
+        (if $mode == "attack" then .attacks // .scores else .scores end) |
+        if type == "array" then length else error("expected score array") end
+    ' "$1"
 }
 
 main() {
@@ -718,14 +699,15 @@ main() {
     # Check for scores/attacks arrays (attack-mode uses .attacks, standard uses .scores)
     local gpt_count opus_count
     if [[ "$attack_mode" == "true" ]]; then
-        gpt_count=$(jq '(.attacks // .scores // []) | length' "$gpt_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        opus_count=$(jq '(.attacks // .scores // []) | length' "$opus_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        gpt_count=$(scoring_item_count "$gpt_scores_file" attack) || return 2
+        opus_count=$(scoring_item_count "$opus_scores_file" attack) || return 2
     else
-        gpt_count=$(jq '.scores | length' "$gpt_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-        opus_count=$(jq '.scores | length' "$opus_scores_file" 2>/dev/null || echo "0")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        gpt_count=$(scoring_item_count "$gpt_scores_file" standard) || return 2
+        opus_count=$(scoring_item_count "$opus_scores_file" standard) || return 2
     fi
 
-    if [[ "$gpt_count" == "0" && "$opus_count" == "0" ]]; then
+    if [[ "$gpt_count" == "0" && "$opus_count" == "0" &&
+          ( "$attack_mode" == "true" || -z "$gpt_scores_tertiary_file$opus_scores_tertiary_file$tertiary_scores_opus_file$tertiary_scores_gpt_file" ) ]]; then
         # Issue #759: emit structured DEGRADED consensus instead of `exit 3`
         # with no stdout. The flatline-orchestrator captures this via
         # `result=$(run_consensus ...)`; an empty result silently produces
@@ -742,7 +724,7 @@ main() {
         # `consensus_summary` key + top-level `confidence`/`degraded`) so
         # downstream parsers (orchestrator, dashboards) treat this as a
         # normal consensus result with empty arrays.
-        jq -n '{
+        jq -n --slurpfile gpt "$gpt_scores_file" --slurpfile opus "$opus_scores_file" '{
             consensus_summary: {
                 high_consensus_count: 0,
                 disputed_count: 0,
@@ -759,6 +741,10 @@ main() {
             blockers: [],
             degraded: true,
             degraded_model: "both",
+            degraded_models: [
+                if ($gpt[0].scoring_status == "unavailable" or $gpt[0].scoring_status == "incomplete") then "gpt" else empty end,
+                if ($opus[0].scoring_status == "unavailable" or $opus[0].scoring_status == "incomplete") then "opus" else empty end
+            ],
             confidence: "degraded",
             degradation_reason: "no_items_to_score"
         }'

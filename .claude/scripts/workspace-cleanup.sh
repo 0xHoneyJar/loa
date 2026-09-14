@@ -15,6 +15,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/compat-lib.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/portable-realpath.sh"
 # Require bash 4.0+ (associative arrays)
 # shellcheck source=bash-version-guard.sh
 source "$SCRIPT_DIR/bash-version-guard.sh"
@@ -461,8 +462,9 @@ validate_single_path() {
 
     # Verify realpath is under grimoire
     local real_path grimoire_real
-    real_path=$(realpath -m "$full_path" 2>/dev/null) || return 1
-    grimoire_real=$(realpath -m "$GRIMOIRE_DIR" 2>/dev/null) || return 1
+    real_path=$(resolve_path_portable "$full_path") || return 1
+    grimoire_real=$(resolve_path_portable "$GRIMOIRE_DIR") || return 1
+    [[ -n "$real_path" && -n "$grimoire_real" ]] || return 1
 
     if [[ "$real_path" != "$grimoire_real"/* && "$real_path" != "$grimoire_real" ]]; then
         return 1
@@ -1028,7 +1030,10 @@ validate_grimoire_path() {
 
     # Check realpath doesn't escape expected location
     local real_path
-    real_path=$(realpath -m "$path")
+    if ! real_path=$(resolve_path_portable "$path") || [[ -z "$real_path" ]]; then
+        error "Cannot resolve grimoire path: $path"
+        return 1
+    fi
 
     if [[ "$real_path" != *"grimoires"* ]]; then
         error "Grimoire path outside expected location: $path"

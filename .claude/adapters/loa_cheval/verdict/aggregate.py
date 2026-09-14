@@ -52,7 +52,7 @@ import json
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .consensus import classify_consensus
 from .quality import (
@@ -86,7 +86,19 @@ def _verdict_quality_schema() -> Dict[str, Any]:
         ) from exc
 
 
-def _validate_schema_subset(value: Any, schema: Dict[str, Any], path: str = "<root>") -> None:
+def _schema_rejection(path: Iterable[Any], validator: str) -> EnvelopeInvariantViolation:
+    """Expose bounded schema metadata only, never rejected values/messages."""
+    location = ".".join(str(part) for part in path)
+    location = re.sub(r"[^A-Za-z0-9_.-]", "", location)[:128] or "<root>"
+    keyword = re.sub(r"[^A-Za-z0-9_-]", "", validator)[:32] or "unknown"
+    return EnvelopeInvariantViolation(
+        f"VERDICT_SCHEMA_REJECTED path={location} validator={keyword}"
+    )
+
+
+def _validate_schema_subset(
+    value: Any, schema: Dict[str, Any], path: Tuple[Any, ...] = ()
+) -> None:
     """Validate every keyword used by verdict-quality.schema.json.
 
     Installed adapters use jsonschema. This standard-library twin preserves
@@ -102,70 +114,48 @@ def _validate_schema_subset(value: Any, schema: Dict[str, Any], path: str = "<ro
         "boolean": isinstance(value, bool),
     }
     if expected_type and not type_matches.get(expected_type, False):
-        raise EnvelopeInvariantViolation(
-            f"verdict-quality schema violation at {path}: expected {expected_type}"
-        )
+        raise _schema_rejection(path, "type")
 
     if "enum" in schema and value not in schema["enum"]:
-        raise EnvelopeInvariantViolation(
-            f"verdict-quality schema violation at {path}: {value!r} is not an allowed value"
-        )
+        raise _schema_rejection(path, "enum")
 
     if isinstance(value, dict):
         required = schema.get("required", [])
         missing = [key for key in required if key not in value]
         if missing:
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: "
-                f"missing required field(s) {missing!r}"
-            )
+            raise _schema_rejection(path, "required")
         properties = schema.get("properties", {})
         if schema.get("additionalProperties") is False:
             extras = sorted(set(value) - set(properties))
             if extras:
-                raise EnvelopeInvariantViolation(
-                    f"verdict-quality schema violation at {path}: "
-                    f"unexpected field(s) {extras!r}"
-                )
+                raise _schema_rejection(path, "additionalProperties")
         for key, child in value.items():
             if key in properties:
-                _validate_schema_subset(child, properties[key], f"{path}.{key}")
+                _validate_schema_subset(child, properties[key], path + (key,))
 
     if isinstance(value, list):
         if schema.get("uniqueItems"):
             encoded = [json.dumps(item, sort_keys=True) for item in value]
             if len(set(encoded)) != len(encoded):
-                raise EnvelopeInvariantViolation(
-                    f"verdict-quality schema violation at {path}: items must be unique"
-                )
+                raise _schema_rejection(path, "uniqueItems")
         item_schema = schema.get("items")
         if item_schema:
             for index, item in enumerate(value):
-                _validate_schema_subset(item, item_schema, f"{path}[{index}]")
+                _validate_schema_subset(item, item_schema, path + (index,))
 
     if isinstance(value, str):
         if len(value) < schema.get("minLength", 0):
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: string is too short"
-            )
+            raise _schema_rejection(path, "minLength")
         if "maxLength" in schema and len(value) > schema["maxLength"]:
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: string is too long"
-            )
+            raise _schema_rejection(path, "maxLength")
         if "pattern" in schema and re.search(schema["pattern"], value) is None:
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: pattern mismatch"
-            )
+            raise _schema_rejection(path, "pattern")
 
     if isinstance(value, int) and not isinstance(value, bool):
         if "minimum" in schema and value < schema["minimum"]:
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: below minimum"
-            )
+            raise _schema_rejection(path, "minimum")
         if "maximum" in schema and value > schema["maximum"]:
-            raise EnvelopeInvariantViolation(
-                f"verdict-quality schema violation at {path}: above maximum"
-            )
+            raise _schema_rejection(path, "maximum")
 
 
 def _validate_against_verdict_schema(envelope: Dict[str, Any]) -> None:
@@ -180,20 +170,15 @@ def _validate_against_verdict_schema(envelope: Dict[str, Any]) -> None:
     validator_cls.check_schema(schema)
     validation_error = next(iter(validator_cls(schema).iter_errors(envelope)), None)
     if validation_error is not None:
-        location = ".".join(str(part) for part in validation_error.absolute_path)
-        location = location or "<root>"
-        raise EnvelopeInvariantViolation(
-            "single-voice input violates verdict-quality schema at "
-            f"{location}: {validation_error.message}"
+        raise _schema_rejection(
+            validation_error.absolute_path, validation_error.validator
         )
 
 
 def validate_single_voice_envelope(envelope: Dict[str, Any]) -> None:
     """Reject inputs that are not schema-valid, canonical single voices."""
     if not isinstance(envelope, dict):
-        raise EnvelopeInvariantViolation(
-            f"single-voice input must be an object; got {type(envelope).__name__}"
-        )
+        raise _schema_rejection((), "type")
 
     _validate_against_verdict_schema(envelope)
 
@@ -373,6 +358,8 @@ def aggregate_envelopes(
         "rationale": rationale,
         "single_voice_call": voices_planned == 1,
     }
+    if any(env.get("scoring_degraded", False) for env in inputs):
+        envelope["scoring_degraded"] = True
     # emit_envelope_with_status runs validate_invariants then stamps
     # status per SDD §3.2.2. Any voices_dropped[].blocker_risk == "high"
     # auto-promotes to FAILED via the hard rule in compute_verdict_status.

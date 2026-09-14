@@ -19,20 +19,14 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loa_cheval.metering.budget import ALLOW, BLOCK, DOWNGRADE, WARN, BudgetEnforcer
-from loa_cheval.routing.chains import walk_fallback_chain
 from loa_cheval.routing.resolver import resolve_alias, resolve_execution
 from loa_cheval.types import (
-    AgentBinding,
     CompletionRequest,
     ConfigError,
     NativeRuntimeRequired,
-    ProviderUnavailableError,
-    ResolvedModel,
 )
 
 # ── Base Config Fixture ──────────────────────────────────────────────────────
@@ -206,15 +200,6 @@ class TestGoogleDisabledDeepResearchEnabled:
         resolved = resolve_alias("deep-thinker", cfg["aliases"])
         assert resolved.provider == "google"
 
-    def test_fallback_google_to_openai(self):
-        """When Google is down, fallback chain routes to OpenAI."""
-        cfg = _config()
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(agent="deep-thinker", model="deep-thinker", requires={})
-        resolved = walk_fallback_chain(original, agent, cfg)
-        assert resolved.provider == "openai"
-        assert resolved.model_id == "gpt-5.2"
-
 
 class TestMeteringDisabledAdaptersEnabled:
     """Metering disabled, all adapters available."""
@@ -283,33 +268,6 @@ class TestThinkingDisabled:
         config = ModelConfig(capabilities=["chat"], extra=None)
         result = _build_thinking_config("gpt-5.2", config)
         assert result is None
-
-
-class TestFlatlineRoutingWithoutGoogle:
-    """Flatline routing enabled but Google adapter removed."""
-
-    def test_fallback_chain_exhausted_for_native_agent(self):
-        """native_runtime agent can't fall back to any remote model."""
-        cfg = _config()
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(
-            agent="implementing-tasks",
-            model="native",
-            requires={"native_runtime": True},
-        )
-        with pytest.raises(ProviderUnavailableError, match="native_runtime"):
-            walk_fallback_chain(original, agent, cfg)
-
-    def test_fallback_chain_skips_unhealthy(self):
-        """Health check callback prevents routing to unhealthy provider."""
-        cfg = _config()
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(agent="reviewing-code", model="reviewer", requires={})
-        with pytest.raises(ProviderUnavailableError, match="exhausted"):
-            walk_fallback_chain(
-                original, agent, cfg,
-                is_provider_healthy=lambda p: False,  # All unhealthy
-            )
 
 
 class TestAllFlagsDisabled:

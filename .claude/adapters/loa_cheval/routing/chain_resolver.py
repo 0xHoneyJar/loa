@@ -7,12 +7,9 @@ provider. Mode transforms (`prefer-api`, `prefer-cli`, `api-only`, `cli-only`)
 reorder/filter the chain WITHIN the company — they never substitute another
 company's adapter.
 
-Why this lives next to `chains.py` rather than replacing it: `chains.py`
-implements the cycle-095 per-call walk used by `walk_fallback_chain` for
-agent-binding-driven dispatch. The Sprint 2 design resolves the chain
-UPFRONT before the first request so the MODELINV envelope can record the
-full intended walk shape even when only the primary is invoked. The two
-designs coexist; new code calls `chain_resolver.resolve()`.
+Resolves the chain upfront before the first request so the MODELINV envelope
+can record the full intended walk even when only the primary is invoked.
+This replaces the unused cycle-095 per-call walkers (#1026).
 """
 
 from __future__ import annotations

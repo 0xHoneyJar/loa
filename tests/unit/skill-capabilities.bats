@@ -623,10 +623,13 @@ cost-profile: heavy
     [[ "$output" != *"C-PROC-001 is enforced only by prose"* ]]
 }
 
-@test "c114-FR4: real pure-review skills declare disallowed Write" {
-    grep -q 'disallowed-tools' "$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"
-    grep -q 'Write' "$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md"
-    grep -q 'disallowed-tools' "$PROJECT_ROOT/.claude/skills/auditing-security/SKILL.md"
+@test "issue-1195: report-authoring review skills retain Write and Edit for State output" {
+    local skill
+    for skill in reviewing-code auditing-security; do
+        awk '/^---$/{if(n++) exit; next} n' "$PROJECT_ROOT/.claude/skills/$skill/SKILL.md" |
+            yq -o=json '.' |
+            jq -e '.capabilities.write_files == true and ."disallowed-tools" == ["NotebookEdit"]'
+    done
 }
 
 @test "c114-FR4: real write-exception review skills (red-team/BB) validate clean" {

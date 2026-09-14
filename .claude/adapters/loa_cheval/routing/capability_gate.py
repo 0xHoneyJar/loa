@@ -33,8 +33,7 @@ def check(
 
     The contract is "skip and continue" (SDD §1.4.2): callers that get
     `ok=False` should NOT raise — they should record the missing list and
-    advance to the next chain entry. This is distinct from the existing
-    `chains.walk_fallback_chain` capability check, which raises mid-walk.
+    advance to the next chain entry.
 
     Args:
         request: caller's CompletionRequest.

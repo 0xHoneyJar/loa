@@ -1398,11 +1398,9 @@ hook_invoke() {
 
 @test "C-D3a BLOCK: backtick value with a ; separator (pins backtick-never-redacts)" {
     # A backtick value is left INTACT (never redacted), so a real `; rm -rf /`
-    # inside it still reaches detection. This pins the load-bearing invariant
-    # that D3(a) guarantees for backtick values. (Note: backtick command-
-    # substitution WITHOUT a recognised separator — e.g. `\`rm -rf /\`` — remains
-    # the pre-existing, separately-tracked bd-bdb-backtick-bypass, uncaught in
-    # either direction; that is out of scope for C-D3 and unchanged here.)
+    # inside it still reaches detection. Direct `rm -rf /` inside backticks
+    # is also detected now; test_hook_issue_regressions.py pins both the
+    # flag-value and unquoted-heredoc expansion forms.
     run hook_invoke 'git commit -m "note `; rm -rf /`"'
     [ "$status" -eq 2 ]
 }

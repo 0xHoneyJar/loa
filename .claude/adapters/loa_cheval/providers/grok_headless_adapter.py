@@ -79,8 +79,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
 from loa_cheval.providers.base import (
-    ProviderAdapter,
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
@@ -107,8 +107,6 @@ _ALLOWED_REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # Conservative subprocess wall-clock floors (parity with codex/cursor headless).
 # A configured value BELOW the floor does NOT lower it — the floor wins so an
 # agent session is not killed mid-reasoning.
-_CONNECT_TIMEOUT_FLOOR = 10.0
-_READ_TIMEOUT_FLOOR = 600.0  # 10 min — agent sessions can be slow
 
 
 def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
@@ -144,7 +142,7 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-class GrokHeadlessAdapter(ProviderAdapter):
+class GrokHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `grok --prompt-file ... --output-format json`.
 
     Provider config (no api_key field; one port, MULTIPLE models):
@@ -308,7 +306,7 @@ class GrokHeadlessAdapter(ProviderAdapter):
                 f"Provider '{self.provider}': type must be 'grok-headless' "
                 f"(got '{self.config.type}')"
             )
-        bin_name = self._grok_bin()
+        bin_name = self._cli_bin()
         if not shutil.which(bin_name):
             errors.append(
                 f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
@@ -318,28 +316,12 @@ class GrokHeadlessAdapter(ProviderAdapter):
         # absent, the CLI errors at first call — no need to duplicate here.
         return errors
 
-    def health_check(self) -> bool:
-        """Verify the grok CLI is reachable. Does NOT make a model call."""
-        bin_name = self._grok_bin()
-        if not shutil.which(bin_name):
-            return False
-        try:
-            proc = subprocess.run(
-                [bin_name, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            return proc.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
-            return False
 
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
 
-    def _grok_bin(self) -> str:
+    def _cli_bin(self) -> str:
         return os.environ.get("GROK_HEADLESS_BIN", _GROK_BIN_DEFAULT)
 
     def _build_command(
@@ -357,7 +339,7 @@ class GrokHeadlessAdapter(ProviderAdapter):
         """
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
-            self._grok_bin(),
+            self._cli_bin(),
             "--prompt-file",
             prompt_path,
             "--output-format",
@@ -410,44 +392,6 @@ class GrokHeadlessAdapter(ProviderAdapter):
                 ", ".join(_ALLOWED_REASONING_EFFORTS),
             )
         return None
-
-    def _compute_timeout(self) -> float:
-        connect = max(self.config.connect_timeout, _CONNECT_TIMEOUT_FLOOR)
-        read = max(self.config.read_timeout, _READ_TIMEOUT_FLOOR)
-        return connect + read
-
-    # ---------------------------------------------------------------------
-    # Internal: prompt flattening (parity with codex/cursor headless)
-    # ---------------------------------------------------------------------
-
-    def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """Flatten the message array into a single role-prefixed prompt."""
-        sections: List[str] = []
-        for msg in messages:
-            role = (msg.get("role") or "user").lower()
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                content = "\n".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
-            elif not isinstance(content, str):
-                try:
-                    content = json.dumps(content)
-                except (TypeError, ValueError):
-                    content = str(content)
-
-            label = {
-                "system": "## System",
-                "user": "## User",
-                "assistant": "## Assistant",
-                "tool": "## Tool result",
-            }.get(role, f"## {role.capitalize()}")
-
-            sections.append(f"{label}\n\n{content}".rstrip())
-
-        return "\n\n".join(sections) + "\n"
 
     # ---------------------------------------------------------------------
     # Internal: output parsing

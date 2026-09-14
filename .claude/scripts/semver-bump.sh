@@ -14,7 +14,8 @@
 # Exit Codes:
 #   0 - Success
 #   1 - No commits since last tag
-#   2 - No version source found
+#   2 - Invalid version source/input
+#   3 - Commits cannot be classified
 
 set -euo pipefail
 
@@ -191,25 +192,10 @@ bump_version() {
 # Outputs JSON array of commits to stderr, returns bump type on stdout
 parse_commits() {
   local since_ref="$1"
+  local range="${since_ref:+${since_ref}..}HEAD"
   local commits_json="[]"
   local highest_bump="patch"
   local highest_priority=0
-  local has_breaking=false
-
-  # Check for BREAKING CHANGE in commit bodies
-  if git -C "$PROJECT_ROOT" log "${since_ref}..HEAD" --format='%B' 2>/dev/null | grep -q 'BREAKING CHANGE:'; then
-    has_breaking=true
-  fi
-
-  # Check for ! suffix in commit subjects (e.g., feat!: or feat(scope)!:)
-  if git -C "$PROJECT_ROOT" log "${since_ref}..HEAD" --format='%s' 2>/dev/null | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
-    has_breaking=true
-  fi
-
-  if [[ "$has_breaking" == "true" ]]; then
-    highest_bump="major"
-    highest_priority=3
-  fi
 
   # Parse each commit
   while IFS= read -r line; do
@@ -230,14 +216,20 @@ parse_commits() {
     fi
 
     # Determine bump for this commit type
-    local commit_bump="patch"
+    local commit_bump=""
     if [[ -n "$type" && -n "${BUMP_MAP[$type]:-}" ]]; then
       commit_bump="${BUMP_MAP[$type]}"
     fi
+    local body breaking_re='^[a-z]+(\([^)]*\))?!:'
+    body=$(git -C "$PROJECT_ROOT" log -1 --format='%B' "$hash") || return 2
+    if [[ "$subject" =~ $breaking_re || "$body" == *"BREAKING CHANGE:"* ]]; then
+      commit_bump="major"
+    fi
 
     # Track highest bump (if not already major from breaking change)
-    local priority="${BUMP_PRIORITY[$commit_bump]:-1}"
-    if [[ "$priority" -gt "$highest_priority" && "$has_breaking" != "true" ]]; then
+    local priority=0
+    [[ -n "$commit_bump" ]] && priority="${BUMP_PRIORITY[$commit_bump]}"
+    if [[ "$priority" -gt "$highest_priority" ]]; then
       highest_priority=$priority
       highest_bump="$commit_bump"
     fi
@@ -249,14 +241,19 @@ parse_commits() {
       --arg type "${type:-unknown}" \
       --arg scope "${scope:-}" \
       --arg subject "$msg" \
-      '{hash: $hash, type: $type, scope: $scope, subject: $subject}')
+      --arg bump "$commit_bump" \
+      '{hash: $hash, type: $type, scope: $scope, subject: $subject, classified_bump: $bump}')
 
     commits_json=$(echo "$commits_json" | jq --argjson entry "$commit_entry" '. + [$entry]')
 
-  done < <(git -C "$PROJECT_ROOT" log "${since_ref}..HEAD" --format='%h %s' 2>/dev/null)
+  done < <(git -C "$PROJECT_ROOT" log "$range" --format='%H %s')
 
   # Output commits JSON to fd 3
   echo "$commits_json" >&3
+  if [[ "$highest_priority" -eq 0 ]]; then
+    echo "ERROR: Cannot classify commits: no conventional-commit or breaking-change metadata" >&2
+    return 3
+  fi
   # Output bump type to stdout
   echo "$highest_bump"
 }
@@ -304,6 +301,7 @@ main() {
   # Determine current version
   local current=""
   local tag_ref=""
+  local version_source="$source_mode"
 
   case "$source_mode" in
     tag)
@@ -323,23 +321,25 @@ main() {
     auto)
       if current=$(get_version_from_tag); then
         tag_ref="v${current}"
+        version_source="tag"
       elif current=$(get_version_from_changelog); then
         if git -C "$PROJECT_ROOT" tag -l "v${current}" | grep -q "v${current}"; then
           tag_ref="v${current}"
+          version_source="changelog"
         else
           echo "ERROR: CHANGELOG version v${current} has no matching tag" >&2
           exit 2
         fi
       else
-        echo "ERROR: No version source found (no tags, no CHANGELOG)" >&2
-        exit 2
+        current="0.0.0"
+        version_source="initial"
       fi
       ;;
   esac
 
   # Check for commits since tag
   local commit_count
-  commit_count=$(git -C "$PROJECT_ROOT" rev-list "${tag_ref}..HEAD" --count 2>/dev/null || echo "0")
+  commit_count=$(git -C "$PROJECT_ROOT" rev-list "${tag_ref:+${tag_ref}..}HEAD" --count) || exit 2
   if [[ "$commit_count" -eq 0 ]]; then
     echo "ERROR: No commits since ${tag_ref}" >&2
     exit 1
@@ -359,11 +359,15 @@ main() {
 
   # parse_commits writes commits JSON to fd 3, bump type to stdout
   # Redirect fd 3 to tmpfile_commits, stdout to tmpfile_bump
-  ( parse_commits "$tag_ref" 3>"$tmpfile_commits" ) > "$tmpfile_bump"
+  if ! ( parse_commits "$tag_ref" 3>"$tmpfile_commits" ) > "$tmpfile_bump"; then
+    rm -f "$tmpfile_commits" "$tmpfile_bump"
+    trap - EXIT
+    exit 3
+  fi
 
-  bump=$(cat "$tmpfile_bump" 2>/dev/null || echo "patch")
+  bump=$(cat "$tmpfile_bump")
   bump="${bump%$'\n'}"  # Trim trailing newline
-  commits_json=$(cat "$tmpfile_commits" 2>/dev/null || echo "[]")
+  commits_json=$(cat "$tmpfile_commits")
   rm -f "$tmpfile_commits" "$tmpfile_bump"
   trap - EXIT
 
@@ -396,15 +400,13 @@ main() {
           filtered_json=$(echo "$filtered_json" | jq --argjson e "$entry" '. + [$e]')
 
           # Recalculate bump from filtered commits
-          local ctype
-          ctype=$(echo "$commits_json" | jq -r ".[$i].type")
-          local commit_bump="${BUMP_MAP[$ctype]:-patch}"
-          local priority="${BUMP_PRIORITY[$commit_bump]:-1}"
+          local commit_bump
+          commit_bump=$(echo "$entry" | jq -r '.classified_bump')
+          local priority=0
+          [[ -n "$commit_bump" ]] && priority="${BUMP_PRIORITY[$commit_bump]}"
 
           # Check for breaking change marker
-          local subject
-          subject=$(echo "$commits_json" | jq -r ".[$i].subject")
-          if [[ "$subject" == *"BREAKING CHANGE"* ]] || git -C "$PROJECT_ROOT" log -1 --format='%B' "$hash" 2>/dev/null | grep -q 'BREAKING CHANGE:' 2>/dev/null; then
+          if [[ "$commit_bump" == major ]]; then
             app_breaking=true
           fi
 
@@ -427,6 +429,9 @@ main() {
       # Update bump based on filtered commits
       if [[ "$app_breaking" == "true" ]]; then
         bump="major"
+      elif [[ "$highest_app_priority" -eq 0 ]]; then
+        echo "ERROR: Cannot classify app-zone commits" >&2
+        exit 3
       else
         bump="$highest_app_bump"
       fi
@@ -435,15 +440,29 @@ main() {
 
   # Calculate next version
   local next
-  next=$(bump_version "$current" "$bump")
+  if [[ "$version_source" == "initial" ]]; then
+    next="0.1.0"
+    bump="initial"
+  else
+    next=$(bump_version "$current" "$bump")
+  fi
 
   # Output result
   jq -n \
     --arg current "$current" \
     --arg next "$next" \
     --arg bump "$bump" \
+    --arg source "$version_source" \
     --argjson commits "$commits_json" \
-    '{current: $current, next: $next, bump: $bump, commits: $commits}'
+    '{current: $current, next: $next, bump: $bump, commits: $commits,
+      version_source: $source,
+      classification: {
+        source: "conventional_commits",
+        reasoning: (if $bump == "initial" then "First release from classified repository history"
+          elif $bump == "major" then "Breaking-change metadata in commit history"
+          else "Highest recognized conventional-commit bump in the selected history" end),
+        commits: [$commits[] | select(.classified_bump != "") | .hash]
+      }}'
 }
 
 main "$@"

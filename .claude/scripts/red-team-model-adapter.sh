@@ -18,12 +18,14 @@
 #   0  Success
 #   1  Timeout / invocation failure
 #   2  Budget exceeded
+#   5  Invalid response content or token usage
 # =============================================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
+source "$SCRIPT_DIR/compat-lib.sh"
 
 # cycle-099 sprint-1B (T1.3): bring the canonical model registry into scope.
 # Populates MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT from the
@@ -156,6 +158,20 @@ WARNING: red-team adapter running in MOCK mode (role=$role model=$model)
 BANNER
 }
 
+# Usage controls a budget, so absent or malformed usage is not a zero cost.
+# The upper bound keeps jq's integer representation exact before Bash sums it.
+red_team_usage() {
+    jq_strict -ers --argjson path "$2" '
+        if length != 1 or (.[0] | type) != "object" then
+            error("expected one response document")
+        else .[0] | getpath($path) end |
+        if type != "number" then error("missing or invalid token usage")
+        elif . < 0 or . > 9007199254740991 or floor != . then
+            error("token usage must be a nonnegative safe integer")
+        else . end
+    ' "$1"
+}
+
 invoke_mock() {
     local role="$1"
     local model="$2"
@@ -228,7 +244,7 @@ invoke_mock() {
 
     # Check budget against tokens_used in fixture
     local tokens_used
-    tokens_used=$(jq '.tokens_used // 0' "$output_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    tokens_used=$(red_team_usage "$output_file" '["tokens_used"]') || return 5
     if [[ "$budget" -gt 0 ]] && (( tokens_used > budget )); then
         log "Budget exceeded: fixture reports ${tokens_used} tokens > budget ${budget}"
         return 2
@@ -280,9 +296,8 @@ detect_default_mode() {
 }
 
 # Wrap model-invoke content into the response shape the pipeline expects.
-# Attackers/defenders emit JSON findings; we parse them if valid, otherwise
-# pass through the raw content as a single free-text attack/design entry so
-# the pipeline can still complete.
+# Attackers/defenders must emit usable JSON findings. Prose or broken JSON
+# cannot be represented as a successful response with an empty findings array.
 wrap_live_response() {
     local role="$1"
     local model="$2"
@@ -299,15 +314,26 @@ wrap_live_response() {
 
     local total_tokens=$((tokens_input + tokens_output))
 
-    # If content parses as JSON, merge it into the response envelope;
-    # otherwise wrap it as a free-text note.
+    # Accept one JSON object, either bare or fenced, and consume all its bytes.
     local parsed
-    if parsed=$(echo "$content" | jq -c . 2>/dev/null) && [[ -n "$parsed" && "$parsed" != "null" ]]; then
+    if parsed=$(printf '%s\n' "$content" | jq -ecs 'if length == 1 and (.[0] | type) == "object" then .[0] else error("expected one object") end' 2>/dev/null); then
         # Strip markdown fences if the model wrapped JSON in ```json ... ```
         :
     else
         # Try to extract JSON from a fenced code block
-        parsed=$(echo "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' | jq -c . 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+        if ! parsed=$(printf '%s\n' "$content" | sed -n '/```json/,/```/p' | sed '1d;$d' |
+            jq_strict -ecs 'if length == 1 and (.[0] | type) == "object" then .[0] else error("expected one fenced response object") end'); then
+            error "Model content is not a complete JSON response"
+            return 5
+        fi
+    fi
+    if ! printf '%s\n' "$parsed" | jq_strict -e --arg role "$role" '
+        if $role == "attacker" then (.attacks | type) == "array"
+        elif $role == "defender" then (.counter_designs | type) == "array"
+        else ((.attacks // .scores) | type) == "array" end
+    ' >/dev/null; then
+        error "Model content is missing its findings array"
+        return 5
     fi
 
     case "$role" in
@@ -439,9 +465,18 @@ invoke_live() {
 
     # Parse model-invoke JSON envelope
     local content tokens_input tokens_output
-    content=$(jq -r '.content // empty' "$response_file" 2>/dev/null || echo "")  # check-no-swallowed-jq: ok (pending #1025 sweep)
-    tokens_input=$(jq -r '.usage.input_tokens // 0' "$response_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
-    tokens_output=$(jq -r '.usage.output_tokens // 0' "$response_file" 2>/dev/null || echo 0)  # check-no-swallowed-jq: ok (pending #1025 sweep)
+    if ! content=$(jq_strict -ers '
+        if length == 1 and (.[0] | type) == "object" then .[0].content
+        else error("expected one model-invoke envelope") end |
+        if type == "string" and length > 0 then .
+        else error("missing model-invoke content") end
+    ' "$response_file") ||
+        ! tokens_input=$(red_team_usage "$response_file" '["usage","input_tokens"]') ||
+        ! tokens_output=$(red_team_usage "$response_file" '["usage","output_tokens"]'); then
+        error "model-invoke returned invalid content or usage"
+        rm -f "$response_file" "$stderr_file" "$vq_sidecar"
+        return 5
+    fi
 
     if [[ -z "$content" ]]; then
         error "model-invoke returned empty content"
@@ -458,7 +493,10 @@ invoke_live() {
     fi
     rm -f "$vq_sidecar" 2>/dev/null || true
 
-    wrap_live_response "$role" "$model" "$content" "$tokens_input" "$tokens_output" "$output_file" "$vq_envelope"
+    if ! wrap_live_response "$role" "$model" "$content" "$tokens_input" "$tokens_output" "$output_file" "$vq_envelope"; then
+        rm -f "$response_file" "$stderr_file"
+        return 5
+    fi
 
     # Budget check
     local total_tokens=$((tokens_input + tokens_output))

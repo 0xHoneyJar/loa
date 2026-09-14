@@ -30,14 +30,16 @@
 #      Un-migrated legacy sites on the enforced set carry this marker with a
 #      tracking note (`pending #1025 sweep`); NEW sites are flagged at PR
 #      time. Use sparingly, with reviewer rationale.
-#   5. Match: a jq invocation followed on the same line by `|| echo` or
+#   5. Match: a jq invocation (also yq for construct-index-gen and --root)
+#      followed by `|| echo` or
 #      `|| printf`. `2>/dev/null` is deliberately NOT required for the
 #      match — stderr suppression only hides diagnostics; the `||` default
-#      is what swallows the verdict.
+#      is what swallows the verdict. Join backslash continuations and a
+#      trailing `||` with the next line before matching.
 #
 # **Tripwire scope (NOT exhaustive defense)**: same caveats as
 # check-no-raw-sha256sum.sh — variable-expanded/eval/printf-assembled jq,
-# multi-line forms, and the sibling `|| true` shape are out of scope here.
+# dynamically assembled forms and the sibling `|| true` shape are out of scope here.
 # The jq_strict helper + its bats contract (tests/unit/compat-lib-jq-strict
 # .bats) are the load-bearing boundary; this scanner is one tripwire layer.
 # Remaining repo-wide sites are follow-up sweep work tracked in #1025.
@@ -68,6 +70,7 @@ ENFORCED_FILES=(
     ".claude/scripts/flatline-orchestrator.sh"
     ".claude/scripts/scoring-engine.sh"
     ".claude/scripts/post-pr-triage.sh"
+    ".claude/scripts/construct-index-gen.sh"
 )
 
 QUIET=0
@@ -117,8 +120,43 @@ BEGIN {
     for (_i in _il) INTERP[_il[_i]] = 1
 }
 
-function _line_has_swallowed_jq(line) {
-    return (line ~ /(^|[^[:alnum:]_])jq[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
+function _line_has_swallowed_jq(line,    pattern, rest, i, c, quote, depth) {
+    pattern = "(^|[^[:alnum:]_])" (scan_yq ? "(jq|yq)" : "jq") "[[:space:]]"
+    while (match(line, pattern)) {
+        rest = substr(line, RSTART + RLENGTH)
+        quote = ""; depth = 0
+        # Ignore defaults inside jq arguments, e.g. --argjson enabled
+        # "$(test ... && echo true || echo false)". They do not handle jq's exit.
+        for (i = 1; i <= length(rest); i++) {
+            c = substr(rest, i, 1)
+            if (c == "\\" && quote != "\047") { i++; continue }
+            if (quote != "") {
+                if (c == quote) quote = ""
+                continue
+            }
+            if (c == "\047" || c == "\"" || c == "`") { quote = c; continue }
+            if (c == "(") depth++
+            if (c == ")" && depth > 0) depth--
+            if (depth == 0 && substr(rest, i) ~ /^\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
+                return 1
+        }
+        line = rest
+    }
+    return 0
+}
+
+function _scan_line(line,    continued) {
+    if (pending == "") pending_nr = NR
+    continued = (line ~ /\\[[:space:]]*$/ || line ~ /\|\|[[:space:]]*$/)
+    sub(/\\[[:space:]]*$/, "", line)
+    pending = pending line
+    if (continued) {
+        pending = pending " "
+        return
+    }
+    if (pending !~ /#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ && _line_has_swallowed_jq(pending))
+        print FILENAME ":" pending_nr ":" pending
+    pending = ""
 }
 
 # The command word governing a heredoc whose << starts at pos rs — used to
@@ -193,8 +231,7 @@ in_heredoc {
     }
     if (hd_exec) {
         if ($0 ~ /^[[:space:]]*#/) next
-        if ($0 ~ /#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/) next
-        if (_line_has_swallowed_jq($0)) print FILENAME ":" NR ":" $0
+        _scan_line($0)
     }
     next
 }
@@ -205,17 +242,15 @@ in_heredoc {
 # Step 3: skip lines with the suppression marker — but still register a
 # heredoc opener on the marker line, else `cat <<EOF  # …: ok` leaks its
 # body into the scan.
-/#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ { _start_heredoc($0); next }
+/#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ { _scan_line($0); _start_heredoc($0); next }
 
-# Step 4: match a jq invocation followed by `|| echo` / `|| printf` on the
-# same line. LHS word-boundary so identifiers like `dijq` don't match; jq
+# Step 4: join continuations, then match an invocation followed by
+# `|| echo` / `|| printf`. LHS word-boundary so `dijq` does not match; jq
 # must be followed by whitespace (an invocation always has arguments, and
 # this keeps `jq_strict` from matching). RHS word-boundary on echo/printf
 # so `echo_handler` doesn't match.
 {
-    if (_line_has_swallowed_jq($0)) {
-        print FILENAME ":" NR ":" $0
-    }
+    _scan_line($0)
     _start_heredoc($0)
 }
 AWK
@@ -260,7 +295,11 @@ while IFS= read -r -d '' f; do
     if ! _is_script "$f"; then
         continue
     fi
-    file_hits=$(awk "$AWK_SCAN" "$f")
+    scan_yq=0
+    if [[ -n "$ROOT" || "$f" == ".claude/scripts/construct-index-gen.sh" ]]; then
+        scan_yq=1
+    fi
+    file_hits=$(awk -v scan_yq="$scan_yq" "$AWK_SCAN" "$f")
     if [[ -n "$file_hits" ]]; then
         violations+="$file_hits"$'\n'
     fi
@@ -268,7 +307,7 @@ done < "$_file_list_tmp"
 
 if [[ -n "$violations" ]]; then
     if [[ $QUIET -eq 0 ]]; then
-        printf 'sprint-bug-208 / #1025: output-swallowing jq shape detected (jq ... || echo <default>)\n' >&2
+        printf 'sprint-bug-208 / #1025: output-swallowing jq/yq shape detected (jq/yq ... || echo <default>)\n' >&2
         printf 'This shape converts parse failures into clean defaults — the KF-004/KF-015 mechanism.\n' >&2
         printf 'Route verdict-bearing jq through jq_strict (.claude/scripts/compat-lib.sh) and handle\n' >&2
         printf 'the non-zero exit loudly (malformed/degraded record), never with a clean default.\n' >&2

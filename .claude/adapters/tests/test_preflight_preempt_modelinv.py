@@ -25,6 +25,10 @@ import cheval  # type: ignore[import-not-found]
 def _make_args() -> object:
     args = types.SimpleNamespace()
     args.agent = "flatline-reviewer"
+    # Defaults supplied by the real CLI when advisor flags are omitted.
+    args.role = None
+    args.skill = None
+    args.sprint_kind = None
     args.input = None
     args.prompt = "this is a multi word prompt that is well over one token of input"
     args.system = None

@@ -39,10 +39,10 @@ setup() {
 
     # Non-empty score files for regression coverage.
     cat > "$WORK_DIR/gpt-with-scores.json" <<'JSON'
-{"scores":[{"id":"f1","weight":600,"justification":"test"}]}
+{"scores":[{"id":"f1","score":600,"justification":"test"}]}
 JSON
     cat > "$WORK_DIR/opus-with-scores.json" <<'JSON'
-{"scores":[{"id":"f1","weight":700,"justification":"test"}]}
+{"scores":[{"id":"f1","score":700,"justification":"test"}]}
 JSON
 }
 

@@ -18,11 +18,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from loa_cheval.routing.chains import (
-    validate_chains,
-    walk_downgrade_chain,
-    walk_fallback_chain,
-)
 from loa_cheval.routing.resolver import (
     NATIVE_ALIAS,
     NATIVE_MODEL,
@@ -33,12 +28,9 @@ from loa_cheval.routing.resolver import (
     validate_bindings,
 )
 from loa_cheval.types import (
-    AgentBinding,
     ConfigError,
     InvalidInputError,
     NativeRuntimeRequired,
-    ProviderUnavailableError,
-    ResolvedModel,
 )
 
 # ── Multi-Adapter Config ─────────────────────────────────────────────────────
@@ -166,47 +158,6 @@ class TestCrossAdapterAgentResolution:
         binding, resolved = resolve_execution("deep-thinker", MULTI_CONFIG)
         assert resolved.provider == "google"
         assert resolved.model_id == "gemini-3-pro"
-
-
-# ── Fallback Chain: Google → OpenAI ──────────────────────────────────────────
-
-
-class TestGoogleToOpenAIFallback:
-    """Circuit breaker trip on Google → fallback to OpenAI."""
-
-    def test_google_fallback_to_openai(self):
-        """Standard agent (no special requirements) falls back via reviewer alias."""
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(agent="generic-agent", model="deep-thinker", requires={})
-        resolved = walk_fallback_chain(original, agent, MULTI_CONFIG)
-        assert resolved.provider == "openai"
-        assert resolved.model_id == "gpt-5.2"
-
-    def test_google_fallback_blocked_for_deep_research(self):
-        """Agent requiring deep_research can't fall back (OpenAI doesn't have it)."""
-        original = ResolvedModel(provider="google", model_id="deep-research-pro")
-        agent = AgentBinding(
-            agent="deep-researcher", model="researcher",
-            requires={"deep_research": True},
-        )
-        with pytest.raises(ProviderUnavailableError, match="exhausted"):
-            walk_fallback_chain(original, agent, MULTI_CONFIG)
-
-    def test_openai_fallback_to_anthropic(self):
-        """OpenAI fails → falls back to Anthropic via opus alias."""
-        original = ResolvedModel(provider="openai", model_id="gpt-5.2")
-        agent = AgentBinding(agent="reviewing-code", model="reviewer", requires={})
-        resolved = walk_fallback_chain(original, agent, MULTI_CONFIG)
-        assert resolved.provider == "anthropic"
-        assert resolved.model_id == "claude-opus-4-6"
-
-    def test_anthropic_fallback_to_openai(self):
-        """Anthropic fails → falls back to OpenAI via reviewer alias."""
-        original = ResolvedModel(provider="anthropic", model_id="claude-sonnet-4-6")
-        agent = AgentBinding(agent="translator", model="cheap", requires={})
-        resolved = walk_fallback_chain(original, agent, MULTI_CONFIG)
-        assert resolved.provider == "openai"
-        assert resolved.model_id == "gpt-5.2"
 
 
 # ── Validate Bindings ────────────────────────────────────────────────────────
@@ -337,40 +288,6 @@ class TestAdapterRegistry:
         )
         adapter = get_adapter(config)
         assert isinstance(adapter, GoogleAdapter)
-
-
-# ── Chain Validation ─────────────────────────────────────────────────────────
-
-
-class TestChainValidation:
-    """validate_chains detects issues in routing configuration."""
-
-    def test_valid_chains(self):
-        errors = validate_chains(MULTI_CONFIG)
-        assert errors == []
-
-    def test_unresolvable_fallback(self):
-        cfg = {
-            **MULTI_CONFIG,
-            "routing": {
-                "fallback": {"openai": ["nonexistent-alias"]},
-            },
-        }
-        errors = validate_chains(cfg)
-        assert len(errors) > 0
-        assert any("nonexistent" in e for e in errors)
-
-    def test_duplicate_target_in_chain(self):
-        """Same alias appearing twice is detected as cycle."""
-        cfg = {
-            **MULTI_CONFIG,
-            "routing": {
-                "fallback": {"openai": ["opus", "opus"]},
-                "downgrade": {},
-            },
-        }
-        errors = validate_chains(cfg)
-        assert any("cycle" in e.lower() for e in errors)
 
 
 # ── Model Override ───────────────────────────────────────────────────────────

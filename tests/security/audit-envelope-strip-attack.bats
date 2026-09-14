@@ -64,24 +64,38 @@ pub_bytes = priv.public_key().public_bytes(
 (key_dir / "test-writer-strip.pub").write_bytes(pub_bytes)
 PY
 
-    # Trust-store with cutoff in the past so all entries are post-cutoff.
+    # Root-signed store with cutoff in the past; signed history cannot rely
+    # on the bootstrap/local-pubkey path.
     TS="$TEST_DIR/trust-store.yaml"
-    cat > "$TS" <<EOF
-schema_version: "1.0"
-root_signature:
-  algorithm: ed25519
-  signer_pubkey: ""
-  signed_at: ""
-  signature: ""
-keys: []
-revocations: []
-trust_cutoff:
-  default_strict_after: "2020-01-01T00:00:00Z"
-EOF
+    python3 - "$TS" "$KEY_DIR/test-writer-strip.pub" "$TEST_DIR/root.pub" <<'PY'
+import base64, sys
+from pathlib import Path
+import rfc8785, yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
+root = ed25519.Ed25519PrivateKey.generate()
+pem = root.public_key().public_bytes(
+    serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+).decode()
+core = {
+    "schema_version": "1.0",
+    "keys": [{"writer_id": "test-writer-strip", "pubkey_pem": Path(sys.argv[2]).read_text()}],
+    "revocations": [],
+    "trust_cutoff": {"default_strict_after": "2020-01-01T00:00:00Z"},
+}
+Path(sys.argv[3]).write_text(pem)
+Path(sys.argv[1]).write_text(yaml.safe_dump({
+    **core, "root_signature": {
+        "algorithm": "ed25519", "signer_pubkey": pem,
+        "signature": base64.b64encode(root.sign(rfc8785.dumps(core))).decode(),
+    },
+}))
+PY
 
     export LOA_AUDIT_KEY_DIR="$KEY_DIR"
     export LOA_AUDIT_SIGNING_KEY_ID="test-writer-strip"
     export LOA_TRUST_STORE_FILE="$TS"
+    export LOA_PINNED_ROOT_PUBKEY_PATH="$TEST_DIR/root.pub"
 
     # shellcheck disable=SC1090
     source "$AUDIT_ENVELOPE"
@@ -92,7 +106,7 @@ teardown() {
         find "$TEST_DIR" -type f -delete 2>/dev/null || true
         find "$TEST_DIR" -type d -empty -delete 2>/dev/null || true
     fi
-    unset LOA_AUDIT_KEY_DIR LOA_AUDIT_SIGNING_KEY_ID LOA_TRUST_STORE_FILE
+    unset LOA_AUDIT_KEY_DIR LOA_AUDIT_SIGNING_KEY_ID LOA_TRUST_STORE_FILE LOA_PINNED_ROOT_PUBKEY_PATH
 }
 
 # -----------------------------------------------------------------------------

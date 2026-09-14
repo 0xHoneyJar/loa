@@ -18,6 +18,7 @@
 #   --dry-run              Validate without executing reviews
 #   --skip-knowledge       Skip knowledge retrieval
 #   --skip-consensus       Return raw reviews without consensus
+#   --keep-temp            Retain intermediate responses for offline diagnosis
 #   --timeout <seconds>    Overall timeout (default: 300)
 #   --budget <cents>       Cost budget in cents (default: 300 = $3.00)
 #   --json                 Output as JSON
@@ -48,7 +49,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
+source "$SCRIPT_DIR/compat-lib.sh"
 source "$SCRIPT_DIR/lib/normalize-json.sh"
+source "$SCRIPT_DIR/lib/verdict-quality.sh"
 source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
 source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
 # cycle-099 Sprint 1B parity (mirrors red-team-model-adapter.sh): exposes
@@ -129,6 +132,8 @@ START_TIME=""
 
 # Temp directory for intermediate files
 TEMP_DIR=""
+KEEP_FLATLINE_TEMP="${KEEP_FLATLINE_TEMP:-0}"
+FLATLINE_RUN_ID="flatline-${BASHPID:-$$}-${RANDOM}"
 
 # =============================================================================
 # Logging
@@ -540,6 +545,38 @@ VALID_MODEL_PATTERNS=(
     '^(claude|codex|gemini)-headless:.+$'    # cheval-headless pin form
 )
 
+# Read declarations only: validation must not dispatch or resolve credentials.
+# Reuse the loader's merge and the routing resolver's alias semantics.
+configured_flatline_model() {
+    PYTHONPATH="$SCRIPT_DIR/../adapters" python3 - "$PROJECT_ROOT" "$1" <<'PY' 2>/dev/null
+import sys
+from loa_cheval.config.loader import load_system_defaults, load_project_config, _deep_merge
+from loa_cheval.routing.resolver import resolve_alias
+
+try:
+    config = _deep_merge(load_system_defaults(sys.argv[1]), load_project_config(sys.argv[1]))
+    providers = config.get("providers", {})
+    aliases = {**config.get("backward_compat_aliases", {}), **config.get("aliases", {})}
+    model = sys.argv[2]
+    if ":" not in model and model not in aliases:
+        matches = [name for name, provider in providers.items() if model in provider.get("models", {})]
+        if not matches:
+            sys.exit(1)
+        if len(matches) != 1:
+            sys.exit(2)
+        print(f"{matches[0]}:{model}")
+    else:
+        resolved = resolve_alias(model, aliases)
+        if resolved.provider not in providers:
+            sys.exit(2 if model in aliases else 1)
+        if resolved.model_id not in providers[resolved.provider].get("models", {}):
+            sys.exit(2)
+        print(f"{resolved.provider}:{resolved.model_id}")
+except Exception:
+    sys.exit(2)
+PY
+}
+
 validate_model() {
     local model="$1"
     local config_key="$2"  # e.g., "primary" or "secondary"
@@ -548,6 +585,17 @@ validate_model() {
         error "Flatline model '$config_key' is empty. Set flatline_protocol.models.$config_key in .loa.config.yaml"
         error "Valid models: ${VALID_FLATLINE_MODELS[*]}"
         return 1
+    fi
+
+    # Project declarations take precedence over generated defaults, including
+    # aliases that override a known name. A declared but broken target fails.
+    if declare -F configured_flatline_model >/dev/null; then
+        local configured_rc=0
+        configured_flatline_model "$model" >/dev/null || configured_rc=$?
+        case "$configured_rc" in
+            0) return 0 ;;
+            2) error "Invalid or ambiguous configured Flatline model: '$model'"; return 1 ;;
+        esac
     fi
 
     # Explicit allowlist match
@@ -643,7 +691,17 @@ flatline_output_dir() {
 
 final_consensus_path() {
     local phase="$1"
-    printf '%s/%s-final_consensus.json\n' "$(flatline_output_dir)" "$phase"
+    printf '%s/%s-%s-final_consensus.json\n' "$(flatline_output_dir)" "$phase" "$FLATLINE_RUN_ID"
+}
+
+# Compatibility/latest pointer only. No run reads or invalidates this path.
+publish_latest_consensus() {
+    local phase="$1" target latest tmp
+    target=$(final_consensus_path "$phase")
+    latest="$(flatline_output_dir)/${phase}-final_consensus.json"
+    tmp=$(mktemp "${latest}.XXXXXX") || return 1
+    rm -f "$tmp"
+    ln -s "$(basename "$target")" "$tmp" && mv -f "$tmp" "$latest"
 }
 
 invalidate_final_consensus() {
@@ -726,14 +784,25 @@ aggregate_and_write_final_consensus() {
     agg_out=$(PYTHONPATH="$PROJECT_ROOT/.claude/adapters" \
         python3 -m loa_cheval.verdict.aggregate \
             --expected-voices-count "$expected_voices_count" \
-            "${vq_files[@]}" 2>&1) || agg_rc=$?
+            "${vq_files[@]}" 2>/dev/null) || agg_rc=$?
     local aggregate_status=0
     if [[ $agg_rc -ne 0 ]]; then
-        log "[vq-aggregate] aggregator failed (rc=$agg_rc): $agg_out"
+        # Adapter errors can contain rejected instances and terminal controls.
+        # Never copy raw model-bearing diagnostics to operator/trajectory logs.
+        log "[vq-aggregate] AGGREGATION_REJECTED (rc=$agg_rc)"
         aggregate_status=1
     else
-        local publish_tmp=""
-        if ! publish_tmp=$(mktemp "${target}.XXXXXX"); then
+        local publish_tmp="" final_status
+        if ! final_status=$(printf '%s\n' "$agg_out" | jq_strict -ers '
+            if length != 1 or (.[0] | type) != "object" then
+                error("expected one consensus document")
+            else .[0].status end |
+            if . == "APPROVED" or . == "DEGRADED" or . == "FAILED"
+            then . else error("invalid consensus status") end
+        '); then
+            log "[vq-aggregate] invalid consensus status; skipping publication"
+            aggregate_status=1
+        elif ! publish_tmp=$(mktemp "${target}.XXXXXX"); then
             log "[vq-aggregate] unable to allocate atomic publication file"
             aggregate_status=1
         elif ! printf '%s\n' "$agg_out" | jq . > "$publish_tmp" 2>/dev/null; then
@@ -748,8 +817,6 @@ aggregate_and_write_final_consensus() {
             :
         fi
         if [[ -s "$target" ]]; then
-            local final_status
-            final_status=$(jq -r '.status' "$target" 2>/dev/null || echo "?")  # check-no-swallowed-jq: ok (pending #1025 sweep)
             log "[vq-aggregate] wrote $target (status=$final_status, voices=${#vq_files[@]}/$expected_voices_count)"
 
             # cycle-117 item D (#1177): uniform DEGRADED/FAILED trajectory
@@ -825,6 +892,7 @@ qualify_and_aggregate_reviews() {
     if ! FLATLINE_VERDICT_QUALITY=$(jq -c . "$target" 2>/dev/null); then
         return 3
     fi
+    publish_latest_consensus "$phase" || log "[vq-aggregate] latest pointer publication failed"
 }
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
@@ -857,7 +925,14 @@ call_model() {
         # for legacy aliases that intentionally aren't in model-config.yaml.
         # Mirrors the red-team-model-adapter.sh pattern.
         local model_override
-        if model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
+        local configured_rc=0
+        model_override=$(configured_flatline_model "$model") || configured_rc=$?
+        if [[ "$configured_rc" -eq 0 ]]; then
+            : # effective project declaration
+        elif [[ "$configured_rc" -eq 2 ]]; then
+            log "ERROR: Invalid or ambiguous configured Flatline model"
+            return 2
+        elif model_override="$(resolve_provider_id "$model" 2>/dev/null)"; then
             : # canonical alias resolved via shared lib
         else
             model_override="${MODEL_TO_PROVIDER_ID[$model]:-$model}"
@@ -1068,11 +1143,15 @@ extract_domain() {
             ;;
         beads)
             # Look for task graph keywords from JSON
-            domain=$(jq -r '[.[]? | .title // .description // empty] | join(" ")' "$doc" 2>/dev/null | \
-                tr -cs '[:alnum:]' ' ' | \
+            local keywords
+            if ! keywords=$(jq -r '[.[]? | .title // .description // empty] | join(" ")' "$doc" 2>/dev/null); then
+                error "Beads domain extraction failed: invalid task JSON"
+                return 1
+            fi
+            domain=$(printf '%s' "$keywords" | tr -cs '[:alnum:]' ' ' | \
                 tr '[:upper:]' '[:lower:]' | \
                 tr -s ' ' | \
-                cut -d' ' -f1-5 || echo "task graph")
+                cut -d' ' -f1-5)
             ;;
     esac
 
@@ -1637,6 +1716,19 @@ run_phase1() {
 # Phase 2: Cross-Scoring
 # =============================================================================
 
+prepare_flatline_items() {
+    local file="$1" source="$2"
+    # Reviewer IDs are local (each reviewer starts at IMP-001). Bind identity
+    # to the source and position before dispatch, including duplicate local IDs.
+    extract_json_content "$file" '{"improvements":[]}' | jq --arg source "$source" '
+        .improvements |= (to_entries | map(.value + {
+            id: ($source + ":" + (.key | tostring) + ":" + (.value.id | tostring)),
+            original_id: .value.id,
+            review_source: $source
+        }))
+    '
+}
+
 run_phase2() {
     local gpt_review_file="$1"
     local opus_review_file="$2"
@@ -1664,11 +1756,11 @@ run_phase2() {
     local opus_items_file="$TEMP_DIR/opus-items.json"
     local tertiary_items_file="$TEMP_DIR/tertiary-items.json"
 
-    # Extract improvements from each review (handles markdown-wrapped JSON)
-    extract_json_content "$gpt_review_file" '{"improvements":[]}' > "$gpt_items_file"
-    extract_json_content "$opus_review_file" '{"improvements":[]}' > "$opus_items_file"
+    # Both cross-scorers receive the same source-qualified finding IDs.
+    prepare_flatline_items "$gpt_review_file" gpt > "$gpt_items_file" || return 1
+    prepare_flatline_items "$opus_review_file" opus > "$opus_items_file" || return 1
     if [[ "$has_tertiary" == "true" ]]; then
-        extract_json_content "$tertiary_review_file" '{"improvements":[]}' > "$tertiary_items_file"
+        prepare_flatline_items "$tertiary_review_file" tertiary > "$tertiary_items_file" || return 1
     fi
 
     # Create output files
@@ -1783,6 +1875,86 @@ run_phase2() {
 # Phase 3: Consensus Calculation
 # =============================================================================
 
+prepare_flatline_scores() {
+    local file="$1" items_file="${2:-}"
+    local content normalized
+    if [[ -s "$file" ]] &&
+       content=$(jq -ers '
+           select(length == 1) | .[0] | select(type == "object") |
+           .content | select(type == "string" and length > 0)
+       ' "$file" 2>/dev/null) &&
+       normalized=$(normalize_score_response "$content") &&
+       validate_agent_response "$normalized" flatline-scorer 2>/dev/null; then
+        # Real Phase 2 retains its dispatch inputs. Reject unknown/stripped IDs
+        # and take finding provenance and description from those inputs.
+        if [[ -z "$items_file" ]] || normalized=$(jq --argjson response "$normalized" '
+            (.improvements | map({key:.id, value:.}) | from_entries) as $items |
+            $response | .scores |= map(
+                . as $score | $items[$score.id] as $item |
+                if $item == null then error("unknown finding ID")
+                else $score + {
+                    description: $item.description,
+                    original_id: $item.original_id,
+                    review_source: $item.review_source
+                } end) |
+            (($items | keys) - [.scores[].id]) as $missing |
+            if ($missing | length) > 0 then
+                . + {scoring_status:"incomplete", missing_score_ids:$missing}
+            else . end
+        ' "$items_file" 2>/dev/null); then
+            printf '%s\n' "$normalized"
+            return 0
+        fi
+    fi
+    log "WARNING: Scorer response unavailable; excluding its scores"
+    printf '%s\n' '{"scores":[],"scoring_status":"unavailable"}'
+}
+
+qualified_raw_reviews() {
+    local gpt_review_file="$1" opus_review_file="$2"
+    local raw_reviews='{}' review_file voice_label
+    for review_file in "${QUALIFIED_REVIEW_FILES[@]}"; do
+        case "$review_file" in
+            "$gpt_review_file") voice_label=gpt ;;
+            "$opus_review_file") voice_label=opus ;;
+            *) voice_label=tertiary ;;
+        esac
+        raw_reviews=$(jq --arg voice "$voice_label" --slurpfile review "$review_file" \
+            '. + {($voice): $review[0]}' <<< "$raw_reviews") || return 1
+    done
+    printf '%s\n' "$raw_reviews"
+}
+
+qualified_reviews_are_empty() {
+    [[ ${#QUALIFIED_REVIEW_FILES[@]} -gt 0 ]] || return 1
+    local file
+    for file in "${QUALIFIED_REVIEW_FILES[@]}"; do
+        if ! extract_json_content "$file" '{}' |
+             jq -e '.improvements | type == "array" and length == 0' >/dev/null; then
+            return 1
+        fi
+    done
+}
+
+record_scoring_degradation() {
+    local phase="$1" updated target temporary
+    target=$(final_consensus_path "$phase")
+    invalidate_final_consensus "$phase"
+    updated=$(printf '%s\n' "$FLATLINE_VERDICT_QUALITY" | jq '
+        .scoring_degraded = true |
+        .confidence_floor = "low" |
+        .rationale = "Qualified review voices retained; cross-scoring was incomplete or rejected."
+    ' | verdict_quality_emit) || return 1
+    temporary=$(mktemp "${target}.XXXXXX") || return 1
+    if ! printf '%s\n' "$updated" > "$temporary" || ! mv "$temporary" "$target"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    FLATLINE_VERDICT_QUALITY="$updated"
+    publish_latest_consensus "$phase" || log "[vq-aggregate] latest pointer publication failed"
+    log "Cross-scoring degraded; qualified review denominator retained"
+}
+
 run_consensus() {
     local gpt_scores_file="$1"
     local opus_scores_file="$2"
@@ -1803,8 +1975,8 @@ run_consensus() {
     local opus_scores_prepared="$TEMP_DIR/opus-scores-prepared.json"
 
     # Extract and format scores using extract_json_content (handles markdown wrapping)
-    extract_json_content "$gpt_scores_file" '{"scores":[]}' > "$gpt_scores_prepared"
-    extract_json_content "$opus_scores_file" '{"scores":[]}' > "$opus_scores_prepared"
+    prepare_flatline_scores "$gpt_scores_file" "$TEMP_DIR/opus-items.json" > "$gpt_scores_prepared"
+    prepare_flatline_scores "$opus_scores_file" "$TEMP_DIR/gpt-items.json" > "$opus_scores_prepared"
 
     # Prepare skeptic files (handles markdown-wrapped JSON)
     local gpt_skeptic_prepared="$TEMP_DIR/gpt-skeptic-prepared.json"
@@ -1817,16 +1989,16 @@ run_consensus() {
 
     # FR-3: Prepare tertiary scoring and skeptic files when available
     local tertiary_args=()
-    if [[ -n "$tertiary_scores_opus" && -s "$tertiary_scores_opus" ]]; then
+    if [[ -n "$tertiary_scores_opus$tertiary_scores_gpt$gpt_scores_tertiary$opus_scores_tertiary" ]]; then
         local tertiary_scores_opus_prepared="$TEMP_DIR/tertiary-scores-opus-prepared.json"
         local tertiary_scores_gpt_prepared="$TEMP_DIR/tertiary-scores-gpt-prepared.json"
         local gpt_scores_tertiary_prepared="$TEMP_DIR/gpt-scores-tertiary-prepared.json"
         local opus_scores_tertiary_prepared="$TEMP_DIR/opus-scores-tertiary-prepared.json"
 
-        extract_json_content "$tertiary_scores_opus" '{"scores":[]}' > "$tertiary_scores_opus_prepared"
-        extract_json_content "$tertiary_scores_gpt" '{"scores":[]}' > "$tertiary_scores_gpt_prepared"
-        extract_json_content "$gpt_scores_tertiary" '{"scores":[]}' > "$gpt_scores_tertiary_prepared"
-        extract_json_content "$opus_scores_tertiary" '{"scores":[]}' > "$opus_scores_tertiary_prepared"
+        prepare_flatline_scores "$tertiary_scores_opus" "$TEMP_DIR/opus-items.json" > "$tertiary_scores_opus_prepared"
+        prepare_flatline_scores "$tertiary_scores_gpt" "$TEMP_DIR/gpt-items.json" > "$tertiary_scores_gpt_prepared"
+        prepare_flatline_scores "$gpt_scores_tertiary" "$TEMP_DIR/tertiary-items.json" > "$gpt_scores_tertiary_prepared"
+        prepare_flatline_scores "$opus_scores_tertiary" "$TEMP_DIR/tertiary-items.json" > "$opus_scores_tertiary_prepared"
 
         tertiary_args=(
             --tertiary-scores-opus "$tertiary_scores_opus_prepared"
@@ -1877,6 +2049,7 @@ Options:
   --dry-run              Validate without executing reviews
   --skip-knowledge       Skip knowledge retrieval
   --skip-consensus       Return raw reviews without consensus
+  --keep-temp            Retain intermediates (or set KEEP_FLATLINE_TEMP=1)
   --timeout <seconds>    Overall timeout (default: 300)
   --budget <cents>       Cost budget in cents (default: 300 = \$3.00)
   --per-call-max-tokens <N>
@@ -1919,7 +2092,11 @@ EOF
 
 cleanup() {
     if [[ -n "$TEMP_DIR" && -d "$TEMP_DIR" ]]; then
-        rm -rf "$TEMP_DIR"
+        if [[ "$KEEP_FLATLINE_TEMP" == "1" ]]; then
+            log "Retained Flatline intermediates: $TEMP_DIR"
+        else
+            rm -rf "$TEMP_DIR"
+        fi
     fi
 }
 
@@ -1934,7 +2111,7 @@ main() {
     local budget="$DEFAULT_BUDGET"
     local json_output=false
     local mode_flag=""
-    local run_id=""
+    local run_id="$FLATLINE_RUN_ID"
     local orchestrator_mode="review"
     local rt_focus=""
     local rt_surface=""
@@ -1987,7 +2164,16 @@ main() {
                 ;;
             --run-id)
                 run_id="$2"
+                if [[ ! "$run_id" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$ ]]; then
+                    error "Invalid run ID: use 1-128 letters, digits, underscores or hyphens"
+                    exit 1
+                fi
+                FLATLINE_RUN_ID="$run_id"
                 shift 2
+                ;;
+            --keep-temp)
+                KEEP_FLATLINE_TEMP=1
+                shift
                 ;;
             --dry-run)
                 dry_run=true
@@ -2175,7 +2361,10 @@ main() {
 
     # Extract domain if not provided
     if [[ -z "$domain" ]]; then
-        domain=$(extract_domain "$doc" "$phase")
+        if ! domain=$(extract_domain "$doc" "$phase"); then
+            error "Cannot derive review domain"
+            exit 1
+        fi
         log "Extracted domain: $domain"
     fi
 
@@ -2456,12 +2645,22 @@ main() {
     if [[ "$skip_consensus" != "true" && -n "$gpt_scores_file" && -n "$opus_scores_file" ]]; then
         result=$(run_consensus "$gpt_scores_file" "$opus_scores_file" "$gpt_skeptic_file" "$opus_skeptic_file" \
             "$tertiary_scores_opus" "$tertiary_scores_gpt" "$gpt_scores_tertiary" "$opus_scores_tertiary" \
-            "$tertiary_skeptic_file")
+            "$tertiary_skeptic_file") || {
+                invalidate_final_consensus "$phase"
+                error "Consensus calculation failed"
+                exit 3
+            }
     else
-        # Return raw reviews without consensus
+        # Include every qualified voice, including tertiary. Missing/rejected
+        # envelopes are not findings and must not be read here.
+        local raw_reviews
+        raw_reviews=$(qualified_raw_reviews "$gpt_review_file" "$opus_review_file") || {
+            invalidate_final_consensus "$phase"
+            error "Could not retain qualified reviews"
+            exit 3
+        }
         result=$(jq -n \
-            --slurpfile gpt_review "$gpt_review_file" \
-            --slurpfile opus_review "$opus_review_file" \
+            --argjson raw_reviews "$raw_reviews" \
             '{
                 consensus_summary: {
                     high_consensus_count: 0,
@@ -2470,12 +2669,39 @@ main() {
                     blocker_count: 0,
                     model_agreement_percent: 0
                 },
-                raw_reviews: {
-                    gpt: $gpt_review[0],
-                    opus: $opus_review[0]
-                },
+                raw_reviews: $raw_reviews,
                 note: "Consensus calculation skipped"
             }')
+    fi
+
+    if jq -e '.degraded == true' >/dev/null <<< "$result"; then
+        if jq -e '
+            ((.degraded_models // []) | length) == 0 and
+            ([.high_consensus[]?, .disputed[]?, .low_value[]?, .medium_value[]?] | length) == 0
+        ' >/dev/null <<< "$result" && qualified_reviews_are_empty; then
+            # Fully qualified no-finding reviews require no score items.
+            result=$(jq '
+                .degraded = false | .confidence = "full" |
+                .consensus_summary.confidence = "full" |
+                del(.degraded_model, .degradation_reason)
+            ' <<< "$result")
+        else
+            record_scoring_degradation "$phase" || {
+                error "Could not publish degraded scoring verdict"
+                exit 3
+            }
+            flatline_verdict_status=$(jq -r '.status' <<< "$FLATLINE_VERDICT_QUALITY")
+            # A missing score must not erase the review finding. Keep every
+            # qualified source alongside any validated partial consensus.
+            local raw_reviews
+            raw_reviews=$(qualified_raw_reviews "$gpt_review_file" "$opus_review_file") &&
+                result=$(jq --argjson raw_reviews "$raw_reviews" \
+                    '. + {raw_reviews:$raw_reviews}' <<< "$result") || {
+                invalidate_final_consensus "$phase"
+                error "Could not retain qualified reviews"
+                exit 3
+            }
+        fi
     fi
 
     # =========================================================================
@@ -2575,8 +2801,26 @@ main() {
             if [[ "$arbiter_success" == "true" ]]; then
                 # Extract JSON decisions from arbiter response
                 local decisions
-                decisions=$(echo "$arbiter_result" | jq -r '.content // .' 2>/dev/null | \
-                    grep -oE '\[.*\]' | head -1 | jq '.' 2>/dev/null || echo "[]")  # check-no-swallowed-jq: ok (pending #1025 sweep)
+                if ! decisions=$(printf '%s\n' "$arbiter_result" | jq_strict -ecs \
+                    --argjson findings "$findings_to_arbitrate" '
+                    if length == 1 then .[0] else error("expected one arbiter envelope") end |
+                    (if type == "object" then .content else . end) |
+                    (if type == "string" then
+                        capture("(?s)^[^\\[\\]]*(?<array>\\[.*\\])[^\\[\\]]*$").array |
+                        try fromjson catch error("invalid arbiter JSON")
+                     else . end) |
+                    if type != "array" then error("expected arbiter decisions")
+                    elif (all(.[]; type == "object" and
+                        (.finding_id | type) == "string" and
+                        (.decision == "accept" or .decision == "reject")) | not)
+                    then error("invalid arbiter decision")
+                    elif (map(.finding_id) | sort) != ($findings | map(.id) | sort)
+                    then error("arbiter decisions must cover each finding exactly once")
+                    else . end
+                '); then
+                    error "Arbiter response invalid or incomplete; preserving unresolved findings"
+                    return 3
+                fi
 
                 if echo "$decisions" | jq -e 'type == "array"' >/dev/null 2>&1; then
                     # Process each decision

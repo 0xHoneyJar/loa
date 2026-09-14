@@ -89,18 +89,20 @@ now_date() {
 
 # Create backup before write operations
 # Location: grimoires/loa/ledger.json.bak
-ensure_ledger_backup() {
+ensure_ledger_backup() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local ledger_path
     ledger_path=$(get_ledger_path)
 
     if [[ -f "$ledger_path" ]]; then
         cp "$ledger_path" "${ledger_path}.bak"
     fi
-}
+)
 
 # Recover from backup
 # Returns: 0 on success, 1 if no backup, 2 if backup is invalid
-recover_from_backup() {
+recover_from_backup() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local ledger_path
     ledger_path=$(get_ledger_path)
     local backup_path="${ledger_path}.bak"
@@ -110,28 +112,31 @@ recover_from_backup() {
         return 1
     fi
 
-    # SECURITY (MED-008): Validate backup is valid JSON before restore
-    if ! jq empty "$backup_path" 2>/dev/null; then
-        echo "ERROR: Backup file is not valid JSON, refusing to restore" >&2
+    # Recovery accepts one ledger object, never scalars or JSON streams.
+    if ! jq -es 'length == 1 and (.[0] | type == "object")' "$backup_path" >/dev/null 2>&1; then
+        echo "ERROR: Backup file is not one valid JSON object, refusing to restore" >&2
         return 2
     fi
 
     # Validate backup has required fields
     local version
-    version=$(jq -r '.version // "missing"' "$backup_path" 2>/dev/null)
-    if [[ "$version" == "missing" ]]; then
+    version=$(jq -r '.version // "missing"' "$backup_path" 2>/dev/null) || {
+        echo "ERROR: Could not validate backup version, refusing to restore" >&2
+        return 2
+    }
+    if [[ -z "$version" || "$version" == "missing" ]]; then
         echo "ERROR: Backup missing required 'version' field, refusing to restore" >&2
         return 2
     fi
 
     # Use atomic write pattern for recovery too
     local tmp_file="${ledger_path}.recover.$$"
-    cp "$backup_path" "$tmp_file"
-    mv "$tmp_file" "$ledger_path"
+    cp "$backup_path" "$tmp_file" || return $LEDGER_ERROR
+    mv "$tmp_file" "$ledger_path" || return $LEDGER_ERROR
 
     echo "Recovered ledger from backup"
     return 0
-}
+)
 
 # =============================================================================
 # Internal Write Function (HIGH-001: Atomic writes with flock)
@@ -140,41 +145,64 @@ recover_from_backup() {
 # Lock file timeout in seconds
 readonly LEDGER_LOCK_TIMEOUT=5
 
+# Mutators run in subshells: fd 9 belongs to the outermost transaction without
+# replacing the caller's descriptor. Nested calls (including $() allocation)
+# inherit the same open descriptor and must neither reopen nor unlock it.
+_lock_ledger_transaction() {
+    local ledger_path
+    ledger_path=$(get_ledger_path) || return $LEDGER_ERROR
+    if [[ "${_LEDGER_TRANSACTION_PATH:-}" == "$ledger_path" ]]; then
+        return $LEDGER_OK
+    fi
+
+    mkdir -p "$(dirname "$ledger_path")" || return $LEDGER_ERROR
+    exec 9>"${ledger_path}.lock" || return $LEDGER_ERROR
+    if ! flock -w "$LEDGER_LOCK_TIMEOUT" 9; then
+        echo "ERROR: Could not acquire ledger lock within ${LEDGER_LOCK_TIMEOUT}s" >&2
+        return $LEDGER_ERROR
+    fi
+    _LEDGER_TRANSACTION_PATH="$ledger_path"
+}
+
 # Write ledger JSON with exclusive locking (internal use)
 # Args: $1 - JSON content
 # Returns: 0 on success, 1 on lock failure
-_write_ledger() {
+_write_ledger() (
     local content="$1"
     local ledger_path
     ledger_path=$(get_ledger_path)
-    local lock_file="${ledger_path}.lock"
 
-    # Ensure parent directory exists
-    mkdir -p "$(dirname "$ledger_path")"
-
-    # SECURITY (HIGH-001): Acquire exclusive lock with timeout
-    # This prevents race conditions in concurrent operations
-    exec 9>"$lock_file"
-    if ! flock -w "$LEDGER_LOCK_TIMEOUT" 9; then
-        echo "ERROR: Could not acquire ledger lock within ${LEDGER_LOCK_TIMEOUT}s" >&2
-        exec 9>&-
-        return 1
+    # GUARD (bug 20260808-a008c6): refuse empty/unparseable/wrong-shape content
+    # BEFORE touching lock, backup, or ledger. An empty string here previously
+    # passed through the last_updated jq stamp (jq on empty input emits
+    # nothing and exits 0) and truncated the ledger to a 1-byte newline
+    # while every caller reported success. printf (not echo) so flag-like
+    # content cannot be eaten; -es pins the shape to exactly one JSON object
+    # (multi-document streams and bare scalars pass a plain `jq empty`).
+    if [[ -z "$content" ]] || \
+       ! printf '%s' "$content" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+        echo "ERROR: refusing to write empty, unparseable, or non-object ledger content" >&2
+        return $LEDGER_ERROR
     fi
 
+    _lock_ledger_transaction || return $LEDGER_ERROR
+
     # Backup before write
-    ensure_ledger_backup
+    ensure_ledger_backup || return $LEDGER_ERROR
 
     # Update last_updated timestamp
     local updated_content
-    updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
+    updated_content=$(printf '%s' "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts') || return $LEDGER_ERROR
+    if [[ -z "$updated_content" ]]; then
+        echo "ERROR: timestamp stamping produced empty content, aborting write" >&2
+        return $LEDGER_ERROR
+    fi
 
     # SECURITY (HIGH-001): Atomic write via temp file + mv
     local tmp_file="${ledger_path}.tmp.$$"
     if ! echo "$updated_content" > "$tmp_file"; then
         echo "ERROR: Failed to write temp file" >&2
         rm -f "$tmp_file"
-        flock -u 9
-        exec 9>&-
         return 1
     fi
 
@@ -182,16 +210,11 @@ _write_ledger() {
     if ! mv "$tmp_file" "$ledger_path"; then
         echo "ERROR: Failed to move temp file to ledger" >&2
         rm -f "$tmp_file"
-        flock -u 9
-        exec 9>&-
         return 1
     fi
 
-    # Release lock
-    flock -u 9
-    exec 9>&-
     return 0
-}
+)
 
 # =============================================================================
 # Initialization Functions
@@ -200,7 +223,8 @@ _write_ledger() {
 # Initialize new ledger
 # Creates new ledger.json if not exists
 # Returns: 0 on success, 1 if already exists
-init_ledger() {
+init_ledger() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local ledger_path
     ledger_path=$(get_ledger_path)
 
@@ -229,15 +253,16 @@ init_ledger() {
 EOF
 )
 
-    echo "$ledger_json" > "$ledger_path"
+    echo "$ledger_json" > "$ledger_path" || return $LEDGER_ERROR
     echo "Initialized ledger at $ledger_path"
     return $LEDGER_OK
-}
+)
 
 # Initialize ledger from existing project
 # Scans a2a/sprint-* directories to set next_sprint_number
 # Returns: 0 on success, 1 on error
-init_ledger_from_existing() {
+init_ledger_from_existing() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local ledger_path
     ledger_path=$(get_ledger_path)
 
@@ -286,11 +311,11 @@ init_ledger_from_existing() {
 EOF
 )
 
-    echo "$ledger_json" > "$ledger_path"
+    echo "$ledger_json" > "$ledger_path" || return $LEDGER_ERROR
     echo "Initialized ledger from existing project"
     echo "Detected $max_sprint existing sprints, next sprint number: $next_sprint"
     return $LEDGER_OK
-}
+)
 
 # =============================================================================
 # Cycle Management Functions
@@ -317,7 +342,7 @@ _next_cycle_id() {
     ledger_path=$(get_ledger_path)
 
     local count
-    count=$(jq '.cycles | length' "$ledger_path")
+    count=$(jq '.cycles | length' "$ledger_path") || return $LEDGER_ERROR
 
     printf "cycle-%03d" $((count + 1))
 }
@@ -325,7 +350,8 @@ _next_cycle_id() {
 # Create new cycle
 # Args: $1 - Human-readable label for the cycle
 # Returns: New cycle ID
-create_cycle() {
+create_cycle() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local label="$1"
     local ledger_path
     ledger_path=$(get_ledger_path)
@@ -337,14 +363,14 @@ create_cycle() {
 
     # Check if active cycle exists
     local active
-    active=$(get_active_cycle)
+    active=$(get_active_cycle) || return $?
     if [[ "$active" != "null" ]]; then
         echo "Active cycle already exists: $active. Archive it first." >&2
         return $LEDGER_ERROR
     fi
 
     local cycle_id
-    cycle_id=$(_next_cycle_id)
+    cycle_id=$(_next_cycle_id) || return $?
 
     local now
     now=$(now_iso)
@@ -374,13 +400,13 @@ EOF
     # Add cycle and set as active
     local ledger_content
     ledger_content=$(jq --argjson cycle "$cycle_json" --arg id "$cycle_id" \
-        '.cycles += [$cycle] | .active_cycle = $id' "$ledger_path")
+        '.cycles += [$cycle] | .active_cycle = $id' "$ledger_path") || return $LEDGER_ERROR
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$cycle_id"
     return $LEDGER_OK
-}
+)
 
 # Get cycle by ID
 # Args: $1 - Cycle ID
@@ -400,7 +426,8 @@ get_cycle_by_id() {
 
 # Update cycle field
 # Args: $1 - Cycle ID, $2 - Field name, $3 - New value
-update_cycle_field() {
+update_cycle_field() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local cycle_id="$1"
     local field="$2"
     local value="$3"
@@ -413,11 +440,11 @@ update_cycle_field() {
 
     local ledger_content
     ledger_content=$(jq --arg id "$cycle_id" --arg field "$field" --arg value "$value" \
-        '(.cycles[] | select(.id == $id))[$field] = $value' "$ledger_path")
+        '(.cycles[] | select(.id == $id))[$field] = $value' "$ledger_path") || return $LEDGER_ERROR
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
     return $LEDGER_OK
-}
+)
 
 # =============================================================================
 # Sprint Management Functions
@@ -440,7 +467,8 @@ get_next_sprint_number() {
 # Allocate sprint number (increments and returns)
 # This is atomic: read + increment + write
 # Returns: Allocated sprint number (integer)
-allocate_sprint_number() {
+allocate_sprint_number() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local ledger_path
     ledger_path=$(get_ledger_path)
 
@@ -450,22 +478,23 @@ allocate_sprint_number() {
     fi
 
     local current
-    current=$(jq -r '.next_sprint_number' "$ledger_path")
+    current=$(jq -r '.next_sprint_number' "$ledger_path") || return $LEDGER_ERROR
 
     # Increment in ledger
     local ledger_content
-    ledger_content=$(jq '.next_sprint_number += 1' "$ledger_path")
+    ledger_content=$(jq '.next_sprint_number += 1' "$ledger_path") || return $LEDGER_ERROR
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$current"
     return $LEDGER_OK
-}
+)
 
 # Add sprint to active cycle
 # Args: $1 - Local label (e.g., "sprint-1")
 # Returns: Global sprint ID (integer)
-add_sprint() {
+add_sprint() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local local_label="$1"
     local ledger_path
     ledger_path=$(get_ledger_path)
@@ -476,7 +505,7 @@ add_sprint() {
     fi
 
     local active_cycle
-    active_cycle=$(get_active_cycle)
+    active_cycle=$(get_active_cycle) || return $?
 
     if [[ "$active_cycle" == "null" ]]; then
         echo "No active cycle" >&2
@@ -485,7 +514,7 @@ add_sprint() {
 
     # Allocate global ID
     local global_id
-    global_id=$(allocate_sprint_number)
+    global_id=$(allocate_sprint_number) || return $?
 
     local now
     now=$(now_iso)
@@ -506,13 +535,13 @@ EOF
     # Add sprint to active cycle
     local ledger_content
     ledger_content=$(jq --arg cycle_id "$active_cycle" --argjson sprint "$sprint_json" \
-        '(.cycles[] | select(.id == $cycle_id)).sprints += [$sprint]' "$ledger_path")
+        '(.cycles[] | select(.id == $cycle_id)).sprints += [$sprint]' "$ledger_path") || return $LEDGER_ERROR
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$global_id"
     return $LEDGER_OK
-}
+)
 
 # Resolve sprint (local label to global ID)
 # Args: $1 - Local label (e.g., "sprint-1") or global (e.g., "sprint-47")
@@ -573,7 +602,8 @@ resolve_sprint() {
 
 # Update sprint status
 # Args: $1 - Global sprint ID, $2 - New status (planned, in_progress, completed)
-update_sprint_status() {
+update_sprint_status() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local global_id="$1"
     local status="$2"
     local ledger_path
@@ -581,6 +611,23 @@ update_sprint_status() {
 
     if ! ledger_exists; then
         return $LEDGER_NOT_FOUND
+    fi
+
+    # GUARD (bug 20260808-a008c6): a non-numeric id (e.g. a local label like
+    # "sprint-1") makes `jq --argjson` exit with no output; the $() masked
+    # that and the empty result blanked the ledger. Resolve labels via
+    # resolve_sprint BEFORE calling this function.
+    if [[ ! "$global_id" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update_sprint_status requires a numeric global sprint id (got '$global_id')" >&2
+        return $LEDGER_SPRINT_NOT_FOUND
+    fi
+
+    local exists
+    exists=$(jq --argjson id "$global_id" \
+        'any(.cycles[].sprints[]; .global_id == $id)' "$ledger_path") || return $LEDGER_ERROR
+    if [[ "$exists" != "true" ]]; then
+        echo "Sprint not found: $global_id" >&2
+        return $LEDGER_SPRINT_NOT_FOUND
     fi
 
     local now
@@ -591,16 +638,22 @@ update_sprint_status() {
         # Set completed timestamp
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" --arg completed "$now" \
             '(.cycles[].sprints[] | select(.global_id == $id)) |= (.status = $status | .completed = $completed)' \
-            "$ledger_path")
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     else
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" \
             '(.cycles[].sprints[] | select(.global_id == $id)).status = $status' \
-            "$ledger_path")
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     fi
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
     return $LEDGER_OK
-}
+)
 
 # Get sprint directory path
 # Args: $1 - Global sprint ID
@@ -750,7 +803,8 @@ validate_ledger() {
 # Archive active cycle
 # Args: $1 - Slug for archive directory (e.g., "mvp-complete")
 # Returns: Archive path
-archive_cycle() {
+archive_cycle() (
+    _lock_ledger_transaction || return $LEDGER_ERROR
     local slug="$1"
     local ledger_path
     ledger_path=$(get_ledger_path)
@@ -761,7 +815,7 @@ archive_cycle() {
     fi
 
     local active_cycle
-    active_cycle=$(get_active_cycle)
+    active_cycle=$(get_active_cycle) || return $?
 
     if [[ "$active_cycle" == "null" ]]; then
         echo "No active cycle to archive" >&2
@@ -775,7 +829,7 @@ archive_cycle() {
     local incomplete_count
     incomplete_count=$(jq -r --arg id "$active_cycle" \
         '[(.cycles[] | select(.id == $id)).sprints[]? | select(.status != "completed")] | length' \
-        "$ledger_path" 2>/dev/null || echo "0")
+        "$ledger_path") || return $LEDGER_ERROR
 
     if [[ "${incomplete_count:-0}" -gt 0 ]]; then
         echo "Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); refusing to archive" >&2
@@ -791,22 +845,25 @@ archive_cycle() {
     local archive_path="${archive_dir}/${now_date_str}-${slug}"
 
     # Create archive directory
-    mkdir -p "$archive_path/a2a"
+    mkdir -p "$archive_path/a2a" || return $LEDGER_ERROR
 
     # Copy current artifacts
-    [[ -f "${grimoire_dir}/prd.md" ]] && cp "${grimoire_dir}/prd.md" "$archive_path/"
-    [[ -f "${grimoire_dir}/sdd.md" ]] && cp "${grimoire_dir}/sdd.md" "$archive_path/"
-    [[ -f "${grimoire_dir}/sprint.md" ]] && cp "${grimoire_dir}/sprint.md" "$archive_path/"
+    local artifact
+    for artifact in prd.md sdd.md sprint.md; do
+        if [[ -f "${grimoire_dir}/$artifact" ]]; then
+            cp "${grimoire_dir}/$artifact" "$archive_path/" || return $LEDGER_ERROR
+        fi
+    done
 
     # Copy sprint directories for this cycle
     local sprints
     sprints=$(jq -r --arg id "$active_cycle" \
-        '(.cycles[] | select(.id == $id)).sprints[].global_id' "$ledger_path")
+        '(.cycles[] | select(.id == $id)).sprints[].global_id' "$ledger_path") || return $LEDGER_ERROR
 
     for sprint_id in $sprints; do
         local sprint_dir="${grimoire_dir}/a2a/sprint-${sprint_id}"
         if [[ -d "$sprint_dir" ]]; then
-            cp -r "$sprint_dir" "$archive_path/a2a/"
+            cp -r "$sprint_dir" "$archive_path/a2a/" || return $LEDGER_ERROR
         fi
     done
 
@@ -817,13 +874,13 @@ archive_cycle() {
     local ledger_content
     ledger_content=$(jq --arg id "$active_cycle" --arg archived "$now" --arg path "$archive_path" \
         '(.cycles[] | select(.id == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null' \
-        "$ledger_path")
+        "$ledger_path") || return $LEDGER_ERROR
 
-    _write_ledger "$ledger_content"
+    _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$archive_path"
     return $LEDGER_OK
-}
+)
 
 # =============================================================================
 # Safe Resolution Function (with fallback)

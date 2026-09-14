@@ -7,6 +7,7 @@
  */
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { summarizeReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
@@ -229,7 +230,7 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
             const enrichedContent = await generateEnrichedConsensusReview(item, consensus, modelAdapters, config, enrichment, adapters.sanitizer, adapters.logger);
             if (enrichedContent) {
                 // Prepend stats to enriched prose for quick-scan visibility
-                consensusBody = formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
+                consensusBody = verdictHeader + formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
                 logger.info("[multi-model] Enrichment complete", {
                     enrichedBytes: enrichedContent.length,
                 });
@@ -264,11 +265,24 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         .filter((r) => r.response)
         .map((r) => r.response.content)
         .join("\n\n---\n\n");
+    const findings = findingsPerModel.flatMap((result) => result.findings);
+    let reviewVerdict = summarizeReviewVerdict(combinedContent, findings);
+    // Enrichment may surface a blocker; it cannot approve unparsed reviews.
+    if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
+        reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
+    }
+    // Incomplete or degraded participation can never clear a merge.
+    if (modelResults.length !== multiConfig.models.length ||
+        modelResults.some((result) => result.error || !result.response) ||
+        computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
+        reviewVerdict.mergeBlocked = true;
+    }
     return {
         modelResults,
         consensus,
         posted: overallPosted || modelResults.some((r) => r.posted),
         combinedContent,
+        reviewVerdict,
     };
 }
 /**

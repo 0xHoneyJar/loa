@@ -45,18 +45,23 @@ def create_ledger_entry(
     attempt: int = 1,
     usage_source: str = "actual",
     interaction_id: Optional[str] = None,
+    reported_cost_micro_usd: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Create a ledger entry dict matching SDD §4.5.1 format.
 
-    Calculates cost from config pricing. If pricing not found,
-    sets pricing_source to 'unknown' and cost to 0.
+    A normalized CLI-reported amount supersedes config pricing. Otherwise,
+    calculates cost from config; absent pricing is 'unknown' with cost 0.
 
     For Deep Research (pricing_mode="task"), tokens are informational only —
     cost is the flat per_task_micro_usd.
     """
     pricing = find_pricing(provider, model, config)
 
-    if pricing:
+    if reported_cost_micro_usd is not None:
+        cost_micro_usd = reported_cost_micro_usd
+        pricing_source = "cli_reported"
+        pricing_mode = "token"
+    elif pricing:
         breakdown = calculate_total_cost(
             input_tokens, output_tokens, reasoning_tokens, pricing
         )

@@ -3,19 +3,21 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: high  # cycle-114 FR-3: deep-reasoning skill — override baseline /effort
-allowed-tools: Read, Grep, Glob, WebFetch, WebSearch
-# cycle-114 FR-4: pure-review skill (write_files: false) — harness removes the
-# write tools while active, mechanically enforcing C-PROC-001.
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *)
+# State-Zone feedback/COMPLETED markers require Write/Edit. C-PROC-001 remains
+# enforced by zones: System none, App read; only State artifacts are writable.
 disallowed-tools:
-  - Write
-  - Edit
   - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
   search_code: true
-  write_files: false
-  execute_commands: false
+  write_files: true
+  execute_commands:
+    allowed:
+      - command: ".claude/scripts/verdict-derive.sh"
+        args: ["*"]
+    deny_raw_shell: true
   web_access: true
   user_interaction: false
   agent_spawn: false

@@ -116,6 +116,47 @@ sys.exit(1)
   return 1
 }
 
+# Scorers can prepend valid JSON metadata or JSON-encode their fenced answer.
+# Select the first top-level scores object, without interpreting rejected data
+# as a zero vote. Generic review normalization/quorum qualification is unchanged.
+normalize_score_response() {
+  if ! command -v python3 &>/dev/null; then
+    normalize_json_response "$1"
+    return $?
+  fi
+  python3 -c '
+import json, sys
+
+text = sys.stdin.read().strip().lstrip("\ufeff")
+for _ in range(3):
+    try:
+        decoded = json.loads(text)
+    except json.JSONDecodeError:
+        break
+    if not isinstance(decoded, str):
+        break
+    text = decoded
+
+decoder = json.JSONDecoder()
+position = 0
+while position < len(text):
+    if text[position] not in "{[":
+        position += 1
+        continue
+    try:
+        candidate, end = decoder.raw_decode(text, position)
+    except json.JSONDecodeError:
+        position += 1
+        continue
+    if isinstance(candidate, dict) and "scores" in candidate:
+        print(json.dumps(candidate))
+        sys.exit(0)
+    # Skip a parsed metadata object entirely, including its nested examples.
+    position = end
+sys.exit(1)
+' <<< "$1"
+}
+
 # =============================================================================
 # extract_verdict
 # =============================================================================
@@ -279,19 +320,16 @@ validate_agent_response() {
       ;;
 
     flatline-scorer)
-      validate_json_field "$json" "scores" "array" || errors=$((errors + 1))
-      local count
-      count=$(echo "$json" | jq '.scores | length' 2>/dev/null || echo "0")
-      for ((i = 0; i < count; i++)); do
-        local item
-        item=$(echo "$json" | jq ".scores[$i]" 2>/dev/null)
-        for field in id score; do
-          echo "$item" | jq -e ".$field" &>/dev/null || {
-            echo "ERROR: scores[$i] missing required field: $field" >&2
-            errors=$((errors + 1))
-          }
-        done
-      done
+      if ! printf '%s\n' "$json" | jq -e '
+        type == "object" and (.scores | type == "array") and
+        all(.scores[];
+          (.id | type == "string" and length > 0) and
+          (.score | type == "number" and . == floor and . >= 0 and . <= 1000)) and
+        ([.scores[].id] | length == (unique | length))
+      ' >/dev/null 2>&1; then
+        echo "ERROR: invalid flatline-scorer score array" >&2
+        errors=$((errors + 1))
+      fi
       ;;
 
     gpt-reviewer)

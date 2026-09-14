@@ -18,11 +18,19 @@ set -euo pipefail
 cycle_id="${1:?cycle_id required}"
 schedule_id="${2:?schedule_id required}"
 
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${_here}/../../../../.." && pwd)"
+# The scheduler canonicalizes phase paths through the consumer's skills mount.
+# Rebind a physical .loa root only when that consumer mounts these same skills.
+if [[ "${REPO_ROOT##*/}" == ".loa" &&
+      "${REPO_ROOT}/../.claude/skills" -ef "${REPO_ROOT}/.claude/skills" ]]; then
+    REPO_ROOT="$(cd "${REPO_ROOT}/.." && pwd)"
+fi
 _sanitize() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 HANDOFF_DIR="${TMPDIR:-/tmp}/loa-session-cap-bb.$(_sanitize "$cycle_id")"
 mkdir -p "$HANDOFF_DIR"
 
-STATE_FILE="${LOA_SESSION_CAP_STATE_FILE:-.run/session-limit-state.json}"
+STATE_FILE="${LOA_SESSION_CAP_STATE_FILE:-${REPO_ROOT}/.run/session-limit-state.json}"
 
 emit() { printf '%s' "$1" | tee "${HANDOFF_DIR}/reader.json"; }
 

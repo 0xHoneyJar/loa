@@ -225,7 +225,9 @@ _zone_for_path() {
     # (see header note). Any anomaly falls through to the yq parse verbatim.
     local tab=$'\t'
     local rows="" cache_key="" cache_hit=0
-    local cache_file="${PROJECT_ROOT}/.run/perf-cache/zone-write-guard.v1.rows"
+    # v2 invalidates empty v1 rows cached after the jq-only expression failed
+    # under Mike Farah yq. An unchanged zones.yaml must not retain that allow.
+    local cache_file="${PROJECT_ROOT}/.run/perf-cache/zone-write-guard.v2.rows"
     local src_abs="${ZONES_FILE}" src_id=""
     [[ "${src_abs}" != /* ]] && src_abs="${PWD}/${src_abs}"
     src_id=$(stat -Lc '%y:%s' -- "${ZONES_FILE}" 2>/dev/null) || src_id=""
@@ -246,10 +248,13 @@ _zone_for_path() {
         fi
     fi
     if [[ "${cache_hit}" -eq 0 ]]; then
-        rows=$(yq -r '(.zones.framework.tracked_paths[]? | tostring | split("\n") | .[] | "framework'"${tab}"'" + .),
+        # yq decodes YAML; jq evaluates its own expression dialect (tostring,
+        # optional iteration). Passing that expression to yq v4 fails open.
+        rows=$(yq -r '@json' "${ZONES_FILE}" 2>/dev/null | jq -r \
+                     '(.zones.framework.tracked_paths[]? | tostring | split("\n") | .[] | "framework'"${tab}"'" + .),
                       (.zones.project.tracked_paths[]? | tostring | split("\n") | .[] | "project'"${tab}"'" + .),
                       (.zones.shared.tracked_paths[]? | tostring | split("\n") | .[] | "shared'"${tab}"'" + .)' \
-            "${ZONES_FILE}" 2>/dev/null) || rows=""
+            2>/dev/null) || rows=""
         if [[ -n "${cache_key}" ]]; then
             local cache_dir="${cache_file%/*}" cache_tmp="${cache_file}.$$"
             {

@@ -12,8 +12,11 @@
 #   - schema_mode=strict and validation fails (NFR-Sec3 prescriptive
 #     rejection or required-section absence)
 #
-# Always emits a soul.surface audit event (when enabled) capturing the
-# outcome (surfaced | schema-warning | schema-refused | file-missing).
+# For enabled, existing files that pass preflight, attempts a soul.surface
+# audit event: surfaced | schema-warning | schema-refused. Audit failures
+# are non-fatal. Missing files and disabled L7 do not emit audit events.
+# The shared payload schema permits file-missing and disabled outcomes for
+# other callers; that permissiveness does not promise emission by this hook.
 #
 # FR-L7-1 (load at session start), FR-L7-2 (warn|strict), FR-L7-4 (cap +
 # reference path), FR-L7-5 (single-fire — re-source no-ops via LOA_L7_SURFACED

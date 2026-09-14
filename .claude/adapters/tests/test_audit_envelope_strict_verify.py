@@ -157,7 +157,8 @@ def test_strict_verify_refuses_local_pubkey_fallback(tmp_path: Path, monkeypatch
     log_path.write_text(json.dumps(envelope, separators=(",", ":")) + "\n", encoding="utf-8")
 
     ok, msg = audit_envelope.audit_verify_chain(log_path)
-    assert (ok, msg) == (True, "OK 1 entries")
+    assert ok is False
+    assert "cannot resolve public key" in msg
 
     ok, msg = audit_envelope.audit_verify_chain(log_path, verify_for_merge=True)
     assert ok is False

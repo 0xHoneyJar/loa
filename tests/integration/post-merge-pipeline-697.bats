@@ -37,6 +37,7 @@ setup() {
     git -C "$TEST_REPO" init --quiet
     git -C "$TEST_REPO" config user.email "test@test.com"
     git -C "$TEST_REPO" config user.name "Test"
+    git -C "$TEST_REPO" remote add origin "$TEST_TMPDIR/remote.git"
 
     cp "$PROJECT_ROOT_REAL/.claude/scripts/bootstrap.sh"          "$TEST_REPO/.claude/scripts/"
     cp "$PROJECT_ROOT_REAL/.claude/scripts/path-lib.sh"           "$TEST_REPO/.claude/scripts/" 2>/dev/null || true
@@ -54,10 +55,12 @@ echo "$*" >> "${GT_ARGV_LOG:-/dev/null}"
 has_output_dir=0
 has_reality_dir=0
 for arg in "$@"; do
+    if [[ "${previous:-}" == --output-dir ]]; then output_dir="$arg"; fi
     case "$arg" in
         --output-dir)  has_output_dir=1 ;;
         --reality-dir) has_reality_dir=1 ;;
     esac
+    previous="$arg"
 done
 if [[ "$has_output_dir" -eq 0 ]]; then
     echo "ERROR: --output-dir is required for checksums mode" >&2
@@ -67,6 +70,8 @@ if [[ "$has_reality_dir" -eq 0 ]]; then
     echo "ERROR: --reality-dir is required for checksums mode" >&2
     exit 64
 fi
+mkdir -p "$output_dir"
+printf '{}\n' > "$output_dir/checksums.json"
 exit 0
 STUB
     chmod +x "$TEST_REPO/.claude/scripts/ground-truth-gen.sh"

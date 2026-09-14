@@ -380,6 +380,50 @@ PY
     [[ "$output" == *"staged blob differs from sealed candidate bytes"* ]]
 }
 
+@test "release ingestion: repository attributes preserve immutable bytes through Git stage and checkout" {
+    run python3 - "$REPO_ROOT" "$FIX" <<'PY'
+import pathlib
+import shutil
+import subprocess
+import sys
+
+repo, fixture = map(pathlib.Path, sys.argv[1:])
+payloads = {
+    ".loa-aleph.lock.json": b'{"fixture": true}\n',
+    ".claude/commands/loa-aleph.md": b"# Command\n",
+    ".claude/skills/loa-aleph/SKILL.md": b"# Skill\n",
+    ".claude/aleph/runtime/bundle/docs/fixtures/material.txt": b"Volume totals\r\nQuarterly\n",
+    ".claude/aleph/runtime/bundle/fixture.sh": b"#!/bin/sh\r\nexit 0\n",
+    ".claude/aleph/runtime/bundle/fixture.bat": b"echo fixture\n",
+}
+for autocrlf in ("false", "true", "input"):
+    root = fixture / autocrlf
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    git = ["git", "-C", str(root), "-c", f"core.autocrlf={autocrlf}"]
+    shutil.copyfile(repo / ".gitattributes", root / ".gitattributes")
+    for name, data in payloads.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    # Ordinary source files must retain the repository's LF normalization.
+    (root / "ordinary.sh").write_bytes(b"#!/bin/sh\r\nexit 0\r\n")
+    subprocess.run(git + ["add", "."], check=True)
+    for name, data in payloads.items():
+        blob = subprocess.check_output(git + ["show", f":{name}"])
+        assert blob == data, f"{autocrlf}: staged bytes changed: {name}"
+    assert subprocess.check_output(git + ["show", ":ordinary.sh"]) == b"#!/bin/sh\nexit 0\n"
+    subprocess.run(git + ["diff", "--cached", "--check"], check=True)
+    restored = root / "restored"
+    subprocess.run(git + ["checkout-index", "--all", f"--prefix={restored}/"], check=True)
+    for name, data in payloads.items():
+        assert (restored / name).read_bytes() == data, f"{autocrlf}: checkout bytes changed: {name}"
+print("PASS immutable stage and checkout bytes with core.autocrlf=false,true,input")
+PY
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PASS immutable stage and checkout bytes"* ]]
+}
+
 @test "cycle-115 release ingestion: managed-byte tamper is detected" {
     copy_installed_tree "$FIX/root"
     printf 'tamper\n' >> "$FIX/root/.claude/aleph/bin/loa-aleph.mjs"

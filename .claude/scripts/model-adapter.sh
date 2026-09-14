@@ -6,16 +6,14 @@
 # Part of: Hounfour Upstream Extraction (Sprint 2)
 #
 # This shim provides backward compatibility for callers that use the legacy
-# model-adapter.sh interface (--model/--mode flags). When the feature flag
-# `hounfour.flatline_routing` is true, it translates calls to model-invoke.
-# When false (default), it delegates to model-adapter.sh.legacy.
+# model-adapter.sh interface (--model/--mode flags). It translates calls to
+# model-invoke (cheval.py), including fixture-backed mock requests.
 #
 # Usage:
 #   model-adapter.sh --model <model> --mode <mode> [options]
 #
-# Feature Flag:
-#   hounfour.flatline_routing: true   → Route through model-invoke (cheval.py)
-#   hounfour.flatline_routing: false   → Use legacy implementation (default)
+# The former flatline_routing dispatch switch and legacy implementation were
+# removed in cycle-109. Rollback uses git revert; there is no legacy runtime path.
 #
 # Mode → Agent Mapping:
 #   review   → flatline-reviewer

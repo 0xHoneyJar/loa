@@ -365,6 +365,14 @@ function printSummary(summary: RunSummary): void {
         errors: summary.errors,
         startTime: summary.startTime,
         endTime: summary.endTime,
+        verdicts: summary.results.map((result) => ({
+          repo: `${result.item.owner}/${result.item.repo}`,
+          pr: result.item.pr.number,
+          headSha: result.item.pr.headSha,
+          verdict: result.verdict ?? "UNKNOWN",
+          highestSeverity: result.highestSeverity ?? null,
+          mergeBlocked: result.mergeBlocked ?? true,
+        })),
         ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
         ...(Object.keys(errorCodes).length > 0 ? { errorCodes } : {}),
       },
@@ -553,6 +561,7 @@ async function main(): Promise<void> {
       );
     }
 
+    const verdicts = [];
     for (const item of items) {
       // Use convergence prompt so models return findings JSON parseable by
       // extractFindingsFromContent() (bug-20260413-9f9b39).
@@ -633,6 +642,10 @@ async function main(): Promise<void> {
         // depth_5.lore_active_weaving, so passing [] is a safe no-op.
         { template, persona, loreEntries },
       );
+      verdicts.push({
+        repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha,
+        ...mmResult.reviewVerdict,
+      });
 
       for (const mr of mmResult.modelResults) {
         progress.updateModel(mr.provider, mr.model, {
@@ -679,7 +692,7 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length }, null, 2));
+    console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length, verdicts }, null, 2));
   } else {
     // Single-model path — existing behavior, unchanged
     const summary = await pipeline.run(runId);

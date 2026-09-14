@@ -18,6 +18,7 @@ setup() {
     git -C "$TEST_REPO" init --quiet
     git -C "$TEST_REPO" config user.email "test@test.com"
     git -C "$TEST_REPO" config user.name "Test"
+    git -C "$TEST_REPO" remote add origin "$TEST_TMPDIR/remote.git"
 
     # Create initial commit so HEAD exists
     echo "init" > "$TEST_REPO/README.md"
@@ -383,7 +384,7 @@ CLEOF
     grep -q "\[Unreleased\]" "$TEST_REPO/CHANGELOG.md"
 }
 
-@test "post-merge-int: idempotent tag creation (run twice, second skips)" {
+@test "post-merge-int: repeated generation retains the same candidate without a tag" {
     skip_if_deps_missing
 
     echo "v" > "$TEST_REPO/v.txt"
@@ -395,21 +396,21 @@ CLEOF
     git -C "$TEST_REPO" commit -m "feat: feature" --quiet
     MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
 
-    # First run creates the tag
+    # Generation produces the reviewable candidate; publication is separate.
     run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA"
     [ "$status" -eq 0 ]
 
-    # Verify tag was created
-    git -C "$TEST_REPO" tag -l v1.1.0 | grep -q v1.1.0
+    [ -z "$(git -C "$TEST_REPO" tag -l v1.1.0)" ]
+    cp "$TEST_REPO/.run/post-merge-candidate.json" "$TEST_TMPDIR/candidate-before.json"
 
-    # Second run should skip the tag (idempotent) — but semver now finds no commits since v1.1.0
-    # So the tag phase skips due to "no version" (which is correct idempotent behavior)
+    # A repeated generation must not rewrite the approved candidate.
     run "$TEST_SCRIPT" --pr 42 --type bugfix --sha "$MERGE_SHA"
     [ "$status" -eq 0 ]
 
     local tag_status
     tag_status=$(jq -r '.phases.tag.status' "$TEST_REPO/.run/post-merge-state.json")
-    [ "$tag_status" = "skipped" ]
+    [ "$tag_status" = "pending" ]
+    cmp "$TEST_REPO/.run/post-merge-candidate.json" "$TEST_TMPDIR/candidate-before.json"
 }
 
 @test "post-merge-int: CHANGELOG idempotent (version already exists)" {

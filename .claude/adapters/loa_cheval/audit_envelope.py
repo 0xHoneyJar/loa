@@ -28,8 +28,10 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -138,26 +140,46 @@ def _strict_verify_enabled(verify_for_merge: bool = False) -> bool:
     return verify_for_merge or os.environ.get("LOA_AUDIT_STRICT_VERIFY", "0") == "1"
 
 
-def _resolve_pubkey_pem(key_id: str, *, allow_local_fallback: bool = True) -> Optional[str]:
+def _resolve_pubkey_pem(
+    key_id: str, *, allow_local_fallback: bool = True, ts_utc: Optional[str] = None,
+    trusted_document: Optional[dict] = None,
+) -> Optional[str]:
     """
     Resolve the PEM-encoded pubkey for <key_id>:
       1. Trust-store entry (when YAML + yaml package available)
-      2. <key-dir>/<key_id>.pub (test/CI fallback, refused in strict verify)
+      2. <key-dir>/<key_id>.pub (explicit bootstrap stores only, never strict)
     Returns the PEM string or None if unresolvable.
     """
-    ts_path = _trust_store_path()
-    if ts_path.is_file():
+    # Never use a claimed writer id as an arbitrary filesystem path.
+    if not isinstance(key_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", key_id):
+        return None
+    if trusted_document is not None:
+        status, doc = "VERIFIED", trusted_document
+    else:
+        status, doc = _trust_store_snapshot()
+    if status == "INVALID":
+        return None
+    if doc is not None:
         try:
-            import yaml
-            with ts_path.open("r", encoding="utf-8") as f:
-                doc = yaml.safe_load(f) or {}
-            for entry in doc.get("keys") or []:
-                if entry.get("writer_id") == key_id:
-                    pem = entry.get("pubkey_pem")
-                    if pem:
-                        return pem
+            for revocation in doc.get("revocations") or []:
+                if revocation.get("writer_id") == key_id:
+                    if ts_utc is None or _parse_timestamp(ts_utc) >= _parse_timestamp(
+                        revocation.get("revoked_at")
+                    ):
+                        return None
+            matches = [
+                entry for entry in doc.get("keys") or []
+                if entry.get("writer_id") == key_id
+            ]
+            if status == "VERIFIED":
+                # A signed store is authoritative even when the lookup misses.
+                # Ambiguous bindings, malformed keys, and revoked writers fail closed.
+                if len(matches) != 1:
+                    return None
+                pem = matches[0].get("pubkey_pem")
+                return pem if isinstance(pem, str) and pem.strip() else None
         except Exception:  # pragma: no cover — defensive
-            pass
+            return None
     # ATK-3: verify-for-merge must not trust producer-writable local pubkeys.
     if not allow_local_fallback:
         return None
@@ -173,7 +195,10 @@ def _verify_signature(pubkey_pem: str, canonical: bytes, sig_b64: str) -> bool:
     from cryptography.hazmat.primitives.asymmetric import ed25519
     from cryptography.exceptions import InvalidSignature
 
-    pub = serialization.load_pem_public_key(pubkey_pem.encode())
+    try:
+        pub = serialization.load_pem_public_key(pubkey_pem.encode())
+    except (TypeError, ValueError):
+        return False
     if not isinstance(pub, ed25519.Ed25519PublicKey):
         return False
     try:
@@ -380,34 +405,15 @@ def audit_emit(
 
 
 # -----------------------------------------------------------------------------
-# Issue #690 (Sprint 1.5): trust-store auto-verify cache. Per-process,
-# (mtime, size, sha256)-keyed.
-#
-# Bridgebuilder F4 hardening: mtime-only is racy on second-granularity
-# filesystems (ext4 without nsec, FAT, some NFS configs) — Linus's "racy
-# git" 2014 problem. Same-second tampering bypasses mtime invalidation.
-# Adding size + content-hash to the key closes the TOCTOU window.
+# Cache authentication by policy and pinned-root paths/content. Retain the
+# parsed document from those exact bytes for key and cutoff consumers.
 # -----------------------------------------------------------------------------
-_TRUST_STORE_CACHE: dict = {"path": None, "key": None, "status": None}
+_TRUST_STORE_CACHE: dict = {"path": None, "key": None, "status": None, "document": None}
 
 
-def _trust_store_cache_key(ts_path: Path) -> tuple:
-    """Return (mtime_ns, size, sha256-hex) for the trust-store path."""
-    try:
-        st = ts_path.stat()
-    except OSError:
-        return (None, None, None)
-    try:
-        sha = hashlib.sha256(ts_path.read_bytes()).hexdigest()
-    except OSError:
-        sha = None
-    return (st.st_mtime_ns, st.st_size, sha)
-
-
-def _trust_store_status() -> str:
+def _trust_store_snapshot() -> Tuple[str, Optional[dict]]:
     """
-    Auto-verify the active trust-store, returning one of:
-    BOOTSTRAP-PENDING | VERIFIED | INVALID.
+    Return the active trust-store's status and its authenticated document.
 
     BOOTSTRAP-PENDING graceful fallback: empty signature + empty keys[] +
     empty revocations[] = the operator has not yet bootstrapped a signed
@@ -421,64 +427,88 @@ def _trust_store_status() -> str:
     INVALID: trust-store has populated keys/revocations but the
     root_signature does not verify (or is missing).
 
-    Cached per-process by (path, mtime, size, sha256); recomputed when ANY
-    component of the key changes (F4 bridgebuilder hardening).
+    Both policy and pinned root are read once per call. Their paths/content
+    identify the cache entry; authentication uses those same snapshots.
     """
     ts_path = _trust_store_path()
 
     # No trust-store file → BOOTSTRAP-PENDING (cycle-098 install-time default).
     if not ts_path.is_file():
-        return "BOOTSTRAP-PENDING"
+        return "BOOTSTRAP-PENDING", None
 
-    cache_key = _trust_store_cache_key(ts_path)
-
-    cache = _TRUST_STORE_CACHE
-    if (
-        cache["path"] == str(ts_path)
-        and cache["key"] == cache_key
-        and cache["status"] is not None
-    ):
-        return cache["status"]
-
+    try:
+        raw = ts_path.read_bytes()
+    except OSError:
+        return "INVALID", None
     # Detect BOOTSTRAP-PENDING.
     bootstrap_pending = False
     try:
         import yaml  # noqa: PLC0415
-        with ts_path.open("r", encoding="utf-8") as f:
-            doc = yaml.safe_load(f) or {}
+        doc = yaml.safe_load(raw) or {}
         sig = ((doc.get("root_signature") or {}).get("signature") or "").strip()
         keys = doc.get("keys") or []
         revs = doc.get("revocations") or []
         if not sig and not keys and not revs:
             bootstrap_pending = True
     except Exception:
-        # Unreadable trust-store: treat as BOOTSTRAP-PENDING (graceful).
-        bootstrap_pending = True
+        # A present but unreadable/malformed store is not an empty bootstrap store.
+        return "INVALID", None
+
+    pin_path = _pinned_root_pubkey_path()
+    pin_raw = b""
+    if not bootstrap_pending:
+        try:
+            pin_raw = pin_path.read_bytes()
+        except OSError:
+            return "INVALID", None
+    cache_key = (
+        hashlib.sha256(raw).hexdigest(), str(pin_path),
+        hashlib.sha256(pin_raw).hexdigest(),
+    )
+    cache = _TRUST_STORE_CACHE
+    if (
+        cache["path"] == str(ts_path)
+        and cache["key"] == cache_key
+        and cache["status"] is not None
+    ):
+        return cache["status"], cache["document"]
 
     if bootstrap_pending:
         status = "BOOTSTRAP-PENDING"
     else:
-        ok, _msg = audit_trust_store_verify(ts_path)
+        # Authenticate the exact bytes that were parsed. Later key/cutoff
+        # consumers use this document rather than reopening a mutable path.
+        with tempfile.TemporaryDirectory(prefix="loa-audit-policy-") as directory:
+            snapshot = Path(directory) / "trust-store.yaml"
+            snapshot.write_bytes(raw)
+            pin_snapshot = Path(directory) / "root.pub"
+            pin_snapshot.write_bytes(pin_raw)
+            ok, _msg = _verify_trust_store_files(snapshot, pin_snapshot)
         status = "VERIFIED" if ok else "INVALID"
 
     cache["path"] = str(ts_path)
     cache["key"] = cache_key
     cache["status"] = status
-    return status
+    cache["document"] = doc
+    return status, doc
 
 
-def _check_trust_store(*, strict_verify: bool = False) -> None:
+def _trust_store_status() -> str:
+    return _trust_store_snapshot()[0]
+
+
+def _check_trust_store(*, strict_verify: bool = False) -> Tuple[str, Optional[dict]]:
     """
     Gate function called at top of audit_emit + audit_verify_chain.
     Raises RuntimeError with [TRUST-STORE-INVALID] on tampered trust-stores.
     """
-    status = _trust_store_status()
+    status, doc = _trust_store_snapshot()
     if status == "VERIFIED":
-        return
+        return status, doc
     # ATK-3: BOOTSTRAP-PENDING is acceptable for install-time writes, but a
     # merge verifier must fail closed until the trust root is signed.
     if status == "BOOTSTRAP-PENDING" and not strict_verify:
-        return
+        return status, doc
     if status == "BOOTSTRAP-PENDING":
         raise RuntimeError(
             "[TRUST-STORE-BOOTSTRAP-PENDING] trust-store is not signed; "
@@ -490,46 +520,61 @@ def _check_trust_store(*, strict_verify: bool = False) -> None:
     )
 
 
-def _read_trust_cutoff(*, strict_verify: bool = False) -> Optional[str]:
+def _read_trust_cutoff(
+    *, strict_verify: bool = False, trusted_document: Optional[dict] = None
+) -> Optional[str]:
     """
     Read trust_cutoff.default_strict_after from the active trust-store.
 
-    Returns the ISO-8601 string or None when unset/missing/unreadable.
+    Returns the ISO-8601 string or None when unset in non-strict mode.
+    The trust-store gate already rejects missing/unreadable stores in strict
+    mode (ATK-4); this checks the root-signed cutoff policy itself.
     F1 review remediation: post-cutoff entries require both signature
     AND signing_key_id (strip-attack defense).
     """
     ts_path = _trust_store_path()
-    if not ts_path.is_file():
-        if strict_verify:
-            raise RuntimeError(
-                "[TRUST-STORE-MISSING] strict audit verification requires "
-                "a readable trust-store (ATK-4)"
-            )
+    if trusted_document is None and not ts_path.is_file():
         return None
     try:
-        import yaml
-        with ts_path.open("r", encoding="utf-8") as f:
-            doc = yaml.safe_load(f) or {}
+        if trusted_document is not None:
+            doc = trusted_document
+        else:
+            import yaml
+            with ts_path.open("r", encoding="utf-8") as f:
+                doc = yaml.safe_load(f) or {}
         cutoff = ((doc.get("trust_cutoff") or {}).get("default_strict_after") or "").strip()
+        if cutoff:
+            parsed = _parse_timestamp(cutoff)
+            if strict_verify and parsed > datetime.now(timezone.utc):
+                raise ValueError("cutoff is in the future")
+        elif strict_verify:
+            raise ValueError("cutoff is empty")
         return cutoff or None
-    except Exception:  # pragma: no cover — defensive
-        if strict_verify:
-            raise RuntimeError(
-                "[TRUST-STORE-UNREADABLE] strict audit verification requires "
-                "a readable trust-store cutoff (ATK-4)"
-            )
-        return None
+    except Exception as exc:
+        raise RuntimeError(
+            "[TRUST-CUTOFF-INVALID] require a valid UTC cutoff; strict "
+            "verification requires a nonempty cutoff already in effect"
+        ) from exc
+
+
+def _parse_timestamp(value: str) -> datetime:
+    """Parse the envelope's UTC timestamp without lexicographic fraction bugs."""
+    if not isinstance(value, str) or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z", value
+    ):
+        raise ValueError("expected ISO-8601 UTC timestamp")
+    return datetime.fromisoformat(value[:-1] + "+00:00")
 
 
 def _ts_ge_cutoff(ts_utc: str, cutoff: Optional[str]) -> bool:
     """
     F1: True if ts_utc >= cutoff (post-cutoff). Empty cutoff => False
-    (no cutoff configured = grandfather all). Lexicographic ISO-8601 UTC
-    comparison.
+    (no cutoff configured = grandfather all). Compare instants so fractional
+    seconds cannot move a post-cutoff entry into grandfathered history.
     """
     if not cutoff or not ts_utc:
         return False
-    return ts_utc >= cutoff
+    return _parse_timestamp(ts_utc) >= _parse_timestamp(cutoff)
 
 
 def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) -> Tuple[bool, str]:
@@ -542,7 +587,8 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
     Ed25519 signature is also verified against the pubkey resolved via the
     trust-store (or local <key-dir>/<key_id>.pub fallback). Set
     LOA_AUDIT_VERIFY_SIGS=0 to skip signature verification (e.g., when
-    migrating legacy un-signed logs).
+    migrating legacy un-signed logs). Strict verification always verifies
+    signatures and requires an effective root-signed cutoff.
 
     F1 (review remediation): for entries with ts_utc >= trust_cutoff, BOTH
     signature AND signing_key_id are REQUIRED. Stripping either is a
@@ -559,13 +605,15 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
 
     # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
     try:
-        _check_trust_store(strict_verify=strict_verify)
+        store_status, trusted_document = _check_trust_store(strict_verify=strict_verify)
     except RuntimeError as exc:
         return False, str(exc)
 
-    verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
+    verify_sigs = strict_verify or os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
     try:
-        cutoff = _read_trust_cutoff(strict_verify=strict_verify)
+        cutoff = _read_trust_cutoff(
+            strict_verify=strict_verify, trusted_document=trusted_document
+        )
     except RuntimeError as exc:
         return False, str(exc)
 
@@ -580,6 +628,8 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
                 env = json.loads(line)
             except json.JSONDecodeError as exc:
                 return False, f"BROKEN line {lineno}: invalid JSON ({exc})"
+            if not isinstance(env, dict):
+                return False, f"BROKEN line {lineno}: expected JSON object"
             actual_prev = env.get("prev_hash")
             if actual_prev is None:
                 return False, f"BROKEN line {lineno}: missing prev_hash"
@@ -588,11 +638,21 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
                     f"BROKEN line {lineno}: prev_hash mismatch "
                     f"(got {actual_prev}, expected {expected_prev})"
                 )
+            # Removing/replacing the store with a bootstrap document must not
+            # authorize signed history, even with the legacy signature toggle off.
+            if env.get("signature") or env.get("signing_key_id"):
+                if store_status != "VERIFIED":
+                    return False, f"BROKEN line {lineno}: [TRUST-STORE-BOOTSTRAP-PENDING] signed history requires a verified store"
             # Sprint 1B signature verification.
             if verify_sigs:
                 sig_b64 = env.get("signature")
                 kid = env.get("signing_key_id")
                 ts_utc = env.get("ts_utc", "")
+                if strict_verify or cutoff or sig_b64 or kid:
+                    try:
+                        _parse_timestamp(ts_utc)
+                    except ValueError:
+                        return False, f"BROKEN line {lineno}: invalid ts_utc"
 
                 # F1: strict requirement post-trust-cutoff.
                 if _ts_ge_cutoff(ts_utc, cutoff):
@@ -610,6 +670,8 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
                     pubkey_pem = _resolve_pubkey_pem(
                         kid,
                         allow_local_fallback=not strict_verify,
+                        ts_utc=ts_utc,
+                        trusted_document=trusted_document,
                     )
                     if pubkey_pem is None:
                         return False, (
@@ -639,10 +701,13 @@ def audit_trust_store_verify(
 
     Returns (ok, message).
     """
+    ts = Path(trust_store_path) if trust_store_path else _trust_store_path()
+    return _verify_trust_store_files(ts, _pinned_root_pubkey_path())
+
+
+def _verify_trust_store_files(ts: Path, pinned: Path) -> Tuple[bool, str]:
     import subprocess
 
-    ts = Path(trust_store_path) if trust_store_path else _trust_store_path()
-    pinned = _pinned_root_pubkey_path()
     helper = (
         _THIS.parent.parent.parent  # .claude/
         / "scripts"

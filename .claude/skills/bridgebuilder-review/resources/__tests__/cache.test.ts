@@ -148,7 +148,7 @@ function buildPipeline(opts?: {
   git?: Partial<IGitProvider>;
   llm?: Partial<ILLMProvider>;
   poster?: Partial<IReviewPoster>;
-  sanitizer?: Partial<IOutputSanitizer>;
+  sanitizer?: IOutputSanitizer;
   store?: Partial<IContextStore>;
   logger?: ILogger;
   now?: () => number;
@@ -166,7 +166,7 @@ function buildPipeline(opts?: {
     git,
     mockPoster(opts?.poster),
     mockLLM(opts?.llm),
-    opts?.sanitizer ? mockSanitizer() : mockSanitizer(),
+    opts?.sanitizer ?? mockSanitizer(),
     opts?.logger ?? mockLogger(),
     "You are a code reviewer.",
     config,
@@ -412,6 +412,29 @@ describe("Pass1Cache integration with ReviewPipeline", () => {
     } catch {
       // ignore
     }
+  });
+
+  it("honors an injected strict sanitizer on a cache hit (#1215)", async () => {
+    const config = { reviewMode: "two-pass" as const, pass1Cache: { enabled: true } };
+    let calls = 0;
+    const llm = { generateReview: async () => ({
+      content: ++calls === 1 ? VALID_PASS1_CONTENT : VALID_PASS2_CONTENT,
+      inputTokens: 10, outputTokens: 10, model: "test",
+    }) };
+    await buildPipeline({ config, llm }).run("populate");
+    let sanitized = false;
+    let posted = false;
+    const result = await buildPipeline({
+      config: { ...config, sanitizerMode: "strict" }, llm,
+      sanitizer: { sanitize: () => { sanitized = true; return {
+        safe: false, sanitizedContent: "blocked", redactedPatterns: ["fixture"],
+      }; } },
+      poster: { postReview: async () => { posted = true; return true; } },
+    }).run("cached-block");
+    assert.equal(calls, 3, "second run should call only enrichment");
+    assert.equal(sanitized, true);
+    assert.equal(posted, false);
+    assert.equal(result.results[0].error?.code, "E_SANITIZER_BLOCKED");
   });
 
   it("Test 7: cache disabled in config → LLM always called (no cache check)", async () => {

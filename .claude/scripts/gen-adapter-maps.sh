@@ -3,12 +3,13 @@
 # gen-adapter-maps.sh — YAML → bash adapter map generator (vision-011, #548)
 # =============================================================================
 # Reads .claude/defaults/model-config.yaml and emits a bash script populating
-# the four associative arrays consumed by model-adapter.sh.legacy:
+# the routing maps consumed by the live model-adapter shim:
 #
 #   MODEL_PROVIDERS  — model alias → provider name
 #   MODEL_IDS        — model alias → canonical provider model ID
-#   COST_INPUT       — model alias → USD per 1K input tokens
-#   COST_OUTPUT     — model alias → USD per 1K output tokens
+#   MODEL_AUTH_TYPE — canonical model → authentication type
+#   MODEL_DISPATCH_GROUP — canonical model → dispatch group
+# Pricing stays in the Python metering registry, sourced from the same YAML.
 #
 # Intent: eliminate hand-maintained bash maps that drift across model
 # migrations. YAML becomes the single source of truth.
@@ -78,18 +79,6 @@ if ! command -v jq >/dev/null 2>&1; then
     echo "ERROR: jq is required but not on PATH" >&2
     exit 1
 fi
-
-# YAML carries micro-USD per million tokens (5000 = $5/Mtok).
-# Bash legacy carries USD per 1K tokens (0.005).
-# Conversion: micro_per_mtok / 1_000_000 = USD per 1K tokens.
-# Verification: 5000/1M = 0.005 ✓ ; 1_250_000/1M = 1.25 — but docs say
-# gemini-2.5-pro is $1.25/MTok = $0.00125/1K. So divisor is actually
-# 1_000_000 when YAML unit is micro-USD-per-MTok. 1_250_000 micro-USD-per-
-# MTok = $1.25/MTok = $0.00125/1K tokens. 1_250_000 / 1_000_000_000 = 0.00125. Fixed.
-_micro_usd_to_per_1k() {
-    local micro="$1"
-    awk -v m="$micro" 'BEGIN { printf "%g", m / 1000000000 }'
-}
 
 # bedrock-forward-routing (this PR): when the resolved Bedrock posture is
 # bedrock_only / prefer_bedrock, rewrite aliases that target the direct Anthropic
@@ -257,26 +246,10 @@ EOF
     cat <<EOF
 )
 
-declare -A COST_INPUT=(
-EOF
-
-    _emit_cost_map "input_per_mtok"
-
-    cat <<EOF
-)
-
-declare -A COST_OUTPUT=(
-EOF
-
-    _emit_cost_map "output_per_mtok"
-
-    cat <<EOF
-)
-
 # VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
 # Hand-maintained array in flatline-orchestrator.sh historically drifted from
 # the YAML during model migrations (cycle-082, cycle-093). Now derived from
-# the same source-of-truth as MODEL_PROVIDERS / MODEL_IDS / COST_*.
+# the same source-of-truth as MODEL_PROVIDERS / MODEL_IDS.
 #
 # Contents: union of provider model IDs + aliases + backward-compat aliases.
 # Excludes claude-code: synthetic provider (Claude Code native runtime).
@@ -310,48 +283,6 @@ _emit_flatline_allowlist() {
     } | sort -u | while IFS= read -r model; do
         [[ -z "$model" ]] && continue
         printf '    %s\n' "$model"
-    done
-}
-
-_emit_cost_map() {
-    local field="$1"
-
-    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r --arg f "$field" '
-        to_entries[] as $p
-        | $p.value.models | to_entries[] as $m
-        | "\($m.key)\t\($m.value.pricing[$f] // 0)"
-    ' | while IFS=$'\t' read -r model micro; do
-        # Note: variables inside piped `while` run in a subshell; no `local`
-        # needed (and avoids a portability pitfall on older bash). The subshell
-        # contract is to emit lines to stdout — we never need to propagate
-        # state back to the function.
-        [[ "$micro" == "0" ]] && continue
-        printf '    ["%s"]="%s"\n' "$model" "$(_micro_usd_to_per_1k "$micro")"
-    done
-
-    # Aliases: inherit pricing from canonical target
-    yq eval -o=json '.aliases // {}' "$CONFIG_FILE" | jq -r '
-        to_entries[]
-        | select((.value | split(":")[0]) != "claude-code")
-        | select(.value | test("^[^:]+:"))
-        | "\(.key)\t\(.value)"
-    ' | while IFS=$'\t' read -r alias provider_model; do
-        provider="${provider_model%%:*}"
-        model="${provider_model#*:}"
-        micro=$(yq eval ".providers[\"$provider\"].models[\"$model\"].pricing.$field // 0" "$CONFIG_FILE")
-        [[ "$micro" == "0" || "$micro" == "null" ]] && continue
-        printf '    ["%s"]="%s"\n' "$alias" "$(_micro_usd_to_per_1k "$micro")"
-    done
-
-    # Backward-compat aliases: inherit from canonical target
-    yq eval -o=json '.backward_compat_aliases // {}' "$CONFIG_FILE" | jq -r '
-        to_entries[] | "\(.key)\t\(.value)"
-    ' | while IFS=$'\t' read -r alias provider_model; do
-        provider="${provider_model%%:*}"
-        model="${provider_model#*:}"
-        micro=$(yq eval ".providers[\"$provider\"].models[\"$model\"].pricing.$field // 0" "$CONFIG_FILE")
-        [[ "$micro" == "0" || "$micro" == "null" ]] && continue
-        printf '    ["%s"]="%s"\n' "$alias" "$(_micro_usd_to_per_1k "$micro")"
     done
 }
 

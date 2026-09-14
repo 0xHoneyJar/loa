@@ -2,25 +2,24 @@
 name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
-allowed-tools: Read, Grep, Glob, WebFetch, Bash(git diff *), Bash(git log *)
-# cycle-114 FR-4: mechanically enforce C-PROC-001 (no application-code writes
-# outside /implement). This is a pure-review skill (write_files: false), so the
-# harness removes the write tools entirely while it is active.
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
+# State-Zone feedback/checkmarks require Write/Edit. C-PROC-001 remains
+# enforced by zones: System none, App read; only State artifacts are writable.
 disallowed-tools:
-  - Write
-  - Edit
   - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
   search_code: true
-  write_files: false
+  write_files: true
   execute_commands:
     allowed:
       - command: "git"
         args: ["diff", "*"]
       - command: "git"
         args: ["log", "*"]
+      - command: ".claude/scripts/verdict-derive.sh"
+        args: ["*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false

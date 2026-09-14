@@ -236,11 +236,11 @@ validate_sprint() {
     done <<< "$sprint_headings"
 
     # Goal ID coverage: every G-N referenced in the plan body must appear in
-    # the '## Appendix' goal-mapping table.
+    # a goal-mapping table under any '## Appendix' section.
     local appendix_body
     appendix_body=$(awk '
         /^## Appendix/ { found=1; next }
-        found && /^## / { exit }
+        found && /^## / { found=0 }
         found { print }
     ' < "$FILE")
 
@@ -249,8 +249,8 @@ validate_sprint() {
     if [[ -n "$body_goal_ids" ]]; then
         while IFS= read -r gid; do
             [[ -z "$gid" ]] && continue
-            if ! printf '%s' "$appendix_body" | grep -qF "$gid"; then
-                violations+=("goal ID $gid appears in the plan but not in the '## Appendix' goal table — add a row for $gid")
+            if ! grep -qwF "$gid" <<< "$appendix_body"; then
+                violations+=("goal ID $gid appears in the plan but not in any '## Appendix' goal table — add a row for $gid")
             fi
         done <<< "$body_goal_ids"
     fi
@@ -270,7 +270,7 @@ BUG_ID_REGEX='^[0-9]{8}-(i[0-9]+-)?[0-9a-f]{6}$'
 
 validate_bug_triage() {
     local bug_id
-    bug_id=$(grep -m1 -E '^\s*-\s*\*\*bug_id\*\*:' -- "$FILE" | sed -E 's/^\s*-\s*\*\*bug_id\*\*:\s*//' | xargs || true)
+    bug_id=$(grep -m1 -E '^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:' -- "$FILE" | sed -E 's/^[[:space:]]*-[[:space:]]*\*\*bug_id\*\*:[[:space:]]*//' | xargs || true)
 
     if [[ -z "$bug_id" ]]; then
         violations+=("no '**bug_id**:' line found in $FILE — see bug-triaging/resources/templates/triage.md")

@@ -104,6 +104,13 @@ grimoires/loa/ledger.json merge=ours
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
+# Immutable Aleph files are verified against sealed upstream bytes. Preserve
+# their original line endings, including CRLF and mixed-ending test fixtures.
+.claude/aleph/** -text whitespace=cr-at-eol
+.claude/commands/loa-aleph.md -text whitespace=cr-at-eol
+.claude/skills/loa-aleph/SKILL.md -text whitespace=cr-at-eol
+.loa-aleph.lock.json -text whitespace=cr-at-eol
+
 # =============================================================================
 # BINARY FILES
 # =============================================================================

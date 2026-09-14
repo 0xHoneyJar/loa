@@ -187,9 +187,9 @@ get_memory_stack_path() {
 # === Memory Stack Relocation (Flatline IMP-002) ===
 # Safely relocates .loa/ Memory Stack data to .loa-state/ before submodule add
 relocate_memory_stack() {
+ (
   local source=".loa"
   local target=".loa-state"
-  local migration_lock="${target}/.migration-lock"
 
   if [[ ! -d "$source" ]]; then
     return 0  # Nothing to relocate
@@ -202,68 +202,96 @@ relocate_memory_stack() {
 
   step "Relocating Memory Stack from .loa/ to .loa-state/..."
 
-  # Create target directory for lock file
-  mkdir -p "$target"
-
-  # Acquire migration lock — prefer flock, fall back to PID+timestamp (F-003)
-  # flock releases automatically on process death — no PID recycling risk.
-  # Fallback uses PID + epoch timestamp — 1-hour staleness threshold prevents false-positive blocks.
+  local migration_lock staging="" lock_dir=""
+  migration_lock=$(git rev-parse --git-path loa-memory-migration.lock) ||
+    err "Cannot locate repository lock directory."
+  trap '[[ -z "$staging" ]] || rm -rf "$staging"; [[ -z "$lock_dir" ]] || rmdir "$lock_dir"' EXIT
+  # Keep the flock inode in Git metadata; never unlink a lock held by a peer.
   if command -v flock &>/dev/null; then
     exec 200>"$migration_lock"
-    if ! flock -n 200; then
-      err "Memory Stack migration already in progress."
-    fi
+    flock -n 200 || err "Memory Stack migration already in progress."
   else
-    # Fallback: PID + epoch timestamp for stale detection (>1 hour = stale)
-    if [[ -f "$migration_lock" ]]; then
-      local lock_info lock_pid lock_time
-      lock_info=$(cat "$migration_lock" 2>/dev/null || echo "")
-      lock_pid="${lock_info%%:*}"
-      lock_time="${lock_info##*:}"
-      local now; now=$(date +%s)
-      if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-        if [[ -n "$lock_time" ]] && (( now - lock_time < 3600 )); then
-          err "Migration in progress (PID: $lock_pid, started $(( (now - lock_time) / 60 ))m ago)."
-        fi
-        warn "Stale lock (PID $lock_pid, >1h old). Removing."
-      fi
-      rm -f "$migration_lock"
-    fi
-    echo "$$:$(date +%s)" > "$migration_lock"
+    mkdir "${migration_lock}.d" ||
+      err "Memory Stack migration lock exists; inspect it before retrying."
+    lock_dir="${migration_lock}.d"
   fi
 
-  # Copy-then-verify-then-switch (Flatline IMP-002)
-  local source_count target_count
-  source_count=$(find "$source" -type f | wc -l)
+  [[ ! -e "$target" && ! -L "$target" ]] ||
+    err "Memory Stack target .loa-state/ already exists; both locations preserved."
+  command -v python3 >/dev/null ||
+    err "python3 is required to verify Memory Stack relocation; original data preserved."
 
-  # Handle empty directory (ADV-2)
-  if [[ "$source_count" -eq 0 ]]; then
-    rm -rf "$source"
-    rm -f "$migration_lock"
-    log "Memory Stack was empty, removed .loa/"
-    return 0
-  fi
-
-  if ! cp -r "$source"/. "$target"/ 2>/dev/null; then
-    # Rollback: remove partial target
-    rm -rf "$target"
+  # Stage on the destination filesystem, even when source data is elsewhere.
+  # cp -a preserves symlinks, empty directories and modes. Counts alone cannot
+  # distinguish a complete copy from same-sized corrupted or substituted data.
+  staging=$(mktemp -d "${target}.staging.XXXXXXXX") || return 1
+  if ! cp -a "$source"/. "$staging"/; then
     err "Memory Stack copy failed. Original data preserved at .loa/"
   fi
+  if ! python3 - "$source" "$staging" "$target" <<'PY'
+import hashlib
+import ctypes
+import os
+from pathlib import Path
+import stat
+import sys
 
-  target_count=$(find "$target" -type f -not -name ".migration-lock" | wc -l)
+def manifest(root):
+    result = {".": ("directory", stat.S_IMODE(root.stat().st_mode))}
+    def visit(directory):
+        for entry in os.scandir(directory):
+            path = Path(entry.path)
+            mode = entry.stat(follow_symlinks=False).st_mode
+            name = str(path.relative_to(root))
+            if stat.S_ISLNK(mode):
+                result[name] = ("link", os.readlink(path))
+            elif stat.S_ISDIR(mode):
+                result[name] = ("directory", stat.S_IMODE(mode))
+                visit(path)
+            elif stat.S_ISREG(mode):
+                result[name] = ("file", stat.S_IMODE(mode), hashlib.sha256(path.read_bytes()).hexdigest())
+            else:
+                raise ValueError("unsupported Memory Stack entry")
+    visit(root)
+    return result
 
-  if [[ "$source_count" -ne "$target_count" ]]; then
-    # Rollback: remove partial target
-    rm -f "$migration_lock"
-    rm -rf "$target"
-    err "Memory Stack verification failed (source: $source_count files, target: $target_count files). Original data preserved at .loa/"
+def rename_exclusive(source, target):
+    library = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "linux" and hasattr(library, "renameat2"):
+        rename = library.renameat2
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    elif sys.platform == "darwin" and hasattr(library, "renamex_np"):
+        rename = library.renamex_np
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(os.fsencode(source), os.fsencode(target), 4)
+    else:
+        raise OSError("atomic exclusive rename is unavailable on this platform")
+    if result != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+source, staging, target = map(Path, sys.argv[1:])
+try:
+    if manifest(source) != manifest(staging):
+        raise ValueError("Memory Stack content or metadata mismatch")
+    if os.path.lexists(target):
+        raise ValueError("Memory Stack target appeared during relocation")
+    rename_exclusive(staging, target)
+except (OSError, ValueError) as exc:
+    print(f"Memory Stack verification/publish failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+  then
+    err "Memory Stack verification failed. Original data preserved at .loa/"
   fi
-
-  # Verification passed — remove source
-  rm -rf "$source"
-  rm -f "$migration_lock"
-
-  log "Memory Stack relocated: .loa/ -> .loa-state/ ($source_count files)"
+  staging=""
+  # The verified destination is visible before the source is removed.
+  rm -rf "$source" || err "Verified target exists, but original .loa/ could not be removed."
+  log "Memory Stack relocated: .loa/ -> .loa-state/"
+ )
 }
 
 # Issue #669 / Bridgebuilder F6 (PR #671): scaffold helper sourced from the
@@ -739,7 +767,7 @@ aleph_assert_real_installation() {
 # Args: $1 = true to install/reconcile, false to verify only.
 refresh_aleph_install() {
   local apply="${1:-true}"
-  local repo_root submodule bundle_relative bundle_root installer receipt
+  local repo_root submodule bundle_relative bundle_root installer receipt source_commit
   local pinned_bundle_state=0
   repo_root=$(get_repo_root)
   submodule="${SUBMODULE_PATH:-.loa}"
@@ -787,6 +815,7 @@ refresh_aleph_install() {
     warn "Aleph source bundle root is not a real directory: ${bundle_root}"
     return 1
   fi
+  source_commit=$(git -C "${repo_root}/${submodule}" rev-parse HEAD) || return 1
   if ! aleph_source_bundle_is_pinned "$repo_root" "$submodule"; then
     return 1
   fi
@@ -819,7 +848,18 @@ refresh_aleph_install() {
 
   if [[ "$apply" == "true" ]]; then
     step "Installing verified Aleph runtime from pinned Loa submodule..."
-    if ! aleph_node "$installer" install --bundle "$bundle_root" --target "$repo_root"; then
+    if ! (
+      # The immutable installer rejects source/target overlap (#1241/#1232).
+      # Use committed bytes outside the target, even with an in-repo TMPDIR.
+      staged_root=$(mktemp -d /tmp/loa-aleph-source.XXXXXX) || exit 1
+      trap 'rm -rf "$staged_root"' EXIT
+      mkdir "$staged_root/bundle" || exit 1
+      git -C "${repo_root}/${submodule}" archive "${source_commit}:${ALEPH_BUNDLE_RELATIVE}" \
+        | tar -x -C "$staged_root/bundle" || exit 1
+      aleph_verify_installer_pin "$staged_root/bundle" || exit 1
+      aleph_node "$staged_root/bundle/$ALEPH_INSTALLER_RELATIVE" install \
+        --bundle "$staged_root/bundle" --target "$repo_root"
+    ); then
       warn "Aleph transactional installer failed"
       return 1
     fi

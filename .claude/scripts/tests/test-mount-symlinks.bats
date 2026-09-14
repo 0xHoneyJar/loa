@@ -244,10 +244,10 @@ teardown() {
     [ "${output}" -ge 1 ]
 
     # Verify it uses copy-verify-switch pattern (Flatline IMP-002)
-    run grep -A60 "relocate_memory_stack()" "$SUBMODULE_SCRIPT"
-    echo "$output" | grep -q "cp -r"
-    echo "$output" | grep -q "source_count"
-    echo "$output" | grep -q "target_count"
+    run grep -A100 "relocate_memory_stack()" "$SUBMODULE_SCRIPT"
+    echo "$output" | grep -q 'cp -a'
+    echo "$output" | grep -q 'manifest(source) != manifest(staging)'
+    echo "$output" | grep -q 'rename_exclusive(staging, target)'
 }
 
 @test "memory_stack_submodule_safe: no migration when .loa/ is submodule" {

@@ -1,12 +1,6 @@
-"""Budget + fallback chain integration tests (Sprint 7, Task 7.3).
+"""Budget enforcement contracts. Live routing assertions are in test_live_chain_contracts.py.
 
-Tests the interaction between budget enforcement and routing chains.
-Individual components are tested separately; these verify the critical
-integration path: "What happens when budget-exceeded triggers fallback?"
-
-Bridgebuilder Review Part II: "The conservation invariant is the most
-important architectural property — budget+fallback is where it gets
-stress-tested in production."
+DOWNGRADE is a signal only; its actuator remains deferred under #1001.
 """
 
 from __future__ import annotations
@@ -16,8 +10,6 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -30,13 +22,9 @@ from loa_cheval.metering.budget import (
     check_budget,
 )
 from loa_cheval.metering.ledger import record_cost, update_daily_spend
-from loa_cheval.routing.chains import walk_downgrade_chain, walk_fallback_chain
 from loa_cheval.types import (
-    AgentBinding,
     CompletionRequest,
     CompletionResult,
-    ProviderUnavailableError,
-    ResolvedModel,
     Usage,
 )
 
@@ -117,16 +105,9 @@ def _make_request(model="gpt-5.2"):
 # ── Test Classes ─────────────────────────────────────────────────────────────
 
 
-class TestDowngradeTriggersFallback:
-    """DOWNGRADE status triggers downgrade chain walk."""
+class TestDowngradeSignal:
+    """The budget meter reports pressure; it does not change the model."""
 
-    def test_downgrade_walks_chain(self):
-        """DOWNGRADE → walk_downgrade_chain → cheaper model."""
-        original = ResolvedModel(provider="openai", model_id="gpt-5.2")
-        agent = AgentBinding(agent="reviewing-code", model="reviewer", requires={})
-        resolved = walk_downgrade_chain(original, agent, CONFIG)
-        assert resolved.provider == "anthropic"
-        assert resolved.model_id == "claude-sonnet-4-6"
 
     def test_downgrade_budget_enforcer_returns_downgrade(self, tmp_path):
         """When over budget, pre_call returns DOWNGRADE."""
@@ -137,48 +118,6 @@ class TestDowngradeTriggersFallback:
         enforcer = BudgetEnforcer(CONFIG, ledger_path)
         result = enforcer.pre_call(_make_request())
         assert result == DOWNGRADE
-
-
-class TestDowngradeRespectsNativeRuntime:
-    """native_runtime agents cannot be downgraded to remote models."""
-
-    def test_native_agent_no_downgrade(self):
-        original = ResolvedModel(provider="openai", model_id="gpt-5.2")
-        agent = AgentBinding(
-            agent="implementing-tasks",
-            model="native",
-            requires={"native_runtime": True},
-        )
-        with pytest.raises(ProviderUnavailableError, match="native_runtime"):
-            walk_downgrade_chain(original, agent, CONFIG)
-
-    def test_native_agent_no_fallback(self):
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(
-            agent="implementing-tasks",
-            model="native",
-            requires={"native_runtime": True},
-        )
-        with pytest.raises(ProviderUnavailableError, match="native_runtime"):
-            walk_fallback_chain(original, agent, CONFIG)
-
-
-class TestDowngradeChainWalk:
-    """Downgrade from expensive → cheap via configured chain."""
-
-    def test_reviewer_downgrades_to_cheap(self):
-        original = ResolvedModel(provider="openai", model_id="gpt-5.2")
-        agent = AgentBinding(agent="reviewing-code", model="reviewer", requires={})
-        resolved = walk_downgrade_chain(original, agent, CONFIG)
-        assert resolved.provider == "anthropic"
-        assert resolved.model_id == "claude-sonnet-4-6"
-
-    def test_no_downgrade_chain_for_google(self):
-        """Google models have no downgrade chain configured."""
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(agent="deep-thinker", model="deep-thinker", requires={})
-        with pytest.raises(ProviderUnavailableError, match="No downgrade chain"):
-            walk_downgrade_chain(original, agent, CONFIG)
 
 
 class TestBlockAction:
@@ -345,34 +284,3 @@ class TestAtomicPreCallPostCallZeroCost:
         enforcer.post_call(result)
         # No ledger file created
         assert not os.path.exists(ledger_path)
-
-
-class TestFallbackChainCapabilityCheck:
-    """Fallback candidates must satisfy agent capabilities."""
-
-    def test_thinking_traces_required_skips_non_capable(self):
-        """Agent requires thinking_traces → skip providers without it."""
-        original = ResolvedModel(provider="google", model_id="gemini-3-pro")
-        agent = AgentBinding(
-            agent="deep-thinker",
-            model="deep-thinker",
-            requires={"thinking_traces": True},
-        )
-        # openai:gpt-5.2 has capabilities=["chat", "tools"] — no thinking_traces
-        with pytest.raises(ProviderUnavailableError, match="exhausted"):
-            walk_fallback_chain(original, agent, CONFIG)
-
-    def test_deep_research_required_no_fallback(self):
-        """Agent requires deep_research → no fallback candidate has it."""
-        original = ResolvedModel(provider="google", model_id="deep-research-pro")
-        agent = AgentBinding(
-            agent="deep-researcher",
-            model="researcher",
-            requires={"deep_research": True},
-        )
-        # deep_research is Google-only capability
-        with pytest.raises(ProviderUnavailableError, match="exhausted"):
-            walk_fallback_chain(
-                original, agent,
-                {**CONFIG, "routing": {"fallback": {"google": ["openai", "anthropic"]}}},
-            )

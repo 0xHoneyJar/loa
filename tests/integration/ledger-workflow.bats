@@ -12,9 +12,10 @@
 # Test setup
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
-    PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    LEDGER_LIB="$PROJECT_ROOT/.claude/scripts/ledger-lib.sh"
-    VALIDATE_SCRIPT="$PROJECT_ROOT/.claude/scripts/validate-sprint-id.sh"
+    local source_root
+    source_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+    LEDGER_LIB="$source_root/.claude/scripts/ledger-lib.sh"
+    VALIDATE_SCRIPT="$source_root/.claude/scripts/validate-sprint-id.sh"
 
     # Create temp directory for test artifacts
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
@@ -27,9 +28,12 @@ setup() {
     mkdir -p "$TEST_PROJECT/.claude/scripts"
 
     # Copy scripts to test project
-    cp "$LEDGER_LIB" "$TEST_PROJECT/.claude/scripts/" 2>/dev/null || true
-    cp "$VALIDATE_SCRIPT" "$TEST_PROJECT/.claude/scripts/" 2>/dev/null || true
-    chmod +x "$TEST_PROJECT/.claude/scripts/"*.sh 2>/dev/null || true
+    cp "$LEDGER_LIB" "$VALIDATE_SCRIPT" \
+        "$source_root/.claude/scripts/bootstrap.sh" \
+        "$source_root/.claude/scripts/path-lib.sh" \
+        "$TEST_PROJECT/.claude/scripts/"
+    chmod +x "$TEST_PROJECT/.claude/scripts/"*.sh
+    export PROJECT_ROOT="$TEST_PROJECT"
 
     # Change to test project directory
     cd "$TEST_PROJECT"
@@ -58,6 +62,15 @@ skip_if_deps_missing() {
 # Helper to source the library
 source_lib() {
     source ".claude/scripts/ledger-lib.sh"
+    [[ "$(get_ledger_path)" == "$TEST_PROJECT/grimoires/loa/ledger.json" ]]
+}
+
+complete_active_fixture_sprints() {
+    local sprint_id
+    while read -r sprint_id; do
+        update_sprint_status "$sprint_id" completed
+    done < <(jq -r '.active_cycle as $id | .cycles[] | select(.id == $id) |
+                    .sprints[].global_id' grimoires/loa/ledger.json)
 }
 
 # =============================================================================
@@ -111,6 +124,7 @@ source_lib() {
     add_sprint "sprint-2"  # global 2
 
     # Archive first cycle
+    complete_active_fixture_sprints
     archive_cycle "cycle-1-done"
 
     # Create second cycle
@@ -142,6 +156,7 @@ source_lib() {
     create_cycle "Cycle 1"
     add_sprint "sprint-1"  # global 1
     add_sprint "sprint-2"  # global 2
+    complete_active_fixture_sprints
     archive_cycle "cycle-1"
 
     create_cycle "Cycle 2"
@@ -230,6 +245,7 @@ source_lib() {
     create_cycle "Cycle 1"
     add_sprint "sprint-1"
     add_sprint "sprint-2"
+    complete_active_fixture_sprints
     archive_cycle "cycle-1-done"
 
     create_cycle "Cycle 2"
@@ -316,10 +332,10 @@ source_lib() {
 
     local dir
     dir=$(get_sprint_directory "1")
-    [[ "$dir" == "grimoires/loa/a2a/sprint-1" ]]
+    [[ "$dir" == "$TEST_PROJECT/grimoires/loa/a2a/sprint-1" ]]
 
     dir=$(get_sprint_directory "42")
-    [[ "$dir" == "grimoires/loa/a2a/sprint-42" ]]
+    [[ "$dir" == "$TEST_PROJECT/grimoires/loa/a2a/sprint-42" ]]
 }
 
 @test "sprint directories use global IDs" {
@@ -330,6 +346,7 @@ source_lib() {
     init_ledger
     create_cycle "Cycle 1"
     add_sprint "sprint-1"
+    complete_active_fixture_sprints
     archive_cycle "c1"
 
     create_cycle "Cycle 2"
@@ -339,7 +356,7 @@ source_lib() {
     # Directory should use global ID
     local dir
     dir=$(get_sprint_directory "$sprint_id")
-    [[ "$dir" == "grimoires/loa/a2a/sprint-2" ]]
+    [[ "$dir" == "$TEST_PROJECT/grimoires/loa/a2a/sprint-2" ]]
 }
 
 # =============================================================================
@@ -363,6 +380,7 @@ source_lib() {
 
     # Archive
     local archive_path
+    complete_active_fixture_sprints
     archive_path=$(archive_cycle "mvp-v1")
     [[ -d "$archive_path" ]]
 
@@ -497,6 +515,7 @@ source_lib() {
 
     # Archive
     local archive_path
+    complete_active_fixture_sprints
     archive_path=$(archive_cycle "test-archive")
 
     # Verify directory structure
@@ -527,6 +546,7 @@ source_lib() {
 
     # Archive
     local archive_path
+    complete_active_fixture_sprints
     archive_path=$(archive_cycle "artifact-test")
 
     # Verify all files copied
@@ -556,6 +576,7 @@ source_lib() {
 
     # Archive
     local archive_path
+    complete_active_fixture_sprints
     archive_path=$(archive_cycle "status-test")
 
     # Verify ledger updates
@@ -588,6 +609,7 @@ source_lib() {
     echo "original content" > grimoires/loa/a2a/sprint-1/reviewer.md
 
     # Archive
+    complete_active_fixture_sprints
     archive_cycle "preserve-test"
 
     # Original directory should still exist
@@ -607,6 +629,7 @@ source_lib() {
     add_sprint "sprint-2"
 
     # Archive
+    complete_active_fixture_sprints
     archive_cycle "cycle-1-done"
 
     # Verify no active cycle
@@ -637,6 +660,7 @@ source_lib() {
     init_ledger
     create_cycle "First Cycle"
     add_sprint "sprint-1"
+    complete_active_fixture_sprints
     archive_cycle "first"
 
     create_cycle "Second Cycle"

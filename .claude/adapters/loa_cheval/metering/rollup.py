@@ -22,7 +22,7 @@ Group keys:
     day       — UTC date prefix of ts
     trace     — trace_id; the per-invocation-chain view
 
-Every row carries `unpriced_calls`: entries whose pricing_source != "config"
+Every row carries `unpriced_calls`: entries without config or CLI-reported pricing,
 metered as $0 (the blind-spot detector that motivated pricing-before-
 routability). A non-zero unpriced count means the cost column UNDERSTATES.
 """
@@ -100,7 +100,7 @@ def rollup_entries(
         g["tokens_out"] += int(e.get("tokens_out") or 0)
         g["tokens_reasoning"] += int(e.get("tokens_reasoning") or 0)
         g["cost_micro_usd"] += int(e.get("cost_micro_usd") or 0)
-        if e.get("pricing_source") != "config":
+        if e.get("pricing_source") not in ("config", "cli_reported"):
             g["unpriced_calls"] += 1
         if e.get("model"):
             g["models"].add(str(e["model"]))
@@ -140,7 +140,7 @@ def format_table(rows: List[Dict[str, Any]], by: str) -> str:
     if total_unpriced:
         lines.append(
             f"WARNING: {total_unpriced} call(s) had no pricing entry "
-            f"(pricing_source != config) and metered as $0 — the cost column "
+            f"(neither config nor CLI-reported) and metered as $0 — the cost column "
             f"UNDERSTATES. Register pricing in model-config.yaml."
         )
     return "\n".join(lines)

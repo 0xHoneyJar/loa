@@ -77,7 +77,16 @@ Precedence: NEVER > MUST > ALWAYS > SHOULD > MAY. Cite the constraint ID when ex
    - Calls Anthropic API for review generation
    - Sanitizes output (redacts leaked secrets)
    - Posts review to GitHub (`COMMENT` or `REQUEST_CHANGES`)
-5. Prints JSON summary: `{ reviewed, skipped, errors }`
+5. Prints JSON summary with counts and `verdicts`: one entry per PR with
+   `repo`, `pr`, `headSha`, `verdict`, `highestSeverity`, and `mergeBlocked`.
+
+For a merge handoff, match the entry to the current PR head and inspect the
+body-derived verdict. `REQUEST_CHANGES`, HIGH/CRITICAL findings, `UNKNOWN`,
+missing entries, or `mergeBlocked: true` block clearance. `reviewed: 1`,
+`errors: 0`, exit 0, and GitHub `COMMENTED` describe execution, not approval.
+Fix blockers and obtain a current-head review before reconsidering a merge.
+An explicit `APPROVE` with `mergeBlocked: false` still requires the repository's
+normal merge authorization and checks.
 
 ## Configuration
 

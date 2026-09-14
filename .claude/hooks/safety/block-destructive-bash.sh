@@ -39,6 +39,8 @@
 # bypass classes: newline statement separators, subshell wrapping
 # (`bash -c '...'`, `$(...)`), eval/base64 decode, SQL comments containing
 # WHERE, jq absent from PATH. See SDD §11 for full table.
+# Current executable limit examples and issue dispositions:
+# docs/runbooks/hook-safety.md (#1047, #1245, #1088, #1031).
 #
 # Registered in settings.hooks.json as PreToolUse matcher: "Bash"
 # Part of Loa Harness Engineering (cycle-011, issue #297)
@@ -146,11 +148,10 @@ if [[ -z "$command" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# quote-blindness scrub (bd-bdb-quote-blindness-pt1g) — SAFE-BY-CONSTRUCTION.
+# quote-blindness scrub (bd-bdb-quote-blindness-pt1g).
 # Produce _cmd_match, a LOCAL scrub-copy of $command used SOLELY for the
 # block/allow decision below. $command itself is left byte-for-byte intact so
-# emit_block's audit row and every matched-substring extraction still record
-# the operator's real text.
+# emit_block's audit row still records the operator's original command.
 #
 # The fence is quote-blind: it sees a destructive TOKEN (rm -rf, DROP/TRUNCATE
 # TABLE, DELETE FROM, git branch -D, ...) inside an INERT data carrier — an
@@ -161,32 +162,17 @@ fi
 # reintroduces bypass (issue #1047). This is the INVERSE: a curated allowlist
 # of KNOWN-INERT data carriers, whose value we redact into the scrub-copy.
 #
-# Load-bearing bypass defense: the ONLY way to smuggle real danger through an
-# allowlisted carrier is command-substitution inside the value —
-# `git commit -m "$(rm -rf /)"`. $( and backtick are caught by the (-boundary
-# subshell branch of FR-2 (quote-independent). So we redact a carrier value
-# ONLY when — POST-HOC CONTENT TEST (cycle-120 C-D3a) — it contains NEITHER the
-# literal 2-byte sequence `$(` NOR a backtick. A LONE `$` (a dollar amount, an
-# $ENV mention, a bare `$` right before the closing quote) is now permitted
-# inside a redacted value: the value is captured with a quote-BOUNDED class
-# (`'[^']*'` / `"[^"]*"`) that stops at the closing quote and therefore CANNOT
-# swallow past a string terminator — the failure mode the adversarial panel
-# rejected for the naive `\$[^(]` consuming ERE (a value ending in a bare `$`
-# would eat the closing quote + a following real `&& rm -rf`). A plain
-# substring gate then decides; anything holding `$(` or a backtick is left
-# INTACT and falls through to normal detection. The substring gate also rejects
-# `$$(…` (it contains the substring `$(`) — an ERE `\$[^(]` alternation would
-# have wrongly accepted it. (Backtick command-substitution is itself a
-# PRE-EXISTING, quote-independent bypass this fence does NOT catch in either
-# direction — tracked in bd-bdb-backtick-bypass; leaving backtick values
-# un-redacted keeps that behaviour byte-identical, opening nothing new.) An
-# INCOMPLETE allowlist therefore only PRESERVES a false positive (today's safe
-# behavior) — it can never open a bypass.
+# The metadata content gate (cycle-120 C-D3a) leaves values containing `$(` or
+# backticks INTACT, including `$$(...)`. Those expansions can execute even in
+# double quotes. A lone `$` is permitted. Double-quote escapes are consumed as
+# pairs so an escaped quote cannot open a fake tail flag spanning a live write.
+# The command-position prefix check rejects names inside other quoted data or
+# interpreter/eval arguments. Unknown contexts retain conservative matching;
+# these bounded recognizers do not establish arbitrary execution semantics.
 #
-# Carrier exemption is PER-SEGMENT (bounded by ^ ; && || |): the scrub never
-# crosses a shell statement separator, so `echo 'safe' && rm -rf /` still
-# blocks the real second segment. Word-boundaries ((^|[^[:alnum:]_])git…) keep
-# `notgit commit -m '…'` from matching (anti-spoof). echo/printf stays a sed
+# Carrier values may contain literal separators; following executable segments
+# remain visible, so `echo 'safe' && rm -rf /` still blocks. Word boundaries and
+# the prefix check keep `notgit commit -m '…'` from matching. echo/printf stays a sed
 # scrub (rest-of-segment, not a quoted value); the git/br/gh quoted-value
 # carriers use the content-gated bash loop `_bdb_scrub` below (replace the value
 # with a single SPACE, never empty). BSD/GNU ERE only — no \b (BSD libc lacks
@@ -201,10 +187,9 @@ fi
 _bdb_sed_echo='s/(^|;|&&|\|\||\|)([[:space:]]*(sudo[[:space:]]+)?(echo|printf)[[:space:]]+)[^;&|<>$`]*/\1\2 /g'
 
 # Quoted-value carriers (git commit -m / br|bd … -d / gh … create --body|--title).
-# cycle-120 C-D3a: content-gated redaction. The value is captured with a
-# quote-BOUNDED permissive class (permits `$`, stops at the closing quote — no
-# terminator swallow); _bdb_scrub then applies the POST-HOC content gate. The
-# quoted value is the LAST capture group (no group follows it). [^;&|]* keeps
+# cycle-120 C-D3a: content-gated redaction. The value permits `$` and stops at
+# an unescaped closing quote; _bdb_scrub then applies the content gate. The
+# quoted value is the penultimate capture group. [^;&|]* keeps
 # the prefix within one segment; (^|[^[:alnum:]_]) is the anti-spoof boundary.
 # cycle-120 R1 fix (CRITICAL): the pre-flag prefix classes ALSO exclude quotes
 # (`[^;&|'"]*`). Without that, POSIX leftmost-longest lets the prefix walk PAST
@@ -213,7 +198,10 @@ _bdb_sed_echo='s/(^|;|&&|\|\||\|)([[:space:]]*(sudo[[:space:]]+)?(echo|printf)[[
 # from the string's real closing quote to the NEXT quote — swallowing a live
 # `&& rm -rf "` into a redacted "carrier value". Barring quotes from the prefix
 # means a flag can only be matched before any quote in the segment is opened.
-_bdb_qval_perm="('[^']*'|\"[^\"]*\")"
+# A double-quoted value consumes backslash/character pairs together. An escaped
+# quote must never become a terminator and expose a fake subsequent flag.
+# The value is the penultimate group; the last group is the double-quote atom.
+_bdb_qval_perm="('[^']*'|\"([^\"\\\\]|\\\\.)*\")"
 _bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|'\"]*commit[^;&|'\"]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
 _bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|'\"]*(create|update)[^;&|'\"]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
 _bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|'\"]*(issue|pr)[^;&|'\"]*create[^;&|'\"]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
@@ -231,19 +219,53 @@ _bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|'\"]*(issue|pr)[^;&|'\"]*create[^
 # `&&`-crossing bypass.
 _bdb_re_tail="^[[:space:]]*(-m|--message|-d|--description|--body|--title)[[:space:]]+${_bdb_qval_perm}"
 
+# A carrier name must start a command, not occur inside another value or an
+# interpreter/eval argument. This small prefix scan tracks quoting/escaping
+# only; complex substitution/heredoc prefixes are conservatively left raw.
+_bdb_at_command_start() {
+  local prefix="$1" i ch quote="" escaped=0 at_start=1
+  [[ "$prefix" != *'$('* && "$prefix" != *'`'* && "$prefix" != *'<<'* ]] || return 1
+  for ((i=0; i<${#prefix}; i++)); do
+    ch="${prefix:i:1}"
+    if [[ "$quote" == "'" ]]; then
+      [[ "$ch" == "'" ]] && quote=""
+      continue
+    fi
+    if (( escaped )); then escaped=0; at_start=0; continue; fi
+    if [[ "$ch" == '\' ]]; then escaped=1; at_start=0; continue; fi
+    if [[ "$quote" == '"' ]]; then
+      [[ "$ch" == '"' ]] && quote=""
+      continue
+    fi
+    case "$ch" in
+      "'"|'"') quote="$ch"; at_start=0 ;;
+      '#') return 1 ;;
+      ';'|'&'|'|'|$'\n') at_start=1 ;;
+      ' '|$'\t') ;;
+      *) at_start=0 ;;
+    esac
+  done
+  [[ -z "$quote" && "$escaped" == 0 && "$at_start" == 1 ]]
+}
+
 # _bdb_scrub <carrier-ere> <input> — echo the input with every carrier value
 # that passes the content gate replaced by a single SPACE (never empty, never
 # crossing a segment). A value containing `$(` (this catches `$$(` too — the
 # substring is present) or a backtick is left INTACT. bash =~ exposes no match
 # offset, so the split is by string slice on the matched text.
 _bdb_scrub() {
-  local re="$1" rest="$2" out="" m val inner pre po vi
+  local re="$1" rest="$2" out="" m val inner pre po vi boundary
   while [[ "$rest" =~ $re ]]; do
     m="${BASH_REMATCH[0]}"
-    vi=$(( ${#BASH_REMATCH[@]} - 1 ))   # trailing group = the quoted value
+    boundary="${BASH_REMATCH[1]}"
+    vi=$(( ${#BASH_REMATCH[@]} - 2 ))   # group before the double-quote atom
     val="${BASH_REMATCH[$vi]}"
     pre="${rest%%"$m"*}"                 # text before this match
     rest="${rest#*"$m"}"                 # text after this match
+    if ! _bdb_at_command_start "$out$pre$boundary"; then
+      out+="$pre$m"
+      continue                         # no tail recovery inside unknown quoting
+    fi
     inner="${val:1:${#val}-2}"          # strip the outer quotes
     if [[ "$inner" == *'$('* || "$inner" == *'`'* ]]; then
       out+="$pre$m"                     # command-sub value — leave INTACT
@@ -256,7 +278,7 @@ _bdb_scrub() {
     # or real content), so it never crosses a statement boundary.
     while [[ "$rest" =~ $_bdb_re_tail ]]; do
       m="${BASH_REMATCH[0]}"
-      vi=$(( ${#BASH_REMATCH[@]} - 1 ))
+      vi=$(( ${#BASH_REMATCH[@]} - 2 ))
       val="${BASH_REMATCH[$vi]}"
       rest="${rest#"$m"}"
       inner="${val:1:${#val}-2}"
@@ -271,16 +293,95 @@ _bdb_scrub() {
   printf '%s' "$out$rest"
 }
 
-# echo/printf scrub first (sed), then the content-gated quoted-value carriers
+# #1245: recognize ONLY a complete, standalone cat with a quoted heredoc.
+# The delimiter disables shell expansion in the body. The header remains
+# visible (including protected redirect targets). Interpreter consumers,
+# pipelines, unquoted delimiters, nested contexts and trailing commands keep
+# their raw text: the body may execute in those forms. This is deliberately
+# a small carrier grammar, not a shell parser.
+_bdb_scrub_cat_heredoc() {
+  local text="$1" header rest marker delim strip_tabs line candidate
+  local delimiter_re="<<(-?)('([[:alnum:]_]+)'|\"([[:alnum:]_]+)\")"
+  local path_re="([[:alnum:]_./-]+|'[[:alnum:]_ ./-]+'|\"[[:alnum:]_ ./-]+\")"
+  local header_re="^[[:blank:]]*cat[[:blank:]]+(HEREDOC([[:blank:]]+>>?[[:blank:]]*${path_re})?|>>?[[:blank:]]*${path_re}[[:blank:]]+HEREDOC)[[:blank:]]*$"
+  [[ "$text" == *$'\n'* ]] || { printf '%s' "$text"; return; }
+  header="${text%%$'\n'*}"
+  if [[ ! "$header" =~ $delimiter_re ]]; then
+    printf '%s' "$text"; return
+  fi
+  marker="${BASH_REMATCH[0]}"
+  strip_tabs="${BASH_REMATCH[1]}"
+  delim="${BASH_REMATCH[3]:-${BASH_REMATCH[4]}}"
+  candidate="${header/"$marker"/HEREDOC}"
+  if [[ ! "$candidate" =~ $header_re ]]; then
+    printf '%s' "$text"; return
+  fi
+  rest="${text#*$'\n'}"
+  while [[ -n "$rest" ]]; do
+    line="${rest%%$'\n'*}"
+    if [[ "$rest" == *$'\n'* ]]; then rest="${rest#*$'\n'}"; else rest=""; fi
+    if [[ "$strip_tabs" == "-" ]]; then
+      while [[ "$line" == $'\t'* ]]; do line="${line#$'\t'}"; done
+    fi
+    if [[ "$line" == "$delim" ]]; then
+      if [[ -z "$rest" ]]; then printf '%s' "$header"; else printf '%s' "$text"; fi
+      return
+    fi
+  done
+  # No closing delimiter: leave the entire command visible.
+  printf '%s' "$text"
+}
+
+# #1245: two COMPLETE data-only programs, not arbitrary interpreter exemptions.
+# Loop: single-quoted items, one printf with a fixed format and the same lower-
+# case variable. Python: single-quoted -c source, double-quoted string literals
+# without escapes, a list optionally assigned and printed. No imports, calls
+# other than that print, interpolation, other consumers or trailing shell text.
+# Single shell quotes keep $()/backticks in these literals inert. Any mismatch
+# retains raw input, including double-quoted arguments where expansions execute.
+_bdb_scrub_literal_program() {
+  local text="$1" loop_re python_re source name list_re program_re
+  loop_re="^[[:space:]]*for[[:blank:]]+([a-z][a-z0-9_]*)[[:blank:]]+in[[:blank:]]+'[^']*'([[:blank:]]+'[^']*')*[[:blank:]]*;[[:space:]]*do[[:space:]]+printf[[:blank:]]+'%s"
+  loop_re+='\\n'
+  loop_re+="'[[:blank:]]+"
+  loop_re+='"[$]([a-z][a-z0-9_]*)"[[:blank:]]*;[[:space:]]*done[[:space:]]*$'
+  if [[ "$text" =~ $loop_re ]] && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[3]}" ]]; then
+    printf '%s' ': literal loop data'
+    return
+  fi
+  python_re="^[[:blank:]]*python3?[[:blank:]]+-c[[:blank:]]+'([^']*)'[[:blank:]]*$"
+  if [[ "$text" =~ $python_re ]]; then
+    source="${BASH_REMATCH[1]}"
+    list_re='\[[[:space:]]*("[^"\\]*"[[:space:]]*(,[[:space:]]*"[^"\\]*"[[:space:]]*)*,?[[:space:]]*)?\]'
+    program_re="^[[:space:]]*${list_re}[[:space:]]*$"
+    if [[ "$source" =~ ^[[:space:]]*([a-z][a-z0-9_]*)[[:space:]]*= ]]; then
+      name="${BASH_REMATCH[1]}"
+      program_re="^[[:space:]]*${name}[[:space:]]*=[[:space:]]*${list_re}([[:space:]]*;[[:space:]]*print\([[:space:]]*${name}[[:space:]]*\))?[[:space:]]*$"
+    fi
+    if [[ "$source" =~ $program_re ]]; then
+      printf '%s' ': literal Python data'
+      return
+    fi
+  fi
+  printf '%s' "$text"
+}
+
+# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).
+# The echo scrub must run last: it can otherwise consume a closing quote in
+# metadata containing "; echo ..." and make a later live write look quoted.
 # (bash loops, each guarded by a cheap literal test so the benign path pays
 # nothing beyond the substring check).
-_cmd_match=$(printf '%s' "$command" | sed -E -e "$_bdb_sed_echo" 2>/dev/null) || _cmd_match="$command"
-[[ -z "$_cmd_match" ]] && _cmd_match="$command"
+_cmd_match="$command"
+if [[ "$_cmd_match" == *"for "* || "$_cmd_match" == *"python"* ]]; then
+  _cmd_match=$(_bdb_scrub_literal_program "$_cmd_match")
+fi
+[[ "$_cmd_match" == *"<<"* ]] && _cmd_match=$(_bdb_scrub_cat_heredoc "$_cmd_match")
 [[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
 if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
   _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
 fi
 [[ "$_cmd_match" == *"gh "* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_gh" "$_cmd_match")
+_cmd_match=$(printf '%s' "$_cmd_match" | sed -E -e "$_bdb_sed_echo" 2>/dev/null) || _cmd_match="$command"
 # Fail-safe: an empty scrub on a non-empty command → fall back to RAW (stricter
 # matching), never to an empty scrub that would silence every pattern.
 [[ -z "$_cmd_match" ]] && _cmd_match="$command"
@@ -759,35 +860,35 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     # operations so read-only references (cat/ls/grep/source/cp-FROM) pass through.
 
     # SZ-REDIR: redirect (any fd / append / noclobber-override) INTO a protected file.
-    if echo "$command" | grep -qE "([0-9]*|&)?>>?\\|?[[:space:]]*['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE ">>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}" | head -1)
+    if echo "$_cmd_match" | grep -qE "([0-9]*|&)?>>?\\|?[[:space:]]*['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE ">>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}" | head -1)
       emit_block "FR-SZ-REDIR" "$matched" "Redirect-write to a State-Zone executable/lifecycle path. These are generator/approval-only. Run the owning generator/skill, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 for an audited override."
     fi
 
     # SZ-TEE: tee writes ALL its file operands (any position, short or long flags).
-    if echo "$command" | grep -qE "\\btee\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "${_sz_file}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\btee\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "${_sz_file}" | head -1)
       emit_block "FR-SZ-TEE" "$matched" "tee-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-COPY: cp/mv/install/rsync. (a) protected DESTINATION as last operand
     # (end-anchored, so reading a protected file OUT stays allowed); (b) protected
     # directory via -t / --target-directory.
-    if echo "$command" | grep -qE "\\b(cp|mv|install|rsync)\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null \
-       || echo "$command" | grep -qE "\\b(cp|mv|install|ln)\\b[^|;&]*[[:space:]](-t|--target-directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "${_sz_tgt}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\b(cp|mv|install|rsync)\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null \
+       || echo "$_cmd_match" | grep -qE "\\b(cp|mv|install|ln)\\b[^|;&]*[[:space:]](-t|--target-directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}" | head -1)
       emit_block "FR-SZ-COPY" "$matched" "copy/move into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-LINK: ln with a protected linkname as last operand (positional dest).
-    if echo "$command" | grep -qE "\\bln\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "${_sz_tgt}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\bln\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}" | head -1)
       emit_block "FR-SZ-LINK" "$matched" "symlink/hardlink into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-DD: dd of=<protected file>.
-    if echo "$command" | grep -qE "\\bdd\\b[^|;&]*of=['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "of=['\"]?${_sz_pre}${_sz_file}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\bdd\\b[^|;&]*of=['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "of=['\"]?${_sz_pre}${_sz_file}" | head -1)
       emit_block "FR-SZ-DD" "$matched" "dd-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
@@ -795,22 +896,22 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     # short clusters (-Ei) and the long --in-place[=...] form; end-anchors the file
     # operand so a sed EXPRESSION that merely mentions a protected path while editing
     # another file is NOT blocked.
-    if echo "$command" | grep -qE "\\b(sed|perl|awk|gawk)\\b[^|;&]*[[:space:]](-[a-zA-Z]*i[a-zA-Z.]*|--in-place)(=|[[:space:]]|['\"])[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "${_sz_tgt}['\"]?${_sz_end}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\b(sed|perl|awk|gawk)\\b[^|;&]*[[:space:]](-[a-zA-Z]*i[a-zA-Z.]*|--in-place)(=|[[:space:]]|['\"])[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}['\"]?${_sz_end}" | head -1)
       emit_block "FR-SZ-INPLACE" "$matched" "in-place edit of a State-Zone executable/lifecycle path (tamper with an approved skill or the sourced overlay). Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-EXTRACT: archive extraction INTO a protected dir (tar -C/--directory, unzip -d).
-    if echo "$command" | grep -qE "\\btar\\b[^|;&]*[[:space:]](-C|--directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null \
-       || echo "$command" | grep -qE "\\bunzip\\b[^|;&]*[[:space:]]-d(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
-      matched=$(echo "$command" | grep -oE "(-C|--directory|-d)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}" | head -1)
+    if echo "$_cmd_match" | grep -qE "\\btar\\b[^|;&]*[[:space:]](-C|--directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null \
+       || echo "$_cmd_match" | grep -qE "\\bunzip\\b[^|;&]*[[:space:]]-d(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
+      matched=$(echo "$_cmd_match" | grep -oE "(-C|--directory|-d)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}" | head -1)
       emit_block "FR-SZ-EXTRACT" "$matched" "archive extraction into a State-Zone executable/lifecycle path (drops cron-eligible / lifecycle files). Extract elsewhere, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-INTERP: naive interpreter -c/-e literal write (fence value vs. injected agents;
     # obfuscated/variable-built interpreter writes remain an accepted bypass).
-    if echo "$command" | grep -qE "\\b(python3?|python|perl|ruby|node|bash|sh)\\b[^|;&]*[[:space:]]-[ce].*(${_sz_sh}|\\.run/cron\\.d|grimoires/loa/skills)" 2>/dev/null \
-       && echo "$command" | grep -qE "(,[[:space:]]*['\"][wax]|>>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}|write_text|\\.write\\b|O_WRONLY|O_CREAT|write_bytes|copyfile|copy2|shutil.copy)" 2>/dev/null; then
+    if echo "$_cmd_match" | grep -qE "\\b(python3?|python|perl|ruby|node|bash|sh)\\b[^|;&]*[[:space:]]-[ce].*(${_sz_sh}|\\.run/cron\\.d|grimoires/loa/skills)" 2>/dev/null \
+       && echo "$_cmd_match" | grep -qE "(,[[:space:]]*['\"][wax]|>>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}|write_text|\\.write\\b|O_WRONLY|O_CREAT|write_bytes|copyfile|copy2|shutil.copy)" 2>/dev/null; then
       emit_block "FR-SZ-INTERP" "interpreter-inline" "naive interpreter inline write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1. (Obfuscated interpreter writes are an accepted bypass — fence, not boundary.)"
     fi
   fi
@@ -831,12 +932,12 @@ fi
 # Shapes: redirect, tee, copy-family dest, sed-in-place, rm. Same accepted
 # bypass classes as FR-SZ (fence, not boundary).
 # -----------------------------------------------------------------------------
-if [[ "$command" == *".."* ]]; then
+if [[ "$_cmd_match" == *".."* ]]; then
   # traversal-looking command: no exclusions (a path like
   # .claude/overrides/../hooks/x resolves back into protected space)
-  _c2_cmd="$command"
+  _c2_cmd="$_cmd_match"
 else
-  _c2_cmd="${command//.claude\/overrides/.EXCLUDED-OVR}"
+  _c2_cmd="${_cmd_match//.claude\/overrides/.EXCLUDED-OVR}"
   _c2_cmd="${_c2_cmd//.claude\/cache/.EXCLUDED-CACHE}"
 fi
 if [[ "$_c2_cmd" == *".claude/"* ]]; then
@@ -941,7 +1042,7 @@ fi
 # ERE; every branch of its flags alternation begins with the literal `-`.
 # -----------------------------------------------------------------------------
 if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
-   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive[[:space:]]+--force|--force[[:space:]]+--recursive|-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+-[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[[:space:]]+-[a-zA-Z]*r)'; then
+   && _match '(^|/|;|&&|\||[[:space:]]|\(|`|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive[[:space:]]+--force|--force[[:space:]]+--recursive|-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+-[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[[:space:]]+-[a-zA-Z]*r)'; then
 
   # FR-2-REDIR (bd-c117-e-redirect-1pq8, #1177 item E): scrub shell
   # `&`-redirect operators from a LOCAL copy of the command BEFORE segment
@@ -961,7 +1062,7 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   _fr2_cmd=$(printf '%s' "$_cmd_match" | sed -E -e 's/[0-9]*>&[0-9]*/ /g' -e 's/&>>?[^[:space:]]*/ /g')
 
   # Collect ALL rm invocation segments (one per line).
-  rm_segments=$(echo "$_fr2_cmd" | grep -oE '(^|;|&&|\|\||\||[[:space:]]|\(|'\''|")[[:space:]]*(sudo[[:space:]]+)?(/[^[:space:]]*/)?rm[[:space:]][^;&|)]*')
+  rm_segments=$(echo "$_fr2_cmd" | grep -oE '(^|;|&&|\|\||\||[[:space:]]|\(|`|'\''|")[[:space:]]*(sudo[[:space:]]+)?(/[^[:space:]]*/)?rm[[:space:]][^;&|)`]*')
 
   # pass-2: per-arg EREs in variables (regex-in-variable is the safe [[ =~ ]]
   # form — inline |/(/$ are conditional-command parse hazards). Bytes are

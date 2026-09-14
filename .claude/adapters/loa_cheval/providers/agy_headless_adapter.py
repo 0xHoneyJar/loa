@@ -41,8 +41,8 @@ import subprocess
 import time
 from typing import Any, Dict, List
 
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
 from loa_cheval.providers.base import (
-    ProviderAdapter,
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
     enforce_context_window,
@@ -64,13 +64,8 @@ logger = logging.getLogger("loa_cheval.providers.agy_headless")
 # agy CLI binary name (override via AGY_HEADLESS_BIN env var for testing)
 _AGY_BIN_DEFAULT = "agy"
 
-# Conservative defaults for subprocess wall-clock. ProviderConfig.read_timeout
-# wins when set; these floors apply only when the loader hands defaults.
-_CONNECT_TIMEOUT_FLOOR = 10.0
-_READ_TIMEOUT_FLOOR = 600.0  # 10 min
 
-
-class AgyHeadlessAdapter(ProviderAdapter):
+class AgyHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `agy -p` (non-interactive, sandboxed).
 
     Registered as the `gemini-headless` terminal (the FR-5 repoint) so existing
@@ -208,7 +203,7 @@ class AgyHeadlessAdapter(ProviderAdapter):
                 f"(the agy repoint keeps the registry key; got '{self.config.type}')"
             )
 
-        bin_name = self._agy_bin()
+        bin_name = self._cli_bin()
         if not shutil.which(bin_name):
             errors.append(
                 f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
@@ -227,28 +222,12 @@ class AgyHeadlessAdapter(ProviderAdapter):
                 )
         return errors
 
-    def health_check(self) -> bool:
-        """Verify the agy CLI is reachable (`agy --version`). Does NOT make a model call."""
-        bin_name = self._agy_bin()
-        if not shutil.which(bin_name):
-            return False
-        try:
-            proc = subprocess.run(
-                [bin_name, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            return proc.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
-            return False
 
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
 
-    def _agy_bin(self) -> str:
+    def _cli_bin(self) -> str:
         """Resolve the agy CLI binary name (env var override allowed)."""
         return os.environ.get("AGY_HEADLESS_BIN", _AGY_BIN_DEFAULT)
 
@@ -282,7 +261,7 @@ class AgyHeadlessAdapter(ProviderAdapter):
         # --dangerously-skip-permissions + a closed stdin stops the non-TTY hang) is
         # non-negotiable. A genuinely-needed flag is a deliberate, reviewed code change.
         return [
-            self._agy_bin(),
+            self._cli_bin(),
             "-p",
             prompt,
             "--model",
@@ -291,49 +270,6 @@ class AgyHeadlessAdapter(ProviderAdapter):
             "--dangerously-skip-permissions",
         ]
 
-    def _compute_timeout(self) -> float:
-        """Resolve the subprocess timeout. read_timeout wins when set."""
-        connect = max(self.config.connect_timeout, _CONNECT_TIMEOUT_FLOOR)
-        read = max(self.config.read_timeout, _READ_TIMEOUT_FLOOR)
-        return connect + read
-
-    # ---------------------------------------------------------------------
-    # Internal: prompt flattening (parity with the sibling headless adapters)
-    # ---------------------------------------------------------------------
-
-    def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """Flatten message array into a single prompt for agy -p.
-
-        Role-prefixed sections collapsed into one input string — lossy vs a native
-        multi-turn API, but sufficient for the single-shot flatline review modes.
-        """
-        sections: List[str] = []
-        for msg in messages:
-            role = (msg.get("role") or "user").lower()
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                # Anthropic-style content blocks
-                content = "\n".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
-            elif not isinstance(content, str):
-                try:
-                    content = json.dumps(content)
-                except (TypeError, ValueError):
-                    content = str(content)
-
-            label = {
-                "system": "## System",
-                "user": "## User",
-                "assistant": "## Assistant",
-                "tool": "## Tool result",
-            }.get(role, f"## {role.capitalize()}")
-
-            sections.append(f"{label}\n\n{content}".rstrip())
-
-        return "\n\n".join(sections) + "\n"
 
     # ---------------------------------------------------------------------
     # Internal: plain-text result (agy emits no JSON / no token stats)
