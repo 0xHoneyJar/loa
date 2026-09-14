@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, unlinkSync, mkdtempSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -17,6 +17,10 @@ import type { ILogger } from "../ports/logger.js";
 import type { IContextStore } from "../ports/context-store.js";
 import type { IHasher } from "../ports/hasher.js";
 import type { BridgebuilderConfig } from "../core/types.js";
+import type { ReviewResponse, VerdictQualityEnvelope } from "../ports/llm-provider.js";
+import { Pass1Cache } from "../core/cache.js";
+import { approvedQuality, approvalBody, advisoryFindings, advisoryFindingsJSON } from "./helpers/review-quality.js";
+import { markdownExamples, reviewWith } from "./helpers/verdict-examples.js";
 
 function mockConfig(overrides?: Partial<BridgebuilderConfig>): BridgebuilderConfig {
   return {
@@ -121,6 +125,7 @@ function buildPipeline(opts?: {
   store?: Partial<IContextStore>;
   logger?: ILogger;
   now?: () => number;
+  hasher?: IHasher;
 }) {
   const config = mockConfig(opts?.config);
   const git = mockGit(opts?.git);
@@ -139,8 +144,132 @@ function buildPipeline(opts?: {
     "You are a code reviewer.",
     config,
     opts?.now ?? Date.now,
+    opts?.hasher,
   );
 }
+
+for (const body of [...markdownExamples, "**Verdict: APPROVE**", "Verdict: REQUEST_CHANGES"]) {
+  it(`BIR-001 actual finalization respects operative Markdown: ${JSON.stringify(body)}`, async () => {
+    const summary = await buildPipeline({
+      config: { dryRun: true, reviewMode: "single-pass" },
+      poster: { postReview: async () => { throw new Error("Unexpected publication"); } },
+      llm: { generateReview: async () => ({
+        content: reviewWith(body), inputTokens: 1, outputTokens: 1, model: "fixture",
+        verdictQuality: approvedQuality(),
+      }) },
+    }).run("markdown-fixture");
+    assert.equal(summary.reviewed, 1);
+    assert.equal(summary.errors, 0);
+    assert.equal(summary.results[0].verdict,
+      body === "**Verdict: APPROVE**" ? "APPROVE" :
+      body === "Verdict: REQUEST_CHANGES" ? "REQUEST_CHANGES" : "UNKNOWN");
+    assert.equal(summary.results[0].mergeBlocked, body !== "**Verdict: APPROVE**");
+  });
+}
+
+describe("review clearance requires usable quality evidence (#1171)", () => {
+  const qualityCases: Array<[string, unknown, boolean]> = [
+    ["healthy", approvedQuality(), false],
+    ["absent", undefined, true],
+    ["null", null, true],
+    ["status alone", { status: "APPROVED" }, true],
+    ["degraded", { ...approvedQuality(), status: "DEGRADED" }, true],
+    ["failed", { ...approvedQuality(), status: "FAILED" }, true],
+    ["degraded chain", { ...approvedQuality(), chain_health: "degraded" }, true],
+    ["incomplete cohort", { ...approvedQuality(), voices_planned: 2 }, true],
+    ["missing identities", { ...approvedQuality(), voices_succeeded_ids: [] }, true],
+    ["duplicate identities", { ...approvedQuality(), voices_planned: 2, voices_succeeded: 2, voices_succeeded_ids: ["same", "same"] }, true],
+    ["impossible consensus", { ...approvedQuality(), consensus_outcome: "impossible" }, true],
+    ["waiver", { ...approvedQuality(), truncation_waiver_applied: true }, true],
+    ["incomplete scoring", { ...approvedQuality(), scoring_degraded: true }, true],
+    ["dropped chunks", { ...approvedQuality(), chunks_dropped: 1 }, true],
+  ];
+  for (const [name, quality, blocked] of qualityCases) {
+    for (const mode of ["single-pass", "two-pass"] as const) {
+      it(`${mode} ${name} quality cannot be replaced by an approval label`, async () => {
+        // The two-pass case exercises the valid-prose Pass 1 fallback.
+        const result = await buildPipeline({
+          config: { dryRun: true, reviewMode: mode },
+          poster: { postReview: async () => { throw new Error("Unexpected publication"); } },
+          llm: { generateReview: async () => ({
+            content: approvalBody, inputTokens: 1, outputTokens: 1, model: "fixture",
+            verdictQuality: quality as VerdictQualityEnvelope,
+          }) },
+        }).run("quality-fixture");
+        assert.equal(result.reviewed, 1);
+        assert.equal(result.errors, 0);
+        assert.equal(result.results[0].mergeBlocked, blocked);
+      });
+    }
+  }
+
+  for (const badPass of [0, 1, 2]) {
+    it(`two-pass completion retains quality from both passes (bad pass ${badPass})`, async () => {
+      let calls = 0;
+      const result = await buildPipeline({
+        config: { dryRun: true, reviewMode: "two-pass" },
+        llm: { generateReview: async () => {
+          calls++;
+          return {
+            content: calls === 1 ? advisoryFindings : approvalBody + "\n" + advisoryFindings,
+            inputTokens: 1, outputTokens: 1, model: "fixture",
+            verdictQuality: calls === badPass ? undefined : approvedQuality(),
+          };
+        } },
+      }).run("two-pass-quality");
+      assert.equal(calls, 2);
+      assert.equal(result.reviewed, 1);
+      assert.equal(result.results[0].mergeBlocked, badPass !== 0);
+    });
+  }
+
+  it("a partial-error response cannot clear even with approved quality", async () => {
+    const result = await buildPipeline({
+      config: { dryRun: true },
+      llm: { generateReview: async (): Promise<ReviewResponse> => ({
+        content: approvalBody, inputTokens: 1, outputTokens: 1, model: "fixture",
+        verdictQuality: approvedQuality(), errorState: "PROVIDER_ERROR",
+      }) },
+    }).run("partial-error");
+    assert.equal(result.results[0].mergeBlocked, true);
+  });
+
+  it("cached findings without quality remain advisory after healthy enrichment", async () => {
+    const stub = mock.method(Pass1Cache.prototype, "get", async () => ({
+      findings: { raw: advisoryFindingsJSON, parsed: JSON.parse(advisoryFindingsJSON) },
+      tokens: { input: 1, output: 1, duration: 0 }, timestamp: "2026-09-14T00:00:00Z", hitCount: 1,
+    }));
+    try {
+      let calls = 0;
+      const result = await buildPipeline({
+        config: { dryRun: true, reviewMode: "two-pass", pass1Cache: { enabled: true } },
+        hasher: mockHasher(),
+        llm: { generateReview: async () => {
+          calls++;
+          return { content: approvalBody + "\n" + advisoryFindings, inputTokens: 1, outputTokens: 1,
+            model: "fixture", verdictQuality: approvedQuality() };
+        } },
+      }).run("cached-quality");
+      assert.equal(calls, 1);
+      assert.equal(result.results[0].pass1CacheHit, true);
+      assert.equal(result.results[0].mergeBlocked, true);
+    } finally {
+      stub.mock.restore();
+    }
+  });
+
+  it("a tilde-fenced example does not clear through finalization", async () => {
+    const result = await buildPipeline({
+      config: { dryRun: true },
+      llm: { generateReview: async () => ({
+        content: "## Summary\nExample header follows.\n~~~text\nVerdict: APPROVE\n~~~\n## Findings\nReview is incomplete.",
+        inputTokens: 1, outputTokens: 1, model: "fixture", verdictQuality: approvedQuality(),
+      }) },
+    }).run("example-verdict");
+    assert.equal(result.results[0].verdict, "UNKNOWN");
+    assert.equal(result.results[0].mergeBlocked, true);
+  });
+});
 
 describe("ReviewPipeline", () => {
   it("preserves an explicit REQUEST_CHANGES verdict and HIGH severity in handoff (#1171)", async () => {

@@ -45,6 +45,116 @@ teardown() {
     [[ -n "${WORKDIR:-}" ]] && [[ -d "$WORKDIR" ]] && rm -rf "$WORKDIR"
 }
 
+# Use the real locked compiler, with a small source tree and the shipped
+# declaration/map options. These tests never rebuild the checkout's dist.
+build_dist_fixture() {
+    export FIXTURE_BB="$WORKDIR/.claude/skills/bridgebuilder-review"
+    local dependencies="$PROJECT_ROOT/.claude/skills/bridgebuilder-review/node_modules"
+    [ -f "$dependencies/typescript/bin/tsc" ]
+    ln -s "$dependencies" "$FIXTURE_BB/node_modules"
+    echo '{"type":"module"}' > "$FIXTURE_BB/package.json"
+    cat > "$FIXTURE_BB/resources/tsconfig.json" <<'JSON'
+{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","declaration":true,"declarationMap":true,"sourceMap":true,"outDir":"../dist","rootDir":".","skipLibCheck":true},"include":["*.ts"]}
+JSON
+    echo 'export const mergeBlocked = true;' > "$FIXTURE_BB/resources/a.ts"
+    echo '# Fixture persona' > "$FIXTURE_BB/resources/BEAUVOIR.md"
+    mkdir "$FIXTURE_BB/resources/personas"
+    echo '# Fixture pack' > "$FIXTURE_BB/resources/personas/default.md"
+    node "$dependencies/typescript/bin/tsc" --project "$FIXTURE_BB/resources/tsconfig.json"
+    cp -R "$FIXTURE_BB/resources/BEAUVOIR.md" "$FIXTURE_BB/resources/personas" "$FIXTURE_BB/dist/"
+    "$SCRIPT" --write-manifest >/dev/null
+}
+
+@test "rebuilt dist bytes, declarations, maps and manifest match" {
+    build_dist_fixture
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.outcome == "fresh" and .dist_verified == true'
+}
+
+@test "a dist-only behavioral change fails parity despite unchanged source" {
+    build_dist_fixture
+    echo 'export const mergeBlocked = false;' > "$FIXTURE_BB/dist/a.js"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
+@test "declaration and source-map byte changes fail parity" {
+    build_dist_fixture
+    local file
+    for file in a.d.ts a.d.ts.map a.js.map; do
+        cp "$FIXTURE_BB/dist/$file" "$WORKDIR/original"
+        echo 'changed bytes' >> "$FIXTURE_BB/dist/$file"
+        run "$SCRIPT" --verify-dist --json
+        [ "$status" -eq 1 ]
+        echo "$output" | jq -e '.outcome == "dist_mismatch"'
+        cp "$WORKDIR/original" "$FIXTURE_BB/dist/$file"
+    done
+}
+
+@test "missing and extra emitted paths fail parity" {
+    build_dist_fixture
+    mv "$FIXTURE_BB/dist/a.js.map" "$WORKDIR/original"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+    mv "$WORKDIR/original" "$FIXTURE_BB/dist/a.js.map"
+    echo 'export {};' > "$FIXTURE_BB/dist/unexpected.js"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
+@test "only generated_at is excluded from manifest parity" {
+    build_dist_fixture
+    local manifest="$FIXTURE_BB/dist/.build-manifest.json"
+    jq '.generated_at = "2000-01-01T00:00:00Z"' "$manifest" > "$WORKDIR/manifest"
+    cp "$WORKDIR/manifest" "$manifest"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 0 ]
+    jq '.file_count = 9000' "$manifest" > "$WORKDIR/manifest"
+    cp "$WORKDIR/manifest" "$manifest"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
+@test "compiler errors cannot be reported as fresh" {
+    build_dist_fixture
+    echo 'const broken: number = "wrong";' > "$FIXTURE_BB/resources/a.ts"
+    "$SCRIPT" --write-manifest >/dev/null
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_build_failed"'
+}
+
+@test "tsconfig-only emission changes invalidate shipped bytes" {
+    build_dist_fixture
+    local config="$FIXTURE_BB/resources/tsconfig.json"
+    jq '.compilerOptions.sourceMap = false' "$config" > "$WORKDIR/config"
+    cp "$WORKDIR/config" "$config"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
+@test "shipped persona asset byte changes fail parity" {
+    build_dist_fixture
+    echo '# Changed shipped persona' > "$FIXTURE_BB/dist/personas/default.md"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
+@test "a nested manifest filename cannot hide an unexpected output" {
+    build_dist_fixture
+    echo '{}' > "$FIXTURE_BB/dist/personas/.build-manifest.json"
+    run "$SCRIPT" --verify-dist --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.outcome == "dist_mismatch"'
+}
+
 # -------- AC-1.5: positive control + negative controls --------
 
 @test "AC-1.5: manifest missing → check fails with manifest_missing outcome" {

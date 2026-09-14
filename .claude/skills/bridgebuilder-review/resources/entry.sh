@@ -106,15 +106,15 @@ fi
 # (a devDeps-present/zod-absent node_modules is a real observed state) and
 # abort with the remediation. Deliberately NO network install here: entry
 # paths must not perform silent network installs.
-if [[ ! -d "${SKILL_DIR}/node_modules/zod" ]]; then
-  echo "ERROR: bridgebuilder dependencies missing — node_modules/zod not found." >&2
+if [[ ! -d "${SKILL_DIR}/node_modules/zod" || ! -d "${SKILL_DIR}/node_modules/commonmark" ]]; then
+  echo "ERROR: bridgebuilder dependencies missing — zod and commonmark are required." >&2
   echo "" >&2
-  echo "The compiled app (dist/) imports zod at runtime, and node_modules/ is" >&2
+  echo "The compiled app (dist/) imports zod and commonmark, and node_modules/ is" >&2
   echo "not tracked. Install once per clone:" >&2
   echo "" >&2
   echo "  cd ${SKILL_DIR} && npm ci" >&2
   echo "" >&2
-  echo "(package-lock.json is tracked; zod is the only production dependency.)" >&2
+  echo "(package-lock.json tracks the required production dependencies.)" >&2
   exit 3
 fi
 

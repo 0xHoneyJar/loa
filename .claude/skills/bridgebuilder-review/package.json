@@ -11,9 +11,9 @@
     "./adapters": "./dist/adapters/index.js"
   },
   "scripts": {
-    "build": "npm run gen-bb-registry && cd resources && npx tsc --project tsconfig.json && cd ../../../.. && tools/check-bb-dist-fresh.sh --write-manifest",
+    "build": "npm run gen-bb-registry && rm -rf dist && tsc --project resources/tsconfig.json && cp resources/BEAUVOIR.md dist/ && cp -R resources/personas dist/personas && npm run build:manifest",
     "build:manifest": "../../../tools/check-bb-dist-fresh.sh --write-manifest",
-    "build:check": "../../../tools/check-bb-dist-fresh.sh --check",
+    "build:check": "../../../tools/check-bb-dist-fresh.sh --check --verify-dist",
     "gen-bb-registry": "npx tsx scripts/gen-bb-registry.ts",
     "gen-bb-registry:check": "npx tsx scripts/gen-bb-registry.ts --check",
     "test": "cd resources && npx tsx --test __tests__/*.test.ts"
@@ -22,11 +22,13 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
+    "@types/commonmark": "0.27.10",
     "@types/node": "^25.2.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "commonmark": "0.31.2",
     "zod": "^4.3.6"
   }
 }

@@ -1,4 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
@@ -576,8 +577,20 @@ async function main() {
         }
     }
 }
-main().catch((err) => {
-    console.error(`[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`);
-    process.exit(1);
-});
+// Node resolves imported modules physically, while argv may retain a mount's
+// symlink. A nonexistent argv (eval/import callers) is never a CLI entry.
+let isEntry = false;
+try {
+    isEntry = !!process.argv[1] &&
+        realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+}
+catch {
+    // An import need not have a filesystem entrypoint.
+}
+if (isEntry) {
+    main().catch((err) => {
+        console.error(`[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`);
+        process.exit(1);
+    });
+}
 //# sourceMappingURL=main.js.map

@@ -1,3 +1,4 @@
+import { qualityCohort } from "./helpers/review-cohort.js";
 // cycle-109 Sprint 2 T2.6 — ChevalDelegateAdapter verdict_quality sidecar
 // + PR-comment header rendering.
 //
@@ -258,10 +259,8 @@ describe("formatVerdictQualityHeader — PR-comment surface (T2.6)", () => {
   // LOAD when the export is missing (commit-1 RED state). Subsequent runs
   // resolve the import after commit-2 lands the helper.
   async function renderer() {
-    const mod = await import("../core/multi-model-pipeline.js") as {
-      formatVerdictQualityHeader?: (verdicts: Array<{ provider: string; modelId: string; verdictQuality?: object }>) => string;
-    };
-    return mod.formatVerdictQualityHeader;
+    const mod = await import("../core/multi-model-pipeline.js");
+    return (voices: Parameters<typeof qualityCohort>[0]) => mod.formatVerdictQualityHeader(qualityCohort(voices));
   }
 
   it("renders APPROVED header when all voices succeeded with ok chain", async () => {
@@ -308,19 +307,19 @@ describe("formatVerdictQualityHeader — PR-comment surface (T2.6)", () => {
     assert.match(out, /FAILED/);
   });
 
-  it("returns empty string when no verdictQuality envelopes available", async () => {
+  it("renders missing envelopes as DEGRADED with zero qualified voices", async () => {
     const r = await renderer();
     assert.ok(r);
     const out = r!([
       { provider: "anthropic", modelId: "claude-opus-4-7" },  // no verdictQuality
       { provider: "openai", modelId: "gpt-5.5-pro" },
     ]);
-    assert.equal(out, "", "header must be empty when no envelopes available");
+    assert.match(out, /DEGRADED.*0\/2 voices qualified/);
   });
 
-  it("returns empty string for empty input list", async () => {
+  it("renders an empty cohort as FAILED", async () => {
     const r = await renderer();
     assert.ok(r);
-    assert.equal(r!([]), "");
+    assert.match(r!([]), /FAILED.*0\/0 voices qualified/);
   });
 });

@@ -26,7 +26,24 @@ setup() {
 }
 
 @test "bug-805: preflight failure message names npm ci as the remediation" {
-    grep -B 2 -A 6 'node_modules/zod' "$E" | grep -q 'npm ci'
+    grep -q 'echo.*npm ci' "$E"
+}
+
+@test "BIR-001: an older zod-only install must request npm ci before loading commonmark" {
+    local root="$BATS_TEST_TMPDIR/parser-dependency"
+    local fix="$root/.claude/skills/bridgebuilder-review"
+    mkdir -p "$fix/resources" "$fix/dist" "$fix/node_modules/zod" "$root/.claude/scripts/lib"
+    printf '#!/usr/bin/env bash\ntrue\n' > "$root/.claude/scripts/bash-version-guard.sh"
+    printf '#!/usr/bin/env bash\nload_env_file() { true; }\n' > "$root/.claude/scripts/lib/env-loader.sh"
+    cp "$E" "$fix/resources/entry.sh"
+    printf 'process.exit(99)\n' > "$fix/dist/main.js"
+    run bash "$fix/resources/entry.sh" --help
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"commonmark"* ]]
+    [[ "$output" == *"npm ci"* ]]
+    mkdir "$fix/node_modules/commonmark"
+    run bash "$fix/resources/entry.sh" --help
+    [ "$status" -eq 99 ]
 }
 
 @test "bug-805: entry path performs NO network install (no npm ci/install execution)" {
