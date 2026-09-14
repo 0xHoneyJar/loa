@@ -10,8 +10,9 @@ Covers:
     is NOT misclassified as a transport failure (the silencing-attack regression)
   - Bundle-E substrate wiring (review #966): auth_type=headless, pgkill cwd=workspace,
     `--` option terminator, registry-derived kind:cli admission, loader inference entry
-  - validate_config + health_check
-  - prompt flattening (system / user / assistant / tool / list-content)
+
+Shared prompt, validation, health, process-failure and environment contracts live in
+`test_headless_shared_contract.py`; provider-specific cases remain here.
 
 Live test (real cursor-agent invocation) is gated behind LOA_CURSOR_HEADLESS_LIVE=1
 to keep CI deterministic. Run locally (needs Cursor Pro + cursor-agent login):
@@ -24,7 +25,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -47,7 +48,6 @@ from loa_cheval.types import (
 # adapter module, not subprocess.Popen. Process-group kill + output-cap
 # mechanics are covered by the helper's own tests.
 _PGKILL = "loa_cheval.providers.cursor_headless_adapter.run_subprocess_pgkill"
-_WHICH = "loa_cheval.providers.cursor_headless_adapter.shutil.which"
 
 
 # ---------------------------------------------------------------------------
@@ -122,24 +122,6 @@ class TestCommandConstruction:
         monkeypatch.setenv("CURSOR_HEADLESS_BIN", "/opt/cursor-agent")
         cmd = _adapter()._build_command(_req(), ModelConfig())
         assert cmd[0] == "/opt/cursor-agent"
-
-
-# ---------------------------------------------------------------------------
-# Prompt flattening
-# ---------------------------------------------------------------------------
-
-class TestPromptFlattening:
-    def test_roles_prefixed(self):
-        out = _adapter()._build_prompt([
-            {"role": "system", "content": "be strict"},
-            {"role": "user", "content": "the diff"},
-        ])
-        assert "## System" in out and "be strict" in out
-        assert "## User" in out and "the diff" in out
-
-    def test_list_content_blocks(self):
-        out = _adapter()._build_prompt([{"role": "user", "content": [{"text": "block-a"}, {"text": "block-b"}]}])
-        assert "block-a" in out and "block-b" in out
 
 
 # ---------------------------------------------------------------------------
@@ -338,42 +320,10 @@ class TestErrorClassification:
             with pytest.raises(ProviderUnavailableError):
                 _adapter().complete(_req())
 
-    def test_timeout_raises_unavailable(self):
-        # Process-group SIGKILL on timeout now lives inside run_subprocess_pgkill
-        # (covered by the helper's own tests); the adapter contract is the
-        # chain-advancing ProviderUnavailableError.
-        with patch(_PGKILL, side_effect=subprocess.TimeoutExpired(cmd=["cursor-agent"], timeout=5)):
-            with pytest.raises(ProviderUnavailableError, match="timed out"):
-                _adapter().complete(_req())
-
-    def test_output_cap_exceeded_is_unavailable(self):
-        # Review #966: truncated output must never masquerade as success —
-        # the cap raises and the chain advances like a timeout.
-        from loa_cheval.providers.base import SubprocessOutputCapExceeded
-        with patch(_PGKILL, side_effect=SubprocessOutputCapExceeded("stdout exceeded the 10485760-byte cap")):
-            with pytest.raises(ProviderUnavailableError, match="cap"):
-                _adapter().complete(_req())
-
-    def test_missing_cli_is_configerror(self):
-        with patch(_PGKILL, side_effect=FileNotFoundError("cursor-agent: not found")):
-            with pytest.raises(ConfigError):
-                _adapter().complete(_req())
 
     def test_spawn_oserror_is_unavailable(self):
         with patch(_PGKILL, side_effect=PermissionError("exec not permitted")):
             with pytest.raises(ProviderUnavailableError, match="failed to spawn"):
-                _adapter().complete(_req())
-
-    def test_semaphore_exhausted_is_chain_exhausted_concurrency(self):
-        # Review #966: concurrency-slot exhaustion must surface the distinct
-        # [CHAIN-EXHAUSTED-CONCURRENCY] class (MODELINV semaphore_exhausted=true),
-        # not a generic outage.
-        from loa_cheval.adapters.headless_concurrency import SemaphoreExhausted
-        with patch(
-            "loa_cheval.adapters.headless_concurrency.acquire_slot",
-            side_effect=SemaphoreExhausted("cursor-headless", 50, 30.0),
-        ):
-            with pytest.raises(ProviderUnavailableError, match=r"\[CHAIN-EXHAUSTED-CONCURRENCY\]"):
                 _adapter().complete(_req())
 
 
@@ -442,38 +392,6 @@ class TestSubstrateWiring:
         from loa_cheval.config.loader import _HEADLESS_TYPE_INFERENCE
         auth, group = _HEADLESS_TYPE_INFERENCE["cursor-headless"]
         assert auth == "headless" and group == "cursor-composer"
-
-
-# ---------------------------------------------------------------------------
-# validate_config + health_check
-# ---------------------------------------------------------------------------
-
-class TestValidateAndHealth:
-    def test_validate_ok(self):
-        with patch(_WHICH, return_value="/usr/local/bin/cursor-agent"):
-            assert _adapter().validate_config() == []
-
-    def test_validate_missing_cli(self):
-        with patch(_WHICH, return_value=None):
-            errs = _adapter().validate_config()
-            assert any("not found on PATH" in e for e in errs)
-
-    def test_validate_wrong_type(self):
-        cfg = ProviderConfig(name="x", type="not-cursor", endpoint="", auth=None,
-                             models={"composer-2.5": ModelConfig()})
-        a = CursorHeadlessAdapter(cfg)
-        with patch(_WHICH, return_value="/usr/local/bin/cursor-agent"):
-            assert any("must be 'cursor-headless'" in e for e in a.validate_config())
-
-    def test_health_check_true(self):
-        with patch(_WHICH, return_value="/usr/local/bin/cursor-agent"), \
-             patch("loa_cheval.providers.cursor_headless_adapter.subprocess.run") as run:
-            run.return_value = MagicMock(returncode=0)
-            assert _adapter().health_check() is True
-
-    def test_health_check_missing_cli(self):
-        with patch(_WHICH, return_value=None):
-            assert _adapter().health_check() is False
 
 
 # ---------------------------------------------------------------------------

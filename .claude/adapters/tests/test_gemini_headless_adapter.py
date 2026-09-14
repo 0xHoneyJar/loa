@@ -5,8 +5,9 @@ Covers:
   - command construction (model, plan-mode, skip-trust, policy + extra flags)
   - JSON output parsing (response, stats.models.<id>.tokens, session_id, warnings)
   - error classification (auth, rate limit, generic non-zero exit, timeout)
-  - validate_config + health_check
-  - prompt flattening (system / user / assistant / tool / list-content)
+
+Shared prompt, validation, health, process-failure and environment contracts live in
+`test_headless_shared_contract.py`; provider-specific cases remain here.
 
 Live test (real gemini CLI invocation) is gated behind LOA_GEMINI_HEADLESS_LIVE=1.
 Run locally with:
@@ -219,45 +220,6 @@ class TestCommandConstruction:
 
 
 # ---------------------------------------------------------------------------
-# Prompt flattening
-# ---------------------------------------------------------------------------
-
-
-class TestPromptFlattening:
-    def test_system_user_assistant_sequence(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt(
-            [
-                {"role": "system", "content": "be terse"},
-                {"role": "user", "content": "hi"},
-                {"role": "assistant", "content": "hello"},
-                {"role": "user", "content": "again"},
-            ]
-        )
-        assert "## System" in prompt
-        assert "## User" in prompt
-        assert "## Assistant" in prompt
-        assert prompt.index("be terse") < prompt.index("hello")
-        assert prompt.index("hello") < prompt.rindex("again")
-
-    def test_anthropic_style_list_content(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "block A"},
-                        {"type": "text", "text": "block B"},
-                    ],
-                }
-            ]
-        )
-        assert "block A" in prompt
-        assert "block B" in prompt
-
-
-# ---------------------------------------------------------------------------
 # JSON output parsing
 # ---------------------------------------------------------------------------
 
@@ -419,21 +381,6 @@ class TestErrorClassification:
                 adapter.complete(_make_request())
             assert "exit 2" in str(exc_info.value)
 
-    def test_timeout_raises_provider_unavailable(self):
-        adapter = GeminiHeadlessAdapter(_make_config(read_timeout=5.0))
-        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd=["gemini"], timeout=5)
-            with pytest.raises(ProviderUnavailableError) as exc_info:
-                adapter.complete(_make_request())
-            assert "timed out" in str(exc_info.value)
-
-    def test_gemini_not_on_path_raises_config_error(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.side_effect = FileNotFoundError("gemini: command not found")
-            with pytest.raises(ConfigError) as exc_info:
-                adapter.complete(_make_request())
-            assert "not found on PATH" in str(exc_info.value)
 
     def test_unparseable_stdout_raises_provider_unavailable(self):
         adapter = GeminiHeadlessAdapter(_make_config())
@@ -442,49 +389,6 @@ class TestErrorClassification:
             with pytest.raises(ProviderUnavailableError) as exc_info:
                 adapter.complete(_make_request())
             assert "no parseable JSON" in str(exc_info.value)
-
-
-# ---------------------------------------------------------------------------
-# validate_config + health_check
-# ---------------------------------------------------------------------------
-
-
-class TestValidateAndHealth:
-    def test_validate_config_clean_when_gemini_present(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = "/usr/local/bin/gemini"
-            assert adapter.validate_config() == []
-
-    def test_validate_config_complains_when_gemini_missing(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = None
-            errors = adapter.validate_config()
-            assert any("not found on PATH" in e for e in errors)
-
-    def test_validate_config_complains_on_wrong_type(self):
-        adapter = GeminiHeadlessAdapter(_make_config(ptype="google"))
-        with patch("loa_cheval.providers.gemini_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = "/usr/local/bin/gemini"
-            errors = adapter.validate_config()
-            assert any("type must be 'gemini-headless'" in e for e in errors)
-
-    def test_health_check_returns_true_on_zero_exit(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with (
-            patch("loa_cheval.providers.gemini_headless_adapter.shutil.which") as mock_which,
-            patch("loa_cheval.providers.gemini_headless_adapter.subprocess.run") as mock_run,
-        ):
-            mock_which.return_value = "/usr/local/bin/gemini"
-            mock_run.return_value = _ok_proc("0.40.1\n")
-            assert adapter.health_check() is True
-
-    def test_health_check_false_when_binary_missing(self):
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = None
-            assert adapter.health_check() is False
 
 
 # ---------------------------------------------------------------------------
@@ -533,42 +437,7 @@ class TestEndToEnd:
 
 
 class TestSubprocessEnvFilter:
-    def test_google_api_keys_stripped_by_default(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-google-key")
-        monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
-            adapter.complete(_make_request())
-        kwargs = mock_run.call_args.kwargs
-        assert "env" in kwargs, "subprocess.run must pass explicit env="
-        assert "GOOGLE_API_KEY" not in kwargs["env"]
-        assert "GEMINI_API_KEY" not in kwargs["env"]
 
-    def test_path_and_home_preserved(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
-        monkeypatch.setenv("HOME", "/test/home")
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
-            adapter.complete(_make_request())
-        env = mock_run.call_args.kwargs.get("env", {})
-        assert env.get("PATH") == "/test/bin:/usr/bin"
-        assert env.get("HOME") == "/test/home"
-
-    def test_opt_out_keeps_api_keys(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-google")
-        monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
-        monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
-        adapter = GeminiHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
-            adapter.complete(_make_request())
-        env = mock_run.call_args.kwargs.get("env", {})
-        assert env.get("GOOGLE_API_KEY") == "test-google"
-        assert env.get("GEMINI_API_KEY") == "test-gemini"
 
     # sprint-bug-173 / #894: auth-mode-selector env vars (GOOGLE_GENAI_USE_*)
     # push the gemini CLI off the ~/.gemini/settings.json OAuth path onto

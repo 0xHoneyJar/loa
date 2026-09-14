@@ -5,8 +5,9 @@ Covers:
   - command construction (model, reasoning_effort, extra config overrides)
   - JSONL output parsing (agent_message, reasoning, usage, thread_id)
   - error classification (auth, rate limit, generic non-zero exit, timeout)
-  - validate_config + health_check
-  - prompt flattening (system / user / assistant / tool / list-content)
+
+Shared prompt, validation, health, process-failure and environment contracts live in
+`test_headless_shared_contract.py`; provider-specific cases remain here.
 
 Live test (real codex CLI invocation) is gated behind LOA_CODEX_HEADLESS_LIVE=1
 to keep CI deterministic. Run locally with:
@@ -203,64 +204,6 @@ class TestCommandConstruction:
 
 
 # ---------------------------------------------------------------------------
-# Prompt flattening
-# ---------------------------------------------------------------------------
-
-
-class TestPromptFlattening:
-    def test_single_user_message(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt([{"role": "user", "content": "ping"}])
-        assert "## User" in prompt
-        assert "ping" in prompt
-
-    def test_system_user_assistant_sequence(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt(
-            [
-                {"role": "system", "content": "be terse"},
-                {"role": "user", "content": "hi"},
-                {"role": "assistant", "content": "hello"},
-                {"role": "user", "content": "again"},
-            ]
-        )
-        # All four sections present
-        assert "## System" in prompt
-        assert "## User" in prompt
-        assert "## Assistant" in prompt
-        # Conversation order preserved
-        assert prompt.index("be terse") < prompt.index("hello")
-        assert prompt.index("hello") < prompt.rindex("again")
-
-    def test_anthropic_style_list_content(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt(
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "block A"},
-                        {"type": "text", "text": "block B"},
-                    ],
-                }
-            ]
-        )
-        assert "block A" in prompt
-        assert "block B" in prompt
-
-    def test_tool_role_inlined(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        prompt = adapter._build_prompt(
-            [
-                {"role": "user", "content": "call tool"},
-                {"role": "tool", "content": '{"result":42}', "tool_call_id": "x"},
-            ]
-        )
-        assert "## Tool result" in prompt
-        assert '"result":42' in prompt
-
-
-# ---------------------------------------------------------------------------
 # JSONL parsing
 # ---------------------------------------------------------------------------
 
@@ -404,66 +347,6 @@ class TestErrorClassification:
                 adapter.complete(_make_request())
             assert "exit 2" in str(exc_info.value)
 
-    def test_timeout_raises_provider_unavailable(self):
-        adapter = CodexHeadlessAdapter(_make_config(read_timeout=5.0))
-        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd=["codex"], timeout=5)
-            with pytest.raises(ProviderUnavailableError) as exc_info:
-                adapter.complete(_make_request())
-            assert "timed out" in str(exc_info.value)
-
-    def test_codex_not_on_path_raises_config_error(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.side_effect = FileNotFoundError("codex: command not found")
-            with pytest.raises(ConfigError) as exc_info:
-                adapter.complete(_make_request())
-            assert "not found on PATH" in str(exc_info.value)
-
-
-# ---------------------------------------------------------------------------
-# validate_config + health_check
-# ---------------------------------------------------------------------------
-
-
-class TestValidateAndHealth:
-    def test_validate_config_clean_when_codex_present(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = "/usr/local/bin/codex"
-            errors = adapter.validate_config()
-            assert errors == []
-
-    def test_validate_config_complains_when_codex_missing(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = None
-            errors = adapter.validate_config()
-            assert any("not found on PATH" in e for e in errors)
-
-    def test_validate_config_complains_on_wrong_type(self):
-        adapter = CodexHeadlessAdapter(_make_config(ptype="openai"))
-        with patch("loa_cheval.providers.codex_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = "/usr/local/bin/codex"
-            errors = adapter.validate_config()
-            assert any("type must be 'codex-headless'" in e for e in errors)
-
-    def test_health_check_returns_true_on_zero_exit(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        with (
-            patch("loa_cheval.providers.codex_headless_adapter.shutil.which") as mock_which,
-            patch("loa_cheval.providers.codex_headless_adapter.subprocess.run") as mock_run,
-        ):
-            mock_which.return_value = "/usr/local/bin/codex"
-            mock_run.return_value = _ok_proc("codex-cli 0.125.0\n")
-            assert adapter.health_check() is True
-
-    def test_health_check_false_when_binary_missing(self):
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.shutil.which") as mock_which:
-            mock_which.return_value = None
-            assert adapter.health_check() is False
-
 
 # ---------------------------------------------------------------------------
 # End-to-end happy path (mocked subprocess)
@@ -497,51 +380,6 @@ class TestEndToEnd:
     def test_reasoning_effort_constants_match_codex_doc(self):
         # Sanity: the four levels documented for codex CLI 0.125.0+
         assert _ALLOWED_REASONING_EFFORTS == ("low", "medium", "high", "xhigh")
-
-
-# ---------------------------------------------------------------------------
-# Subprocess env filtering (closes issues #879 / #880 — codex symmetric)
-#
-# codex CLI uses OAuth via `codex login` (stored at ~/.codex/auth.json). When
-# OPENAI_API_KEY is exported in the parent process, codex prefers API mode
-# over the OAuth subscription. The headless adapter must strip OPENAI_API_KEY
-# from the subprocess env so the OAuth path is reachable.
-# ---------------------------------------------------------------------------
-
-
-class TestSubprocessEnvFilter:
-    def test_openai_api_key_stripped_by_default(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test-depleted")
-        monkeypatch.delenv("LOA_HEADLESS_KEEP_API_KEY", raising=False)
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
-            adapter.complete(_make_request())
-        kwargs = mock_run.call_args.kwargs
-        assert "env" in kwargs, "subprocess.run must pass explicit env="
-        assert "OPENAI_API_KEY" not in kwargs["env"]
-
-    def test_path_and_home_preserved(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
-        monkeypatch.setenv("PATH", "/test/bin:/usr/bin")
-        monkeypatch.setenv("HOME", "/test/home")
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
-            adapter.complete(_make_request())
-        env = mock_run.call_args.kwargs.get("env", {})
-        assert env.get("PATH") == "/test/bin:/usr/bin"
-        assert env.get("HOME") == "/test/home"
-
-    def test_opt_out_keeps_api_key(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-proj-test")
-        monkeypatch.setenv("LOA_HEADLESS_KEEP_API_KEY", "1")
-        adapter = CodexHeadlessAdapter(_make_config())
-        with patch("loa_cheval.providers.codex_headless_adapter.run_subprocess_pgkill") as mock_run:
-            mock_run.return_value = _ok_proc(SAMPLE_JSONL_OUTPUT)
-            adapter.complete(_make_request())
-        env = mock_run.call_args.kwargs.get("env", {})
-        assert env.get("OPENAI_API_KEY") == "sk-proj-test"
 
 
 # ---------------------------------------------------------------------------
