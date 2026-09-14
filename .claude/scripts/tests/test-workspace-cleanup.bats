@@ -103,22 +103,20 @@ teardown() {
     cd "$TEST_DIR"
     echo "test" > grimoires/loa/prd.md
 
-    # Start cleanup in background with intentional delay
-    timeout 5 bash -c '
-        source '"$SCRIPT"' --grimoire grimoires/loa --dry-run &
-        sleep 0.5
-        if [[ -f "grimoires/loa/.cleanup.lock" ]]; then
-            cat "grimoires/loa/.cleanup.lock"
-        fi
-    ' > lock_content.txt 2>&1 || true
-
-    # Check lock file had valid JSON if it was captured
-    if [[ -s lock_content.txt ]] && grep -q "pid" lock_content.txt; then
-        run jq -e '.pid' lock_content.txt
-        [ "$status" -eq 0 ]
-    else
-        skip "Lock file not captured (process too fast)"
-    fi
+    # Sourcing only defines functions; invoke acquisition explicitly and inspect
+    # metadata while the same process still owns the lock.
+    run bash -c '
+        source "$1"
+        acquire_cleanup_lock
+        trap release_cleanup_lock EXIT
+        jq -e --argjson pid "$$" --arg host "$(hostname)" '"'"'
+            .pid == $pid and .hostname == $host and
+            (.timestamp | type == "string" and length > 0) and
+            .ttl_seconds == 300
+        '"'"' "grimoires/loa/.cleanup.lock"
+    ' _ "$SCRIPT"
+    echo "$output"
+    [ "$status" -eq 0 ]
 }
 
 @test "detects stale lock from dead process" {

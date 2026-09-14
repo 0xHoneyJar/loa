@@ -70,3 +70,56 @@ _sourced_libs() {
         return 1
     fi
 }
+
+# Run the actual bootstrap with a local curl fixture. Its downloaded entrypoint
+# only checks the dependency and records execution; no installer/network runs.
+pipe_supervisor_fixture() {
+    mkdir -p "$BATS_TEST_TMPDIR/bin" "$BATS_TEST_TMPDIR/downloads"
+    cat > "$BATS_TEST_TMPDIR/bin/curl" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) target="$2"; shift 2 ;;
+        --) url="$2"; break ;;
+        *) shift ;;
+    esac
+done
+if [[ "$url" == */lib/mount-supervisor.py ]]; then
+    [[ "$FIXTURE_FAIL_HELPER" != true ]] || exit 22
+    cp "$FIXTURE_REPO/.claude/scripts/lib/mount-supervisor.py" "$target"
+elif [[ "$url" == */mount-loa.sh ]]; then
+    cat > "$target" <<'ENTRY'
+#!/usr/bin/env bash
+set -euo pipefail
+cmp "$_LOA_MOUNT_TMPDIR/lib/mount-supervisor.py" \
+    "$FIXTURE_REPO/.claude/scripts/lib/mount-supervisor.py"
+touch "$FIXTURE_EXECUTED"
+rm -rf "$_LOA_MOUNT_TMPDIR"
+ENTRY
+else
+    printf '# local bootstrap dependency fixture\n' > "$target"
+fi
+SH
+    chmod +x "$BATS_TEST_TMPDIR/bin/curl"
+    run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" TMPDIR="$BATS_TEST_TMPDIR/downloads" \
+        FIXTURE_REPO="$REPO_ROOT" FIXTURE_FAIL_HELPER="$1" \
+        FIXTURE_EXECUTED="$BATS_TEST_TMPDIR/executed" \
+        bash -s -- --no-commit < "$MOUNT_LOA"
+    echo "$output"
+}
+
+@test "IR-001/003: pipe bootstrap downloads the process supervisor before re-exec" {
+    pipe_supervisor_fixture false
+    [ "$status" -eq 0 ]
+    [ -e "$BATS_TEST_TMPDIR/executed" ]
+    [ -z "$(ls -A "$BATS_TEST_TMPDIR/downloads")" ]
+}
+
+@test "IR-001/003: failed supervisor download prevents re-exec and removes the download directory" {
+    pipe_supervisor_fixture true
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"lib/mount-supervisor.py"* ]]
+    [ ! -e "$BATS_TEST_TMPDIR/executed" ]
+    [ -z "$(ls -A "$BATS_TEST_TMPDIR/downloads")" ]
+}

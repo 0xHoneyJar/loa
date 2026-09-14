@@ -354,7 +354,7 @@ scan_archivable_files() {
     # Validate all paths
     validate_scanned_paths
 
-    # Recalculate size with du -sb for accuracy
+    # Account for allocated KiB, converted to the byte-valued output contract.
     recalculate_total_size
 }
 
@@ -480,8 +480,16 @@ recalculate_total_size() {
         local full_path="$GRIMOIRE_DIR/$path"
         if [[ -e "$full_path" ]]; then
             local size
-            size=$(du -sb "$full_path" 2>/dev/null | cut -f1)
-            TOTAL_SIZE=$((TOTAL_SIZE + ${size:-0}))
+            if ! size=$(LC_ALL=C du -sk "$full_path"); then
+                error "Cannot determine archive size: $full_path"
+                return 1
+            fi
+            size="${size%%[[:space:]]*}"
+            if [[ ! "$size" =~ ^[0-9]+$ ]]; then
+                error "Cannot determine archive size: invalid du result for $full_path"
+                return 1
+            fi
+            TOTAL_SIZE=$((TOTAL_SIZE + 10#$size * 1024))
         fi
     done
 }
@@ -494,12 +502,24 @@ check_disk_space() {
     local required_space=$((TOTAL_SIZE * SAFETY_MARGIN))
     local archive_dest="$GRIMOIRE_DIR/archive"
 
-    mkdir -p "$archive_dest"
+    if ! mkdir -p "$archive_dest"; then
+        error "Cannot create archive destination: $archive_dest"
+        return 1
+    fi
 
     local available
-    available=$(df -B1 "$archive_dest" 2>/dev/null | tail -1 | awk '{print $4}')
+    if ! available=$(LC_ALL=C df -Pk "$archive_dest"); then
+        error "Cannot determine available disk space: $archive_dest"
+        return 1
+    fi
+    available=$(printf '%s\n' "$available" | awk 'NR == 2 {print $4}')
+    if [[ ! "$available" =~ ^[0-9]+$ ]]; then
+        error "Cannot determine available disk space: invalid df result for $archive_dest"
+        return 1
+    fi
+    available=$((10#$available * 1024))
 
-    if [[ -z "$available" || "$available" -lt "$required_space" ]]; then
+    if [[ "$available" -lt "$required_space" ]]; then
         local required_mb=$((required_space / 1024 / 1024))
         local available_mb=$((available / 1024 / 1024))
         error "Insufficient disk space: need ${required_mb}MB, have ${available_mb}MB"
