@@ -628,7 +628,12 @@ validate_index() {
 
     # Check each construct has required fields
     local count
-    count=$(echo "$index_json" | jq '.constructs | length') || count=0
+    if ! count=$(echo "$index_json" | jq -er \
+        '.constructs | if type == "array" then length else error("constructs must be an array") end') ||
+        [[ ! "$count" =~ ^[0-9]+$ ]]; then
+        echo "VALIDATE ERROR: Cannot read constructs count (expected an array)" >&2
+        return 1
+    fi
 
     local i=0
     while [[ $i -lt $count ]]; do
@@ -650,7 +655,10 @@ validate_index() {
 
         # Check skills is an array
         local skills_type
-        skills_type=$(echo "$index_json" | jq -r ".constructs[$i].skills | type") || skills_type="null"
+        if ! skills_type=$(echo "$index_json" | jq -er ".constructs[$i].skills | type"); then
+            echo "VALIDATE ERROR: Cannot read skills type for construct at index $i" >&2
+            return 1
+        fi
         if [[ "$skills_type" != "array" && "$skills_type" != "null" ]]; then
             echo "VALIDATE ERROR: Construct '$slug' skills is $skills_type, expected array" >&2
             errors=$((errors + 1))
@@ -658,7 +666,10 @@ validate_index() {
 
         # Check commands is an array
         local cmds_type
-        cmds_type=$(echo "$index_json" | jq -r ".constructs[$i].commands | type") || cmds_type="null"
+        if ! cmds_type=$(echo "$index_json" | jq -er ".constructs[$i].commands | type"); then
+            echo "VALIDATE ERROR: Cannot read commands type for construct at index $i" >&2
+            return 1
+        fi
         if [[ "$cmds_type" != "array" && "$cmds_type" != "null" ]]; then
             echo "VALIDATE ERROR: Construct '$slug' commands is $cmds_type, expected array" >&2
             errors=$((errors + 1))
