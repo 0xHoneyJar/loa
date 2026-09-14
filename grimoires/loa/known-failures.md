@@ -78,6 +78,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
 | [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 3 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
+| [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 
 ---
 
@@ -1225,6 +1226,27 @@ Do NOT chase the health check: since R-003 (agent-ergonomics pass 1) beads-healt
 ### Reading guide
 
 When Flatline reports a clean quorum, do not equate exit 0 with a usable review. Verify the orchestrator contains `qualify_flatline_content` before `aggregate_and_write_final_consensus`. If absent, the branch predates #1227 and can still false-green. After the fix, `voices_planned` remains the configured cohort size while only schema-qualified review content contributes to `voices_succeeded`; a rejected voice emits `consensus.voice_rejected` with a bounded reason. Do not restore the old default-substitution-before-quorum order.
+
+## KF-024: ledger-lib _write_ledger accepts empty content — ledger.json truncated to 1 byte with exit 0
+
+**Status**: RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7)
+**Feature**: ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity)
+**Symptom**: grimoires/loa/ledger.json becomes a 1-byte newline; caller prints ledger-updated and exits 0; a stale 0-byte ledger.json.lock is present (red herring — exec 9> creates it on every write). Trigger: any caller whose jq content-build fails, e.g. update_sprint_status given a local label (sprint-1) instead of a numeric global id — jq --argjson exits with no stdout, and jq-on-empty-input in the last_updated stamp emits nothing with exit 0 (same mechanism class as KF-015). Recovery: ledger.json.bak (ensure_ledger_backup runs pre-write).
+**First observed**: 2026-08-06 (seen r51, second occurrence class; forensics on seen bd-ed9b7)
+**Recurrence count**: 1
+**Current workaround**: none yet
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-08-08 | Entry guard in _write_ledger (refuse empty/jq-unparseable content before lock/backup/write) + belt check post last_updated stamp + numeric-id guard in update_sprint_status + failure propagation at all 6 _write_ledger call sites; 4 test-first bats repros | FIXED — repros observed failing pre-fix; full ledger-lib.bats 40/40 post-fix | 63d10ac1 |
+
+### Reading guide
+
+TODO: what a future agent should do on this symptom.
 
 ---
 

@@ -172,6 +172,19 @@ _write_ledger() (
     local ledger_path
     ledger_path=$(get_ledger_path)
 
+    # GUARD (bug 20260808-a008c6): refuse empty/unparseable/wrong-shape content
+    # BEFORE touching lock, backup, or ledger. An empty string here previously
+    # passed through the last_updated jq stamp (jq on empty input emits
+    # nothing and exits 0) and truncated the ledger to a 1-byte newline
+    # while every caller reported success. printf (not echo) so flag-like
+    # content cannot be eaten; -es pins the shape to exactly one JSON object
+    # (multi-document streams and bare scalars pass a plain `jq empty`).
+    if [[ -z "$content" ]] || \
+       ! printf '%s' "$content" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+        echo "ERROR: refusing to write empty, unparseable, or non-object ledger content" >&2
+        return $LEDGER_ERROR
+    fi
+
     _lock_ledger_transaction || return $LEDGER_ERROR
 
     # Backup before write
@@ -179,7 +192,11 @@ _write_ledger() (
 
     # Update last_updated timestamp
     local updated_content
-    updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts') || return $LEDGER_ERROR
+    updated_content=$(printf '%s' "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts') || return $LEDGER_ERROR
+    if [[ -z "$updated_content" ]]; then
+        echo "ERROR: timestamp stamping produced empty content, aborting write" >&2
+        return $LEDGER_ERROR
+    fi
 
     # SECURITY (HIGH-001): Atomic write via temp file + mv
     local tmp_file="${ledger_path}.tmp.$$"
@@ -596,6 +613,15 @@ update_sprint_status() (
         return $LEDGER_NOT_FOUND
     fi
 
+    # GUARD (bug 20260808-a008c6): a non-numeric id (e.g. a local label like
+    # "sprint-1") makes `jq --argjson` exit with no output; the $() masked
+    # that and the empty result blanked the ledger. Resolve labels via
+    # resolve_sprint BEFORE calling this function.
+    if [[ ! "$global_id" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: update_sprint_status requires a numeric global sprint id (got '$global_id')" >&2
+        return $LEDGER_SPRINT_NOT_FOUND
+    fi
+
     local exists
     exists=$(jq --argjson id "$global_id" \
         'any(.cycles[].sprints[]; .global_id == $id)' "$ledger_path") || return $LEDGER_ERROR
@@ -612,11 +638,17 @@ update_sprint_status() (
         # Set completed timestamp
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" --arg completed "$now" \
             '(.cycles[].sprints[] | select(.global_id == $id)) |= (.status = $status | .completed = $completed)' \
-            "$ledger_path") || return $LEDGER_ERROR
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     else
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" \
             '(.cycles[].sprints[] | select(.global_id == $id)).status = $status' \
-            "$ledger_path") || return $LEDGER_ERROR
+            "$ledger_path") || {
+            echo "ERROR: failed to build updated ledger content" >&2
+            return $LEDGER_ERROR
+        }
     fi
 
     _write_ledger "$ledger_content" || return $LEDGER_ERROR
