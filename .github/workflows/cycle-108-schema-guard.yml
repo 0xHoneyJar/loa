@@ -11,8 +11,8 @@
 #   4. Schema integrity check (advisor-strategy.schema.json is valid JSON Schema
 #      Draft 2020-12)
 #
-# Status check is REQUIRED via branch protection (see runbook
-# grimoires/loa/runbooks/advisor-strategy-rollback.md).
+# This workflow reports operator approval. Repository branch protection
+# separately determines required checks; see .github/BRANCH_PROTECTION.md.
 #
 # Cycle-108 protected file glob (must mirror .github/CODEOWNERS):
 #   .claude/data/schemas/advisor-strategy.schema.json
@@ -33,6 +33,8 @@ on:
       - '.claude/defaults/model-config.yaml'
       - '.github/CODEOWNERS'
       - '.github/workflows/cycle-108-*.yml'
+  pull_request_review:
+    types: [submitted, edited, dismissed]
   # Also run on the same paths on push to main so post-merge admin-bypass
   # detection is preserved.
   push:
@@ -55,6 +57,7 @@ jobs:
   schema-validity:
     name: JSON Schema validity
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request_review'
     steps:
       - uses: actions/checkout@v4
 
@@ -159,45 +162,92 @@ jobs:
   reviewer-check:
     name: Operator reviewer required
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       OPERATOR_LOGIN: deep-name
     steps:
       - name: Verify designated operator is an approver
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # BB iter-5 F002 closure: keep reviewers as a JSON array and check
-          # exact-login membership via jq. A substring match would admit any
-          # login containing the operator login, which is a trivial
-          # impersonation surface.
-          reviewers_json=$(gh pr view "${{ github.event.pull_request.number }}" \
-            --repo "${{ github.repository }}" \
-            --json reviews \
-            --jq '[.reviews[] | select(.state == "APPROVED") | .author.login] | unique')
+          set -euo pipefail
+          pr_json=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER")
+          pr_author=$(jq -er '.user.login' <<< "$pr_json")
+          head_sha=$(jq -er '.head.sha | select(test("^[0-9a-f]{40}$"))' <<< "$pr_json")
+          changed_files=$(jq -er '.changed_files | numbers |
+            select(. >= 0 and . == floor)' <<< "$pr_json")
 
-          # Loosened slightly: pass if EITHER the designated operator is an
-          # approver OR the PR author IS the designated operator. This permits
-          # operator-authored ATK-A17 mitigation; GitHub branch protection
-          # still governs the standard PR review flow.
-          pr_author="${{ github.event.pull_request.user.login }}"
+          # Review events cannot use a workflow-level paths filter. Read the
+          # complete file list so they apply to the same protected surfaces.
+          # This endpoint caps results at 3,000 files even with pagination.
+          files=$(gh api --paginate "repos/$GH_REPO/pulls/$PR_NUMBER/files" \
+            | jq -se 'if length > 0 and all(.[]; type == "array")
+              then add else error("Invalid PR file pages") end')
+          file_paths=$(jq -r --argjson expected "$changed_files" '
+            def valid_path:
+              type == "string" and length > 0 and
+              (test("[\u0000\r\n]") | not);
+            if length != $expected then
+              error("Incomplete PR file list")
+            elif (all(.[]; type == "object" and
+              (.filename | valid_path) and
+              (if has("previous_filename")
+               then (.previous_filename | valid_path)
+               else .status != "renamed" end)) | not) then
+              error("Invalid PR filename or rename origin")
+            elif ([.[].filename] | unique | length) != $expected then
+              error("Duplicate PR filenames")
+            else .[] | .filename, (.previous_filename // empty)
+            end
+          ' <<< "$files")
+          protected=false
+          while IFS= read -r file; do
+            case "$file" in
+              .claude/data/schemas/advisor-strategy.schema.json|\
+              .claude/adapters/loa_cheval/config/loader.py|\
+              .claude/skills/*/SKILL.md|\
+              .claude/defaults/model-config.yaml|\
+              .github/CODEOWNERS|.github/workflows/cycle-108-*.yml)
+                protected=true ;;
+            esac
+          done <<< "$file_paths"
+          if [[ "$protected" != true ]]; then
+            echo "No cycle-108 protected surfaces changed."
+            exit 0
+          fi
+
+          # Preserve the operator-author policy. GitHub branch protection
+          # independently governs the standard PR approval requirement.
 
           if [[ "$pr_author" == "$OPERATOR_LOGIN" ]]; then
             echo "PR author is @$OPERATOR_LOGIN; reviewer check passes."
             exit 0
           fi
 
-          # Exact-login membership check (NOT substring).
-          if printf '%s' "$reviewers_json" | jq -e --arg operator "$OPERATOR_LOGIN" \
-            'any(. == $operator)' >/dev/null; then
-            echo "@$OPERATOR_LOGIN has approved this PR; reviewer check passes."
+          reviews=$(gh api --paginate "repos/$GH_REPO/pulls/$PR_NUMBER/reviews" \
+            | jq -s 'add')
+          # Comments are neutral. A later request for changes or dismissal
+          # supersedes approval; approval must concern the current PR head.
+          effective_review=$(jq -c --arg operator "$OPERATOR_LOGIN" '
+            [.[] | select(.user.login == $operator)
+              | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED"
+                       or .state == "DISMISSED")]
+            | sort_by(.submitted_at, .id) | last
+          ' <<< "$reviews")
+          if jq -e --arg head "$head_sha" \
+            '.state == "APPROVED" and .commit_id == $head' \
+            <<< "$effective_review" >/dev/null; then
+            echo "@$OPERATOR_LOGIN has approved the current PR head."
             exit 0
           fi
 
-          reviewers=$(printf '%s' "$reviewers_json" | jq -r 'join(",")')
-          echo "::error::cycle-108 protected-surface PR requires @$OPERATOR_LOGIN approval."
-          echo "Current approvers: $reviewers"
-          echo "PR author: $pr_author"
+          echo "::error::cycle-108 protected-surface PR requires current-head approval from @$OPERATOR_LOGIN."
+          echo "Effective operator review: $(jq -r '.state // "NONE"' <<< "$effective_review")"
           exit 1
 
   admin-bypass-audit:
@@ -220,7 +270,7 @@ jobs:
           since=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')
 
           response=$(gh api "/repos/${repo}/audit-log?phrase=action:protected_branch.policy_override+created:>=$since" 2>&1) || {
-            echo "::warning::admin-bypass audit query failed (token may lack audit_log:read scope). This is informational; primary defense is CODEOWNERS + reviewer-check."
+            echo "::warning::admin-bypass audit query failed (token may lack audit_log:read scope). Repository branch protection separately controls merge enforcement."
             echo "Response: $response"
             exit 0
           }
@@ -252,5 +302,5 @@ jobs:
           | Operator reviewer required | ${{ needs.reviewer-check.result }} |
           | Admin-bypass audit (post-merge only) | ${{ needs.admin-bypass-audit.result }} |
 
-          Closes SDD §20.7 (ATK-A17) + §21.2 (IMP-010).
+          This table is informational; inspect the individual checks and repository review requirements.
           EOF

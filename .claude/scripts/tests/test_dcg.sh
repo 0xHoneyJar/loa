@@ -4,6 +4,7 @@
 # Usage:
 #   bash test_dcg.sh
 #   bash test_dcg.sh --verbose
+#   bash test_dcg.sh --init-only  # Offline array-presence regression
 
 set -euo pipefail
 
@@ -85,6 +86,64 @@ assert_not_empty() {
 # =============================================================================
 # Setup
 # =============================================================================
+
+test_init_array_states() {
+    local fixture result
+    fixture=$(mktemp)
+    {
+        echo 'set -euo pipefail'
+        sed -n '/^dcg_init() {$/,/^}$/p' "$DCG_DIR/destructive-command-guard.sh"
+        cat <<'BASH'
+calls=""
+_dcg_load_config() { calls+="config "; }
+_dcg_load_core_patterns() { calls+="patterns "; }
+_dcg_expand_safe_paths() { calls+="paths"; }
+count=0
+for initialized in true false; do
+    for patterns in unset empty populated empty_value sparse; do
+        for core in unset empty populated empty_value sparse; do
+            unset _DCG_PATTERNS _DCG_CORE_PATTERNS
+            case "$patterns" in
+                empty) _DCG_PATTERNS=() ;;
+                populated) _DCG_PATTERNS=("literal pattern") ;;
+                empty_value) _DCG_PATTERNS=("") ;;
+                sparse) _DCG_PATTERNS[2]="literal pattern" ;;
+            esac
+            case "$core" in
+                empty) _DCG_CORE_PATTERNS=() ;;
+                populated) _DCG_CORE_PATTERNS=("literal core pattern") ;;
+                empty_value) _DCG_CORE_PATTERNS=("") ;;
+                sparse) _DCG_CORE_PATTERNS[2]="literal core pattern" ;;
+            esac
+            expected="config patterns paths"
+            if [[ "$initialized" == true ]]; then
+                case "$patterns:$core" in
+                    populated:*|empty_value:*|*:populated|*:empty_value) expected="" ;;
+                esac
+            fi
+            _dcg_engine_initialized="$initialized"
+            calls=""
+            dcg_init
+            if [[ "$calls" != "$expected" || "$_dcg_engine_initialized" != true ]]; then
+                echo "Unexpected initialization for $initialized/$patterns/$core: $calls" >&2
+                exit 1
+            fi
+            count=$((count + 1))
+        done
+    done
+done
+printf '%s array-state cases passed\n' "$count"
+BASH
+    } > "$fixture"
+    if result=$("${LOA_BASH32_PATH:-bash}" --noprofile --norc "$fixture" 2>&1); then
+        rm -f "$fixture"
+        log_pass "Initialization: $result"
+    else
+        rm -f "$fixture"
+        log_fail "Initialization: $result"
+        return 1
+    fi
+}
 
 setup() {
     # Source the DCG modules
@@ -537,6 +596,12 @@ test_allow_git_status() {
 # =============================================================================
 
 main() {
+    if [[ "${1:-}" == "--init-only" ]]; then
+        test_init_array_states
+        return
+    fi
+
+    test_init_array_states
     setup
 
     # Parser tests

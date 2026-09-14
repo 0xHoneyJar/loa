@@ -116,7 +116,9 @@ jobs:
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo curl --fail --show-error --silent --location --retry 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 120 \
+            --output /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           sudo chmod +x /usr/local/bin/yq
 
@@ -168,7 +170,9 @@ jobs:
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo curl --fail --show-error --silent --location --retry 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 120 \
+            --output /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           sudo chmod +x /usr/local/bin/yq
 

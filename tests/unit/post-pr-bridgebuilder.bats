@@ -63,6 +63,149 @@ create_findings_file() {
 EOF
 }
 
+# Run the real phase dispatcher with offline phase/state stubs. Selecting
+# LOA_BASH32_PATH exercises the same behavior on the portability target.
+run_orchestration_fixture() {
+    local harness="$TEST_TMPDIR/orchestration-fixture.sh"
+    local orchestrator="$PROJECT_ROOT/.claude/scripts/post-pr-orchestrator.sh"
+    {
+        echo 'set -euo pipefail'
+        grep '^readonly STATE_[A-Z0-9_]*="[A-Z0-9_]*"$' "$orchestrator"
+        sed -n '/^run_orchestration() {$/,/^}$/p' "$orchestrator"
+        cat <<'BASH'
+STATE_SCRIPT=fixture_state
+SKIP_AUDIT="${4:-false}"
+SKIP_E2E="${4:-false}"
+SKIP_FLATLINE="${4:-false}"
+SKIP_BRIDGEBUILDER="${4:-false}"
+FAIL_PHASE="${2:-}"
+HALT_PHASE="${3:-}"
+printf '%s' "$1" > "$TEST_TMPDIR/phase-state"
+get_state() { cat "$TEST_TMPDIR/phase-state"; }
+log_info() { :; }
+log_error() { :; }
+log_success() { :; }
+surface_degraded_handoff() { echo handoff; }
+fixture_state() {
+    case "$1" in
+        update-phase) echo "skip:$2" ;;
+        get) echo "fixture halt" ;;
+        *) return 99 ;;
+    esac
+}
+_update_phase() { fixture_state update-phase "$@"; }
+update_state() {
+    echo "state:$1"
+    printf '%s' "$1" > "$TEST_TMPDIR/phase-state"
+}
+fixture_phase() {
+    echo "$1"
+    if [[ "$FAIL_PHASE" == "$1" ]]; then return 17; fi
+    if [[ "$HALT_PHASE" == "$1" ]]; then
+        printf '%s' "$STATE_HALTED" > "$TEST_TMPDIR/phase-state"
+    else
+        printf '%s' "$2" > "$TEST_TMPDIR/phase-state"
+    fi
+}
+phase_post_pr_audit() { fixture_phase audit "$STATE_POST_PR_AUDIT"; }
+phase_context_clear() { fixture_phase context_clear "$STATE_CONTEXT_CLEAR"; }
+phase_e2e_testing() { fixture_phase e2e "$STATE_E2E_TESTING"; }
+phase_flatline_pr() { fixture_phase flatline "$STATE_FLATLINE_PR"; }
+phase_bridgebuilder_review() { fixture_phase bridgebuilder "$STATE_BRIDGEBUILDER_REVIEW"; }
+run_orchestration
+BASH
+    } > "$harness"
+    run "${LOA_BASH32_PATH:-bash}" --noprofile --norc "$harness" "$@"
+}
+
+@test "orchestrator flow: new runs stop after audit and context clear" {
+    local initial
+    for initial in "" PR_CREATED; do
+        run_orchestration_fixture "$initial"
+        [ "$status" -eq 0 ]
+        [[ "$output" == $'audit\ncontext_clear' ]]
+    done
+}
+
+@test "orchestrator flow: audit resume states only clear context" {
+    local initial
+    for initial in POST_PR_AUDIT FIX_AUDIT; do
+        run_orchestration_fixture "$initial"
+        [ "$status" -eq 0 ]
+        [[ "$output" == "context_clear" ]]
+    done
+}
+
+@test "orchestrator flow: every later resume point runs remaining phases in order" {
+    local initial expected
+    for initial in CONTEXT_CLEAR E2E_TESTING FIX_E2E FLATLINE_PR BRIDGEBUILDER_REVIEW; do
+        case "$initial" in
+            CONTEXT_CLEAR) expected=$'e2e\nflatline\nbridgebuilder' ;;
+            E2E_TESTING|FIX_E2E) expected=$'flatline\nbridgebuilder' ;;
+            FLATLINE_PR) expected="bridgebuilder" ;;
+            BRIDGEBUILDER_REVIEW) expected="" ;;
+        esac
+        if [[ -n "$expected" ]]; then expected+=$'\n'; fi
+        expected+=$'state:READY_FOR_HITL\nhandoff'
+        run_orchestration_fixture "$initial"
+        [ "$status" -eq 0 ]
+        [[ "$output" == "$expected" ]]
+    done
+}
+
+@test "orchestrator flow: terminal and unknown states retain their exits" {
+    run_orchestration_fixture READY_FOR_HITL
+    [ "$status" -eq 0 ]
+    [[ "$output" == "handoff" ]]
+    run_orchestration_fixture HALTED
+    [ "$status" -eq 5 ]
+    [[ -z "$output" ]]
+    run_orchestration_fixture unknown
+    [ "$status" -eq 1 ]
+    [[ -z "$output" ]]
+}
+
+@test "orchestrator flow: skipped phases still advance to the next phase" {
+    run_orchestration_fixture PR_CREATED "" "" true
+    [ "$status" -eq 0 ]
+    [[ "$output" == $'skip:post_pr_audit\ncontext_clear' ]]
+    run_orchestration_fixture CONTEXT_CLEAR "" "" true
+    [ "$status" -eq 0 ]
+    [[ "$output" == $'skip:e2e_testing\nskip:flatline_pr\nskip:bridgebuilder_review\nstate:READY_FOR_HITL\nhandoff' ]]
+}
+
+@test "orchestrator flow: phase failures preserve their exit and stop later phases" {
+    local initial phase
+    for phase in audit context_clear e2e flatline bridgebuilder; do
+        case "$phase" in
+            audit) initial=PR_CREATED ;;
+            context_clear) initial=POST_PR_AUDIT ;;
+            e2e) initial=CONTEXT_CLEAR ;;
+            flatline) initial=E2E_TESTING ;;
+            bridgebuilder) initial=FLATLINE_PR ;;
+        esac
+        run_orchestration_fixture "$initial" "$phase"
+        [ "$status" -eq 17 ]
+        [[ "$output" == "$phase" ]]
+    done
+}
+
+@test "orchestrator flow: a phase that halts prevents subsequent phases and handoff" {
+    local initial phase
+    for phase in audit e2e flatline bridgebuilder; do
+        case "$phase" in
+            audit) initial=PR_CREATED ;;
+            e2e) initial=CONTEXT_CLEAR ;;
+            flatline) initial=E2E_TESTING ;;
+            bridgebuilder) initial=FLATLINE_PR ;;
+        esac
+        run_orchestration_fixture "$initial" "" "$phase"
+        [ "$status" -eq 0 ]
+        [[ "$output" == "$phase" ]]
+        [[ "$(cat "$TEST_TMPDIR/phase-state")" == "HALTED" ]]
+    done
+}
+
 # ============================================================================
 # T6 — Tests for post-pr-triage.sh
 # ============================================================================

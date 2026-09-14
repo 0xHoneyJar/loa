@@ -183,8 +183,9 @@ if total_rs > 0:
 
 # Layer 2: code-fence escaping. Triple backticks anywhere → single marker
 # wrapping the original opener (closing fence on next line is also collapsed).
-text, n_cf = re.subn(r"```[^\n]*\n.*?```", "[CODE-FENCE-ESCAPED]", text, flags=re.DOTALL)
-text, n_cf2 = re.subn(r"```", "[CODE-FENCE-ESCAPED]", text)
+# Hex escapes avoid Bash 3.2 scanning backticks inside this quoted heredoc.
+text, n_cf = re.subn(r"\x60{3}[^\n]*\n.*?\x60{3}", "[CODE-FENCE-ESCAPED]", text, flags=re.DOTALL)
+text, n_cf2 = re.subn(r"\x60{3}", "[CODE-FENCE-ESCAPED]", text)
 if (n_cf + n_cf2) > 0:
     report.append("INFO: " + str(n_cf + n_cf2) + " code-fence(s) escaped")
 

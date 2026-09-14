@@ -63,8 +63,8 @@ setup() {
     [[ "$output" == "true" ]]
 }
 
-@test "bug-886: regression guard — path filters still cover tests/unit and the workflow" {
-    run yq eval '(.["on"].push.paths | contains(["tests/unit/**"])) and (.["on"].pull_request.paths | contains(["tests/unit/**"]))' "$WF"
+@test "bug-886: regression guard — unit tests run on pushes and every PR to main" {
+    run yq eval '(.["on"].push.paths | contains(["tests/unit/**"])) and (.["on"].pull_request | has("paths") | not) and (.["on"].pull_request.branches | contains(["main"]))' "$WF"
     [[ "$output" == "true" ]]
     run yq eval '(.["on"].push.paths | contains([".github/workflows/bats-tests.yml"]))' "$WF"
     [[ "$output" == "true" ]]
