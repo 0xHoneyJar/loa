@@ -42,6 +42,7 @@ on:
       - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
       - '.github/workflows/oracle.yml'
+      - '.github/workflows/post-merge.yml'
       - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
   pull_request:
     branches: [main]
@@ -67,6 +68,7 @@ on:
       - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
       - '.github/workflows/bats-tests.yml'
       - '.github/workflows/oracle.yml'
+      - '.github/workflows/post-merge.yml'
       - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
 
 permissions:
