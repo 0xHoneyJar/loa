@@ -28,6 +28,9 @@ Changelog creation, transformation, temporary writes, and installation errors
 stop preparation. A successful installation must have a nonempty release
 section on readback. A domain with no matching commits can still be skipped;
 an I/O failure cannot be treated as that skip.
+Tag and commit-history reads must succeed before a domain can be called empty.
+`PREPARED` is recorded only after candidate installation and digest readback;
+allocation, serialization or installation failure records `FAILED`.
 
 Use an isolated clean checkout to recover a CI candidate. Verify the bundle,
 fetch its `HEAD` into a new local branch, and inspect that branch before checking

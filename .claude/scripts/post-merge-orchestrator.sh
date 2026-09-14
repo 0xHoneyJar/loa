@@ -489,10 +489,13 @@ auto_generate_changelog_entry() (
   fi
 
   # 2. Get conventional commits since previous tag
-  # Use grep -A1 to find the tag BEFORE the current version (not just head -1)
-  local prev_tag
-  prev_tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | \
-    grep -v "^v${version}$" | head -1)
+  local prev_tag tags
+  if ! tags=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname); then
+    echo "ERROR: Cannot read changelog version history" >&2
+    return 2
+  fi
+  prev_tag=$(printf '%s\n' "$tags" | awk -v current="v${version}" \
+    'length && $0 != current {print; exit}')
   local range="${prev_tag:+${prev_tag}..HEAD}"
 
   # Build pathspec args for `git log`. Empty pathspec → no filter (single-
@@ -507,20 +510,15 @@ auto_generate_changelog_entry() (
     pathspec_args+=("${extra[@]}")
   fi
 
-  local feat_commits fix_commits other_commits
-  if [[ -n "$range" ]]; then
-    feat_commits=$(git -C "$PROJECT_ROOT" log "$range" --format='%s' \
-        ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^feat' || true)
-    fix_commits=$(git -C "$PROJECT_ROOT" log "$range" --format='%s' \
-        ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^fix' || true)
-  else
-    feat_commits=$(git -C "$PROJECT_ROOT" log --format='%s' \
-        ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^feat' || true)
-    fix_commits=$(git -C "$PROJECT_ROOT" log --format='%s' \
-        ${pathspec_args[@]+"${pathspec_args[@]}"} 2>/dev/null | grep -E '^fix' || true)
+  local history feat_commits fix_commits other_commits
+  if ! history=$(git -C "$PROJECT_ROOT" log "${range:-HEAD}" --format='%s' \
+      ${pathspec_args[@]+"${pathspec_args[@]}"}); then
+    echo "ERROR: Cannot read changelog commit history" >&2
+    return 2
   fi
-  other_commits=$(git -C "$PROJECT_ROOT" log "${range:-HEAD}" --format='%s' \
-    ${pathspec_args[@]+"${pathspec_args[@]}"} |
+  feat_commits=$(printf '%s\n' "$history" | grep -E '^feat' || true)
+  fix_commits=$(printf '%s\n' "$history" | grep -E '^fix' || true)
+  other_commits=$(printf '%s\n' "$history" |
     grep -E '^(perf|refactor|chore|docs|test|ci|style|build)(\([^)]*\))?!?: ' || true)
 
   # If pathspec filtering left no commits in this domain, skip writing entirely
@@ -1499,7 +1497,7 @@ generation_request() {
 
 prepare_candidate() {
   local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
-  local version target tree origin push_url notes notification tmp
+  local version target tree origin push_url notes notification tmp digest
   if ! git -C "$PROJECT_ROOT" diff --quiet || ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
     echo "ERROR: Generated files are not committed; no candidate will be prepared" >&2
     return 1
@@ -1516,7 +1514,6 @@ prepare_candidate() {
   notes=$(jq -r '"## Release v" + .phases.semver.result.next + "\n\n" +
     ([.phases.semver.result.commits[] | "- " + .subject] | join("\n"))' "$STATE_FILE") || return 1
   notification=$(printf '## Prepared release v%s\n\nThe table records generation results. Publication is verified separately in the retained run record.\n\n' "$version"; build_notification_body)
-  atomic_state_update '.state = "PREPARED"'
   tmp=$(mktemp "${candidate}.tmp.XXXXXXXX") || return 1
   if ! jq -n --slurpfile state "$STATE_FILE" \
     --argjson request "$(generation_request)" \
@@ -1528,14 +1525,21 @@ prepare_candidate() {
       pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
       merge_sha:$state[0].merge_sha, target_commit:$target, target_tree:$tree,
       remote_origin:$origin, remote_push_url:$push_url, tag:$tag, release_body:$notes,
-      notification_body:$notification, prepared_state:$state[0]
+      notification_body:$notification, prepared_state:($state[0] | .state = "PREPARED")
     }' > "$tmp"; then
     rm -f "$tmp"
     return 1
   fi
-  mv "$tmp" "$candidate" || return 1
+  if ! digest=$(candidate_digest "$tmp") ||
+     ! mv "$tmp" "$candidate" ||
+     [[ "$(candidate_digest "$candidate")" != "$digest" ]]; then
+    rm -f "$tmp"
+    echo "ERROR: Candidate installation failed; preparation is incomplete" >&2
+    return 1
+  fi
+  atomic_state_update '.state = "PREPARED"' || return 1
   echo "[PREPARED] Inspect ${candidate} and commit ${target}"
-  echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
+  echo "[PREPARED] SHA256 ${digest}"
   echo "[PREPARED] Publish only after inspection with --publish FILE --approve-sha256 DIGEST"
 }
 
@@ -1657,8 +1661,11 @@ run_pipeline() {
       atomic_state_update '.state = "FAILED"'
       return 1
     fi
-    prepare_candidate
-    return $?
+    if ! prepare_candidate; then
+      atomic_state_update '.state = "FAILED"'
+      return 1
+    fi
+    return 0
   fi
 
   # Finalize state

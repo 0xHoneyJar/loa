@@ -120,6 +120,9 @@ invoke_notify() {
     [ "$status" -eq 0 ]
     [ -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
     jq -e '.tag == "v1.0.1" and (.release_body | length > 0) and (.notification_body | length > 0) and (.target_commit | length == 40)' "$PROJECT_ROOT/.run/post-merge-candidate.json"
+    jq -e --slurpfile state "$PROJECT_ROOT/.run/post-merge-state.json" \
+        '.prepared_state == $state[0] and .prepared_state.state == "PREPARED"' \
+        "$PROJECT_ROOT/.run/post-merge-candidate.json"
     [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
     if [[ -f "$GH_LOG" ]]; then
         ! grep -Eq 'release create|pr comment|--method POST' "$GH_LOG"
@@ -464,4 +467,61 @@ SH
 
 @test "RL-02: project changelog failure aborts multi-domain preparation" {
     dual_changelog_failure PROJECT-CHANGELOG.md
+}
+
+@test "RIR-01: failed changelog history read cannot count as an empty domain" {
+    cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+    export REAL_GIT="$(command -v git)"
+    cat > "$CASE_DIR/bin/git" <<'SH'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == "--format=%s" ]]; then exit 73; fi
+done
+exec "$REAL_GIT" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/git"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    assert_changelog_failure
+    cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+}
+
+candidate_io_failure() {
+    export REAL_MKTEMP="$(command -v mktemp)" REAL_MV="$(command -v mv)"
+    export CANDIDATE_IO_FAILURE="$1"
+    cat > "$CASE_DIR/bin/mktemp" <<'SH'
+#!/usr/bin/env bash
+if [[ "$CANDIDATE_IO_FAILURE" == allocate && "$*" == *"post-merge-candidate.json.tmp."* ]]; then
+    exit 73
+fi
+exec "$REAL_MKTEMP" "$@"
+SH
+    cat > "$CASE_DIR/bin/mv" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$PROJECT_ROOT/.run/post-merge-candidate.json" ]]; then
+    case "$CANDIDATE_IO_FAILURE" in
+        rename) exit 73 ;;
+        no-bytes) exit 0 ;;
+    esac
+fi
+exec "$REAL_MV" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mktemp" "$CASE_DIR/bin/mv"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    [ "$status" -ne 0 ]
+    [ ! -e "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+    jq -e '.state == "FAILED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ -z "$(find "$PROJECT_ROOT/.run" -name 'post-merge-candidate.json.tmp.*' -print)" ]
+    [[ "$output" != *"[PREPARED]"* ]]
+}
+
+@test "RIR-02: candidate allocation failure cannot leave PREPARED" {
+    candidate_io_failure allocate
+}
+
+@test "RIR-02: candidate rename failure cannot leave PREPARED or temporary bytes" {
+    candidate_io_failure rename
+}
+
+@test "RIR-02: candidate success requires installed bytes" {
+    candidate_io_failure no-bytes
 }
