@@ -3,11 +3,13 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: high  # cycle-114 FR-3: deep-reasoning skill — override baseline /effort
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Task, Bash(.claude/scripts/review-git.sh diff), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh --skill auditing-security *), Bash(.claude/scripts/security-audit-scope.sh), Bash(.claude/scripts/adversarial-review.sh --type audit *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(yq eval '.integrity_enforcement' .loa.config.yaml), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
 # State-Zone feedback/COMPLETED markers require Write/Edit. C-PROC-001 remains
-# enforced by zones: System none, App read; only State artifacts are writable.
+# enforced by implement-gate: System none, App read; only State artifacts are writable.
 disallowed-tools:
   - NotebookEdit
+  - Bash(git diff *)
+  - Bash(git log *)
 capabilities:
   schema_version: 1
   read_files: true
@@ -17,11 +19,31 @@ capabilities:
     allowed:
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
+      - command: ".claude/scripts/review-git.sh"
+        args: ["diff"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
+        args: ["--skill", "auditing-security", "*"]
+      - command: ".claude/scripts/security-audit-scope.sh"
+        args: []
+      - command: ".claude/scripts/adversarial-review.sh"
+        args: ["--type", "audit", "*"]
+      - command: ".claude/scripts/beads/log-discovered-issue.sh"
+        args: ["*"]
+      - command: "yq"
+        args: ["eval", ".integrity_enforcement", ".loa.config.yaml"]
+      - command: "br"
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false
-  agent_spawn: false
-  task_management: false
+  agent_spawn: true
+  task_management: true
 cost-profile: heavy
 context: fork
 parallel_threshold: 2000
@@ -32,7 +54,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [grimoires/loa, .beads]
+    paths: [grimoires/loa, .beads, .run]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -53,7 +75,7 @@ Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
-`.claude/scripts/guardrails-orchestrator.sh --skill auditing-security --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
+`.claude/scripts/guardrails-orchestrator.sh --skill auditing-security --mode ${LOA_RUN_MODE:-interactive} --file "<temp-file>"`
 
 | Outcome | Action |
 |---------|--------|
@@ -64,6 +86,11 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
 </input_guardrails>
+
+For this audit role, keep temporary prompt/diff files under `.run/review/`
+(including the guardrail `<temp-file>`). Use Write/Edit for State artifacts;
+raw shell redirects are outside the declared command authority. Parallel
+auditors inherit the State-only write boundary and return findings to the lead.
 
 # Paranoid Cypherpunk Auditor
 
@@ -83,13 +110,9 @@ Use `.reviewignore` patterns and zone detection from `.loa-version.json` to dete
 are in scope. Files in the system zone (`.claude/`) and state zone (`grimoires/`, `.beads/`, `.run/`)
 are excluded from audit by default.
 
-To determine in-scope files, reference the shared review scope utility:
-```bash
-source .claude/scripts/review-scope.sh
-detect_zones
-load_reviewignore
-# Check individual files: is_excluded "path/to/file"
-```
+Use Read to inspect `.loa-version.json` and `.reviewignore`, then Glob/Grep
+to select in-scope files. The Phase 0.5 scope analysis supplies the categorized
+source/sink inventory; no sourced shell session is required.
 
 Override with `--no-reviewignore` flag to audit everything (power user mode).
 </zone_constraints>
@@ -227,9 +250,8 @@ Before auditing:
 
 Assess codebase size to determine parallel splitting:
 
-```bash
-find . -name "*.ts" -o -name "*.js" -o -name "*.tf" -o -name "*.py" | xargs wc -l 2>/dev/null | tail -1
-```
+Use Glob to enumerate `**/*.ts`, `**/*.js`, `**/*.tf` and `**/*.py` in scope,
+and Read's line counts to assess the total size.
 
 **Thresholds:**
 | Size | Lines | Strategy |
@@ -401,21 +423,21 @@ Check for stored data that becomes dangerous when retrieved:
 **Objective**: Run independent security-focused cross-model review. The dissenter does NOT receive any Phase 1A/1B findings — it evaluates the code independently to prevent anchoring bias (per FR-2.5).
 
 **Steps**:
-1. Prepare git diff: `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`
+1. Run `.claude/scripts/review-git.sh diff`; use Write to save its stdout to `.run/review/adversarial-audit-diff.txt`. The wrapper compares `main...HEAD` with fixed options and accepts no extra arguments or output path.
 2. Invoke security dissenter:
    ```bash
-   findings=$(.claude/scripts/adversarial-review.sh \
-     --type audit \
-     --sprint-id "$sprint_id" \
-     --diff-file /tmp/adversarial-audit-diff.txt \
-     --json)
+    .claude/scripts/adversarial-review.sh \
+      --type audit \
+      --sprint-id "$sprint_id" \
+      --diff-file .run/review/adversarial-audit-diff.txt \
+      --json
    ```
    Note: NO `--context-file` is passed — the dissenter operates independently.
 3. Parse findings and hold for merge in Phase 2 (Report Generation):
    - CRITICAL/HIGH findings: add to audit report (may change verdict)
    - MEDIUM/LOW findings: append as "Cross-Model Security Observations"
    - Duplicates (same anchor + concern): merged with "Confirmed by cross-model review"
-4. Clean up temp files
+4. Retain the State diff with the audit evidence.
 
 **Output**: Findings written to `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`
 
@@ -475,10 +497,8 @@ grimoires/loa/a2a/
 └── deployment-feedback.md            # Deployment audits
 ```
 
-**Creating dated directory:**
-```bash
-mkdir -p "grimoires/loa/a2a/audits/$(date +%Y-%m-%d)/remediation"
-```
+Use Write to create reports under the dated State directory above; the tool
+creates parent directories as needed.
 
 ## Phase 2.5: Severity Tally (MUST — before Verdict)
 
@@ -520,7 +540,7 @@ Prose and trailer MUST agree: approved sprint/deployment audits use the exact pr
 `APPROVED - LET'S FUCKING GO`.
 
 **MUST self-check before finishing**: run
-`.claude/scripts/verdict-derive.sh --file <audit-output-file> --gate audit`
+`.claude/scripts/verdict-derive.sh --file "<audit-output-file>" --gate audit`
 and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
@@ -736,18 +756,13 @@ After all findings, append a summary:
 
 ### Sprint Documentation Verification
 
-1. **Check task coverage**:
-   ```bash
-   # List all documentation-coherence reports for this sprint
-   ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md 2>/dev/null
-   ```
+1. **Check task coverage**: use Glob for
+   `grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`.
 
 2. **Verify each task has documentation report** or manual verification
 
-3. **Check sprint-level report** if available:
-   ```bash
-   cat grimoires/loa/a2a/subagent-reports/documentation-coherence-sprint-*.md 2>/dev/null
-   ```
+3. **Check sprint-level report** if available: use Glob then Read for
+   `grimoires/loa/a2a/subagent-reports/documentation-coherence-sprint-*.md`.
 
 See `resources/REFERENCE.md` §Documentation for the Security-Specific Documentation Checks and Red Flags for Documentation tables.
 
@@ -788,7 +803,8 @@ See `resources/REFERENCE.md` for complete 150+ item checklists across 5 categori
 <beads_workflow>
 ## Beads Workflow (beads_rust)
 
-When beads_rust (`br`) is installed, use it to record security audit results:
+When beads_rust (`br`) is installed and initialized, use it to record security
+audit results. Otherwise persist the same findings in the State markdown report.
 
 ### Session Start
 ```bash
@@ -798,11 +814,11 @@ br sync --import-only  # Import latest state from JSONL
 ### Recording Audit Results
 ```bash
 # Add security audit comment to task/sprint epic
-br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"
+br comments add "<task-id>" "SECURITY AUDIT: [verdict] - [summary]"
 
 # Mark security status
-br label add <task-id> security                # Has security concerns
-br label add <task-id> security-approved       # Passed audit
+br label add "<task-id>" security                # Has security concerns
+br label add "<task-id>" security-approved       # Passed audit
 ```
 
 ### Using Labels for Security Status
@@ -816,7 +832,7 @@ br label add <task-id> security-approved       # Passed audit
 ```bash
 # Create security issue discovered during audit
 .claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [vulnerability description]" bug 0
-br label add <new-issue-id> security
+br label add "<new-issue-id>" security
 ```
 
 ### Session End

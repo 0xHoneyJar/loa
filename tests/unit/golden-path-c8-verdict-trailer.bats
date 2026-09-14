@@ -10,12 +10,13 @@ setup() {
 
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/golden-path-c8-test-$$"
-    mkdir -p "$TEST_TMPDIR/.claude/scripts" "$TEST_TMPDIR/.run"
+    mkdir -p "$TEST_TMPDIR/.claude/scripts/lib" "$TEST_TMPDIR/.run"
     mkdir -p "$TEST_TMPDIR/grimoires/loa/a2a/sprint-1"
 
     for f in bootstrap.sh golden-path.sh path-lib.sh compat-lib.sh verdict-derive.sh; do
         cp "$PROJECT_ROOT/.claude/scripts/$f" "$TEST_TMPDIR/.claude/scripts/"
     done
+    cp "$PROJECT_ROOT/.claude/scripts/lib/stale-worktree.sh" "$TEST_TMPDIR/.claude/scripts/lib/"
     chmod +x "$TEST_TMPDIR/.claude/scripts/verdict-derive.sh"
 
     # Initialize git repo for bootstrap's PROJECT_ROOT detection

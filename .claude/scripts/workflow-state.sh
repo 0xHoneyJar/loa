@@ -340,7 +340,7 @@ store_cache() {
         "${CACHE_MANAGER}" set \
             --key "${cache_key}" \
             --condensed "${result}" \
-            --sources "${paths}" 2>/dev/null || true
+            --sources "${paths}" >/dev/null 2>&1 || true
     fi
 }
 

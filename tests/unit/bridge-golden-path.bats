@@ -8,12 +8,13 @@ setup() {
 
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     export TEST_TMPDIR="$BATS_TMPDIR/golden-bridge-test-$$"
-    mkdir -p "$TEST_TMPDIR/.claude/scripts" "$TEST_TMPDIR/.run"
+    mkdir -p "$TEST_TMPDIR/.claude/scripts/lib" "$TEST_TMPDIR/.run"
     mkdir -p "$TEST_TMPDIR/grimoires/loa"
 
     # Copy required scripts
     cp "$PROJECT_ROOT/.claude/scripts/bootstrap.sh" "$TEST_TMPDIR/.claude/scripts/"
     cp "$PROJECT_ROOT/.claude/scripts/golden-path.sh" "$TEST_TMPDIR/.claude/scripts/"
+    cp "$PROJECT_ROOT/.claude/scripts/lib/stale-worktree.sh" "$TEST_TMPDIR/.claude/scripts/lib/"
     if [[ -f "$PROJECT_ROOT/.claude/scripts/path-lib.sh" ]]; then
         cp "$PROJECT_ROOT/.claude/scripts/path-lib.sh" "$TEST_TMPDIR/.claude/scripts/"
     fi
