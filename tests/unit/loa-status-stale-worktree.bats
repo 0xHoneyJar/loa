@@ -6,8 +6,9 @@ setup() {
     TEST_DIR="$(mktemp -d)"
     MAIN="$TEST_DIR/main"
     WORKTREE="$TEST_DIR/parked worktree"
-    mkdir -p "$MAIN/.claude/scripts" "$MAIN/grimoires/loa"
+    mkdir -p "$MAIN/.claude/scripts/lib" "$MAIN/grimoires/loa"
     cp "$REPO_ROOT/.claude/scripts/loa-status.sh" "$MAIN/.claude/scripts/"
+    cp "$REPO_ROOT/.claude/scripts/lib/stale-worktree.sh" "$MAIN/.claude/scripts/lib/"
     cat > "$MAIN/.claude/scripts/workflow-state.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' '{"state":"complete","description":"Local snapshot","progress_percent":100,"suggested_command":"/deploy-production"}'

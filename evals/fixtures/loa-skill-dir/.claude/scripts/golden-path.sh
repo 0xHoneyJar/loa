@@ -32,6 +32,7 @@ SCRIPT_DIR="$(cd "${_gp_dir}" && pwd)"
 unset _gp_src _gp_dir
 source "${SCRIPT_DIR}/bootstrap.sh"
 source "${SCRIPT_DIR}/compat-lib.sh"
+source "${SCRIPT_DIR}/lib/stale-worktree.sh"
 
 # Resolve paths using path-lib getters.
 # bug-980: errexit is disabled when this file is sourced from a suppressed
@@ -217,6 +218,12 @@ golden_detect_review_target() {
 # Check if the project is ready to ship.
 # Returns 0 if ready, 1 if not. Prints reason to stdout on failure.
 golden_check_ship_ready() {
+    local stale
+    stale=$(get_stale_worktree_json)
+    if [[ -n "$stale" ]]; then
+        jq -r '.warning' <<< "$stale"
+        return 1
+    fi
     local total
     total=$(_gp_count_sprints)
 
@@ -311,6 +318,12 @@ _gp_journey_position() {
 # Uses Unicode box drawing and bold markers.
 # Dispatches to bug journey when bug_active state detected.
 golden_format_journey() {
+    local stale
+    stale=$(get_stale_worktree_json)
+    if [[ -n "$stale" ]]; then
+        jq -r '.warning' <<< "$stale"
+        return
+    fi
     # Bug-active state gets its own journey visualization
     local active_bug_ref bug_id
     if active_bug_ref=$(golden_detect_active_bug 2>/dev/null); then
@@ -465,6 +478,10 @@ golden_trajectory() {
 #   8. complete        — All sprints reviewed + audited
 #   9. sprint_planned  — Sprint plan exists, no work started (fallback)
 golden_detect_workflow_state() {
+    if [[ -n "$(get_stale_worktree_json)" ]]; then
+        echo "stale_worktree"
+        return
+    fi
     # Priority 1: Active bug overrides everything
     if golden_detect_active_bug >/dev/null 2>&1; then
         echo "bug_active"
@@ -528,7 +545,7 @@ golden_detect_workflow_state() {
 # Each line is pipe-delimited: label|description|action
 # With --json flag, outputs a JSON array instead.
 # Action values: plan, build, review, ship, loa-setup, loa-doctor,
-#   archive-cycle, read:PATH, help-full
+#   archive-cycle, worktree-list, read:PATH, help-full
 golden_menu_options() {
     local json_mode=false
     if [[ "${1:-}" == "--json" ]]; then
@@ -542,6 +559,11 @@ golden_menu_options() {
     local -a lines=()
 
     case "${state}" in
+        stale_worktree)
+            lines+=("Inspect stale worktree|This cycle is archived or closed upstream; inspect local work before retiring it|worktree-list")
+            lines+=("View local sprint snapshot|Read the historical sprint plan|read:${_GP_SPRINT_FILE}")
+            lines+=("Check system health|Run full diagnostic check|loa-doctor")
+            ;;
         initial)
             lines+=("Plan a new project|Gather requirements and design your project|plan")
             lines+=("Run setup wizard|Check dependencies and configure Loa|loa-setup")
@@ -645,6 +667,10 @@ golden_menu_options() {
 # Suggest the next golden command based on current state.
 # Returns a single golden command string.
 golden_suggest_command() {
+    if [[ -n "$(get_stale_worktree_json)" ]]; then
+        echo "git worktree list"
+        return
+    fi
     # Active bug fix takes priority over feature sprint workflow
     local active_bug
     if active_bug=$(golden_detect_active_bug 2>/dev/null); then

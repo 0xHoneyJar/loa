@@ -488,6 +488,24 @@ validate_skill() {
         fi
     fi
 
+    # Literal procedure/tool reconciliation for the report-writing review roles.
+    # This does not infer host behavior or evaluate arbitrary Markdown prose.
+    if [[ "$skill_name" == "reviewing-code" || "$skill_name" == "auditing-security" ]]; then
+        local procedure_errors
+        if procedure_errors=$(echo "$frontmatter" | yq -o=json '.' |
+            python3 "$SCRIPT_DIR/validate-skill-procedure.py" "$skill_md"); then
+            local procedure_error
+            while IFS= read -r procedure_error; do
+                [[ -n "$procedure_error" ]] || continue
+                log_error "$skill_name" "$procedure_error"
+                has_error=true
+            done < <(jq -r '.[]' <<< "$procedure_errors")
+        else
+            log_error "$skill_name" "procedure capability validation failed to run"
+            has_error=true
+        fi
+    fi
+
     # --- Check cost-profile ---
     local cp
     cp=$(echo "$frontmatter" | yq eval '.cost-profile' - 2>/dev/null) || cp="null"

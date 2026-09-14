@@ -263,6 +263,7 @@ When the user selects an option, invoke the corresponding action:
 | `loa-setup` | Invoke the `/loa setup` skill |
 | `loa-doctor` | Run `.claude/scripts/loa-doctor.sh` and display results |
 | `archive-cycle` | **Confirm first**: "This will archive the current cycle and prepare for a new one. The archive is recoverable. Continue?" — then invoke `/archive-cycle` |
+| `worktree-list` | Run `git worktree list` to inspect checkouts. Display the stale-cycle warning; preserve local work. Retiring a worktree is a separate operator decision. |
 | `read:PATH` | Read the file at PATH and display its contents |
 | `help-full` | Display the `/loa --help-full` output (see below) |
 

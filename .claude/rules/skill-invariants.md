@@ -37,7 +37,7 @@ code outside `/implement`") mechanical for review skills rather than prose-only.
 | Skill class | `disallowed-tools` | Why |
 |-------------|--------------------|-----|
 | Pure-review (`write_files: false`, no report artifacts) | `Write`, `Edit`, `NotebookEdit` | Never writes anything — remove the write tools outright |
-| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit` | Write STATE-zone feedback/checkmarks/COMPLETED markers and run the allowed verdict check; System remains `none` and App remains `read` |
+| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit`, raw `git diff`/`git log` | Write STATE-zone feedback/checkmarks/COMPLETED markers and run the allowed verdict check; System remains `none` and App remains `read` |
 | Report-authoring review (`red-teaming`, `bridgebuilder-review`; `write_files: true`) | `NotebookEdit`, `Bash(git add/commit/push *)` | Legitimately write STATE-zone reports/vision/lore, so `Write` is retained; app-code prevention is governed by **zones**, and the implementation-only git mutations are removed |
 
 **`REVIEW_WRITE_EXCEPTIONS`** (in `validate-skill-capabilities.sh`):
@@ -50,6 +50,31 @@ skill that declares `write_files: true` without disallowing `Write` — surfacin
 a new C-PROC-001 gap at lint time. `disallowed-tools` is tool-granular, not
 path-granular; it cannot express "no `src/` writes but yes `grimoires/` writes",
 which is why report-authoring skills rely on zones for path-level control.
+
+For `reviewing-code` and `auditing-security`, the configured Write/Edit hook
+`implement-gate.sh` enforces the State boundary before its general RUNNING
+allowance. It recognizes the command/skill aliases and REVIEW/AUDIT loop
+phases of RUNNING state, resolves the effective target from the caller's cwd, and permits only
+descendants of `grimoires/loa`, `.beads`, and `.run`. A State-prefix traversal
+or symlink into App/System/outside paths is denied. Guardrail inputs and diffs
+belong under `.run/review/`. This local hook contract does not establish which
+role fields a native host supplies or whether it propagates them to children.
+An observed implementation role takes precedence over retained review/audit
+phases when the fix loop returns to `/implement`. Terminal state does not
+impose a current review role; explicit review/audit roles remain restricted.
+
+Git inspection uses `review-git.sh diff` or `review-git.sh log`, with fixed
+revisions/options and stdout output. The wrapper refuses extra arguments,
+including `--output`; persist the result through the State-restricted Write
+tool. Raw Git diff/log declarations are removed and explicitly disallowed.
+
+These two skills also undergo literal procedure/tool reconciliation in
+`validate-skill-capabilities.sh`. Shell examples and inline framework/CLI
+invocations must match both command allowlists; mandatory parallel splitting
+requires `agent_spawn: true` and Task/Agent access. This bounded Markdown lint does not interpret
+arbitrary prose, execute commands, or prove a native host's permission behavior.
+Unquoted operators and command substitutions are rejected with `deny_raw_shell`,
+including attached forms; quoted operator characters remain ordinary arguments.
 
 ## Scope
 

@@ -628,7 +628,8 @@ cost-profile: heavy
     for skill in reviewing-code auditing-security; do
         awk '/^---$/{if(n++) exit; next} n' "$PROJECT_ROOT/.claude/skills/$skill/SKILL.md" |
             yq -o=json '.' |
-            jq -e '.capabilities.write_files == true and ."disallowed-tools" == ["NotebookEdit"]'
+            jq -e '.capabilities.write_files == true and
+                ."disallowed-tools" == ["NotebookEdit", "Bash(git diff *)", "Bash(git log *)"]'
     done
 }
 

@@ -19,7 +19,7 @@ setup() {
     export LOA_USE_LEGACY_PATHS=1
 
     # Create minimal framework structure
-    mkdir -p "$TEST_DIR/.claude/scripts"
+    mkdir -p "$TEST_DIR/.claude/scripts/lib"
     mkdir -p "$TEST_DIR/grimoires/loa/a2a"
 
     # Copy bootstrap.sh and path-lib.sh
@@ -27,6 +27,8 @@ setup() {
     cp "$REAL_SCRIPT_DIR/bootstrap.sh" "$TEST_DIR/.claude/scripts/"
     cp "$REAL_SCRIPT_DIR/path-lib.sh" "$TEST_DIR/.claude/scripts/"
     cp "$REAL_SCRIPT_DIR/golden-path.sh" "$TEST_DIR/.claude/scripts/"
+    cp "$REAL_SCRIPT_DIR/compat-lib.sh" "$TEST_DIR/.claude/scripts/"
+    cp "$REAL_SCRIPT_DIR/lib/stale-worktree.sh" "$TEST_DIR/.claude/scripts/lib/"
 
     # Initialize git so bootstrap.sh can detect PROJECT_ROOT
     (cd "$TEST_DIR" && git init -q 2>/dev/null)

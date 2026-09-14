@@ -12,7 +12,7 @@
 #      (fallback when platform doesn't expose active_skill)
 #
 # Failure mode: FAIL-ASK for App Zone writes (not fail-open).
-# Non-App-Zone writes always allowed.
+# Review/audit writes are restricted to State paths before either mode runs.
 #
 # IMPORTANT: No set -euo pipefail — hook must never crash-block.
 # Parse/read errors on App Zone writes → ask (not allow).
@@ -28,7 +28,7 @@
 input=$(cat 2>/dev/null) || input=""
 
 # Extract file path from tool input (Write or Edit)
-file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || file_path=""
+file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null) || file_path=""
 
 # If we can't determine the file path, allow (can't evaluate)
 if [[ -z "$file_path" ]]; then
@@ -38,8 +38,55 @@ fi
 # ---------------------------------------------------------------------------
 # Project root and run directory
 # ---------------------------------------------------------------------------
-PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
+
+# Review roles do not acquire App/System write authority from a RUNNING loop.
+# Honor an observed role even on hosts without the active_skill feature flag;
+# the live loop's REVIEW/AUDIT phase also restricts a host reporting only /run.
+# An observed implementation role is the review-fix transition: run-mode leaves
+# its prior phase in place while invoking /implement again.
+review_active=false
+active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // .active_skill // empty' 2>/dev/null) || active_skill=""
+case "${active_skill#/}" in
+    review|review-sprint|reviewing-code|audit|audit-sprint|auditing-security)
+        review_active=true ;;
+    implement|implementing-tasks)
+        ;; # Current skill takes precedence over retained phase metadata.
+    *)
+        for state_file in "$RUN_DIR/state.json" "$RUN_DIR/sprint-plan-state.json" "$RUN_DIR/simstim-state.json"; do
+            [[ -f "$state_file" ]] || continue
+            phase=$(jq -r 'select(.state == "RUNNING") | (.phase // "") | ascii_downcase' \
+                "$state_file" 2>/dev/null) || phase=""
+            [[ -n "$phase" ]] || continue
+            case "$phase" in
+                review|reviewing|audit|auditing) review_active=true ;;
+            esac
+            # The current sprint loop precedes its enclosing plan/simstim.
+            # Retained enclosing state cannot overwrite that active phase.
+            break
+        done ;;
+esac
+
+if [[ "$review_active" == "true" ]]; then
+    # Resolve from the tool caller's cwd, including missing leaves and symlinked
+    # ancestors. Checking the effective path rejects State-prefix traversal and
+    # State symlinks into App/System/outside paths. Python is portable to macOS.
+    # Missing resolver or invalid paths cannot grant review write authority.
+    if python3 - "$PROJECT_ROOT" "$file_path" <<'PY' 2>/dev/null
+import os
+import sys
+root, target = map(os.path.realpath, sys.argv[1:])
+allowed = any(target.startswith(root + "/" + state + "/")
+              for state in ("grimoires/loa", ".beads", ".run"))
+sys.exit(0 if allowed else 1)
+PY
+    then
+        exit 0
+    fi
+    echo "[implement-gate] BLOCKED: review/audit may write only State artifacts (grimoires/loa, .beads, .run): $file_path" >&2
+    exit 2
+fi
 
 # ---------------------------------------------------------------------------
 # Source compat-lib.sh for _date_to_epoch()

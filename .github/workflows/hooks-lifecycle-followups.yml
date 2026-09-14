@@ -1,0 +1,53 @@
+name: Hooks lifecycle callers
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/hooks-lifecycle-followups.yml'
+      - 'tests/unit/test_hooks_lifecycle_followups.py'
+      - 'tests/unit/hooks-lifecycle-followups.bats'
+      - '.claude/skills/scheduled-cycle-template/contracts/session-cap-bb/**'
+      - '.claude/skills/bridgebuilder-review/**'
+      - '.claude/scripts/bash-version-guard.sh'
+      - '.claude/scripts/lib/env-loader.sh'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  scheduler-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+      - name: Verify local test tools
+        run: |
+          command -v python3
+          command -v jq
+          command -v node
+      - name: Install Bridgebuilder dependencies
+        run: npm ci
+        working-directory: .claude/skills/bridgebuilder-review
+      - name: Run scheduler entrypoint config regressions
+        run: |
+          env -i HOME="$HOME" PATH="$PATH" LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            bash -e -o pipefail <<'SH'
+          suite="tests/unit/test_hooks_lifecycle_followups.py"
+          modules="$PWD/.claude/skills/bridgebuilder-review/node_modules"
+          test -f "$suite"
+          test -d "$modules/zod"
+          LOA_TEST_BB_NODE_MODULES="$modules" python3 "$suite" \
+            Callers.test_scheduler_real_entry_and_config_use_consumer_cwd \
+            Callers.test_scheduler_mounted_entry_and_config_use_consumer_cwd \
+            Callers.test_scheduler_preserves_relative_entry_override
+          SH

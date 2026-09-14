@@ -55,17 +55,20 @@ if [[ -z "$repo" ]]; then
 fi
 
 BB_ENTRY="${LOA_SESSION_CAP_BB_ENTRY:-${_here}/../../../bridgebuilder-review/resources/entry.sh}"
+# Preserve overrides relative to the original caller before rebinding cwd.
+[[ "$BB_ENTRY" == /* ]] || BB_ENTRY="$PWD/$BB_ENTRY"
 if [[ ! -f "$BB_ENTRY" ]]; then
     echo "dispatcher: bridgebuilder entrypoint not found: $BB_ENTRY" >&2
     exit 1
 fi
 
+# Bind .env/.env.local and .loa.config.yaml to the same consumer as state/origin.
 # Fire BB with NO --pr: it self-discovers open PRs and dedups internally.
 rc=0
 if [[ -x "$BB_ENTRY" ]]; then
-    "$BB_ENTRY" --repo "$repo" || rc=$?
+    (cd "$REPO_ROOT" && "$BB_ENTRY" --repo "$repo") || rc=$?
 else
-    bash "$BB_ENTRY" --repo "$repo" || rc=$?
+    (cd "$REPO_ROOT" && bash "$BB_ENTRY" --repo "$repo") || rc=$?
 fi
 
 write_out "$(jq -nc --arg cid "$cycle_id" --arg sid "$schedule_id" \

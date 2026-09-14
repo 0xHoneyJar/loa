@@ -2,11 +2,13 @@
 name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Task, Bash(.claude/scripts/review-git.sh diff), Bash(.claude/scripts/review-git.sh log), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code *), Bash(.claude/scripts/adversarial-review.sh --type review *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(yq eval '.integrity_enforcement' .loa.config.yaml), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
 # State-Zone feedback/checkmarks require Write/Edit. C-PROC-001 remains
-# enforced by zones: System none, App read; only State artifacts are writable.
+# enforced by implement-gate: System none, App read; only State artifacts are writable.
 disallowed-tools:
   - NotebookEdit
+  - Bash(git diff *)
+  - Bash(git log *)
 capabilities:
   schema_version: 1
   read_files: true
@@ -14,17 +16,33 @@ capabilities:
   write_files: true
   execute_commands:
     allowed:
-      - command: "git"
-        args: ["diff", "*"]
-      - command: "git"
-        args: ["log", "*"]
+      - command: ".claude/scripts/review-git.sh"
+        args: ["diff"]
+      - command: ".claude/scripts/review-git.sh"
+        args: ["log"]
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
+        args: ["--skill", "reviewing-code", "*"]
+      - command: ".claude/scripts/adversarial-review.sh"
+        args: ["--type", "review", "*"]
+      - command: ".claude/scripts/qmd-context-query.sh"
+        args: ["*"]
+      - command: "yq"
+        args: ["eval", ".integrity_enforcement", ".loa.config.yaml"]
+      - command: "br"
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false
-  agent_spawn: false
-  task_management: false
+  agent_spawn: true
+  task_management: true
 cost-profile: moderate
 parallel_threshold: 3000
 timeout_minutes: 60
@@ -33,7 +51,7 @@ zones:
     path: .claude
     permission: none
   state:
-    paths: [grimoires/loa, .beads]
+    paths: [grimoires/loa, .beads, .run]
     permission: read-write
   app:
     paths: [src, lib, app]
@@ -54,7 +72,7 @@ Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
-`.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
+`.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code --mode ${LOA_RUN_MODE:-interactive} --file "<temp-file>"`
 
 | Outcome | Action |
 |---------|--------|
@@ -65,6 +83,11 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
 </input_guardrails>
+
+For this review role, keep temporary prompt/diff files under `.run/review/`
+(including the guardrail `<temp-file>`). Use Write/Edit for State artifacts;
+raw shell redirects are outside the declared command authority. Parallel
+reviewers inherit the State-only write boundary and return findings to the lead.
 
 # Senior Tech Lead Reviewer
 
@@ -301,9 +324,8 @@ Before reviewing:
 
 Assess context size to determine if parallel splitting is needed:
 
-```bash
-wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null
-```
+Use Read's line counts for `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`,
+`grimoires/loa/sprint.md` and `grimoires/loa/a2a/sprint-N/reviewer.md`.
 
 **Thresholds:**
 | Size | Lines | Strategy |
@@ -389,21 +411,21 @@ Verify implementation follows the four principles:
 **Objective**: Invoke a cross-model dissenter to catch reviewer blind spots before the final decision.
 
 **Steps**:
-1. Prepare git diff of sprint changes: `git diff main...HEAD > /tmp/adversarial-diff.txt`
+1. Run `.claude/scripts/review-git.sh diff`; use Write to save its stdout to `.run/review/adversarial-diff.txt`. The wrapper compares `main...HEAD` with fixed options and accepts no extra arguments or output path. For commit summaries, `.claude/scripts/review-git.sh log` prints `main..HEAD` to stdout under the same restriction.
 2. Invoke adversarial review:
    ```bash
-   findings=$(.claude/scripts/adversarial-review.sh \
+   .claude/scripts/adversarial-review.sh \
      --type review \
      --sprint-id "$sprint_id" \
-     --diff-file /tmp/adversarial-diff.txt \
+     --diff-file .run/review/adversarial-diff.txt \
      --context-file "$reviewer_concerns_file" \
-     --json)
+     --json
    ```
 3. Parse findings:
    - If `findings` array is empty or invocation failed: log and continue to Phase 3
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
-4. Clean up temp files
+4. Retain the State diff with the review evidence.
 
 **Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "..."}}` BEFORE proceeding. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
@@ -411,7 +433,7 @@ Verify implementation follows the four principles:
 | Script Parameter | SKILL Derivation |
 |-----------------|-----------------|
 | `--sprint-id` | From SKILL invocation args, resolved via ledger |
-| `--diff-file` | `git diff main...HEAD` written to temp file |
+| `--diff-file` | `.claude/scripts/review-git.sh diff` stdout saved with Write under `.run/review/` |
 | `--context-file` | Reviewer's Phase 2 concern notes |
 | `--model` | From `flatline_protocol.code_review.model` config |
 | `--budget` | From `flatline_protocol.code_review.budget_cents` config |
@@ -557,10 +579,7 @@ Use detailed feedback template with:
 
 ### Pre-Review Check
 
-1. Check for documentation-coherence report:
-   ```bash
-   ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null
-   ```
+1. Use Glob to find `grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md`.
 
 2. If report exists, verify status is not `ACTION_REQUIRED`
 
@@ -735,7 +754,8 @@ and stop. Never flag the one required acceptance-check behind non-trivial logic
 <beads_workflow>
 ## Beads Workflow (beads_rust)
 
-When beads_rust (`br`) is installed, use it to record review feedback:
+When beads_rust (`br`) is installed and initialized, use it to record review
+feedback. Otherwise persist the same feedback in the State markdown report.
 
 ### Session Start
 ```bash
@@ -745,11 +765,11 @@ br sync --import-only  # Import latest state from JSONL
 ### Recording Review Feedback
 ```bash
 # Add review comment to task
-br comments add <task-id> "REVIEW: [feedback summary]"
+br comments add "<task-id>" "REVIEW: [feedback summary]"
 
 # Mark task status based on review outcome
-br label add <task-id> review-approved     # If approved
-br label add <task-id> needs-revision       # If changes required
+br label add "<task-id>" review-approved     # If approved
+br label add "<task-id>" needs-revision       # If changes required
 ```
 
 ### Using Labels for Status
