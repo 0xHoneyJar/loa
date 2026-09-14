@@ -71,16 +71,19 @@ fi
 # planning phases. Only application/framework code is blocked.
 # ---------------------------------------------------------------------------
 case "$file_path" in
-    */grimoires/*)
+    ../*|*/../*|*/..)
+        # A State Zone prefix must not exempt traversal into application code.
+        ;;
+    grimoires/*|*/grimoires/*)
         exit 0  # Planning artifacts allowed
         ;;
-    */.run/*)
+    .run/*|*/.run/*)
         exit 0  # State files allowed
         ;;
-    */.beads/*)
+    .beads/*|*/.beads/*)
         exit 0  # Beads state allowed
         ;;
-    */.claude/plans/*)
+    .claude/plans/*|*/.claude/plans/*)
         exit 0  # Plan files allowed
         ;;
 esac

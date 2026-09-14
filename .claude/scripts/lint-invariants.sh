@@ -516,8 +516,12 @@ check_hook_cache_hygiene() {
   fi
 
   local hits=0 scanned=0 cmd script_path hit_line
+  local git_anchor='"$(git rev-parse --show-toplevel)"/'
   while IFS= read -r cmd; do
     [[ -n "$cmd" ]] || continue
+    # #1172: resolve the shipped git-root anchor statically. Do not execute
+    # settings commands while linting or silently scan zero anchored hooks.
+    cmd="${cmd#"$git_anchor"}"
     # Strip trailing CLI args (e.g. "check-updates.sh --notify") to get the
     # script path itself.
     script_path="${cmd%% *}"
