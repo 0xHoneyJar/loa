@@ -75,7 +75,7 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
     exit 1
   fi
 
-  # Download auxiliary scripts (non-fatal if missing in older versions).
+  # Download auxiliary scripts required by the re-executed installer.
   # #865: mount-loa.sh + mount-submodule.sh source lib/scaffold-post-merge-workflow.sh
   # and lib/portable-realpath.sh respectively. Without these in the pipe-mode
   # download set, the curl|bash install path errors with "No such file or
@@ -85,8 +85,11 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
             lib/symlink-manifest.sh \
             lib/scaffold-post-merge-workflow.sh \
             lib/portable-realpath.sh; do
-    curl --proto =https --proto-redir =https --max-redirs 10 \
-         -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f" 2>/dev/null || true
+    if ! curl --proto =https --proto-redir =https --max-redirs 10 \
+         -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f"; then
+      printf '[loa] ERROR: Failed to download required installer dependency: %s\n' "$_f" >&2
+      exit 1
+    fi
   done
   chmod +x "$_loa_tmpdir"/*.sh "$_loa_tmpdir/lib"/*.sh 2>/dev/null || true
 
@@ -251,7 +254,7 @@ detect_repo_state() {
 
 # === EXIT Trap for Unexpected Failures ===
 _exit_handler() {
-  local exit_code=$?
+  local exit_code=${1:-$?}
   # Clean up curl-pipe temp directory if present
   if [[ -n "${_LOA_MOUNT_TMPDIR:-}" ]] && [[ -d "${_LOA_MOUNT_TMPDIR}" ]]; then
     rm -rf "${_LOA_MOUNT_TMPDIR}"
@@ -560,10 +563,18 @@ auto_install_deps() {
         ;;
       linux-apt|linux-yum)
         local yq_version="v4.40.5"
-        local yq_arch
+        local yq_arch yq_sha256
+        # SHA-256 values verified against the v4.40.5 release's checksums
+        # manifest and downloaded binaries. Rotate version and both pins together.
         case "$(uname -m)" in
-          x86_64) yq_arch="amd64" ;;
-          aarch64|arm64) yq_arch="arm64" ;;
+          x86_64)
+            yq_arch="amd64"
+            yq_sha256="0d6aaf1cf44a8d18fbc7ed0ef14f735a8df8d2e314c4cc0f0242d35c0a440c95"
+            ;;
+          aarch64|arm64)
+            yq_arch="arm64"
+            yq_sha256="9431f0fa39a0af03a152d7fe19a86e42e9ff28d503ed4a70598f9261ec944a97"
+            ;;
           *) warn "Unknown arch for yq download"; return 0 ;;
         esac
         local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${yq_arch}"
@@ -575,10 +586,25 @@ auto_install_deps() {
         # (github.com), pinned version, and an allowlisted arch — no
         # operator input flows into the URL. Hardening defaults below
         # mirror what the wrapper would have applied.
-        if sudo curl --proto =https --proto-redir =https --max-redirs 10 \
-                     -fsSL "$yq_url" -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq; then
+        local yq_tmp yq_actual
+        yq_tmp=$(mktemp -d "${TMPDIR:-/tmp}/loa-yq.XXXXXXXX") || return 1
+        if ! curl --proto =https --proto-redir =https --max-redirs 10 \
+                     -fsSL "$yq_url" -o "$yq_tmp/yq"; then
+          rm -rf "$yq_tmp"
+          warn "yq download failed; nothing installed"
+          return 1
+        fi
+        if ! yq_actual=$(sha256_portable "$yq_tmp/yq") ||
+            [[ "${yq_actual%% *}" != "$yq_sha256" ]]; then
+          rm -rf "$yq_tmp"
+          warn "yq checksum verification failed; nothing installed"
+          return 1
+        fi
+        if sudo install -m 0755 "$yq_tmp/yq" /usr/local/bin/yq; then
+          rm -rf "$yq_tmp"
           log "yq installed ✓ (${yq_version})"
         else
+          rm -rf "$yq_tmp"
           warn "yq auto-install failed ✗. Manual: https://github.com/mikefarah/yq#install"
         fi
         ;;
@@ -1650,7 +1676,9 @@ route_to_submodule() {
   [[ "$NO_COMMIT" == "true" ]] && args+=(--no-commit)
 
   if [[ -x "$submodule_script" ]]; then
-    exec "$submodule_script" "${args[@]}"
+    # Keep this process alive so its EXIT trap releases the mount lock and
+    # curl-pipe download directory on both success and failure (#1232).
+    "$submodule_script" "${args[@]}"
   else
     err "Submodule script not found at: $submodule_script
 Please ensure Loa framework is complete or download mount-submodule.sh manually."
@@ -2150,7 +2178,7 @@ main() {
   if [[ "$SUBMODULE_MODE" == "true" ]]; then
     # Acquire mount lock (Flatline IMP-006)
     acquire_mount_lock
-    trap 'release_mount_lock; _exit_handler' EXIT
+    trap '_mount_exit_code=$?; release_mount_lock; _exit_handler "$_mount_exit_code"' EXIT
 
     # Graceful degradation preflight (Task 1.4)
     if preflight_submodule_environment; then
@@ -2161,7 +2189,7 @@ main() {
       echo ""
       check_mode_conflicts
       route_to_submodule
-      exit 0  # Should not reach here (exec above)
+      exit 0
     else
       # Fallback to vendored mode
       warn "======================================================================="

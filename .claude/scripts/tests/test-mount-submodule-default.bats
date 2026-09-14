@@ -181,11 +181,11 @@ teardown() {
     [ "${output}" -ge 1 ]
 }
 
-@test "Memory Stack relocation uses copy-then-verify pattern" {
-    run grep -A60 "relocate_memory_stack()" "$SUBMODULE_SCRIPT"
-    echo "$output" | grep -q "cp -r"
-    echo "$output" | grep -q "source_count"
-    echo "$output" | grep -q "target_count"
+@test "Memory Stack relocation verifies content before publishing" {
+    run grep -A100 "relocate_memory_stack()" "$SUBMODULE_SCRIPT"
+    echo "$output" | grep -q 'cp -a'
+    echo "$output" | grep -q 'manifest(source) != manifest(staging)'
+    echo "$output" | grep -q 'rename_exclusive(staging, target)'
 }
 
 # =============================================================================

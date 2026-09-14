@@ -1186,6 +1186,18 @@ main() {
     esac
   done
 
+  # The atomic System Zone swap is only valid for vendored mounts (#1242).
+  # Gate every mode before checks, remote access, staging, or other work.
+  if [[ -f "$VERSION_FILE" ]]; then
+    local installation_mode
+    installation_mode=$(jq -r '.installation_mode // "standard"' "$VERSION_FILE") \
+      || err "Cannot determine installation mode from $VERSION_FILE"
+    if [[ "$installation_mode" == "submodule" ]]; then
+      err "update.sh cannot update a submodule installation.
+Run: bash .claude/scripts/update-loa.sh --tag <tag> (or --ref <ref>)"
+    fi
+  fi
+
   # Handle --check mode: just check for updates, don't perform update
   if [[ "$check_only" == "true" ]]; then
     do_version_check "$json_output"
