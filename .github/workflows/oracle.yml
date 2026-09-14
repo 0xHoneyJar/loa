@@ -50,10 +50,10 @@ jobs:
 
             if curl -sL --max-time 30 "$url" -o ~/.loa/cache/oracle/${name}.html 2>/dev/null; then
               echo "  ✓ $name fetched"
-              ((FETCHED++))
+              FETCHED=$((FETCHED + 1))
             else
               echo "  ✗ $name failed"
-              ((FAILED++))
+              FAILED=$((FAILED + 1))
             fi
           done
 
