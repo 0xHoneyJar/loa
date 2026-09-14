@@ -31,6 +31,7 @@ setup() {
     git -C "$TEST_REPO" init --quiet
     git -C "$TEST_REPO" config user.email "test@test.com"
     git -C "$TEST_REPO" config user.name "Test"
+    git -C "$TEST_REPO" remote add origin "$TEST_TMPDIR/remote.git"
 
     cp "$PROJECT_ROOT_REAL/.claude/scripts/bootstrap.sh"          "$TEST_REPO/.claude/scripts/"
     cp "$PROJECT_ROOT_REAL/.claude/scripts/path-lib.sh"           "$TEST_REPO/.claude/scripts/" 2>/dev/null || true

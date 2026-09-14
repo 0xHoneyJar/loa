@@ -98,6 +98,32 @@ _invoke_archive() {
     "
 }
 
+@test "archive-gate: explicit null pointer overrides stale active statuses" {
+    printf '{"active_cycle":null,"cycles":[{"id":"stale","status":"active","sprints":[]}]}\n' > "$TEST_REPO/grimoires/loa/ledger.json"
+    cp "$TEST_REPO/grimoires/loa/ledger.json" "$TEST_TMPDIR/before"
+    run _invoke_archive
+    [ "$status" -eq 0 ]
+    cmp "$TEST_REPO/grimoires/loa/ledger.json" "$TEST_TMPDIR/before"
+    [ "$(git -C "$TEST_REPO" rev-list --count HEAD)" = 1 ]
+}
+
+@test "archive-gate: legacy cycle_id pointer archives with named subject and escaped unicode" {
+    printf '{"active_cycle":"legacy","cycles":[{"cycle_id":"legacy","status":"active","label":"\\u2014","sprints":[{"status":"completed"}]}]}\n' > "$TEST_REPO/grimoires/loa/ledger.json"
+    run _invoke_archive
+    [ "$status" -eq 0 ]
+    jq -e '.active_cycle == null and .cycles[0].status == "archived"' "$TEST_REPO/grimoires/loa/ledger.json"
+    grep -Fq '\u2014' "$TEST_REPO/grimoires/loa/ledger.json"
+    [ "$(git -C "$TEST_REPO" log -1 --format=%s)" = "chore(ledger): archive legacy after merge" ]
+}
+
+@test "archive-gate: unresolved string sprint references cannot pass completeness gate" {
+    printf '{"active_cycle":"legacy","cycles":[{"id":"legacy","status":"active","sprints":["sprint-1"]}]}\n' > "$TEST_REPO/grimoires/loa/ledger.json"
+    cp "$TEST_REPO/grimoires/loa/ledger.json" "$TEST_TMPDIR/before"
+    run _invoke_archive
+    [ "$status" -eq 0 ]
+    cmp "$TEST_REPO/grimoires/loa/ledger.json" "$TEST_TMPDIR/before"
+}
+
 # -----------------------------------------------------------------------------
 # Scenario 1.a: cycle with all `completed` sprints → archive succeeds
 # -----------------------------------------------------------------------------

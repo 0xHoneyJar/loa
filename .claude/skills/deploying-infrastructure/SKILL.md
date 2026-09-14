@@ -745,9 +745,9 @@ Add to deployment report before requesting approval:
 3. MUST only run full pipeline (CHANGELOG, GT, RTFM, Release) for cycle-type PRs
 <!-- @constraint-generated: end deploying_infrastructure_merge -->
 
-When invoked by claude-code-action via the post-merge GH Actions workflow, the `/ship` command
-operates in automated mode. This suppresses interactive confirmations and delegates to the
-post-merge orchestrator.
+The post-merge GitHub Actions workflow prepares a local release candidate and
+retains it as an artifact. Publication is a separate operator action after
+inspection; automated mode does not approve publication.
 
 ### Detection
 
@@ -759,8 +759,9 @@ Automated mode is active when ALL conditions hold:
 ### Automated Invocation
 
 ```bash
-# Called by claude-code-action from .github/workflows/post-merge.yml
+# Candidate preparation from .github/workflows/post-merge.yml
 .claude/scripts/post-merge-orchestrator.sh \
+  --generate \
   --pr <PR_NUMBER> \
   --type <cycle|bugfix|other> \
   --sha <MERGE_SHA>
@@ -775,18 +776,33 @@ Automated mode is active when ALL conditions hold:
 | CHANGELOG | Finalize [Unreleased] | Auto-replace + commit |
 | GT_REGEN | Regenerate ground truth | Auto via ground-truth-gen.sh |
 | RTFM | Validate documentation | Headless validation, non-blocking |
-| TAG | Create version tag | Auto-create + push |
-| RELEASE | Create GitHub Release | Auto via gh CLI |
-| NOTIFY | Post summary | PR comment |
+| TAG | Proposed version tag and target commit | Retained in candidate; publication deferred |
+| RELEASE | Generate release body | Retained in candidate; publication deferred |
+| NOTIFY | Generate notification body | Retained in candidate; publication deferred |
+
+Inspect `.run/post-merge-candidate.json`, its exact target commit and the
+generated patch before publishing. From a clean checkout of that target,
+with the same origin, use:
+
+```bash
+.claude/scripts/post-merge-orchestrator.sh \
+  --publish .run/post-merge-candidate.json \
+  --approve-sha256 <digest-of-the-inspected-candidate>
+```
+
+Publication verifies the remote tag, release and comment by read-back.
+Failure is recorded as `FAILED` and returns nonzero. A local tag or attempted
+GitHub operation is not publication evidence. See
+`grimoires/loa/runbooks/post-merge-candidates.md` for artifact recovery.
 
 ### Manual vs Automated
 
 | Aspect | Manual (`/ship`) | Automated (post-merge) |
 |--------|------------------|----------------------|
 | Trigger | User invokes `/ship` | GH Actions on merge |
-| Confirmations | Interactive prompts | None (suppressed) |
-| Model | User's current model | Sonnet (cost-efficient) |
-| Output | Terminal display | PR comment + state JSON |
+| Confirmations | Operator approval before publication | Candidate preparation only |
+| Model | User's current model | Shell pipeline |
+| Output | Candidate and verified publication receipt | Candidate artifact + state JSON |
 | Scope | Full deployment | Post-merge phases only |
 
 ### State File

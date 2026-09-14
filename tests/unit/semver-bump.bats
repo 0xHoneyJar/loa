@@ -358,7 +358,7 @@ EOF
 # Edge Cases
 # =============================================================================
 
-@test "semver-bump: non-conventional commit gets patch bump" {
+@test "semver-bump: non-conventional commit requires classification metadata" {
     skip_if_deps_missing
 
     make_commit "initial"
@@ -366,10 +366,8 @@ EOF
     make_commit "just a random commit message"
 
     run "$TEST_SCRIPT"
-    [ "$status" -eq 0 ]
-    local bump
-    bump=$(echo "$output" | jq -r '.bump')
-    [ "$bump" = "patch" ]
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"Cannot classify"* ]]
 }
 
 @test "semver-bump: picks latest tag from multiple tags" {

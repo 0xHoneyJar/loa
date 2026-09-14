@@ -70,51 +70,32 @@ parse_args() {
   done
 }
 
-# Initialize ledger if needed
-init_ledger() {
-  if [[ ! -f "$LEDGER_FILE" ]]; then
-    mkdir -p "$(dirname "$LEDGER_FILE")"
-    cat > "$LEDGER_FILE" << 'EOF'
-{
-  "version": "1.0",
-  "project": "compound-learning",
-  "created": null,
-  "cycles": []
-}
-EOF
-    # Set created timestamp
-    local now
-    now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$now" '.created = $ts' "$LEDGER_FILE" > "${LEDGER_FILE}.tmp"
-    mv "${LEDGER_FILE}.tmp" "$LEDGER_FILE"
-  fi
+# The compound ledger also supports its original v1 schema, so validate its
+# actual contract here rather than imposing the Sprint Ledger's schema.
+validate_content() {
+  jq -e -s 'length == 1 and (.[0] | type == "object" and
+    (.cycles | type == "array") and all(.cycles[]; type == "object"))' >/dev/null
 }
 
-# Get current cycle number
-get_current_cycle() {
-  if [[ -n "$CYCLE_NUM" ]]; then
-    echo "$CYCLE_NUM"
-    return
-  fi
-  
-  local count
-  count=$(jq '.cycles | length' "$LEDGER_FILE" 2>/dev/null || echo "0")
-  
-  if [[ "$count" -eq 0 ]]; then
-    echo "1"
-  else
-    echo "$count"
-  fi
-}
-
-# Update ledger with compound completion
+# The caller holds the lock across the read, transformation and replacement.
 update_ledger() {
-  local cycle_num
-  cycle_num=$(get_current_cycle)
-  
-  local now
+  local now content cycle_num
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  
+  if [[ -e "$LEDGER_FILE" ]]; then
+    content=$(cat "$LEDGER_FILE") || return 1
+  else
+    content=$(jq -n --arg ts "$now" \
+      '{version:"1.0", project:"compound-learning", created:$ts, cycles:[]}') || return 1
+  fi
+  if ! printf '%s\n' "$content" | validate_content; then
+    echo "[ERROR] Ledger must contain exactly one object with a cycles array" >&2
+    return 1
+  fi
+  cycle_num="${CYCLE_NUM:-}"
+  if [[ -z "$cycle_num" ]]; then
+    cycle_num=$(printf '%s\n' "$content" | jq '.cycles | length | if . == 0 then 1 else . end') || return 1
+  fi
+
   # Build update
   local update_json
   update_json=$(jq -n \
@@ -137,49 +118,50 @@ update_ledger() {
     return
   fi
   
-  # Check if cycle exists
-  local cycle_exists
-  cycle_exists=$(jq --arg num "$cycle_num" '
-    .cycles | map(select(.number == ($num | tonumber) or .id == "cycle-" + $num)) | length > 0
-  ' "$LEDGER_FILE")
-  
-  if [[ "$cycle_exists" == "true" ]]; then
-    # Update existing cycle
-    jq --arg num "$cycle_num" --argjson update "$update_json" '
-      .cycles |= map(
-        if .number == ($num | tonumber) or .id == "cycle-" + $num then
-          . + $update
-        else
-          .
-        end
-      )
-    ' "$LEDGER_FILE" > "${LEDGER_FILE}.tmp"
-    mv "${LEDGER_FILE}.tmp" "$LEDGER_FILE"
-    echo "[INFO] Updated cycle $cycle_num in ledger"
-  else
-    # Create new cycle entry
-    local new_cycle
-    new_cycle=$(jq -n \
-      --arg num "$cycle_num" \
-      --arg ts "$now" \
-      --argjson update "$update_json" \
-      '{
-        id: "cycle-" + $num,
-        number: ($num | tonumber),
-        created_at: $ts
-      } + $update')
-    
-    jq --argjson cycle "$new_cycle" '.cycles += [$cycle]' "$LEDGER_FILE" > "${LEDGER_FILE}.tmp"
-    mv "${LEDGER_FILE}.tmp" "$LEDGER_FILE"
-    echo "[INFO] Created cycle $cycle_num in ledger"
+  local updated tmp
+  updated=$(printf '%s\n' "$content" | jq -a --arg num "$cycle_num" \
+    --arg ts "$now" --argjson update "$update_json" '
+      def matches: .number == ($num | tonumber) or .id == ("cycle-" + $num);
+      if any(.cycles[]; matches) then
+        .cycles |= map(if matches then . + $update else . end)
+      else
+        .cycles += [({id: ("cycle-" + $num), number: ($num | tonumber), created_at: $ts} + $update)]
+      end') || return 1
+  if ! printf '%s\n' "$updated" | validate_content; then
+    echo "[ERROR] Refusing invalid or empty ledger update" >&2
+    return 1
   fi
+  tmp=$(mktemp "${LEDGER_FILE}.tmp.XXXXXXXX") || return 1
+  if ! printf '%s\n' "$updated" > "$tmp" || ! mv "$tmp" "$LEDGER_FILE"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  echo "[INFO] Updated cycle $cycle_num in ledger"
 }
 
 # Main
 main() {
   parse_args "$@"
-  init_ledger
-  update_ledger
+  if [[ -n "$CYCLE_NUM" && ! "$CYCLE_NUM" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[ERROR] --cycle must be a positive integer" >&2
+    return 1
+  fi
+  local count
+  for count in "$LEARNINGS" "$PATTERNS" "$SKILLS_PROMOTED"; do
+    if [[ ! "$count" =~ ^(0|[1-9][0-9]*)$ ]]; then
+      echo "[ERROR] Metrics must be non-negative integers" >&2
+      return 1
+    fi
+  done
+  if [[ "$DRY_RUN" == true ]]; then
+    update_ledger
+  else
+    mkdir -p "$(dirname "$LEDGER_FILE")"
+    (
+      flock -w 5 9 || { echo "[ERROR] Ledger lock timeout" >&2; exit 1; }
+      update_ledger
+    ) 9>"${LEDGER_FILE}.lock"
+  fi
 }
 
 main "$@"

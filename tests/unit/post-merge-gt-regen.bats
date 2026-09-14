@@ -29,6 +29,7 @@ setup() {
     git -C "$TEST_REPO" init --quiet
     git -C "$TEST_REPO" config user.email "test@test.com"
     git -C "$TEST_REPO" config user.name "Test"
+    git -C "$TEST_REPO" remote add origin "$TEST_TMPDIR/remote.git"
 
     # Copy required scripts.
     cp "$PROJECT_ROOT_REAL/.claude/scripts/bootstrap.sh"          "$TEST_REPO/.claude/scripts/"
@@ -52,6 +53,7 @@ has_reality_dir=0
 mode=""
 i=1
 for arg in "$@"; do
+    if [[ "${previous:-}" == --output-dir ]]; then output_dir="$arg"; fi
     case "$arg" in
         --output-dir)  has_output_dir=1 ;;
         --reality-dir) has_reality_dir=1 ;;
@@ -61,6 +63,7 @@ for arg in "$@"; do
             mode="$arg"
             ;;
     esac
+    previous="$arg"
 done
 # Mirror real script's flag requirements: checksums mode needs both flags.
 if [[ "$has_output_dir" -eq 0 ]]; then
@@ -71,6 +74,8 @@ if [[ "$has_reality_dir" -eq 0 ]]; then
     echo "ERROR: --reality-dir is required for checksums mode" >&2
     exit 64
 fi
+mkdir -p "$output_dir"
+printf '{}\n' > "$output_dir/checksums.json"
 exit 0
 STUB
     chmod +x "$TEST_REPO/.claude/scripts/ground-truth-gen.sh"
@@ -148,9 +153,21 @@ skip_if_deps_missing() {
     grep -q -- '--reality-dir' "$GT_ARGV_LOG"
 }
 
+@test "phase_gt_regen: missing generated output records a failed phase" {
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$TEST_REPO/.claude/scripts/ground-truth-gen.sh"
+    run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
+    [ "$status" -ne 0 ]
+    jq -e '.state == "FAILED" and .phases.gt_regen.status == "failed"' \
+      "$TEST_REPO/.run/post-merge-state.json"
+    [ ! -f "$TEST_REPO/.run/post-merge-candidate.json" ]
+}
+
 @test "phase_gt_regen: gracefully skips when reality dir is missing" {
     skip_if_deps_missing
     rm -rf "$TEST_REPO/grimoires/loa/reality"
+    git -C "$TEST_REPO" add -u
+    git -C "$TEST_REPO" commit -qm "chore: remove reality fixture"
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
     # Bridgebuilder F1: see explanation above.
     [ "$status" -eq 0 ]
@@ -208,8 +225,8 @@ STUB
     chmod +x "$TEST_REPO/.claude/scripts/ground-truth-gen.sh"
 
     run "$TEST_SCRIPT" --pr 42 --type cycle --sha "$MERGE_SHA" --skip-rtfm
-    # Orchestrator returns 0 even when phases fail (failures recorded in errors[]).
-    [ "$status" -eq 0 ]
+    # A failed checksum stage cannot produce a complete release candidate.
+    [ "$status" -ne 0 ]
 
     # The phase failure should be recorded.
     local gt_status
