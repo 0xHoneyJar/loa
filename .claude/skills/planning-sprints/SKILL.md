@@ -499,6 +499,17 @@ Diagram inclusion is **optional** for sprint plans - use agent discretion.
 <post_completion>
 ## Post-Completion Debrief
 
+Author each acceptance-criteria checkbox on a single physical line. The AC
+verification gate matches that line verbatim in the implementation report;
+do not manually wrap the bullet or its quoted report text. Use the exact
+heading `### Acceptance Criteria` (and the template's other required headings)
+without parenthetical annotations; put explanatory text below the heading.
+
+The artifact validator checks every `## Sprint N` block in the supplied file.
+Keep the active cycle's plan separate from archived plans; do not rewrite
+shipped sprint blocks just to satisfy a newer template. Goal traceability
+may span multiple `## Appendix` sections; all are checked.
+
 After saving the Sprint Plan to `grimoires/loa/sprint.md`, MUST run `.claude/scripts/validate-artifact.sh --type sprint --file grimoires/loa/sprint.md` before the debrief; repair per its output on exit 1; exit 2 (usage/file-not-found) is a validator FAILURE — fix the path and re-run, do not proceed. ALWAYS present a structured debrief before the user decides to continue.
 
 ### Debrief Structure

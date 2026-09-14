@@ -142,12 +142,21 @@ EOF
 # T-HOOK group: silent-mode invariants (FR-L7-6)
 # ---------------------------------------------------------------------------
 
+@test "issue-1214: header documents no missing-file audit despite the permissive payload schema" {
+    local header
+    header="$(sed -n '1,/^set /p' "$HOOK")"
+    [[ "$header" == *"Missing files and disabled L7 do not emit audit events"* ]]
+    [[ "$header" == *"schema permits"* ]]
+    [[ "$header" != *"Always emits"* ]]
+}
+
 @test "T-HOOK-1 (FR-L7-6) hook exits 0 silently when enabled is false" {
     _write_config "false" "warn" "2000"
     _write_valid_soul
     run "$HOOK"
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]] || { echo "expected silent, got: $output"; false; }
+    [[ ! -e "$LOA_SOUL_LOG" ]]
 }
 
 @test "T-HOOK-2 (FR-L7-6) hook exits 0 silently when SOUL.md missing" {
@@ -156,6 +165,7 @@ EOF
     run "$HOOK"
     [[ "$status" -eq 0 ]]
     [[ -z "$output" ]] || { echo "expected silent on missing, got: $output"; false; }
+    [[ ! -e "$LOA_SOUL_LOG" ]]
 }
 
 @test "T-HOOK-3 (FR-L7-6) hook exits 0 silently when config file is absent" {

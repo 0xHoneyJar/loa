@@ -237,8 +237,16 @@ Karpathy-aligned: goal-driven verification, not just code written.
 See `resources/templates/implementation-report.md` for the structured
 `## AC Verification` template.
 
+Resolve `SPRINT_FILE` to the artifact that owns the current sprint's acceptance
+criteria before performing this gate. For a `/bug` cycle, use the micro-sprint
+path from the bug handoff (`grimoires/loa/a2a/bug-<id>/sprint.md`), also recorded
+as the bug cycle's `sprint_plan` in the ledger. For a regular sprint, use its
+owning sprint plan (normally `grimoires/loa/sprint.md`). If ownership is
+missing or ambiguous, resolve it before running the gate; never substitute
+the repo-level plan for a bug micro-sprint.
+
 **MUST**: immediately before writing the `COMPLETED` marker, run
-`.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint grimoires/loa/sprint.md`.
+`.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint "$SPRINT_FILE"`.
 Exit 0 → proceed. Exit 1 → fix the reported AC rows (exact repair text) and
 re-run before writing the marker. Exit 2 (usage error / file not found) →
 treat as a validator FAILURE, do NOT proceed: fix the report/sprint path and
@@ -592,7 +600,7 @@ Key sections:
 - Verification Steps
 
 **MUST**, immediately before writing any `COMPLETED` marker: run
-`.claude/scripts/validate-ac-verification.sh --report <reviewer.md> --sprint grimoires/loa/sprint.md`
+`.claude/scripts/validate-ac-verification.sh --report <reviewer.md> --sprint "$SPRINT_FILE"`
 (see AC Verification Gate above for the full contract and fail-open fallback).
 
 ## Phase 4: Feedback Integration Loop

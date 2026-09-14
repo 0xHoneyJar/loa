@@ -36,12 +36,13 @@ code outside `/implement`") mechanical for review skills rather than prose-only.
 
 | Skill class | `disallowed-tools` | Why |
 |-------------|--------------------|-----|
-| Pure-review (`reviewing-code`, `auditing-security`; `write_files: false`) | `Write`, `Edit`, `NotebookEdit` | Never writes anything — remove the write tools outright |
+| Pure-review (`write_files: false`, no report artifacts) | `Write`, `Edit`, `NotebookEdit` | Never writes anything — remove the write tools outright |
+| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit` | Write STATE-zone feedback/checkmarks/COMPLETED markers and run the allowed verdict check; System remains `none` and App remains `read` |
 | Report-authoring review (`red-teaming`, `bridgebuilder-review`; `write_files: true`) | `NotebookEdit`, `Bash(git add/commit/push *)` | Legitimately write STATE-zone reports/vision/lore, so `Write` is retained; app-code prevention is governed by **zones**, and the implementation-only git mutations are removed |
 
 **`REVIEW_WRITE_EXCEPTIONS`** (in `validate-skill-capabilities.sh`):
 `red-teaming`, `bridgebuilder-review`, `spiraling`, `autonomous-agent`,
-`run-bridge`, `run-mode`. These `role: review` skills keep `Write` by design —
+`run-bridge`, `run-mode`, `reviewing-code`, `auditing-security`. These `role: review` skills keep `Write` by design —
 the adversarial/report authors write STATE-zone artifacts, and the autonomous
 orchestrators dispatch implementation through the harness (which runs inside
 `/implement`, where writes are sanctioned). The validator emits a WARN for any *other* `role: review`

@@ -50,6 +50,7 @@ fi
 JSON_OUTPUT=false
 VERSION_ONLY=false
 TRIAGE_MODE=false
+STALE_CHECK=true
 ECONOMY_MODE=false
 ECONOMY_ARGS=()
 UNKNOWN_ARGS=()
@@ -60,8 +61,9 @@ for arg in "$@"; do
     --json) JSON_OUTPUT=true; ECONOMY_ARGS+=("--json") ;;
     --version) VERSION_ONLY=true ;;
     --triage) TRIAGE_MODE=true ;;
+    --no-stale-check) STALE_CHECK=false ;;
     --help|-h)
-      echo "Usage: loa-status.sh [--json] [--triage] [--version] [--economy [...]] [--help]"
+      echo "Usage: loa-status.sh [--json] [--triage] [--version] [--no-stale-check] [--economy [...]] [--help]"
       echo ""
       echo "Options:"
       echo "  --json                Output JSON format"
@@ -69,6 +71,7 @@ for arg in "$@"; do
       echo "                          --quick) + suggested next command. Combine with"
       echo "                          --json for a machine-readable envelope."
       echo "  --version             Only show version info"
+      echo "  --no-stale-check      Skip the local cached-upstream worktree check"
       echo "  --economy             Show model-economy roll-up (cycle-112 FR-2)"
       echo "                          Accepts: --window <h|d|m>, --skill <substr>,"
       echo "                          --model <substr>, --cost-snapshot <git-ref>,"
@@ -88,12 +91,12 @@ for arg in "$@"; do
   esac
 done
 
-USAGE_LINE="Usage: loa-status.sh [--json] [--version] [--economy [...]] [--help]"
+USAGE_LINE="Usage: loa-status.sh [--json] [--triage] [--version] [--no-stale-check] [--economy [...]] [--help]"
 if [[ "$ECONOMY_MODE" != "true" ]] && [[ ${#UNKNOWN_ARGS[@]} -gt 0 ]]; then
   # shellcheck source=lib/dx-utils.sh
   source "${SCRIPT_DIR}/lib/dx-utils.sh" 2>/dev/null || true
   if declare -F dx_unknown_flag >/dev/null 2>&1; then
-    dx_unknown_flag "${UNKNOWN_ARGS[0]}" "$USAGE_LINE" --json --version --economy --help
+    dx_unknown_flag "${UNKNOWN_ARGS[0]}" "$USAGE_LINE" --json --triage --version --no-stale-check --economy --help
   else
     echo "Unknown option: ${UNKNOWN_ARGS[0]}" >&2
     echo "$USAGE_LINE" >&2
@@ -502,6 +505,50 @@ get_agent_network_json() {
         }'
 }
 
+# A linked worktree can retain an active cycle after a squash merge/archive.
+# Compare exact cycle IDs against local remote-tracking refs; never fetch or
+# infer shipment merely because the upstream active_cycle is null/different.
+get_stale_worktree_json() {
+  [[ "$STALE_CHECK" == "true" ]] || return 0
+  local git_dir common_dir cycle upstream ledger record
+  git_dir=$(git -C "$PROJECT_ROOT" rev-parse --absolute-git-dir 2>/dev/null) || return 0
+  common_dir=$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir 2>/dev/null) || return 0
+  [[ "$common_dir" == /* ]] || common_dir="$PROJECT_ROOT/$common_dir"
+  [[ "$git_dir" != "$common_dir" ]] || return 0
+
+  cycle=$(jq -er '.active_cycle | select(type == "string" and length > 0)' \
+    "$PROJECT_ROOT/grimoires/loa/ledger.json" 2>/dev/null) || return 0
+  upstream=$(git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null) \
+    || upstream="origin/main"
+  ledger=$(git -C "$PROJECT_ROOT" show "${upstream}:grimoires/loa/ledger.json" 2>/dev/null) || return 0
+  record=$(jq -ce --arg cycle "$cycle" \
+    '[.cycles[] | select(.id == $cycle and (.status == "archived" or .status == "closed"))] |
+     if length == 1 then .[0] else empty end' <<< "$ledger" 2>/dev/null) || return 0
+  jq -nc --arg cycle "$cycle" --arg upstream "$upstream" --argjson record "$record" \
+    '{cycle_id: $cycle, upstream_ref: $upstream, upstream_status: $record.status,
+      archive_path: ($record.archive_path // null),
+      warning: ("This worktree is a stale snapshot: cycle " + $cycle + " is " +
+        $record.status + " in cached " + $upstream +
+        ". Inspect the worktree before retiring it; the local workflow state is historical.")}'
+}
+
+annotate_workflow_status() {
+  local workflow_json="$1" stale_json
+  stale_json=$(get_stale_worktree_json)
+  if [[ -n "$stale_json" ]]; then
+    jq --argjson stale "$stale_json" \
+      '. + {stale_worktree: $stale, suggested_command: "git worktree list"}' <<< "$workflow_json"
+  else
+    printf '%s\n' "$workflow_json"
+  fi
+}
+
+display_stale_warning() {
+  local warning
+  warning=$(jq -r '.stale_worktree.warning // empty' <<< "$1")
+  [[ -z "$warning" ]] || printf '  Warning: %s\n' "$warning"
+}
+
 # === Main Logic ===
 
 main() {
@@ -519,6 +566,7 @@ main() {
       workflow_json=''
     fi
     echo "$workflow_json" | jq -e 'type == "object"' >/dev/null 2>&1 || workflow_json='{}'
+    workflow_json=$(annotate_workflow_status "$workflow_json")
     doctor_json=$(timeout 45 bash "${SCRIPT_DIR}/loa-doctor.sh" --quick --json 2>/dev/null) || true
     echo "$doctor_json" | jq -e 'type == "object"' >/dev/null 2>&1 || doctor_json='{"status":"unavailable"}'
     if [[ "$JSON_OUTPUT" == "true" ]]; then
@@ -536,6 +584,7 @@ main() {
       t_suggested=$(echo "$workflow_json" | jq -r '.suggested_command // ""')
       t_health=$(echo "$doctor_json" | jq -r '.status // "unavailable"')
       echo "Loa triage"
+      display_stale_warning "$workflow_json"
       echo "  state:  ${t_state}"
       echo "  health: ${t_health}"
       [[ -n "$t_suggested" ]] && echo "  next:   ${t_suggested}"
@@ -564,6 +613,7 @@ main() {
     else
       workflow_json='{}'
     fi
+    workflow_json=$(annotate_workflow_status "$workflow_json")
 
     version_json=$(get_version_info_json)
     agent_network_json=$(get_agent_network_json)
@@ -593,6 +643,8 @@ main() {
       local state description progress current_sprint total_sprints completed_sprints suggested
 
       state_json=$("$WORKFLOW_STATE_SCRIPT" --json 2>/dev/null || echo '{}')
+      state_json=$(annotate_workflow_status "$state_json")
+      display_stale_warning "$state_json"
 
       state=$(echo "$state_json" | jq -r '.state // "unknown"')
       description=$(echo "$state_json" | jq -r '.description // ""')

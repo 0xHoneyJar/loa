@@ -273,6 +273,68 @@ EOF
     [[ "$output" == *"Appendix"* ]]
 }
 
+@test "issue-1243: goal coverage includes later appendices across intervening sections" {
+    {
+        sprint_block "## Sprint 1: Foundation"
+        cat <<'EOF'
+## Appendix A: Dependencies
+No goal mapping here.
+## Another section
+G-2 is also required.
+## Appendix C: Goal Traceability
+| G-1 | Foundation |
+## Interlude
+This is not an appendix.
+## Appendix C (cycle-002): Goal Traceability
+| G-2 | Continuation |
+EOF
+    } > "${TEST_TMPDIR}/sprint.md"
+    run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/sprint.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "issue-1243: non-appendix mentions do not satisfy missing goal coverage" {
+    {
+        sprint_block "## Sprint 1: Foundation"
+        cat <<'EOF'
+## Appendix A: Dependencies
+No goal mapping here.
+## Another section
+| G-1 | Outside the appendix |
+## Appendix C: Goal Traceability
+| G-2 | Other goal |
+EOF
+    } > "${TEST_TMPDIR}/sprint.md"
+    run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/sprint.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"goal ID G-1"* ]]
+}
+
+@test "issue-1243: G-10 does not satisfy a missing G-1 mapping" {
+    {
+        sprint_block "## Sprint 1: Foundation"
+        printf '\n## Appendix\n| G-10 | Another goal |\n'
+    } > "${TEST_TMPDIR}/sprint.md"
+    run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/sprint.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"goal ID G-1"* ]]
+}
+
+@test "issue-1243: large combined appendices do not turn an early goal match into SIGPIPE failure" {
+    {
+        local i
+        for i in $(seq 1 50); do
+            sprint_block "## Sprint $i: Foundation"
+            printf '\n## Appendix C: Goal Traceability\n| G-1 | Foundation |\n'
+            # Each sprint block stays small; the combined appendix text
+            # exceeds the pipe buffer and grep may finish before printf.
+            printf '%3000s\n' 'Appendix commentary.'
+        done
+    } > "${TEST_TMPDIR}/sprint.md"
+    run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/sprint.md"
+    [ "$status" -eq 0 ]
+}
+
 @test "validate-artifact sprint: WARNs (does not fail) when the final sprint has no E2E task" {
     {
         sprint_block "## Sprint 1: Foundation"
