@@ -1254,6 +1254,7 @@ update_gitignore_for_submodule() {
   local state_entries=(
     ".loa-state/"
     ".claude.backup.*"
+    "/.loa-mount-lock/"
     # cycle-115: the transactional Aleph installer may leave these exact
     # recovery/coordination names after interruption.
     ".claude/aleph-install.transaction*"

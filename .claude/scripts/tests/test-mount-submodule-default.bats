@@ -227,6 +227,12 @@ teardown() {
 }
 
 @test "update_gitignore_for_submodule removes .loa/ if present" {
-    run grep -A50 "update_gitignore_for_submodule()" "$SUBMODULE_SCRIPT"
-    echo "$output" | grep -q "Removed .loa/"
+    printf '%s\n' '.loa/' 'user-file' > .gitignore
+    run bash -c '
+        source "$1" --source-only
+        update_gitignore_for_submodule
+    ' _ "$SUBMODULE_SCRIPT"
+    [ "$status" -eq 0 ]
+    ! grep -qxF '.loa/' .gitignore
+    grep -qxF 'user-file' .gitignore
 }

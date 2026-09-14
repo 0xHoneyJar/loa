@@ -82,6 +82,7 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
   # directory" on the first mount. The clone-then-run path is unaffected
   # because those files exist on disk from the clone.
   for _f in bootstrap.sh bash-version-guard.sh \
+            lib/mount-supervisor.py \
             lib/symlink-manifest.sh \
             lib/scaffold-post-merge-workflow.sh \
             lib/portable-realpath.sh; do
@@ -1568,30 +1569,102 @@ To switch manually:
 }
 
 # === Mount Lock (Flatline IMP-006) ===
-# Scope: PID-based advisory lock using kill -0 liveness check.
-# Safe on: Local filesystems (ext4, APFS, NTFS) — single-host concurrency only.
-# NOT safe on: NFS, CIFS, or shared-mount filesystems — kill -0 cannot check PIDs
-# on remote hosts, and echo > file is not atomic on network mounts.
-# If NFS support is ever needed, use flock(1) or a lockfile(1) approach instead.
-MOUNT_LOCK_FILE=".claude/.mount-lock"
+# Atomic directory acquisition for cooperating local submodule mounts.
+# Never reclaim a stale marker automatically: checking a PID and then unlinking
+# permits a competing caller's new lock to be removed. Recovery is manual.
+MOUNT_LOCK_FILE=".loa-mount-lock"
+MOUNT_LOCK_OWNER=""
+MOUNT_CHILD_PID=""
+MOUNT_CHILD_REAPED=false
+MOUNT_CHILD_STARTING=false
+MOUNT_CHILD_READY=false
+MOUNT_CANCEL_SIGNAL=""
+MOUNT_CANCEL_STATUS=0
 
 acquire_mount_lock() {
-  if [[ -f "$MOUNT_LOCK_FILE" ]]; then
-    local lock_pid
-    lock_pid=$(cat "$MOUNT_LOCK_FILE" 2>/dev/null || echo "")
-    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-      err "Another /mount operation is in progress (PID: $lock_pid).
-Wait for it to complete or remove $MOUNT_LOCK_FILE manually."
-    fi
-    warn "Stale mount lock found (PID $lock_pid not running). Removing."
-    rm -f "$MOUNT_LOCK_FILE"
+  if [[ -e .claude/.mount-lock || -L .claude/.mount-lock ]]; then
+    err "Inspect and remove the abandoned legacy .claude/.mount-lock only after all mounts stop."
   fi
   mkdir -p "$(dirname "$MOUNT_LOCK_FILE")"
-  echo "$$" > "$MOUNT_LOCK_FILE"
+  if ! mkdir "$MOUNT_LOCK_FILE" 2>/dev/null; then
+    err "Cannot acquire mount lock: $MOUNT_LOCK_FILE.
+Another /mount may be running. Inspect the lock and installer processes before
+manually removing an abandoned lock (including legacy PID files)."
+  fi
+  MOUNT_LOCK_OWNER="$$:$RANDOM:$RANDOM"
+  printf '%s\n' "$MOUNT_LOCK_OWNER" > "$MOUNT_LOCK_FILE/owner"
 }
 
 release_mount_lock() {
-  rm -f "$MOUNT_LOCK_FILE"
+  if [[ -n "$MOUNT_LOCK_OWNER" && -d "$MOUNT_LOCK_FILE" && ! -L "$MOUNT_LOCK_FILE" ]] &&
+     [[ "$(cat "$MOUNT_LOCK_FILE/owner" 2>/dev/null)" == "$MOUNT_LOCK_OWNER" ]]; then
+    rm -f "$MOUNT_LOCK_FILE/owner" "$MOUNT_LOCK_FILE/terminated" \
+      "$MOUNT_LOCK_FILE/ready" "$MOUNT_LOCK_FILE/start"
+    rmdir "$MOUNT_LOCK_FILE" 2>/dev/null || true
+  fi
+  MOUNT_LOCK_OWNER=""
+}
+
+stop_mount_child() {
+  [[ -n "$MOUNT_CHILD_PID" ]] || return 0
+  if [[ "$MOUNT_CHILD_REAPED" != "true" ]]; then
+    local signal="${1:-TERM}"
+    # Before acknowledgement there can be no installer: no launch grant exists.
+    # Python may still inherit ignored INT here, so do not wait on that signal.
+    [[ "$MOUNT_CHILD_READY" == "true" ]] || signal=KILL
+    kill -s "$signal" "$MOUNT_CHILD_PID" 2>/dev/null || true
+    wait "$MOUNT_CHILD_PID" 2>/dev/null || true
+    MOUNT_CHILD_REAPED=true
+  fi
+  if [[ "$(cat "$MOUNT_LOCK_FILE/terminated" 2>/dev/null)" != "$MOUNT_LOCK_OWNER" ]]; then
+    warn "Cannot confirm installer termination and terminal foreground restoration; retaining lock and download directory."
+    return 1
+  fi
+  MOUNT_CHILD_PID=""
+}
+
+cancel_mount() {
+  if [[ -z "$MOUNT_CANCEL_SIGNAL" ]]; then
+    MOUNT_CANCEL_SIGNAL="$1"
+    MOUNT_CANCEL_STATUS="$2"
+  fi
+  # Retain cancellation through PID capture AND interpreter startup. The helper
+  # cannot launch installer code until handlers are acknowledged and we grant it.
+  [[ "$MOUNT_CHILD_STARTING" == "true" ]] && return 0
+  trap '' INT TERM HUP
+  exit "$MOUNT_CANCEL_STATUS"
+}
+
+mount_exit_handler() {
+  local exit_code=$?
+  trap '' INT TERM HUP
+  if ! stop_mount_child "${MOUNT_CANCEL_SIGNAL:-TERM}"; then
+    [[ "$exit_code" -ne 0 ]] || exit 125
+    return
+  fi
+  release_mount_lock
+  _exit_handler "$exit_code"
+}
+
+await_mount_supervisor() {
+  local startup_deadline=$((SECONDS + 5))
+  while [[ "$(cat "$MOUNT_LOCK_FILE/ready" 2>/dev/null)" != "$MOUNT_LOCK_OWNER" ]]; do
+    if ! kill -0 "$MOUNT_CHILD_PID" 2>/dev/null; then
+      wait "$MOUNT_CHILD_PID" 2>/dev/null || true
+      MOUNT_CHILD_REAPED=true
+      warn "Mount supervisor exited before acknowledging startup."
+      return 1
+    fi
+    if [[ "$SECONDS" -ge "$startup_deadline" ]]; then
+      warn "Mount supervisor startup timed out before launch acknowledgement."
+      kill -s KILL "$MOUNT_CHILD_PID" 2>/dev/null || true
+      wait "$MOUNT_CHILD_PID" 2>/dev/null || true
+      MOUNT_CHILD_REAPED=true
+      return 1
+    fi
+    sleep 0.05
+  done
+  MOUNT_CHILD_READY=true
 }
 
 # === Graceful Degradation Preflight (Task 1.4) ===
@@ -1678,7 +1751,28 @@ route_to_submodule() {
   if [[ -x "$submodule_script" ]]; then
     # Keep this process alive so its EXIT trap releases the mount lock and
     # curl-pipe download directory on both success and failure (#1232).
-    "$submodule_script" "${args[@]}"
+    # The supervisor retains the installer's group beyond direct-child exit,
+    # transfers the controlling terminal before exec, and restores it on exit.
+    command -v python3 >/dev/null ||
+      err "python3 is required to supervise submodule installer cancellation."
+    local supervisor="${script_dir}/lib/mount-supervisor.py"
+    [[ -f "$supervisor" ]] || err "Mount supervisor not found at: $supervisor"
+    MOUNT_CHILD_STARTING=true
+    python3 "$supervisor" "$MOUNT_LOCK_FILE/terminated" "$MOUNT_LOCK_OWNER" \
+      "$submodule_script" "${args[@]}" <&0 &
+    MOUNT_CHILD_PID=$!
+    local startup_status=0
+    await_mount_supervisor || startup_status=125
+    MOUNT_CHILD_STARTING=false
+    if [[ -n "$MOUNT_CANCEL_SIGNAL" ]]; then
+      cancel_mount "$MOUNT_CANCEL_SIGNAL" "$MOUNT_CANCEL_STATUS"
+    fi
+    [[ "$startup_status" -eq 0 ]] || return "$startup_status"
+    printf '%s' "$MOUNT_LOCK_OWNER" > "$MOUNT_LOCK_FILE/start"
+    local child_status=0
+    wait "$MOUNT_CHILD_PID" || child_status=$?
+    MOUNT_CHILD_REAPED=true
+    return "$child_status"
   else
     err "Submodule script not found at: $submodule_script
 Please ensure Loa framework is complete or download mount-submodule.sh manually."
@@ -2177,8 +2271,11 @@ main() {
   # Route to submodule mode (default)
   if [[ "$SUBMODULE_MODE" == "true" ]]; then
     # Acquire mount lock (Flatline IMP-006)
+    trap mount_exit_handler EXIT
+    trap 'cancel_mount INT 130' INT
+    trap 'cancel_mount TERM 143' TERM
+    trap 'cancel_mount HUP 129' HUP
     acquire_mount_lock
-    trap '_mount_exit_code=$?; release_mount_lock; _exit_handler "$_mount_exit_code"' EXIT
 
     # Graceful degradation preflight (Task 1.4)
     if preflight_submodule_environment; then
