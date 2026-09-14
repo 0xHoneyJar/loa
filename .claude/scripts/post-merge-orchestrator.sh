@@ -52,6 +52,7 @@ TARGET_COMMIT=""
 PUSH_URL=""
 GITHUB_HOST=""
 GITHUB_REPOSITORY=""
+PR_ISSUE_URL=""
 
 # Phase matrix: which phases run for each PR type.
 # lore_promote (cycle-061, #484) runs after release for every PR type when
@@ -447,6 +448,17 @@ phase_version_bump() {
 # CHANGELOG Auto-Generation (FR-1, cycle-016)
 # =============================================================================
 
+# A heading (or source attribution alone) is not a release entry. Also used
+# after installation so an unsuccessful write cannot be reported as prepared.
+_changelog_release_has_content() {
+  awk -v heading="## [$1]" '
+    index($0, heading) == 1 {found=1; next}
+    found && /^## / {exit}
+    found && NF && $0 !~ /^### / && $0 !~ /^_Source:/ {content=1}
+    END {exit !content}
+  ' "$2"
+}
+
 # Generate a CHANGELOG entry from PR metadata and conventional commits
 # when no [Unreleased] section is maintained by developers.
 #
@@ -458,7 +470,7 @@ phase_version_bump() {
 #   $1 — version (e.g. "1.1.0")
 #   $2 — changelog file path
 #   $3 — git pathspec for `git log -- <pathspec>` filter (optional; empty = no filter)
-auto_generate_changelog_entry() {
+auto_generate_changelog_entry() (
   local version="$1"
   local changelog="$2"
   local pathspec="${3:-}"
@@ -604,24 +616,27 @@ auto_generate_changelog_entry() {
 
   # 6. Insert into CHANGELOG before the first existing "## [" entry
   local tmpfile
-  tmpfile=$(mktemp)
+  tmpfile=$(mktemp "${changelog}.tmp.XXXXXXXX") || return 2
+  trap 'rm -f "$tmpfile" || true' EXIT
   local inserted=false
 
   while IFS= read -r line; do
     if [[ "$inserted" == false && "$line" =~ ^##\ \[ ]]; then
-      printf '%s\n\n' "$entry" >> "$tmpfile"
+      printf '%s\n\n' "$entry" >> "$tmpfile" || return 2
       inserted=true
     fi
-    printf '%s\n' "$line" >> "$tmpfile"
-  done < "$changelog"
+    printf '%s\n' "$line" >> "$tmpfile" || return 2
+  done < "$changelog" || return 2
 
   # If no existing ## [ found, append after header
   if [[ "$inserted" == false ]]; then
-    printf '\n%s\n' "$entry" >> "$tmpfile"
+    printf '\n%s\n' "$entry" >> "$tmpfile" || return 2
   fi
 
-  mv "$tmpfile" "$changelog"
-}
+  _changelog_release_has_content "$version" "$tmpfile" || return 2
+  mv "$tmpfile" "$changelog" || return 2
+  _changelog_release_has_content "$version" "$changelog" || return 2
+)
 
 # Issue #697 Defect 2: discover sibling changelog files in the repo root.
 # Returns paths newline-separated on stdout. Filters out backups, .claude/,
@@ -644,18 +659,19 @@ _discover_changelogs() {
 
 # Issue #697 Defect 2: write a single domain entry to a target changelog,
 # honoring pathspec partitioning. Returns 0 if entry written, 1 if skipped
-# (no domain commits, idempotent, or `[Unreleased]` finalization).
+# (no domain commits or idempotent), 2 on read/write/installation failure.
 #
 # Args:
 #   $1 — version
 #   $2 — changelog file
 #   $3 — pathspec (empty for single-changelog/default)
 #   $4 — domain label for log output ("framework", "project", or "")
-_write_changelog_entry() {
+_write_changelog_entry() (
   local version="$1" changelog="$2" pathspec="$3" domain_label="${4:-changelog}"
 
   # Per-target idempotency: skip if this version already documented in this file.
   if grep -q "## \[${version}\]" "$changelog"; then
+    _changelog_release_has_content "$version" "$changelog" || return 2
     echo "[CHANGELOG/$domain_label] v${version} already in $changelog — skipped"
     return 1
   fi
@@ -664,16 +680,20 @@ _write_changelog_entry() {
   # equally per-file in multi-changelog repos so each curated section lands).
   if grep -q '## \[Unreleased\]' "$changelog"; then
     local unreleased
-    unreleased=$(awk '/^## \[Unreleased\]/{f=1;next} f && /^## /{exit} f && NF && $0 !~ /^### /{print}' "$changelog")
+    unreleased=$(awk '/^## \[Unreleased\]/{f=1;next} f && /^## /{exit} f && NF && $0 !~ /^### /{print}' "$changelog") || return 2
     # An empty placeholder is not release content. Generate real entries below.
     if [[ -n "$unreleased" ]]; then
     local date_str
     date_str=$(date +%Y-%m-%d)
     local tmpfile
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp "${changelog}.tmp.XXXXXXXX") || return 2
+    trap 'rm -f "$tmpfile" || true' EXIT
     sed "s/## \[Unreleased\]/## [Unreleased]\\
 \\
-## [${version}] — ${date_str}/" "$changelog" > "$tmpfile" && mv "$tmpfile" "$changelog"
+## [${version}] — ${date_str}/" "$changelog" > "$tmpfile" || return 2
+    _changelog_release_has_content "$version" "$tmpfile" || return 2
+    mv "$tmpfile" "$changelog" || return 2
+    _changelog_release_has_content "$version" "$changelog" || return 2
     echo "[CHANGELOG/$domain_label] Finalized v${version} in $(basename "$changelog")"
     return 0
     fi
@@ -685,10 +705,13 @@ _write_changelog_entry() {
   if auto_generate_changelog_entry "$version" "$changelog" "$pathspec"; then
     echo "[CHANGELOG/$domain_label] Auto-generated v${version} in $(basename "$changelog")"
     return 0
+  else
+    local result=$?
+    [[ "$result" -eq 1 ]] || return 2
   fi
   echo "[CHANGELOG/$domain_label] No commits in domain for v${version} — $(basename "$changelog") unchanged"
   return 1
-}
+)
 
 phase_changelog() {
   update_phase "changelog" "in_progress"
@@ -707,7 +730,10 @@ phase_changelog() {
   # changelog exists (the Loa-upstream default), preserve pre-fix behavior.
   # If multiple exist, partition by .claude/** vs project paths.
   local changelogs
-  changelogs=$(_discover_changelogs)
+  if ! changelogs=$(_discover_changelogs); then
+    fail_phase changelog "Changelog discovery failed"
+    return 1
+  fi
   local changelog_count
   changelog_count=$(printf '%s\n' "$changelogs" | grep -c . || true)
 
@@ -718,7 +744,10 @@ phase_changelog() {
       return 0
     fi
     changelogs="${PROJECT_ROOT}/CHANGELOG.md"
-    printf '# Changelog\n\n' > "$changelogs"
+    if ! printf '# Changelog\n\n' > "$changelogs"; then
+      fail_phase changelog "Initial changelog write failed"
+      return 1
+    fi
     changelog_count=1
   fi
 
@@ -732,6 +761,10 @@ phase_changelog() {
     if ! grep -q "## \[${version}\]" "$_cl"; then
       all_have=false
       break
+    fi
+    if ! _changelog_release_has_content "$version" "$_cl"; then
+      fail_phase changelog "Existing release section is empty or unreadable"
+      return 1
     fi
   done <<< "$changelogs"
 
@@ -764,6 +797,10 @@ phase_changelog() {
       update_phase "changelog" "completed" '{"mode": "single-changelog"}'
       increment_metric "phases_completed"
     else
+      if [[ "$?" -ne 1 ]]; then
+        fail_phase changelog "Changelog generation or installation failed"
+        return 1
+      fi
       update_phase "changelog" "skipped" '{"reason": "version already documented or no commits"}'
       increment_metric "phases_skipped"
     fi
@@ -798,12 +835,22 @@ phase_changelog() {
     if _write_changelog_entry "$version" "$framework_changelog" ".claude/" "framework"; then
       git -C "$PROJECT_ROOT" add "$framework_changelog" || return 1
       any_written=true
+    else
+      if [[ "$?" -ne 1 ]]; then
+        fail_phase changelog "Framework changelog generation or installation failed"
+        return 1
+      fi
     fi
   fi
   if [[ -n "$project_changelog" ]]; then
     if _write_changelog_entry "$version" "$project_changelog" ":!.claude/" "project"; then
       git -C "$PROJECT_ROOT" add "$project_changelog" || return 1
       any_written=true
+    else
+      if [[ "$?" -ne 1 ]]; then
+        fail_phase changelog "Project changelog generation or installation failed"
+        return 1
+      fi
     fi
   fi
 
@@ -1238,6 +1285,23 @@ build_notification_body() {
   printf '%b' "$summary"
 }
 
+verify_publication_pr() {
+  local response api_root
+  api_root="https://${GITHUB_HOST}/api/v3"
+  [[ "$GITHUB_HOST" != github.com ]] || api_root="https://api.github.com"
+  check_gh || return 1
+  response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}") || return 1
+  PR_ISSUE_URL=$(jq -ers --argjson pr "$PR_NUMBER" --arg sha "$MERGE_SHA" \
+    --arg repo "$GITHUB_REPOSITORY" --arg api "$api_root" '
+    select(length == 1) | .[0] |
+    select(.number == $pr and .merged == true and .merge_commit_sha == $sha and
+      .base.repo.full_name == $repo and
+      .url == ($api + "/repos/" + $repo + "/pulls/" + ($pr | tostring)) and
+      .issue_url == ($api + "/repos/" + $repo + "/issues/" + ($pr | tostring))) |
+    .issue_url
+  ' <<< "$response") || return 1
+}
+
 phase_notify() {
   local previous
   previous=$(read_state '.phases.notify.result // {}')
@@ -1258,12 +1322,11 @@ phase_notify() {
     fail_phase notify "GitHub CLI and PR number are required"
     return 1
   fi
-  if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}") ||
-      ! issue_url=$(jq -er --argjson pr "$PR_NUMBER" \
-        'select(.number == $pr) | .url | select(type == "string" and length > 0)' <<< "$response"); then
+  if [[ -z "$PR_ISSUE_URL" ]] && ! verify_publication_pr; then
     fail_phase notify "Cannot verify the approved PR"
     return 1
   fi
+  issue_url="$PR_ISSUE_URL"
   id=$(jq -r '.id // empty' <<< "$previous")
   if [[ -z "$id" ]]; then
     if ! response=$(jq -nc --arg body "$summary" '{body:$body}' |
@@ -1427,6 +1490,13 @@ PY
   IFS=$'\t' read -r GITHUB_HOST GITHUB_REPOSITORY <<< "$identity"
 }
 
+generation_request() {
+  jq -nc --argjson pr "$PR_NUMBER" --arg type "$PR_TYPE" --arg sha "$MERGE_SHA" \
+    --argjson downstream "$DOWNSTREAM" --argjson skip_gt "$SKIP_GT" --argjson skip_rtfm "$SKIP_RTFM" \
+    '{pr_number:$pr, pr_type:$type, merge_sha:$sha,
+      downstream:$downstream, skip_gt:$skip_gt, skip_rtfm:$skip_rtfm}'
+}
+
 prepare_candidate() {
   local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
   local version target tree origin push_url notes notification tmp
@@ -1449,11 +1519,13 @@ prepare_candidate() {
   atomic_state_update '.state = "PREPARED"'
   tmp=$(mktemp "${candidate}.tmp.XXXXXXXX") || return 1
   if ! jq -n --slurpfile state "$STATE_FILE" \
+    --argjson request "$(generation_request)" \
     --arg target "$target" --arg tree "$tree" --arg origin "$origin" \
     --arg push_url "$push_url" \
     --arg tag "v${version}" --arg notes "$notes" --arg notification "$notification" \
     '{
-      schema_version:1, pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
+      schema_version:1, generation_request:$request,
+      pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
       merge_sha:$state[0].merge_sha, target_commit:$target, target_tree:$tree,
       remote_origin:$origin, remote_push_url:$push_url, tag:$tag, release_body:$notes,
       notification_body:$notification, prepared_state:$state[0]
@@ -1481,6 +1553,10 @@ publish_candidate() (
   if ! jq -e -s 'length == 1 and (.[0] |
     .schema_version == 1 and (.pr_number | type == "number" and . > 0) and
     (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
+    (.merge_sha | test("^[0-9a-f]{40}$")) and
+    .prepared_state.pr_number == .pr_number and
+    .prepared_state.pr_type == .pr_type and
+    .prepared_state.merge_sha == .merge_sha and
     (.target_commit | test("^[0-9a-f]{40}$")) and
     (.target_tree | test("^[0-9a-f]{40}$")) and
     (.remote_push_url | type == "string" and length > 0) and
@@ -1521,6 +1597,13 @@ publish_candidate() (
   jq --argjson receipt "$comment_receipt" \
     '.prepared_state | .phases.notify.result = $receipt' "$PUBLISH_CANDIDATE" > "$STATE_FILE" || return 1
   atomic_state_update --arg digest "$APPROVED_DIGEST" '.candidate_digest = $digest | .state = "PUBLISHING"'
+  # Prove PR type, repository and merge identity before the first tag/API write.
+  if ! git -C "$PROJECT_ROOT" merge-base --is-ancestor "$MERGE_SHA" "$TARGET_COMMIT" ||
+      ! verify_publication_pr; then
+    atomic_state_update '.state = "FAILED"'
+    fail_phase notify "Cannot verify the approved PR and merge commit before publication"
+    return 1
+  fi
   local phase
   for phase in tag release notify; do
     should_run_phase "$phase" || continue
@@ -1670,6 +1753,7 @@ main() {
     exit 1
   fi
   if [[ "$DRY_RUN" != true ]]; then
+    MERGE_SHA=$(git -C "$PROJECT_ROOT" rev-parse --verify "${MERGE_SHA}^{commit}") || return 1
     mkdir -p "$(dirname "$STATE_FILE")"
     exec 201>"${STATE_FILE}.run.lock"
     flock -n 201 || { echo "ERROR: Another post-merge run is active" >&2; return 1; }
@@ -1681,6 +1765,14 @@ main() {
     if [[ -f "$candidate" ]] &&
         [[ "$(jq -r '.merge_sha // ""' "$candidate")" == "$MERGE_SHA" ]] &&
         [[ "$(jq -r '.target_commit // ""' "$candidate")" == "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" ]]; then
+      local request
+      request=$(generation_request) || return 1
+      if ! jq -e --argjson request "$request" \
+          '.generation_request == $request and
+           .pr_number == $request.pr_number and .pr_type == $request.pr_type' "$candidate" >/dev/null; then
+        echo "ERROR: Generation request differs from the existing candidate; use a fresh merge checkout" >&2
+        return 1
+      fi
       echo "[PREPARED] Existing candidate: ${candidate}"
       echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
       return 0

@@ -122,7 +122,7 @@ interleave() {
 @test "#1248 archive and add_sprint cannot discard an accepted new sprint" {
     first=(archive_cycle finished)
     second=(add_sprint sprint-3)
-    pause_filter='(.cycles[] | select(.id == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null'
+    pause_filter='(.cycles[] | select((.cycle_id // .id) == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null'
     interleave
     [ "$(cat "$SYNC_DIR/second.rc")" = 3 ]
     [ ! -s "$SYNC_DIR/second.stdout" ]
