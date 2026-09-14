@@ -24,6 +24,10 @@
 #                      [--no-chain-verify] [--no-strip-detect]
 #                      [--require-signed]
 #
+# --require-signed uses strict audit verification before producing evidence:
+# a root-signed store, effective cutoff, and valid post-cutoff signatures.
+# It cannot be combined with --no-chain-verify.
+#
 # Exit codes:
 #   0 — success
 #   1 — chain validation failed / strip-attack detected
@@ -78,6 +82,11 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+if [ "$REQUIRE_SIGNED" -eq 1 ] && [ "$CHAIN_VERIFY" -eq 0 ]; then
+    echo "error: --require-signed cannot be combined with --no-chain-verify" >&2
+    exit 2
+fi
+
 # Default group-by if no flags supplied: per-model (closest analog to legacy
 # cost-report.sh).
 if [ "${#GROUP_FIELDS[@]}" -eq 0 ]; then
@@ -87,6 +96,23 @@ fi
 if [ ! -f "$INPUT_PATH" ]; then
     echo "error: input log not found: $INPUT_PATH" >&2
     exit 2
+fi
+
+# Bind verification and every subsequent pass to one private copy. The rolling
+# source can be appended/replaced while this process runs; later reads must not
+# include bytes outside the completed verification. A partial capture is fatal.
+_rollup_snapshot_dir="$(mktemp -d "${TMPDIR:-/tmp}/loa-modelinv-rollup.XXXXXX")" || {
+    echo "error: cannot create private input snapshot directory" >&2
+    exit 1
+}
+trap 'rm -rf -- "$_rollup_snapshot_dir"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+_rollup_input_snapshot="${_rollup_snapshot_dir}/input.jsonl"
+if ! cat -- "$INPUT_PATH" > "$_rollup_input_snapshot" ||
+   ! chmod 400 "$_rollup_input_snapshot"; then
+    echo "error: cannot capture input log: $INPUT_PATH" >&2
+    exit 1
 fi
 
 # -----------------------------------------------------------------------------
@@ -106,8 +132,8 @@ if [ "$CHAIN_VERIFY" -eq 1 ]; then
         # tell post-hoc whether the failure was "envelope N hash mismatch"
         # vs "audit-envelope.sh failed to source". Stderr is now teed into
         # an operator-readable diagnostic file, replayed on FAIL.
-        verify_marker_file="$(mktemp)"
-        verify_diag_file="$(mktemp)"
+        verify_marker_file="${_rollup_snapshot_dir}/verify.marker"
+        verify_diag_file="${_rollup_snapshot_dir}/verify.diagnostic"
         (
             set +u
             # shellcheck source=/dev/null
@@ -115,7 +141,11 @@ if [ "$CHAIN_VERIFY" -eq 1 ]; then
                 printf 'SOURCE-FAILED\n' > "$verify_marker_file"
                 exit 0
             fi
-            if ! audit_verify_chain "$INPUT_PATH" 2>> "$verify_diag_file"; then
+            verify_args=()
+            if [ "$REQUIRE_SIGNED" -eq 1 ]; then
+                verify_args+=(--verify-for-merge)
+            fi
+            if ! audit_verify_chain "${verify_args[@]}" "$_rollup_input_snapshot" 2>> "$verify_diag_file"; then
                 printf 'FAIL\n' > "$verify_marker_file"
             else
                 printf 'OK\n' > "$verify_marker_file"
@@ -135,6 +165,10 @@ if [ "$CHAIN_VERIFY" -eq 1 ]; then
         fi
         rm -f "$verify_diag_file"
     else
+        if [ "$REQUIRE_SIGNED" -eq 1 ]; then
+            echo "[CHAIN-VERIFY-FAILED] audit-envelope.sh not found at $SCRIPT_DIR" >&2
+            exit 1
+        fi
         echo "warning: audit-envelope.sh not found at $SCRIPT_DIR; chain verification SKIPPED" >&2
     fi
 fi
@@ -147,7 +181,7 @@ fi
 # (or with a value != "1.2") trigger [STRIP-ATTACK-DETECTED].
 # -----------------------------------------------------------------------------
 if [ "$STRIP_DETECT" -eq 1 ]; then
-    cutoff_ts="$(jq -r 'select(.payload.writer_version == "1.2") | .ts_utc' "$INPUT_PATH" \
+    cutoff_ts="$(jq -r 'select(.payload.writer_version == "1.2") | .ts_utc' "$_rollup_input_snapshot" \
         2>/dev/null | head -1)"
     if [ -n "$cutoff_ts" ]; then
         # cycle-109 Sprint 5 T5.3 (#870): single-pass jq replaces the prior
@@ -162,7 +196,7 @@ if [ "$STRIP_DETECT" -eq 1 ]; then
             /^\[/ { next }
             NF == 0 { next }
             { printf "%d\t%s\n", NR, $0 }
-        ' "$INPUT_PATH" | jq -R -r --arg cutoff "$cutoff_ts" '
+        ' "$_rollup_input_snapshot" | jq -R -r --arg cutoff "$cutoff_ts" '
             (split("\t") | {n: .[0] | tonumber, rest: .[1:] | join("\t")}) as $r |
             ($r.rest | fromjson? // null) as $env |
             select($env != null and ($env.ts_utc // "") != "") |
@@ -261,7 +295,7 @@ agg="$(jq -c -s \
         total_envelopes: (\$entries | length),
         groups: .
     }
-    " "$INPUT_PATH")"
+    " "$_rollup_input_snapshot")"
 
 if [ -z "$agg" ]; then
     echo "error: jq aggregation failed" >&2
@@ -293,7 +327,7 @@ if [ "$PER_SKILL_DAILY_QUOTA" -gt 0 ]; then
         ] | group_by([.day, .skill])
           | map({day: .[0].day, skill: .[0].skill, tokens_total: (map(.tokens // 0) | add)})
           | map(select(.tokens_total > ($quota | tonumber)))
-        ' "$INPUT_PATH" 2>/dev/null)"
+        ' "$_rollup_input_snapshot" 2>/dev/null)"
     if [ -n "$quota_breaches" ] && [ "$quota_breaches" != "[]" ]; then
         echo "[modelinv-rollup] QUOTA-ALERT: per-skill daily token quota exceeded ($PER_SKILL_DAILY_QUOTA):" >&2
         echo "$quota_breaches" | jq -r '.[] | "  - \(.day) \(.skill): \(.tokens_total) tokens"' >&2

@@ -36,6 +36,9 @@ setup() {
 
     python3 - "$KEY_DIR" <<'PY'
 import sys
+import base64
+import rfc8785
+import yaml
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
@@ -55,10 +58,31 @@ pub_bytes = priv.public_key().public_bytes(
 (key_dir / "test-writer-1.priv").write_bytes(priv_bytes)
 (key_dir / "test-writer-1.priv").chmod(0o600)
 (key_dir / "test-writer-1.pub").write_bytes(pub_bytes)
+
+# Verification must use the root-signed binding, never the local .pub fallback.
+root = ed25519.Ed25519PrivateKey.generate()
+root_pem = root.public_key().public_bytes(
+    serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+).decode()
+core = {
+    "schema_version": "1.0",
+    "keys": [{"writer_id": "test-writer-1", "pubkey_pem": pub_bytes.decode()}],
+    "revocations": [],
+    "trust_cutoff": {"default_strict_after": "2020-01-01T00:00:00Z"},
+}
+(key_dir / "root.pub").write_text(root_pem)
+(key_dir / "trust-store.yaml").write_text(yaml.safe_dump({
+    **core, "root_signature": {
+        "algorithm": "ed25519", "signer_pubkey": root_pem,
+        "signature": base64.b64encode(root.sign(rfc8785.dumps(core))).decode(),
+    },
+}))
 PY
 
     export LOA_AUDIT_KEY_DIR="$KEY_DIR"
     export LOA_AUDIT_SIGNING_KEY_ID="test-writer-1"
+    export LOA_TRUST_STORE_FILE="$KEY_DIR/trust-store.yaml"
+    export LOA_PINNED_ROOT_PUBKEY_PATH="$KEY_DIR/root.pub"
 
     # shellcheck disable=SC1090
     source "$AUDIT_ENVELOPE"
@@ -69,7 +93,7 @@ teardown() {
         find "$TEST_DIR" -type f -delete 2>/dev/null || true
         find "$TEST_DIR" -type d -empty -delete 2>/dev/null || true
     fi
-    unset LOA_AUDIT_KEY_DIR LOA_AUDIT_SIGNING_KEY_ID
+    unset LOA_AUDIT_KEY_DIR LOA_AUDIT_SIGNING_KEY_ID LOA_TRUST_STORE_FILE LOA_PINNED_ROOT_PUBKEY_PATH
 }
 
 # -----------------------------------------------------------------------------

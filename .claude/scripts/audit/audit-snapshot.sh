@@ -8,8 +8,8 @@
 # Reads .claude/data/audit-retention-policy.yaml for the list of primitives
 # where chain_critical=true AND git_tracked=false. For each:
 #   1. Locate the rolling log at .run/<log_basename>
-#   2. Verify chain integrity (audit_verify_chain)
-#   3. Compress to grimoires/loa/audit-archive/<utc-date>-<primitive>.jsonl.gz
+#   2. Capture a private copy and verify its chain (audit_verify_chain)
+#   3. Compress that copy to grimoires/loa/audit-archive/<utc-date>-<primitive>.jsonl.gz
 #   4. Optionally sign (when LOA_AUDIT_SIGNING_KEY_ID is set) — produces a
 #      <archive>.sig sidecar containing base64(Ed25519(sha256(<archive>)))
 #
@@ -17,7 +17,7 @@
 # regular workflow. The recovery path (audit_recover_chain) consumes these.
 #
 # Subcommands / flags:
-#   --dry-run               Print intent only; no file writes
+#   --dry-run               Verify private copy and print intent; no archive writes
 #   --primitive <id>        Snapshot a single primitive (e.g., L1, L2)
 #   --policy <yaml-path>    Override retention-policy yaml location
 #   --archive-dir <path>    Override output archive directory
@@ -88,11 +88,11 @@ read_eligible_primitives() {
         return 1
     fi
     if command -v yq >/dev/null 2>&1; then
-        yq -r '
+        yq -r '@json' "$POLICY_FILE" | jq -r '
           .primitives | to_entries[]
           | select(.value.chain_critical == true and .value.git_tracked == false)
           | "\(.key):\(.value.log_basename)"
-        ' "$POLICY_FILE"
+        '
         return $?
     fi
     python3 - "$POLICY_FILE" <<'PY'
@@ -129,7 +129,7 @@ utc_day() {
 #   1  failure
 #   2  source log missing (not an error per se — primitive may not be active)
 # ---------------------------------------------------------------------------
-snapshot_one() {
+snapshot_one() (
     local primitive_id="$1"
     local log_basename="$2"
     local source_log="${LOGS_DIR}/${log_basename}"
@@ -148,8 +148,25 @@ snapshot_one() {
         return 0
     fi
 
-    # Verify source chain before snapshotting (refuse to archive a broken chain).
-    if ! audit_verify_chain "$source_log" >/dev/null 2>&1; then
+    # The rolling log may change after verification. Capture it once and use
+    # the same private bytes for verification and gzip. The function subshell
+    # owns cleanup on every return without replacing the caller's traps.
+    local snapshot_dir snapshot_log tmp=""
+    snapshot_dir="$(mktemp -d "${TMPDIR:-/tmp}/loa-audit-snapshot.XXXXXX")" || {
+        _log "ERROR: cannot create private snapshot directory for $primitive_id"
+        return 1
+    }
+    trap 'rm -rf -- "$snapshot_dir"; [[ -z "$tmp" ]] || rm -f -- "$tmp"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    snapshot_log="${snapshot_dir}/input.jsonl"
+    if ! cat -- "$source_log" > "$snapshot_log" || ! chmod 400 "$snapshot_log"; then
+        _log "ERROR: cannot capture source log for $primitive_id at $source_log"
+        return 1
+    fi
+
+    # Refuse to archive a broken captured chain.
+    if ! audit_verify_chain "$snapshot_log" >/dev/null 2>&1; then
         _log "ERROR: chain verification failed for $primitive_id at $source_log — refusing to snapshot"
         return 1
     fi
@@ -161,11 +178,10 @@ snapshot_one() {
 
     mkdir -p "$ARCHIVE_DIR"
     # Atomically write via temp + rename.
-    local tmp
     # bug-978 (#978): X-run must trail for BSD mktemp; the .tmp marker now
     # sits mid-name (still identifies partial files on crash).
     tmp="$(mktemp "${archive}.tmp.XXXXXX")"
-    if ! gzip -c "$source_log" > "$tmp"; then
+    if ! gzip -c "$snapshot_log" > "$tmp"; then
         _log "ERROR: gzip failed for $source_log"
         rm -f "$tmp"
         return 1
@@ -208,7 +224,7 @@ snapshot_one() {
         fi
     fi
     return 0
-}
+)
 
 # ---------------------------------------------------------------------------
 # Main loop.
@@ -217,6 +233,11 @@ overall=0
 total_attempted=0
 total_succeeded=0
 total_skipped=0
+
+eligible_primitives="$(read_eligible_primitives)" || {
+    _log "ERROR: failed to read snapshot policy"
+    exit 1
+}
 
 while IFS=: read -r pid basename; do
     [[ -z "$pid" ]] && continue
@@ -231,7 +252,7 @@ while IFS=: read -r pid basename; do
         2) total_skipped=$((total_skipped + 1)) ;;
         *) overall=1 ;;
     esac
-done < <(read_eligible_primitives)
+done <<< "$eligible_primitives"
 
 _log "summary: attempted=$total_attempted succeeded=$total_succeeded skipped=$total_skipped failed=$((total_attempted - total_succeeded - total_skipped))"
 exit "$overall"

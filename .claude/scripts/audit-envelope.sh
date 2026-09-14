@@ -312,47 +312,27 @@ _audit_verify_signature_inline() {
 }
 
 # -----------------------------------------------------------------------------
-# _audit_pubkey_for_key_id <key_id>
+# _audit_pubkey_for_key_id <key_id> [strict] [ts_utc]
 # Resolve the public-key PEM for <key_id>:
-#   1. Trust-store at grimoires/loa/trust-store.yaml — preferred path
-#   2. Local fallback: <key-dir>/<key_id>.pub (used in tests + CI)
+#   1. Root-signed trust-store binding, including revocation checks.
+#   2. Local fallback only with an explicit bootstrap store, never strict.
 # Returns the PEM on stdout, non-zero exit if not resolvable.
 # -----------------------------------------------------------------------------
 _audit_pubkey_for_key_id() {
-    local key_id="$1" strict="${2:-0}"
-
-    # Prefer trust-store entry when available.
-    local trust_store="${LOA_TRUST_STORE_FILE:-${_LOA_AUDIT_TRUST_STORE_DEFAULT}}"
-    if [[ -f "$trust_store" ]] && command -v yq >/dev/null 2>&1; then
-        local pem
-        # mikefarah yq (v4, the repo's pinned yq) has no --arg; pass the key id via
-        # an env var and read it with env(). The old jq-style --arg silently errored
-        # → empty pem → fell through to the local .pub path, which strict mode refuses
-        # (so EVERY trust-store-rooted signed entry failed strict verify). Fixed here.
-        pem="$(LOA_KID="$key_id" yq -r \
-            '.keys[]? | select(.writer_id == env(LOA_KID)) | .pubkey_pem // ""' \
-            "$trust_store" 2>/dev/null || true)"
-        if [[ -n "$pem" && "$pem" != "null" ]]; then
-            printf '%s\n' "$pem"
-            return 0
-        fi
-    fi
-
-    # ATK-3: strict verify-for-merge must NOT trust producer-writable local
-    # pubkeys — only trust-store-rooted writer keys (mirror Python
-    # _resolve_pubkey_pem allow_local_fallback=not strict).
-    if [[ "$strict" == "1" ]]; then
-        return 1
-    fi
-    # Fallback: local <key-dir>/<key_id>.pub (test path).
-    local key_dir
-    key_dir="$(_audit_resolve_key_dir)"
-    local pub_path="${key_dir}/${key_id}.pub"
-    if [[ -f "$pub_path" ]]; then
-        cat "$pub_path"
-        return 0
-    fi
-    return 1
+    # Use the same resolver as Python verification. PyYAML is already required
+    # by trust-store signature verification; yq flavor cannot alter key trust.
+    python3 - "${_LOA_AUDIT_REPO_ROOT}/adapters" "$1" "${2:-0}" "${3:-}" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from loa_cheval.audit_envelope import _resolve_pubkey_pem
+pem = _resolve_pubkey_pem(
+    sys.argv[2], allow_local_fallback=sys.argv[3] != "1",
+    ts_utc=sys.argv[4] or None,
+)
+if pem is None:
+    sys.exit(1)
+print(pem, end="")
+PY
 }
 
 # -----------------------------------------------------------------------------
@@ -458,7 +438,7 @@ try:
     with open(sys.argv[1]) as f:
         doc = yaml.safe_load(f) or {}
 except Exception:
-    print("BOOTSTRAP-PENDING")
+    print("INVALID")
     sys.exit(0)
 sig = ((doc.get("root_signature") or {}).get("signature") or "").strip()
 keys = doc.get("keys") or []
@@ -471,7 +451,9 @@ PY
 )"
 
     local status
-    if [[ "$detect" == "BOOTSTRAP-PENDING" ]]; then
+    if [[ "$detect" == "INVALID" ]]; then
+        status="INVALID"
+    elif [[ "$detect" == "BOOTSTRAP-PENDING" ]]; then
         status="BOOTSTRAP-PENDING"
     else
         if audit_trust_store_verify "$trust_store" >/dev/null 2>&1; then
@@ -771,8 +753,9 @@ _audit_ts_ge_cutoff() {
 #
 # Sprint 1B: when an entry has signature + signing_key_id, also verifies the
 # Ed25519 signature against the pubkey resolved via _audit_pubkey_for_key_id.
-# When LOA_AUDIT_VERIFY_SIGS=0 (or empty), signature verification is skipped
-# (used for 1A-style chain-only verification on un-signed logs).
+# LOA_AUDIT_VERIFY_SIGS=0 skips signatures only outside strict mode.
+# --verify-for-merge (or LOA_AUDIT_STRICT_VERIFY=1) requires a verified
+# trust-store and a nonempty, effective cutoff, and always verifies signatures.
 #
 # F1 (review remediation): for entries with ts_utc >= trust_cutoff, BOTH
 # signature AND signing_key_id are REQUIRED. Stripping either is a downgrade
@@ -783,9 +766,8 @@ _audit_ts_ge_cutoff() {
 # first mismatch and exits non-zero.
 # -----------------------------------------------------------------------------
 audit_verify_chain() {
-    # OKF cycle Sprint 9 (R2): opt-in strict "verify-for-merge" parity with Python.
-    # Default (no flag) preserves the existing permissive behavior for the 3 real
-    # callers (audit-snapshot / recover-chain / graduated-trust).
+    # Share the chain verifier with Python so trust policy cannot drift between
+    # production shell callers and Python. Keep the shell CLI/output contract.
     local strict=0
     if [[ "${1:-}" == "--verify-for-merge" ]]; then strict=1; shift; fi
     # Fold the flag AND the env toggle into strict HERE — on the verify path only —
@@ -797,82 +779,17 @@ audit_verify_chain() {
         return 2
     fi
 
-    # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
-    # An attacker who tampers trust-store.yaml (adds malicious writer pubkey,
-    # signs entries with corresponding private key) is undetected without this.
-    # Strict (verify-for-merge) additionally fails closed on a non-VERIFIED store:
-    # BOOTSTRAP-PENDING → ATK-3, and a MISSING store resolves to BOOTSTRAP-PENDING so
-    # it too fails closed here (mirrors Python, whose ATK-4 missing-branch is shadowed).
-    _audit_check_trust_store "$strict" || return 1
-
-    local lineno=0
-    local expected_prev="GENESIS"
-    local count=0
-    # Default: verify signatures when present. Operators can opt out via
-    # LOA_AUDIT_VERIFY_SIGS=0 (e.g., for migrating un-signed logs).
-    local verify_sigs="${LOA_AUDIT_VERIFY_SIGS:-1}"
-    # F1: trust-cutoff for strict signature requirement (post-cutoff only).
-    local cutoff
-    cutoff="$(_audit_trust_cutoff)"
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        lineno=$((lineno + 1))
-        # Skip seal markers + blank lines.
-        if [[ -z "$line" ]] || [[ "$line" == \[* ]]; then
-            continue
-        fi
-        # Parse prev_hash.
-        local actual_prev
-        if ! actual_prev="$(printf '%s' "$line" | jq -r '.prev_hash // empty' 2>/dev/null)"; then
-            echo "BROKEN line $lineno: not valid JSON" >&2
-            return 1
-        fi
-        if [[ -z "$actual_prev" ]]; then
-            echo "BROKEN line $lineno: missing prev_hash" >&2
-            return 1
-        fi
-        if [[ "$actual_prev" != "$expected_prev" ]]; then
-            echo "BROKEN line $lineno: prev_hash mismatch (got $actual_prev, expected $expected_prev)" >&2
-            return 1
-        fi
-
-        # Sprint 1B signature verification (only when signature field present
-        # AND verification is enabled).
-        if [[ "$verify_sigs" != "0" ]]; then
-            local sig_b64 kid ts_utc
-            sig_b64="$(printf '%s' "$line" | jq -r '.signature // ""' 2>/dev/null)"
-            kid="$(printf '%s' "$line" | jq -r '.signing_key_id // ""' 2>/dev/null)"
-            ts_utc="$(printf '%s' "$line" | jq -r '.ts_utc // ""' 2>/dev/null)"
-
-            # F1: strict requirement post-trust-cutoff. Both signature AND
-            # signing_key_id MUST be present. Missing either => downgrade attack.
-            if _audit_ts_ge_cutoff "$ts_utc" "$cutoff"; then
-                if [[ -z "$sig_b64" || -z "$kid" ]]; then
-                    echo "BROKEN line $lineno: [STRIP-ATTACK-DETECTED] signature required post-cutoff (cutoff=$cutoff, ts=$ts_utc, sig=$([[ -n "$sig_b64" ]] && echo present || echo MISSING), kid=$([[ -n "$kid" ]] && echo present || echo MISSING))" >&2
-                    return 1
-                fi
-            fi
-
-            if [[ -n "$sig_b64" && -n "$kid" ]]; then
-                local pubkey_pem canonical
-                if ! pubkey_pem="$(_audit_pubkey_for_key_id "$kid" "$strict" 2>/dev/null)"; then
-                    echo "BROKEN line $lineno: cannot resolve public key for signing_key_id=$kid" >&2
-                    return 1
-                fi
-                canonical="$(_audit_chain_input "$line")"
-                if ! _audit_verify_signature_inline "$pubkey_pem" "$canonical" "$sig_b64"; then
-                    echo "BROKEN line $lineno: signature verification failed for signing_key_id=$kid" >&2
-                    return 1
-                fi
-            fi
-        fi
-
-        # Compute hash of THIS entry's chain-input for the next iteration.
-        expected_prev="$(_audit_chain_input "$line" | _audit_sha256)"
-        count=$((count + 1))
-    done < "$log_path"
-
-    echo "OK $count entries"
-    return 0
+    python3 - "${_LOA_AUDIT_REPO_ROOT}/adapters" "$log_path" "$strict" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from loa_cheval.audit_envelope import audit_verify_chain
+try:
+    ok, message = audit_verify_chain(sys.argv[2], verify_for_merge=sys.argv[3] == "1")
+except Exception as exc:
+    ok, message = False, "BROKEN: audit verification failed (" + type(exc).__name__ + ")"
+print(message, file=sys.stdout if ok else sys.stderr)
+sys.exit(0 if ok else 1)
+PY
 }
 
 # -----------------------------------------------------------------------------

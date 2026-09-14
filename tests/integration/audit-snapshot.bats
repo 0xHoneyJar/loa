@@ -104,6 +104,41 @@ seed_chain() {
     [[ -f "${ARCHIVE_DIR}/2026-05-04-L2.jsonl.gz" ]]
 }
 
+@test "snapshot policy: malformed YAML fails instead of reporting an empty success" {
+    printf 'primitives: [\n' > "$POLICY"
+
+    run "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ERROR: failed to read snapshot policy"* ]]
+    [[ -z "$(ls -A "$ARCHIVE_DIR")" ]]
+}
+
+@test "snapshot policy: parser failure after valid output cannot write archives" {
+    seed_chain "$L1_LOG" L1
+    mkdir -p "${TEST_DIR}/bin"
+    cat > "${TEST_DIR}/bin/yq" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' '{"primitives":{"L1":{"log_basename":"panel-decisions.jsonl","chain_critical":true,"git_tracked":false}}}'
+echo "fixture parser failure after partial output" >&2
+exit 1
+SH
+    chmod +x "${TEST_DIR}/bin/yq"
+
+    PATH="${TEST_DIR}/bin:$PATH" run "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR"
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"ERROR: failed to read snapshot policy"* ]]
+    [[ -z "$(ls -A "$ARCHIVE_DIR")" ]]
+}
+
+@test "snapshot policy: no eligible primitives is a successful no-op" {
+    printf 'primitives: {}\n' > "$POLICY"
+
+    run "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR"
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"attempted=0 succeeded=0 skipped=0 failed=0"* ]]
+    [[ -z "$(ls -A "$ARCHIVE_DIR")" ]]
+}
+
 @test "snapshot: archive content gunzip-equal to source log" {
     seed_chain "$L2_LOG" L2
     run "$SNAPSHOT_SCRIPT" --policy "$POLICY" --logs-dir "$LOGS_DIR" --archive-dir "$ARCHIVE_DIR" --primitive L2
