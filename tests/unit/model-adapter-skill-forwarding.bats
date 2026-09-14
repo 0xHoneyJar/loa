@@ -90,3 +90,29 @@ teardown() {
     [ -f "$TMP_DIR/argv.recorded" ]
     grep -qFx -- "adversarial-review:audit" "$TMP_DIR/argv.recorded"
 }
+
+@test "model-adapter help describes unconditional Cheval and retired routing flags" {
+    # Exercise the actual --help argument path without overlay initialization
+    # touching the checkout or dispatching a model.
+    local fixture="$TMP_DIR/help-project/.claude/scripts"
+    mkdir -p "$fixture/lib"
+    cp "$ADAPTER" "$fixture/model-adapter.sh"
+    : > "$fixture/lib/model-resolver.sh"
+    echo 'loa_overlay_init() { :; }' > "$fixture/lib/overlay-source-helper.sh"
+
+    local flag first_output=""
+    for flag in true false; do
+        run env HOUNFOUR_FLATLINE_ROUTING="$flag" "$fixture/model-adapter.sh" --help
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"always dispatches through model-invoke (Cheval)."* ]]
+        [[ "$output" == *"hounfour.flatline_routing and HOUNFOUR_FLATLINE_ROUTING are retired;"* ]]
+        [[ "$output" == *"neither selects a legacy runtime path."* ]]
+        [[ "$output" != *"otherwise uses legacy adapter"* ]]
+        [[ "$output" != *"Use legacy adapter (default)"* ]]
+        if [[ -n "$first_output" ]]; then
+            [ "$output" = "$first_output" ]
+        fi
+        first_output="$output"
+        [ ! -e "$TMP_DIR/argv.recorded" ]
+    done
+}

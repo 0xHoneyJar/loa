@@ -21,13 +21,11 @@
 #   score    → flatline-scorer
 #   dissent  → flatline-dissenter
 #
-# Exit codes match legacy (SDD §4.4.3):
+# Exit codes:
 #   0 - Success
-#   1 - API error
-#   2 - Invalid input
-#   3 - Timeout
-#   4 - Missing API key
-#   5 - Invalid response format
+#   2 - Invalid input or missing model-invoke
+#   4 - Model rejected by health-cache preflight
+#   Nonzero model-invoke exit codes propagate unchanged.
 # =============================================================================
 
 set -euo pipefail
@@ -47,7 +45,7 @@ CONFIG_FILE="$PROJECT_ROOT/.loa.config.yaml"
 MODEL_INVOKE="${MODEL_INVOKE:-$SCRIPT_DIR/model-invoke}"
 
 # cycle-099 sprint-1B (T1.8): bring the canonical model registry into scope
-# (MODEL_PROVIDERS / MODEL_IDS / COST_INPUT / COST_OUTPUT). The local
+# (MODEL_PROVIDERS / MODEL_IDS; pricing lives in the YAML/Python path). The local
 # MODEL_TO_ALIAS map below is preserved for the test contract in
 # tests/unit/model-adapter-aliases.bats (T8 greps the file for keys),
 # but lookups now prefer resolve_provider_id at the call site (line ~470)
@@ -60,9 +58,8 @@ source "$SCRIPT_DIR/lib/model-resolver.sh"
 # helper. Sourcing this file only declares functions and resolves the
 # (readonly) merged/lockfile/python3 paths — it does NOT touch the
 # filesystem or invoke the hook. The actual init (`loa_overlay_init`)
-# happens INSIDE `main()` only when v2.0 routing is enabled, so the
-# default legacy path stays bit-identical to pre-cycle-099 behavior
-# (per GP-F2 / CYP-F11 dual-review fix).
+# happens inside `main()` before argument parsing. Dispatch then uses
+# model-invoke unconditionally; there is no legacy routing branch.
 # shellcheck source=lib/overlay-source-helper.sh
 source "$SCRIPT_DIR/lib/overlay-source-helper.sh"
 
@@ -101,7 +98,7 @@ declare -A MODE_TO_AGENT=(
 # Legacy Model Name → model-invoke Alias Translation
 # =============================================================================
 
-# The legacy adapter uses model names like "gpt-5.2" and "opus" directly.
+# Legacy callers use model names like "gpt-5.2" and "opus" directly.
 # model-invoke uses aliases (reviewer, reasoning, opus, cheap) or
 # provider:model-id format. This maps legacy names to model-invoke format.
 declare -A MODEL_TO_ALIAS=(
@@ -312,14 +309,11 @@ usage() {
     cat <<EOF
 Usage: model-adapter.sh --model <model> --mode <mode> [options]
 
-Compatibility shim (v2.0.0) — routes through model-invoke when
-hounfour.flatline_routing is enabled, otherwise uses legacy adapter.
+Compatibility shim (v2.0.0) — always dispatches through model-invoke (Cheval).
 
 Models:
-  gpt-5.2                    OpenAI GPT-5.2
-  gpt-5.3-codex              OpenAI GPT-5.3 Codex
-  opus, claude-opus-4.7      Claude Opus 4.7 (current; 4.6 alias retargeted to 4.7 in bash layer)
-  (Full model list depends on routing path)
+  Aliases such as opus or reviewer, or provider:model-id values.
+  Resolve using model-config.yaml and operator overlays.
 
 Modes:
   review                     Generate improvements (→ flatline-reviewer)
@@ -333,22 +327,20 @@ Options:
   --context <file>           Knowledge context file
   --prompt <file>            Custom prompt template
   --timeout <seconds>        API timeout (default: 60)
-  --max-retries <n>          Max retry attempts (default: 3)
+  --max-retries <n>          Accepted for compatibility; model-invoke handles retries
+  --skill <name>            Calling primitive for MODELINV attribution
   --json                     Output as JSON (default)
   --dry-run                  Validate without calling API
 
-Feature flag:
-  hounfour.flatline_routing: true   Route through model-invoke
-  hounfour.flatline_routing: false  Use legacy adapter (default)
-  HOUNFOUR_FLATLINE_ROUTING=true    Environment override
+Retired routing flags:
+  hounfour.flatline_routing and HOUNFOUR_FLATLINE_ROUTING are retired;
+  neither selects a legacy runtime path.
 
 Exit codes:
   0 - Success
-  1 - API error
-  2 - Invalid input
-  3 - Timeout
-  4 - Missing API key
-  5 - Invalid response format
+  2 - Invalid input or missing model-invoke
+  4 - Model rejected by health-cache preflight
+  Nonzero model-invoke exit codes propagate unchanged.
 EOF
 }
 
@@ -356,10 +348,8 @@ main() {
     # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
     # pre-fix feature-flag early-exit to delegate_to_legacy was removed.
     # cheval is now the unconditional default for operator-facing dispatch.
-    # The flag-helper function is retained for other callers (gpt-review-
-    # api, lib-route-table, lib-curl-fallback, red-team-model-adapter);
-    # T3.8 cleans those up after T3.7 destructive legacy deletion under
-    # C109.OP-S3 operator-approval marker.
+    # T3.7 deleted the legacy implementation; T3.8 removed this shim's
+    # unused flag helper. Other entrypoints own their routing helpers.
     log "Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)"
 
     # cycle-099 sprint-2C (T2.5): initialize the operator-extras-aware
