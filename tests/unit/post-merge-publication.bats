@@ -6,6 +6,9 @@ setup() {
     export PROJECT_ROOT="$CASE_DIR/repo"
     mkdir -p "$PROJECT_ROOT/.claude/scripts" "$PROJECT_ROOT/.run" "$CASE_DIR/bin"
     cp "$ROOT/.claude/scripts/"{bootstrap.sh,path-lib.sh,post-merge-orchestrator.sh,semver-bump.sh,release-notes-gen.sh} "$PROJECT_ROOT/.claude/scripts/"
+    if [[ -n "${POST_MERGE_UNDER_TEST:-}" ]]; then
+        cp "$POST_MERGE_UNDER_TEST" "$PROJECT_ROOT/.claude/scripts/post-merge-orchestrator.sh"
+    fi
     git -C "$PROJECT_ROOT" init -q
     git -C "$PROJECT_ROOT" config user.name Test
     git -C "$PROJECT_ROOT" config user.email test@example.invalid
@@ -21,6 +24,7 @@ setup() {
     git -C "$PROJECT_ROOT" remote add origin https://github.com/test/repo.git
     git -C "$PROJECT_ROOT" remote set-url --push origin "$CASE_DIR/remote"
     SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    export GH_MERGE_SHA="$SHA"
     SCRIPT="$PROJECT_ROOT/.claude/scripts/post-merge-orchestrator.sh"
     export GH_LOG="$CASE_DIR/gh.log"
     cat > "$CASE_DIR/bin/gh" <<'SH'
@@ -42,6 +46,24 @@ elif [[ "$*" == *"releases/81"* ]]; then
 elif [[ "$*" == *"--method POST"* && "$*" == *"/releases "* ]]; then
     jq '. + {id:81}' > "${GH_LOG}.release"
     cat "${GH_LOG}.release"
+elif [[ "$*" == *"repos/test/repo/pulls/7" ]]; then
+    if [[ "${GH_PR_MODE:-}" == issue ]]; then
+        printf '{"number":7,"url":"https://api.github.com/repos/test/repo/issues/7"}\n'
+    elif [[ "${GH_PR_MODE:-}" == unavailable ]]; then
+        exit 1
+    else
+        jq -nc --arg mode "${GH_PR_MODE:-ok}" --arg sha "$GH_MERGE_SHA" '
+          {number:7, url:"https://api.github.com/repos/test/repo/pulls/7",
+           issue_url:"https://api.github.com/repos/test/repo/issues/7",
+           merged:true, merge_commit_sha:$sha, base:{repo:{full_name:"test/repo"}}} |
+          if $mode == "unmerged" then .merged=false
+          elif $mode == "wrong-merge" then .merge_commit_sha=("0" * 40)
+          elif $mode == "wrong-repo" then .base.repo.full_name="test/other"
+          elif $mode == "wrong-pr" then .number=99
+          elif $mode == "wrong-url" then .url="https://api.github.com/repos/test/other/pulls/7"
+          elif $mode == "wrong-issue" then .issue_url="https://api.github.com/repos/test/other/issues/7"
+          else . end'
+    fi
 elif [[ "$*" == *"repos/test/repo/issues/7" && "$*" != *"--method POST"* ]]; then
     printf '{"number":7,"url":"https://api.github.com/repos/test/repo/issues/7"}\n'
 elif [[ "$*" == *"--method POST"* ]]; then
@@ -98,6 +120,9 @@ invoke_notify() {
     [ "$status" -eq 0 ]
     [ -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
     jq -e '.tag == "v1.0.1" and (.release_body | length > 0) and (.notification_body | length > 0) and (.target_commit | length == 40)' "$PROJECT_ROOT/.run/post-merge-candidate.json"
+    jq -e --slurpfile state "$PROJECT_ROOT/.run/post-merge-state.json" \
+        '.prepared_state == $state[0] and .prepared_state.state == "PREPARED"' \
+        "$PROJECT_ROOT/.run/post-merge-candidate.json"
     [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
     if [[ -f "$GH_LOG" ]]; then
         ! grep -Eq 'release create|pr comment|--method POST' "$GH_LOG"
@@ -203,7 +228,8 @@ generate() {
     export GH_MODE=fail
     run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
     [ "$status" -ne 0 ]
-    jq -e '.state == "FAILED" and .phases.release.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    jq -e '.state == "FAILED" and .phases.notify.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
 }
 
 @test "publication: retry verifies the retained comment without creating a duplicate" {
@@ -266,4 +292,236 @@ generate() {
     [ "$status" -ne 0 ]
     jq -e '.state == "FAILED" and .phases.notify.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(grep -c -- '--method POST repos/test/repo/issues/7/comments' "$GH_LOG")" = 1 ]
+}
+
+@test "RL-02: curated and generated changelog install failures abort preparation" {
+    # Fail only the rename into the actual changelog, retaining real Git/jq/state I/O.
+    export REAL_MV="$(command -v mv)"
+    cat > "$CASE_DIR/bin/mv" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$PROJECT_ROOT/CHANGELOG.md" ]]; then exit 73; fi
+exec "$REAL_MV" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mv"
+    for curated in false true; do
+        if [[ "$curated" == true ]]; then
+            printf '# Changelog\n\n## [Unreleased]\n\n- curated fix\n\n## [1.0.0]\n\n- old change\n' > "$PROJECT_ROOT/CHANGELOG.md"
+            git -C "$PROJECT_ROOT" add CHANGELOG.md
+            git -C "$PROJECT_ROOT" commit -qm "docs: curate changelog"
+            SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+        fi
+        cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+        run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+        [ "$status" -ne 0 ]
+        cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+        [ ! -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+        jq -e '.state == "FAILED" and .phases.changelog.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    done
+}
+
+@test "RL-04: only the identical content-determining generation request reuses a candidate" {
+    generate
+    cp "$CANDIDATE" "$CASE_DIR/candidate-before"
+    cp "$PROJECT_ROOT/.run/post-merge-state.json" "$CASE_DIR/state-before"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+    for change in pr type downstream gt rtfm; do
+        args=(--generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm)
+        case "$change" in
+            pr) args[2]=99 ;;
+            type) args[4]=other ;;
+            downstream) unset 'args[7]' ;;
+            gt) unset 'args[8]' ;;
+            rtfm) unset 'args[9]' ;;
+        esac
+        run bash "$SCRIPT" "${args[@]}"
+        [ "$status" -ne 0 ]
+        [[ "$output" == *"request differs"* ]]
+        cmp "$CANDIDATE" "$CASE_DIR/candidate-before"
+        cmp "$PROJECT_ROOT/.run/post-merge-state.json" "$CASE_DIR/state-before"
+    done
+}
+
+@test "RL-04: abbreviated merge SHA is normalized for candidate identity and reuse" {
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "${SHA:0:10}" --downstream --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+    CANDIDATE="$PROJECT_ROOT/.run/post-merge-candidate.json"
+    jq -e --arg sha "$SHA" '.merge_sha == $sha and .generation_request.merge_sha == $sha and .prepared_state.merge_sha == $sha' "$CANDIDATE"
+    cp "$CANDIDATE" "$CASE_DIR/before"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+    cmp "$CANDIDATE" "$CASE_DIR/before"
+    export GH_MODE=ok
+    DIGEST="$(sha256sum "$CANDIDATE" | cut -d' ' -f1)"
+    run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
+    [ "$status" -eq 0 ]
+}
+
+@test "RL-05: publication requires the intended merged PR before any remote mutation" {
+    generate
+    export GH_MODE=ok
+    for invalid in issue unavailable unmerged wrong-merge wrong-repo wrong-pr wrong-url wrong-issue; do
+        export GH_PR_MODE="$invalid"
+        : > "$GH_LOG"
+        run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
+        [ "$status" -ne 0 ]
+        [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
+        ! grep -q -- '--method POST' "$GH_LOG"
+        jq -e '.state == "FAILED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    done
+}
+
+assert_changelog_failure() {
+    [ "$status" -ne 0 ]
+    [ ! -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+    jq -e '.state == "FAILED" and .phases.changelog.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ -z "$(git --git-dir="$CASE_DIR/remote" tag)" ]
+}
+
+@test "RL-02: temp creation and temp write failures abort curated and generated entries" {
+    export REAL_MKTEMP="$(command -v mktemp)"
+    export BAD_TEMP="$CASE_DIR/not-a-file"
+    mkdir "$BAD_TEMP"
+    cat > "$CASE_DIR/bin/mktemp" <<'SH'
+#!/usr/bin/env bash
+if [[ "$*" == *"CHANGELOG.md.tmp."* || "$#" == 0 ]]; then
+    if [[ "$TEMP_MODE" == fail ]]; then exit 73; fi
+    printf '%s\n' "$BAD_TEMP"
+    exit 0
+fi
+exec "$REAL_MKTEMP" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mktemp"
+    for curated in false true; do
+        if [[ "$curated" == true ]]; then
+            printf '# Changelog\n\n## [Unreleased]\n\n- curated fix\n' > "$PROJECT_ROOT/CHANGELOG.md"
+            git -C "$PROJECT_ROOT" add CHANGELOG.md
+            git -C "$PROJECT_ROOT" commit -qm "docs: curate changelog"
+            SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+        fi
+        cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+        for mode in fail write; do
+            export TEMP_MODE="$mode"
+            run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+            assert_changelog_failure
+            cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+        done
+    done
+}
+
+@test "RL-02: curated sed failure cannot become a successful finalization" {
+    printf '# Changelog\n\n## [Unreleased]\n\n- curated fix\n' > "$PROJECT_ROOT/CHANGELOG.md"
+    git -C "$PROJECT_ROOT" add CHANGELOG.md
+    git -C "$PROJECT_ROOT" commit -qm "docs: curate changelog"
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+    export REAL_SED="$(command -v sed)"
+    cat > "$CASE_DIR/bin/sed" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$PROJECT_ROOT/CHANGELOG.md" ]]; then exit 73; fi
+exec "$REAL_SED" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/sed"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    assert_changelog_failure
+    cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+}
+
+@test "RL-02: successful rename without installed bytes fails release section readback" {
+    export REAL_MV="$(command -v mv)"
+    cat > "$CASE_DIR/bin/mv" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$PROJECT_ROOT/CHANGELOG.md" ]]; then exit 0; fi
+exec "$REAL_MV" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mv"
+    cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    assert_changelog_failure
+    cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+}
+
+dual_changelog_failure() {
+    export FAILED_CHANGELOG="$PROJECT_ROOT/$1"
+    printf '# Changelog\n\n## [Unreleased]\n\n- curated framework fix\n' > "$PROJECT_ROOT/CHANGELOG.md"
+    printf '# Changelog\n\n## [Unreleased]\n\n- curated project fix\n' > "$PROJECT_ROOT/PROJECT-CHANGELOG.md"
+    git -C "$PROJECT_ROOT" add CHANGELOG.md PROJECT-CHANGELOG.md
+    git -C "$PROJECT_ROOT" commit -qm "docs: curate domain changelogs"
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    cp "$FAILED_CHANGELOG" "$CASE_DIR/before"
+    export REAL_MV="$(command -v mv)"
+    cat > "$CASE_DIR/bin/mv" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$FAILED_CHANGELOG" ]]; then exit 73; fi
+exec "$REAL_MV" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mv"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    assert_changelog_failure
+    cmp "$FAILED_CHANGELOG" "$CASE_DIR/before"
+}
+
+@test "RL-02: framework changelog failure aborts multi-domain preparation" {
+    dual_changelog_failure CHANGELOG.md
+}
+
+@test "RL-02: project changelog failure aborts multi-domain preparation" {
+    dual_changelog_failure PROJECT-CHANGELOG.md
+}
+
+@test "RIR-01: failed changelog history read cannot count as an empty domain" {
+    cp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+    export REAL_GIT="$(command -v git)"
+    cat > "$CASE_DIR/bin/git" <<'SH'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == "--format=%s" ]]; then exit 73; fi
+done
+exec "$REAL_GIT" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/git"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    assert_changelog_failure
+    cmp "$PROJECT_ROOT/CHANGELOG.md" "$CASE_DIR/before"
+}
+
+candidate_io_failure() {
+    export REAL_MKTEMP="$(command -v mktemp)" REAL_MV="$(command -v mv)"
+    export CANDIDATE_IO_FAILURE="$1"
+    cat > "$CASE_DIR/bin/mktemp" <<'SH'
+#!/usr/bin/env bash
+if [[ "$CANDIDATE_IO_FAILURE" == allocate && "$*" == *"post-merge-candidate.json.tmp."* ]]; then
+    exit 73
+fi
+exec "$REAL_MKTEMP" "$@"
+SH
+    cat > "$CASE_DIR/bin/mv" <<'SH'
+#!/usr/bin/env bash
+if [[ "${!#}" == "$PROJECT_ROOT/.run/post-merge-candidate.json" ]]; then
+    case "$CANDIDATE_IO_FAILURE" in
+        rename) exit 73 ;;
+        no-bytes) exit 0 ;;
+    esac
+fi
+exec "$REAL_MV" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/mktemp" "$CASE_DIR/bin/mv"
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    [ "$status" -ne 0 ]
+    [ ! -e "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+    jq -e '.state == "FAILED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ -z "$(find "$PROJECT_ROOT/.run" -name 'post-merge-candidate.json.tmp.*' -print)" ]
+    [[ "$output" != *"[PREPARED]"* ]]
+}
+
+@test "RIR-02: candidate allocation failure cannot leave PREPARED" {
+    candidate_io_failure allocate
+}
+
+@test "RIR-02: candidate rename failure cannot leave PREPARED or temporary bytes" {
+    candidate_io_failure rename
+}
+
+@test "RIR-02: candidate success requires installed bytes" {
+    candidate_io_failure no-bytes
 }

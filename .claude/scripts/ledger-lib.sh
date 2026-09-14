@@ -815,9 +815,15 @@ archive_cycle() (
     fi
 
     local active_cycle
-    active_cycle=$(get_active_cycle) || return $?
+    active_cycle=$(jq -ers '
+        if length != 1 or (.[0] | type) != "object" then error("invalid ledger") else .[0] end |
+        if (.cycles | type) != "array" then error("invalid cycles") else . end |
+        .active_cycle |
+        if . == null then "" elif type == "string" and length > 0 then .
+        else error("invalid active cycle") end
+    ' "$ledger_path") || return $LEDGER_VALIDATION_ERROR
 
-    if [[ "$active_cycle" == "null" ]]; then
+    if [[ -z "$active_cycle" ]]; then
         echo "No active cycle to archive" >&2
         return $LEDGER_NO_ACTIVE_CYCLE
     fi
@@ -827,9 +833,12 @@ archive_cycle() (
     # state. Mirrors the gate added in post-merge-orchestrator::archive_cycle_in_ledger
     # so the manual ledger-lib path enforces the same invariant.
     local incomplete_count
-    incomplete_count=$(jq -r --arg id "$active_cycle" \
-        '[(.cycles[] | select(.id == $id)).sprints[]? | select(.status != "completed")] | length' \
-        "$ledger_path") || return $LEDGER_ERROR
+    incomplete_count=$(jq -er --arg id "$active_cycle" '
+        [.cycles[] | select((.cycle_id // .id) == $id)] |
+        if length != 1 then error("active cycle missing or duplicated") else .[0] end |
+        if (.sprints | type) != "array" then error("invalid sprints") else . end |
+        [.sprints[] | select(if type == "object" then .status != "completed" else true end)] | length
+    ' "$ledger_path") || return $LEDGER_VALIDATION_ERROR
 
     if [[ "${incomplete_count:-0}" -gt 0 ]]; then
         echo "Cycle ${active_cycle} has ${incomplete_count} incomplete sprint(s); refusing to archive" >&2
@@ -842,28 +851,42 @@ archive_cycle() (
     grimoire_dir=$(get_grimoire_dir)
     local archive_dir
     archive_dir=$(get_archive_dir)
-    local archive_path="${archive_dir}/${now_date_str}-${slug}"
+    # Both values are directory components, never paths.
+    if [[ -z "$slug" || "$slug" == */* || "$active_cycle" == */* ]]; then
+        echo "Archive slug and cycle ID must be nonempty directory components" >&2
+        return $LEDGER_VALIDATION_ERROR
+    fi
+    local archive_path="${archive_dir}/${now_date_str}-${active_cycle}-${slug}"
+    if [[ -e "$archive_path" || -L "$archive_path" ]]; then
+        echo "Archive destination already exists: $archive_path" >&2
+        return $LEDGER_ERROR
+    fi
 
-    # Create archive directory
-    mkdir -p "$archive_path/a2a" || return $LEDGER_ERROR
+    # Stage privately under the same filesystem and transaction lock. Failed
+    # copies never publish a partial archive or merge into an earlier snapshot.
+    mkdir -p "$archive_dir" || return $LEDGER_ERROR
+    local staging
+    staging=$(mktemp -d "${archive_dir}/.archive.XXXXXXXX") || return $LEDGER_ERROR
+    trap 'rm -rf "$staging"' EXIT
+    mkdir "$staging/a2a" || return $LEDGER_ERROR
 
     # Copy current artifacts
     local artifact
     for artifact in prd.md sdd.md sprint.md; do
         if [[ -f "${grimoire_dir}/$artifact" ]]; then
-            cp "${grimoire_dir}/$artifact" "$archive_path/" || return $LEDGER_ERROR
+            cp "${grimoire_dir}/$artifact" "$staging/" || return $LEDGER_ERROR
         fi
     done
 
     # Copy sprint directories for this cycle
     local sprints
     sprints=$(jq -r --arg id "$active_cycle" \
-        '(.cycles[] | select(.id == $id)).sprints[].global_id' "$ledger_path") || return $LEDGER_ERROR
+        '(.cycles[] | select((.cycle_id // .id) == $id)).sprints[].global_id' "$ledger_path") || return $LEDGER_ERROR
 
     for sprint_id in $sprints; do
         local sprint_dir="${grimoire_dir}/a2a/sprint-${sprint_id}"
         if [[ -d "$sprint_dir" ]]; then
-            cp -r "$sprint_dir" "$archive_path/a2a/" || return $LEDGER_ERROR
+            cp -r "$sprint_dir" "$staging/a2a/" || return $LEDGER_ERROR
         fi
     done
 
@@ -873,9 +896,11 @@ archive_cycle() (
     # Update ledger
     local ledger_content
     ledger_content=$(jq --arg id "$active_cycle" --arg archived "$now" --arg path "$archive_path" \
-        '(.cycles[] | select(.id == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null' \
+        '(.cycles[] | select((.cycle_id // .id) == $id)) |= (.status = "archived" | .archived = $archived | .archive_path = $path) | .active_cycle = null' \
         "$ledger_path") || return $LEDGER_ERROR
 
+    [[ ! -e "$archive_path" && ! -L "$archive_path" ]] || return $LEDGER_ERROR
+    mv "$staging" "$archive_path" || return $LEDGER_ERROR
     _write_ledger "$ledger_content" || return $LEDGER_ERROR
 
     echo "$archive_path"
