@@ -168,11 +168,13 @@ interleave() {
     flock -n "$LEDGER.lock" true
 }
 
-@test "#1248 transaction lock does not close a caller-owned fd9" {
+@test "#1248 transaction lock preserves a caller-owned fd9 and its lock" {
     run bash -c '
         source "$SCRIPT"
         exec 9>"$SYNC_DIR/caller-fd"
+        flock -x 9
         update_cycle_field cycle-001 label changed
+        if flock -n "$SYNC_DIR/caller-fd" true; then exit 90; fi
         printf retained >&9
     '
     [ "$status" = 0 ]

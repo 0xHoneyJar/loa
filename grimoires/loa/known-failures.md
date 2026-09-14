@@ -1344,3 +1344,27 @@ Do not treat file counts as copy verification or successful curl as binary integ
 ### Reading guide
 
 Inspect the selected interpreter and validator before repeating failures. Do not replace schema checks with success stubs or change production validation to accommodate an incomplete local installation.
+
+---
+
+## KF-030: transaction locking introduces Bash 4 descriptor syntax into a Bash 3.2 target
+
+**Status**: RESOLVED-IN-FLIGHT — portability gate and transaction regressions pass; native Bash 3.2 execution remains unverified
+**Feature**: `ledger-lib.sh` transaction locking
+**Symptom**: Named descriptor allocation passes Linux Bash syntax and ledger behavior tests but violates the framework's Bash 3.2 compatibility contract. The full hosted unit suite catches the unsupported syntax.
+**First observed**: PR #1251, Actions run `34823549793`, head `a3a72819404939a39330d4b539c08a9892449bc8`
+**Recurrence count**: 1 hosted CI run
+**Current workaround**: Use fd 9 inside the existing mutator subshell. Nested calls retain the outer transaction descriptor without reopening or explicitly unlocking it; the caller's descriptor and lock remain intact.
+**Upstream issue**: #1248 / PR #1251
+**Related visions / lore**: KF-012 portability failures; host Bash syntax checks do not prove the oldest supported runtime
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Dynamic named descriptor allocation with focused Linux ledger tests | Behavioral tests passed, but the full CI portability gate rejected the Bash 4 syntax. The same run also exposed a fixed-count KF fixture and stale generated repository map. | Actions run `34823549793`; `tests/unit/bash32-portability.bats` |
+| 2026-09-14 | Use a subshell-owned numeric descriptor; retain nested lock ownership and check the caller's existing fd 9 lock | Portability, concurrency, lock timeout, caller-lock preservation and ledger workflow checks pass. Native Bash 3.2 availability check remains an explicit skip. Reuse PR #1250's exact live-ID comparison and regenerate REPO-MAP for the companion CI failures. | `ci-repair-targeted.log`: 96 passed, 1 existing runtime-availability skip; `tests/unit/ledger-transactions.bats` |
+
+### Reading guide
+
+Run the portability contract alongside shell behavior tests. Do not replace named allocation with an explicit nested unlock: inherited descriptors share the same lock. A generated-map check can be advisory in its own workflow and still mandatory in the full unit suite.

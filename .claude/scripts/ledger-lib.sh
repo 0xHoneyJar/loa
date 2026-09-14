@@ -145,8 +145,8 @@ recover_from_backup() (
 # Lock file timeout in seconds
 readonly LEDGER_LOCK_TIMEOUT=5
 
-# Mutators run in subshells: the outermost owns the lock descriptor until its
-# whole read-modify-write completes. Nested calls (including $() allocation)
+# Mutators run in subshells: fd 9 belongs to the outermost transaction without
+# replacing the caller's descriptor. Nested calls (including $() allocation)
 # inherit the same open descriptor and must neither reopen nor unlock it.
 _lock_ledger_transaction() {
     local ledger_path
@@ -156,8 +156,8 @@ _lock_ledger_transaction() {
     fi
 
     mkdir -p "$(dirname "$ledger_path")" || return $LEDGER_ERROR
-    exec {_LEDGER_TRANSACTION_FD}>"${ledger_path}.lock" || return $LEDGER_ERROR
-    if ! flock -w "$LEDGER_LOCK_TIMEOUT" "$_LEDGER_TRANSACTION_FD"; then
+    exec 9>"${ledger_path}.lock" || return $LEDGER_ERROR
+    if ! flock -w "$LEDGER_LOCK_TIMEOUT" 9; then
         echo "ERROR: Could not acquire ledger lock within ${LEDGER_LOCK_TIMEOUT}s" >&2
         return $LEDGER_ERROR
     fi

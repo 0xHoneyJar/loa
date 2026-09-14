@@ -338,9 +338,41 @@
       "subtests_passed": null,
       "log_sha256": "5f8bffe2521452c6b25cb4c18f0deeaa64169dcf7aa195d69d0e42f713833913",
       "log": "peer-ledger-rereview-evidence/combined-pr1247-unit-transaction.log"
+    },
+    {
+      "suite": "ci-portability-ledger-map",
+      "passed": 96,
+      "skipped": 1,
+      "subtests_passed": null,
+      "log_sha256": "83d8f8b61111122b1b2ca9519f45550aca3e1a95b4720b8ccf73efb1fe98ac2e",
+      "log": "ci-repair-targeted.log"
+    },
+    {
+      "suite": "ci-ledger-pr1247-composition",
+      "passed": 82,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "f8b7df238f0ecbfb037a25ed283bff957c03e447d1be13347d53d1e79e5bb6e1",
+      "log": "ci-repair-composition.log"
+    },
+    {
+      "suite": "ci-script-suite",
+      "passed": 398,
+      "skipped": 1,
+      "subtests_passed": null,
+      "log_sha256": "5d3f4714805b6f03711e3d8ff957d662d7a2c3f1c963643eae981b50f67e64cb",
+      "log": "ci-repair-script-tests.log"
+    },
+    {
+      "suite": "ci-final-metadata-gates",
+      "passed": 8,
+      "skipped": 0,
+      "subtests_passed": null,
+      "log_sha256": "5f19806e30cb8dd8095077ec0750bc0f98014d535631a1a8f90051b261997401",
+      "log": "ci-repair-final-gates.log"
     }
   ],
-  "validation_note": "Suite counts overlap and must not be summed. The final F4 scorer change was followed by the 97 shell, 92 focused Python and 116 parser runs; unaffected Python paths retain the broad CI selection result.",
+  "validation_note": "Suite counts overlap and must not be summed. The final F4 scorer change was followed by the 97 shell, 92 focused Python and 116 parser runs; unaffected Python paths retain the broad CI selection result. Hosted run 34823549793 confirms the broad Python and integration selections on a3a7281. The subsequent portable ledger lock, KF fixture and generated-map correction is parent-tested by the four appended suites; earlier peer reviews retain their recorded hashes.",
   "source_sha256": {
     ".claude/adapters/loa_cheval/audit_envelope.py": "14fed7b970352a6016cbfd73b3734535dbef796a5e460eda9deef699c64a01a6",
     ".claude/adapters/loa_cheval/metering/budget.py": "7123ae22cd517e8686e1c576ba32d04d8d10389ab752d1fe869cfa04411a9d8d",
@@ -398,7 +430,7 @@
     ".claude/scripts/flatline-orchestrator.sh": "a6f866db83c6ece0dbc0a88798c76e0467e0ec5d346a4374ddd398abbf7a4db2",
     ".claude/scripts/gen-adapter-maps.sh": "2bfa39416dd333b21a94b53753653d8aceaa9eb6b87a5e18ec356bfa2119ac77",
     ".claude/scripts/generated-model-maps.sh": "3abd0676aaa4ffd9a5c03620646bf972a25231773b061090cfb9051c55c143e3",
-    ".claude/scripts/ledger-lib.sh": "2a9858646ac3e5d7b3db7be8685652be3fe293229b8ef5d70b6485ee7b2bb188",
+    ".claude/scripts/ledger-lib.sh": "bf665fdae46952ac88036f96990d6364a4e701fa31267d1c86eb5497391f8fb7",
     ".claude/scripts/lib/normalize-json.sh": "374f2facdd8e8cc6a9b6b304324e91819d6c3d51a5cc92d6f8749d622c29259b",
     ".claude/scripts/lint-invariants.sh": "2c4f558b44b7334c28ef286fb4cc48c7436cec6ea9de8df24fda44bea9d4ee15",
     ".claude/scripts/loa-status.sh": "509d1791ca3ac8c2ab4036b5f863ae8c60b284f938d2076fd5d2e2adb8168477",
@@ -468,7 +500,9 @@
     "docs/runbooks/hook-safety.md": "34ae86a0961d7f65d90494aff704a836cd64380845b8c0bc61eb03e2cec0e81e",
     "docs/runbooks/installer-integrity.md": "318025f21e996b69e5342eb8f2ed4f5b21178358ff3be9720ee2a4bb92cb011b",
     "evals/fixtures/loa-skill-dir/.claude/scripts/mount-loa.sh": "3e4fcfe61193b9b3f1c2037490814b94903cfc9b4f3ecd9e32e29940e03620f5",
-    "grimoires/loa/known-failures.md": "8ba7ea97c741c8d342de713488e4a89bf16a92381be7bc1ac62c5ea697016269",
+    "grimoires/loa/REPO-MAP.md": "0fd0803ce6cd3722a8147edfaf849ddb5cd097d1c4eb38839d9e233fbeb335b8",
+    "grimoires/loa/REPO-MAP.md.checksum": "25ebc16cf7fe257b43ff3f34017f8cf224ea14a021b0c1f43d612dc95b889697",
+    "grimoires/loa/known-failures.md": "16bc854171277bbf5a14a460158fd0e253156095f41fd40235fc7fa202777787",
     "grimoires/loa/runbooks/post-merge-candidates.md": "936ee0bfbce82055c9f0c56f8913132e8083be8547dfde3e05b7c0f0313d6d01",
     "tests/integration/audit-envelope-signing.bats": "51a3bc5462eb49da5e44ed82dcd1b70555ceb76b3ed059bc1ad08dc916a18c50",
     "tests/integration/audit-snapshot.bats": "c2daa336c42f9f79ad37388323430623f84710066c3a7ccfd92dc4de9bb522f9",
@@ -493,8 +527,9 @@
     "tests/unit/flatline-scorer-availability.bats": "1991f33115ab5de4ea270dd6f9b50734239a61902cf15fe2f8415990f41a58bc",
     "tests/unit/gen-adapter-maps.bats": "e4cd6fd3058dcb68882eeae6be5e58de91c2ee82e1ee9e1dea0620a72dbe7fc7",
     "tests/unit/issue-759-scoring-engine-degraded-output.bats": "3151ff42e13f309264265bc05dcfa5186412fada12abebc7c12579560581b653",
+    "tests/unit/kf-surface.bats": "19473af8e0113abeeabb6fe9b457cfbce7a1927fb94fd14a466e2b876ddad9f3",
     "tests/unit/ledger-compound-validation.bats": "37adbdbf151bd100e1de75175079a5d10422eeeb5fbe6f71ab73b71f41bf0b4e",
-    "tests/unit/ledger-transactions.bats": "a6a9bcc99c726e275c006d2e7cbb09e8bc1ffede2e03b8e0e2fc98c0516175d8",
+    "tests/unit/ledger-transactions.bats": "32faf351688f2dd2374310bb5cf5a25cb254d8bea27323afea8af494a82879bf",
     "tests/unit/loa-status-stale-worktree.bats": "7f86f2d67972ea1a10cecd7c767e79f5b243d6a98efa2786a8b7cc23398a6e63",
     "tests/unit/mount-submodule-lock-lifecycle.bats": "c36331db9dd88ada4bbda9349cf0602414f40de85376dcf2117aed270668a70b",
     "tests/unit/post-merge-archive-gate.bats": "f4e12880c6269077e27c8b20c243b1e55ab28ab3aff30f90326c4a97c28dc495",
@@ -527,7 +562,7 @@
     "1250": {
       "head": "b63cfe5a23b7daf81802c4387a497d9070d75dbc",
       "state": "OPEN, REVIEW_REQUIRED",
-      "remaining": "Separate scheduled CI repair."
+      "remaining": "Separate scheduled CI repair; this sweep now reuses its exact tests/unit/kf-surface.bats correction."
     }
   },
   "deleted_paths": [
@@ -555,7 +590,7 @@
     "ledger": {
       "report": "peer-ledger-rereview.md",
       "sha256": "c4e63c5c00509b2c9985d180fe9eb3750bcae3abc6a5db9d4b660ad2ae238b01",
-      "status": "Scoped findings closed; see limitations in report"
+      "status": "Scoped P1/P2 findings closed at the report hashes. Later numeric-descriptor portability correction has parent concurrency, caller-lock and composition checks; human PR review remains required."
     },
     "scorer": {
       "report": "peer-flatline-review.md",
@@ -582,5 +617,46 @@
       "sha256": "9117bdc68a4a7243fca3b8d1b688f85ef3e88c784091bb80b757cd55892ba642",
       "status": "Scoped findings closed; see limitations in report"
     }
+  },
+  "ci_follow_up": {
+    "first_run": 34823549793,
+    "first_head": "a3a72819404939a39330d4b539c08a9892449bc8",
+    "first_log": "hosted-bats-first.log",
+    "first_log_sha256": "3b12cf3497da4d8144dc0700284e08164fa775388258c50e48cb126f58168f87",
+    "unit_cases": 5317,
+    "failures": [
+      {
+        "case": 316,
+        "name": "G-2: no exec {var}>{>,<,<>}file named-fd patterns in .claude/scripts/"
+      },
+      {
+        "case": 2372,
+        "name": "TEST-1: generated INDEX.md kf section lists all 23 ## KF- headings"
+      },
+      {
+        "case": 3478,
+        "name": "repo-map: --validate passes against the committed REPO-MAP.md"
+      }
+    ],
+    "corrections": [
+      "Subshell-owned fd 9 preserves nested transaction ownership and caller lock without Bash 4 named descriptors.",
+      "Reuse exact KF live-ID comparison from PR #1250 at b63cfe5a23b7daf81802c4387a497d9070d75dbc.",
+      "Regenerate REPO-MAP and its checksum."
+    ],
+    "source_changes": {
+      ".claude/scripts/ledger-lib.sh": {
+        "before": "2a9858646ac3e5d7b3db7be8685652be3fe293229b8ef5d70b6485ee7b2bb188",
+        "after": "bf665fdae46952ac88036f96990d6364a4e701fa31267d1c86eb5497391f8fb7"
+      },
+      "grimoires/loa/known-failures.md": {
+        "before": "8ba7ea97c741c8d342de713488e4a89bf16a92381be7bc1ac62c5ea697016269",
+        "after": "16bc854171277bbf5a14a460158fd0e253156095f41fd40235fc7fa202777787"
+      },
+      "tests/unit/ledger-transactions.bats": {
+        "before": "a6a9bcc99c726e275c006d2e7cbb09e8bc1ffede2e03b8e0e2fc98c0516175d8",
+        "after": "32faf351688f2dd2374310bb5cf5a25cb254d8bea27323afea8af494a82879bf"
+      }
+    },
+    "hosted_follow_up": "Pending on the next pushed commit."
   }
 }

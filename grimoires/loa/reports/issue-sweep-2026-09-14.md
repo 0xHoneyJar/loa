@@ -108,6 +108,21 @@ After the last scorer change, the **116 parser cases** also pass again;
 the broad Python run's unaffected sources retain their earlier result.
 These sets overlap; they are not added together.
 
+The first hosted run (`34823549793`, head `a3a72819404939a39330d4b539c08a9892449bc8`)
+also passes the 2,151 Python tests, 127 maintenance integration cases and 43
+curl-harness/error-shape cases. Its 5,317-case framework unit step exposes
+three integration gaps: Bash-4-only ledger descriptor syntax, a fixed KF
+entry count and stale generated REPO-MAP content. The follow-up uses fd 9
+inside the existing transaction subshell without nested unlocking, reuses
+PR #1250's exact live-ID comparison, and regenerates the map and checksum.
+Targeted checks then pass 96 cases with one existing native-Bash-3.2
+availability skip; the caller's fd 9 and its held lock survive a mutation.
+The #1247 composition passes 82 unit/transaction/workflow cases, and all
+399 script cases that CI skipped after the unit failure pass locally.
+These follow-up checks are parent verification; the earlier independent
+review receipts retain their original source hashes. Hosted checks must
+run again against the follow-up commit.
+
 Targeted shell/Python suites cover release publication, compound/canonical
 ledger concurrency, real installer execution, cross-filesystem relocation,
 hook command/data boundaries, mounted scheduler roots, strict audit trust,
@@ -142,7 +157,9 @@ The installed AJV also lacks the date-format plugin, and local yq 4.40.5 is
 older than the codegen check's 4.52.4 minimum. These are not reported as passing
 gates. Installer eval fixtures were synchronized and their drift check passes.
 All 13 generated constraint sections match their source; REPO-MAP regeneration
-drift remains advisory. The gate survey does not replace hosted CI.
+and its checksum now pass after the hosted unit gate exposed the stale map.
+The map workflow's advisory status does not exempt the mandatory unit check.
+The gate survey does not replace hosted CI.
 
 The BATS workflow now selects the full adapter and new Python regressions,
 plus the ten maintained integration suites. It installs pinned Python
@@ -167,8 +184,9 @@ and the complete/partial coverage controls against frozen source.
 
 Existing PR #1247 (canonical ledger blank-write validation) and PR #1250
 (scheduled CI repairs) remain separate, unmerged and review-required at the
-tracker refresh. This sweep does not claim their acceptance or duplicate their
-work. No GitHub issues, releases or repository tags were closed/published by
+tracker refresh. This sweep reuses only PR #1250's KF fixture correction,
+needed by the new failure-log entries, and does not claim either PR's acceptance.
+No GitHub issues, releases or repository tags were closed/published by
 the local tests.
 
 Operational guidance is in:
