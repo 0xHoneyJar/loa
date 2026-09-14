@@ -1,10 +1,9 @@
 """Live integration test for BedrockAdapter (cycle-096 Sprint 1 / FR-10).
 
-Skips cleanly when ``AWS_BEARER_TOKEN_BEDROCK`` is not set in the
-environment — fork-PR no-keys behavior matches the cycle-094 G-E2E
-precedent. Runs against the actual AWS Bedrock service when the key is
-present (e.g., from ``.env`` in the maintainer's local dev environment
-or from a CI secret).
+Skips unless ``LOA_RUN_LIVE_BEDROCK_TESTS=1`` is explicitly set and a
+Bedrock token is available. An ambient credential alone never enables
+provider calls. After opt-in, the token may come from the environment
+or the maintainer's repository ``.env`` file.
 
 Test coverage:
 
@@ -82,12 +81,12 @@ def _has_token() -> bool:
     return bool(_live_token())
 
 
-# Skip the entire module cleanly when no token (fork-PR pattern).
+# Check explicit consent before looking for credentials, including .env files.
 pytestmark = pytest.mark.skipif(
-    not _has_token(),
+    os.environ.get("LOA_RUN_LIVE_BEDROCK_TESTS") != "1" or not _has_token(),
     reason=(
-        "AWS_BEARER_TOKEN_BEDROCK not set; skipping live Bedrock integration. "
-        "(Set AWS_BEARER_TOKEN_BEDROCK in env or .env to enable.)"
+        "Live Bedrock integration requires LOA_RUN_LIVE_BEDROCK_TESTS=1 "
+        "and AWS_BEARER_TOKEN_BEDROCK in env or .env."
     ),
 )
 

@@ -43,6 +43,36 @@ teardown() {
 # Layer 2: Structural sanitization (always-on baseline)
 # -----------------------------------------------------------------------------
 
+@test "sanitize-portable: library parses under the selected shell" {
+    run "${LOA_BASH32_PATH:-bash}" -n "$CTX_LIB"
+    [[ "$status" -eq 0 ]]
+}
+
+@test "sanitize-portable: benign literals preserve body and fence diagnostics" {
+    local payload expected expected_stderr
+    for payload in "hello world" 'a single ` character' $'before\n```text\nhello world\n```\nafter'; do
+        expected=$(sanitize_for_session_start L6 "$payload" 2>"$TEST_DIR/expected.err")
+        expected_stderr=$(cat "$TEST_DIR/expected.err")
+        case "$payload" in
+            *'```'*)
+                [[ "$expected" == *$'before\n[CODE-FENCE-ESCAPED]\nafter'* ]]
+                [[ "$expected" != *'```'* ]]
+                [[ "$expected_stderr" == "INFO: 1 code-fence(s) escaped" ]]
+                ;;
+            *)
+                [[ "$expected" == *"$payload"* ]]
+                [[ -z "$expected_stderr" ]]
+                ;;
+        esac
+        run "${LOA_BASH32_PATH:-bash}" --noprofile --norc -c \
+            'source "$1"; sanitize_for_session_start L6 "$2" 2>"$3"' \
+            fixture "$CTX_LIB" "$payload" "$TEST_DIR/actual.err"
+        [[ "$status" -eq 0 ]]
+        [[ "$output" == "$expected" ]]
+        [[ "$(cat "$TEST_DIR/actual.err")" == "$expected_stderr" ]]
+    done
+}
+
 @test "sanitize-1C: wraps content in untrusted-content tags with source attribute" {
     local out
     out=$(sanitize_for_session_start "L6" "hello world")

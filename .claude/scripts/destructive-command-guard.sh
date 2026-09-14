@@ -50,10 +50,10 @@ dcg_init() {
     local core_count=0
 
     # Use nounset-safe array length check
-    if [[ -v _DCG_PATTERNS ]] && [[ ${#_DCG_PATTERNS[@]} -gt 0 ]]; then
+    if [[ -n "${_DCG_PATTERNS+x}" ]] && [[ ${#_DCG_PATTERNS[@]} -gt 0 ]]; then
         pattern_count=${#_DCG_PATTERNS[@]}
     fi
-    if [[ -v _DCG_CORE_PATTERNS ]] && [[ ${#_DCG_CORE_PATTERNS[@]} -gt 0 ]]; then
+    if [[ -n "${_DCG_CORE_PATTERNS+x}" ]] && [[ ${#_DCG_CORE_PATTERNS[@]} -gt 0 ]]; then
         core_count=${#_DCG_CORE_PATTERNS[@]}
     fi
 

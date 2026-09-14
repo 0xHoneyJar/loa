@@ -31,6 +31,12 @@ on:
       - '.claude/data/schemas/**'
       - '.claude/skills/scheduled-cycle-template/**'
       - '.claude/skills/flatline-scorer/**'
+      - '.claude/skills/**/SKILL.md'
+      - '.claude/rules/skill-invariants.md'
+      - '.loa.config.yaml'
+      - 'grimoires/loa/known-failures.md'
+      - 'grimoires/loa/REPO-MAP.md'
+      - 'grimoires/loa/REPO-MAP.md.checksum'
       - 'tests/unit/**'
       - 'tests/integration/**'
       - 'tests/security/**'
@@ -44,32 +50,13 @@ on:
       - '.github/workflows/oracle.yml'
       - '.github/workflows/post-merge.yml'
       - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
+      - '.github/workflows/cycle-108-schema-guard.yml'
+      - '.github/workflows/eval.yml'
+      - '.github/workflows/repo-map-drift.yml'
   pull_request:
+    # Shell Tests is required by branch protection. Always schedule it so
+    # skill-only and documentation-only PRs cannot wait on an absent check.
     branches: [main]
-    paths:
-      - '.gitattributes'
-      - '.claude/scripts/**'                # BB iter-2 BF-003 closure (was *.sh; missed .legacy)
-      - '.claude/adapters/**/*.py'         # BB iter-1 FIND-005 closure
-      - '.claude/defaults/**'              # BB iter-1 FIND-005 closure
-      - '.claude/hooks/**'
-      - '.claude/settings.json'
-      - '.claude/schemas/**'
-      - '.claude/data/schemas/**'
-      - '.claude/skills/scheduled-cycle-template/**'
-      - '.claude/skills/flatline-scorer/**'
-      - 'tests/unit/**'
-      - 'tests/integration/**'
-      - 'tests/security/**'
-      - 'tools/modelinv-rollup.sh'
-      - 'tools/check-no-swallowed-jq.sh'
-      - 'tests/lib/**'
-      - 'tests/fixtures/**'
-      - 'tests/run-unit-tests.sh'
-      - 'grimoires/loa/runbooks/curl-mock-harness.md'  # BB iter-1 FIND-005
-      - '.github/workflows/bats-tests.yml'
-      - '.github/workflows/oracle.yml'
-      - '.github/workflows/post-merge.yml'
-      - '.github/workflows/secret-scanning.yml' # bug-992: contract test pins this workflow's shape
 
 permissions:
   contents: read
@@ -124,6 +111,9 @@ jobs:
           # chain behind call_api / 401-handler suites).
           pip install 'rfc8785==0.1.4' 'jsonschema==4.26.0' 'ruamel.yaml==0.18.17' 'cryptography==46.0.7' 'pyyaml==6.0.2' 'idna==3.10'
           pip install 'pytest==9.0.3' 'httpx==0.28.1'
+          # Required for conservation properties; without it those tests are
+          # conditionally absent rather than reported as skipped.
+          pip install 'hypothesis==6.168.0'
 
       # NOTE: yq install step is below (line ~85) and is pre-existing on main.
       # cycle-102 Sprint 1C T1C.1 made yq a hard requirement for the curl-mock
@@ -149,22 +139,19 @@ jobs:
 
       - name: Install yq v4.52.4 (pinned + checksum verified)
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
+          sudo curl --fail --show-error --silent --location --retry 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 120 \
+            --output /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           sudo chmod +x /usr/local/bin/yq
 
       - name: Run adapter and maintenance Python regressions
         run: |
-          python -m pytest -q -p no:cacheprovider \
+          python -m pytest -q --tb=short -p no:cacheprovider \
             .claude/adapters/tests \
-            tests/unit/test_gate_critical_jq.py \
-            tests/unit/test_hook_issue_regressions.py \
-            tests/unit/test_hook_limit_assessments.py \
-            tests/unit/test_spiral_task_authority.py \
-            tests/security/test_audit_trust_policy.py \
-            tests/security/test_audit_consumer_snapshots.py \
-            tests/security/test_installer_epic_proofs.py \
-            tests/security/test_installer_epic_remaining.py
+            tests/unit \
+            tests/integration \
+            tests/security
 
       - name: Run framework unit tests
         run: |
@@ -218,6 +205,10 @@ jobs:
             tests/integration/post-merge-pipeline-697.bats \
             tests/integration/session-cap-bb-dispatch.bats \
             tests/integration/soul-identity-7b.bats
+
+      - name: Run security Bats regressions
+        if: always()
+        run: bats --print-output-on-failure tests/security/
 
       - name: Run sprint-1C curl-mock harness integration tests
         # cycle-102 Sprint 1C T1C.8: scoped to the 3 sprint-1C integration

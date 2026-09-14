@@ -235,9 +235,25 @@ jobs:
 
       # 13. Check for regressions (final gate)
       - name: Check for regressions
+        if: always()
+        env:
+          FRAMEWORK_EXIT: ${{ steps.framework.outputs.exit_code }}
+          REGRESSION_EXIT: ${{ steps.regression.outputs.exit_code }}
         run: |
-          framework_exit="${{ steps.framework.outputs.exit_code }}"
-          regression_exit="${{ steps.regression.outputs.exit_code }}"
+          framework_exit="$FRAMEWORK_EXIT"
+          regression_exit="$REGRESSION_EXIT"
+
+          # The runner documents only 0=pass, 1=regression, 2=infrastructure.
+          # Missing outputs and process failures must not become successful evals.
+          for result in "$framework_exit" "$regression_exit"; do
+            case "$result" in
+              0|1|2) ;;
+              *)
+                echo "::error::Missing or unexpected eval exit code: '$result'"
+                exit 1
+                ;;
+            esac
+          done
 
           if [[ "$framework_exit" == "1" || "$regression_exit" == "1" ]]; then
             echo "::error::Regressions detected in eval suites"

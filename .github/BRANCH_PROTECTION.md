@@ -1,8 +1,40 @@
 # Branch Protection Configuration
 
-This document describes the required GitHub branch protection rules for the `loa` template repository.
+This document records the observed GitHub configuration and a proposed stronger
+review policy for the `loa` template repository. Editing this file does not
+change repository settings.
 
-## Required Settings for `main` Branch
+## Observed `main` settings — 2026-09-14
+
+The branch-protection API reported:
+
+| Setting | Observed value |
+|---------|----------------|
+| Required approving reviews | 1 |
+| Dismiss stale approvals | Disabled |
+| Require Code Owner approval | Disabled |
+| Require approval of the last push | Disabled |
+| Enforce rules for administrators | Disabled |
+| Require branches up to date for status checks | Enabled |
+
+The required contexts were `Template Protection`, `Validate Framework Files`,
+`Lint Markdown`, `Lint YAML`, and `Shell Tests`.
+`Operator reviewer required` was **not** a required context. That workflow
+reports current operator review; its result and the informational schema
+summary must not be mistaken for the repository's enforced merge policy.
+
+Refresh before making merge-policy claims:
+
+```bash
+gh api repos/0xHoneyJar/loa/branches/main/protection
+gh api repos/0xHoneyJar/loa/rulesets
+```
+
+These observations do not establish historical settings or authorize an
+administrator override. Adopting the stronger policy below requires a separate
+maintainer decision and a settings readback after application.
+
+## Proposed stronger settings for `main`
 
 Navigate to: **Settings > Branches > Branch protection rules > Add rule**
 
@@ -25,6 +57,9 @@ Navigate to: **Settings > Branches > Branch protection rules > Add rule**
 |------------|---------|
 | `Template Protection` | Blocks forbidden files (prd.md, sdd.md, sprint.md, a2a/*, etc.) |
 | `Validate Framework Files` | Ensures required skills/commands/docs exist |
+| `Lint Markdown` | Checks Markdown conventions |
+| `Lint YAML` | Checks YAML conventions |
+| `Shell Tests` | Runs framework and maintenance regressions on every PR |
 
 ### Additional Protection
 

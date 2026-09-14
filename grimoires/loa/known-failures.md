@@ -79,7 +79,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 3 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
-| [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
+| [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | RESOLVED — PR #1252; main run 34843608296 retained the candidate | Post-Merge Pipeline preparation | 1 |
 
 ---
 
@@ -1257,7 +1257,7 @@ TODO: what a future agent should do on this symptom.
 **Feature**: `post-merge-orchestrator.sh`, `semver-bump.sh`, post-merge Actions workflow
 **Symptom**: Generation pushes tags/releases before inspection, failed `gh` notification reports success, and unclassified commits receive an unsupported patch version. Further local review reproduced mutable-state version substitution, redirected Git/API destinations, omitted generated commits, and a receipt for the wrong PR.
 **First observed**: issue #1249; reproduced locally 2026-09-14 against base `76458ff24ce078ec9765bae7c3764f8fdc62425a`
-**Recurrence count**: 1 local reproduction session (individual test cases are not separate incidents)
+**Recurrence count**: 2 local reproduction sessions (individual test cases are not separate incidents)
 **Current workaround**: Prepare an inspectable candidate, approve its exact digest, then publish from its exact checkout and origin. Publication must bind both the effective Git push destination and GitHub API host/repository before any write.
 **Upstream issue**: #1249, with bootstrap versioning tracked by #1235
 **Related visions / lore**: KF-015 false-success reporting; KF-024 is reserved by the separate ledger repair PR #1247.
@@ -1268,6 +1268,8 @@ TODO: what a future agent should do on this symptom.
 |------|---------------|---------|----------|
 | 2026-09-14 | Exercise failing/empty GitHub responses and unclassified commits in disposable repositories | Reproduced false success and unsupported release metadata on the original source | #1249; `tests/unit/post-merge-publication.bats`, `tests/unit/semver-evidence.bats` |
 | 2026-09-14 | Separate generation/publication; independently vary retained state, push URL, API host, commit failure and comment parent | Initial implementation rejected some changes only after publication or accepted the wrong receipt. Repaired inputs to come from approved bytes, bound destinations before writes, propagated generation failures and checked the comment's parent issue. | Same regressions; `grimoires/loa/runbooks/post-merge-candidates.md` |
+| 2026-09-14 | Audit current-main candidate reuse, changelog I/O and merged-PR identity, then replay the repaired publication fixtures | Reproduced RL-02/RL-04/RL-05. Checked I/O with nonempty readback, complete request identity and a pulls-endpoint merge check pass locally; no live publication was attempted. | PR #1253, head `e58fa2810dd78d0fa1fb9e7fe6d2050636b69a20`; `tests/unit/post-merge-publication.bats` |
+| 2026-09-14 | Independently fail history acquisition and candidate allocation, then replay the corrected preparation sequence | RIR-01/RIR-02 reproduced swallowed history errors and premature PREPARED state. Checked history reads and installed-candidate verification repair both paths. Forty publication/preflight/reconciliation cases and eleven independent review cases pass. | PR #1253, head `127049855700ffd8af90da4b6d9b2b4dd7f654f5`; `release-rir-rereview.md` |
 
 ### Reading guide
 
@@ -1352,7 +1354,7 @@ Do not treat file counts as copy verification or successful curl as binary integ
 **Feature**: local execution of audit, scheduler and L7 integration suites
 **Symptom**: An unrelated global AJV is selected without its required schema-format support. A virtualenv depending on inherited `PYTHONPATH` also loses dependencies when a test sets its own import path. Integration checks then fail before reaching the behavior under test.
 **First observed**: 2026-09-14 maintenance sweep
-**Recurrence count**: 1 local integration-run session
+**Recurrence count**: 2 local integration-run sessions
 **Current workaround**: Use one interpreter with its dependencies installed natively. Expose Node and Bats without unrelated global AJV; retain actual Python schema and signature verification.
 **Upstream issue**: Local runner setup; no upstream source defect established
 **Related visions / lore**: Tool availability does not establish a usable validation environment
@@ -1363,6 +1365,7 @@ Do not treat file counts as copy verification or successful curl as binary integ
 |------|---------------|---------|----------|
 | 2026-09-14 | Run the ten selected integration suites with a virtualenv plus system dependency path and global AJV | Schema/signature setup failures; retained as an environment attempt, not a passing result. | `loa-issue-sweep-20260914/ci-maintenance-integration.log` |
 | 2026-09-14 | Run the unchanged command with system Python's native dependencies, Node 22 and Bats, without unrelated global AJV | All 127 cases pass. CI installs its own pinned dependencies and does not install AJV in this job. | `loa-issue-sweep-20260914/ci-maintenance-integration-clean.json` |
+| 2026-09-14 | Run backlog security and scheduler regressions with the global AJV still on PATH, then select the existing working Python validator through an isolated tool path | Initial schema setup failed before the tested behavior. All 33 unchanged security Bats cases and the unchanged scheduler cases pass with the corrected tool selection; no validator or production policy was weakened. | Base `80be4b0f57b39eb05c77b0a738a2797afac635a7`; `ci-security-bats.log`, `ci-security-bats-clean.log`, `hooks-lifecycle-corrected-context-final.log` |
 
 ### Reading guide
 
@@ -1420,7 +1423,7 @@ Do not repeat the failed GraphQL convenience call or infer a missing repository 
 
 ## KF-032: post-merge preparation dirties its own checkout before the clean-tree gate
 
-**Status**: OPEN — local repair verified; hosted confirmation pending
+**Status**: RESOLVED — PR #1252; main run `34843608296` retained the candidate
 **Feature**: Post-Merge Pipeline release-candidate preparation
 **Symptom**: Preparation exits with `Candidate generation requires a clean tracked checkout and index` before retaining a candidate artifact.
 **First observed**: 2026-09-14, PR #1251 merge, main `d834575a3586257e9d32bb270da9a3a57f9d0c62`
@@ -1436,7 +1439,257 @@ Do not repeat the failed GraphQL convenience call or infer a missing repository 
 | 2026-09-14 | Automatic preparation after merging #1251 | FAILED — chmod changed bootstrap.sh from tracked mode `100644` to `100755`, causing the clean-tree check to fail. | Actions run `34838888080`, attempt 1, main `d834575a3586257e9d32bb270da9a3a57f9d0c62` |
 | 2026-09-14 | Execute each workflow preparation block in a committed test repository | Both jobs reproduced the same clean-tree failure before the fix. | `tests/unit/post-merge-publication.bats`, workflow preparation regressions |
 | 2026-09-14 | Preserve bootstrap.sh permissions in both jobs; execute the same workflow blocks | Both produce candidate JSON, patch, bundle and checksum. The tracked-mode rejection test still passes; all 27 publication/preflight/reconcile cases pass. | `post-merge-publication.bats`, `post-merge-preflight-guard.bats`, `bug-986-post-merge-symlink-reconcile.bats` |
+| 2026-09-14 | Merge #1252 after all 20 PR checks passed; observe automatic preparation on main | RESOLVED — the preparation step and artifact upload succeeded. The cycle job was not selected; both workflow paths passed the PR regressions. | Main `80be4b0f57b39eb05c77b0a738a2797afac635a7`; Actions run `34843608296`, attempt 1; artifact `10346854008` |
 
 ### Reading guide
 
-`bootstrap.sh` is sourced and does not need executable permission. Do not weaken the clean-tree guard or rerun the unchanged workflow. The publication tests now execute the actual YAML preparation blocks, including artifact creation, and BATS CI includes changes to `post-merge.yml` in both event filters. Local tests use a fixture repository and mocked GitHub operations; final confirmation requires the repaired workflow to run on main.
+`bootstrap.sh` is sourced and does not need executable permission. Do not weaken the clean-tree guard or rerun the unchanged workflow. The publication tests execute both actual YAML preparation blocks, including artifact creation, and BATS CI includes changes to `post-merge.yml` in both event filters. Main run `34843608296` confirms standard preparation and upload; the cycle job was not selected. Local fixtures cover that separate path. Candidate preparation does not authorize publication.
+
+---
+
+## KF-033: CI reports success without the claimed execution or current review evidence
+
+**Status**: OPEN — local repairs and bounded independent review pass; hosted follow-up pending
+**Feature**: Eval result classification, operator review status, test discovery and generated-map checks
+**Symptom**: Unexpected eval process exits are called successful, historical approvals satisfy the operator check, and green workflows omit active regressions or treat mandatory map drift as advisory.
+**First observed**: 2026-09-14, completed CI audit of PR #1251 at `cea8bfe36bd243d497e46642b5602ba963e7ac23`
+**Recurrence count**: 3 investigations, including independent rename, enumeration and interpreter counterexamples
+**Current workaround**: Inspect exact commands, selected tests and effective review state. Run the workflow classification regressions and require explicit supported outcomes; a workflow name or aggregate green status is insufficient.
+**Upstream issue**: PR #1251 audit follow-ups CI-003 through CI-010
+**Related visions / lore**: KF-029 dependency selection; KF-030 runtime coverage; KF-032 actual workflow preparation
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Compare executed tests and actual workflow predicates with reported green contexts | Found unselected suites, missing dependencies, stale review decisions, contradictory map severity and unexpected eval exits counted as success. | Completed CI audit at `cea8bfe36bd243d497e46642b5602ba963e7ac23`, findings CI-003 through CI-010 |
+| 2026-09-14 | Execute current-main workflow commands with local exit-code and paginated review fixtures | Reproduced 36 failing assertions, including missing/126/127/137 eval results and approval followed by requested changes. | Base `80be4b0f57b39eb05c77b0a738a2797afac635a7`; `tests/unit/test_ci_failure_classification.py` |
+| 2026-09-14 | Require documented eval outcomes, recompute current-head operator review and execute active JSON-schema contracts with installed dependencies | Fourteen classification tests and fifteen schema/dependency cases pass locally. Hosted execution and native Bash 3.2 remain separate confirmation steps. | `test_ci_failure_classification.py`, `trust-events-schemas.bats`, `bug-886-bats-tests-python-deps.bats` |
+| 2026-09-14 | Extend classification to real discovery/map commands and execute the complete Python selection in a minimal offline environment | Eighteen workflow tests pass; the complete selection passes 2,408 tests with nine explicit skips and 749 subtests. Thirty-three existing security Bats cases also pass with the installed Python validator. | `ci-gates-final.log`, `ci-full-python-isolated.json`, `ci-security-bats-clean.log`; base `80be4b0f57b39eb05c77b0a738a2797afac635a7` |
+| 2026-09-14 | Independently vary renamed paths and incomplete file lists, and execute the actual Bash 3.2 gate | CI-R1/R2/R3 found missing rename origins, incomplete enumeration accepted as unprotected, and unsupported shell syntax. Repairs pass 24 workflow tests with 71 subtests, 47 independent metadata controls, all six unchanged portability cases over 368 scripts, seven dispatcher cases and the benign library selections. | `ci-final-independent-review.md`; actual GNU Bash 3.2.57 on Linux, not hosted macOS; the broader Python receipt above predates these corrections |
+
+### Reading guide
+
+Test the commands that decide CI outcomes. A path trigger schedules a workflow but does not select every test under that path; a required check with a path-filtered PR trigger may never appear. Treat branch-protection documentation as a proposal or dated observation until the live settings are read back. Do not weaken test assertions, accept unknown exit codes or alter repository approval settings merely to obtain green checks.
+
+---
+
+## KF-034: ambient credentials silently enable live tests and enter failure tracebacks
+
+**Status**: OPEN — explicit live-test opt-in repaired locally; credential rotation is a separate operator action
+**Feature**: Bedrock live-test collection and local test environment
+**Symptom**: A broad pytest run inherits a Bedrock credential, automatically selects live provider tests, and includes the credential in a long HTTP failure traceback. An inherited routing override also changes a default-provider assertion.
+**First observed**: 2026-09-14, CI follow-up based on main `80be4b0f57b39eb05c77b0a738a2797afac635a7`
+**Recurrence count**: 1 local execution
+**Current workaround**: Run offline validation with a minimal environment that excludes credentials and provider overrides. Live Bedrock tests now require `LOA_RUN_LIVE_BEDROCK_TESTS=1` before credential discovery; use short pytest tracebacks. Rotate the exposed credential.
+**Upstream issue**: CI maintenance follow-up; no separate issue filed
+**Related visions / lore**: KF-029 test environment selection; credentials establish capability, not permission for a live test
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Run the expanded Python selection with inherited environment and an isolated dependency PATH | Four failures: three live Bedrock cases and one default-routing case. Network resolution failed; no successful provider response was recorded. The HTTP traceback included a credential. Saved logs were redacted; already-rendered tool output could not be removed. | `ci-full-python.log`, redacted; `test-environment-incident.json`, hash and redaction counts only |
+| 2026-09-14 | Exercise collection with dummy credentials and mocked token-file access, then require explicit opt-in before looking for a token | The original module failed six assertions. The repair prevents ambient credentials or repository token files from enabling live tests. No provider calls are used by these regressions. | `tests/unit/test_bedrock_live_optin.py`; `ci-live-optin-before.log` |
+| 2026-09-14 | Rerun the complete expanded Python selection with a minimal environment and short tracebacks | All 2,408 tests pass; nine explicit skips include the three live Bedrock cases. No credential values were inherited. Credential rotation and already-rendered output remain outside this test result. | `ci-full-python-isolated.json`; five opt-in regression methods with dummy values |
+
+### Reading guide
+
+Do not print arbitrary traceback tails from a process that inherited secrets. Do not retry live calls to diagnose offline-suite failures. Test collection must not infer authorization from a credential's presence, and local log redaction does not rotate a credential or erase previously displayed output.
+
+---
+
+## KF-035: Bridgebuilder clearance outlives qualified evidence and checked runtime bytes
+
+**Status**: OPEN — local repair and bounded independent review pass; hosted confirmation pending
+**Feature**: Bridgebuilder verdict qualification, CLI entry and shipped dist
+**Symptom**: Approval survives absent/degraded quality, an unparsed expected voice or fenced example text. Source-hash freshness accepts a change to shipped verdict behavior, and the nominal test command omits intended suites.
+**First observed**: completed #1251 audit; reproduced against main `80be4b0f57b39eb05c77b0a738a2797afac635a7`
+**Recurrence count**: 3 investigations, including source and shipped-runtime independent review
+**Current workaround**: Require qualified evidence for every consumed response and verify the complete rebuilt dist tree. A manifest-only check does not prove runtime parity.
+**Upstream issue**: #1171
+**Related visions / lore**: KF-023 usable evidence versus process success; KF-033 actual CI selection
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Execute verdict counterexamples and change only shipped verdict JavaScript | Original source fails 48 of 133 selected cases; the old freshness check accepts the changed runtime. | `bridgebuilder-evidence/verdict-before-corrected.json`, `dist-mutation-controls.json` |
+| 2026-09-14 | Qualify consumed responses, run the package suites and compare complete rebuilt output | 836 behavioral tests and 50 Bats cases pass locally. Source and dist negative controls fail as intended and restore their original bytes. | `bridgebuilder-evidence/workflow-runtime-replay.json`, `source-verdict-mutation.json`, `final-dist-mutation-controls.json` |
+| 2026-09-14 | Independently exercise Markdown containers, actual posted/trajectory quality and symlink-mounted CLI execution | BIR-001/002/003 found example text granting clearance, contradictory quality surfaces and a silent mounted CLI. CommonMark traversal, one cohort qualification and physical entry identity repair the cases. Final producer: 865 behavioral and 56 Bats passes. Independent review: 115 selected TypeScript and 23 Bats passes, with source/shipped controls and dist mutation rejection. | `bridgebuilder-review-repair.md`, `bridgebuilder-final-independent-review.md`; counts overlap; hosted Node 20 confirmation remains pending |
+
+### Reading guide
+
+Delivery, parsing, qualified clearance, source freshness and shipped-byte parity are separate checks. Preserve the expected model denominator and treat missing quality as blocking. Local fixture results do not certify hosted review delivery or grant merge approval.
+
+---
+
+## KF-036: Flatline scorer and arbitration identities do not preserve terminal findings
+
+**Status**: OPEN — independent review found remaining arbitration identity and emitter failures
+**Feature**: Flatline scoring and final arbitration
+**Symptom**: Ambiguous score objects or duplicate routed scorers can qualify a result. Colliding skeptic IDs can both accept and reject the same findings; comma-separated ID transport leaves findings unresolved. A failed verdict emitter loses structured partial stdout.
+**First observed**: completed #1251 adapter audit; independent repair review at `b4b8bc41e5df97dc2d317704eef706c7691c829d`
+**Recurrence count**: 3 investigations
+**Current workaround**: Retain raw findings, qualify actual scorer identities, and require unambiguous one-to-one arbitration dispositions. Keep #1254 out of the merge-ready set until the retained counterexamples pass.
+**Upstream issue**: #1240, #1229; broader provider incidents remain under #1166
+**Related visions / lore**: KF-023 content-qualified quorum; KF-004 rejected findings; KF-015 false-clean results
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Repair score qualification and retain ordinary arbitration failures | 134 Python tests, 83 selected Bats cases and 32 normalizer cases pass locally. This does not cover every finding-ID or emitter failure. | `flatline-report.md`; PR #1254 initial head `b4b8bc41e5df97dc2d317704eef706c7691c829d` |
+| 2026-09-14 | Independently vary skeptic IDs and fail only the terminal verdict emitter | Distinct concerns sharing an ID receive contradictory dispositions; a comma-containing ID remains unresolved; emitter failure leaves empty stdout. Normal unique-ID and post-arbitration allocation controls distinguish these paths. | `flatline-independent-evidence/edge-results.json`, findings FIR-001 through FIR-003 |
+
+### Reading guide
+
+Do not repeat the same provider calls to diagnose these deterministic failures. Use the retained offline inputs. Model-local IDs are not global identities, delimiters are not JSON arrays, and an earlier review approval cannot stand in for failed terminal adjudication.
+
+---
+
+## KF-037: archive destination and active pointer do not identify one cycle
+
+**Status**: OPEN — local repair and independent scoped review pass; maintainer acceptance pending
+**Feature**: `ledger-lib.sh::archive_cycle`
+**Symptom**: Date/slug collisions overwrite prior archive files and retain stale evidence. A dangling or legacy-key active pointer can be cleared without archiving its intended cycle.
+**First observed**: completed #1251 release audit at `cea8bfe36bd243d497e46642b5602ba963e7ac23`
+**Recurrence count**: 2 investigations
+**Current workaround**: Select exactly one active cycle, use cycle-specific destinations, reject collisions and copy through private staging before changing the ledger.
+**Upstream issue**: #1234, #1248; PR #1253
+**Related visions / lore**: KF-024 valid ledger bytes; KF-026 checked compound replacement
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Archive same-day/same-slug cycles and vary active-pointer/key shapes on original main | Five archive regressions fail. | `release-ledger-evidence/before.tap`; base `80be4b0f57b39eb05c77b0a738a2797afac635a7` |
+| 2026-09-14 | Bind selection and destination to cycle identity; independently replay copy/selection cases | Local archive regressions and all five independently selected cases pass. A completed archive remains available for reconciliation if the later ledger replacement fails. | `tests/unit/ledger-archive-integrity.bats`; `release-independent-review.md`, RL-01/RL-03 |
+
+### Reading guide
+
+Copying successfully into an existing directory does not prove archive identity. Validate the selected cycle before interpreting zero incomplete sprints. Archive installation and ledger replacement are still separate filesystem operations.
+
+---
+
+## KF-038: installer child lifetime and lock location diverge during installation
+
+**Status**: OPEN — original lifecycle findings repaired; startup cancellation requires further repair
+**Feature**: Submodule mount cancellation and coordination
+**Symptom**: Parent-signal tests pass while normal child exit releases resources before surviving descendants stop. Replacing a top-level `.claude` symlink moves the textual lock path. A separate child session preserves stdin but loses the controlling terminal.
+**First observed**: #1251 installer audit; independent review against main-based repair `80be4b0f57b39eb05c77b0a738a2797afac635a7`
+**Recurrence count**: 4 investigations, including independent pre-handler startup cancellation
+**Current workaround**: Do not accept parent-signal tests alone as lifetime coverage. Keep the repair unmerged until cancellation is retained across supervisor startup, in addition to direct-child exit, real layout transition and controlling-terminal cases.
+**Upstream issue**: #1232, #1168
+**Related visions / lore**: KF-028 installer evidence boundaries
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Add process-group cancellation and atomic lock-directory ownership | Parent INT/TERM/HUP, ignoring-child, stable-parent contention and stdin controls pass locally. | `tests/unit/test_mount_reliability.py`; `installers-report.md` |
+| 2026-09-14 | Independently exercise direct-child exit, actual `create_symlinks` transition and a paired controlling-terminal probe | Descendants survive resource cleanup; two callers acquire locks at different physical locations; `/dev/tty` regresses relative to the base. | `installers-independent-review-evidence/independent-results.json`, IR-001 through IR-003 |
+| 2026-09-14 | Recheck repaired group lifetime, physical lock and terminal ownership, then cancel before helper handlers are installed | Original IR-001/002/003 cases pass, including actual bootstrap/helper integration. IR-004 still starts the child after early INT and waits beyond the promised escalation interval. Resources remain protected; cancellation is incomplete. | `installer-final-independent-review.md`; 19 focused Bats passes and one independent failing startup scenario; repair pending |
+
+### Reading guide
+
+Reaping the direct child does not prove its process group is finished. A stable lock must survive the installer's own directory transitions. Inherited terminal file descriptors do not establish controlling-terminal ownership. Saving a supervisor PID does not establish that its cancellation handlers are ready.
+
+---
+
+## KF-039: cleanup path portability still depends on GNU size and space options
+
+**Status**: OPEN — portable-command regressions pass; native platform confirmation pending
+**Feature**: `workspace-cleanup.sh` archive sizing and disk-space preflight
+**Symptom**: Fixing `realpath` leaves `du -sb` and `df -B1` on the same cleanup path. Failed or malformed measurements can become defaults rather than an explicit preflight failure.
+**First observed**: completed #1251 installer audit
+**Recurrence count**: 2 investigations
+**Current workaround**: Use checked `du -sk` and `df -Pk`, validate numeric output and convert both measurements consistently from KiB to bytes.
+**Upstream issue**: #1197
+**Related visions / lore**: KF-012 portable utility contracts; KF-030 syntax versus runtime evidence
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Run cleanup with fixtures rejecting GNU-only options | Seven of ten cases fail on the original source. | `installers-evidence/baseline-cleanup-corrected.log` |
+| 2026-09-14 | Check portable measurements and exercise insufficient/failed/malformed space results | Ten cleanup cases pass; independent replay finds no additional measurement blocker. Source bytes remain on preflight failures. | `tests/unit/workspace-cleanup-portability.bats`; `installers-independent-review.md` |
+
+### Reading guide
+
+Validate the complete caller path, not only the first portable helper. The size field represents allocated space rounded to KiB. Linux dialect fixtures do not prove native macOS behavior or remove the script's other declared runtime prerequisites.
+
+---
+
+## KF-040: review declarations and active-run write authority contradict the procedure
+
+**Status**: OPEN — review findings repaired and scoped replay passes; maintainer and native-host review pending
+**Feature**: Reviewing-code and auditing-security capability contracts
+**Symptom**: Required feedback writes, commands and agent spawning conflict with declared tools. A RUNNING loop grants broader writes before considering the active review/audit role.
+**First observed**: completed #1251 hooks and CI audits
+**Recurrence count**: 3 investigations, including implementation reentry and literal command counterexamples
+**Current workaround**: Reconcile both command declaration layers with the literal procedure and evaluate review/audit State-path restrictions before the run-mode allowance.
+**Upstream issue**: #1195
+**Related visions / lore**: Prompt authority is not an operating-system boundary; CI-008
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Compare declared tools with actual procedure commands and execute the configured hook chain | Confirmed declaration/procedure gaps and the RUNNING allowance preceding role restrictions. | Completed `hooks-lifecycle`/`ci-coverage` audits |
+| 2026-09-14 | Reconcile the two skills, lint their literal commands and resolve effective State targets | Local positive feedback and negative App/System/traversal cases pass. Native host role propagation remains untested. | `tests/unit/validation-skill-contracts.bats`, `tests/unit/test_hooks_lifecycle_followups.py` |
+| 2026-09-14 | Independently vary retained review phases, raw Git output flags and attached shell operators; repair and replay | HIR-001/002/003 found blocked implementation reentry, writable Git options and lexer gaps. Explicit current-role precedence, a fixed stdout-only Git wrapper and quote-aware literal lint repair the paths. Producer: 159 unique Bats passes. Parent source review and focused replay: 15 Bats cases with nine nested Python tests, zero skips. | PR #1257, head `80c6cafef1177b65581ed21b0ecf8b7ba19e40d1`; `hooks-review-repair.md`, `hooks-parent-rereview.json` |
+
+### Reading guide
+
+Validate the actual hook chain and effective target path. A bounded Markdown lint proves literal contract consistency, not universal prose interpretation, host role delivery or filesystem isolation.
+
+---
+
+## KF-041: lifecycle callers mix consumer context, stale snapshots and JSON diagnostics
+
+**Status**: OPEN — bounded caller review passes; hosted scheduler and native-host confirmation pending
+**Feature**: Session-cap dispatcher, golden-path status and workflow-state JSON
+**Symptom**: Scheduler execution reads the caller's configuration instead of the consumer's. Golden-path callers recommend work from a shipped cycle's stale snapshot. Cold-cache status text precedes JSON and breaks the real caller's parse.
+**First observed**: completed #1251 hooks audit and cold-cache caller reproduction
+**Recurrence count**: 2 investigations
+**Current workaround**: Launch from the resolved consumer root, share the exact-cycle cached-upstream assessment across callers, and keep incidental cache status off structured stdout.
+**Upstream issue**: #1213, #1233
+**Related visions / lore**: KF-029 selected validator environment; cached references are not live remote proof
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Test status helpers or warm-cache output without the real calling sequence | Missed consumer-cwd configuration, golden-path recommendations and cold-cache output contamination. | Completed hooks audit; `hooks-lifecycle-report.md` |
+| 2026-09-14 | Execute the real entry/config path and cold/warm status in linked-worktree fixtures | Local caller cases pass, including mismatched upstream-cycle and explicit local-only controls. No provider invocation or worktree retirement is performed. | `tests/unit/test_hooks_lifecycle_followups.py`, scheduler and golden-path regression suites |
+| 2026-09-14 | Review the actual callers and ensure scheduler cases execute with installed package dependencies | Bounded caller review passes. A dedicated workflow unconditionally installs the Bridgebuilder package dependencies and selects the three actual scheduler/config methods; it does not skip them when the dependency is missing. | PR #1257; `hooks-lifecycle-followups.yml`, `hooks-parent-rereview.json`; hosted execution remains separate |
+
+### Reading guide
+
+Test the entrypoint with a conflicting caller environment and validate its entire stdout. Positive cached evidence can identify a stale cycle, but cannot prove current remote state. Helper-only and warm-cache tests cover different paths.
+
+---
+
+## KF-042: quiet dependency download failure prevents hosted tests from starting
+
+**Status**: OPEN — bounded retries and visible diagnostics added; hosted confirmation pending
+**Feature**: Activation-matrix and Shell Tests yq installation
+**Symptom**: The `Cells / bug-triage` job exits during `wget -qO` for pinned yq, before checksum verification or test execution. Quiet mode retains only process exit 4, not the transport diagnostic.
+**First observed**: PR #1254, head `b4b8bc41e5df97dc2d317704eef706c7691c829d`, Actions run `34860258607`, job `104030348154`
+**Recurrence count**: 1 hosted execution
+**Current workaround**: Retain the setup failure separately from source-test results. Use bounded curl retries, connection/transfer timeouts and visible errors, preserving the same checksum and failure propagation.
+**Upstream issue**: CI follow-up; no separate issue filed
+**Related visions / lore**: KF-029 environment versus source failures; KF-033 actual execution evidence
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Run the activation matrix on the initial #1254 head | One cell stops during the yq download; its tests never start. The retained quiet output does not establish the specific network cause. Other cells complete. | Run `34860258607`, job `104030348154`; `flatline-hosted-bug-triage-34860258607.log` |
+| 2026-09-14 | Preserve the pinned asset/checksum while adding finite retries, timeouts and visible errors to the two activation installs and Shell Tests | Source setup repaired; the next hosted execution must confirm its behavior. Exhausted download attempts still fail the job. | `.github/workflows/activation-regression.yml`, `.github/workflows/bats-tests.yml` |
+| 2026-09-14 | Independently execute all three setup blocks with download, checksum and verifier failures | Fifteen offline controls pass. Download failure and an actual bad digest prevent chmod; configured retries and timeouts remain finite. This does not establish a successful hosted download or its timing. | `ci-final-independent-review.md`, `ci-final-review-evidence/independent-yq-cases.json` |
+
+### Reading guide
+
+A setup failure is not an executed test failure or a passing source result. Do not repeatedly rerun an opaque download: retain the failing step, expose diagnostics and keep retries bounded. Never remove the checksum to work around an unavailable asset.

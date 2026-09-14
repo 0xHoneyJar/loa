@@ -1,0 +1,51 @@
+name: Bash 3.2 Portability
+
+on:
+  pull_request:
+    paths:
+      - '.claude/scripts/**'
+      - 'tests/unit/bash32-portability.bats'
+      - 'tests/unit/post-pr-bridgebuilder.bats'
+      - 'tests/integration/sanitize-for-session-start.bats'
+      - '.github/workflows/bash32-portability.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/scripts/**'
+      - 'tests/unit/bash32-portability.bats'
+      - 'tests/unit/post-pr-bridgebuilder.bats'
+      - 'tests/integration/sanitize-for-session-start.bats'
+      - '.github/workflows/bash32-portability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: Native Bash 3.2 syntax
+    runs-on: macos-14
+    env:
+      LOA_BASH32_PATH: /bin/bash
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Require the supported shell
+        run: |
+          version=$(/bin/bash -c 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"')
+          test "$version" = 3.2
+      - name: Install pinned Bats
+        run: |
+          git clone --branch v1.13.0 --depth 1 https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats-core"
+          cd "$RUNNER_TEMP/bats-core"
+          test "$(git rev-parse HEAD)" = 3bca150ec86275d6d9d5a4fd7d48ab8b6c6f3d87
+          sudo ./install.sh /usr/local
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+      - name: Check production shell syntax
+        run: bats --print-output-on-failure tests/unit/bash32-portability.bats
+      - name: Check post-PR resume behavior under Bash 3.2
+        run: bats --print-output-on-failure --filter '^orchestrator flow:' tests/unit/post-pr-bridgebuilder.bats
+      - name: Check literal library behavior under Bash 3.2
+        run: |
+          bats --print-output-on-failure --filter '^sanitize-portable:' tests/integration/sanitize-for-session-start.bats
+          bash .claude/scripts/tests/test_dcg.sh --init-only

@@ -715,84 +715,90 @@ run_orchestration() {
 
   log_info "Starting from state: ${current_state:-PR_CREATED}"
 
-  # State machine
-  case "${current_state:-PR_CREATED}" in
-    "$STATE_PR_CREATED")
-      if [[ "$SKIP_AUDIT" != "true" ]]; then
-        phase_post_pr_audit || return $?
-      else
-        log_info "Skipping audit phase"
-        "$STATE_SCRIPT" update-phase post_pr_audit skipped
-      fi
-      ;&  # Fall through
+  # Advance a local phase cursor: Bash 3.2 has no case fall-through operator.
+  while :; do
+    case "${current_state:-PR_CREATED}" in
+      "$STATE_PR_CREATED")
+        if [[ "$SKIP_AUDIT" != "true" ]]; then
+          phase_post_pr_audit || return $?
+        else
+          log_info "Skipping audit phase"
+          "$STATE_SCRIPT" update-phase post_pr_audit skipped
+        fi
+        current_state="$STATE_POST_PR_AUDIT"
+        ;;
 
-    "$STATE_POST_PR_AUDIT"|"$STATE_FIX_AUDIT")
-      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
-        phase_context_clear || return $?
-        # After context clear, we need user to /clear and --resume
-        log_info "Waiting for context clear and resume..."
+      "$STATE_POST_PR_AUDIT"|"$STATE_FIX_AUDIT")
+        if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+          phase_context_clear || return $?
+          # After context clear, we need user to /clear and --resume
+          log_info "Waiting for context clear and resume..."
+        fi
         return 0
-      fi
-      ;;
+        ;;
 
-    "$STATE_CONTEXT_CLEAR")
-      if [[ "$SKIP_E2E" != "true" ]]; then
-        phase_e2e_testing || return $?
-      else
-        log_info "Skipping E2E phase"
-        "$STATE_SCRIPT" update-phase e2e_testing skipped
-      fi
-      ;&  # Fall through
-
-    "$STATE_E2E_TESTING"|"$STATE_FIX_E2E")
-      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
-        if [[ "$SKIP_FLATLINE" != "true" ]]; then
-          phase_flatline_pr || return $?
+      "$STATE_CONTEXT_CLEAR")
+        if [[ "$SKIP_E2E" != "true" ]]; then
+          phase_e2e_testing || return $?
         else
-          log_info "Skipping Flatline phase"
-          "$STATE_SCRIPT" update-phase flatline_pr skipped
+          log_info "Skipping E2E phase"
+          "$STATE_SCRIPT" update-phase e2e_testing skipped
         fi
-      fi
-      ;&  # Fall through
+        current_state="$STATE_E2E_TESTING"
+        ;;
 
-    "$STATE_FLATLINE_PR")
-      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
-        if [[ "$SKIP_BRIDGEBUILDER" != "true" ]]; then
-          phase_bridgebuilder_review || return $?
-        else
-          log_info "Skipping Bridgebuilder review phase (SKIP_BRIDGEBUILDER=true)"
-          _update_phase bridgebuilder_review skipped
+      "$STATE_E2E_TESTING"|"$STATE_FIX_E2E")
+        if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+          if [[ "$SKIP_FLATLINE" != "true" ]]; then
+            phase_flatline_pr || return $?
+          else
+            log_info "Skipping Flatline phase"
+            "$STATE_SCRIPT" update-phase flatline_pr skipped
+          fi
         fi
-      fi
-      ;&  # Fall through
+        current_state="$STATE_FLATLINE_PR"
+        ;;
 
-    "$STATE_BRIDGEBUILDER_REVIEW")
-      if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
-        update_state "$STATE_READY_FOR_HITL"
-        log_success "Post-PR validation complete - READY_FOR_HITL"
+      "$STATE_FLATLINE_PR")
+        if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+          if [[ "$SKIP_BRIDGEBUILDER" != "true" ]]; then
+            phase_bridgebuilder_review || return $?
+          else
+            log_info "Skipping Bridgebuilder review phase (SKIP_BRIDGEBUILDER=true)"
+            _update_phase bridgebuilder_review skipped
+          fi
+        fi
+        current_state="$STATE_BRIDGEBUILDER_REVIEW"
+        ;;
+
+      "$STATE_BRIDGEBUILDER_REVIEW")
+        if [[ "$(get_state)" != "$STATE_HALTED" ]]; then
+          update_state "$STATE_READY_FOR_HITL"
+          log_success "Post-PR validation complete - READY_FOR_HITL"
+          surface_degraded_handoff
+        fi
+        return 0
+        ;;
+
+      "$STATE_READY_FOR_HITL")
+        log_info "Already at READY_FOR_HITL"
         surface_degraded_handoff
         return 0
-      fi
-      ;;
+        ;;
 
-    "$STATE_READY_FOR_HITL")
-      log_info "Already at READY_FOR_HITL"
-      surface_degraded_handoff
-      return 0
-      ;;
+      "$STATE_HALTED")
+        local reason
+        reason=$("$STATE_SCRIPT" get halt_reason 2>/dev/null || echo "unknown")
+        log_error "Orchestration halted: $reason"
+        return 5
+        ;;
 
-    "$STATE_HALTED")
-      local reason
-      reason=$("$STATE_SCRIPT" get halt_reason 2>/dev/null || echo "unknown")
-      log_error "Orchestration halted: $reason"
-      return 5
-      ;;
-
-    *)
-      log_error "Unknown state: $current_state"
-      return 1
-      ;;
-  esac
+      *)
+        log_error "Unknown state: $current_state"
+        return 1
+        ;;
+    esac
+  done
 }
 
 # ============================================================================

@@ -16,6 +16,24 @@ setup() {
     SCHEMA_DIR="$PROJECT_ROOT/.claude/data/trajectory-schemas/trust-events"
 
     [[ -d "$SCHEMA_DIR" ]] || skip "trust-events schema dir missing"
+    # This package is installed by Shell Tests; absence must fail these
+    # active contracts rather than making negative cases pass or skip.
+    python3 -c 'import jsonschema'
+}
+
+validate_payload() {
+    python3 - "$1" "$2" <<'PY'
+import json
+import sys
+from jsonschema import Draft202012Validator
+
+with open(sys.argv[1]) as stream:
+    schema = json.load(stream)
+with open(sys.argv[2]) as stream:
+    payload = json.load(stream)
+Draft202012Validator.check_schema(schema)
+Draft202012Validator(schema).validate(payload)
+PY
 }
 
 @test "trust-events: schema directory contains expected event schemas" {
@@ -71,9 +89,6 @@ setup() {
 }
 
 @test "trust-events: trust-grant payload validates a happy-path sample" {
-    if ! command -v ajv >/dev/null 2>&1; then
-        skip "ajv not installed"
-    fi
     local sample
     sample="$(jq -nc '{
         scope: "flatline",
@@ -87,18 +102,15 @@ setup() {
     local sample_file
     sample_file="$(mktemp)"
     printf '%s' "$sample" > "$sample_file"
-    run ajv validate -s "$SCHEMA_DIR/trust-grant.payload.schema.json" -d "$sample_file" --strict=false
+    run validate_payload "$SCHEMA_DIR/trust-grant.payload.schema.json" "$sample_file"
     rm -f "$sample_file"
     [[ "$status" -eq 0 ]] || {
-        echo "ajv output: $output"
+        echo "validator output: $output"
         return 1
     }
 }
 
 @test "trust-events: trust-auto-drop payload validates a happy-path sample" {
-    if ! command -v ajv >/dev/null 2>&1; then
-        skip "ajv not installed"
-    fi
     local sample sample_file
     sample="$(jq -nc '{
         scope: "flatline",
@@ -113,18 +125,15 @@ setup() {
     }')"
     sample_file="$(mktemp)"
     printf '%s' "$sample" > "$sample_file"
-    run ajv validate -s "$SCHEMA_DIR/trust-auto-drop.payload.schema.json" -d "$sample_file" --strict=false
+    run validate_payload "$SCHEMA_DIR/trust-auto-drop.payload.schema.json" "$sample_file"
     rm -f "$sample_file"
     [[ "$status" -eq 0 ]] || {
-        echo "ajv output: $output"
+        echo "validator output: $output"
         return 1
     }
 }
 
 @test "trust-events: trust-force-grant payload requires cooldown_remaining_seconds_at_grant" {
-    if ! command -v ajv >/dev/null 2>&1; then
-        skip "ajv not installed"
-    fi
     local sample sample_file
     sample="$(jq -nc '{
         scope: "flatline",
@@ -137,7 +146,7 @@ setup() {
     }')"
     sample_file="$(mktemp)"
     printf '%s' "$sample" > "$sample_file"
-    run ajv validate -s "$SCHEMA_DIR/trust-force-grant.payload.schema.json" -d "$sample_file" --strict=false
+    run validate_payload "$SCHEMA_DIR/trust-force-grant.payload.schema.json" "$sample_file"
     rm -f "$sample_file"
     [[ "$status" -ne 0 ]] || {
         echo "expected validation failure (missing cooldown_remaining_seconds_at_grant)"
@@ -154,9 +163,6 @@ setup() {
 }
 
 @test "trust-events: trust-disable payload requires operator+reason+sealed_at" {
-    if ! command -v ajv >/dev/null 2>&1; then
-        skip "ajv not installed"
-    fi
     local sample sample_file
     sample="$(jq -nc '{
         operator: "deep-name",
@@ -165,10 +171,10 @@ setup() {
     }')"
     sample_file="$(mktemp)"
     printf '%s' "$sample" > "$sample_file"
-    run ajv validate -s "$SCHEMA_DIR/trust-disable.payload.schema.json" -d "$sample_file" --strict=false
+    run validate_payload "$SCHEMA_DIR/trust-disable.payload.schema.json" "$sample_file"
     rm -f "$sample_file"
     [[ "$status" -eq 0 ]] || {
-        echo "ajv output: $output"
+        echo "validator output: $output"
         return 1
     }
 }
