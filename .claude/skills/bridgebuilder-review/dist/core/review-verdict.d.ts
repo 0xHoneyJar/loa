@@ -1,8 +1,11 @@
+import type { ReviewResponse } from "../ports/llm-provider.js";
 export interface ReviewVerdict {
     verdict: "REQUEST_CHANGES" | "APPROVE" | "COMMENT" | "UNKNOWN";
     highestSeverity: string | null;
     mergeBlocked: boolean;
 }
+export declare function hasApprovedReviewQuality(response: ReviewResponse | undefined): boolean;
+export declare function combineReviewVerdicts(decisions: ReadonlyArray<ReviewVerdict>): ReviewVerdict;
 /** Review transport success and GitHub COMMENTED state are not merge clearance. */
 export declare function summarizeReviewVerdict(content: string, findings?: ReadonlyArray<{
     severity: string;

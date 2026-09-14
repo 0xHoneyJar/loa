@@ -1,11 +1,11 @@
-// cycle-118 bd-bb-degraded-verdict-ts — emitDegradedVerdictTrajectory +
-// computeVerdictBand coverage.
+// cycle-118 bd-bb-degraded-verdict-ts — cohort qualification and
+// emitDegradedVerdictTrajectory coverage.
 //
 // BB's TS multi-model pipeline must write the SAME degraded-verdict-<date>.jsonl
 // record shape the 3 bash gate writers (adversarial-review.sh / red-team /
 // flatline via degraded-verdict-lib.sh) emit, into the SAME date-sharded
 // trajectory channel, when its aggregate verdict band is DEGRADED/FAILED.
-// A clean (all-APPROVED / no-envelope) run writes nothing.
+// Only a qualified APPROVED cohort writes nothing; absent evidence is degraded.
 //
 // Case matrix ported from tests/unit/degraded-verdict-lib.bats (DVL1-9),
 // envelope fixtures modeled on cheval-delegate-verdict-quality.test.ts.
@@ -19,10 +19,17 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
-  computeVerdictBand,
-  emitDegradedVerdictTrajectory,
+  emitDegradedVerdictTrajectory as emitQualifiedTrajectory,
   type DegradedVerdictRecord,
 } from "../core/multi-model-pipeline.js";
+import { qualityCohort } from "./helpers/review-cohort.js";
+
+const cohortBand = (voices: Parameters<typeof qualityCohort>[0]) => qualityCohort(voices).band;
+const emitDegradedVerdictTrajectory = (
+  item: Parameters<typeof emitQualifiedTrajectory>[0],
+  voices: Parameters<typeof qualityCohort>[0],
+  opts?: Parameters<typeof emitQualifiedTrajectory>[2],
+) => emitQualifiedTrajectory(item, qualityCohort(voices), opts);
 
 // The 7 fields degraded-verdict.schema.json allows (additionalProperties:false).
 const SCHEMA_FIELDS = new Set([
@@ -37,6 +44,7 @@ const SCHEMA_FIELDS = new Set([
 
 const ITEM = { owner: "0xHoneyJar", repo: "loa", pr: { number: 1234 } };
 
+let nextVoice = 0;
 function approvedEnvelope() {
   return {
     status: "APPROVED" as const,
@@ -44,7 +52,7 @@ function approvedEnvelope() {
     truncation_waiver_applied: false,
     voices_planned: 1,
     voices_succeeded: 1,
-    voices_succeeded_ids: ["claude-opus-4-8"],
+    voices_succeeded_ids: [`fixture-${nextVoice++}`],
     voices_dropped: [],
     chain_health: "ok" as const,
     confidence_floor: "low" as const,
@@ -155,39 +163,39 @@ function assertSchemaShape(rec: DegradedVerdictRecord): void {
   }
 }
 
-describe("computeVerdictBand", () => {
-  it("returns null for empty input", () => {
-    assert.equal(computeVerdictBand([]), null);
+describe("qualifyReviewCohort band", () => {
+  it("returns FAILED for an empty cohort", () => {
+    assert.equal(cohortBand([]), "FAILED");
   });
 
-  it("returns null when no envelopes carry verdictQuality", () => {
-    assert.equal(computeVerdictBand([{}, {}]), null);
+  it("returns DEGRADED when all envelopes are absent", () => {
+    assert.equal(cohortBand([{}, {}]), "DEGRADED");
   });
 
   it("returns APPROVED when every voice is APPROVED with ok chain", () => {
     assert.equal(
-      computeVerdictBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: approvedEnvelope() }]),
+      cohortBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: approvedEnvelope() }]),
       "APPROVED",
     );
   });
 
   it("returns DEGRADED when one voice degraded", () => {
     assert.equal(
-      computeVerdictBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: degradedNoDropEnvelope() }]),
+      cohortBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: degradedNoDropEnvelope() }]),
       "DEGRADED",
     );
   });
 
   it("returns FAILED when any voice failed", () => {
     assert.equal(
-      computeVerdictBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: failedEnvelope() }]),
+      cohortBand([{ verdictQuality: approvedEnvelope() }, { verdictQuality: failedEnvelope() }]),
       "FAILED",
     );
   });
 
   it("returns DEGRADED when some voices are missing envelopes (partial cohort)", () => {
     assert.equal(
-      computeVerdictBand([{ verdictQuality: approvedEnvelope() }, {}]),
+      cohortBand([{ verdictQuality: approvedEnvelope() }, {}]),
       "DEGRADED",
     );
   });
@@ -205,12 +213,12 @@ describe("emitDegradedVerdictTrajectory", () => {
     assert.equal(existsSync(dir) ? readRecords(dir).length : 0, 0, "APPROVED must emit nothing");
   });
 
-  it("writes NO record when no verdictQuality envelopes present", async () => {
+  it("records missing verdictQuality evidence", async () => {
     const { result } = await withTempDir(async (dir) => {
       await emitDegradedVerdictTrajectory(ITEM, [{}, {}]);
       return readRecords(dir).length;
     });
-    assert.equal(result, 0);
+    assert.equal(result, 1);
   });
 
   it("writes a schema-valid FAILED record with degraded_legs from the dropped voice", async () => {
@@ -246,7 +254,7 @@ describe("emitDegradedVerdictTrajectory", () => {
     assert.deepEqual(rec.degraded_legs, ["gpt-5.5-pro"]);
   });
 
-  it("omits degraded_legs and falls back to unknown/null on DEGRADED with empty voices_dropped", async () => {
+  it("records an unqualified leg even when the envelope reports no dropped voices", async () => {
     const { result } = await withTempDir(async (dir) => {
       await emitDegradedVerdictTrajectory(ITEM, [{ verdictQuality: degradedNoDropEnvelope() }]);
       return readRecords(dir);
@@ -255,10 +263,9 @@ describe("emitDegradedVerdictTrajectory", () => {
     const rec = result[0];
     assertSchemaShape(rec);
     assert.equal(rec.verdict_band, "DEGRADED");
-    assert.equal(rec.degradation_reason, "unknown");
+    assert.equal(rec.degradation_reason, "unqualified_quality");
     assert.equal(rec.model_exit_code, null);
-    assert.equal(rec.degraded_legs, undefined, "degraded_legs must be omitted, not []");
-    assert.ok(!("degraded_legs" in rec), "empty-drop record must not carry a degraded_legs key");
+    assert.deepEqual(rec.degraded_legs, ["fixture:fixture-0"]);
   });
 
   it("flattens degraded_legs across multiple per-model results", async () => {

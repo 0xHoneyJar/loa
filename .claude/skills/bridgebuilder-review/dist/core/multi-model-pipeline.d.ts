@@ -1,5 +1,4 @@
 import type { ReviewResponse } from "../ports/llm-provider.js";
-import type { VerdictQualityEnvelope } from "../ports/llm-provider.js";
 import type { IReviewPoster } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
 import type { ILogger } from "../ports/logger.js";
@@ -14,6 +13,7 @@ export interface MultiModelReviewResult {
         provider: string;
         model: string;
         response?: ReviewResponse;
+        reviewVerdict?: ReviewVerdict;
         error?: ReviewError;
         posted: boolean;
     }>;
@@ -92,23 +92,13 @@ export declare function extractFindingsFromContent(content: string): Array<{
  * cycle-109 Sprint 2 T2.6 — render an operator-facing verdict_quality
  * header for the BB PR comment (FR-2.8 surface).
  *
- * Takes per-model results carrying their `verdictQuality` envelopes
- * (populated by ChevalDelegateAdapter from the LOA_VERDICT_QUALITY_SIDECAR
- * transport) and produces a short markdown header line:
+ * Takes the ReviewCohortQualification shared with the handoff and trajectory.
+ * Always renders the quality band, qualified/expected voice count, and final
+ * review verdict with an explicit blocked marker when applicable.
  *
- *   ✓ APPROVED — 3/3 voices, chain ok
- *   ⚠ DEGRADED — 2/3 voices succeeded
- *   ❌ FAILED — chain exhausted; verdict unsafe
- *
- * Returns an empty string when:
- *   - The input list is empty.
- *   - No per-model result carries a `verdictQuality` envelope (legacy /
- *     pre-T2.3 cheval emits, or the sidecar mechanism is unavailable).
- *
- * Note: this is a presentation-layer summary, not the canonical aggregate.
- * Persistence of the full multi-voice envelope happens at the FL orchestrator
- * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
- * status banner derived from per-model envelopes for operator-visibility.
+ * Missing or legacy quality evidence remains visible as DEGRADED or FAILED.
+ * An APPROVED quality band describes evidence health; a COMMENT or
+ * REQUEST_CHANGES review verdict still blocks merge clearance.
  */
 /**
  * cycle-109 Sprint 4 T4.8 — operator-facing chunked-review annotation
@@ -132,33 +122,21 @@ export declare function formatChunkedReviewAnnotation(perModelResults: Array<{
         cross_chunk_pass?: boolean;
     };
 }>): string;
-/**
- * Compute the aggregate verdict band across a multi-voice cohort.
- *
- * Single source of truth for the FAILED > DEGRADED > APPROVED promotion
- * logic shared by the PR-comment banner (formatVerdictQualityHeader) and the
- * degraded-verdict trajectory emitter (emitDegradedVerdictTrajectory).
- *
- * Returns null when there are no per-model results, or none carry a
- * verdictQuality envelope (legacy / pre-T2.3 cheval) — a null band renders no
- * banner and emits no trajectory record.
- */
-export declare function computeVerdictBand(perModelResults: Array<{
-    verdictQuality?: {
-        status?: string;
-        chain_health?: string;
-    };
-}>): "APPROVED" | "DEGRADED" | "FAILED" | null;
-export declare function formatVerdictQualityHeader(perModelResults: Array<{
+export interface ReviewCohortQualification {
+    band: "APPROVED" | "DEGRADED" | "FAILED";
+    expected: number;
+    qualified: number;
+    reviewVerdict: ReviewVerdict;
+    degradationReason: string;
+    degradedLegs: string[];
+    modelExitCode: number | null;
+}
+/** Qualify the configured cohort once, including missing and duplicated voices. */
+export declare function qualifyReviewCohort(expected: ReadonlyArray<{
     provider: string;
-    modelId: string;
-    verdictQuality?: {
-        status?: string;
-        voices_succeeded?: number;
-        voices_planned?: number;
-        chain_health?: string;
-    };
-}>): string;
+    model_id: string;
+}>, results: ReadonlyArray<MultiModelReviewResult["modelResults"][number]>): ReviewCohortQualification;
+export declare function formatVerdictQualityHeader(cohort: ReviewCohortQualification): string;
 /**
  * A degraded-verdict trajectory record — byte-compatible with the record
  * shape written by degraded-verdict-lib.sh (cycle-117 item D). Field set and
@@ -177,8 +155,8 @@ export interface DegradedVerdictRecord {
 }
 /**
  * Append a degraded-verdict trajectory record when BB's aggregate multi-model
- * verdict band is DEGRADED or FAILED. No-op for APPROVED/clean/no-envelope
- * runs — mirrors degraded_verdict_maybe_emit's guard in the bash lib.
+ * verdict band is DEGRADED or FAILED. Missing evidence is unqualified; only
+ * an APPROVED cohort skips this record.
  *
  * The record is the SAME shape the 3 bash gate writers emit (adversarial-
  * review.sh, red-team-code-vs-design.sh, flatline-orchestrator.sh via
@@ -203,9 +181,7 @@ export declare function emitDegradedVerdictTrajectory(item: {
     pr: {
         number: number;
     };
-}, perModelResults: Array<{
-    verdictQuality?: VerdictQualityEnvelope;
-}>, opts?: {
+}, cohort: ReviewCohortQualification, opts?: {
     repoRoot?: string;
     gate?: string;
 }): Promise<void>;

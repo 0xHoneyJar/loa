@@ -8,7 +8,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ILLMProvider, ReviewRequest, ReviewResponse } from "../ports/llm-provider.js";
-import type { VerdictQualityEnvelope } from "../ports/llm-provider.js";
 import type { IReviewPoster, PostCommentInput } from "../ports/review-poster.js";
 import type { IOutputSanitizer } from "../ports/output-sanitizer.js";
 import type { ILogger } from "../ports/logger.js";
@@ -19,7 +18,7 @@ import type {
   ReviewResult,
   ReviewError,
 } from "./types.js";
-import { summarizeReviewVerdict, type ReviewVerdict } from "./review-verdict.js";
+import { summarizeReviewVerdict, combineReviewVerdicts, hasApprovedReviewQuality, type ReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
@@ -77,6 +76,7 @@ export interface MultiModelReviewResult {
     provider: string;
     model: string;
     response?: ReviewResponse;
+    reviewVerdict?: ReviewVerdict;
     error?: ReviewError;
     posted: boolean;
   }>;
@@ -242,6 +242,8 @@ export async function executeMultiModelReview(
 
     if (result.status === "fulfilled") {
       const response = result.value;
+      const reviewVerdict = summarizeReviewVerdict(response.content);
+      if (!hasApprovedReviewQuality(response)) reviewVerdict.mergeBlocked = true;
 
       // Sanitize
       const sanitized = sanitizer.sanitize(response.content);
@@ -284,6 +286,7 @@ export async function executeMultiModelReview(
         provider: ma.provider,
         model: ma.modelId,
         response,
+        reviewVerdict,
         posted,
       });
     } else {
@@ -321,30 +324,9 @@ export async function executeMultiModelReview(
     unique: consensus.stats.unique,
   });
 
-  // Pass-2 enrichment: generate human-readable consensus review (Option C).
-  // When enrichment context provided, the first primary model writes a prose
-  // review over the consensus findings. Falls back to stats-only if enrichment
-  // fails or is disabled.
-  // cycle-109 Sprint 2 T2.6 — prepend the verdict_quality header
-  // (FR-2.8) before the consensus stats table. Returns empty string when
-  // no per-model envelopes carry verdictQuality (legacy / pre-T2.3
-  // cheval), so legacy review surfaces are unchanged.
-  const verdictHeader = formatVerdictQualityHeader(
-    modelResults.map((r) => ({
-      provider: r.provider,
-      modelId: r.model,
-      verdictQuality: r.response?.verdictQuality,
-    })),
-  );
-  // cycle-118 bd-bb-degraded-verdict-ts — append a DEGRADED/FAILED trajectory
-  // record (same channel/schema as the 3 bash gate writers). No-op when the
-  // aggregate band is APPROVED/clean. Fire-and-forget: never throws.
-  await emitDegradedVerdictTrajectory(
-    item,
-    modelResults.map((r) => ({ verdictQuality: r.response?.verdictQuality })),
-    { repoRoot: config.repoRoot },
-  );
-  let consensusBody = verdictHeader + formatConsensusSummary(consensus, modelAdapters);
+  // One qualification drives clearance, the posted quality/counts and telemetry.
+  const cohort = qualifyReviewCohort(multiConfig.models, modelResults);
+  let consensusBody = formatConsensusSummary(consensus, modelAdapters);
 
   if (enrichment && findingsPerModel.length > 0 && modelAdapters.length > 0) {
     try {
@@ -360,7 +342,7 @@ export async function executeMultiModelReview(
       );
       if (enrichedContent) {
         // Prepend stats to enriched prose for quick-scan visibility
-        consensusBody = verdictHeader + formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
+        consensusBody = formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
         logger.info("[multi-model] Enrichment complete", {
           enrichedBytes: enrichedContent.length,
         });
@@ -372,12 +354,20 @@ export async function executeMultiModelReview(
     }
   }
 
-  // Post consensus summary comment
+  // Enrichment can add a blocker but cannot supply approval for missing reviews.
+  const enrichedVerdict = summarizeReviewVerdict(consensusBody);
+  if (enrichedVerdict.verdict === "REQUEST_CHANGES") {
+    cohort.reviewVerdict = combineReviewVerdicts([cohort.reviewVerdict, enrichedVerdict]);
+  }
+  consensusBody = formatVerdictQualityHeader(cohort) + consensusBody;
+  await emitDegradedVerdictTrajectory(item, cohort, { repoRoot: config.repoRoot });
+
+  // Post even a partial cohort's summary: its configured denominator matters.
   let overallPosted = false;
   if (
     shouldPostComment(poster, config, logger, "consensus summary") &&
     poster.postComment &&
-    findingsPerModel.length > 1
+    multiConfig.models.length > 1
   ) {
     try {
       overallPosted = await poster.postComment({
@@ -397,25 +387,13 @@ export async function executeMultiModelReview(
     .filter((r) => r.response)
     .map((r) => r.response!.content)
     .join("\n\n---\n\n");
-  const findings = findingsPerModel.flatMap((result) => result.findings);
-  let reviewVerdict = summarizeReviewVerdict(combinedContent, findings);
-  // Enrichment may surface a blocker; it cannot approve unparsed reviews.
-  if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
-    reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
-  }
-  // Incomplete or degraded participation can never clear a merge.
-  if (modelResults.length !== multiConfig.models.length ||
-      modelResults.some((result) => result.error || !result.response) ||
-      computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
-    reviewVerdict.mergeBlocked = true;
-  }
 
   return {
     modelResults,
     consensus,
     posted: overallPosted || modelResults.some((r) => r.posted),
     combinedContent,
-    reviewVerdict,
+    reviewVerdict: cohort.reviewVerdict,
   };
 }
 
@@ -490,23 +468,13 @@ export function extractFindingsFromContent(content: string): Array<{
  * cycle-109 Sprint 2 T2.6 — render an operator-facing verdict_quality
  * header for the BB PR comment (FR-2.8 surface).
  *
- * Takes per-model results carrying their `verdictQuality` envelopes
- * (populated by ChevalDelegateAdapter from the LOA_VERDICT_QUALITY_SIDECAR
- * transport) and produces a short markdown header line:
+ * Takes the ReviewCohortQualification shared with the handoff and trajectory.
+ * Always renders the quality band, qualified/expected voice count, and final
+ * review verdict with an explicit blocked marker when applicable.
  *
- *   ✓ APPROVED — 3/3 voices, chain ok
- *   ⚠ DEGRADED — 2/3 voices succeeded
- *   ❌ FAILED — chain exhausted; verdict unsafe
- *
- * Returns an empty string when:
- *   - The input list is empty.
- *   - No per-model result carries a `verdictQuality` envelope (legacy /
- *     pre-T2.3 cheval emits, or the sidecar mechanism is unavailable).
- *
- * Note: this is a presentation-layer summary, not the canonical aggregate.
- * Persistence of the full multi-voice envelope happens at the FL orchestrator
- * level (T2.4) via the Python aggregator. BB's PR comment surfaces the
- * status banner derived from per-model envelopes for operator-visibility.
+ * Missing or legacy quality evidence remains visible as DEGRADED or FAILED.
+ * An APPROVED quality band describes evidence health; a COMMENT or
+ * REQUEST_CHANGES review verdict still blocks merge clearance.
  */
 /**
  * cycle-109 Sprint 4 T4.8 — operator-facing chunked-review annotation
@@ -561,79 +529,91 @@ export function formatChunkedReviewAnnotation(
   return lines.join("\n") + "\n\n";
 }
 
-/**
- * Compute the aggregate verdict band across a multi-voice cohort.
- *
- * Single source of truth for the FAILED > DEGRADED > APPROVED promotion
- * logic shared by the PR-comment banner (formatVerdictQualityHeader) and the
- * degraded-verdict trajectory emitter (emitDegradedVerdictTrajectory).
- *
- * Returns null when there are no per-model results, or none carry a
- * verdictQuality envelope (legacy / pre-T2.3 cheval) — a null band renders no
- * banner and emits no trajectory record.
- */
-export function computeVerdictBand(
-  perModelResults: Array<{
-    verdictQuality?: { status?: string; chain_health?: string };
-  }>,
-): "APPROVED" | "DEGRADED" | "FAILED" | null {
-  if (perModelResults.length === 0) return null;
-
-  const withEnvelope = perModelResults.filter((r) => r.verdictQuality);
-  if (withEnvelope.length === 0) return null;
-
-  const total = perModelResults.length;
-  const anyFailed = withEnvelope.some((r) => r.verdictQuality?.status === "FAILED");
-  const anyDegraded = withEnvelope.some(
-    (r) => r.verdictQuality?.status === "DEGRADED" || r.verdictQuality?.chain_health === "degraded",
-  );
-  const allApproved = withEnvelope.every((r) => r.verdictQuality?.status === "APPROVED");
-
-  // Promote to FAILED if any voice failed OR if not all voices ran (we
-  // never received envelopes for the missing ones, suggesting they
-  // didn't reach cheval) AND the responding voices are degraded.
-  const missingVoices = total - withEnvelope.length;
-
-  if (anyFailed || missingVoices === total) return "FAILED";
-  if (anyDegraded || missingVoices > 0 || !allApproved) return "DEGRADED";
-  return "APPROVED";
+export interface ReviewCohortQualification {
+  band: "APPROVED" | "DEGRADED" | "FAILED";
+  expected: number;
+  qualified: number;
+  reviewVerdict: ReviewVerdict;
+  degradationReason: string;
+  degradedLegs: string[];
+  modelExitCode: number | null;
 }
 
-export function formatVerdictQualityHeader(
-  perModelResults: Array<{
-    provider: string;
-    modelId: string;
-    verdictQuality?: {
-      status?: string;
-      voices_succeeded?: number;
-      voices_planned?: number;
-      chain_health?: string;
-    };
-  }>,
-): string {
-  const band = computeVerdictBand(perModelResults);
-  if (band === null) return "";
+/** Qualify the configured cohort once, including missing and duplicated voices. */
+export function qualifyReviewCohort(
+  expected: ReadonlyArray<{ provider: string; model_id: string }>,
+  results: ReadonlyArray<MultiModelReviewResult["modelResults"][number]>,
+): ReviewCohortQualification {
+  const requestedIds = expected.map((r) => `${r.provider}:${r.model_id}`);
+  const resultIds = results.map((r) => `${r.provider}:${r.model}`);
+  const resolvedIds = results.map((r) => `${r.response?.provider ?? r.provider}:${r.response?.model ?? ""}`);
+  const approved = results.map((r) => hasApprovedReviewQuality(r.response));
+  const voices = results.map((r, i) => approved[i]
+    ? r.response!.verdictQuality!.voices_succeeded_ids.map((id) => `${r.response?.provider ?? r.provider}:${id}`) : []);
+  const allVoices = voices.flat();
+  const decisions = results.map((r) => r.reviewVerdict ?? summarizeReviewVerdict(r.response?.content ?? ""));
+  const count = (ids: readonly string[], id: string) => ids.filter((value) => value === id).length;
+  const reasons: string[] = [];
+  const degradedLegs = new Set<string>();
+  const reject = (reason: string, id: string) => {
+    reasons.push(reason);
+    degradedLegs.add(id);
+  };
+  let qualified = 0;
+  for (const id of requestedIds) {
+    if (!resultIds.includes(id)) reject("missing_response", id);
+  }
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const id = resultIds[i];
+    const reason = result.error || result.response?.errorState ? "review_failed"
+      : !result.response ? "missing_response"
+      : !approved[i] ? "unqualified_quality"
+      : decisions[i].verdict === "UNKNOWN" ? "unknown_verdict"
+      : !result.response.model?.trim() ? "missing_model_identity"
+      : count(requestedIds, id) !== 1 || count(resultIds, id) !== 1 ? "invalid_requested_identity"
+      : count(resolvedIds, resolvedIds[i]) !== 1 ? "duplicate_resolved_identity"
+      : voices[i].some((voice) => count(allVoices, voice) !== 1) ? "duplicate_voice_identity"
+      : undefined;
+    if (reason) reject(reason, id);
+    else qualified++;
+  }
+  if (expected.length === 0) reasons.push("empty_cohort");
+  const failed = results.length === 0 || results.some((r) =>
+    r.error || r.response?.errorState || r.response?.verdictQuality?.status === "FAILED");
+  const band = failed ? "FAILED" : reasons.length > 0 ? "DEGRADED" : "APPROVED";
+  const reviewVerdict = combineReviewVerdicts(decisions);
+  if (band !== "APPROVED") reviewVerdict.mergeBlocked = true;
 
-  // Aggregate stats from per-voice envelopes. Each cheval cmd_invoke
-  // produces a SINGLE-voice envelope (voices_planned=1). For the BB
-  // multi-voice cohort we count the number of envelopes that ended in
-  // each status.
-  const total = perModelResults.length;
-  const withEnvelope = perModelResults.filter((r) => r.verdictQuality);
-  const succeeded = withEnvelope.filter(
-    (r) => r.verdictQuality?.status === "APPROVED" || r.verdictQuality?.status === "DEGRADED",
-  ).length;
+  // Unqualified metadata is not trusted as a structure. Retain only well-typed
+  // drop diagnostics for the existing trajectory schema.
+  const drops = results.flatMap((r) => {
+    const dropped = r.response?.verdictQuality?.voices_dropped;
+    return Array.isArray(dropped) ? dropped.filter((d) =>
+      d && typeof d.voice === "string" && typeof d.reason === "string" && Number.isInteger(d.exit_code)) : [];
+  });
+  return {
+    band, expected: expected.length, qualified, reviewVerdict,
+    degradationReason: drops[0]?.reason ?? reasons[0] ?? "",
+    degradedLegs: drops.length ? drops.map((d) => d.voice) : [...degradedLegs],
+    modelExitCode: drops[0]?.exit_code ?? null,
+  };
+}
 
+export function formatVerdictQualityHeader(cohort: ReviewCohortQualification): string {
+  const { band, qualified, expected, reviewVerdict } = cohort;
   let banner: string;
   if (band === "FAILED") {
-    banner = `❌ FAILED — ${succeeded}/${total} voices succeeded; verdict unsafe`;
+    banner = `❌ FAILED — ${qualified}/${expected} voices qualified; verdict unsafe`;
   } else if (band === "DEGRADED") {
-    banner = `⚠ DEGRADED — ${succeeded}/${total} voices succeeded`;
+    banner = `⚠ DEGRADED — ${qualified}/${expected} voices qualified`;
   } else {
-    banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
+    banner = `✓ APPROVED — ${qualified}/${expected} voices, chain ok`;
   }
-
-  return `**Verdict Quality**: ${banner}\n\n`;
+  // A healthy review may legitimately request changes. Make that semantic
+  // decision explicit beside the cohort's evidence quality.
+  return `**Verdict Quality**: ${banner}\n` +
+    `**Merge Clearance**: ${reviewVerdict.verdict}${reviewVerdict.mergeBlocked ? " — blocked" : ""}\n\n`;
 }
 
 /**
@@ -655,8 +635,8 @@ export interface DegradedVerdictRecord {
 
 /**
  * Append a degraded-verdict trajectory record when BB's aggregate multi-model
- * verdict band is DEGRADED or FAILED. No-op for APPROVED/clean/no-envelope
- * runs — mirrors degraded_verdict_maybe_emit's guard in the bash lib.
+ * verdict band is DEGRADED or FAILED. Missing evidence is unqualified; only
+ * an APPROVED cohort skips this record.
  *
  * The record is the SAME shape the 3 bash gate writers emit (adversarial-
  * review.sh, red-team-code-vs-design.sh, flatline-orchestrator.sh via
@@ -677,29 +657,20 @@ export interface DegradedVerdictRecord {
  */
 export async function emitDegradedVerdictTrajectory(
   item: { owner: string; repo: string; pr: { number: number } },
-  perModelResults: Array<{ verdictQuality?: VerdictQualityEnvelope }>,
+  cohort: ReviewCohortQualification,
   opts?: { repoRoot?: string; gate?: string },
 ): Promise<void> {
-  const band = computeVerdictBand(perModelResults);
+  const { band } = cohort;
   if (band !== "DEGRADED" && band !== "FAILED") return;
-
-  // Flatten dropped voices across every per-model envelope. Can be empty even
-  // on a DEGRADED band (chain-walked-to-a-working-fallback: chain_health
-  // "degraded" with no formal drop) — omit degraded_legs (schema minItems: 1
-  // rejects []) and fall back to the bash lib's own "unknown" reason default.
-  const droppedAll = perModelResults.flatMap((r) => r.verdictQuality?.voices_dropped ?? []);
-  const degradedLegs = droppedAll.length > 0 ? droppedAll.map((d) => d.voice) : undefined;
-  const degradationReason = droppedAll[0]?.reason ?? "unknown";
-  const modelExitCode = droppedAll[0]?.exit_code ?? null;
   const gate = opts?.gate ?? "bridgebuilder:multi-model";
   const sprintId = `${item.owner}/${item.repo}#${item.pr.number}`;
 
   const record: DegradedVerdictRecord = {
     gate,
     verdict_band: band,
-    degradation_reason: degradationReason,
-    ...(degradedLegs ? { degraded_legs: degradedLegs } : {}),
-    model_exit_code: modelExitCode,
+    degradation_reason: cohort.degradationReason,
+    ...(cohort.degradedLegs.length ? { degraded_legs: cohort.degradedLegs } : {}),
+    model_exit_code: cohort.modelExitCode,
     sprint_id: sprintId,
     ts: new Date().toISOString(),
   };

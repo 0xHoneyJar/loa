@@ -1,6 +1,20 @@
 import { it } from "node:test";
 import assert from "node:assert/strict";
 import { summarizeReviewVerdict } from "../core/review-verdict.js";
+import { markdownExamples, reviewWith } from "./helpers/verdict-examples.js";
+
+for (const example of markdownExamples) {
+  it(`BIR-001 Markdown container is not a verdict: ${JSON.stringify(example)}`, () => {
+    assert.deepEqual(summarizeReviewVerdict(reviewWith(example)), {
+      verdict: "UNKNOWN", highestSeverity: null, mergeBlocked: true,
+    });
+  });
+  it(`BIR-001 real approval survives example blockers: ${JSON.stringify(example)}`, () => {
+    assert.deepEqual(summarizeReviewVerdict(reviewWith(
+      example.replaceAll("APPROVE", "REQUEST_CHANGES") + "\n\n**Verdict: APPROVE**",
+    )), { verdict: "APPROVE", highestSeverity: null, mergeBlocked: false });
+  });
+}
 
 it("HIGH findings override an APPROVE body", () => {
   const body = 'Verdict: APPROVE\n<!-- bridge-findings-start -->\n```json\n' +
@@ -33,4 +47,45 @@ it("unknown finding severities are ambiguous, not approval", () => {
     JSON.stringify({schema_version:1, findings:[{id:"F", severity:"UNRECOGNIZED", category:"bug"}]}) +
     '<!-- bridge-findings-end -->';
   assert.equal(summarizeReviewVerdict(content).mergeBlocked, true);
+});
+
+for (const example of [
+  "~~~text\nVerdict: APPROVE\n~~~",
+  "~~~~markdown\nVerdict: APPROVE\n~~~~",
+  "````markdown\n```text\nexample\n```\nVerdict: APPROVE\n````",
+  "~~~text\nVerdict: APPROVE",
+  "<!--\nVerdict: APPROVE\n-->",
+  "<!--\nVerdict: APPROVE",
+  "    Verdict: APPROVE",
+  "\tVerdict: APPROVE",
+  "> Example:\n> Verdict: APPROVE",
+  "`Verdict: APPROVE`",
+]) {
+  it(`example-only verdict is UNKNOWN: ${JSON.stringify(example)}`, () => {
+    assert.deepEqual(summarizeReviewVerdict(example), {
+      verdict: "UNKNOWN", highestSeverity: null, mergeBlocked: true,
+    });
+  });
+}
+
+it("example blockers do not override a real verdict", () => {
+  for (const example of [
+    "~~~text\nREQUEST_CHANGES\n~~~",
+    "````markdown\n```text\nexample\n```\nREQUEST_CHANGES\n````",
+    "<!-- REQUEST_CHANGES: must fix -->",
+    "> REQUEST_CHANGES",
+    "    REQUEST_CHANGES",
+  ]) {
+    assert.deepEqual(summarizeReviewVerdict(`Verdict: APPROVE\n\n${example}`), {
+      verdict: "APPROVE", highestSeverity: null, mergeBlocked: false,
+    });
+  }
+});
+
+it("a real verdict after a matching fence is retained", () => {
+  assert.equal(summarizeReviewVerdict("~~~~text\nVerdict: COMMENT\n~~~~\nVerdict: APPROVE").mergeBlocked, false);
+});
+
+it("discarding inline code cannot join surrounding text into a verdict", () => {
+  assert.equal(summarizeReviewVerdict("Verdict: APP`example`ROVE").verdict, "UNKNOWN");
 });

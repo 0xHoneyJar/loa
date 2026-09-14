@@ -4,7 +4,7 @@ import { GitProviderError } from "../ports/git-provider.js";
 import { LLMProviderError } from "../ports/llm-provider.js";
 import { FindingsBlockSchema } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
-import { summarizeReviewVerdict } from "./review-verdict.js";
+import { summarizeReviewVerdict, hasApprovedReviewQuality, combineReviewVerdicts } from "./review-verdict.js";
 import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
 import { truncateFiles, progressiveTruncate, getTokenBudget, deriveCallConfig, } from "./truncation.js";
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
@@ -407,7 +407,7 @@ export class ReviewPipeline {
             return this.postAndFinalize(item, response.content, {
                 inputTokens: response.inputTokens,
                 outputTokens: response.outputTokens,
-            });
+            }, [response]);
         }
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -462,7 +462,7 @@ export class ReviewPipeline {
      * resultFields may include pass1Output, pass1Tokens, and pass2Tokens — these are
      * populated by two-pass callers only. Single-pass callers pass inputTokens/outputTokens only.
      */
-    async postAndFinalize(item, body, resultFields) {
+    async postAndFinalize(item, body, resultFields, responses = []) {
         const { owner, repo, pr } = item;
         const sanitized = this.sanitizer.sanitize(body);
         if (!sanitized.safe && this.config.sanitizerMode === "strict") {
@@ -475,7 +475,16 @@ export class ReviewPipeline {
             });
         }
         const sanitizedBody = sanitized.sanitizedContent;
-        const decision = summarizeReviewVerdict(body);
+        let decision = summarizeReviewVerdict(body);
+        // Analytical findings or an explicit blocker cannot be erased by enrichment.
+        if (resultFields.pass1Output) {
+            const analyticalDecision = summarizeReviewVerdict(resultFields.pass1Output);
+            if (analyticalDecision.verdict === "REQUEST_CHANGES") {
+                decision = combineReviewVerdicts([decision, analyticalDecision]);
+            }
+        }
+        if (responses.length === 0 || !responses.every(hasApprovedReviewQuality))
+            decision.mergeBlocked = true;
         const event = decision.verdict === "REQUEST_CHANGES" ? "REQUEST_CHANGES" : "COMMENT";
         // Re-check guard (race condition mitigation) with retry
         let recheck = false;
@@ -699,6 +708,8 @@ export class ReviewPipeline {
         let pass1InputTokens = 0;
         let pass1OutputTokens = 0;
         let pass1Content = "";
+        // Cache entries carry no quality evidence. A cache hit remains advisory.
+        let pass1Evidence;
         if (this.pass1Cache && this.hasher) {
             const convergencePromptHash = await this.hasher.sha256(finalConvergenceSystem);
             const cacheKey = await computeCacheKey(this.hasher, pr.headSha, truncationLevel, convergencePromptHash, truncated.selfReviewState);
@@ -759,6 +770,7 @@ export class ReviewPipeline {
             pass1InputTokens = pass1Response.inputTokens;
             pass1OutputTokens = pass1Response.outputTokens;
             pass1Content = pass1Response.content;
+            pass1Evidence = pass1Response;
             // Extract findings JSON from Pass 1
             const pass1Extracted = this.extractFindingsJSON(pass1Response.content);
             if (!pass1Extracted) {
@@ -886,7 +898,7 @@ export class ReviewPipeline {
             pass1CacheHit,
             personaId: this.personaMetadata.id,
             personaHash: this.personaMetadata.hash,
-        });
+        }, [pass1Evidence, pass2Response]);
     }
     /**
      * Handle case where Pass 1 content is a valid review (has Summary+Findings)
@@ -898,7 +910,7 @@ export class ReviewPipeline {
             outputTokens: pass1Response.outputTokens,
             pass1Output: pass1Response.content,
             pass1Tokens: { input: pass1Response.inputTokens, output: pass1Response.outputTokens, duration: pass1Duration },
-        });
+        }, [pass1Response]);
     }
     buildSummary(runId, startTime, results) {
         return {

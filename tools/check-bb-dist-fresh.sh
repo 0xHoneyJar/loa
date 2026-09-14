@@ -22,10 +22,14 @@
 #   - In `--check` mode (default, used by CI), recompute source hashes and
 #     compare to the committed manifest. Mismatch or missing manifest →
 #     fail with operator instructions.
+#   - `--verify-dist` additionally uses the installed locked compiler to
+#     rebuild in a disposable tree and compare every shipped output byte and
+#     path. Only the manifest's generated_at timestamp is excluded.
 #
 # Usage:
 #   tools/check-bb-dist-fresh.sh                 # check mode (CI, default)
 #   tools/check-bb-dist-fresh.sh --check         # explicit check
+#   tools/check-bb-dist-fresh.sh --verify-dist   # source + rebuilt artifact parity
 #   tools/check-bb-dist-fresh.sh --write-manifest # build-time manifest write
 #   tools/check-bb-dist-fresh.sh --json          # machine-readable output
 #
@@ -46,11 +50,13 @@ MANIFEST_PATH="$DIST_DIR/.build-manifest.json"
 
 MODE="check"
 JSON_OUTPUT=false
+VERIFY_DIST=false
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --check) MODE="check"; shift ;;
+      --verify-dist) VERIFY_DIST=true; shift ;;
       --write-manifest) MODE="write"; shift ;;
       --json) JSON_OUTPUT=true; shift ;;
       --help|-h)
@@ -64,6 +70,58 @@ parse_args() {
     esac
   done
 }
+
+dist_failure() {
+  local outcome="$1" details="$2"
+  if [[ "$JSON_OUTPUT" == "true" ]]; then
+    jq -n --arg outcome "$outcome" --arg details "$details" \
+      '{outcome: $outcome, details: $details, fix: "run npm ci and npm run build in .claude/skills/bridgebuilder-review"}'
+  else
+    echo "[FAIL] $outcome: $details" >&2
+  fi
+  return 1
+}
+
+# Keep all writes in a disposable repository layout so relative source-map
+# paths match the normal build. Never overwrite shipped bytes before checking.
+verify_dist() (
+  local compiler="$BB_DIR/node_modules/typescript/bin/tsc"
+  if [[ ! -f "$compiler" ]]; then
+    dist_failure "dist_build_unavailable" "Locked TypeScript compiler missing; run npm ci in $BB_DIR"
+    return 1
+  fi
+
+  local rebuild_root rebuild_bb
+  rebuild_root=$(mktemp -d "${TMPDIR:-/tmp}/bb-dist-verify.XXXXXXXX")
+  trap 'rm -rf "$rebuild_root"' EXIT
+  rebuild_bb="$rebuild_root/.claude/skills/bridgebuilder-review"
+  mkdir -p "$rebuild_bb" "$rebuild_root/tools"
+  cp -R "$RESOURCES_DIR" "$rebuild_bb/resources"
+  cp "$BB_DIR/package.json" "$rebuild_bb/package.json"
+  cp "$SCRIPT_DIR/check-bb-dist-fresh.sh" "$rebuild_root/tools/check-bb-dist-fresh.sh"
+  ln -s "$BB_DIR/node_modules" "$rebuild_bb/node_modules"
+
+  if ! node "$compiler" --project "$rebuild_bb/resources/tsconfig.json" > "$rebuild_root/build.log" 2>&1; then
+    dist_failure "dist_build_failed" "$(cat "$rebuild_root/build.log")"
+    return 1
+  fi
+  if ! cp -R "$rebuild_bb/resources/BEAUVOIR.md" "$rebuild_bb/resources/personas" "$rebuild_bb/dist/" 2> "$rebuild_root/assets.log"; then
+    dist_failure "dist_build_failed" "$(cat "$rebuild_root/assets.log")"
+    return 1
+  fi
+  if ! bash "$rebuild_root/tools/check-bb-dist-fresh.sh" --write-manifest > "$rebuild_root/manifest.log" 2>&1; then
+    dist_failure "dist_build_failed" "$(cat "$rebuild_root/manifest.log")"
+    return 1
+  fi
+  cp -R "$DIST_DIR" "$rebuild_root/shipped-dist"
+  jq -S 'del(.generated_at)' "$MANIFEST_PATH" > "$rebuild_root/shipped-dist/.build-manifest.json"
+  jq -S 'del(.generated_at)' "$rebuild_bb/dist/.build-manifest.json" > "$rebuild_root/rebuilt-manifest.json"
+  mv "$rebuild_root/rebuilt-manifest.json" "$rebuild_bb/dist/.build-manifest.json"
+  if ! diff -r -q "$rebuild_root/shipped-dist" "$rebuild_bb/dist" > "$rebuild_root/diff.log" 2>&1; then
+    dist_failure "dist_mismatch" "$(cat "$rebuild_root/diff.log")"
+    return 1
+  fi
+)
 
 # Enumerate source files. Stable sort by path so the combined hash is
 # reproducible across runs and platforms. Excludes:
@@ -174,11 +232,12 @@ check_manifest() {
   current_hash=$(compute_source_hash)
 
   if [[ "$committed_hash" == "$current_hash" ]]; then
+    if [[ "$VERIFY_DIST" == "true" ]]; then verify_dist; fi
     if [[ "$JSON_OUTPUT" == "true" ]]; then
-      jq -n --arg source_hash "$current_hash" \
-        '{outcome: "fresh", source_hash: $source_hash}'
+      jq -n --arg source_hash "$current_hash" --argjson dist_verified "$VERIFY_DIST" \
+        '{outcome: "fresh", source_hash: $source_hash, dist_verified: $dist_verified}'
     else
-      echo "[OK] BB dist is fresh (source_hash=$current_hash)"
+      echo "[OK] BB source manifest matches (source_hash=$current_hash, dist_verified=$VERIFY_DIST)"
     fi
     exit 0
   fi
