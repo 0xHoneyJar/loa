@@ -95,7 +95,24 @@ read_score_response() {
     if [[ -z "$file" ]]; then
         printf '%s\n' '{"scores":[]}'
     elif content=$(jq -cs 'if length == 1 then .[0] else error("expected one response") end' "$file" 2>/dev/null) &&
-         validate_agent_response "$content" flatline-scorer 2>/dev/null; then
+         validate_agent_response "$content" flatline-scorer 2>/dev/null &&
+         PYTHONPATH="$PROJECT_ROOT/.claude/adapters" python3 -c '
+import json, sys
+from loa_cheval.verdict.aggregate import validate_single_voice_envelope
+
+try:
+    response = json.load(sys.stdin)
+    for field in ("provider", "model"):
+        value = response[field]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("missing resolved identity")
+    quality = response["verdict_quality"]
+    validate_single_voice_envelope(quality)
+    if quality["status"] != "APPROVED":
+        raise ValueError("unqualified scorer")
+except (KeyError, ValueError, TypeError):
+    sys.exit(1)
+' <<< "$content" 2>/dev/null; then
         printf '%s\n' "$content"
     else
         log "WARNING: Invalid scorer response; excluding its scores"
@@ -180,9 +197,9 @@ def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomple
 ([if any($gpt, $g_tert; incomplete) then "gpt" else empty end,
   if any($opus, $o_tert; incomplete) then "opus" else empty end,
   if any($t_opus, $t_gpt; incomplete) then "tertiary" else empty end]) as $degraded_models |
-([if any($gpt, $g_tert; (.scores | length) > 0) then "gpt" else empty end,
-  if any($opus, $o_tert; (.scores | length) > 0) then "opus" else empty end,
-  if any($t_opus, $t_gpt; (.scores | length) > 0) then "tertiary" else empty end] | length) as $models_available |
+([$gpt, $g_tert, $opus, $o_tert, $t_opus, $t_gpt] |
+ map(select((.scores | length) > 0))) as $responses |
+($responses | map([.provider, .model]) | unique | length) as $models_available |
 
 # Classify each item
 (reduce $all_ids[] as $id (
@@ -193,14 +210,20 @@ def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomple
         medium_value: []
     };
 
-    # One vote per scorer. Null means absent; a real zero remains a vote.
+    # Labels describe dispatch slots, not independent models. Count each
+    # resolved provider/model once, and reject conflicting votes by that model.
     ($gpt_map[$id] // $g_tert_map[$id]) as $g |
     ($opus_map[$id] // $o_tert_map[$id]) as $o |
     ($t_opus_map[$id] // $t_gpt_map[$id]) as $tertiary_confirm |
-    ([$g, $o, $tertiary_confirm] | map(select(. != null))) as $observed |
+    ([$responses[] | . as $response | .scores[] | select(.id == $id) |
+        {identity: [$response.provider, $response.model], score: .score}] |
+        group_by(.identity)) as $vote_groups |
+    ([$vote_groups[] | select((map(.score) | unique | length) == 1) | .[0]]) as $votes |
+    ($votes | map(.score)) as $observed |
+    (any($vote_groups[]; (map(.score) | unique | length) > 1)) as $conflicting_votes |
     ($observed | length) as $scorers_available |
     (if $scorers_available >= 2 then ($observed | max - min) else null end) as $d |
-    ($observed | add / length) as $avg |
+    (if $scorers_available > 0 then ($observed | add / length) else null end) as $avg |
     ([$observed[] | select(. > $high)] | length >= 2) as $high_agreement |
 
     # Find original item details from any source
@@ -227,6 +250,8 @@ def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomple
         delta: $d,
         average_score: $avg,
         scorers_available: $scorers_available,
+        scorer_identities: ($votes | map(.identity)),
+        conflicting_scorer_votes: $conflicting_votes,
         source: $source,
         would_integrate: $high_agreement
     } + (if $item | has("review_source") then
@@ -272,6 +297,7 @@ def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomple
 (if ($degraded_models | length) > 0 or $total == 0 then "degraded"
  elif $models_available < 2 then "single_model"
  elif any($classified.medium_value[]; .scorers_available < 2) then "degraded"
+ elif any($classified[][]; .conflicting_scorer_votes) then "degraded"
  else "full" end) as $confidence |
 
 # Build final output
@@ -293,11 +319,12 @@ def incomplete: .scoring_status == "unavailable" or .scoring_status == "incomple
     medium_value: $classified.medium_value,
     blockers: $blockers,
     degraded: (($degraded_models | length) > 0 or $total == 0 or
-               any($classified.medium_value[]; .scorers_available < 2)),
+               any($classified.medium_value[]; .scorers_available < 2) or
+               any($classified[][]; .conflicting_scorer_votes)),
     degraded_model: ($degraded_models[0] // null),
     degraded_models: $degraded_models,
     confidence: $confidence
-}
+} + (if $total == 0 then {degradation_reason:"no_items_to_score"} else {} end)
 '
 }
 
@@ -531,7 +558,13 @@ Thresholds (from config or defaults):
   blocker: 700            Skeptic >700 = blocker
 
 Input Format (scores file):
+Each response must retain its resolved provider/model and canonical single-voice
+verdict_quality. Missing or non-APPROVED scorer evidence contributes no votes.
 {
+  "provider": "openai",
+  "model": "resolved-model-id",
+  "requested_model": "caller-alias",
+  "verdict_quality": {"status": "APPROVED", "...": "complete canonical envelope"},
   "scores": [
     {"id": "IMP-001", "score": 850, "evaluation": "...", "would_integrate": true},
     {"id": "IMP-002", "score": 420, "evaluation": "...", "would_integrate": false}
@@ -706,8 +739,8 @@ main() {
         opus_count=$(scoring_item_count "$opus_scores_file" standard) || return 2
     fi
 
-    if [[ "$gpt_count" == "0" && "$opus_count" == "0" &&
-          ( "$attack_mode" == "true" || -z "$gpt_scores_tertiary_file$opus_scores_tertiary_file$tertiary_scores_opus_file$tertiary_scores_gpt_file" ) ]]; then
+    # Standard consensus still qualifies empty responses and retains skeptics.
+    if [[ "$gpt_count" == "0" && "$opus_count" == "0" && "$attack_mode" == "true" ]]; then
         # Issue #759: emit structured DEGRADED consensus instead of `exit 3`
         # with no stdout. The flatline-orchestrator captures this via
         # `result=$(run_consensus ...)`; an empty result silently produces

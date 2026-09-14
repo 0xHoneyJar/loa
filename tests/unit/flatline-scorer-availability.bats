@@ -4,6 +4,7 @@ bats_require_minimum_version 1.5.0
 
 setup() {
     REPO="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+    source "$REPO/tests/helpers/flatline-scorer.bash"
     SCRATCH="$BATS_TEST_TMPDIR/scoring"
     mkdir -p "$SCRATCH/temp"
     source "$REPO/.claude/scripts/flatline-orchestrator.sh"
@@ -11,7 +12,7 @@ setup() {
     set_state() { :; }
     log_trajectory() { :; }
     for name in gpt opus t-opus t-gpt g-tert o-tert; do
-        jq -n --arg content '{"scores":[]}' '{content:$content}' > "$SCRATCH/$name.json"
+        score_response "$name" '{"scores":[]}'
     done
     # Direct consensus fixtures intentionally cross-score one known global ID.
     # Real Phase 2 cases below replace these with their actual dispatch inputs.
@@ -23,8 +24,7 @@ setup() {
 }
 
 score() {
-    jq -n --argjson value "$2" \
-        '{content:({scores:[{id:"IMP-1",score:$value}]} | tojson)}' > "$SCRATCH/$1.json"
+    score_response "$1" "$(jq -n --argjson value "$2" '{scores:[{id:"IMP-1",score:$value}]}')"
 }
 
 consensus() {
@@ -70,25 +70,36 @@ consensus() {
 
 @test "#1199 repeated tertiary score streams remain one independent vote" {
     score t-opus 900
-    score t-gpt 950
+    score t-gpt 900
     consensus > "$SCRATCH/result"
     jq -e '.consensus_summary.high_consensus_count == 0 and .medium_value[0].scorers_available == 1' "$SCRATCH/result"
 }
 
+@test "ADP-004 conflicting scores by one resolved model are not selected by file order" {
+    for values in '0 900' '900 0'; do
+        read -r first second <<< "$values"
+        score t-opus "$first"
+        score t-gpt "$second"
+        consensus > "$SCRATCH/result"
+        jq -e '.degraded == true and .high_consensus == [] and
+            (.medium_value[0] | .scorers_available == 0 and
+             .average_score == null and .conflicting_scorer_votes == true)' "$SCRATCH/result"
+    done
+}
+
 @test "#1199 scorer normalization finds scores after a prefixed JSON metadata object" {
-    jq -n --arg content '{"analysis":"metadata"}
+    score_response gpt '{"analysis":"metadata"}
 Final scores:
     ```json
     {"scores":[{"id":"IMP-1","score":900}]}
-    ```' '{content:$content}' > "$SCRATCH/gpt.json"
+    ```'
     score opus 850
     consensus > "$SCRATCH/result"
     jq -e '.high_consensus[0].gpt_score == 900 and .high_consensus[0].opus_score == 850' "$SCRATCH/result"
 }
 
 @test "#1199 scorer normalization unwraps a JSON-encoded fenced response" {
-    jq -n --arg content '"```json\n{\"scores\":[{\"id\":\"IMP-1\",\"score\":900}]}\n```"' \
-        '{content:$content}' > "$SCRATCH/gpt.json"
+    score_response gpt '"```json\n{\"scores\":[{\"id\":\"IMP-1\",\"score\":900}]}\n```"'
     score opus 850
     consensus > "$SCRATCH/result"
     jq -e '.high_consensus[0].gpt_score == 900' "$SCRATCH/result"
@@ -124,7 +135,7 @@ Final scores:
     for content in \
         $'```json\n{"scores":[{"id":"IMP-1","score":900}]}\n```' \
         'Final scores: {"scores":[{"id":"IMP-1","score":900}]}'; do
-        jq -n --arg content "$content" '{content:$content}' > "$SCRATCH/gpt.json"
+        score_response gpt "$content"
         score opus 850
         consensus > "$SCRATCH/result"
         jq -e '.high_consensus[0].gpt_score == 900' "$SCRATCH/result"
@@ -177,7 +188,7 @@ run_scoring_main() (
                   ( "$scenario" == coverage_one_scorer && "$1" == second ) ]]; then
                 partial=true
             fi
-            jq --argjson partial "$partial" '{content:({scores:[
+            jq --argjson partial "$partial" --argjson metadata "$(scorer_metadata "$1")" '$metadata + {content:({scores:[
                 (if $partial then .improvements[:1] else .improvements end)[] |
                 {id,score:900}
             ]} | tojson),cost_usd:0}' "$3"
@@ -249,7 +260,7 @@ phase2_fixture() {
     get_model_tertiary() { [[ "$mode" != triangle ]] || echo tertiary; return 0; }
     add_cost() { :; }
     call_model() {
-        jq --arg mode "$mode" '{content:({scores:[.improvements[] |
+        jq --arg mode "$mode" --argjson metadata "$(scorer_metadata "$1")" '$metadata + {content:({scores:[.improvements[] |
             {id:(if $mode == "bare_reply" then "IMP-001" else .id end),
              description, score:900}]} | tojson),cost_usd:0}' "$3"
     }

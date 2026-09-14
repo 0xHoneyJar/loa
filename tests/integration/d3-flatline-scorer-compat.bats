@@ -4,8 +4,8 @@
 # (bd-c116-d3-tiering)
 # =============================================================================
 # Proves the per-stage tier-routing opt-in is TRULY opt-in: with the flag
-# default-off, flatline-orchestrator.sh's call_model() builds a byte-for-byte
-# identical cheval argv to pre-D3 (the hardcoded `--model` pin). Divergence to
+# default-off, flatline-orchestrator.sh's call_model() keeps the `--model` pin.
+# C16 adds --skill telemetry to this path without changing selection. Divergence to
 # the advisor_strategy role/skill path happens ONLY when the operator flips
 # advisor_strategy.stage_routing.flatline_scorer AND the mode is `score`.
 #
@@ -60,11 +60,12 @@ _run_call_model() {
     '
 }
 
-@test "default-off + score: argv keeps --model pin, no --role (byte-identical to pre-D3)" {
+@test "default-off + score: argv keeps --model pin and telemetry skill, no --role" {
     _run_call_model "false" "score"
     grep -qx -- "--model" "$REC_ARGS"
     ! grep -qx -- "--role" "$REC_ARGS"
-    ! grep -qx -- "--skill" "$REC_ARGS"
+    grep -A1 -x -- "--model" "$REC_ARGS" | grep -qx "prov:opus"
+    grep -A1 -x -- "--skill" "$REC_ARGS" | grep -qx "flatline-score"
 }
 
 @test "flag-on + score: argv routes via --role/--skill, drops --model" {

@@ -32,6 +32,7 @@ def workspace(tmp_path):
         elif source.name not in {"model-invoke", "model-adapter.sh", "flatline-mode-detect.sh"}:
             target.symlink_to(source, target_is_directory=source.is_dir())
     (tmp_path / ".claude/defaults").symlink_to(REPO / ".claude/defaults")
+    (tmp_path / ".claude/adapters").symlink_to(REPO / ".claude/adapters")
     (tmp_path / "doc.md").write_text("Local test document")
     (tmp_path / ".loa.config.yaml").write_text(
         "flatline_protocol:\n  enabled: true\n  autonomous_arbiter:\n"
@@ -282,14 +283,28 @@ cat "$CASE_ROOT/arbiter-response"
     }))
     return execute(workspace, "flatline-orchestrator.sh", '''
 SIMSTIM_AUTONOMOUS=1
+FLATLINE_RUN_ID=arbiter-fixture
 is_flatline_enabled() { return 0; }
 get_model_tertiary() { :; }
 check_budget() { return 0; }
 set_state() { :; }
 log_trajectory() { :; }
-invalidate_final_consensus() { :; }
-run_phase1() { printf 'a\\nb\\nc\\nd\\n'; }
-qualify_and_aggregate_reviews() { FLATLINE_VERDICT_QUALITY='{"status":"APPROVED"}'; return 0; }
+degraded_verdict_maybe_emit() { :; }
+run_phase1() {
+    local voice
+    for voice in first second; do
+        jq -n --arg voice "$voice" '{
+            content:({improvements:[{id:"I1",description:"Retained local finding",priority:"HIGH"}]} | tojson),
+            verdict_quality:{
+                status:"APPROVED",consensus_outcome:"consensus",truncation_waiver_applied:false,
+                voices_planned:1,voices_succeeded:1,voices_succeeded_ids:[$voice],
+                voices_dropped:[],chain_health:"ok",confidence_floor:"high",
+                rationale:"Local fixture",single_voice_call:true
+            }
+        }' > "$TEMP_DIR/$voice.json"
+    done
+    printf '%s\\n' "$TEMP_DIR/first.json" "$TEMP_DIR/second.json" c d
+}
 run_phase2() { printf 'a\\nb\\n'; }
 run_consensus() { cat "$CASE_ROOT/consensus.json"; }
 main --doc "$CASE_ROOT/doc.md" --phase prd --domain local --skip-knowledge --no-silent-noop-detect
@@ -305,7 +320,13 @@ main --doc "$CASE_ROOT/doc.md" --phase prd --domain local --skip-knowledge --no-
 def test_arbiter_parse_failure_never_clears_blockers_or_retries(workspace, payload):
     result = arbiter(workspace, payload)
     assert result.returncode != 0, (result.stdout, result.stderr)
-    assert not result.stdout.strip()
+    out = json.loads(result.stdout)
+    assert [item["id"] for item in out["blockers"]] == ["B1", "B2"]
+    assert out["verdict_quality"]["status"] == "FAILED"
+    assert out["execution"]["status"] == "FAILED"
+    canonical = workspace / "grimoires/loa/a2a/flatline/prd-arbiter-fixture-final_consensus.json"
+    latest = workspace / "grimoires/loa/a2a/flatline/prd-final_consensus.json"
+    assert json.loads(canonical.read_text()) == out["verdict_quality"] == json.loads(latest.read_text())
     assert (workspace / "provider-boundary-calls").read_text() == "call\n"
     assert not (workspace / "grimoires/loa/a2a/flatline/prd-review.json").exists()
 
