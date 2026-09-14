@@ -45,6 +45,10 @@ def _write_fixture(dir_path: Path, name: str, payload: dict) -> Path:
 def _make_args(tmp_path: Path, *, mock_fixture_dir: str | None = None) -> object:
     args = types.SimpleNamespace()
     args.agent = "flatline-reviewer"
+    # Defaults supplied by the real CLI when advisor flags are omitted.
+    args.role = None
+    args.skill = None
+    args.sprint_kind = None
     args.input = None
     args.prompt = "test prompt"
     args.system = None

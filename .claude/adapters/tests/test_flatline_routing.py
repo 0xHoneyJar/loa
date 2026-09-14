@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -26,6 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / ".claude" / "scripts"
 MODEL_INVOKE = SCRIPTS_DIR / "model-invoke"
 MODEL_ADAPTER = SCRIPTS_DIR / "model-adapter.sh"
+MODEL_CONFIG = PROJECT_ROOT / ".claude" / "defaults" / "model-config.yaml"
 
 
 # ── Sample config matching model-config.yaml ─────────────────────────────────
@@ -233,7 +235,7 @@ class TestModelInvokeDryRun:
 class TestModelAdapterShim:
     """Test the model-adapter.sh compatibility shim.
 
-    Tests both feature flag=true (model-invoke) and flag=false (legacy) paths.
+    Both values of the retired routing flag must use the live model-invoke path.
     """
 
     @pytest.fixture(autouse=True)
@@ -259,7 +261,7 @@ class TestModelAdapterShim:
         return result
 
     def test_shim_legacy_mock_mode(self, dummy_input):
-        """With flag=false and mock mode, shim delegates to legacy adapter."""
+        """The legacy interface runs fixture inference through cheval even with flag=false."""
         result = self._run_adapter(
             ["--model", "opus", "--mode", "review", "--input", dummy_input, "--json"],
             env_overrides={
@@ -267,9 +269,23 @@ class TestModelAdapterShim:
                 "FLATLINE_MOCK_MODE": "true",
             },
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
-        assert data.get("mock") is True
+        fixture = json.loads((
+            PROJECT_ROOT / "tests/fixtures/cycle-109/mock-mode/review/response.json"
+        ).read_text())
+        assert data == {
+            "content": fixture["content"],
+            "tokens_input": fixture["usage"]["input_tokens"],
+            "tokens_output": fixture["usage"]["output_tokens"],
+            "latency_ms": fixture["latency_ms"],
+            "retries": 0,
+            "model": "opus",
+            "mode": "review",
+            "phase": "prd",
+            "cost_usd": 0,
+        }
+        assert "Mock mode — routing via cheval --mock-fixture-dir=" in result.stderr
 
     def test_shim_routes_to_model_invoke_dry_run(self, dummy_input):
         """With flag=true, shim routes through model-invoke."""
@@ -302,9 +318,12 @@ class TestModelAdapterShim:
 
     def test_shim_model_translation(self, dummy_input):
         """Legacy model names correctly translate to provider:model-id."""
+        defaults = yaml.safe_load(MODEL_CONFIG.read_text())
+        _, opus = resolve_execution("flatline-reviewer", defaults, model_override="opus")
         tests = [
             ("gpt-5.2", "openai", "gpt-5.2"),
-            ("opus", "anthropic", "claude-opus-4-7"),  # cycle-082: retargeted from 4-6
+            # The live shim and Python must agree on the single-source alias.
+            ("opus", "anthropic", opus.model_id),
         ]
         for model, expected_provider, expected_model in tests:
             result = self._run_adapter(
@@ -334,28 +353,30 @@ class TestModelAdapterShim:
         assert result.returncode == 2
 
     def test_feature_flag_toggle(self, dummy_input):
-        """Switching flag doesn't require restart — just env change."""
-        # Flag=false → legacy mock
-        result1 = self._run_adapter(
-            ["--model", "opus", "--mode", "review", "--input", dummy_input],
-            env_overrides={
-                "HOUNFOUR_FLATLINE_ROUTING": "false",
-                "FLATLINE_MOCK_MODE": "true",
-            },
-        )
-        assert result1.returncode == 0
-        data1 = json.loads(result1.stdout)
-        assert data1.get("mock") is True
-
-        # Flag=true → model-invoke dry-run
-        result2 = self._run_adapter(
-            ["--model", "opus", "--mode", "review",
-             "--input", dummy_input, "--dry-run"],
-            env_overrides={"HOUNFOUR_FLATLINE_ROUTING": "true"},
-        )
-        assert result2.returncode == 0
-        data2 = json.loads(result2.stdout)
-        assert "agent" in data2
+        """Toggling the retired flag changes neither fixture dispatch nor resolution."""
+        outputs = []
+        for flag in ("false", "true"):
+            result = self._run_adapter(
+                ["--model", "opus", "--mode", "review", "--input", dummy_input],
+                env_overrides={
+                    "HOUNFOUR_FLATLINE_ROUTING": flag,
+                    "FLATLINE_MOCK_MODE": "true",
+                },
+            )
+            assert result.returncode == 0, result.stderr
+            outputs.append(json.loads(result.stdout))
+            assert "Mock mode — routing via cheval --mock-fixture-dir=" in result.stderr
+            dry_run = self._run_adapter(
+                ["--model", "opus", "--mode", "review",
+                 "--input", dummy_input, "--dry-run"],
+                env_overrides={"HOUNFOUR_FLATLINE_ROUTING": flag},
+            )
+            assert dry_run.returncode == 0, dry_run.stderr
+            resolved = json.loads(dry_run.stdout)
+            assert resolved["agent"] == "flatline-reviewer"
+            assert resolved["resolved_provider"] == "anthropic"
+        assert outputs[0] == outputs[1]
+        assert json.loads(outputs[0]["content"])["improvements"]
 
 
 # ── Validate Bindings CLI Test ───────────────────────────────────────────────
@@ -369,14 +390,23 @@ class TestValidateBindingsCLI:
         if not MODEL_INVOKE.exists():
             pytest.skip("model-invoke not found")
 
-    def test_validate_bindings_includes_new_agents(self):
+    def test_validate_bindings_includes_new_agents(self, tmp_path):
+        defaults = yaml.safe_load(MODEL_CONFIG.read_text())
+        merged = tmp_path / "merged.yaml"
+        merged.write_text(yaml.safe_dump({
+            "framework_defaults": defaults, "operator_config": {},
+        }))
         result = subprocess.run(
-            [str(MODEL_INVOKE), "--validate-bindings"],
+            [str(MODEL_INVOKE), "--validate-bindings",
+             "--merged-config", str(merged), "--format", "json"],
             capture_output=True, text=True, cwd=str(PROJECT_ROOT),
         )
-        assert result.returncode == 0
+        assert result.returncode == 0, result.stderr
         data = json.loads(result.stdout)
-        assert data["valid"] is True
+        assert data["exit_code"] == 0
+        assert data["summary"]["unresolved"] == 0
+        assert data["summary"]["resolved"] == data["summary"]["total_bindings"]
+        bindings = {entry["skill"]: entry for entry in data["bindings"]}
 
         expected_agents = [
             "flatline-reviewer", "flatline-skeptic",
@@ -384,4 +414,8 @@ class TestValidateBindingsCLI:
             "gpt-reviewer",
         ]
         for agent in expected_agents:
-            assert agent in data["agents"], f"Missing agent: {agent}"
+            assert agent in bindings, f"Missing agent: {agent}"
+            _, expected = resolve_execution(agent, defaults)
+            assert bindings[agent]["role"] == "primary"
+            assert bindings[agent]["resolved_provider"] == expected.provider
+            assert bindings[agent]["resolved_model_id"] == expected.model_id

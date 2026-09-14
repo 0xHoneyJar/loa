@@ -556,7 +556,8 @@ providers:
         # advertise 200000-token context (matches the http_api
         # claude-opus-4-7 / claude-sonnet-4-6 entries in this file).
         context_window: 200000
-        # No pricing entry — CLI uses operator's Claude Code subscription.
+        # No static pricing: record CLI-reported total_cost_usd when available.
+        # OAuth does not establish zero cost or actual billing; see KF-020.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
         # model name passed to `claude --model <name>` (the CLI doesn't
         # recognize the Loa alias). Operator-overridable to switch

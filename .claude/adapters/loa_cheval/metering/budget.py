@@ -231,6 +231,11 @@ class BudgetEnforcer:
                 usage_source=result.usage.source,
                 attempt=self._attempt,
                 interaction_id=interaction_id,
+                reported_cost_micro_usd=(
+                    result.cost_micro_usd
+                    if result.metadata.get("pricing_source") == "cli_reported"
+                    else None
+                ),
             )
             record_cost(entry, self._ledger_path)
 

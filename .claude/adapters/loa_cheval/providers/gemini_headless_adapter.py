@@ -39,16 +39,12 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
+import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
-import time
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
 from loa_cheval.providers.base import (
-    ProviderAdapter,
-    SubprocessOutputCapExceeded,
-    build_headless_subprocess_env,
-    enforce_context_window,
     run_subprocess_pgkill,
 )
 from loa_cheval.types import (
@@ -77,13 +73,8 @@ _GEMINI_AUTH_ENV_VARS = (
     "GOOGLE_GENAI_USE_GCA",
 )
 
-# Conservative defaults for subprocess wall-clock. ProviderConfig.read_timeout
-# wins when set; these floors apply only when the loader hands defaults.
-_CONNECT_TIMEOUT_FLOOR = 10.0
-_READ_TIMEOUT_FLOOR = 600.0  # 10 min
 
-
-class GeminiHeadlessAdapter(ProviderAdapter):
+class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `gemini -p` (non-interactive).
 
     Provider config (no auth field — file-based):
@@ -109,93 +100,19 @@ class GeminiHeadlessAdapter(ProviderAdapter):
     # route to the (google, headless) bucket.
     auth_type: str = "headless"
 
-    def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Invoke `gemini -p` and return a normalized CompletionResult."""
-        model_config = self._get_model_config(request.model)
-        enforce_context_window(request, model_config)
+    _cli_type = "gemini-headless"
+    _cli_name = "gemini"
+    _command_label = "gemini -p"
+    _install_hint = 'Install with: npm install -g @google/gemini-cli'
+    _logger = logger
 
-        prompt = self._build_prompt(request.messages)
-        cmd = self._build_command(request, model_config, prompt)
-        timeout_s = self._compute_timeout()
-        # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
-        # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
-        # when operator hasn't seeded a stress-test-discovered value (SDD §5.6).
-        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
+    def _run_subprocess(self, command, **kwargs):
+        # Keep the provider's subprocess seam available to callers and tests.
+        return run_subprocess_pgkill(command, **kwargs)
 
-        logger.debug(
-            "gemini-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
-            request.model,
-            timeout_s,
-            len(prompt),
-            n_slots,
-        )
-
-        # Cycle-110 sprint-2b2b1 T2.11 — N-slot semaphore wire-up.
-        from loa_cheval.adapters.headless_concurrency import (
-            SemaphoreExhausted as _SemaphoreExhausted,
-            acquire_slot as _acquire_slot,
-        )
-
-        start = time.monotonic()
-        try:
-            with _acquire_slot("gemini-headless", n_slots=n_slots):
-                try:
-                    # #982: process-group-killing drop-in for subprocess.run —
-                    # on timeout the whole CLI tree dies and the fallback
-                    # chain advances instead of hanging on orphaned pipes.
-                    # gemini-cli's `-p` flag triggers headless mode and consumes
-                    # the prompt argument directly; without `input=` the helper
-                    # keeps stdin on DEVNULL (avoids hangs in some shells).
-                    proc = run_subprocess_pgkill(
-                        cmd,
-                        timeout=timeout_s,
-                        # cycle-109 follow-up (#879 / #880 symmetric): strip
-                        # GOOGLE_API_KEY + GEMINI_API_KEY so gemini -p uses GCA
-                        # OAuth, not API mode.
-                        env=build_headless_subprocess_env(),
-                    )
-                except subprocess.TimeoutExpired:
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"gemini -p timed out after {timeout_s:.0f}s",
-                    )
-                except SubprocessOutputCapExceeded as exc:
-                    # Iter-1 B2: truncated output is a provider failure, not a
-                    # successful completion — chain advances like a timeout.
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"gemini -p {exc}",
-                    ) from exc
-                except FileNotFoundError as exc:
-                    raise ConfigError(
-                        f"gemini CLI not found on PATH (set GEMINI_HEADLESS_BIN to override). "
-                        f"Install with: npm install -g @google/gemini-cli. Original: {exc}"
-                    ) from exc
-                except OSError as exc:
-                    # Spawn failure: ARG_MAX/E2BIG (oversized prompt on argv), ENOMEM,
-                    # "Exec format error", etc. → WALK the chain, never crash raw (bd-q0o;
-                    # FileNotFoundError handled above maps to ConfigError).
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"gemini -p spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
-                    ) from exc
-                except ValueError as exc:
-                    # Untrusted prompt with an embedded NUL → subprocess raises ValueError
-                    # (NOT an OSError) → WALK, don't crash the chain (bd-q0o).
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"gemini -p got un-executable argv (embedded NUL in the prompt?): {exc}",
-                    ) from exc
-        except _SemaphoreExhausted as exc:
-            raise ProviderUnavailableError(
-                self.provider,
-                f"[CHAIN-EXHAUSTED-CONCURRENCY] gemini-headless semaphore "
-                f"exhausted after {exc.waited_seconds:.1f}s "
-                f"(n_slots={exc.n_slots})",
-            ) from exc
-
-        latency_ms = int((time.monotonic() - start) * 1000)
-
+    def _finish_completion(
+        self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
+    ) -> CompletionResult:
         # gemini CLI may return non-zero even when JSON output contains a
         # structured error. We try to parse stdout first to prefer structured
         # diagnostics; only fall back to subprocess-level error classification
@@ -228,52 +145,11 @@ class GeminiHeadlessAdapter(ProviderAdapter):
             latency_ms=latency_ms,
         )
 
-    def validate_config(self) -> List[str]:
-        """Validate that the gemini CLI is on PATH. Auth is best-effort surface."""
-        errors: List[str] = []
-        if self.config.type != "gemini-headless":
-            errors.append(
-                f"Provider '{self.provider}': type must be 'gemini-headless' "
-                f"(got '{self.config.type}')"
-            )
-
-        bin_name = self._gemini_bin()
-        if not shutil.which(bin_name):
-            errors.append(
-                f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
-                f"Install with: npm install -g @google/gemini-cli"
-            )
-
-        # Best-effort auth probe: the CLI itself enforces auth at first call,
-        # so we don't duplicate. We DO emit a hint when neither the settings
-        # file nor any auth env var is populated, since the most common
-        # operator failure is "I installed the CLI but never logged in."
-        # This is non-blocking — we only return errors for things that will
-        # 100% fail.
-        return errors
-
-    def health_check(self) -> bool:
-        """Verify the gemini CLI is reachable. Does NOT make a model call."""
-        bin_name = self._gemini_bin()
-        if not shutil.which(bin_name):
-            return False
-        try:
-            proc = subprocess.run(
-                [bin_name, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            return proc.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
-            return False
-
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
 
-    def _gemini_bin(self) -> str:
+    def _cli_bin(self) -> str:
         """Resolve the gemini CLI binary name (env var override allowed)."""
         return os.environ.get("GEMINI_HEADLESS_BIN", _GEMINI_BIN_DEFAULT)
 
@@ -289,7 +165,7 @@ class GeminiHeadlessAdapter(ProviderAdapter):
         # gemini model id the CLI binary expects.
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
-            self._gemini_bin(),
+            self._cli_bin(),
             "-p",
             prompt,
             "--output-format",
@@ -323,50 +199,6 @@ class GeminiHeadlessAdapter(ProviderAdapter):
 
         return cmd
 
-    def _compute_timeout(self) -> float:
-        """Resolve the subprocess timeout. read_timeout wins when set."""
-        connect = max(self.config.connect_timeout, _CONNECT_TIMEOUT_FLOOR)
-        read = max(self.config.read_timeout, _READ_TIMEOUT_FLOOR)
-        return connect + read
-
-    # ---------------------------------------------------------------------
-    # Internal: prompt flattening
-    # ---------------------------------------------------------------------
-
-    def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """Flatten message array into a single prompt for gemini -p.
-
-        Same shape as codex_headless_adapter — role-prefixed sections collapsed
-        into one input string. Lossy compared to a native multi-turn API, but
-        sufficient for single-shot review modes.
-        """
-        sections: List[str] = []
-        for msg in messages:
-            role = (msg.get("role") or "user").lower()
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                # Anthropic-style content blocks
-                content = "\n".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
-            elif not isinstance(content, str):
-                try:
-                    content = json.dumps(content)
-                except (TypeError, ValueError):
-                    content = str(content)
-
-            label = {
-                "system": "## System",
-                "user": "## User",
-                "assistant": "## Assistant",
-                "tool": "## Tool result",
-            }.get(role, f"## {role.capitalize()}")
-
-            sections.append(f"{label}\n\n{content}".rstrip())
-
-        return "\n\n".join(sections) + "\n"
 
     # ---------------------------------------------------------------------
     # Internal: JSON parsing

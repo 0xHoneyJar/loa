@@ -9,11 +9,6 @@ from loa_cheval.routing.resolver import (
     resolve_execution,
     validate_bindings,
 )
-from loa_cheval.routing.chains import (
-    validate_chains,
-    walk_downgrade_chain,
-    walk_fallback_chain,
-)
 from loa_cheval.routing.circuit_breaker import (
     AUTH_TYPES,
     AUTH_TYPE_AWS_IAM,
@@ -41,8 +36,7 @@ from loa_cheval.routing.context_filter import (
 )
 
 # cycle-104 Sprint 2 (SDD §1.4.1, §1.4.2, §3.1, §5.1, §5.2): within-company
-# chain resolver + capability gate. Coexist with cycle-095 walk_fallback_chain;
-# new call sites use resolve()/check() upfront.
+# chain resolver + capability gate. Call sites use resolve()/check() upfront.
 from loa_cheval.routing.chain_resolver import (
     DEFAULT_HEADLESS_MODE,
     resolve,
@@ -109,7 +103,4 @@ __all__ = [
     "resolve_execution",
     "resolve_headless_mode",
     "validate_bindings",
-    "validate_chains",
-    "walk_downgrade_chain",
-    "walk_fallback_chain",
 ]

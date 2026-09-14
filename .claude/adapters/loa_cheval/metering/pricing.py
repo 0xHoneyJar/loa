@@ -7,12 +7,30 @@ No floating-point anywhere in the cost path.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 
 # Overflow guard: max safe integer for cost calculation.
 # Python ints are arbitrary-precision, but we enforce this for parity with loa-finn
 # which uses Number.MAX_SAFE_INTEGER (2^53 - 1).
 MAX_SAFE_PRODUCT = (2**53) - 1
+
+
+def cli_cost_micro_usd(value: Any) -> Optional[int]:
+    """Normalize a CLI's USD amount without binary floating-point arithmetic.
+
+    Missing, malformed, negative, or unrepresentable telemetry is unknown.
+    Fractional micro-USD is floored, matching config-based cost accounting.
+    """
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return None
+    try:
+        amount = Decimal(str(value))
+        if not amount.is_finite() or amount < 0 or amount > Decimal(MAX_SAFE_PRODUCT) / 1_000_000:
+            return None
+        return int(amount * 1_000_000)
+    except (InvalidOperation, ValueError):
+        return None
 
 
 @dataclass

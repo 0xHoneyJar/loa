@@ -24,10 +24,8 @@
 # behavioral gain. Migration tracked as out-of-scope.
 .claude/scripts/model-health-probe.sh
 
-# Legacy adapter shim — already marked `.legacy` extension. Scheduled for
-# sunset in a follow-up cycle (cycle-099 sprint-4 legacy-sunset path).
-# Direct provider URLs here are vestigial.
-.claude/scripts/model-adapter.sh.legacy
+# The legacy model adapter was deleted in cycle-109. Its former direct-provider
+# exception is retired; the live shim dispatches through cheval.
 
 # Embeddings call (cycle-103 T1.6 audit doc — handoffs/T1.6-flatline-api-audit.md
 # §"embeddings exception"). Cheval has no embeddings substrate;

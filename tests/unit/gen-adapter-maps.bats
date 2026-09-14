@@ -4,7 +4,7 @@
 # =============================================================================
 # Sprint-bug-108. Validates the YAML → bash generator produces byte-correct
 # output and that the generated maps match the values expected by
-# model-adapter.sh.legacy.
+# the live model routing shim.
 
 setup() {
     export PROJECT_ROOT="$BATS_TEST_DIRNAME/../.."
@@ -22,8 +22,8 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"declare -A MODEL_PROVIDERS"* ]]
     [[ "$output" == *"declare -A MODEL_IDS"* ]]
-    [[ "$output" == *"declare -A COST_INPUT"* ]]
-    [[ "$output" == *"declare -A COST_OUTPUT"* ]]
+    [[ "$output" != *"declare -A COST_INPUT"* ]]
+    [[ "$output" != *"declare -A COST_OUTPUT"* ]]
 }
 
 @test "generated output is syntactically valid bash" {
@@ -62,31 +62,13 @@ setup() {
 }
 
 # =========================================================================
-# GAM-T3: pricing conversion (micro-USD per MTok → USD per 1K)
+# GAM-T3: pricing is accounted for by Python, never a second bash registry
 # =========================================================================
 
-@test "generated COST_INPUT for opus matches hand-maintained 0.005" {
-    run bash -c "source '$GENERATED'; echo \"\${COST_INPUT[opus]}\""
-    [ "$status" -eq 0 ]
-    [ "$output" = "0.005" ]
-}
-
-@test "generated COST_OUTPUT for opus matches hand-maintained 0.025" {
-    run bash -c "source '$GENERATED'; echo \"\${COST_OUTPUT[opus]}\""
-    [ "$status" -eq 0 ]
-    [ "$output" = "0.025" ]
-}
-
-@test "generated COST_INPUT for gpt-5.3-codex is 0.00175" {
-    run bash -c "source '$GENERATED'; echo \"\${COST_INPUT[gpt-5.3-codex]}\""
-    [ "$status" -eq 0 ]
-    [ "$output" = "0.00175" ]
-}
-
-@test "generated COST_INPUT for gemini-2.5-pro is 0.00125" {
-    run bash -c "source '$GENERATED'; echo \"\${COST_INPUT[gemini-2.5-pro]}\""
-    [ "$status" -eq 0 ]
-    [ "$output" = "0.00125" ]
+@test "generated surface has no dead COST maps" {
+    run bash -c "source '$GENERATED'; declare -p COST_INPUT COST_OUTPUT 2>/dev/null"
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
 }
 
 # =========================================================================
@@ -146,23 +128,16 @@ setup() {
 }
 
 # =========================================================================
-# GAM-T7: parity with hand-maintained legacy adapter values
+# GAM-T7: backward-compatible routing aliases
 # =========================================================================
-# This test is the whole point: the generated output's values for each
-# entry must match what the hand-maintained maps in model-adapter.sh.legacy
-# currently specify. If this fails, the generator introduces runtime drift.
+# Retain the alias migration contracts used by existing callers.
 
-@test "parity: generated MODEL_IDS[claude-opus-4-5] matches hand-maintained (claude-opus-4-7)" {
+@test "parity: generated MODEL_IDS[claude-opus-4-5] retains the migration target (claude-opus-4-7)" {
     run bash -c "source '$GENERATED'; echo \"\${MODEL_IDS[claude-opus-4-5]}\""
     [ "$output" = "claude-opus-4-7" ]
 }
 
-@test "parity: generated MODEL_PROVIDERS[gpt-5.2-codex] matches hand-maintained (openai)" {
+@test "parity: generated MODEL_PROVIDERS[gpt-5.2-codex] retains the migration target (openai)" {
     run bash -c "source '$GENERATED'; echo \"\${MODEL_PROVIDERS[gpt-5.2-codex]}\""
     [ "$output" = "openai" ]
-}
-
-@test "parity: generated COST for claude-opus-4-6 matches hand-maintained (0.005/0.025)" {
-    run bash -c "source '$GENERATED'; echo \"\${COST_INPUT[claude-opus-4-6]}/\${COST_OUTPUT[claude-opus-4-6]}\""
-    [ "$output" = "0.005/0.025" ]
 }

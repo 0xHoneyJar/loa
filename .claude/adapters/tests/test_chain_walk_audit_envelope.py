@@ -54,6 +54,10 @@ import cheval  # type: ignore[import-not-found]
 def _make_args() -> object:
     args = types.SimpleNamespace()
     args.agent = "flatline-reviewer"
+    # Defaults supplied by the real CLI when advisor flags are omitted.
+    args.role = None
+    args.skill = None
+    args.sprint_kind = None
     args.input = None
     args.prompt = "test prompt"
     args.system = None

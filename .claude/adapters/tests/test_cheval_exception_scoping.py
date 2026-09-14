@@ -39,6 +39,10 @@ def _make_args(tmp_path) -> object:
     """Construct a minimal valid argparse.Namespace for cmd_invoke()."""
     args = types.SimpleNamespace()
     args.agent = "flatline-reviewer"
+    # Defaults supplied by the real CLI when advisor flags are omitted.
+    args.role = None
+    args.skill = None
+    args.sprint_kind = None
     args.input = None
     args.prompt = "test prompt"
     args.system = None

@@ -39,6 +39,7 @@ Design notes:
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 import logging
 import os
 import re
@@ -48,11 +49,8 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter
 from loa_cheval.providers.base import (
-    ProviderAdapter,
-    SubprocessOutputCapExceeded,
-    build_headless_subprocess_env,
-    enforce_context_window,
     run_subprocess_pgkill,
 )
 from loa_cheval.types import (
@@ -74,8 +72,6 @@ _CURSOR_BIN_DEFAULT = "cursor-agent"
 # each clamped UP to its floor — a configured value BELOW the floor does NOT lower it
 # (the floor wins; this protects agent sessions from being killed mid-reasoning).
 # (BB CURSOR-007: comment now matches _compute_timeout's actual max()-with-floor behavior.)
-_CONNECT_TIMEOUT_FLOOR = 10.0
-_READ_TIMEOUT_FLOOR = 600.0  # 10 min — agent sessions can be slow
 
 
 def _safe_int(v: Any) -> int:
@@ -123,7 +119,7 @@ def _extract_envelope(stdout: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-class CursorHeadlessAdapter(ProviderAdapter):
+class CursorHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `cursor-agent -p` (Composer).
 
     Provider config (no api_key field):
@@ -150,99 +146,39 @@ class CursorHeadlessAdapter(ProviderAdapter):
     # transforms keep this adapter under cli-only mode.
     auth_type: str = "headless"
 
-    def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Invoke `cursor-agent -p` and return a normalized CompletionResult."""
-        model_config = self._get_model_config(request.model)
-        enforce_context_window(request, model_config)
+    _cli_type = "cursor-headless"
+    _cli_name = "cursor-agent"
+    _command_label = "cursor-agent"
+    _install_hint = 'Install Cursor and run `cursor-agent login`.'
+    _logger = logger
+    _spawn_install_hint = "Install Cursor + run `cursor-agent login`"
 
-        prompt = self._build_prompt(request.messages)
-        cmd = self._build_command(request, model_config)
-        timeout_s = self._compute_timeout()
-        # Review #966: per-model headless concurrency slots (peer pattern,
-        # cycle-110 SDD §5.6). Default 50 when the operator hasn't seeded a
-        # stress-test-discovered value.
-        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
+    def _run_subprocess(self, command, **kwargs):
+        # Keep the provider's subprocess seam available to callers and tests.
+        return run_subprocess_pgkill(command, **kwargs)
 
-        logger.debug(
-            "cursor-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
-            request.model,
-            timeout_s,
-            len(prompt),
-            n_slots,
-        )
-
-        # Import BEFORE mkdtemp — an import failure after it would leak the
-        # workspace (it sits outside the try/finally). (BB #966 round-2)
-        from loa_cheval.adapters.headless_concurrency import (
-            SemaphoreExhausted as _SemaphoreExhausted,
-            acquire_slot as _acquire_slot,
-        )
-
-        # Isolated empty cwd so a (denied) tool call has nothing to reach. Combined
-        # with --mode ask + --sandbox enabled, this is defense-in-depth for the
-        # untrusted prompt.
+    @contextmanager
+    def _prepare_invocation(self, request, model_config, prompt):
+        # Cursor counts latency after workspace creation; creation OSError
+        # propagates unchanged. Prompt stays on stdin, with an isolated cwd.
+        command = self._build_command(request, model_config)
         workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
-
-        start = time.monotonic()
+        started_at = time.monotonic()
         try:
-            with _acquire_slot("cursor-headless", n_slots=n_slots):
-                try:
-                    # Review #966 / #982 parity: run_subprocess_pgkill replaces the
-                    # hand-rolled Popen + communicate + killpg block — whole-tree
-                    # SIGKILL on timeout (cursor-agent forks node/MCP helpers),
-                    # bounded output capture, BaseException teardown. The prompt
-                    # is fed via STDIN (verified live 2026-06-11: cursor-agent -p
-                    # reads the prompt from stdin when no positional arg is
-                    # given) — it never touches argv, which (a) removes the OS
-                    # ARG_MAX cliff on large-diff reviews (BB #966 round-4
-                    # HIGH_CONSENSUS: argv caps ~256KB, ~6x below the advertised
-                    # context window) and (b) removes the flag-parsing surface
-                    # entirely (stronger than the previous `--` terminator).
-                    # cwd= keeps the isolated-workspace defense.
-                    proc = run_subprocess_pgkill(
-                        cmd,
-                        input=prompt,
-                        timeout=timeout_s,
-                        env=build_headless_subprocess_env(),
-                        cwd=workspace,
-                    )
-                except subprocess.TimeoutExpired:
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"cursor-agent timed out after {timeout_s:.0f}s",
-                    )
-                except SubprocessOutputCapExceeded as exc:
-                    # Truncated output is a provider failure, not a successful
-                    # completion — the chain advances like a timeout.
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"cursor-agent {exc}",
-                    ) from exc
-                except FileNotFoundError as exc:
-                    raise ConfigError(
-                        f"cursor-agent CLI not found on PATH (set CURSOR_HEADLESS_BIN to "
-                        f"override). Install Cursor + run `cursor-agent login`. Original: {exc}"
-                    ) from exc
-                except OSError as exc:
-                    # PermissionError / ENOMEM / "Exec format error" etc. — the CLI
-                    # never started. (BB CURSOR-004)
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"failed to spawn cursor-agent: {type(exc).__name__}: {exc}",
-                    ) from exc
-        except _SemaphoreExhausted as exc:
-            # Distinct exit class so MODELINV records semaphore_exhausted=true and
-            # the caller routes the failure separately from CHAIN_EXHAUSTED.
-            raise ProviderUnavailableError(
-                self.provider,
-                f"[CHAIN-EXHAUSTED-CONCURRENCY] cursor-headless semaphore "
-                f"exhausted after {exc.waited_seconds:.1f}s "
-                f"(n_slots={exc.n_slots})",
-            ) from exc
+            yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
 
-        latency_ms = int((time.monotonic() - start) * 1000)
+    def _raise_spawn_error(self, exc):
+        if isinstance(exc, OSError):
+            raise ProviderUnavailableError(
+                self.provider, f"failed to spawn cursor-agent: {type(exc).__name__}: {exc}",
+            ) from exc
+        raise exc
+
+    def _finish_completion(
+        self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
+    ) -> CompletionResult:
         stdout = proc.stdout or ""
         stderr = proc.stderr or ""
 
@@ -253,46 +189,11 @@ class CursorHeadlessAdapter(ProviderAdapter):
 
         return self._parse_output(stdout, stderr, request.model, latency_ms)
 
-    def validate_config(self) -> List[str]:
-        """Validate that cursor-agent is on PATH and the type is correct."""
-        errors: List[str] = []
-        if self.config.type != "cursor-headless":
-            errors.append(
-                f"Provider '{self.provider}': type must be 'cursor-headless' "
-                f"(got '{self.config.type}')"
-            )
-        bin_name = self._cursor_bin()
-        if not shutil.which(bin_name):
-            errors.append(
-                f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
-                f"Install Cursor and run `cursor-agent login`."
-            )
-        # Auth is best-effort: `cursor-agent login` populates ~/.cursor. If absent,
-        # the CLI errors at first call — no need to duplicate the check here.
-        return errors
-
-    def health_check(self) -> bool:
-        """Verify the cursor-agent CLI is reachable. Does NOT make a model call."""
-        bin_name = self._cursor_bin()
-        if not shutil.which(bin_name):
-            return False
-        try:
-            proc = subprocess.run(
-                [bin_name, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            return proc.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
-            return False
-
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
 
-    def _cursor_bin(self) -> str:
+    def _cli_bin(self) -> str:
         return os.environ.get("CURSOR_HEADLESS_BIN", _CURSOR_BIN_DEFAULT)
 
     def _build_command(self, request: CompletionRequest, model_config) -> List[str]:
@@ -303,7 +204,7 @@ class CursorHeadlessAdapter(ProviderAdapter):
         # --trust: skip the interactive Workspace-Trust prompt for the empty cwd.
         # NEVER -f/--yolo. Tools are not forwarded — this is pure inference.
         return [
-            self._cursor_bin(),
+            self._cli_bin(),
             "-p",
             "--output-format",
             "json",
@@ -316,43 +217,6 @@ class CursorHeadlessAdapter(ProviderAdapter):
             "--trust",
         ]
 
-    def _compute_timeout(self) -> float:
-        connect = max(self.config.connect_timeout, _CONNECT_TIMEOUT_FLOOR)
-        read = max(self.config.read_timeout, _READ_TIMEOUT_FLOOR)
-        return connect + read
-
-    # ---------------------------------------------------------------------
-    # Internal: prompt flattening (parity with codex-headless)
-    # ---------------------------------------------------------------------
-
-    def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """Flatten the message array into a single role-prefixed prompt."""
-        sections: List[str] = []
-        for msg in messages:
-            role = (msg.get("role") or "user").lower()
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                content = "\n".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
-            elif not isinstance(content, str):
-                try:
-                    content = json.dumps(content)
-                except (TypeError, ValueError):
-                    content = str(content)
-
-            label = {
-                "system": "## System",
-                "user": "## User",
-                "assistant": "## Assistant",
-                "tool": "## Tool result",
-            }.get(role, f"## {role.capitalize()}")
-
-            sections.append(f"{label}\n\n{content}".rstrip())
-
-        return "\n\n".join(sections) + "\n"
 
     # ---------------------------------------------------------------------
     # Internal: output parsing

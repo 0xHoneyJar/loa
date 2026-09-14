@@ -42,6 +42,8 @@ class CompletionResult:
     # Documented keys: refused (bool), truncated (bool), truncation_reason (str),
     # unknown_shapes_present (bool), unknown_shapes (list[str]).
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # CLI-reported cost, when available; not proof of the operator's invoice.
+    cost_micro_usd: Optional[int] = None
 
 
 @dataclass

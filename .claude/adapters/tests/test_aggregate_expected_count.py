@@ -175,7 +175,10 @@ def test_rejects_input_missing_required_schema_field():
     incomplete = _single_voice_envelope("incomplete")
     del incomplete["chain_health"]
 
-    with pytest.raises(EnvelopeInvariantViolation, match="verdict-quality schema"):
+    with pytest.raises(
+        EnvelopeInvariantViolation,
+        match=r"^VERDICT_SCHEMA_REJECTED path=<root> validator=required$",
+    ):
         aggregate_envelopes([incomplete], expected_voices_count=1)
 
 
@@ -187,5 +190,8 @@ def test_rejects_input_with_invalid_schema_enum():
     malformed = _single_voice_envelope("malformed")
     malformed["confidence_floor"] = "certain"
 
-    with pytest.raises(EnvelopeInvariantViolation, match="verdict-quality schema"):
+    with pytest.raises(
+        EnvelopeInvariantViolation,
+        match=r"^VERDICT_SCHEMA_REJECTED path=confidence_floor validator=enum$",
+    ):
         aggregate_envelopes([malformed], expected_voices_count=1)

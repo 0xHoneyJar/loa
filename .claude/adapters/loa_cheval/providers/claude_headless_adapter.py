@@ -9,7 +9,8 @@ from Claude Code's OAuth-managed credential store (populated by `claude
 When to use:
   - Operator has a Claude Max / Pro / Team subscription and wants flatline /
     bridgebuilder Claude-tier calls (opus / sonnet) to draw against the
-    subscription quota instead of the API balance.
+    CLI's OAuth-managed account. Billing depends on the account and upstream
+    behavior; OAuth alone does not establish that a call is free (KF-020).
   - Operator wants a single-process operator workflow (no API key juggling).
 
 Design notes (sibling of codex / gemini headless):
@@ -26,8 +27,8 @@ Design notes (sibling of codex / gemini headless):
   - **DO NOT pass `--bare`**: it strips OAuth and forces ANTHROPIC_API_KEY,
     which defeats the subscription-auth purpose of this adapter.
   - **System-prompt overhead**: by default, Claude Code injects ~14K tokens
-    of agent-persona system prompt into every -p call. On Max subscription
-    that's quota-cost only. Operators wanting to trim the overhead can pass
+    of agent-persona system prompt into every -p call. That overhead can affect
+    quota and CLI-reported cost. Operators wanting to trim it can pass
     a custom `system_prompt` via `ModelConfig.extra` (replaces default) or
     `append_system_prompt` (adds to default).
   - Effort threading: `low | medium | high | xhigh | max` maps 1:1 to
@@ -48,16 +49,15 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
+import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
-import time
+import threading
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
+from loa_cheval.metering.pricing import cli_cost_micro_usd
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
 from loa_cheval.providers.base import (
-    ProviderAdapter,
-    SubprocessOutputCapExceeded,
-    build_headless_subprocess_env,
-    enforce_context_window,
     run_subprocess_pgkill,
 )
 from loa_cheval.types import (
@@ -71,6 +71,8 @@ from loa_cheval.types import (
 )
 
 logger = logging.getLogger("loa_cheval.providers.claude_headless")
+_CLI_COST_WARNED = False
+_CLI_COST_WARN_LOCK = threading.Lock()
 
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -81,13 +83,8 @@ _CLAUDE_BIN_DEFAULT = "claude"
 # Auth indicator (Claude Code manages this internally; operator runs `claude /login`)
 _CLAUDE_LOGIN_HINT = "claude /login"
 
-# Conservative defaults for subprocess wall-clock. ProviderConfig.read_timeout
-# wins when set; these floors apply only when the loader hands defaults.
-_CONNECT_TIMEOUT_FLOOR = 10.0
-_READ_TIMEOUT_FLOOR = 600.0  # 10 min — Claude reasoning passes can be slow
 
-
-class ClaudeHeadlessAdapter(ProviderAdapter):
+class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `claude -p` (non-interactive).
 
     Provider config (no auth field — OAuth-managed):
@@ -115,99 +112,19 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
     # route to the (anthropic, headless) bucket.
     auth_type: str = "headless"
 
-    def complete(self, request: CompletionRequest) -> CompletionResult:
-        """Invoke `claude -p` and return a normalized CompletionResult."""
-        model_config = self._get_model_config(request.model)
-        enforce_context_window(request, model_config)
+    _cli_type = "claude-headless"
+    _cli_name = "claude"
+    _command_label = "claude -p"
+    _install_hint = 'Install with: npm install -g @anthropic-ai/claude-code'
+    _logger = logger
 
-        prompt = self._build_prompt(request.messages)
-        cmd = self._build_command(request, model_config, prompt)
-        timeout_s = self._compute_timeout()
-        # Cycle-110 sprint-2b2b1 BB iter-2 F-001 closure: read per-model
-        # headless_concurrency_limit (cycle-110 ModelConfig field). Default 50
-        # when operator hasn't seeded a stress-test-discovered value (SDD §5.6).
-        n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
+    def _run_subprocess(self, command, **kwargs):
+        # Keep the provider's subprocess seam available to callers and tests.
+        return run_subprocess_pgkill(command, **kwargs)
 
-        logger.debug(
-            "claude-headless invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
-            request.model,
-            timeout_s,
-            len(prompt),
-            n_slots,
-        )
-
-        # Cycle-110 sprint-2b2b1 T2.11 — acquire a slot in the cross-process
-        # N-slot semaphore before subprocess invocation. Caps headless
-        # concurrency at the per-CLI safe limit (FR-8.6 / SDD §5.6 v1.1).
-        # On exhaustion → [CHAIN-EXHAUSTED-CONCURRENCY] distinct from
-        # CHAIN_EXHAUSTED so MODELINV can record semaphore_exhausted=true.
-        from loa_cheval.adapters.headless_concurrency import (
-            SemaphoreExhausted as _SemaphoreExhausted,
-            acquire_slot as _acquire_slot,
-        )
-
-        start = time.monotonic()
-        try:
-            with _acquire_slot("claude-headless", n_slots=n_slots):
-                try:
-                    # #982: process-group-killing drop-in for subprocess.run —
-                    # on timeout the whole CLI tree dies and the fallback
-                    # chain advances instead of hanging on orphaned pipes.
-                    # claude -p reads the prompt from argv (passed via the cmd
-                    # array); without `input=` the helper keeps stdin on
-                    # DEVNULL to avoid hangs.
-                    proc = run_subprocess_pgkill(
-                        cmd,
-                        timeout=timeout_s,
-                        # cycle-109 follow-up (#879 / #880): strip ANTHROPIC_API_KEY
-                        # so claude -p uses OAuth subscription, not API mode.
-                        env=build_headless_subprocess_env(),
-                    )
-                except subprocess.TimeoutExpired:
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"claude -p timed out after {timeout_s:.0f}s",
-                    )
-                except SubprocessOutputCapExceeded as exc:
-                    # Iter-1 B2: truncated output is a provider failure, not a
-                    # successful completion — chain advances like a timeout.
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"claude -p {exc}",
-                    ) from exc
-                except FileNotFoundError as exc:
-                    raise ConfigError(
-                        f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
-                        f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
-                    ) from exc
-                except OSError as exc:
-                    # Spawn failure: ARG_MAX/E2BIG (oversized prompt on argv), ENOMEM,
-                    # "Exec format error", etc. → WALK the chain, never crash raw (bd-q0o;
-                    # FileNotFoundError handled above maps to ConfigError).
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"claude -p spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
-                    ) from exc
-                except ValueError as exc:
-                    # Untrusted prompt with an embedded NUL → subprocess raises ValueError
-                    # (NOT an OSError) → WALK, don't crash the chain (bd-q0o).
-                    raise ProviderUnavailableError(
-                        self.provider,
-                        f"claude -p got un-executable argv (embedded NUL in the prompt?): {exc}",
-                    ) from exc
-        except _SemaphoreExhausted as exc:
-            # C12 closure: distinct exit class so MODELINV records
-            # semaphore_exhausted=true and the caller routes the failure
-            # separately from CHAIN_EXHAUSTED.
-            raise ProviderUnavailableError(
-                self.provider,
-                f"[CHAIN-EXHAUSTED-CONCURRENCY] claude-headless semaphore "
-                f"exhausted after {exc.waited_seconds:.1f}s "
-                f"(n_slots={exc.n_slots})",
-            ) from exc
-
-        latency_ms = int((time.monotonic() - start) * 1000)
-
+    def _finish_completion(
+        self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
+    ) -> CompletionResult:
         # Claude Code emits a single structured JSON object even on errors.
         # Parse stdout first; only fall back to subprocess-level error
         # classification when stdout is empty / unparseable.
@@ -239,49 +156,11 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             latency_ms=latency_ms,
         )
 
-    def validate_config(self) -> List[str]:
-        """Validate that the claude CLI is on PATH."""
-        errors: List[str] = []
-        if self.config.type != "claude-headless":
-            errors.append(
-                f"Provider '{self.provider}': type must be 'claude-headless' "
-                f"(got '{self.config.type}')"
-            )
-
-        bin_name = self._claude_bin()
-        if not shutil.which(bin_name):
-            errors.append(
-                f"Provider '{self.provider}': '{bin_name}' CLI not found on PATH. "
-                f"Install with: npm install -g @anthropic-ai/claude-code"
-            )
-
-        # Auth check is deferred to the CLI itself — `claude -p` returns a
-        # structured "Not logged in" error which the adapter classifies as
-        # ConfigError with a `claude /login` hint.
-        return errors
-
-    def health_check(self) -> bool:
-        """Verify the claude CLI is reachable. Does NOT make a model call."""
-        bin_name = self._claude_bin()
-        if not shutil.which(bin_name):
-            return False
-        try:
-            proc = subprocess.run(
-                [bin_name, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5.0,
-                check=False,
-            )
-            return proc.returncode == 0
-        except (subprocess.TimeoutExpired, OSError):
-            return False
-
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
 
-    def _claude_bin(self) -> str:
+    def _cli_bin(self) -> str:
         """Resolve the claude CLI binary name (env var override allowed)."""
         return os.environ.get("CLAUDE_HEADLESS_BIN", _CLAUDE_BIN_DEFAULT)
 
@@ -299,7 +178,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         # model identifier (e.g. `sonnet`, `opus`).
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
         cmd: List[str] = [
-            self._claude_bin(),
+            self._cli_bin(),
             "-p",
             prompt,
             "--output-format",
@@ -389,53 +268,6 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             )
         return None
 
-    def _compute_timeout(self) -> float:
-        """Resolve the subprocess timeout. read_timeout wins when set."""
-        connect = max(self.config.connect_timeout, _CONNECT_TIMEOUT_FLOOR)
-        read = max(self.config.read_timeout, _READ_TIMEOUT_FLOOR)
-        return connect + read
-
-    # ---------------------------------------------------------------------
-    # Internal: prompt flattening
-    # ---------------------------------------------------------------------
-
-    def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
-        """Flatten message array into a single prompt for claude -p.
-
-        Same pattern as codex/gemini headless — role-prefixed sections
-        collapsed into one input string. For multi-turn conversations the
-        operator can use `--system-prompt` (via ModelConfig.extra) to
-        override the default Claude Code system prompt with a custom
-        conversation-context primer.
-        """
-        sections: List[str] = []
-        for msg in messages:
-            role = (msg.get("role") or "user").lower()
-            content = msg.get("content", "")
-            if isinstance(content, list):
-                # Anthropic-style content blocks
-                content = "\n".join(
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict)
-                )
-            elif not isinstance(content, str):
-                try:
-                    content = json.dumps(content)
-                except (TypeError, ValueError):
-                    content = str(content)
-
-            label = {
-                "system": "## System",
-                "user": "## User",
-                "assistant": "## Assistant",
-                "tool": "## Tool result",
-            }.get(role, f"## {role.capitalize()}")
-
-            sections.append(f"{label}\n\n{content}".rstrip())
-
-        return "\n\n".join(sections) + "\n"
-
     # ---------------------------------------------------------------------
     # Internal: JSON parsing
     # ---------------------------------------------------------------------
@@ -456,7 +288,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             "result": "<text>",                  ← actual response content
             "stop_reason": "end_turn",
             "session_id": "...",
-            "total_cost_usd": 0.05,              ← API-equivalent cost (informational on Max)
+            "total_cost_usd": 0.05,              ← CLI-reported cost; billing unverified (KF-020)
             "usage": {
               "input_tokens": <int>,             ← NEW input only (not cache)
               "output_tokens": <int>,
@@ -498,6 +330,20 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
         cost = parsed.get("total_cost_usd")
         if cost is not None:
             metadata["total_cost_usd"] = cost
+        cost_micro = cli_cost_micro_usd(cost)
+        if cost_micro is not None:
+            metadata["pricing_source"] = "cli_reported"
+            global _CLI_COST_WARNED
+            with _CLI_COST_WARN_LOCK:
+                warn_cost = Decimal(str(cost)) > 0 and not _CLI_COST_WARNED
+                if warn_cost:
+                    _CLI_COST_WARNED = True
+            if warn_cost:
+                logger.warning(
+                    "claude-headless: non-zero CLI-reported cost recorded; "
+                    "actual billing is unverified (KF-020). "
+                    "LOA_HEADLESS_MODE=api-only excludes subscription CLI dispatch."
+                )
 
         if stop_reason:
             metadata["stop_reason"] = stop_reason
@@ -532,6 +378,7 @@ class ClaudeHeadlessAdapter(ProviderAdapter):
             provider=self.provider,
             interaction_id=session_id,
             metadata=metadata,
+            cost_micro_usd=cost_micro,
         )
 
     # ---------------------------------------------------------------------

@@ -61,6 +61,13 @@ from loa_cheval.types import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
+def _isolate_region_environment(monkeypatch):
+    """Region tests set their own overrides instead of inheriting the operator's."""
+    monkeypatch.delenv("AWS_BEDROCK_REGION", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _reset_circuit_breaker():
     """Daily-quota circuit breaker is process-scoped; clear before each test."""
     _DAILY_QUOTA_EXCEEDED.clear()
