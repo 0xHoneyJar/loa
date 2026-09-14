@@ -42,8 +42,18 @@ Scoring counts available, validated scorer votes separately from the review
 quorum. Each scorer file must contain exactly one transport envelope. Inside
 its content, fenced or prefixed score JSON can follow a metadata object;
 JSON-encoded fenced strings are also accepted. Invalid, missing, or duplicate-ID
-responses are marked unavailable. Their scores remain `null`; real zero scores
-remain part of the average.
+responses are marked unavailable. Additional score documents and duplicate JSON
+keys are rejected, regardless of document order. Their scores remain `null`;
+real zero scores remain part of the average.
+
+The wrapper retains the returned `provider` and `model`, the `requested_model`
+label, and `verdict_quality`. A scorer must carry a canonical, schema-valid
+APPROVED single-voice envelope and a resolved provider/model. Missing or degraded
+metadata contributes no votes. Independence is counted by the resolved
+provider/model pair, including when stage routing resolves several requested
+labels to one scorer. Repeated votes from that pair count once; conflicting
+votes from the same pair are excluded and degrade scoring. This identity check
+does not certify provider availability or independence of model training.
 
 Before Phase 2 dispatch, finding IDs gain a review-source and position prefix
 (for example `gpt:0:IMP-001`). Both cross-scorers receive that same ID. Returned
@@ -55,7 +65,8 @@ Each response is also checked for complete coverage of its dispatched IDs.
 An incomplete response retains its validated scores and marks scoring
 degraded; missing votes are never filled with zero. Findings without any
 scores remain available in the qualified `raw_reviews`.
-The standalone scoring engine expects callers to supply globally unique IDs.
+The standalone scoring engine expects globally unique IDs and the same resolved
+identity and quality metadata.
 `scorers_available` and `consensus_summary.models_available` expose participation.
 A lone scorer cannot establish agreement or `would_integrate`; those findings
 remain visible in `medium_value`. Rejected scorer responses remain visible
@@ -68,6 +79,14 @@ health remain unchanged. The run-owned consensus artifact and stdout carry
 the same verdict. Qualified reviews with substantive no-findings evidence and
 valid empty score arrays remain a successful empty result; a malformed scorer
 or empty scores for nonempty findings cannot use that exception.
+
+Invalid, incomplete, or exhausted arbitration retains the unresolved `blockers`
+and `disputed` findings alongside completed scoring. Main emits that partial JSON
+with `arbitration.status` and `execution.status` set to FAILED, then exits 3.
+The canonical verdict producer marks `consensus_outcome: impossible` and
+`status: FAILED`, retaining the completed review denominator. The run's canonical
+artifact, its latest pointer and stdout agree on that failed terminal verdict.
+An unavailable arbiter does not count as rejection of a blocker.
 
 Cursor's `--output-format json` wraps the CLI response in a JSON transport
 envelope. The adapter returns the envelope's `result` as model text and does not

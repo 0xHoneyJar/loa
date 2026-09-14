@@ -161,6 +161,7 @@ jobs:
             tests/unit/test_hook_issue_regressions.py \
             tests/unit/test_hook_limit_assessments.py \
             tests/unit/test_spiral_task_authority.py \
+            tests/integration/test_flatline_evidence.py \
             tests/security/test_audit_trust_policy.py \
             tests/security/test_audit_consumer_snapshots.py \
             tests/security/test_installer_epic_proofs.py \

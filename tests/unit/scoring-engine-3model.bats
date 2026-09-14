@@ -6,7 +6,8 @@ setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
     SCORING_ENGINE="$PROJECT_ROOT/.claude/scripts/scoring-engine.sh"
-    FIXTURES="$BATS_TEST_DIR/../fixtures/scoring-engine"
+    source "$PROJECT_ROOT/tests/helpers/flatline-scorer.bash"
+    FIXTURES="$BATS_TEST_TMPDIR/scoring-engine"
     mkdir -p "$FIXTURES"
 
     # Create 2-model score fixtures
@@ -81,6 +82,13 @@ FIXTURE
 
     # Empty fixtures for degraded tests
     echo '{"scores":[]}' > "$FIXTURES/empty-scores.json"
+    local file model
+    for file in "$FIXTURES/"*scores*.json; do
+        model="${file##*/}"
+        model="${model%%-*}"
+        jq --argjson metadata "$(scorer_metadata "$model")" '. + $metadata' "$file" > "$FIXTURES/metadata.tmp"
+        mv "$FIXTURES/metadata.tmp" "$file"
+    done
 }
 
 # =============================================================================

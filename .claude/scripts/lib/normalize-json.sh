@@ -7,7 +7,7 @@
 #   validate_json_field      — type-aware field validation
 #   validate_agent_response  — per-agent schema validation dispatch
 #
-# Dependencies: jq (required), python3 3.6+ (optional, fallback to jq-only)
+# Dependencies: jq; python3 3.6+ (required for scores, optional for generic JSON)
 
 set -euo pipefail
 
@@ -117,28 +117,39 @@ sys.exit(1)
 }
 
 # Scorers can prepend valid JSON metadata or JSON-encode their fenced answer.
-# Select the first top-level scores object, without interpreting rejected data
-# as a zero vote. Generic review normalization/quorum qualification is unchanged.
+# Require exactly one top-level scores object, without interpreting rejected
+# data as a zero vote. Generic review normalization is unchanged.
 normalize_score_response() {
   if ! command -v python3 &>/dev/null; then
-    normalize_json_response "$1"
-    return $?
+    echo "ERROR: score normalization requires python3 for unambiguous extraction" >&2
+    return 1
   fi
   python3 -c '
 import json, sys
 
+def unique_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
 text = sys.stdin.read().strip().lstrip("\ufeff")
 for _ in range(3):
     try:
-        decoded = json.loads(text)
+        decoded = json.loads(text, object_pairs_hook=unique_keys)
     except json.JSONDecodeError:
         break
+    except ValueError:
+        sys.exit(1)
     if not isinstance(decoded, str):
         break
     text = decoded
 
-decoder = json.JSONDecoder()
+decoder = json.JSONDecoder(object_pairs_hook=unique_keys)
 position = 0
+payloads = []
 while position < len(text):
     if text[position] not in "{[":
         position += 1
@@ -148,12 +159,15 @@ while position < len(text):
     except json.JSONDecodeError:
         position += 1
         continue
+    except ValueError:
+        sys.exit(1)
     if isinstance(candidate, dict) and "scores" in candidate:
-        print(json.dumps(candidate))
-        sys.exit(0)
+        payloads.append(candidate)
     # Skip a parsed metadata object entirely, including its nested examples.
     position = end
-sys.exit(1)
+if len(payloads) != 1:
+    sys.exit(1)
+print(json.dumps(payloads[0]))
 ' <<< "$1"
 }
 

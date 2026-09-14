@@ -950,7 +950,7 @@ call_model() {
         # cycle-116 D3: score-mode per-stage tier routing. When the opt-in
         # flag is set, omit --model and pass --role/--skill so cheval's
         # advisor_strategy resolver (role gate) picks the tier. When unset
-        # (default), the argv is byte-identical to pre-D3: --model pin.
+        # (default), the --model pin remains authoritative.
         if [[ "$mode" == "score" ]] && is_stage_routing_scorer_enabled; then
             args+=(--role implementation --skill flatline-scorer)
         else
@@ -1093,7 +1093,9 @@ call_model() {
                 tokens_output: (.usage.output_tokens // 0),
                 latency_ms: (.latency_ms // 0),
                 retries: 0,
-                model: $model,
+                model: .model,
+                provider: .provider,
+                requested_model: $model,
                 mode: $mode,
                 phase: $phase,
                 cost_usd: 0,
@@ -1877,12 +1879,14 @@ run_phase2() {
 
 prepare_flatline_scores() {
     local file="$1" items_file="${2:-}"
-    local content normalized
+    local envelope='{}' content normalized metadata='{}'
     if [[ -s "$file" ]] &&
-       content=$(jq -ers '
-           select(length == 1) | .[0] | select(type == "object") |
+       envelope=$(jq -ecs 'select(length == 1) | .[0] | select(type == "object")' "$file" 2>/dev/null); then
+        metadata=$(jq '{model, provider, requested_model, verdict_quality}' <<< "$envelope")
+    fi
+    if content=$(jq -er '
            .content | select(type == "string" and length > 0)
-       ' "$file" 2>/dev/null) &&
+       ' <<< "$envelope" 2>/dev/null) &&
        normalized=$(normalize_score_response "$content") &&
        validate_agent_response "$normalized" flatline-scorer 2>/dev/null; then
         # Real Phase 2 retains its dispatch inputs. Reject unknown/stripped IDs
@@ -1902,12 +1906,12 @@ prepare_flatline_scores() {
                 . + {scoring_status:"incomplete", missing_score_ids:$missing}
             else . end
         ' "$items_file" 2>/dev/null); then
-            printf '%s\n' "$normalized"
+            jq --argjson metadata "$metadata" '. + $metadata' <<< "$normalized"
             return 0
         fi
     fi
     log "WARNING: Scorer response unavailable; excluding its scores"
-    printf '%s\n' '{"scores":[],"scoring_status":"unavailable"}'
+    jq -n --argjson metadata "$metadata" '$metadata + {scores:[],scoring_status:"unavailable"}'
 }
 
 qualified_raw_reviews() {
@@ -1953,6 +1957,25 @@ record_scoring_degradation() {
     FLATLINE_VERDICT_QUALITY="$updated"
     publish_latest_consensus "$phase" || log "[vq-aggregate] latest pointer publication failed"
     log "Cross-scoring degraded; qualified review denominator retained"
+}
+
+record_arbitration_failure() {
+    local phase="$1" target temporary
+    target=$(final_consensus_path "$phase")
+    invalidate_final_consensus "$phase"
+    # Keep the completed review cohort while the canonical producer classifies
+    # the incomplete terminal decision as FAILED.
+    FLATLINE_VERDICT_QUALITY=$(jq '
+        .consensus_outcome = "impossible" |
+        .confidence_floor = "low" |
+        .rationale = "Qualified reviews retained; arbitration did not resolve every finding."
+    ' <<< "$FLATLINE_VERDICT_QUALITY" | verdict_quality_emit) || return 1
+    temporary=$(mktemp "${target}.XXXXXX") || return 1
+    if ! printf '%s\n' "$FLATLINE_VERDICT_QUALITY" > "$temporary" || ! mv "$temporary" "$target"; then
+        rm -f "$temporary"
+        return 1
+    fi
+    publish_latest_consensus "$phase" || log "[vq-aggregate] latest pointer publication failed"
 }
 
 run_consensus() {
@@ -2073,13 +2096,13 @@ Red Team Options (--mode red-team):
   --execution-mode <m>   Cost tier: quick, standard (default), deep
 
 State Machine:
-  INIT -> KNOWLEDGE -> PHASE1 -> PHASE2 -> CONSENSUS -> DONE
+  INIT -> KNOWLEDGE -> PHASE1 -> PHASE2 -> CONSENSUS -> DONE (or FAILED arbitration)
 
 Exit codes:
   0 - Success
   1 - Configuration error
   2 - Knowledge retrieval failed (non-fatal if local)
-  3 - All model calls failed
+  3 - No qualified quorum, invalid consensus, or failed arbitration
   4 - Timeout exceeded
   5 - Budget exceeded
   6 - Partial success (degraded mode)
@@ -2710,6 +2733,7 @@ main() {
     # DISPUTED and BLOCKER findings instead of HITL prompts.
     # =========================================================================
 
+    local terminal_exit=0 terminal_status="DONE" arbitration_reason=""
     local arbiter_enabled
     arbiter_enabled=$(yq eval '.flatline_protocol.autonomous_arbiter.enabled // false' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "false")
 
@@ -2739,7 +2763,7 @@ main() {
             esac
 
             # Build arbiter prompt
-            local arbiter_prompt_file
+            local arbiter_prompt_file arbiter_result="" arbiter_success=false cascade_attempts=0
             # #878: guard mktemp failure. Without this, the subsequent
             # `chmod 600 "$arbiter_prompt_file"` with an empty arg produces
             # `chmod: : No such file or directory` and the prompt-write at
@@ -2747,55 +2771,55 @@ main() {
             # fails with cwd permission errors. Fail fast with a clear
             # message instead of cascading to downstream confusion.
             if ! arbiter_prompt_file=$(mktemp); then
-                log "ERROR: mktemp failed for arbiter prompt — skipping arbiter step for $phase"
-                continue
+                log "ERROR: mktemp failed for arbiter prompt"
+                arbitration_reason="prompt_unavailable"
+            else
+                chmod 600 "$arbiter_prompt_file"
+
+                local doc_excerpt=""
+                if [[ -f "$doc" ]]; then
+                    doc_excerpt=$(head -c 2048 "$doc")
+                fi
+
+                local findings_to_arbitrate
+                findings_to_arbitrate=$(echo "$result" | jq '[(.disputed // [])[], (.blockers // [])[]]')
+
+                jq -n \
+                    --arg doc_excerpt "$doc_excerpt" \
+                    --arg phase "$phase" \
+                    --argjson findings "$findings_to_arbitrate" \
+                    '"You are the arbiter for this Flatline review. For each finding below, decide: accept (integrate the suggestion) or reject. Your decision is final.\n\nDocument (" + $phase + ") excerpt:\n" + $doc_excerpt[0:2048] + "\n\nFindings requiring your decision:\n" + ($findings | tojson) + "\n\nRespond with a JSON array:\n[{\"finding_id\": \"...\", \"decision\": \"accept\"|\"reject\"}]"' \
+                    | jq -r '.' > "$arbiter_prompt_file"
+
+                # Invoke with provider cascade (SKP-006)
+                local try_models=("$arbiter_model")
+                # Build cascade: designated → others
+                for m in "${rotation[@]}"; do
+                    [[ "$m" != "$arbiter_model" ]] && try_models+=("$m")
+                done
+
+                for try_model in "${try_models[@]}"; do
+                    cascade_attempts=$((cascade_attempts + 1))
+                    log "Arbiter: trying $try_model (attempt $cascade_attempts)"
+
+                    local max_arbiter_tokens
+                    max_arbiter_tokens=$(yq eval '.flatline_protocol.autonomous_arbiter.max_arbiter_tokens // 4000' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "4000")
+
+                    arbiter_result=$("$SCRIPT_DIR/model-adapter.sh" \
+                        --mode "review" \
+                        --model "$try_model" \
+                        --input "$arbiter_prompt_file" \
+                        --timeout 120 \
+                        2>/dev/null) && {
+                        arbiter_success=true
+                        log "Arbiter: $try_model decided (phase: $phase)"
+                        break
+                    }
+                    log "WARNING: Arbiter $try_model failed, cascading..."
+                done
+
+                rm -f "$arbiter_prompt_file"
             fi
-            chmod 600 "$arbiter_prompt_file"
-
-            local doc_excerpt=""
-            if [[ -f "$doc" ]]; then
-                doc_excerpt=$(head -c 2048 "$doc")
-            fi
-
-            local findings_to_arbitrate
-            findings_to_arbitrate=$(echo "$result" | jq '[(.disputed // [])[], (.blockers // [])[]]')
-
-            jq -n \
-                --arg doc_excerpt "$doc_excerpt" \
-                --arg phase "$phase" \
-                --argjson findings "$findings_to_arbitrate" \
-                '"You are the arbiter for this Flatline review. For each finding below, decide: accept (integrate the suggestion) or reject. Your decision is final.\n\nDocument (" + $phase + ") excerpt:\n" + $doc_excerpt[0:2048] + "\n\nFindings requiring your decision:\n" + ($findings | tojson) + "\n\nRespond with a JSON array:\n[{\"finding_id\": \"...\", \"decision\": \"accept\"|\"reject\"}]"' \
-                | jq -r '.' > "$arbiter_prompt_file"
-
-            # Invoke with provider cascade (SKP-006)
-            local arbiter_result="" arbiter_success=false cascade_attempts=0
-            local try_models=("$arbiter_model")
-            # Build cascade: designated → others
-            for m in "${rotation[@]}"; do
-                [[ "$m" != "$arbiter_model" ]] && try_models+=("$m")
-            done
-
-            for try_model in "${try_models[@]}"; do
-                cascade_attempts=$((cascade_attempts + 1))
-                log "Arbiter: trying $try_model (attempt $cascade_attempts)"
-
-                local max_arbiter_tokens
-                max_arbiter_tokens=$(yq eval '.flatline_protocol.autonomous_arbiter.max_arbiter_tokens // 4000' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null || echo "4000")
-
-                arbiter_result=$("$SCRIPT_DIR/model-adapter.sh" \
-                    --mode "review" \
-                    --model "$try_model" \
-                    --input "$arbiter_prompt_file" \
-                    --timeout 120 \
-                    2>/dev/null) && {
-                    arbiter_success=true
-                    log "Arbiter: $try_model decided (phase: $phase)"
-                    break
-                }
-                log "WARNING: Arbiter $try_model failed, cascading..."
-            done
-
-            rm -f "$arbiter_prompt_file"
 
             # Apply arbiter decisions
             if [[ "$arbiter_success" == "true" ]]; then
@@ -2819,10 +2843,9 @@ main() {
                     else . end
                 '); then
                     error "Arbiter response invalid or incomplete; preserving unresolved findings"
-                    return 3
-                fi
-
-                if echo "$decisions" | jq -e 'type == "array"' >/dev/null 2>&1; then
+                    arbiter_success=false
+                    arbitration_reason="invalid_or_incomplete_decisions"
+                elif echo "$decisions" | jq -e 'type == "array"' >/dev/null 2>&1; then
                     # Process each decision
                     local accepted_ids rejected_ids
                     accepted_ids=$(echo "$decisions" | jq -r '[.[] | select(.decision == "accept") | .finding_id] | join(",")')
@@ -2884,20 +2907,22 @@ main() {
             fi
 
             if [[ "$arbiter_success" != "true" ]]; then
-                # Conservative fallback: auto-reject all blockers
-                log "WARNING: All arbiter models failed, auto-rejecting blockers"
-                result=$(echo "$result" | jq '
-                    .arbiter_rejected = .blockers |
-                    .blockers = [] |
-                    .consensus_summary.blocker_count = 0 |
-                    .consensus_summary.arbiter_rejected_count = (.arbiter_rejected | length) |
-                    .consensus_summary.arbiter_fallback = true
-                ')
+                log "WARNING: Arbitration failed; retaining unresolved findings"
+                terminal_exit=3
+                terminal_status="FAILED"
+                result=$(jq --arg reason "${arbitration_reason:-all_arbiters_failed}" '
+                    .arbitration = {status:"FAILED", reason:$reason} |
+                    .degraded = true
+                ' <<< "$result")
+                record_arbitration_failure "$phase" || {
+                    invalidate_final_consensus "$phase"
+                    error "Could not publish failed arbitration verdict"
+                }
             fi
         fi
     fi
 
-    set_state "DONE"
+    set_state "$terminal_status"
 
     # Calculate final metrics
     local end_time
@@ -2921,6 +2946,7 @@ main() {
         --arg mode "$execution_mode" \
         --arg mode_reason "$mode_reason" \
         --arg run_id "${run_id:-}" \
+        --arg terminal_status "$terminal_status" \
         --argjson verdict_quality "$FLATLINE_VERDICT_QUALITY" \
         --argjson tertiary_model "$(if [[ -n "${tertiary_model_output:-}" ]]; then jq -n --arg m "$tertiary_model_output" '$m'; else echo 'null'; fi)" \
         --arg tertiary_status "$tertiary_status_output" \
@@ -2937,6 +2963,7 @@ main() {
             execution: {
                 mode: $mode,
                 mode_reason: $mode_reason,
+                status: $terminal_status,
                 run_id: (if $run_id == "" then null else $run_id end)
             },
             timestamp: $timestamp,
@@ -2954,7 +2981,11 @@ main() {
     fi
 
     # Log to trajectory
-    log_trajectory "complete" "$final_result"
+    if [[ "$terminal_exit" -ne 0 ]]; then
+        log_trajectory "failed" "$final_result"
+    else
+        log_trajectory "complete" "$final_result"
+    fi
 
     # Output result
     echo "$final_result" | jq .
@@ -2969,8 +3000,9 @@ main() {
     else
         log "Flatline: 2-model ($primary_model_name + $secondary_model_name)"
     fi
-    log "Flatline Protocol complete. Cost: $TOTAL_COST cents, Latency: ${total_latency_ms}ms"
+    log "Flatline Protocol $terminal_status. Cost: $TOTAL_COST cents, Latency: ${total_latency_ms}ms"
 
+    [[ "$terminal_exit" -eq 0 ]] || return "$terminal_exit"
     if [[ "$flatline_verdict_status" != "APPROVED" ]]; then
         exit 6
     fi

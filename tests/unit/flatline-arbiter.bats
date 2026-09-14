@@ -188,26 +188,25 @@ teardown() {
 # Fallback
 # =============================================================================
 
-@test "arbiter: fallback auto-rejects all blockers" {
-    local consensus='{"high_consensus":[],"disputed":[],"blockers":[{"id":"SKP-001"},{"id":"SKP-002"}],"consensus_summary":{"blocker_count":2}}'
+@test "arbiter: failed terminal artifact preserves review counts and another runs evidence" {
+    source "$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
+    source "$PROJECT_ROOT/tests/helpers/flatline-scorer.bash"
+    LOA_FLATLINE_OUTPUT_DIR_OVERRIDE="$TEST_TMPDIR/output"
+    FLATLINE_RUN_ID=completed-run
+    FLATLINE_VERDICT_QUALITY=$(scorer_metadata fixture | jq '.verdict_quality')
+    mkdir -p "$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE"
+    local completed_path
+    completed_path=$(final_consensus_path sprint)
+    printf '%s\n' "$FLATLINE_VERDICT_QUALITY" > "$completed_path"
+    cp "$completed_path" "$TEST_TMPDIR/original"
 
-    local modified
-    modified=$(echo "$consensus" | jq '
-        .arbiter_rejected = .blockers |
-        .blockers = [] |
-        .consensus_summary.blocker_count = 0 |
-        .consensus_summary.arbiter_rejected_count = (.arbiter_rejected | length) |
-        .consensus_summary.arbiter_fallback = true
-    ')
-
-    local blocker_count rejected_count fallback
-    blocker_count=$(echo "$modified" | jq '.consensus_summary.blocker_count')
-    rejected_count=$(echo "$modified" | jq '.consensus_summary.arbiter_rejected_count')
-    fallback=$(echo "$modified" | jq '.consensus_summary.arbiter_fallback')
-
-    [ "$blocker_count" -eq 0 ]
-    [ "$rejected_count" -eq 2 ]
-    [ "$fallback" = "true" ]
+    FLATLINE_RUN_ID=failed-run
+    record_arbitration_failure sprint
+    cmp "$completed_path" "$TEST_TMPDIR/original"
+    jq -e '.status == "FAILED" and .consensus_outcome == "impossible" and
+        .voices_planned == 1 and .voices_succeeded == 1 and .chain_health == "ok"' \
+        "$(final_consensus_path sprint)"
+    jq -e '.status == "FAILED"' "$LOA_FLATLINE_OUTPUT_DIR_OVERRIDE/sprint-final_consensus.json"
 }
 
 # =============================================================================
