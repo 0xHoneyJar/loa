@@ -1225,3 +1225,122 @@ Do NOT chase the health check: since R-003 (agent-ergonomics pass 1) beads-healt
 ### Reading guide
 
 When Flatline reports a clean quorum, do not equate exit 0 with a usable review. Verify the orchestrator contains `qualify_flatline_content` before `aggregate_and_write_final_consensus`. If absent, the branch predates #1227 and can still false-green. After the fix, `voices_planned` remains the configured cohort size while only schema-qualified review content contributes to `voices_succeeded`; a rejected voice emits `consensus.voice_rejected` with a bounded reason. Do not restore the old default-substitution-before-quorum order.
+
+---
+
+## KF-025: post-merge publication reports outcomes before inspection or verification
+
+**Status**: RESOLVED-IN-FLIGHT — local implementation and regression evidence; not release acceptance
+**Feature**: `post-merge-orchestrator.sh`, `semver-bump.sh`, post-merge Actions workflow
+**Symptom**: Generation pushes tags/releases before inspection, failed `gh` notification reports success, and unclassified commits receive an unsupported patch version. Further local review reproduced mutable-state version substitution, redirected Git/API destinations, omitted generated commits, and a receipt for the wrong PR.
+**First observed**: issue #1249; reproduced locally 2026-09-14 against base `76458ff24ce078ec9765bae7c3764f8fdc62425a`
+**Recurrence count**: 1 local reproduction session (individual test cases are not separate incidents)
+**Current workaround**: Prepare an inspectable candidate, approve its exact digest, then publish from its exact checkout and origin. Publication must bind both the effective Git push destination and GitHub API host/repository before any write.
+**Upstream issue**: #1249, with bootstrap versioning tracked by #1235
+**Related visions / lore**: KF-015 false-success reporting; KF-024 is reserved by the separate ledger repair PR #1247.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Exercise failing/empty GitHub responses and unclassified commits in disposable repositories | Reproduced false success and unsupported release metadata on the original source | #1249; `tests/unit/post-merge-publication.bats`, `tests/unit/semver-evidence.bats` |
+| 2026-09-14 | Separate generation/publication; independently vary retained state, push URL, API host, commit failure and comment parent | Initial implementation rejected some changes only after publication or accepted the wrong receipt. Repaired inputs to come from approved bytes, bound destinations before writes, propagated generation failures and checked the comment's parent issue. | Same regressions; `grimoires/loa/runbooks/post-merge-candidates.md` |
+
+### Reading guide
+
+Do not retry a failed publication assuming nothing happened: an earlier object may already exist. Inspect the retained state and the approved candidate. `PREPARED` proves generation only; `DONE` requires tag, release and notification readback. Hosted publication and operator approval remain separate from local fixture results.
+
+---
+
+## KF-026: compound ledger installs empty successful jq output
+
+**Status**: RESOLVED-IN-FLIGHT — local regression evidence
+**Feature**: `update-ledger-compound.sh`
+**Symptom**: Empty input or a transform emitting no values can exit zero and replace the compound ledger with an empty file. Its independent compound schema differs from the canonical Sprint Ledger schema.
+**First observed**: issue #1248; reproduced locally 2026-09-14 against base `76458ff24ce078ec9765bae7c3764f8fdc62425a`
+**Recurrence count**: 1 local reproduction session
+**Current workaround**: Validate one complete input/output object and its cycles array; hold the lock across the entire read-modify-write; refuse empty output without replacing existing bytes.
+**Upstream issue**: #1248
+**Related visions / lore**: KF-024 / PR #1247 addresses the separate canonical `_write_ledger` blank-write path.
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Empty, malformed and wrong-shaped ledgers; success-with-no-output jq; concurrent cycle writers | Reproduced unsafe replacement before repair. Seven local cases now cover refusal, byte preservation, dry-run behavior and retained concurrent updates. | `tests/unit/ledger-compound-validation.bats` |
+
+### Reading guide
+
+An atomic rename does not validate the bytes being installed. Do not route the compound document through a validator for the different Sprint Ledger schema. Keep PR #1247's canonical blank-write repair and this compound repair distinct.
+
+---
+
+## KF-027: audit policy parsing falls back or reports an empty successful snapshot
+
+**Status**: RESOLVED-IN-FLIGHT — local signature and snapshot fixtures
+**Feature**: audit-envelope verification and `audit/audit-snapshot.sh`
+**Symptom**: jq-only syntax supplied to Mike Farah yq prevents writer binding or policy enumeration. A swallowed parser failure can use local writer keys or report zero attempted archives as success. Reopening the policy path after authentication also permits verification and use to consume different bytes.
+**First observed**: #1211; reproduced locally 2026-09-14 against base `76458ff24ce078ec9765bae7c3764f8fdc62425a`
+**Recurrence count**: 1 local reproduction session
+**Current workaround**: Use the shared Python verifier for signed writer/cutoff policy, retain its authenticated document for the chain walk, and check snapshot policy parsing before attempting archives.
+**Upstream issue**: #1211, #1104
+**Related visions / lore**: KF-004 / KF-015 parser failure converted to a clean result
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Verify signed local fixtures with missing/changed writer bindings, disabled signature checking, malformed cutoffs and policy-file replacement | Original paths accepted invalid evidence or lost policy bindings. Both shell and Python paths now enforce strict policy and use the authenticated bytes. | `tests/security/test_audit_trust_policy.py` |
+| 2026-09-14 | Run the actual snapshot suite with Mike Farah yq 4.40.5 | Nine original failures; parser selection now uses yq JSON output plus jq, and producer failure stops before archive writes. Twenty snapshot cases pass. | `tests/integration/audit-snapshot.bats` |
+
+### Reading guide
+
+Parser or signature-tool presence does not prove successful policy verification. Strict consumers must reject missing/invalid policy, while unsigned bootstrap writes remain a separate compatibility path. Local fixtures establish the implemented checks; they do not authenticate historical unsigned prefixes or a live production trust root.
+
+---
+
+## KF-028: installer download and relocation checks do not establish integrity
+
+**Status**: RESOLVED-IN-FLIGHT — local download and filesystem fixtures
+**Feature**: `mount-loa.sh` dependency/bootstrap downloads and `mount-submodule.sh` Memory Stack relocation
+**Symptom**: yq download bytes reach a privileged install without a checksum; failed auxiliary downloads still reach the child installer; count-only relocation accepts changed contents and can delete an existing target during rollback.
+**First observed**: #1168 highest-value subset (#1112/#1114/#1116); locally reproduced 2026-09-14 against base `76458ff24ce078ec9765bae7c3764f8fdc62425a`
+**Recurrence count**: 1 local reproduction session
+**Current workaround**: Verify pinned dependency bytes before installation, require complete auxiliary downloads, and stage/verify relocation privately before publishing the destination. Preserve and refuse an existing target.
+**Upstream issue**: #1168
+**Related visions / lore**: KF-026 atomic replacement alone does not establish content integrity
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Substitute yq bytes, fail each auxiliary download, corrupt a same-count copy and supply an existing target | Original code accepted the download/copy or lost target data. Repaired paths reject those cases while preserving source and pre-existing target. | `tests/security/test_installer_epic_remaining.py` |
+| 2026-09-14 | Run verified relocation with links/modes/empty directories and a source on another actual filesystem | Passed; private destination staging and publication preserve contents. Source-link removal does not delete its external target. | Same suite; `docs/runbooks/installer-integrity.md` |
+
+### Reading guide
+
+Do not treat file counts as copy verification or successful curl as binary integrity. Stop unrelated Memory Stack writers before relocation. The migration lock coordinates installers, and destination publication is atomic; publication and source removal are still separate steps.
+
+---
+
+## KF-029: mixed local Python and global AJV installations invalidate test setup
+
+**Status**: RESOLVED-LOCAL-TOOLCHAIN — no validator bypass
+**Feature**: local execution of audit, scheduler and L7 integration suites
+**Symptom**: An unrelated global AJV is selected without its required schema-format support. A virtualenv depending on inherited `PYTHONPATH` also loses dependencies when a test sets its own import path. Integration checks then fail before reaching the behavior under test.
+**First observed**: 2026-09-14 maintenance sweep
+**Recurrence count**: 1 local integration-run session
+**Current workaround**: Use one interpreter with its dependencies installed natively. Expose Node and Bats without unrelated global AJV; retain actual Python schema and signature verification.
+**Upstream issue**: Local runner setup; no upstream source defect established
+**Related visions / lore**: Tool availability does not establish a usable validation environment
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-14 | Run the ten selected integration suites with a virtualenv plus system dependency path and global AJV | Schema/signature setup failures; retained as an environment attempt, not a passing result. | `loa-issue-sweep-20260914/ci-maintenance-integration.log` |
+| 2026-09-14 | Run the unchanged command with system Python's native dependencies, Node 22 and Bats, without unrelated global AJV | All 127 cases pass. CI installs its own pinned dependencies and does not install AJV in this job. | `loa-issue-sweep-20260914/ci-maintenance-integration-clean.json` |
+
+### Reading guide
+
+Inspect the selected interpreter and validator before repeating failures. Do not replace schema checks with success stubs or change production validation to accommodate an incomplete local installation.
