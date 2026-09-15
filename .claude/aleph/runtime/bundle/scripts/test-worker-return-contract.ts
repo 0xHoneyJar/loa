@@ -10,12 +10,14 @@ import {
   validateWorkerReturnContract,
   type WorkerJsonValue,
 } from './lib/worker-return-contract.ts';
+import { isSemanticOutputContract, semanticCoverage, SEMANTIC_RESULT_FORMAT, validateSemanticOutputContract } from './lib/semantic-review.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const REPO_ROOT = resolve(dirname(SCRIPT_PATH), '..');
 const PROMPT_FILES = [
   'docs/architecture/prompts/verifier-lenses.md',
   'docs/architecture/prompts/workers-arms-synthesis.md',
+  'docs/architecture/prompts/workers-internal-ambiguity.md',
   'docs/architecture/prompts/workers-intake-extraction.md',
   'docs/architecture/prompts/workers-judgment.md',
 ] as const;
@@ -81,15 +83,32 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function semanticMaterialization(contract: unknown): WorkerJsonValue {
+  const role = validateSemanticOutputContract(contract);
+  if (role === 'normalizer') return { claims: [], no_claim_packets: [], lineage_proposals: [], material_findings: [], semantic_units: [] };
+  if (role === 'extractor') return {
+    source_id: 'SRC-701', producer_invocation_id: 'fixture-701', walk_intervals: [], packets: [], extraction_events: [],
+    next_cursor: { byte_offset: 0, shared_position_key: null, next_event_ordinal: null, predecessor_walk_index: null,
+      predecessor_event_index: null, source_hash: `sha256:${'1'.repeat(64)}`, reason: 'initial' },
+    walk_exhausted: false, notes: [], material_findings: [], semantic_units: [],
+  };
+  return { format: SEMANTIC_RESULT_FORMAT, subject_digest: `sha256:${'1'.repeat(64)}`, verdict: 'upheld',
+    field_reviews: semanticCoverage({ atomicity: 'CANNOT_DETERMINE', units: [], contexts: [], couplings: [], relation_proposals: [], unresolved_findings: [] }, 'material-only')
+      .map((field_path) => ({ field_path, verdict: 'upheld', issue: 'none', anchor_ids: [], material_requirement_indexes: [0],
+        explanation: 'Synthetic attempted material counter-reading; binding remains unchecked.' })),
+    unresolved_findings: [], attacks_tried: ['Synthetic material availability counter-reading.'], missing_for_determination: null,
+    rationale: 'This return exercises the portable shape contract only.', candidate_evidence: [] };
+}
+
 function main(): number {
   const results: CaseResult[] = [];
   const contracts = outputContracts();
 
-  runCase(results, 'all thirteen pinned prompt contracts accept a valid materialization', () => {
-    expect(contracts.length === 13, `expected 13 output contracts, found ${contracts.length}`);
+  runCase(results, 'all twenty pinned prompt contracts accept a valid materialization', () => {
+    expect(contracts.length === 20, `expected 20 output contracts, found ${contracts.length}`);
     contracts.forEach((contract, index) => {
       const validation = validateWorkerReturnContract(
-        json(materialize(contract)),
+        json(isSemanticOutputContract(contract) ? semanticMaterialization(contract) : materialize(contract)),
         contract,
       );
       expect(
@@ -97,6 +116,102 @@ function main(): number {
         `contract ${String(index + 1)} rejected valid data: ${validation.errors.join('; ')}`,
       );
     });
+  });
+
+  runCase(results, 'typed-relation producer contract closes adopted vocabularies', () => {
+    const relationContract = contracts.find((candidate) => (
+      typeof candidate === 'object'
+      && candidate !== null
+      && 'relation_proposals' in candidate
+    ));
+    expect(relationContract, 'typed-relation producer contract was not discovered');
+    const validRelation = materialize(relationContract) as {
+      relation_proposals: Array<Record<string, WorkerJsonValue>>;
+    };
+    expect(
+      validateWorkerReturnContract(json(validRelation), relationContract).result === 'PASS',
+      'valid typed-relation producer materialization failed',
+    );
+    validRelation.relation_proposals[0].family = 'evidence-support';
+    const invalid = validateWorkerReturnContract(json(validRelation), relationContract);
+    expect(invalid.result === 'FAIL', 'undeclared relation family passed');
+    expect(
+      invalid.errors.some((error) => /Core literals/u.test(error)),
+      'undeclared relation family omitted its closed-vocabulary diagnostic',
+    );
+  });
+
+  runCase(results, 'ambiguity producer contract admits canonical dynamic byte intervals', () => {
+    const ambiguityContract = contracts.find((candidate) => (
+      typeof candidate === 'object'
+      && candidate !== null
+      && 'definition' in candidate
+      && 'assessment' in candidate
+    ));
+    expect(ambiguityContract, 'ambiguity producer contract was not discovered');
+    const actual = materialize(ambiguityContract) as {
+      definition: Record<string, WorkerJsonValue>;
+    };
+    actual.definition.expression_start_byte = 277;
+    actual.definition.expression_end_byte = 286;
+    expect(
+      validateWorkerReturnContract(json(actual), ambiguityContract).result === 'PASS',
+      'canonical fixture byte interval was rejected',
+    );
+    actual.definition.expression_start_byte = 44;
+    actual.definition.expression_end_byte = 56;
+    expect(
+      validateWorkerReturnContract(json(actual), ambiguityContract).result === 'PASS',
+      'second legal byte interval was rejected',
+    );
+    actual.definition.expression_start_byte = -1;
+    expect(
+      validateWorkerReturnContract(json(actual), ambiguityContract).result === 'FAIL',
+      'negative byte offset passed',
+    );
+    actual.definition.expression_start_byte = '44';
+    expect(
+      validateWorkerReturnContract(json(actual), ambiguityContract).result === 'FAIL',
+      'string byte offset passed the numeric contract',
+    );
+  });
+
+  runCase(results, 'material-impact producer contract admits dynamic Core requirement refs', () => {
+    const materialContract = contracts.find((candidate) => (
+      typeof candidate === 'object'
+      && candidate !== null
+      && 'materiality_class' in candidate
+      && 'operative_scope' in candidate
+    ));
+    expect(materialContract, 'material-impact producer contract was not discovered');
+    const actual = materialize(materialContract) as {
+      operative_scope: {
+        affected_ids: WorkerJsonValue[];
+        impact_rows: Array<Record<string, WorkerJsonValue>>;
+      };
+    };
+    actual.operative_scope.affected_ids = ['CC-0413'];
+    actual.operative_scope.impact_rows[0].affected_id = 'CC-0413';
+    actual.operative_scope.impact_rows[0].operation_kind = 'required-barrier-dod';
+    actual.operative_scope.impact_rows[0].requirement_ref =
+      'core:docs/architecture/templates/09-internal-ambiguity.md#S4 composite barrier';
+    actual.operative_scope.impact_rows[0].unresolved_treatment = 'carry-or-restriction';
+    expect(
+      validateWorkerReturnContract(json(actual), materialContract).result === 'PASS',
+      'canonical Class C requirement_ref was rejected',
+    );
+    actual.operative_scope.impact_rows[0].requirement_ref =
+      'core:docs/architecture/04-pipeline-stages-and-dod.md#S5 — Disposition pass';
+    expect(
+      validateWorkerReturnContract(json(actual), materialContract).result === 'PASS',
+      'second pinned Core requirement_ref was rejected',
+    );
+    actual.operative_scope.impact_rows[0].requirement_ref =
+      'adapter:adapters/loa/src/cli.ts#resumeLoaRun';
+    expect(
+      validateWorkerReturnContract(json(actual), materialContract).result === 'FAIL',
+      'non-Core requirement_ref passed',
+    );
   });
 
   runCase(results, 'schema projection closes objects and requires every key', () => {

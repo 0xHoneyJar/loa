@@ -607,6 +607,8 @@ export function runClaudeCodeHostTests(): {
           digest: sha256Digest(attachment),
         }],
         withheld: [],
+        procedural_restrictions: [],
+        downstream_operations: [],
         task_line: 'Return one fixture answer.',
         output_contract: {
           core_path: 'fixture',

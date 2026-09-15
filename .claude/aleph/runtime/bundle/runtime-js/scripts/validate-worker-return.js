@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateWorkerReturnContract, } from './lib/worker-return-contract.js';
+import { validateWorkerReturnContract, parseStrictJson, } from './lib/worker-return-contract.js';
+import { isSemanticOutputContract } from './lib/semantic-review.js';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const FORMAT = 'aleph-worker-return-validation/v1';
 function digest(bytes) {
@@ -29,16 +30,20 @@ export function validateWorkerReturnFiles(contractPath, returnPath) {
     if (contractBytes) {
         try {
             contract = JSON.parse(contractBytes.toString('utf8'));
+            if (isSemanticOutputContract(contract))
+                contract = parseStrictJson(contractBytes, true);
         }
         catch (error) {
             errors.push(`Core output contract is invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     let canonicalValue = null;
+    let binding;
     if (errors.length === 0 && returnBytes) {
         const validation = validateWorkerReturnContract(returnBytes, contract);
         errors.push(...validation.errors);
         canonicalValue = validation.canonicalValue;
+        binding = validation.binding;
     }
     return {
         format: FORMAT,
@@ -47,6 +52,7 @@ export function validateWorkerReturnFiles(contractPath, returnPath) {
         return_digest: returnBytes ? digest(returnBytes) : null,
         canonical_value: errors.length === 0 ? canonicalValue : null,
         errors,
+        ...(binding ? { binding } : {}),
     };
 }
 function parseArgs(argv) {

@@ -22,6 +22,7 @@ import {
   type LoaRoleId,
   type RuntimeSnapshot,
 } from './types.ts';
+import { CURRENT_RUN_FORMAT_VERSION, SUPPORTED_RUN_FORMAT_VERSIONS, usesFormalLayoutBindings, hasRunCapability } from '../../../scripts/lib/run-model.ts';
 import {
   assertSafeRelativePath,
   digestFile,
@@ -132,7 +133,7 @@ function parseRoleMapping(value: unknown, role: string): LoaProfile['role_mappin
   return record as unknown as LoaProfile['role_mappings'][LoaRoleId];
 }
 
-export function parseLoaProfile(value: unknown): LoaProfile {
+export function parseLoaProfile(value: unknown, runFormatVersion = CURRENT_RUN_FORMAT_VERSION): LoaProfile {
   if (!isRecord(value) || !exactKeys(value, [
     'profile_format',
     'id',
@@ -169,16 +170,28 @@ export function parseLoaProfile(value: unknown): LoaProfile {
     if (!nonemptyString(path)) throw new Error(`Loa profile path ${key} is empty`);
     assertSafeRelativePath(path, `Loa profile path ${key}`);
   }
+  const legacyMaterialRole = (SUPPORTED_RUN_FORMAT_VERSIONS as readonly string[]).includes(runFormatVersion)
+    && !usesFormalLayoutBindings(runFormatVersion) && isRecord(profile.role_mappings)
+    && !('verifier-l2f' in profile.role_mappings);
+  const legacySemanticRole = (SUPPORTED_RUN_FORMAT_VERSIONS as readonly string[]).includes(runFormatVersion)
+    && !hasRunCapability(runFormatVersion, 'semantic-unit-review') && isRecord(profile.role_mappings)
+    && !('verifier-l2s' in profile.role_mappings);
+  const expectedRoles = LOA_ROLE_IDS.filter((role) => !(legacyMaterialRole && role === 'verifier-l2f')
+    && !(legacySemanticRole && role === 'verifier-l2s'));
   if (!isRecord(profile.role_mappings)
-    || !exactStrings(Object.keys(profile.role_mappings), LOA_ROLE_IDS)) {
+    || !exactStrings(Object.keys(profile.role_mappings), expectedRoles)) {
     throw new Error('Loa profile does not map every Core role exactly once');
   }
   const roleMappingRecord = profile.role_mappings;
-  const roleMappings = Object.fromEntries(LOA_ROLE_IDS.map((role) => (
+  const roleMappings = Object.fromEntries(expectedRoles.map((role) => (
     [role, parseRoleMapping(roleMappingRecord[role], role)]
   ))) as Record<LoaRoleId, LoaProfile['role_mappings'][LoaRoleId]>;
+  if (!legacyMaterialRole && (roleMappings['verifier-l2f'].model_slot !== roleMappings['verifier-l2'].model_slot
+    || roleMappings['verifier-l2f'].context_policy !== roleMappings['verifier-l2'].context_policy)) {
+    throw new Error('verifier-l2f must retain the verifier-l2 model slot and fresh context class');
+  }
   const mechanicsBySlot = new Map<LoaModelSlot, string>();
-  for (const role of LOA_ROLE_IDS) {
+  for (const role of expectedRoles) {
     const mapping = roleMappings[role];
     const signature = stableJsonBytes({
       effort: mapping.effort,
@@ -229,7 +242,7 @@ export function parseLoaProfile(value: unknown): LoaProfile {
   };
 }
 
-export function loadLoaProfile(path: string): LoadedLoaProfile {
+export function loadLoaProfile(path: string, runFormatVersion = CURRENT_RUN_FORMAT_VERSION): LoadedLoaProfile {
   const absolute = resolve(path);
   const bytes = readStableRegularFile(absolute).bytes;
   let value: unknown;
@@ -242,7 +255,7 @@ export function loadLoaProfile(path: string): LoadedLoaProfile {
   }
   return {
     path: absolute,
-    value: parseLoaProfile(value),
+    value: parseLoaProfile(value, runFormatVersion),
     digest: sha256Digest(bytes),
   };
 }
@@ -350,8 +363,7 @@ export function validateResolvedHost(
     ['cache_policy', 'cache'],
     ['batch_policy', 'batch'],
   ] as const;
-  for (const role of LOA_ROLE_IDS) {
-    const mapping = profile.role_mappings[role];
+  for (const [role, mapping] of Object.entries(profile.role_mappings)) {
     const model = models[mapping.model_slot];
     for (const [profileField, hostField] of mechanicFields) {
       if (mapping[profileField] !== model[hostField]) {
@@ -565,12 +577,12 @@ export function verifyRuntimeSnapshot(
   )) {
     throw new Error('runtime snapshot profile path is not the run-local bundled profile');
   }
-  const profile = loadLoaProfile(snapshot.profile.path);
+  const bundle = verifyAndLoadLoaBundle(snapshot.bundle.root);
+  const profile = loadLoaProfile(snapshot.profile.path, bundle.lock.run_format_version);
   if (profile.value.id !== snapshot.profile.id || profile.digest !== snapshot.profile.digest) {
     throw new Error('runtime profile changed since the run was created');
   }
   verifyPinnedHostCapabilities(snapshotPath, snapshot, profile.value, options);
-  const bundle = verifyAndLoadLoaBundle(snapshot.bundle.root);
   if (bundle.lock.bundle.id !== snapshot.bundle.id
     || bundle.lock.bundle.digest !== snapshot.bundle.digest
     || bundle.lock.lock_digest !== snapshot.bundle.lock_digest) {

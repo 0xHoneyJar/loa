@@ -108,6 +108,11 @@ artifacts are prepared before mutation and deterministically rolled forward on
 resume. Exact excluded bytes are deleted before the retained corpus is made
 read-only; a partial or foreign after-image fails closed.
 
+New captures label every currently supported UTF-8 line-addressable text input
+with Core's `md-lines` scheme, independent of filename extension. Historical
+snapshots that recorded `text-lines` are not rewritten; their original pinned
+bundle/runtime remains authoritative.
+
 ## Durable run mechanics
 
 Runs live at `grimoires/loa/aleph/runs/RUN-*`. Canonical Core artifacts remain
@@ -130,13 +135,38 @@ kept beneath each run's `control/` directory:
   deterministic resume-time rollback or roll-forward; and
 - `checks/` preserves exact checker invocations and reports.
 
+Every new Loa run renders the Core-defined forward identity into
+`run-manifest.md`. Before status, resume, authority transitions, or validation,
+Loa parses that manifest through Core and compares its run ID, format, Core,
+adapter, bundle, checker, protocol, host, profile, model, and runtime pins to
+`control/run-state.json` plus `control/original-bundle.lock.json`. Resume and
+validation additionally verify the retained runtime snapshot and bind its
+bundle, host, profile, and role-model mapping back to run state. The manifest
+cannot select compatibility: a retained 1.2 run that declares 1.1 or 1.0,
+removes the version, or changes a pin fails before the pinned checker runs.
+Loa also treats retained execution as a floor rather than demanding exact
+state equality: S1 requires the manifest to have reached `CORPUS-FROZEN`, and
+S2 or any later retained stage requires `DISTILLING` or later. A `BLOCKED`
+condition or human gate does not lower that floor or require the mutable
+manifest's current row to equal `run-state.json`.
+
+Retained 1.0 runs are not migrated and are not resumed by substituting this
+adapter. They continue under their original immutable bundle, runtime, and
+checker. The current repository's explicit legacy fixture checks document that
+boundary; they are not a downgrade path for a newly created run.
+Standalone copied Markdown with every historical S2 signal erased cannot
+authenticate that erased history. A live Loa run can reject the same bytes
+because `control/run-state.json` retains the authoritative stage. This check
+adds no live S2 ledger persistence, crash recovery, or worker orchestration;
+those capabilities remain unimplemented.
+
 Workers receive copied, read-only allowlisted bundles, never the run root or a
 ledger-writing handle. Prompt parts, stage sections, and return contracts are
 byte-sliced from canonical Core files in the retained bundle. Returns stay in
 quarantine until their canonical output contract validates. Only the
 orchestrator-owned writer can append to canonical ledgers. Refuter calls
 require a newly attested context that cannot inherit the producer context.
-The installed skill runs the sealed `prepare`, `dispatch`, and `accept`
+The installed skill runs the sealed `assemble`, `prepare`, `dispatch`, and `accept`
 operations in order. `dispatch` starts the attested Claude Code binary as a
 fresh, nonpersistent process inside the attested bubblewrap policy. The sealed
 worker bundle is mounted read-only at `/worker`; only sandbox-local `/tmp` and
@@ -145,6 +175,15 @@ strict stream parser requires the requested model, `StructuredOutput`, a
 successful `tool_use` stop, complete usage and cost evidence, no permission
 denials, and no fallback or refusal event. It retains the raw stream,
 structured return, and dispatch receipt as immutable quarantine evidence.
+
+For run format 1.5 at S4-C2, `resume` exposes the first-unmet-DoD Slice 5
+roles, applies an exact retained procedural response to T5.3 once, opens legal
+Q successors, and advances C2/C3 only through the run-local pinned Core. All
+four Slice 5 roles use the same sealed prepare/dispatch/accept path. At S5 and
+later, worker assembly derives retained restriction tuples through Core and
+refuses an exact prohibited operation before dispatch while leaving unlisted
+operations and independent S5/S6 judgment intact. This is
+implementation/process evidence only; agent mode remains unsanctioned.
 
 Missing installation, isolation, exact model identity, runtime snapshot, or
 profile capability is a hard preflight failure. There is no fallback model and
@@ -175,3 +214,7 @@ The checked-in capability receipt and every worker/authority response in the
 synthetic test are explicitly fixture-simulated. They establish implementation
 structure only; they are not a real replay, semantic acceptance, validation
 evidence, or sanction evidence.
+
+## Slice 6 supplied representation route
+
+The public grammar remains `/loa-aleph start <inputs...>`. Only the reserved `.aleph-representation.json` suffix selects Core supplied-representation import; ordinary JSON stays ordinary source material. Explicit relative source/assets are copied once with symlink/traversal and duplicate-selection refusal. Capture preparation is retained before S0; canonical representation files publish with freeze. Material-use writes and the C1 use seal use retained transactions and exact preimages. `verifier-l2f` uses the existing fresh/refuter transport and verifier-l2 model slot. Unsupported opaque SRC can freeze honestly but cannot enter extraction. No provider abstraction, renderer or vision infrastructure is added.

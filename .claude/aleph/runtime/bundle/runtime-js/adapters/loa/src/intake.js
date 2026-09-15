@@ -1,7 +1,8 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, rmSync, } from 'node:fs';
-import { basename, extname, join, relative, resolve, sep, } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve, sep, } from 'node:path';
 import { LOA_CORPUS_SNAPSHOT_FORMAT, LOA_INSTALLED_BUNDLE_ROOT, } from './types.js';
 import { assertNoSymlinkComponents, assertPathWithin, digestTreeRecords, makeTreeReadOnly, pathIsWithin, readJsonFile, readStableRegularFile, sha256Digest, stableJsonBytes, utf8Compare, walkRegularFiles, writeFileAtomic, writeJsonAtomic, } from './fs.js';
+import { REPRESENTATION_PATH, REPRESENTATION_SUFFIX, parseSuppliedRepresentation, prepareRepresentationCapture, representationMarkdown, parseRepresentationInventory, selectRepresentationInventory, } from '../../../scripts/lib/source-representation.js';
 export const DEFAULT_SUPPORTED_SOURCE_EXTENSIONS = [
     '',
     '.csv',
@@ -57,8 +58,8 @@ function validateUtf8(bytes, path) {
     if (bytes.includes(0))
         throw new Error(`source contains NUL bytes: ${path}`);
 }
-function sourceScheme(path) {
-    return extname(path).toLowerCase() === '.md' ? 'md-lines' : 'text-lines';
+function sourceScheme(_path) {
+    return 'md-lines';
 }
 function paddedSourceId(index) {
     return `SRC-${String(index).padStart(3, '0')}`;
@@ -122,7 +123,7 @@ export function snapshotCorpus(options) {
                 throw new Error(`source was selected more than once: ${path}`);
             seen.add(canonical);
             const extension = extname(path).toLowerCase();
-            if (!supported.has(extension)) {
+            if (!options.formalLayout && !supported.has(extension)) {
                 throw new Error(`unsupported source extension ${extension || '(none)'}: ${path}`);
             }
             candidates.push({
@@ -134,6 +135,34 @@ export function snapshotCorpus(options) {
     }
     if (candidates.length === 0)
         throw new Error('the selected inputs contain no supported files');
+    const descriptors = new Map();
+    const memberOwners = new Map();
+    const retainedInputs = new Map();
+    if (options.formalLayout) {
+        for (const candidate of candidates.filter((c) => c.absolute.endsWith(REPRESENTATION_SUFFIX))) {
+            const raw = readStableRegularFile(candidate.absolute).bytes;
+            const descriptor = parseSuppliedRepresentation(raw);
+            retainedInputs.set(candidate.absolute, raw);
+            const members = [descriptor.source_path, ...descriptor.assets.map((a) => String(a.input_path))];
+            const assetBytes = new Map();
+            for (const member of members) {
+                const absolute = resolve(dirname(candidate.absolute), member);
+                assertPathWithin(dirname(candidate.absolute), absolute, 'descriptor member');
+                assertNoSymlinkComponents(dirname(candidate.absolute), absolute);
+                if (memberOwners.has(absolute) || absolute === candidate.absolute
+                    || candidates.some((c) => c.absolute === absolute && roots[c.rootIndex].kind === 'file')) {
+                    throw new Error(`representation member was selected more than once: ${absolute}`);
+                }
+                memberOwners.set(absolute, candidate.absolute);
+                const bytes = readStableRegularFile(absolute).bytes;
+                retainedInputs.set(absolute, bytes);
+                if (member !== descriptor.source_path)
+                    assetBytes.set(member, bytes);
+            }
+            descriptors.set(candidate.absolute, { source: resolve(dirname(candidate.absolute), descriptor.source_path), raw, assets: assetBytes });
+        }
+    }
+    const selected = candidates.filter((c) => !memberOwners.has(c.absolute));
     const sourcesRoot = join(runDir, 'corpus', 'sources');
     const snapshotPath = join(runDir, 'control', 'corpus.snapshot.json');
     if (existsSync(snapshotPath)) {
@@ -142,16 +171,24 @@ export function snapshotCorpus(options) {
     assertEmptySourcesDirectory(sourcesRoot);
     mkdirSync(sourcesRoot, { recursive: true });
     const files = [];
+    const materialInputs = [];
     const capturedSources = [];
     try {
-        for (const [index, candidate] of candidates.entries()) {
+        for (const [index, selectedCandidate] of selected.entries()) {
+            const imported = descriptors.get(selectedCandidate.absolute);
+            const candidate = imported ? { ...selectedCandidate, absolute: imported.source, relative: basename(imported.source) } : selectedCandidate;
+            if (!imported && !supported.has(extname(candidate.absolute).toLowerCase())) {
+                throw new Error(`unsupported source extension ${extname(candidate.absolute)}: ${candidate.absolute}`);
+            }
             const sourceId = paddedSourceId(index + 1);
             const relativePath = candidate.relative.split(sep).join('/');
             const frozenPath = `corpus/sources/${sourceId}/${relativePath}`;
             const destination = join(runDir, frozenPath);
             assertNoSymlinkComponents(runDir, destination);
             const stable = readStableRegularFile(candidate.absolute);
-            validateUtf8(stable.bytes, candidate.absolute);
+            const descriptor = imported ? parseSuppliedRepresentation(imported.raw) : null;
+            if (!descriptor || descriptor.extraction_surface === 'utf8-text')
+                validateUtf8(stable.bytes, candidate.absolute);
             writeFileAtomic(destination, stable.bytes, 0o600);
             const copied = readStableRegularFile(destination);
             if (!copied.bytes.equals(stable.bytes)) {
@@ -167,8 +204,11 @@ export function snapshotCorpus(options) {
                 byte_length: String(stable.bytes.byteLength),
                 digest,
                 mode: stable.identity.mode,
-                scheme: sourceScheme(candidate.absolute),
+                scheme: descriptor?.extraction_surface === 'opaque' ? 'opaque-bytes' : sourceScheme(candidate.absolute),
             });
+            if (options.formalLayout)
+                materialInputs.push({ source_id: sourceId, bytes: stable.bytes,
+                    ...(imported ? { descriptor: imported.raw, assets: imported.assets } : {}) });
             capturedSources.push({
                 absolute: candidate.absolute,
                 frozenPath,
@@ -197,6 +237,22 @@ export function snapshotCorpus(options) {
                 throw new Error(`source changed after its frozen copy was staged: ${captured.absolute}`);
             }
         }
+        for (const [path, bytes] of retainedInputs) {
+            if (!readStableRegularFile(path).bytes.equals(bytes))
+                throw new Error(`representation input changed during capture: ${path}`);
+        }
+        if (options.formalLayout) {
+            const prepared = prepareRepresentationCapture(materialInputs);
+            const contents = Object.fromEntries([
+                [REPRESENTATION_PATH, Buffer.from(representationMarkdown(prepared.inventory)).toString('base64')],
+                ...[...prepared.assets].map(([path, bytes]) => [path, bytes.toString('base64')]),
+            ]);
+            writeJsonAtomic(join(runDir, 'control', 'representation-prepared.json'), {
+                format: 'aleph-loa-representation-preparation/v1', files: contents,
+                digest: sha256Digest(stableJsonBytes(contents)),
+            });
+            writeFileAtomic(join(runDir, 'control', 'representation-prepared.md'), representationMarkdown(prepared.inventory), 0o400);
+        }
     }
     catch (error) {
         rmSync(sourcesRoot, { recursive: true, force: true });
@@ -219,6 +275,22 @@ export function snapshotCorpus(options) {
     };
     writeJsonAtomic(snapshotPath, snapshot);
     return snapshot;
+}
+export function preparedRepresentationFiles(runDir, sourceIds) {
+    const prepared = readJsonFile(join(runDir, 'control', 'representation-prepared.json'));
+    if (!isRecord(prepared) || prepared.format !== 'aleph-loa-representation-preparation/v1'
+        || !isRecord(prepared.files) || prepared.digest !== sha256Digest(stableJsonBytes(prepared.files))) {
+        throw new Error('prepared representation transaction identity changed');
+    }
+    const files = prepared.files;
+    if (!readStableRegularFile(join(runDir, 'control', 'representation-prepared.md')).bytes.equals(Buffer.from(files[REPRESENTATION_PATH], 'base64'))) {
+        throw new Error('representation facts presented to S0 authority differ from prepared capture');
+    }
+    const inventory = selectRepresentationInventory(parseRepresentationInventory(Buffer.from(files[REPRESENTATION_PATH], 'base64').toString('utf8')), sourceIds);
+    return Object.fromEntries([
+        [REPRESENTATION_PATH, Buffer.from(representationMarkdown(inventory)).toString('base64')],
+        ...inventory.assets.map((asset) => [asset.locus, files[asset.locus]]),
+    ]);
 }
 function asCorpusSnapshot(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {

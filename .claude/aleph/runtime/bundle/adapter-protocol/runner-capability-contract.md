@@ -104,3 +104,7 @@ adapter preflight, then produce accepted replay evidence before it may claim
 `validated`, and finally receive explicit authority sanction before it becomes
 a sanctioned execution path. Existing runs keep their original immutable
 runner and bundle pins.
+
+## Slice 7 semantic review (1.7)
+
+For 1.7 semantic-unit-review, Core owns exact native/fallback schemas, subject/context construction, structural predicates and write plans. Host transport sends only the sealed L2S allowlist with the fixed Core task and existing fresh refuter infrastructure. Retain actual execution evidence and quarantine invalid returns; standalone binding not-checked cannot authorize admission. No provider abstraction or new autonomous orchestrator is introduced.
