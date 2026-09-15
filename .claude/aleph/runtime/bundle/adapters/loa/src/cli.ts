@@ -29,6 +29,9 @@ import {
   type VerifiedLoaBundle,
 } from './core-loader.ts';
 import {
+  assertSafeRelativePath,
+  assertNoSymlinkComponents,
+  readStableRegularFile,
   readJsonFile,
   makeTreeOwnerWritable,
   nextDecimal,
@@ -42,6 +45,7 @@ import {
   applyCorpusFreeze,
   planCorpusFreeze,
   snapshotCorpus,
+  preparedRepresentationFiles,
   verifyCorpusSnapshot,
   type CorpusFreezePlan,
 } from './intake.ts';
@@ -57,8 +61,10 @@ import {
   runDirectory,
   runtimeSnapshotPath,
   stateCheckpointDigest,
+  verifyRetainedRuntimeIdentity,
   verifyRunControl,
   writeRunState,
+  updateRunState,
   type HumanAuthorityDecision,
   type OpenHumanAuthorityGateOptions,
 } from './run-control.ts';
@@ -67,7 +73,6 @@ import {
   defaultProfilePath,
   loadLoaProfile,
   validateResolvedHost,
-  verifyRuntimeSnapshot,
 } from './runtime-snapshot.ts';
 import {
   invokePinnedChecker,
@@ -75,7 +80,21 @@ import {
 } from './checker.ts';
 import { verifyLoaInstallation } from './installer.ts';
 import { runLoaPreflight } from './preflight.ts';
-import { recoverPendingLedgerTransactions } from './ledger-writer.ts';
+import {
+  LedgerWriter,
+  recoverPendingLedgerTransactions,
+  recoverPendingMaterialTransactions,
+  recoverPendingSemanticTransactions,
+} from './ledger-writer.ts';
+import {
+  CLOSURE_PHASES,
+  closurePhasesFromText,
+  nextClosurePhase,
+  type ProceduralAuthorityRequest,
+} from '../../../scripts/lib/internal-ambiguity.ts';
+import { usesFormalLayoutBindings } from '../../../scripts/lib/run-model.ts';
+import { representationUsesMarkdown, REPRESENTATION_USE_PATH, assertRepresentationExtractionSupported, readRepresentationContext, RepresentationError } from '../../../scripts/lib/source-representation.ts';
+import { loadRun } from '../../../scripts/lib/run-model.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_CAPABILITIES_PATH = 'grimoires/loa/aleph/host-capabilities.json';
@@ -357,8 +376,8 @@ function renderFrozenCorpusManifest(
   manifest = manifest.split('\n').filter((line) => {
     if (line.startsWith('| chat-msg |')) return false;
     if (line.startsWith('| ⟨add per format;')) return false;
-    return line !== '| md-lines | markdown/plain files | `L⟨start⟩-L⟨end⟩` of the frozen file |'
-      || schemes.has('md-lines');
+    if (line.startsWith('| md-lines |')) return schemes.has('md-lines');
+    return true;
   }).join('\n');
   if (schemes.has('text-lines')) {
     manifest = insertTableRow(
@@ -469,6 +488,7 @@ export function startLoaRun(
       runId,
       inputs,
       capturedAt: now,
+      formalLayout: usesFormalLayoutBindings(bundle.lock.run_format_version),
     });
     const runtime = captureRuntimeSnapshot({
       runId,
@@ -497,6 +517,7 @@ export function startLoaRun(
     });
     const pinnedBundle = verifyAndLoadLoaBundle(runtime.bundle.root);
     writeCanonicalDraft(pinnedBundle, runDir, state, corpus, now);
+    verifyRetainedRuntimeIdentity(runDir, verifyRunControl(runDir));
     return result('start', 'BLOCKED', {
       run_id: runId,
       full_mode: state.full_mode,
@@ -536,10 +557,12 @@ export function statusLoaRun(
   const loaRoot = resolve(options.loaRoot || process.cwd());
   try {
     if (!runId) {
-      const runs = listRunIds(loaRoot).map((id) => stateSummary(readRunState(runDirectory(loaRoot, id))));
+      const runs = listRunIds(loaRoot).map(
+        (id) => stateSummary(verifyRunControl(runDirectory(loaRoot, id))),
+      );
       return result('status', 'PASS', { details: { runs } });
     }
-    const state = readRunState(runDirectory(loaRoot, runId));
+    const state = verifyRunControl(runDirectory(loaRoot, runId));
     return result('status', state.execution.halt ? 'BLOCKED' : 'PASS', {
       run_id: runId,
       full_mode: state.full_mode,
@@ -565,18 +588,94 @@ export function resumeLoaRun(
     const runDir = runDirectory(loaRoot, runId);
     recoverPendingS0Transaction(runDir, options.clock);
     recoverPendingAuthorityTransactions(runDir, options.clock);
+    recoverPendingMaterialTransactions(runDir);
+    recoverPendingSemanticTransactions(runDir);
     recoverPendingLedgerTransactions(runDir, options.clock);
-    const state = verifyRunControl(runDir);
-    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-      allowSimulation: options.allowSimulation || state.full_mode === 'fixture-simulated',
-    });
-    if (runtime.tree_digest !== state.identity.runtime.digest
-      || runtime.bundle.digest !== state.identity.bundle.digest) {
-      throw new Error('run-local runtime snapshot disagrees with run state');
+    let state = verifyRunControl(runDir);
+    const runtime = verifyRetainedRuntimeIdentity(runDir, state);
+    if (usesFormalLayoutBindings(state.identity.run_format_version) && state.corpus.state === 'frozen') {
+      assertRepresentationExtractionSupported(readRepresentationContext(loadRun(runDir)));
     }
     if (state.full_mode === 'fixture-simulated'
       && ['ACCEPTED', 'PROJECTION-ACCEPTED'].includes(state.execution.core_state)) {
       throw new Error('fixture-simulated execution cannot carry acceptance state');
+    }
+    const slice5: Record<string, JsonValue> = {};
+    if (state.execution.stage === 'S4') {
+      const writer = new LedgerWriter(runDir, options.clock);
+      let gateId = state.execution.gate?.id;
+      if (state.execution.halt?.code === 'S4_C2_RESPONSE_APPLICATION_REQUIRED') {
+        if (!gateId) throw new Error('response-application halt has no retained gate');
+        writer.appendProceduralAuthorityResponse(gateId);
+        slice5.applied_response = gateId;
+        state = verifyRunControl(runDir);
+      }
+      if (state.execution.halt?.code === 'S4_C2_FOLLOWUP_REQUEST_REQUIRED'
+        || state.execution.halt?.code === 'BLOCKED_AT_S4_C2') {
+        gateId = state.execution.gate?.id;
+        if (!gateId) throw new Error('Slice 5 follow-up halt has no retained predecessor gate');
+        const request = readJsonFile(
+          join(runDir, 'control', 'gates', `${gateId}-request.json`),
+        ) as unknown as ProceduralAuthorityRequest;
+        const reason = state.execution.halt.code === 'BLOCKED_AT_S4_C2'
+          ? 'actual-resume-after-suspensive-block'
+          : 'nonterminal-response';
+        const followup = writer.openProceduralAuthorityFollowup({
+          request_id: gateId,
+          reason,
+          next_subject: request.authority_subject,
+          presentation: request.presentation !== null,
+          required_authority_identity: request.required_authority.identity,
+          prepared_by: 'invocation:loa-orchestrator',
+          requested_at: options.clock?.now() || new Date().toISOString(),
+        });
+        slice5.opened_followup = followup.request_id;
+        state = verifyRunControl(runDir);
+      }
+      if (state.execution.halt === null) {
+        const logPath = join(runDir, 'run-log.md');
+        let phases = existsSync(logPath)
+          ? closurePhasesFromText(readFileSync(logPath, 'utf8'))
+          : [];
+        let next = phases.length < CLOSURE_PHASES.length
+          ? nextClosurePhase(phases)
+          : null;
+        if (next === 'S4-C2-ambiguities-finalized') {
+          try {
+            writer.advanceSlice5ClosurePhase(next);
+            slice5.closed_c2 = true;
+            state = verifyRunControl(runDir);
+            phases = closurePhasesFromText(readFileSync(logPath, 'utf8'));
+            next = phases.length < CLOSURE_PHASES.length
+              ? nextClosurePhase(phases)
+              : null;
+          } catch (error) {
+            slice5.first_unmet_dod = error instanceof Error ? error.message : String(error);
+          }
+        }
+        if (next === 'S4-C3-exit' && state.execution.halt === null) {
+          writer.advanceSlice5ClosurePhase(next);
+          slice5.closed_c3 = true;
+          state = verifyRunControl(runDir);
+          phases = closurePhasesFromText(readFileSync(logPath, 'utf8'));
+          next = null;
+        }
+        if (state.execution.stage === 'S4'
+          && phases.length === CLOSURE_PHASES.length) {
+          writer.enterS5AfterSlice5Closure();
+          slice5.entered_stage = 'S5';
+          state = verifyRunControl(runDir);
+        }
+        if (state.execution.stage === 'S4'
+          && next === 'S4-C2-ambiguities-finalized') {
+          slice5.required_roles = [
+            'ambiguity-producer',
+            'ambiguity-reviewer',
+            'material-impact-producer',
+            'material-impact-reviewer',
+          ];
+        }
+      }
     }
     const blocked = Boolean(state.execution.halt || state.execution.gate?.status === 'awaiting-authority');
     return result('resume', blocked ? 'BLOCKED' : 'PASS', {
@@ -588,10 +687,26 @@ export function resumeLoaRun(
       details: {
         ...runtimeDetails(state),
         pinned_bundle_root: runtime.bundle.root,
-        next: blocked ? 'present-persisted-human-gate' : 'load-pinned-Core-orchestrator-and-first-unmet-DoD',
+        next: blocked
+          ? state.execution.halt?.code === 'SUCCESSOR_CORPUS_RUN_REQUIRED'
+            ? 'current-run-terminal-successor-corpus-run-required'
+            : 'present-persisted-human-gate'
+          : state.execution.stage === 'S4' && slice5.first_unmet_dod
+            ? 'dispatch-pinned-Slice-5-workers-for-first-unmet-DoD'
+            : 'load-pinned-Core-orchestrator-and-first-unmet-DoD',
+        slice5,
       },
     });
   } catch (error) {
+    if (error instanceof RepresentationError) {
+      const runDir = runDirectory(loaRoot, runId);
+      const retained = readRunState(runDir);
+      if (!retained.execution.halt) updateRunState(runDir, options.clock?.now() || new Date().toISOString(), (draft) => {
+        draft.execution.core_state = 'BLOCKED';
+        draft.execution.halt = { code: 'SOURCE_REPRESENTATION_BLOCKED', reason: error.message,
+          at: options.clock?.now() || new Date().toISOString(), blocking: true };
+      });
+    }
     return result('resume', 'FAIL', {
       run_id: runId,
       errors: [error instanceof Error ? error.message : String(error)],
@@ -684,6 +799,7 @@ interface S0TransactionFiles {
   run_manifest: string;
   run_log: string;
   corpus_manifest: string;
+  representation_files?: Record<string, string>;
 }
 
 interface S0FreezeTransaction {
@@ -740,7 +856,8 @@ function parseS0Transaction(path: string): S0FreezeTransaction {
     || !/^sha256:[0-9a-f]{64}$/u.test(value.payload_digest)
     || !isRecord(value.plan)
     || !isRecord(value.state_after)
-    || !exactKeys(value.files_after, ['run_manifest', 'run_log', 'corpus_manifest'])
+    || !exactKeys(value.files_after, ['run_manifest', 'run_log', 'corpus_manifest',
+      ...(isRecord(value.files_after) && 'representation_files' in value.files_after ? ['representation_files'] : [])])
     || typeof value.files_after.run_manifest !== 'string'
     || typeof value.files_after.run_log !== 'string'
     || typeof value.files_after.corpus_manifest !== 'string'
@@ -810,6 +927,15 @@ function applyS0Transaction(
   writeFileAtomic(paths.run_manifest, transaction.files_after.run_manifest);
   writeFileAtomic(paths.run_log, transaction.files_after.run_log);
   writeFileAtomic(paths.corpus_manifest, transaction.files_after.corpus_manifest);
+  for (const [path, encoded] of Object.entries(transaction.files_after.representation_files || {})) {
+    assertSafeRelativePath(path, 'representation capture path');
+    assertNoSymlinkComponents(runDir, join(runDir, path));
+    const bytes = Buffer.from(encoded, 'base64');
+    if (existsSync(join(runDir, path)) && !readStableRegularFile(join(runDir, path)).bytes.equals(bytes)) {
+      throw new Error(`representation capture preimage changed: ${path}`);
+    }
+    writeFileAtomic(join(runDir, path), bytes, path === REPRESENTATION_USE_PATH ? 0o600 : 0o400);
+  }
   if (before) writeRunState(runDir, structuredClone(transaction.state_after));
   writeJsonAtomic(transactionPath, {
     ...transaction,
@@ -855,15 +981,7 @@ export function recordS0AuthorityResponse(
       false,
     );
     const prior = verifyRunControl(runDir);
-    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-      allowSimulation: options.allowSimulation
-        || prior.full_mode === 'fixture-simulated'
-        || Boolean(response.simulation),
-    });
-    if (runtime.tree_digest !== prior.identity.runtime.digest
-      || runtime.bundle.digest !== prior.identity.bundle.digest) {
-      throw new Error('run-local runtime snapshot disagrees with run state');
-    }
+    const runtime = verifyRetainedRuntimeIdentity(runDir, prior);
     if (prior.execution.stage !== 'S0'
       || prior.execution.gate?.status !== 'awaiting-authority') {
       throw new Error('run is not awaiting its S0 authority response');
@@ -900,6 +1018,13 @@ export function recordS0AuthorityResponse(
         response,
       ),
     };
+    if (usesFormalLayoutBindings(prior.identity.run_format_version)) {
+      const files = preparedRepresentationFiles(runDir, plan.frozen.files.map((file) => file.source_id));
+      filesAfter.representation_files = files;
+      files[REPRESENTATION_USE_PATH] = Buffer.from(representationUsesMarkdown([])).toString('base64');
+      const inventoryHash = sha256Digest(Buffer.from(files['corpus/representations.md'], 'base64'));
+      filesAfter.run_manifest = filesAfter.run_manifest.replace('## Corpus binding', `## Corpus binding\n\n- representation_inventory_hash: ${inventoryHash}`);
+    }
     const payload: Omit<
       S0FreezeTransaction,
       'payload_digest' | 'committed_at' | 'status'
@@ -952,13 +1077,7 @@ export function openGenericHumanAuthorityGate(
     const runDir = runDirectory(loaRoot, runId);
     recoverPendingAuthorityTransactions(runDir, options.clock);
     const prior = verifyRunControl(runDir);
-    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-      allowSimulation: options.allowSimulation || prior.full_mode === 'fixture-simulated',
-    });
-    if (runtime.tree_digest !== prior.identity.runtime.digest
-      || runtime.bundle.digest !== prior.identity.bundle.digest) {
-      throw new Error('run-local runtime snapshot disagrees with run state');
-    }
+    verifyRetainedRuntimeIdentity(runDir, prior);
     const state = openHumanAuthorityGate(runDir, gate);
     return result('resume', 'BLOCKED', {
       run_id: runId,
@@ -986,15 +1105,7 @@ export function recordGenericHumanAuthorityResponse(
     const runDir = runDirectory(loaRoot, runId);
     recoverPendingAuthorityTransactions(runDir, options.clock);
     const prior = verifyRunControl(runDir);
-    const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-      allowSimulation: options.allowSimulation
-        || prior.full_mode === 'fixture-simulated'
-        || decision.simulation !== null,
-    });
-    if (runtime.tree_digest !== prior.identity.runtime.digest
-      || runtime.bundle.digest !== prior.identity.bundle.digest) {
-      throw new Error('run-local runtime snapshot disagrees with run state');
-    }
+    verifyRetainedRuntimeIdentity(runDir, prior);
     const state = recordHumanAuthorityDecision(runDir, decision);
     return result('resume', state.execution.halt ? 'BLOCKED' : 'PASS', {
       run_id: runId,

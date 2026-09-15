@@ -6,8 +6,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   validateWorkerReturnContract,
+  parseStrictJson,
   type WorkerJsonValue,
 } from './lib/worker-return-contract.ts';
+import { isSemanticOutputContract } from './lib/semantic-review.ts';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const FORMAT = 'aleph-worker-return-validation/v1';
@@ -19,6 +21,7 @@ export interface WorkerReturnFileReport {
   return_digest: string | null;
   canonical_value: WorkerJsonValue | null;
   errors: string[];
+  binding?: 'checked' | 'not-checked';
 }
 
 interface CliOptions {
@@ -64,6 +67,7 @@ export function validateWorkerReturnFiles(
   if (contractBytes) {
     try {
       contract = JSON.parse(contractBytes.toString('utf8')) as unknown;
+      if (isSemanticOutputContract(contract)) contract = parseStrictJson(contractBytes, true);
     } catch (error) {
       errors.push(
         `Core output contract is invalid JSON: ${
@@ -74,10 +78,12 @@ export function validateWorkerReturnFiles(
   }
 
   let canonicalValue: WorkerJsonValue | null = null;
+  let binding: 'checked' | 'not-checked' | undefined;
   if (errors.length === 0 && returnBytes) {
     const validation = validateWorkerReturnContract(returnBytes, contract);
     errors.push(...validation.errors);
     canonicalValue = validation.canonicalValue;
+    binding = validation.binding;
   }
   return {
     format: FORMAT,
@@ -86,6 +92,7 @@ export function validateWorkerReturnFiles(
     return_digest: returnBytes ? digest(returnBytes) : null,
     canonical_value: errors.length === 0 ? canonicalValue : null,
     errors,
+    ...(binding ? { binding } : {}),
   };
 }
 

@@ -40,6 +40,19 @@ import {
   type LoadedCorePart,
   type VerifiedLoaBundle,
 } from './core-loader.ts';
+import {
+  assertDownstreamOperationsAllowed,
+  retainedRestrictionOverlays,
+  type RestrictionTuple,
+} from '../../../scripts/lib/internal-ambiguity.ts';
+import { loadRun, usesFormalLayoutBindings } from '../../../scripts/lib/run-model.ts';
+import { materialHash, REPRESENTATION_PATH, validateRepresentationRun } from '../../../scripts/lib/source-representation.ts';
+import { hasRunCapability } from '../../../scripts/lib/run-model.ts';
+import {
+  SEMANTIC_LENS, semanticPromptRequirements, validateSemanticAttachmentDelivery, parseSemanticJson,
+  validateSemanticSubject, parseSemanticLedger, SEMANTIC_PATH, type SemanticSubject,
+  validateSemanticProducerDelivery,
+} from '../../../scripts/lib/semantic-review.ts';
 
 interface RoleSpec {
   path: string;
@@ -67,6 +80,26 @@ const ROLE_SPECS: Partial<Record<LoaRoleId, RoleSpec>> = {
   'merge-judge': {
     path: 'docs/architecture/prompts/workers-intake-extraction.md',
     heading: 'Role: Merge Judge (S4, global barrier)',
+    stages: ['S4'],
+  },
+  'ambiguity-producer': {
+    path: 'docs/architecture/prompts/workers-internal-ambiguity.md',
+    heading: 'Role: Internal Ambiguity Producer (S4-C2)',
+    stages: ['S4'],
+  },
+  'ambiguity-reviewer': {
+    path: 'docs/architecture/prompts/workers-internal-ambiguity.md',
+    heading: 'Role: Fresh Internal Ambiguity Reviewer (S4-C2)',
+    stages: ['S4'],
+  },
+  'material-impact-producer': {
+    path: 'docs/architecture/prompts/workers-internal-ambiguity.md',
+    heading: 'Role: Material-Impact Producer (S4-C2)',
+    stages: ['S4'],
+  },
+  'material-impact-reviewer': {
+    path: 'docs/architecture/prompts/workers-internal-ambiguity.md',
+    heading: 'Role: Fresh Material-Impact Reviewer (S4-C2)',
     stages: ['S4'],
   },
   'disposition-judge': {
@@ -143,6 +176,8 @@ interface VerifierSpec {
 const VERIFIER_SPECS: Partial<Record<LoaRoleId, VerifierSpec>> = {
   'verifier-l1': { heading: 'L1 — coverage (S2 DoD)', stages: ['S2'] },
   'verifier-l2': { heading: 'L2 — entailment (S3 DoD)', stages: ['S3'] },
+  'verifier-l2f': { heading: 'L2F — formal/table/layout use challenge (S3/S4)', stages: ['S3', 'S4'] },
+  'verifier-l2s': { heading: SEMANTIC_LENS, stages: ['S2', 'S3', 'S4'] },
   'verifier-l3': { heading: 'L3 — merge-refuter (S4 DoD)', stages: ['S4'] },
   'verifier-l4': { heading: 'L4 — disposition-refuter (S5 DoD)', stages: ['S5'] },
   'verifier-l5': { heading: 'L5 — contradiction-sweep (S4/S5)', stages: ['S4', 'S5'] },
@@ -169,6 +204,7 @@ export interface AssembleWorkerBundleOptions {
   taskLine: string;
   modelIdentity: ExactModelIdentity;
   producerContextId?: string | null;
+  downstreamOperations?: RestrictionTuple[];
   outputDir?: string;
 }
 
@@ -205,6 +241,35 @@ function exactNonemptyContextId(value: unknown): value is string {
     && value === value.trim()
     && value.length > 0
     && !/[\u0000-\u001f\u007f]/u.test(value);
+}
+
+const FRESH_REVIEWER_ROLES = new Set<LoaRoleId>([
+  'ambiguity-reviewer',
+  'material-impact-reviewer',
+]);
+
+export function assertWorkerRoleIsolation(
+  role: LoaRoleId,
+  kind: WorkerRequest['kind'],
+  producerContextId: unknown,
+): void {
+  const verifier = role.startsWith('verifier-l');
+  const reviewer = FRESH_REVIEWER_ROLES.has(role);
+  if (kind !== 'producer' && kind !== 'refuter') {
+    throw new Error(`worker kind is invalid for role ${role}`);
+  }
+  if ((verifier || reviewer) && kind !== 'refuter') {
+    throw new Error(`reviewer role cannot be dispatched as a producer: ${role}`);
+  }
+  if (kind === 'refuter'
+    && !verifier
+    && role !== 'adversarial-panel'
+    && !reviewer) {
+    throw new Error(`refuter dispatch requires a verifier or adversarial role: ${role}`);
+  }
+  if (kind === 'refuter' && !exactNonemptyContextId(producerContextId)) {
+    throw new Error('refuter dispatch requires a nonempty producer context ID');
+  }
 }
 
 function assertDispatchableRoleStage(role: LoaRoleId, stage: CoreStage): void {
@@ -290,16 +355,28 @@ function roleParts(
   contract: ReturnType<typeof loadOutputContract>;
   policyPartIndex: number;
 } {
-  assertDispatchableRoleStage(role, stage);
+  const semantic = hasRunCapability(bundle.lock.run_format_version, 'semantic-unit-review');
+  if (!(semantic && role === 'normalizer' && stage === 'S4')) assertDispatchableRoleStage(role, stage);
+  if (role === 'verifier-l2s') {
+    if (!semantic || !['S2', 'S3', 'S4'].includes(stage)) throw new Error('L2S requires the pinned semantic capability and stage');
+    return {
+      parts: semanticPromptRequirements(stage as 'S2' | 'S3' | 'S4').map((part) => loadCorePart(bundle, part.path, part.selector)),
+      policyPartIndex: 2,
+      contract: loadOutputContract(bundle, 'docs/architecture/prompts/verifier-lenses.md', SEMANTIC_LENS),
+    };
+  }
   const common = loadCorePart(
     bundle,
     'docs/architecture/prompts/README.md',
     'fence:Common preamble (include verbatim in every call)',
   );
+  const material = usesFormalLayoutBindings(bundle.lock.run_format_version) ? [loadCorePart(
+    bundle, 'docs/architecture/prompts/README.md', 'fence:Material constraints (run format 1.6)',
+  )] : [];
   const stagePart = loadCorePart(
     bundle,
     'docs/architecture/04-pipeline-stages-and-dod.md',
-    `heading:${STAGE_HEADINGS[stage]}`,
+    `heading:${semantic && role === 'normalizer' && stage === 'S4' ? 'S4 successor semantic preservation (1.7)' : STAGE_HEADINGS[stage]}`,
   );
   const verifierSpec = VERIFIER_SPECS[role];
   if (verifierSpec) {
@@ -314,7 +391,7 @@ function roleParts(
       `heading:${verifierSpec.heading}`,
     );
     return {
-      parts: [common, frame, lens, stagePart],
+      parts: [common, frame, lens, stagePart, ...material],
       policyPartIndex: 2,
       contract: loadOutputContract(
         bundle,
@@ -323,10 +400,15 @@ function roleParts(
       ),
     };
   }
-  const spec = ROLE_SPECS[role] as RoleSpec;
+  const spec = semantic && role === 'normalizer' && stage === 'S4'
+    ? { path: 'docs/architecture/prompts/workers-intake-extraction.md', heading: 'Role: Successor Semantic Normalizer (S4 pre-C1)', stages: ['S4'] }
+    : ROLE_SPECS[role] as RoleSpec;
   const rolePart = loadCorePart(bundle, spec.path, `heading:${spec.heading}`);
+  const semanticParts = semantic && (role === 'extractor' || role === 'normalizer') ? [loadCorePart(
+    bundle, 'docs/architecture/templates/03-extraction-claims.md', 'heading:T3.7 Semantic review (1.7)',
+  )] : [];
   return {
-    parts: [common, rolePart, stagePart],
+    parts: [common, rolePart, stagePart, ...semanticParts, ...material],
     policyPartIndex: 1,
     contract: loadOutputContract(bundle, spec.path, spec.heading),
   };
@@ -402,17 +484,19 @@ export function assembleWorkerBundle(
   if (!/^CALL-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/u.test(options.callId)) {
     throw new Error(`invalid worker call ID: ${options.callId}`);
   }
-  if (options.kind === 'refuter' && !options.role.startsWith('verifier-l')
-    && options.role !== 'adversarial-panel') {
-    throw new Error(`refuter dispatch requires a verifier or adversarial role: ${options.role}`);
-  }
-  if (options.kind === 'producer' && options.role.startsWith('verifier-l')) {
-    throw new Error(`verifier role cannot be dispatched as a producer: ${options.role}`);
-  }
-  if (options.kind === 'refuter' && !exactNonemptyContextId(options.producerContextId)) {
-    throw new Error('refuter dispatch requires a nonempty producer context ID');
-  }
+  assertWorkerRoleIsolation(options.role, options.kind, options.producerContextId);
   const runDir = resolve(options.runDir);
+  const stageIndex = CORE_STAGES.indexOf(options.stage);
+  const downstream = stageIndex >= CORE_STAGES.indexOf('S5');
+  const restrictions = downstream ? retainedRestrictionOverlays(loadRun(runDir)) : [];
+  const downstreamOperations = options.downstreamOperations || [];
+  if (!downstream && downstreamOperations.length > 0) {
+    throw new Error('typed downstream operations are legal only at S5 or later');
+  }
+  if (downstream && restrictions.length > 0 && options.downstreamOperations === undefined) {
+    throw new Error('retained procedural restrictions require typed downstream operation tuples');
+  }
+  assertDownstreamOperationsAllowed(restrictions, downstreamOperations);
   assertPinnedRunAndModel(
     runDir,
     options.runId,
@@ -428,6 +512,41 @@ export function assembleWorkerBundle(
   const allowlist = [...new Set(options.allowlist)].sort(utf8Compare);
   if (allowlist.length !== options.allowlist.length) {
     throw new Error('worker allowlist contains duplicate paths');
+  }
+  if (hasRunCapability(options.bundle.lock.run_format_version, 'semantic-unit-review')
+    && (options.role === 'extractor' || options.role === 'normalizer')) {
+    validateSemanticProducerDelivery(loadRun(runDir), options.role, options.stage as 'S2' | 'S3' | 'S4', options.callId,
+      options.taskLine, allowlist.map((path) => ({ path, bytes: readStableRegularFile(join(runDir, path)).bytes })));
+  }
+  if (options.role === 'verifier-l2f') {
+    validateRepresentationRun(loadRun(runDir));
+    const match = allowlist.length === 1
+      && /^verification\/harness\/material-use-subjects\/([0-9a-f]{64})\.json$/u.exec(allowlist[0]);
+    if (!match) throw new Error('L2F requires only the exact reserved Core material review view');
+    const reservation = readJsonFile(join(runDir, 'control', 'transactions', `RES-material-${match[1]}.json`)) as Record<string, unknown>;
+    if (reservation.review_path !== allowlist[0]
+      || reservation.inventory_hash !== materialHash(readFileSync(join(runDir, REPRESENTATION_PATH)))
+      || reservation.view_hash !== materialHash(readStableRegularFile(join(runDir, allowlist[0])).bytes)) throw new Error('L2F reserved view or capture changed');
+    if (!reservation.producer_context_id || options.producerContextId !== reservation.producer_context_id) throw new Error('L2F must withhold the actual reserved producer context');
+    if (options.taskLine !== 'Challenge the exact retained representation-use subject.') throw new Error('L2F task line must not add producer context');
+  }
+  if (options.role === 'verifier-l2s') {
+    const model = loadRun(runDir);
+    const subjectPath = allowlist.find((path) => path.startsWith('verification/harness/semantic-subjects/'));
+    if (!subjectPath) throw new Error('SEM_ISOLATION L2S requires a sealed semantic subject');
+    const subject = parseSemanticJson(readFileSync(join(runDir, subjectPath)));
+    validateSemanticSubject(subject, model);
+    validateSemanticAttachmentDelivery(subject, options.taskLine, allowlist.map((path) => ({ path, bytes: readStableRegularFile(join(runDir, path)).bytes })));
+    const ledger = parseSemanticLedger(readFileSync(join(runDir, SEMANTIC_PATH), 'utf8'));
+    const assignmentRow = ledger.assignments.find((row) => {
+      const assignment = parseSemanticJson(readFileSync(join(runDir, row.assignment_path))) as { invocation_id: string };
+      return row.semantic_id === subject.semantic_id && assignment.invocation_id === options.callId;
+    });
+    if (!assignmentRow) throw new Error('SEM_REVIEW L2S dispatch requires retained assignment');
+    const producerRow = ledger.subjects.find((row) => row.semantic_id === subject.semantic_id)!;
+    const producerPath = producerRow.producer_receipt_ref.split('@')[0];
+    const producer = parseSemanticJson(readFileSync(join(runDir, producerPath))) as { context_id: string };
+    if (options.producerContextId !== producer.context_id) throw new Error('SEM_ISOLATION L2S requires actual producer context binding');
   }
   const loadedRole = roleParts(options.bundle, options.role, options.stage);
   const policyPart = loadedRole.parts[loadedRole.policyPartIndex];
@@ -509,6 +628,8 @@ export function assembleWorkerBundle(
       blind_policy: blindPolicy,
       allowlist: attachments,
       withheld: options.withheld,
+      procedural_restrictions: restrictions,
+      downstream_operations: downstreamOperations,
       task_line: validateTaskLine(options.taskLine),
       output_contract: {
         core_path: contract.path,
@@ -541,13 +662,27 @@ export function verifyWorkerBundle(root: string): WorkerRequest {
     throw new Error('worker request format is invalid');
   }
   assertDispatchableRoleStage(request.role, request.stage);
-  if (request.kind === 'refuter'
-    && !exactNonemptyContextId(request.isolation?.producer_context_id)) {
-    throw new Error('refuter worker bundle omits its producer context ID');
-  }
+  assertWorkerRoleIsolation(
+    request.role,
+    request.kind,
+    request.isolation?.producer_context_id,
+  );
   if (workerBundleDigest(bundleRoot, request) !== request.bundle_digest) {
     throw new Error('worker bundle digest mismatch');
   }
+  const runDir = resolve(bundleRoot, '../../..');
+  const downstream = CORE_STAGES.indexOf(request.stage) >= CORE_STAGES.indexOf('S5');
+  const restrictions = downstream ? retainedRestrictionOverlays(loadRun(runDir)) : [];
+  if (JSON.stringify(request.procedural_restrictions) !== JSON.stringify(restrictions)) {
+    throw new Error('worker procedural restrictions disagree with retained Core authority');
+  }
+  if (!downstream && request.downstream_operations.length > 0) {
+    throw new Error('worker carries downstream operations before S5');
+  }
+  if (downstream && restrictions.length > 0 && request.downstream_operations.length === 0) {
+    throw new Error('restricted downstream worker omits typed operation tuples');
+  }
+  assertDownstreamOperationsAllowed(restrictions, request.downstream_operations);
   for (const part of request.core_parts) {
     if (sha256Digest(readFileSync(join(bundleRoot, part.materialized_path))) !== part.digest) {
       throw new Error(`worker Core part changed: ${part.materialized_path}`);
