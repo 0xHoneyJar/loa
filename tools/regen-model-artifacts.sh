@@ -20,7 +20,8 @@
 #   gen-adapter-maps.sh --check · npm run gen-bb-registry:check ·
 #   tools/check-bb-dist-fresh.sh --check · checksum == sha256(yaml)
 #
-# Exit codes: 0 in sync (or regenerated) · 1 drift / a step failed · 2 usage
+# Exit codes: 0 in sync (or regenerated) · 1 drift / a step failed · 2 usage ·
+#             3 toolchain missing (npm / node / bridgebuilder node_modules) — NOT a drift result
 # Toolchain pins: grimoires/loa/runbooks/codegen-toolchain.md
 # Idempotence is pinned by tests/unit/cycle-124-anthropic-catalog.bats.
 # =============================================================================
@@ -49,6 +50,19 @@ esac
 
 step() { printf '[regen-model-artifacts] %s\n' "$*" >&2; }
 
+# A missing toolchain is reported as 3, never as drift (1): CI without `npm ci`
+# and a fresh clone must not read as "the catalog drifted".
+precheck_toolchain() {
+    local missing=()
+    command -v npm >/dev/null 2>&1 || missing+=("npm")
+    command -v node >/dev/null 2>&1 || missing+=("node")
+    [ -d "$BB_DIR/node_modules" ] || missing+=("$BB_DIR/node_modules (run: npm ci in that directory)")
+    if [ "${#missing[@]}" -gt 0 ]; then
+        step "TOOLCHAIN: missing ${missing[*]} — cannot run the drift gates (exit 3, not a drift result)"
+        return 3
+    fi
+}
+
 check_checksum() {
     local recorded actual
     recorded="$(tr -d '[:space:]' < "$CHECKSUM" 2>/dev/null || true)"
@@ -71,6 +85,8 @@ run_checks() {
     check_checksum || rc=1
     return "$rc"
 }
+
+precheck_toolchain || exit 3
 
 if [ "$mode" = check ]; then
     if run_checks; then

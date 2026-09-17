@@ -887,9 +887,13 @@ export function progressiveTruncate(
   // cycle-124 FR-3 (Flatline SKP-003): an operator budget above the model's
   // dispatchable input (effective_input_ceiling − 20K for Anthropic) is
   // clamped here, so a 900K diff is truncated to what cheval will accept
-  // instead of being prepared and then refused with exit 7.
+  // instead of being prepared and then refused with exit 7. Only ids the
+  // generated twin or the hand table KNOW are clamped — an unknown id keeps
+  // the operator's budget rather than being cut to the 100K default row
+  // (review round-1 low 7).
   const { coefficient, maxInput } = getTokenBudget(model);
-  const targetBudget = Math.floor(Math.min(budgetTokens, maxInput) * 0.9);
+  const known = model in GENERATED_TOKEN_BUDGETS || (model in TOKEN_BUDGETS && model !== "default");
+  const targetBudget = Math.floor((known ? Math.min(budgetTokens, maxInput) : budgetTokens) * 0.9);
   const fixedTokens = Math.ceil((systemPromptLen + metadataLen) * coefficient);
 
   // Apply size-aware security handling first (SKP-005)

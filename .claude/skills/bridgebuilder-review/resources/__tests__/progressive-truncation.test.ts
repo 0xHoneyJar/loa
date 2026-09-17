@@ -284,6 +284,37 @@ describe("isAdjacentTest", () => {
 
 // --- progressiveTruncate ---
 
+describe("progressiveTruncate budget clamp (cycle-124 FR-3)", () => {
+  // 40 files × 4000 chars × 0.25 = 40 000 tokens of diff; a 300K operator
+  // budget keeps them all unless the model's dispatchable input clamps it.
+  const many = Array.from({ length: 40 }, (_, i) =>
+    file(`src/mod${i}.ts`, 10, 5, "x".repeat(4000)),
+  );
+
+  it("clamps a known Anthropic id to its generated maxInput", () => {
+    const { maxInput } = getTokenBudget("claude-opus-5");
+    assert.equal(maxInput, 160_000);
+    // 20K-token system prompt + 40K diff fits 300K, and fits the 160K clamp too
+    const r = progressiveTruncate(many, 300_000, "claude-opus-5", 80_000, 0);
+    assert.ok(r.success);
+    assert.equal(r.files.length, 40);
+    // but a prompt that only fits the operator budget is cut by the clamp:
+    // fixed = ceil(560 000 × 0.25) = 140 000 > floor(160 000 × 0.9) − 40 000
+    const clamped = progressiveTruncate(many, 300_000, "claude-opus-5", 560_000, 0);
+    assert.ok(clamped.excluded.length > 0 || clamped.level > 1);
+  });
+
+  it("does NOT clamp an unknown id to the 100K default row (review round-1 low 7)", () => {
+    assert.equal(getTokenBudget("some-future-model").maxInput, TOKEN_BUDGETS["default"].maxInput);
+    // fixed = 140 000 tokens: over the 100K default row, under the 300K operator budget
+    const r = progressiveTruncate(many, 300_000, "some-future-model", 560_000, 0);
+    assert.ok(r.success);
+    assert.equal(r.level, 1);
+    assert.equal(r.files.length, 40);
+    assert.equal(r.excluded.length, 0);
+  });
+});
+
 describe("progressiveTruncate", () => {
   const model = "claude-sonnet-4-5-20250929";
   const systemLen = 200; // Short system prompt

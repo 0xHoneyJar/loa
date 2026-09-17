@@ -14,8 +14,12 @@ Usage:
       [--output probe.json]
 
 Exit codes: 0 probe completed · 1 a call failed for a non-size reason ·
-2 usage / budget exceeded. Every call asks for a 16-token answer, so the cost
-is dominated by input: 200K tokens on Opus 5 ≈ $1.00 per call; the budget
+2 usage / budget exceeded. A call is OK when the stream reaches `message_stop`
+without an error event — NOT when a text block arrives: default-on thinking
+(Opus 5 / Fable) can spend a small `max_tokens` entirely on reasoning, which
+is a budget outcome, not a size failure (review round-1 medium 7). Each call
+asks for up to 1024 output tokens and records `stop_reason`; the cost is
+still dominated by input: 200K tokens on Opus 5 ≈ $1.00 per call; the budget
 cap stops the search (largest OK so far is still reported, `partial: true`).
 
 Never run this from a test without LOA_RUN_LIVE_TESTS=1 — it spends money.
@@ -37,10 +41,14 @@ _PRICE_IN = {"claude-opus-5": 5_000_000, "claude-fable-5-1": 10_000_000, "claude
 _FILLER = "The quick brown fox jumps over the lazy dog. "  # ≈ 10 tokens
 
 
-def _probe_once(model: str, tokens: int, key: str) -> tuple[bool, str]:
-    """Stream one request with ≈`tokens` input tokens; True when a text block arrives."""
+def _probe_once(model: str, tokens: int, key: str) -> tuple[bool, str, str | None]:
+    """Stream one request with ≈`tokens` input tokens.
+
+    Returns (ok, detail, stop_reason): ok iff the stream reached `message_stop`
+    with no error event — the request was accepted at this size whatever the
+    model chose to do with its output budget."""
     body = {
-        "model": model, "max_tokens": 16, "stream": True,
+        "model": model, "max_tokens": 1024, "stream": True,
         "messages": [{"role": "user", "content": _FILLER * (tokens // 10) + "\n\nReply: ok."}],
     }
     req = urllib.request.Request(
@@ -50,21 +58,32 @@ def _probe_once(model: str, tokens: int, key: str) -> tuple[bool, str]:
     )
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
-            saw_text = False
+            saw_stop, stop_reason = False, None
             for raw in resp:
                 line = raw.decode("utf-8", errors="replace").strip()
-                if line.startswith("data: ") and '"text_delta"' in line:
-                    saw_text = True
-                if line.startswith("data: ") and '"error"' in line:
-                    return False, line[:300]
-            return saw_text, "" if saw_text else "stream ended without a text block (empty-content class)"
+                if not line.startswith("data: "):
+                    continue
+                try:
+                    event = json.loads(line[6:])
+                except json.JSONDecodeError:
+                    continue
+                kind = event.get("type")
+                if kind == "error":
+                    return False, line[:300], None
+                if kind == "message_delta":
+                    stop_reason = (event.get("delta") or {}).get("stop_reason") or stop_reason
+                if kind == "message_stop":
+                    saw_stop = True
+            if saw_stop:
+                return True, "", stop_reason
+            return False, "stream ended before message_stop (transport / truncation class)", stop_reason
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")[:300]
         if e.code in (400, 413) and ("too long" in detail or "exceed" in detail or "maximum" in detail):
-            return False, f"HTTP {e.code}: {detail}"
+            return False, f"HTTP {e.code}: {detail}", None
         raise RuntimeError(f"HTTP {e.code} (non-size failure): {detail}")
     except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-        return False, f"transport: {e}"
+        return False, f"transport: {e}", None
 
 
 def main() -> int:
@@ -98,9 +117,9 @@ def main() -> int:
             if not within_budget(tokens):
                 partial = True
                 break
-            ok, why = _probe_once(args.model, tokens, key)
+            ok, why, stop_reason = _probe_once(args.model, tokens, key)
             spent_micro += tokens * price_in // 1_000_000
-            samples.append({"tokens": tokens, "ok": ok, "detail": why})
+            samples.append({"tokens": tokens, "ok": ok, "stop_reason": stop_reason, "detail": why})
             if ok:
                 largest_ok = tokens
             else:
@@ -110,9 +129,9 @@ def main() -> int:
             if not within_budget(mid):
                 partial = True
                 break
-            ok, why = _probe_once(args.model, mid, key)
+            ok, why, stop_reason = _probe_once(args.model, mid, key)
             spent_micro += mid * price_in // 1_000_000
-            samples.append({"tokens": mid, "ok": ok, "detail": why})
+            samples.append({"tokens": mid, "ok": ok, "stop_reason": stop_reason, "detail": why})
             if ok:
                 largest_ok = mid
             else:

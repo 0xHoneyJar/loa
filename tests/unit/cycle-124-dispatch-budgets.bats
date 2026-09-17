@@ -79,9 +79,9 @@ _argv_value() {  # <flag>  — prints the token following <flag> in the recorded
     [ "$(_argv_value --max-tokens)" = "16000" ]
 }
 
-@test "c124-1.4-B3: flatline score call passes --max-tokens 4000 by default" {
+@test "c124-1.4-B3: flatline score call passes --max-tokens 16000 by default (thinking shares the budget)" {
     _call_model score >/dev/null
-    [ "$(_argv_value --max-tokens)" = "4000" ]
+    [ "$(_argv_value --max-tokens)" = "16000" ]
 }
 
 @test "c124-1.4-B4: --per-call-max-tokens still overrides the bounded default" {

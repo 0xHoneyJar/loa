@@ -128,6 +128,8 @@ _assert_resolves() {
 
 @test "c124-1.3-11: tools/regen-model-artifacts.sh --check is green (all three drift gates + checksum)" {
     [ -x "$REGEN" ]
+    command -v npm >/dev/null || skip "npm not available"
+    [ -d "$BB_DIR/node_modules" ] || skip "bridgebuilder node_modules not installed (npm ci)"
     run bash "$REGEN" --check
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
 }
@@ -135,6 +137,7 @@ _assert_resolves() {
 @test "c124-1.3-12: tools/regen-model-artifacts.sh is idempotent (second run changes nothing)" {
     [ -x "$REGEN" ]
     command -v npm >/dev/null || skip "npm not available"
+    [ -d "$BB_DIR/node_modules" ] || skip "bridgebuilder node_modules not installed (npm ci)"
     # The dist manifest carries a `generated_at` stamp that changes on every
     # build; idempotence is about content, so fingerprint it without the stamp.
     _fingerprint() {
@@ -162,4 +165,16 @@ _assert_resolves() {
     [ -x "$REGEN" ]
     run bash "$REGEN" --bogus
     [ "$status" -eq 2 ]
+}
+
+@test "c124-1.3-14: a missing toolchain is exit 3 (TOOLCHAIN), never exit 1 (drift)" {
+    [ -x "$REGEN" ]
+    local bin="$BATS_TEST_TMPDIR/bin"
+    mkdir -p "$bin"
+    ln -s "$(command -v bash)" "$bin/bash"
+    ln -s "$(command -v dirname)" "$bin/dirname"
+    run env PATH="$bin" bash "$REGEN" --check
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"TOOLCHAIN"* ]]
+    [[ "$output" != *"DRIFT"* ]]
 }

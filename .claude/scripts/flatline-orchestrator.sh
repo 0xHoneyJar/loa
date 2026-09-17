@@ -125,7 +125,7 @@ DEFAULT_MODEL_TIMEOUT=120
 PER_CALL_MAX_TOKENS=""
 # cycle-124 FR-2: bounded output budgets per call kind (see call_model).
 FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
-FLATLINE_SCORE_MAX_TOKENS=4000     # cross-scoring JSON arrays
+FLATLINE_SCORE_MAX_TOKENS=16000    # cross-scoring JSON arrays (adaptive thinking on opus-5 shares this budget)
 
 # State tracking
 STATE="INIT"
