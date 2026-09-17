@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — cycle-124 "model-generation floor", Sprint 1
+
+- **Catalog at the current generation**: `claude-opus-5` (now the `opus` alias) and `claude-fable-5-1` (now `fable`); the 4.6+ family at its real 1M-context / 128K-output envelope; Sonnet 5 priced at the reference $2/$10; typed `params.thinking_adaptive` / `temperature_supported`, `structured_json` capability, `cache_read_per_mtok`; v2 input fields replaced by `effective_input_ceiling: 180000` + `ceiling_calibration` on every Anthropic HTTP entry. One regen script (`tools/regen-model-artifacts.sh`, `--check` for the three drift gates) rebuilds every generated twin. Values are `reference` until `live-floor-check.yml` probes them (`grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md`).
+- **cheval defaults**: per-hop `max_tokens` default — Anthropic hops `min(64K streaming | 16K non-streaming, catalog max_output_tokens)`, everything else keeps 4096; explicit values clamp to the catalog; `--max-tokens 0` is refused; `--effort low|medium|high|xhigh|max` (per-family emission, `xhigh → high` on 4.6, omitted where the control predates the model) and `--dry-run` reports both. Bounded dispatchers (Flatline 16K/4K, adversarial dissent 16K, BB 16K) pass explicit budgets; the adversarial dissent input budget follows the dissenter's company (Anthropic 160K).
+- **Adaptive thinking + prompt caching on the Anthropic wire**: `thinking: {type: adaptive}` per catalog flag (never `budget_tokens`); persona.md travels as the single `cache_control` breakpoint with the `--system` context after it, byte-identical text on every transport; `Usage.cache_*` on all paths → MODELINV `tokens_cache_read` / `tokens_cache_creation`, CLI JSON `usage`, ledger rows, `pricing_snapshot` cache rates; cache read/write priced at the catalog rates. `LOA_CHEVAL_LEGACY_WIRE=1` restores the pre-cycle request body byte-for-byte.
+- **Ledger isolation** (framework-review rec 6): `LOA_COST_LEDGER_PATH` (env > `metering.ledger_path` > default, symlink-safe `O_NOFOLLOW` writer), pytest/bats/TS harness isolation, `tools/check-ledger-hygiene.sh` tripwire in CI and `pre-push-audit`, rotation runbook.
+- MODELINV payload schema: optional `tokens_cache_read`, `tokens_cache_creation`, `schema_enforced`, `output_schema_sha256`; committed mixed-writer fixture.
+- Live floor scaffold `tests/replay/test_cycle124_live_floor.py` + `tools/ceiling-probe.py` (credential-gated; the recorded pass is the cycle's merge precondition).
+
+### Fixed — cycle-124 Sprint 1
+
+- **Golden-path verdict gate** (framework-review §9 item 1 / rec 2): `_gp_sprint_is_reviewed/_is_audited` derive the verdict from the `LOA-VERDICT` trailer through `verdict-derive.sh`, fail closed on any inconsistency (an APPROVED label with `counts.critical=1` no longer marks a sprint reviewed), and the audit gate confirms the review's `excluded` count.
+- Anthropic HTTP 404 (model not served by the account) is chain-walkable instead of terminal.
+- `validate-ac-verification.sh --sprint-id` scopes the AC gate to one sprint of a multi-sprint plan.
+- Bridgebuilder truncation now consumes the generated per-model budgets (Anthropic 160K = ceiling − 20K) instead of the hand table; `adversarial-review.sh` feeds prompts to `jq` via `--rawfile` (the larger budget exceeded the single-argument limit).
+- Stale test pins repaired: `test_golden_path.bats` setup (47/47 red on main), `model-adapter-overlay-source.bats` (`opus` pinned to 4-7 since cycle-114), `cheval-input-gate.bats` G1/G7/G8; the production-yaml migrator smoke runs against v3 (KF-006).
+
 ### Fixed
 
 - **Flatline content-qualified quorum** (#1227): schema-invalid exit-0 review prose can no longer count as a successful voice or flow into Phase 2 as an empty review. Planned cohort size is preserved, stale consensus is invalidated before provider work, single-voice verdict envelopes are validated against the canonical schema before aggregation, Cursor structured inference uses read-only `ask` mode, and consumer gates now require canonical `verdict_quality.status: APPROVED`.
