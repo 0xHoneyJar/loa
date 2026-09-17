@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-122-mechanical-floor-extensions",
+  "active_cycle": "cycle-124-model-generation-floor",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2065,7 +2065,7 @@
     {
       "id": "cycle-122-mechanical-floor-extensions",
       "label": "Mechanical floor extensions — wire parked gate, close fence gaps, pipeline hardening, parity-gated Karpathy trim",
-      "status": "active",
+      "status": "archived",
       "created_at": "2026-07-29T08:31:36Z",
       "prd": null,
       "sdd": null,
@@ -2103,7 +2103,97 @@
           "created": "2026-07-29T08:31:36Z",
           "completed_at": "2026-07-29T09:13:04Z"
         }
-      ]
+      ],
+      "archived": "2026-09-17T01:06:15Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/2026-09-17-cycle-122-mechanical-floor-extensions"
+    },
+    {
+      "id": "cycle-124-model-generation-floor",
+      "label": "Model-generation floor — bring the framework's own use of Claude to the Opus 5 / Sonnet 5 / Fable 5.1 generation (framework-review-2026-09-17 §9 items 1-8 + rec 2/rec 6)",
+      "status": "active",
+      "created": "2026-09-17T01:06:16Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 235,
+          "local_label": "sprint-1",
+          "status": "planned",
+          "created": "2026-09-17T03:59:11Z",
+          "completed": null,
+          "epic": "bd-wd1g",
+          "beads": [
+            "bd-wq6o",
+            "bd-s3p7",
+            "bd-5nvw",
+            "bd-uya0",
+            "bd-y0tl",
+            "bd-lcmv",
+            "bd-e9wg",
+            "bd-a7f1",
+            "bd-0j6r",
+            "bd-72r4"
+          ],
+          "theme": "Adapter floor and gate honesty"
+        },
+        {
+          "global_id": 236,
+          "local_label": "sprint-2",
+          "status": "planned",
+          "created": "2026-09-17T03:59:12Z",
+          "completed": null,
+          "epic": "bd-2w21",
+          "beads": [
+            "bd-31gy",
+            "bd-xx0z",
+            "bd-r7jd",
+            "bd-zeez",
+            "bd-fyxx",
+            "bd-atr4"
+          ],
+          "theme": "Structured outputs"
+        },
+        {
+          "global_id": 237,
+          "local_label": "sprint-3",
+          "status": "planned",
+          "created": "2026-09-17T03:59:12Z",
+          "completed": null,
+          "epic": "bd-nzvc",
+          "beads": [
+            "bd-2gs6",
+            "bd-4ffi",
+            "bd-0h84",
+            "bd-9eo6",
+            "bd-cai2",
+            "bd-ng37",
+            "bd-s67e",
+            "bd-k7dr",
+            "bd-dsbw"
+          ],
+          "theme": "Prompt audit and review recall"
+        },
+        {
+          "global_id": 238,
+          "local_label": "sprint-4",
+          "status": "planned",
+          "created": "2026-09-17T03:59:13Z",
+          "completed": null,
+          "epic": "bd-ianm",
+          "beads": [
+            "bd-4q6k",
+            "bd-yml9",
+            "bd-m2ml"
+          ],
+          "theme": "Memory gate"
+        }
+      ],
+      "source_prompt": "grimoires/loa/a2a/prompts/modernization-cycle-2026-09-17.md",
+      "source_review": "grimoires/loa/a2a/framework-review-2026-09-17.md#9",
+      "epic": "bd-wd1g",
+      "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
   "global_sprint_counter": 235,
@@ -2446,5 +2536,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 235
+  "next_sprint_number": 239,
+  "last_updated": "2026-09-17T04:02:33Z"
 }

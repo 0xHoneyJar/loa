@@ -100,7 +100,8 @@ hounfour:
   # is INERT for FL+RT until this flag is true.
   # Rollback: flip to false to restore the cycle-103 legacy model-adapter.sh.legacy path.
   flatline_routing: true # Route Flatline/GPT-review through model-invoke (cheval.py)
-  flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
+  # cycle-124 (2026-09-17): disabled — see flatline_protocol.models.tertiary note (KF-018; 2/3 DEGRADED otherwise)
+  # flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
   # cycle-109 (2026-05-13, C109.OP-8): headless mode default for /run invocations
   # API path is billing-degraded (Anthropic + OpenAI Pro); CLI subscription path works.
   # Restore to "api" once operator-side billing is resolved.
@@ -312,7 +313,11 @@ flatline_protocol:
     # substrate misdiagnosed model-tier-access-denied as insufficient_quota —
     # FR-1 capability-aware substrate would have caught this at boot.
     secondary: gpt-5.5
-    tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
+    # cycle-124 (2026-09-17): tertiary DISABLED on this host — gemini CLI is tier-blocked (KF-018, rec 2) and
+    # hounfour.headless.mode cli-only never reaches the HTTP rung, so a configured tertiary only turns every
+    # Flatline run into 2/3 DEGRADED (Phase 2 skipped). Fleet baseline (framework-review §10): no tertiary
+    # unless `agy` is installed. Re-enable by restoring the line below.
+    # tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
   thresholds:
     high_consensus: 700
     disputed_delta: 300

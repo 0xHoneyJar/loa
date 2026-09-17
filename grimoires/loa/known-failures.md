@@ -72,11 +72,11 @@ actually tried, not just what someone *said* was tried.
 | [KF-015](#kf-015-red-team-code-vs-designsh-silent-clean-gate-pass-on-degraded-runs) | **RESOLVED 2026-06-11** (sprint-bug-194 / #984+#985: trap script-scoped, empty/shape validation, degraded-record contract on model failure; RTC-T1..T7 pin all three defects) | red-team code-vs-design gate (silent-clean degraded run) | 4 (4/4 sprints, one downstream cycle) + 1 local repro |
 | [KF-016](#kf-016-compliance_profile-governs-only-fallback-not-initial-routing-bedrock-only-operators-silently-degrade-to-dead-anthropic-api) | RESOLVED-IN-FLIGHT 2026-06-13 (PR #1055 / issue #1054) | cheval model routing — providers.bedrock.compliance_profile + alias->provider map | 1 |
 | [KF-017](#kf-017-cross-model-substrate-all-voice-api_failure-authbilling-exhaustion-not-the-kf-002-empty-content-class) | DIAGNOSED 2026-06-15 — credential/billing root cause, api-only mitigation proven | cheval cross-model dispatch (adversarial-review / Flatline / Bridgebuilder) | 1 |
-| [KF-018](#kf-018-gemini-headless-cli-auth-tier-deprecated-gemini-code-assist-for-individuals-retired-gemini-voice-silently-drops-from-multi-model-review) | OPEN — MITIGATED-BY-WORKAROUND (upstream blocked on Antigravity CLI) | cheval gemini-headless adapter -> Flatline / Bridgebuilder / any google:* consumer | 1 |
+| [KF-018](#kf-018-gemini-headless-cli-auth-tier-deprecated-gemini-code-assist-for-individuals-retired-gemini-voice-silently-drops-from-multi-model-review) | OPEN — MITIGATED-BY-WORKAROUND (upstream blocked on Antigravity CLI) | cheval gemini-headless adapter -> Flatline / Bridgebuilder / any google:* consumer | 2 |
 | [KF-019](#kf-019-confabulated-absence-an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth-potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts-gitignored-check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
-| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 3 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 4 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
@@ -1086,7 +1086,7 @@ If cross-model voices all return `api_failure` / the gates degrade: do NOT assum
 **Feature**: cheval `gemini-headless` adapter (`.claude/adapters/loa_cheval/providers/gemini_headless_adapter.py`) → Flatline / Bridgebuilder / any `google:*` multi-model consumer
 **Symptom**: every `gemini-headless` dispatch fails auth with `IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals … migrate to … antigravity.google`. cheval's circuit breaker `google/headless` trips HALF_OPEN→OPEN and the Gemini voice is silently removed from the consensus (degrades to fewer voices, no visible error to the operator).
 **First observed**: 2026-06-18 (issue #1089, live Flatline run on loa-laplas)
-**Recurrence count**: 1
+**Recurrence count**: 2
 **Current workaround**: `LOA_HEADLESS_MODE=api-only` routes google through the HTTP API (valid `GOOGLE_API_KEY` against `generativelanguage.googleapis.com/v1beta`, already `providers.google.endpoint`) instead of the dead CLI; OR operators drop the tertiary Gemini voice (`flatline_protocol.models.tertiary`) / re-point it at another provider so reviews run on the remaining voices instead of silently degrading. (Sibling to the Fable-5 headless retirement — re-pin `extra.cli_model: fable → opus` via the `hounfour:` override; see bd-01o1.)
 **Upstream issue**: [#1089](https://github.com/0xHoneyJar/loa/issues/1089)
 
@@ -1098,6 +1098,7 @@ If cross-model voices all return `api_failure` / the gates degrade: do NOT assum
 | 2026-06-19 | Assess the issue's proposed `flatline-readiness.sh` headless-CLI probe | WORKAROUND-AT-LIMIT — the existing `health_check()` probes `gemini --version` (binary presence), which still SUCCEEDS while the auth TIER is dead (the error fires only on real inference). A presence probe does NOT catch tier-deprecation; a real-auth probe (`gemini -p ping`) would but is slow/costly and trips the breaker. Readiness CLI-tier probe DEFERRED (bd-yohy). | this entry |
 | not started | Migrate `gemini-headless` to the Antigravity CLI | BLOCKED — Google's replacement is not publicly available; cannot implement against an unreleased CLI | antigravity.google |
 | 2026-06-19 | Add a `gemini-api` terminal (alias → `google:gemini-2.5-pro`, auth_type http_api / GOOGLE_API_KEY) as a key-based alternative | **SHIPPED** — the existing `GoogleAdapter` already speaks v1beta + `GOOGLE_API_KEY` (`x-goog-api-key`), so this is a config alias, not a new adapter. Operators swap `gemini-headless` → `gemini-api` (e.g. the Flatline tertiary voice) for the key-based HTTP path. Only the Antigravity CLI migration remains BLOCKED. | bd-n56l / issue #1089 fix (2) |
+| 2026-09-17 | gemini CLI 0.41.2 headless (-p, --skip-trust) for review triangulation | IneligibleTierError UNSUPPORTED_CLIENT (Gemini Code Assist for individuals); cheval gemini-headless also fails (agy not on PATH); with hounfour.headless.mode=cli-only the google chain stops at the CLI rung and never tries gemini-3.1-pro-preview HTTP | framework-review-2026-09-17.md §5.5 (grimoires/loa/a2a/); MODELINV models_requested=[gemini-headless,gemini-3.1-pro-preview,gemini-2.5-pro] models_failed=[gemini-headless] |
 
 ### Reading guide
 
@@ -1187,7 +1188,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 **Feature**: beads_rust (br) sync
 **Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
 **First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
-**Recurrence count**: 3
+**Recurrence count**: 4
 **Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
 **Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
 **Related visions / lore**: none
@@ -1199,6 +1200,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 | 2026-07-11 | br sync --flush-only (as recommended) | no-op: dirty_count=0 despite --status Dirty:1 | session transcript agent-ergonomics pass 1; bd-m1o6 absent from issues.jsonl until --force |
 | 2026-07-11 | br create x5 then br sync --flush-only | recurred: new beads stranded until --force (2nd time same day) | agent-ergonomics pass 1 session; beads bd-5fpl..bd-y04d |
 | 2026-07-29 | br sync + br sync --flush-only after 25 creates (br 0.2.6, cycle-121 kickoff) | Both report 'current/nothing to export' while all 25 cycle-121 ids are DB-only (issues.jsonl has 0). Proceeded per Reading guide: DB authoritative, NO --rebuild/--import-only, JSONL export deferred. | run-20260729-68d1b75c |
+| 2026-09-17 | framework review session: br sync --status vs beads-health on branch feature/cycle-123-bug-burndown (br 0.2.6) | --status reports 'Dirty issues: 1 / Database is newer' while beads-health reports JSONL 1607h stale; not chased per Reading guide | framework-review-2026-09-17.md §3.4 (grimoires/loa/a2a/); local HEAD 65e0c4a0 |
 
 ### Reading guide
 
