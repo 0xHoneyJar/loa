@@ -156,3 +156,46 @@ print("OK")
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
     [[ "$output" == *"OK"* ]]
 }
+
+# --- AC-4.2 (PRD): the committed mixed cost-ledger fixture (pre-cache rows
+# without the fields, post-cache rows with them) runs clean through every
+# consumer with totals equal to the hand-computed sum:
+#   52 500 + 2 250 + 0 + 35 000 + 12 000 + 12 000 = 113 750 micro-USD, 6 calls
+# (post rows: opus-5 1000in/200out + 4000 cache_creation at 1.25× = 35 000;
+#  opus-5 + 4000 cache_read at 0.1× = 12 000; fable-5-1 500in/100out + 8000
+#  cache_read at 0.025× = 12 000.)
+
+MIXED_LEDGER_TOTAL=113750
+
+@test "c124-1.6-6 (AC-4.2): metering/rollup.py totals the mixed fixture to the hand-computed sum" {
+    local fixture="$PROJECT_ROOT/tests/fixtures/metering/mixed-cost-ledger.jsonl"
+    [ -f "$fixture" ]
+    run env PYTHONPATH="$ADAPTERS" "$PYTHON_BIN" -m loa_cheval.metering.rollup --ledger "$fixture" --by agent --json
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [ "$(jq '[.rows[].cost_micro_usd] | add' <<<"$output")" = "$MIXED_LEDGER_TOTAL" ]
+    [ "$(jq '[.rows[].calls] | add' <<<"$output")" = "6" ]
+    [ "$(jq '[.rows[].unpriced_calls] | add' <<<"$output")" = "1" ]
+    # both row shapes group under one model key
+    run env PYTHONPATH="$ADAPTERS" "$PYTHON_BIN" -m loa_cheval.metering.rollup --ledger "$fixture" --by model --json
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.rows[] | select(.key=="claude-opus-5") | .cost_micro_usd' <<<"$output")" = "47000" ]
+}
+
+@test "c124-1.6-7 (AC-4.2): cost-report.sh --json totals the mixed fixture to the hand-computed sum" {
+    local fixture="$PROJECT_ROOT/tests/fixtures/metering/mixed-cost-ledger.jsonl"
+    run bash "$PROJECT_ROOT/.claude/scripts/cost-report.sh" --ledger "$fixture" --json
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [ "$(jq '.total_micro_usd' <<<"$output")" = "$MIXED_LEDGER_TOTAL" ]
+    [ "$(jq '.entry_count' <<<"$output")" = "6" ]
+    [ "$(jq '.corrupt_lines' <<<"$output")" = "0" ]
+    [ "$(jq '.agents["bb-voice-opus"]' <<<"$output")" = "47000" ]
+}
+
+@test "c124-1.6-8 (AC-4.2): model-economy-roll-up.sh reads the mixed-writer MODELINV fixture clean" {
+    local fixture="$PROJECT_ROOT/tests/fixtures/modelinv/mixed-writer-rows.jsonl"
+    [ -f "$fixture" ]
+    run bash "$PROJECT_ROOT/tools/model-economy-roll-up.sh" --log-path "$fixture" --window 3650d --json
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [ "$(jq '.coverage.total_envelopes' <<<"$output")" = "11" ]
+    [ "$(jq '.coverage.malformed_lines' <<<"$output")" = "0" ]
+}

@@ -8,8 +8,9 @@
 #   cost-report.sh [--ledger <path>] [--days N] [--json]
 #
 # Options:
-#   --ledger <path>    Path to cost ledger JSONL (default: $LOA_COST_LEDGER_PATH when set,
-#                      else grimoires/loa/a2a/cost-ledger.jsonl)
+#   --ledger <path>    Path to cost ledger JSONL (default: the writer's own resolution —
+#                      $LOA_COST_LEDGER_PATH, else metering.ledger_path from the
+#                      merged config, else .run/cost-ledger.jsonl at the project root)
 #   --days <n>         Report period in days (default: 30)
 #   --json             Output as JSON instead of markdown
 #   --top <n>          Show top N most expensive invocations (default: 5)
@@ -20,10 +21,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Defaults — LOA_COST_LEDGER_PATH first (cycle-124 FR-6): the same precedence
-# as loa_cheval.metering.ledger.resolve_cost_ledger_path, so a redirected
-# writer is read from the same place.
-LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/grimoires/loa/a2a/cost-ledger.jsonl}"
+# Default — the writer's own resolver (cycle-124 FR-6, review round-1 medium 6):
+# LOA_COST_LEDGER_PATH > merged metering.ledger_path > .run/cost-ledger.jsonl,
+# anchored at the project root. Falls back to the literal default when the
+# Python substrate is unavailable.
+if [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
+    _PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+else
+    _PYTHON_BIN="$(command -v python3 || true)"
+fi
+LEDGER_PATH="$(cd "${PROJECT_ROOT}/.claude/adapters" && "${_PYTHON_BIN}" -c \
+    'from loa_cheval.metering.rollup import default_ledger_path; print(default_ledger_path())' 2>/dev/null)" \
+    || LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
+[[ -n "$LEDGER_PATH" ]] || LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
 REPORT_DAYS=30
 OUTPUT_JSON=false
 TOP_N=5

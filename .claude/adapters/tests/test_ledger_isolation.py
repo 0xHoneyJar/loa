@@ -59,9 +59,9 @@ class TestPrecedence:
         monkeypatch.setenv(COST_LEDGER_ENV, str(env_path))
         resolved = resolve_cost_ledger_path({"ledger_path": str(tmp_path / "cfg.jsonl")})
         assert resolved == _real(env_path)
-        # Readers consult the same precedence (rollup default, cost-report.sh
-        # is pinned by tests/unit/cheval-cost-rollup.bats).
-        assert default_ledger_path() == str(env_path)
+        # Readers run the same resolver (rollup default; cost-report.sh is
+        # pinned by tests/unit/cheval-cost-rollup.bats).
+        assert default_ledger_path() == _real(env_path)
 
     def test_falls_back_to_config_when_env_unset(self, monkeypatch, tmp_path):
         monkeypatch.delenv(COST_LEDGER_ENV, raising=False)
@@ -69,20 +69,47 @@ class TestPrecedence:
         assert resolve_cost_ledger_path({"ledger_path": str(cfg_path)}) == _real(cfg_path)
         # Empty config value is "unset", not "the empty path".
         monkeypatch.chdir(tmp_path)
-        assert resolve_cost_ledger_path({"ledger_path": ""}) == _real(tmp_path / DEFAULT_COST_LEDGER_PATH)
+        assert resolve_cost_ledger_path({"ledger_path": ""}) == _real(PROJECT_ROOT / DEFAULT_COST_LEDGER_PATH)
+
+    def test_relative_config_path_is_anchored_at_the_project_root(self, monkeypatch, tmp_path):
+        """review round-1 high #5: the merged config says `.run/cost-ledger.jsonl`;
+        cheval invoked from a subdirectory must not fork the ledger (the MODELINV
+        twin already anchors to the repo root)."""
+        monkeypatch.delenv(COST_LEDGER_ENV, raising=False)
+        monkeypatch.chdir(tmp_path)
+        assert resolve_cost_ledger_path({"ledger_path": ".run/cost-ledger.jsonl"}) == _real(
+            PROJECT_ROOT / ".run" / "cost-ledger.jsonl"
+        )
+        # An env path stays CWD-relative (test / operator redirect, documented).
+        (tmp_path / "here").mkdir()
+        monkeypatch.setenv(COST_LEDGER_ENV, "here/ledger.jsonl")
+        assert resolve_cost_ledger_path({"ledger_path": ".run/cost-ledger.jsonl"}) == _real(
+            tmp_path / "here" / "ledger.jsonl"
+        )
 
     def test_default_when_neither(self, monkeypatch, tmp_path):
         monkeypatch.delenv(COST_LEDGER_ENV, raising=False)
         monkeypatch.chdir(tmp_path)
-        expected = _real(tmp_path / ".run" / "cost-ledger.jsonl")
+        expected = _real(PROJECT_ROOT / ".run" / "cost-ledger.jsonl")
         assert DEFAULT_COST_LEDGER_PATH == ".run/cost-ledger.jsonl"
         assert resolve_cost_ledger_path({}) == expected
         assert resolve_cost_ledger_path(None) == expected
-        # Today's contract is kept for the default: no parent required at
-        # resolve time (append_ledger creates .run/ on first write).
+        # The default never depends on the CWD: nothing is created here.
         assert not (tmp_path / ".run").exists()
-        append_ledger({"probe": 1}, resolve_cost_ledger_path({}))
-        assert (tmp_path / ".run" / "cost-ledger.jsonl").read_text().strip() == '{"probe":1}'
+
+    def test_default_resolves_under_the_project_root_from_any_cwd(self, tmp_path):
+        """Subprocess twin of the above: a fresh interpreter, no env override, a
+        foreign CWD — the resolver still names <repo>/.run/cost-ledger.jsonl."""
+        env = {k: v for k, v in os.environ.items() if k != COST_LEDGER_ENV}
+        code = (
+            f"import sys; sys.path.insert(0, {str(PROJECT_ROOT / '.claude' / 'adapters')!r}); "
+            "from loa_cheval.metering.ledger import resolve_cost_ledger_path; "
+            "print(resolve_cost_ledger_path({}))"
+        )
+        proc = subprocess.run([sys.executable, "-c", code], cwd=str(tmp_path), env=env,
+                              capture_output=True, text=True, timeout=60)
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == _real(PROJECT_ROOT / ".run" / "cost-ledger.jsonl")
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +139,27 @@ class TestPathSafety:
         with pytest.raises(OSError):
             append_ledger({"probe": 1}, str(link))
         assert real.read_text() == ""
+
+    @pytest.mark.parametrize("target_kind", ["directory", "devnull"])
+    def test_existing_non_regular_target_rejected(self, monkeypatch, tmp_path, target_kind):
+        """review round-1 high #5: a directory or /dev/null passed the old checks
+        and failed inside BudgetEnforcer.post_call — after the billed call and
+        inside the retry loop. It is INVALID_CONFIG at resolve time now."""
+        if target_kind == "directory":
+            target = tmp_path / "ledger-dir"
+            target.mkdir()
+        else:
+            target = Path("/dev/null")
+            if not target.exists():
+                pytest.skip("/dev/null absent")
+        monkeypatch.setenv(COST_LEDGER_ENV, str(target))
+        with pytest.raises(ConfigError) as excinfo:
+            resolve_cost_ledger_path({})
+        assert excinfo.value.code == "INVALID_CONFIG"
+        assert "not a regular file" in str(excinfo.value)
+        monkeypatch.delenv(COST_LEDGER_ENV)
+        with pytest.raises(ConfigError):
+            resolve_cost_ledger_path({"ledger_path": str(target)})
 
     def test_missing_parent_rejected(self, monkeypatch, tmp_path):
         missing = tmp_path / "nope" / "ledger.jsonl"
@@ -153,12 +201,17 @@ class TestPathSafety:
 
 class TestIsolation:
     def test_conftest_isolates_both_ledgers(self, tmp_path):
+        """The invariant, not the mechanism (review round-1 medium 3): both
+        ledger paths are set and NEITHER resolves under the repo's .run/ —
+        an operator-level export elsewhere (the FR-6 runbook's recommendation)
+        satisfies it just as the conftest's tmp_path redirect does."""
+        repo_run = _real(PROJECT_ROOT / ".run") + os.sep
         for var in (COST_LEDGER_ENV, MODELINV_ENV):
             value = os.environ.get(var)
-            assert value, f"{var} must be set by tests/conftest.py"
-            assert value.startswith(str(tmp_path) + os.sep), (
-                f"{var}={value!r} is not under this test's tmp_path — unset any "
-                "shell-level export before running the adapter suite"
+            assert value, f"{var} must be set (tests/conftest.py sets it when unset)"
+            assert not _real(Path(value)).startswith(repo_run), (
+                f"{var}={value!r} points into the repo's .run/ — the adapter suite "
+                "would append test rows to a production ledger"
             )
 
     @pytest.mark.skipif(not MOCK_FIXTURE_DIR.is_dir(), reason="mock fixture dir absent")

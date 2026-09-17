@@ -130,13 +130,14 @@ if [[ -f "$MODELINV_LOG" ]]; then
         printf 'check-ledger-hygiene.sh: cannot read %s\n' "$MODELINV_LOG" >&2
         exit 2
     fi
-    hits=$(grep -nF -- '/tmp/cheval-e2e-' "$MODELINV_LOG") && grep_rc=0 || grep_rc=$?
+    # `cheval-e2e-` without the tmp root: macOS mkdtemp lives under /var/folders/.
+    hits=$(grep -nF -- 'cheval-e2e-' "$MODELINV_LOG") && grep_rc=0 || grep_rc=$?
     if [[ "$grep_rc" -gt 1 ]]; then
         printf 'check-ledger-hygiene.sh: grep failed scanning %s\n' "$MODELINV_LOG" >&2
         exit 2
     fi
     while IFS= read -r line; do
-        [[ -n "$line" ]] && violations+="$MODELINV_LOG:${line%%:*}: /tmp/cheval-e2e-* fixture path in MODELINV row"$'\n'
+        [[ -n "$line" ]] && violations+="$MODELINV_LOG:${line%%:*}: cheval-e2e-* fixture path in MODELINV row"$'\n'
     done <<< "$hits"
     scanned=$((scanned + 1))
 else

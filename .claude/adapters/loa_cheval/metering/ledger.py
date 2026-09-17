@@ -13,8 +13,10 @@ import fcntl
 import json
 import logging
 import os
+import stat
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.metering.pricing import (
@@ -50,15 +52,23 @@ def resolve_cost_ledger_path(metering_config: Optional[Dict[str, Any]] = None) -
     Precedence:
       1. ``LOA_COST_LEDGER_PATH`` env — test isolation / operator redirect
       2. ``metering.ledger_path`` from the merged config
-      3. ``.run/cost-ledger.jsonl`` relative to the working directory (today's
-         literal fallback; ``append_ledger`` still creates ``.run/`` on first
-         write, so the default needs no existing parent)
+      3. ``.run/cost-ledger.jsonl`` (``append_ledger`` still creates ``.run/``
+         on first write, so the default needs no existing parent)
 
-    Path safety (sprint Flatline SKP-003): the result is canonicalized with
-    ``os.path.realpath`` (``..``/``.`` segments collapse); a symlink at the
-    target path is rejected for every source; an env- or config-supplied path
-    must have an existing parent directory — a typo'd redirect is an error,
-    not a ``mkdir``. Rejections raise ``ConfigError`` (``INVALID_CONFIG``).
+    A relative config or default path is anchored at the project root (the
+    directory holding ``.claude/``), exactly like the MODELINV twin
+    (``audit/modelinv._resolve_log_path``) — cheval invoked from a
+    subdirectory must not fork the ledger. A relative env path stays
+    CWD-relative: it is the test / operator redirect and is documented so.
+
+    Path safety (sprint Flatline SKP-003 + review round-1 high #5): the result
+    is canonicalized with ``os.path.realpath`` (``..``/``.`` segments
+    collapse); a symlink at the target path is rejected for every source; an
+    existing target that is not a regular file (a directory, ``/dev/null``)
+    is rejected here rather than inside ``BudgetEnforcer.post_call`` after
+    the billed call; an env- or config-supplied path must have an existing
+    parent directory — a typo'd redirect is an error, not a ``mkdir``.
+    Rejections raise ``ConfigError`` (``INVALID_CONFIG``).
     """
     override = os.environ.get(COST_LEDGER_ENV)
     if override:
@@ -69,18 +79,31 @@ def resolve_cost_ledger_path(metering_config: Optional[Dict[str, Any]] = None) -
             candidate, source = str(configured), "metering.ledger_path"
         else:
             candidate, source = DEFAULT_COST_LEDGER_PATH, "default"
+        if not os.path.isabs(candidate):
+            candidate = os.path.join(_project_root(), candidate)
 
     if os.path.islink(candidate):
         raise ConfigError(
             f"cost ledger path {candidate!r} ({source}) is a symlink; refusing to follow it"
         )
     resolved = os.path.realpath(candidate)
+    if os.path.lexists(resolved) and not stat.S_ISREG(os.lstat(resolved).st_mode):
+        raise ConfigError(
+            f"cost ledger path {resolved!r} ({source}) exists and is not a regular file"
+        )
     parent = os.path.dirname(resolved)
     if source != "default" and not os.path.isdir(parent):
         raise ConfigError(
             f"cost ledger parent directory {parent!r} ({source}) does not exist"
         )
     return resolved
+
+
+def _project_root() -> str:
+    """The directory holding ``.claude/`` — five levels above this module
+    (``.claude/adapters/loa_cheval/metering/ledger.py``), the same walk the
+    MODELINV emitter uses, so both ledgers anchor to one root."""
+    return str(Path(__file__).resolve().parents[4])
 
 
 def create_ledger_entry(

@@ -35,7 +35,8 @@ import os
 import sys
 from typing import Any, Dict, Iterable, List
 
-from loa_cheval.metering.ledger import COST_LEDGER_ENV, read_ledger
+from loa_cheval.metering.ledger import COST_LEDGER_ENV, read_ledger, resolve_cost_ledger_path
+from loa_cheval.types import ConfigError
 
 GROUP_KEYS = ("agent", "model", "provider", "day", "trace")
 
@@ -44,20 +45,23 @@ FALLBACK_LEDGER = ".run/cost-ledger.jsonl"
 
 def default_ledger_path() -> str:
     """Resolve the ledger path the way cheval itself does (codex P2 on #1000):
-    LOA_COST_LEDGER_PATH when set (cycle-124 FR-6 — a redirected writer is
-    read from the same place), else metering.ledger_path from the merged
-    config when loadable, else the literal fallback cheval.py uses. An
-    explicit --ledger always wins."""
-    override = os.environ.get(COST_LEDGER_ENV)
-    if override:
-        return override
-    try:
-        import yaml  # repo CI installs PyYAML; degrade gracefully without it
+    the SAME resolver over the SAME merged config (system defaults +
+    .loa.config.yaml + env), so a reader never opens a file the writer does
+    not write (review round-1 medium 6 — the old reader read only the system
+    defaults yaml and pointed at grimoires/loa/a2a/ while the writer, via the
+    project overlay, wrote .run/). LOA_COST_LEDGER_PATH still wins inside the
+    resolver. An explicit --ledger always wins over this function."""
+    metering: Dict[str, Any] = {}
+    if not os.environ.get(COST_LEDGER_ENV):
+        try:
+            from loa_cheval.config.loader import load_config
 
-        with open(".claude/defaults/model-config.yaml") as f:
-            cfg = yaml.safe_load(f) or {}
-        return (cfg.get("metering") or {}).get("ledger_path") or FALLBACK_LEDGER
-    except Exception:
+            metering = load_config()[0].get("metering") or {}
+        except Exception:  # no project config reachable — the resolver's default applies
+            metering = {}
+    try:
+        return resolve_cost_ledger_path(metering)
+    except ConfigError:
         return FALLBACK_LEDGER
 
 

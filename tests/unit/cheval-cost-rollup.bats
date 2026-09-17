@@ -71,14 +71,17 @@ _rollup() {
     [[ "$output" == *"empty"* ]]
 }
 
-@test "rollup: default ledger resolves from model-config metering.ledger_path (codex P2)" {
-    cd "$REPO_ROOT"
-    run python3 -c "
+@test "rollup: default ledger is the writer's resolution over the MERGED config (codex P2, cycle-124 review)" {
+    # .loa.config.yaml overlays metering.ledger_path=.run/cost-ledger.jsonl on
+    # the system default; the reader must land where the writer writes, from
+    # any CWD, anchored at the project root.
+    cd "$TMP_DIR"
+    run env -u LOA_COST_LEDGER_PATH python3 -c "
 from loa_cheval.metering.rollup import default_ledger_path
 print(default_ledger_path())
 "
     [ "$status" -eq 0 ]
-    [ "$output" = "grimoires/loa/a2a/cost-ledger.jsonl" ]
+    [ "$output" = "$(cd "$REPO_ROOT" && python3 -c "import os; print(os.path.realpath('.run/cost-ledger.jsonl'))")" ]
 }
 
 @test "rollup: LOA_COST_LEDGER_PATH overrides the config default — readers follow the writer (cycle-124 FR-6)" {
