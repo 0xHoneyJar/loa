@@ -246,7 +246,8 @@ missing or ambiguous, resolve it before running the gate; never substitute
 the repo-level plan for a bug micro-sprint.
 
 **MUST**: immediately before writing the `COMPLETED` marker, run
-`.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint "$SPRINT_FILE"`.
+`.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint "$SPRINT_FILE" --sprint-id sprint-N`
+(`--sprint-id` scopes a multi-sprint plan to the sprint under review; omit it for a single-sprint plan).
 Exit 0 → proceed. Exit 1 → fix the reported AC rows (exact repair text) and
 re-run before writing the marker. Exit 2 (usage error / file not found) →
 treat as a validator FAILURE, do NOT proceed: fix the report/sprint path and
@@ -600,7 +601,7 @@ Key sections:
 - Verification Steps
 
 **MUST**, immediately before writing any `COMPLETED` marker: run
-`.claude/scripts/validate-ac-verification.sh --report <reviewer.md> --sprint "$SPRINT_FILE"`
+`.claude/scripts/validate-ac-verification.sh --report <reviewer.md> --sprint "$SPRINT_FILE" --sprint-id sprint-N`
 (see AC Verification Gate above for the full contract and fail-open fallback).
 
 ## Phase 4: Feedback Integration Loop

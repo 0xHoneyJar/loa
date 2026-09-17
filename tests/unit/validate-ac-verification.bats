@@ -228,3 +228,38 @@ EOF
     [ "$(echo "$output" | jq -r '.ac_count')" = "2" ]
     [ "$(echo "$output" | jq -r '.violations | length')" -gt 0 ]
 }
+
+# =============================================================================
+# cycle-124: --sprint-id scopes a multi-sprint plan to one sprint's criteria
+# =============================================================================
+@test "AC-verify: --sprint-id walks only the named sprint's criteria in a multi-sprint plan" {
+    cat > "${TEST_TMPDIR}/multi.md" <<'EOF'
+## Sprint 1: Auth hardening
+### Acceptance Criteria
+- [ ] API returns 401 on invalid creds
+## Sprint 2: Billing
+### Acceptance Criteria
+- [ ] Invoices are idempotent
+EOF
+    cat > "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" <<'EOF'
+# Report
+## AC Verification
+**AC-1.1**: API returns 401 on invalid creds
+- Status: ✓ Met
+- Evidence: src/auth.ts:12
+EOF
+    # Without scoping the Sprint 2 bullet is demanded too.
+    run "$SCRIPT" --report "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" --sprint "${TEST_TMPDIR}/multi.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Invoices are idempotent"* ]]
+    # With --sprint-id sprint-1 only Sprint 1's bullet is walked.
+    run "$SCRIPT" --report "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" --sprint "${TEST_TMPDIR}/multi.md" --sprint-id sprint-1
+    [ "$status" -eq 0 ]
+    # sprint-2 against the same report is a violation; an unknown sprint is a usage error.
+    run "$SCRIPT" --report "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" --sprint "${TEST_TMPDIR}/multi.md" --sprint-id sprint-2
+    [ "$status" -eq 1 ]
+    run "$SCRIPT" --report "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" --sprint "${TEST_TMPDIR}/multi.md" --sprint-id sprint-9
+    [ "$status" -eq 2 ]
+    run "$SCRIPT" --report "${TEST_TMPDIR}/grimoires/loa/a2a/sprint-1/reviewer.md" --sprint "${TEST_TMPDIR}/multi.md" --sprint-id nope
+    [ "$status" -eq 2 ]
+}
