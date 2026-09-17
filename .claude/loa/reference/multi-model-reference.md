@@ -46,6 +46,14 @@ config restoration, baseline comparison against
 and CI re-validation. Operators do NOT need to flip a runtime flag; they
 revert.
 
+cycle-124 adds one **backstop** (not a rollback): `LOA_CHEVAL_LEGACY_WIRE=1`
+makes the Anthropic adapter emit the pre-cycle-124 request body (no adaptive
+`thinking`, no `cache_control` blocks, 4096 default `max_tokens`) so a wire
+regression can be neutralised without a deploy while the credentialed
+`live-floor-check.yml` is still unprobed. The code path stays; reverting is
+still `git revert` of the cycle-124 unit commits (see the Sprint 1 rollback
+proof). Env table: `grimoires/loa/runbooks/cheval-delegate-architecture.md`.
+
 ### Verification (cycle-107 sprint-1 + cycle-109 sprint-2/3 cumulative)
 
 - FL 3-model run: 549s, 3 voices' MODELINV envelopes recorded, chains populated, all primaries succeeded
