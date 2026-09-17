@@ -24,6 +24,14 @@ name: Live floor check (Anthropic)
 # environment so the key can be stored as an ENVIRONMENT secret behind
 # required reviewers rather than as a repository secret.
 #
+# Residual (audit dissent, accepted): the dispatched run executes the
+# CANDIDATE BRANCH's test code with the key — that is the point of a live
+# check of the branch's adapter, and no checkout trick removes it. The
+# control is the environment: before storing the key, configure `live-floor`
+# with (a) required reviewers who read the branch before approving the run
+# and (b) a deployment-branch rule limited to the branches they intend to
+# check. Never store the key as a repository-level secret.
+#
 # Cost ceiling: the scaffold caps itself at ~$5 per run (LOA_LIVE_BUDGET_USD).
 
 on:
