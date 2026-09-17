@@ -28,7 +28,7 @@ setup() {
     BB_DIR="$PROJECT_ROOT/.claude/skills/bridgebuilder-review"
     BB_CONFIG="$BB_DIR/resources/config.generated.ts"
     BB_TRUNC_TS="$BB_DIR/resources/core/truncation.generated.ts"
-    BB_TRUNC_JS="$BB_DIR/resources/dist/core/truncation.generated.js"
+    BB_TRUNC_JS="$BB_DIR/dist/core/truncation.generated.js"
     REGEN="$PROJECT_ROOT/tools/regen-model-artifacts.sh"
     export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/modelinv.jsonl"
     export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
@@ -135,11 +135,15 @@ _assert_resolves() {
 @test "c124-1.3-12: tools/regen-model-artifacts.sh is idempotent (second run changes nothing)" {
     [ -x "$REGEN" ]
     command -v npm >/dev/null || skip "npm not available"
+    # The dist manifest carries a `generated_at` stamp that changes on every
+    # build; idempotence is about content, so fingerprint it without the stamp.
     _fingerprint() {
         sha256sum "$GENERATED_MAPS" "$BB_CONFIG" "$BB_TRUNC_TS" \
-            "$PROJECT_ROOT/.claude/defaults/model-config.yaml.checksum" \
-            "$BB_DIR/resources/dist/.build-manifest.json" 2>/dev/null | awk '{print $1}'
+            "$PROJECT_ROOT/.claude/defaults/model-config.yaml.checksum" 2>/dev/null | awk '{print $1}'
+        jq -S 'del(.generated_at)' "$BB_DIR/dist/.build-manifest.json" 2>/dev/null | sha256sum | awk '{print $1}'
     }
+    local manifest="$BB_DIR/dist/.build-manifest.json" orig_manifest
+    orig_manifest="$(cat "$manifest")"
     run bash "$REGEN"
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
     local first second
@@ -148,6 +152,10 @@ _assert_resolves() {
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
     second="$(_fingerprint)"
     [ "$first" = "$second" ]
+    # Leave the tree as found: only the manifest's build stamp moved.
+    if [ "$(jq -S 'del(.generated_at)' <<<"$orig_manifest")" = "$(jq -S 'del(.generated_at)' "$manifest")" ]; then
+        printf '%s\n' "$orig_manifest" > "$manifest"
+    fi
 }
 
 @test "c124-1.3-13: regen script rejects unknown arguments with exit 2" {
