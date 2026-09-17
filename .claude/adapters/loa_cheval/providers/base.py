@@ -138,6 +138,54 @@ def _streaming_disabled() -> bool:
     return val in _STREAMING_KILL_SWITCH_TRUTHY_VALUES
 
 
+# cycle-124 (PRD FR-1/FR-4/FR-7, SDD §4.3): one-shot operator backstop while
+# the live floor check is unprobed. LOA_CHEVAL_LEGACY_WIRE=1 makes the
+# Anthropic adapter emit the pre-cycle-124 request body (no `thinking`
+# block, no `cache_control`, no `output_config.format`) and restores the
+# 4096 default output budget. Rollback policy is still `git revert`; this
+# switch exists so a wire regression can be neutralised without a deploy.
+_LEGACY_WIRE_TRUTHY_VALUES = ("1", "true", "yes", "on")
+
+
+def _legacy_wire() -> bool:
+    """Return True iff the operator has set the cycle-124 legacy-wire kill switch."""
+    import os
+    val = os.environ.get("LOA_CHEVAL_LEGACY_WIRE", "").strip().lower()
+    return val in _LEGACY_WIRE_TRUTHY_VALUES
+
+
+# cycle-124 FR-2 (SDD §2.2): per-hop default output budget. Anthropic HTTP
+# hops default to the reference guidance — ~64K streaming, ~16K when the
+# streaming kill switch forces the non-streaming path — clamped to the
+# catalog's `max_output_tokens`. Every other provider keeps the historical
+# 4096 so its golden request bodies do not move (FR-2 is Anthropic-only by
+# decision; multi-provider routing is out of scope for this cycle).
+_LEGACY_DEFAULT_MAX_TOKENS = 4096
+_ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS = 64_000
+_ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS = 16_000
+
+
+def default_max_tokens(*, provider: str, model_max_output: Optional[int]) -> int:
+    """Default `max_tokens` for a hop when the caller passed none.
+
+    Anthropic: min(64K streaming | 16K non-streaming, catalog max_output_tokens);
+    an Anthropic entry without a declared `max_output_tokens` (the 200K
+    snapshots, claude-headless) keeps 4096 — the clamp source is missing, so
+    the conservative legacy value applies. Non-Anthropic providers and the
+    LOA_CHEVAL_LEGACY_WIRE kill switch: 4096.
+    """
+    if provider != "anthropic" or _legacy_wire():
+        return _LEGACY_DEFAULT_MAX_TOKENS
+    base = (
+        _ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS
+        if _streaming_disabled()
+        else _ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS
+    )
+    if isinstance(model_max_output, int) and not isinstance(model_max_output, bool) and model_max_output > 0:
+        return min(base, model_max_output)
+    return _LEGACY_DEFAULT_MAX_TOKENS
+
+
 def http_post(
     url: str,
     headers: Dict[str, str],

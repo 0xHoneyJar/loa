@@ -44,6 +44,25 @@ logger = logging.getLogger("loa_cheval.providers.anthropic")
 # thinking budgets — Opus 4.7/4.8 reject `thinking.budget_tokens` with HTTP 400.
 _VALID_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
 
+# cycle-124 FR-2 (SDD §3.2): per-family effort emission. The reference lists
+# `output_config.effort` on Opus 4.5+ / Sonnet 4.6+ / Fable; `xhigh` is not
+# accepted on the 4.6 generation (downgraded to `high`, logged); the Sonnet
+# 4.5 snapshot and Haiku 4.5 predate the control, so effort is omitted there
+# rather than 400ing the call. Keyed by model-id prefix — no catalog key.
+_EFFORT_UNSUPPORTED_PREFIXES = ("claude-sonnet-4-5", "claude-haiku-4-5")
+_EFFORT_NO_XHIGH_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
+
+
+def _effort_for_model(model: str, effort: str) -> Optional[str]:
+    """Map a validated effort onto what `model` accepts; None ⇒ omit the field."""
+    if model.startswith(_EFFORT_UNSUPPORTED_PREFIXES):
+        logger.info("effort %r omitted: %s predates output_config.effort", effort, model)
+        return None
+    if effort == "xhigh" and model.startswith(_EFFORT_NO_XHIGH_PREFIXES):
+        logger.warning("effort xhigh downgraded to high: %s does not accept xhigh", model)
+        return "high"
+    return effort
+
 
 # cycle-109 followup #883 Bug 3 — billing-class error classification.
 # Anthropic returns HTTP 400 with these signals when the API account is
@@ -153,6 +172,8 @@ class AnthropicAdapter(ProviderAdapter):
                     f"invalid effort {effort!r}; expected one of "
                     f"{sorted(_VALID_EFFORT)}"
                 )
+            effort = _effort_for_model(request.model, effort)
+        if effort is not None:
             body.setdefault("output_config", {})["effort"] = effort
 
         # Build headers — Anthropic uses x-api-key, not Bearer token

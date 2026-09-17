@@ -382,6 +382,7 @@ main() {
     # omits --skill, model-invoke (cheval) falls back to --agent name
     # as calling_primitive.
     local skill=""
+    local max_tokens=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -417,6 +418,13 @@ main() {
                 # cycle-112 D-6 — forwarded to MODEL_INVOKE for
                 # calling_primitive attribution
                 skill="$2"
+                shift 2
+                ;;
+            --max-tokens)
+                # cycle-124 FR-2 — forwarded to MODEL_INVOKE; callers with a
+                # bounded output shape (adversarial dissent) pass it explicitly
+                # so cheval's per-model default (Anthropic 64K) does not apply.
+                max_tokens="$2"
                 shift 2
                 ;;
             --max-retries)
@@ -531,6 +539,9 @@ main() {
     # was not passed to model-adapter, cheval falls back to agent name.
     if [[ -n "$skill" ]]; then
         invoke_args+=(--skill "$skill")
+    fi
+    if [[ -n "$max_tokens" ]]; then
+        invoke_args+=(--max-tokens "$max_tokens")
     fi
 
     # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's

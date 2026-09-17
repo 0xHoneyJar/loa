@@ -69,9 +69,36 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
 source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
 
 # Token budgets (with 80% safety margin per D-009)
-DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k
+DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k — non-Anthropic dissenters
 DEFAULT_SECONDARY_TOKEN_BUDGET=12000  # 80% of 15k
 MAX_ESCALATED_FILES=3                 # Per D-011
+# cycle-124 FR-2/FR-3 (SDD §3.2): Anthropic dissenters take the catalog's
+# 180K effective_input_ceiling minus 20K headroom (same figure BB codegen
+# derives), so an Opus-class dissenter sees the whole diff instead of the
+# 24K slice sized for the 2026-05 non-streaming wall.
+_ANTHROPIC_DISPATCH_INPUT_BUDGET=160000
+DISSENT_MAX_OUTPUT_TOKENS=16000       # bounded findings document (cheval --max-tokens)
+
+# Resolve the primary input budget for the dissenter model's company.
+# Anthropic ⇒ 160K; anything else (or an unresolvable alias) ⇒ 24K.
+# Alias → provider comes from the generated bash maps (SSOT codegen of
+# model-config.yaml); an explicit `anthropic:` pin short-circuits.
+_adv_input_budget_for_model() {
+  local model="$1"
+  case "$model" in
+    anthropic:*) echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0 ;;
+    *:*) echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"; return 0 ;;
+  esac
+  local maps="$SCRIPT_DIR/generated-model-maps.sh"
+  if [[ -f "$maps" ]]; then
+    local provider
+    provider=$(bash -c 'source "$1" 2>/dev/null; id="${MODEL_IDS[$2]:-$2}"; printf "%s" "${MODEL_PROVIDERS[$id]:-}"' _ "$maps" "$model" 2>/dev/null || true)
+    if [[ "$provider" == "anthropic" ]]; then
+      echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0
+    fi
+  fi
+  echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"
+}
 
 # =============================================================================
 # Logging
@@ -615,6 +642,9 @@ assemble_dissent_context() {
   local diff_file="$1"
   local type="$2"
   local context_file="${3:-}"
+  # cycle-124 FR-2: primary budget follows the dissenter's company
+  # (_adv_input_budget_for_model); callers that omit it keep the 24K default.
+  local primary_budget="${4:-$DEFAULT_PRIMARY_TOKEN_BUDGET}"
 
   local diff_content
   diff_content=$(cat "$diff_file")
@@ -625,7 +655,7 @@ assemble_dissent_context() {
   # Primary content: priority-sorted diff with 80% budget
   # prepare_content is guaranteed available from lib-content.sh
   local prepared_diff
-  prepared_diff=$(prepare_content "$diff_content" "$DEFAULT_PRIMARY_TOKEN_BUDGET")
+  prepared_diff=$(prepare_content "$diff_content" "$primary_budget")
 
   # P0 file escalation (if enabled)
   local escalated_content=""
@@ -757,11 +787,23 @@ OUTPUT: JSON object {"findings": [...]}. Same field structure as code review.'
   fi
 
   # Return assembled context as JSON
+  # cycle-124 FR-2: the 160K Anthropic budget makes the prepared diff far
+  # larger than the kernel's single-argument cap (MAX_ARG_STRLEN 128 KiB), so
+  # `jq --arg` fails with "Argument list too long" above ~32K tokens. Feed
+  # the prompts through files instead — byte-identical JSON to `--arg`.
+  local ctx_tmp
+  ctx_tmp=$(mktemp -d "${TMPDIR:-/tmp}/adv-ctx.XXXXXX") || return 1
+  printf '%s' "$system_prompt" > "$ctx_tmp/system"
+  printf '%s' "$user_prompt" > "$ctx_tmp/user"
+  local jq_rc=0
   jq -n \
-    --arg system "$system_prompt" \
-    --arg user "$user_prompt" \
+    --rawfile system "$ctx_tmp/system" \
+    --rawfile user "$ctx_tmp/user" \
     --argjson escalated "$( [[ "$escalation_used" == "true" ]] && echo true || echo false )" \
-    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated}'
+    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated}' || jq_rc=$?
+  rm -f "$ctx_tmp/system" "$ctx_tmp/user"
+  rmdir "$ctx_tmp" 2>/dev/null || true
+  return $jq_rc
 }
 
 # =============================================================================
@@ -797,6 +839,9 @@ invoke_dissenter() {
     skill_args=(--skill "adversarial-$type" --phase "$type")
   fi
 
+  # cycle-124 FR-2 (SDD §3.2): a dissent verdict is a bounded findings
+  # document — pass the budget explicitly so cheval's per-model default
+  # (Anthropic 64K) never meets the dissenter timeout.
   if [[ -n "$vq_sidecar" ]]; then
     LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
       "$SCRIPT_DIR/model-adapter.sh" \
@@ -805,6 +850,7 @@ invoke_dissenter() {
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
       --timeout "$timeout" \
+      --max-tokens "$DISSENT_MAX_OUTPUT_TOKENS" \
       ${skill_args[@]+"${skill_args[@]}"}
   else
     "$SCRIPT_DIR/model-adapter.sh" \
@@ -813,6 +859,7 @@ invoke_dissenter() {
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
       --timeout "$timeout" \
+      --max-tokens "$DISSENT_MAX_OUTPUT_TOKENS" \
       ${skill_args[@]+"${skill_args[@]}"}
   fi
 }
@@ -1672,9 +1719,14 @@ main() {
     exit 4
   fi
 
-  # Assemble context
+  # Assemble context (cycle-124 FR-2: input budget follows the dissenter's
+  # company; the estimate is logged BEFORE dispatch so a truncated diff is
+  # visible in the run log, not discovered from the verdict).
+  local primary_input_budget
+  primary_input_budget=$(_adv_input_budget_for_model "$model")
+  log "Dissenter input: model=$model estimated_input_tokens=$estimated_input_tokens primary_budget=$primary_input_budget max_output_tokens=$DISSENT_MAX_OUTPUT_TOKENS"
   local context_json
-  context_json=$(assemble_dissent_context "$diff_file" "$type" "$context_file")
+  context_json=$(assemble_dissent_context "$diff_file" "$type" "$context_file" "$primary_input_budget")
 
   # Write prompts to workdir
   echo "$context_json" | jq -r '.system_prompt' > "$_ADVERSARIAL_WORKDIR/system-prompt.txt"

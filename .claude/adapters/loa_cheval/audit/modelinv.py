@@ -491,6 +491,9 @@ def emit_model_invoke_complete(
     # shape-identical envelopes (no `tokens_*` keys in payload).
     tokens_input: Optional[int] = None,
     tokens_output: Optional[int] = None,
+    # cycle-124 FR-2 — requested reasoning effort (schema field since
+    # cycle-114 FR-8; first populated this cycle). Optional/additive.
+    effort: Optional[str] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -562,6 +565,8 @@ def emit_model_invoke_complete(
     # value verbatim and let the JSON-schema gate catch out-of-range.
     if tokens_input is not None:
         payload["tokens_input"] = tokens_input
+    if effort is not None:
+        payload["effort"] = effort
     if tokens_output is not None:
         payload["tokens_output"] = tokens_output
     # cycle-114 FR-11 (sprint-4): per-iteration cost telemetry from the

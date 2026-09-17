@@ -10,6 +10,10 @@ import {
 import { resolve } from "node:path";
 import path from "node:path";
 import type { PullRequestFile } from "../ports/git-provider.js";
+// cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
+// effective_input_ceiling − 20000 so BB never prepares more than cheval's
+// pre-flight gate accepts (exit 7 above the ceiling).
+import { GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
 import type {
   BridgebuilderConfig,
   TruncationResult,
@@ -664,7 +668,10 @@ export const TOKEN_BUDGETS: Record<string, TokenBudget> = {
 };
 
 export function getTokenBudget(model: string): TokenBudget {
-  return TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS["default"];
+  // cycle-124 FR-3: the generated twin (model-config.yaml) wins over the
+  // hand-maintained table; the hand table remains the fallback for ids the
+  // yaml does not carry.
+  return GENERATED_TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS["default"];
 }
 
 /** Estimate tokens from string using model-specific coefficient. */
@@ -874,8 +881,12 @@ export function progressiveTruncate(
   systemPromptLen: number,
   metadataLen: number,
 ): ProgressiveTruncationResult {
-  const targetBudget = Math.floor(budgetTokens * 0.9);
-  const { coefficient } = getTokenBudget(model);
+  // cycle-124 FR-3 (Flatline SKP-003): an operator budget above the model's
+  // dispatchable input (effective_input_ceiling − 20K for Anthropic) is
+  // clamped here, so a 900K diff is truncated to what cheval will accept
+  // instead of being prepared and then refused with exit 7.
+  const { coefficient, maxInput } = getTokenBudget(model);
+  const targetBudget = Math.floor(Math.min(budgetTokens, maxInput) * 0.9);
   const fixedTokens = Math.ceil((systemPromptLen + metadataLen) * coefficient);
 
   // Apply size-aware security handling first (SKP-005)

@@ -1,0 +1,93 @@
+name: Live floor check (Anthropic)
+
+# cycle-124 Sprint 1 Task 1.4 (PRD FR-1/FR-3/FR-4/FR-7, SDD §6 "Live scaffolds").
+#
+# Runs the credentialed assertions the request-body tests cannot make:
+#   - Opus 5 / Sonnet 5 / Fable 5.1 / Haiku 4.5 answer with the expected
+#     `thinking` shape;
+#   - two identical BB-voice calls show cache_read_input_tokens > 0 on the
+#     second;
+#   - one schema-enforced call returns strict JSON;
+#   - GET /v1/models lists every catalog id and tools/ceiling-probe.py flips
+#     grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md values
+#     from `reference` to `probed`.
+#
+# Secret gating: GitHub does not allow `secrets.*` inside a step `if:`, so the
+# job exports HAS_KEY from the secret and every step is gated on it. Fork PRs
+# never see the secret, so the job is meaningful only on same-repo branches
+# and on manual dispatch — until the operator adds ANTHROPIC_API_KEY and
+# marks this check required, its recorded pass is the named MERGE
+# PRECONDITION of the cycle-124 draft PR (not a CI failure).
+#
+# Cost ceiling: the scaffold caps itself at ~$5 per run (LOA_LIVE_BUDGET_USD).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.claude/adapters/**'
+      - '.claude/defaults/model-config.yaml'
+      - '.claude/schemas/wire/**'
+      - 'tests/replay/test_cycle124_live_floor.py'
+      - '.github/workflows/live-floor-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-floor-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # `secrets.*` cannot be read in `if:` directly — compare here once.
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: No credential — report and skip (merge precondition stays open)
+        if: env.HAS_KEY != 'true'
+        run: |
+          echo "::warning::ANTHROPIC_API_KEY is not configured — live floor check skipped. Catalog values stay 'reference' until this job records a pass."
+
+      - name: Set up Python
+        if: env.HAS_KEY == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        if: env.HAS_KEY == 'true'
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet pytest pyyaml jsonschema referencing httpx
+
+      - name: Live floor assertions (retries ×2 per assertion, ≤ $5)
+        if: env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LOA_RUN_LIVE_TESTS: '1'
+          LOA_LIVE_BUDGET_USD: '5'
+          LOA_MODELINV_LOG_PATH: ${{ runner.temp }}/live-floor/model-invoke.jsonl
+          LOA_COST_LEDGER_PATH: ${{ runner.temp }}/live-floor/cost-ledger.jsonl
+        run: |
+          set +x   # never trace shell with secrets in env
+          mkdir -p "$RUNNER_TEMP/live-floor"
+          python -m pytest tests/replay/test_cycle124_live_floor.py \
+            -q -p no:cacheprovider \
+            --junitxml "$RUNNER_TEMP/live-floor/junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/live-floor/pytest.log"
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Upload live-floor outputs
+        if: always() && env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: live-floor-check-${{ github.run_id }}
+          path: ${{ runner.temp }}/live-floor/
+          if-no-files-found: warn
+          retention-days: 30

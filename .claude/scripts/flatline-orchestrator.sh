@@ -123,6 +123,9 @@ DEFAULT_MODEL_TIMEOUT=120
 # knob is a no-op against `failure_class=PROVIDER_DISCONNECT` — the flag is
 # preserved for back-compat only.
 PER_CALL_MAX_TOKENS=""
+# cycle-124 FR-2: bounded output budgets per call kind (see call_model).
+FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
+FLATLINE_SCORE_MAX_TOKENS=4000     # cross-scoring JSON arrays
 
 # State tracking
 STATE="INIT"
@@ -968,11 +971,22 @@ call_model() {
         )
 
         # Issue #675 (sub-issue 4): plumb operator-supplied max_tokens override
-        # to model-invoke (cheval --max-tokens). When unset, cheval defaults to
-        # 4096 (cheval.py:337 `args.max_tokens or 4096`).
-        if [[ -n "${PER_CALL_MAX_TOKENS:-}" ]]; then
-            args+=(--max-tokens "$PER_CALL_MAX_TOKENS")
+        # to model-invoke (cheval --max-tokens).
+        # cycle-124 FR-2 (SDD §3.2): cheval's default is now per model
+        # (Anthropic 64K streaming / 16K non-streaming, others 4096), sized
+        # for open-ended calls. Flatline's outputs are bounded — review /
+        # skeptic emit a findings document, score a small JSON array — so
+        # every call passes an explicit budget and the 600 s per-call timeout
+        # never meets a 64K-output generation. --per-call-max-tokens still
+        # overrides both.
+        local per_call_max_tokens="${PER_CALL_MAX_TOKENS:-}"
+        if [[ -z "$per_call_max_tokens" ]]; then
+            case "$mode" in
+                score) per_call_max_tokens="$FLATLINE_SCORE_MAX_TOKENS" ;;
+                *)     per_call_max_tokens="$FLATLINE_REVIEW_MAX_TOKENS" ;;
+            esac
         fi
+        args+=(--max-tokens "$per_call_max_tokens")
 
         if [[ -n "$context" && -f "$context" ]]; then
             args+=(--system "$context")
@@ -2059,10 +2073,10 @@ Options:
                          (issue #774) — both the Anthropic AND OpenAI cheval
                          paths fail on long-prompt requests with the typed
                          transport error; the gemini path is unaffected.
-                         cheval.py default is already 4096, so passing 4096
-                         is a no-op against the disconnect failure mode.
-                         When unset, downstream defaults apply
-                         (cheval.py: 4096; model-adapter.sh: 4096).
+                         When unset (cycle-124 FR-2): review/skeptic calls
+                         pass 16000, score calls pass 4000 — cheval's own
+                         per-model default (Anthropic 64K/16K, others 4096)
+                         is sized for open-ended calls, not these.
   --json                 Output as JSON
   -h, --help             Show this help
 

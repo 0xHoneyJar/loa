@@ -47,6 +47,7 @@ from loa_cheval.routing.resolver import (
 )
 from loa_cheval.routing.context_filter import audit_filter_context
 from loa_cheval.providers import cli_adapter_types, get_adapter
+from loa_cheval.providers.base import default_max_tokens  # cycle-124 FR-2
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
 
@@ -619,6 +620,54 @@ def _lookup_max_input_tokens(
     return threshold
 
 
+def _lookup_max_output_tokens(
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+) -> Optional[int]:
+    """Catalog `max_output_tokens` for (provider, model_id), or None.
+
+    cycle-124 FR-2: the clamp source for `default_max_tokens()` — the per-hop
+    output budget never exceeds what the catalog says the model can emit.
+    Malformed / absent values read as None (caller falls back to 4096).
+    """
+    models = (hounfour.get("providers", {}) or {}).get(provider, {})
+    if not isinstance(models, dict):
+        return None
+    entry = (models.get("models", {}) or {}).get(model_id, {})
+    if not isinstance(entry, dict):
+        return None
+    value = entry.get("max_output_tokens")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _hop_max_tokens(
+    explicit: Optional[int],
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+) -> int:
+    """Output budget for one chain hop (cycle-124 FR-2, SDD §3.2).
+
+    explicit None ⇒ `default_max_tokens()` for this hop's provider/model.
+    explicit N>0  ⇒ N, clamped to the catalog `max_output_tokens` when the
+    catalog declares one smaller than N (a 200K request against a 128K model
+    would otherwise 400 at the wire).
+    """
+    model_max = _lookup_max_output_tokens(provider, model_id, hounfour)
+    if explicit is None:
+        return default_max_tokens(provider=provider, model_max_output=model_max)
+    if model_max is not None and explicit > model_max:
+        logger.warning(
+            "max_tokens %d exceeds %s:%s max_output_tokens %d — clamped",
+            explicit, provider, model_id, model_max,
+        )
+        return model_max
+    return explicit
+
+
 def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str) -> Optional[str]:
     """Check feature flags. Returns error message if blocked, None if allowed.
 
@@ -1071,6 +1120,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json("INVALID_INPUT", "Missing --agent argument"), file=sys.stderr)
         return EXIT_CODES["INVALID_INPUT"]
 
+    # cycle-124 FR-2: `--max-tokens` is optional; None ⇒ per-hop default.
+    # 0 / negative used to be silently rewritten to 4096 (`or 4096`) — an
+    # operator asking for zero output is a misconfiguration, so refuse.
+    _explicit_max_tokens = getattr(args, "max_tokens", None)
+    if _explicit_max_tokens is not None and _explicit_max_tokens <= 0:
+        print(_error_json(
+            "INVALID_INPUT",
+            f"--max-tokens must be a positive integer (got {_explicit_max_tokens}); "
+            "omit it for the per-model default",
+        ), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
     # Cycle-108 sprint-1 T1.H + sprint-2 T2.J (C1 closure) — advisor-strategy
     # role-based routing. Backward-compat: --role is OPTIONAL.
     #
@@ -1158,6 +1219,12 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             "resolved_provider": resolved.provider,
             "resolved_model": resolved.model_id,
             "temperature": binding.temperature,
+            # cycle-124 FR-2: the output budget the primary hop would use
+            # (explicit value clamped, or the per-model default) + effort.
+            "max_tokens": _hop_max_tokens(
+                _explicit_max_tokens, resolved.provider, resolved.model_id, hounfour
+            ),
+            "effort": getattr(args, "effort", None),
         }
         print(json.dumps(result, indent=2), file=sys.stdout)
         # Dry-run does not invoke a model — no MODELINV emit.
@@ -1417,8 +1484,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         messages=messages,
         model=_chain.primary.model_id,
         temperature=binding.temperature or 0.7,
-        max_tokens=args.max_tokens or 4096,
+        # cycle-124 FR-2: explicit `--max-tokens` (clamped) or the primary
+        # hop's per-model default; each fallback hop recomputes its own.
+        max_tokens=_hop_max_tokens(
+            _explicit_max_tokens, _chain.primary.provider, _chain.primary.model_id, hounfour
+        ),
         metadata={"agent": agent_name},
+        effort=getattr(args, "effort", None),
     )
 
     # cycle-104 Sprint 2: async mode is incompatible with multi-entry chain
@@ -1712,9 +1784,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 messages=base_request.messages,
                 model=_entry.model_id,
                 temperature=base_request.temperature,
-                max_tokens=base_request.max_tokens,
+                # cycle-124 FR-2: per-hop budget — a fallback hop with a
+                # smaller max_output_tokens (or a non-Anthropic default) does
+                # not inherit the primary's 64K.
+                max_tokens=_hop_max_tokens(
+                    _explicit_max_tokens, _entry.provider, _entry.model_id, hounfour
+                ),
                 metadata=base_request.metadata,
                 tools=getattr(base_request, "tools", None),
+                effort=base_request.effort,
             )
 
             # 4. Async mode (chain length forced to 1 by upfront check).
@@ -2152,6 +2230,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # Same source-of-truth as chunked-path emit above.
                     tokens_input=_modelinv_state.get("tokens_input"),
                     tokens_output=_modelinv_state.get("tokens_output"),
+                    # cycle-124 FR-2: requested effort (schema field since cycle-114
+                    # FR-8, never populated before this cycle).
+                    effort=getattr(args, "effort", None),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
@@ -2315,7 +2396,22 @@ def main() -> int:
     parser.add_argument("--prompt", help="Inline prompt text (mutually exclusive with --input)")
     parser.add_argument("--system", help="Path to system prompt file (overrides persona.md)")
     parser.add_argument("--model", help="Model override (alias or provider:model-id)")
-    parser.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens", help="Maximum output tokens")
+    parser.add_argument(
+        "--max-tokens", type=int, default=None, dest="max_tokens",
+        help=(
+            "Maximum output tokens. Default (cycle-124 FR-2): per model — Anthropic "
+            "hops min(64000 streaming | 16000 with LOA_CHEVAL_DISABLE_STREAMING, "
+            "catalog max_output_tokens); other providers 4096. Explicit values are "
+            "clamped to the catalog max_output_tokens; 0 is rejected."
+        ),
+    )
+    parser.add_argument(
+        "--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
+        help=(
+            "Anthropic output_config.effort (cycle-124 FR-2). Omitted on models that "
+            "predate the control; xhigh is downgraded to high on the 4.6 generation."
+        ),
+    )
     parser.add_argument(
         "--max-input-tokens",
         type=int,
