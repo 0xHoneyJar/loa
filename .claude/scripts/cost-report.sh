@@ -21,19 +21,35 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Default — the writer's own resolver (cycle-124 FR-6, review round-1 medium 6):
+# Default — resolved AFTER argument parsing (an explicit --ledger never
+# consults the resolver) by the writer's own resolver (cycle-124 FR-6):
 # LOA_COST_LEDGER_PATH > merged metering.ledger_path > .run/cost-ledger.jsonl,
-# anchored at the project root. Falls back to the literal default when the
-# Python substrate is unavailable.
+# anchored at the project root. Fail-closed like the writer (round-2 dissent
+# DISS-001): a path the resolver refuses is an error here, not a silent read
+# of some other file; only an UNAVAILABLE substrate falls back to the literal.
 if [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
     _PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
 else
     _PYTHON_BIN="$(command -v python3 || true)"
 fi
-LEDGER_PATH="$(cd "${PROJECT_ROOT}/.claude/adapters" && "${_PYTHON_BIN}" -c \
-    'from loa_cheval.metering.rollup import default_ledger_path; print(default_ledger_path())' 2>/dev/null)" \
-    || LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
-[[ -n "$LEDGER_PATH" ]] || LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
+# exit 0 + path · 3 = resolver refused (message on stderr) · 4 = substrate unavailable
+_resolve_default_ledger() {
+    (cd "${PROJECT_ROOT}/.claude/adapters" && "${_PYTHON_BIN}" - <<'PY'
+import sys
+try:
+    from loa_cheval.metering.rollup import default_ledger_path
+    from loa_cheval.types import ConfigError
+except Exception:
+    sys.exit(4)
+try:
+    print(default_ledger_path())
+except ConfigError as e:
+    print(f"cost-report: {e.code}: {e}", file=sys.stderr)
+    sys.exit(3)
+PY
+    )
+}
+LEDGER_PATH=""
 REPORT_DAYS=30
 OUTPUT_JSON=false
 TOP_N=5
@@ -67,6 +83,19 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -z "$LEDGER_PATH" ]]; then
+    if LEDGER_PATH="$(_resolve_default_ledger)"; then
+        :
+    else
+        _rc=$?
+        if [[ "$_rc" -eq 3 ]]; then
+            echo "ERROR: cost ledger path rejected by the resolver (see message above); pass --ledger <path> to read another file" >&2
+            exit 2
+        fi
+        LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
+    fi
+fi
 
 # Check ledger exists
 if [[ ! -f "$LEDGER_PATH" ]]; then

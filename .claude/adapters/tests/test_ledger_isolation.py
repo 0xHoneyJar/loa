@@ -63,6 +63,22 @@ class TestPrecedence:
         # pinned by tests/unit/cheval-cost-rollup.bats).
         assert default_ledger_path() == _real(env_path)
 
+    def test_reader_default_fails_closed_like_the_writer(self, monkeypatch, tmp_path):
+        """round-2 dissent DISS-001: a path the resolver refuses must not make
+        the reader silently open .run/cost-ledger.jsonl instead."""
+        real = tmp_path / "real.jsonl"
+        real.write_text("")
+        link = tmp_path / "link.jsonl"
+        link.symlink_to(real)
+        monkeypatch.setenv(COST_LEDGER_ENV, str(link))
+        with pytest.raises(ConfigError):
+            default_ledger_path()
+        from loa_cheval.metering.rollup import main as rollup_main
+        assert rollup_main(["--by", "agent", "--json"]) == 2
+        # An explicit --ledger never consults the resolver.
+        (tmp_path / "ok.jsonl").write_text("")
+        assert rollup_main(["--ledger", str(tmp_path / "ok.jsonl"), "--json"]) == 0
+
     def test_falls_back_to_config_when_env_unset(self, monkeypatch, tmp_path):
         monkeypatch.delenv(COST_LEDGER_ENV, raising=False)
         cfg_path = tmp_path / "cfg-ledger.jsonl"

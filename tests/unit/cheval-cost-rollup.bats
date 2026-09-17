@@ -97,3 +97,19 @@ print(default_ledger_path())
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.rows | length')" = "2" ]
 }
+
+@test "rollup + cost-report: a resolver-rejected default is exit 2, never a silent read of another file (round-2 DISS-001)" {
+    cd "$REPO_ROOT"
+    ln -s "$LEDGER" "$TMP_DIR/link.jsonl"
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" python3 -m loa_cheval.metering.rollup --by agent --json
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"INVALID_CONFIG"* ]]
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" bash .claude/scripts/cost-report.sh --json
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"INVALID_CONFIG"* ]]
+    [[ "$output" != *"total_micro_usd"* ]]
+    # explicit --ledger wins and never consults the resolver
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" bash .claude/scripts/cost-report.sh --ledger "$LEDGER" --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.entry_count')" = "3" ]
+}
