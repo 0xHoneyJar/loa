@@ -21,6 +21,9 @@
 # =============================================================================
 
 setup() {
+    # cycle-124 FR-6: never let a test spawn write the repo's ledgers.
+    export LOA_MODELINV_LOG_PATH="${LOA_MODELINV_LOG_PATH:-$BATS_TEST_TMPDIR/model-invoke.jsonl}"
+    export LOA_COST_LEDGER_PATH="${LOA_COST_LEDGER_PATH:-$BATS_TEST_TMPDIR/cost-ledger.jsonl}"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     CHEVAL_PY="$PROJECT_ROOT/.claude/adapters/cheval.py"

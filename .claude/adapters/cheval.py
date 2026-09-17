@@ -1448,7 +1448,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     if metering_enabled:
         metering_config = hounfour.get("metering", {})
         if metering_config.get("enabled", True):
-            ledger_path = metering_config.get("ledger_path", ".run/cost-ledger.jsonl")
+            # cycle-124 FR-6: LOA_COST_LEDGER_PATH > metering.ledger_path >
+            # .run/cost-ledger.jsonl, canonicalized; a symlink target or a
+            # missing parent is INVALID_CONFIG (same shape as resolve_execution).
+            try:
+                from loa_cheval.metering.ledger import resolve_cost_ledger_path
+                ledger_path = resolve_cost_ledger_path(metering_config)
+            except ConfigError as e:
+                print(_error_json(e.code, str(e)), file=sys.stderr)
+                return EXIT_CODES.get(e.code, 2)
             budget_hook = BudgetEnforcer(
                 config=hounfour,
                 ledger_path=ledger_path,

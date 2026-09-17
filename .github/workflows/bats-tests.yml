@@ -258,3 +258,48 @@ jobs:
           fi
           echo "Running ${#SPRINT_1C_TESTS[@]} sprint-1C test files from tests/integration/ ..."
           bats "${SPRINT_1C_TESTS[@]}"
+
+      - name: Ledger hygiene tripwire (cycle-124 FR-6)
+        # ORDERING IS LOAD-BEARING: .run/ is gitignored, so on a fresh runner
+        # the two production ledgers exist only if a test step ABOVE wrote
+        # them. Running this before the pytest/bats steps would scan nothing
+        # and pass vacuously. It stays the last test-shaped step, with
+        # `if: always()` so an unrelated test failure cannot mask a pollution
+        # finding: a harness that reaches cheval dispatch without
+        # LOA_COST_LEDGER_PATH / LOA_MODELINV_LOG_PATH fails here (and locally
+        # in .claude/scripts/git-hooks/pre-push-audit, the only gate that sees
+        # a real operator .run/). SKIP lines for absent ledgers are expected on
+        # a clean run — printed on purpose, so a pass is never silent.
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! bash tools/check-ledger-hygiene.sh; then
+              echo "::error::test rows found in .run/ ledgers — a test harness spawned cheval without ledger isolation"
+              echo "::error::see tools/check-ledger-hygiene.sh --help, .claude/adapters/tests/conftest.py and tests/unit/ledger-isolation-discovery.bats"
+              exit 1
+          fi
+
+      - name: Ledger hygiene — positive control (scanner rejects the sentinel fixtures)
+        if: always()
+        run: |
+          set -euo pipefail
+          # Verify the scanner ACTUALLY catches both pollution shapes (defends
+          # against the scanner exiting 0 from a syntax error or a jq change).
+          for bad in mock-row e2e-path; do
+              if bash tools/check-ledger-hygiene.sh --root "tests/fixtures/ledger-hygiene/$bad" --quiet; then
+                  echo "::error::scanner failed to reject tests/fixtures/ledger-hygiene/$bad — scanner regression"
+                  exit 1
+              fi
+          done
+          echo "OK: scanner correctly rejected both sentinel fixtures"
+
+      - name: Ledger hygiene — negative control (scanner accepts the clean fixture)
+        if: always()
+        run: |
+          set -euo pipefail
+          # Verify the scanner does NOT over-match on real-shaped rows.
+          if ! bash tools/check-ledger-hygiene.sh --root tests/fixtures/ledger-hygiene/clean --quiet; then
+              echo "::error::scanner false-positive on tests/fixtures/ledger-hygiene/clean"
+              exit 1
+          fi
+          echo "OK: scanner correctly accepted the clean fixture"

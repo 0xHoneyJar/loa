@@ -4,6 +4,7 @@ Implements:
 - JSONL append with fcntl.flock for concurrent append safety
 - Atomic daily spend counter with flock-protected read-modify-write
 - Corruption recovery: truncate to last valid JSONL line on read
+- Ledger path resolution shared by writer and readers (cycle-124 FR-6)
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from loa_cheval.metering.pricing import (
     calculate_total_cost,
     find_pricing,
 )
+from loa_cheval.types import ConfigError
 
 logger = logging.getLogger("loa_cheval.metering.ledger")
 
@@ -28,6 +30,57 @@ logger = logging.getLogger("loa_cheval.metering.ledger")
 def _generate_request_id() -> str:
     """Generate a unique request ID."""
     return f"req-{uuid.uuid4().hex[:12]}"
+
+
+# -----------------------------------------------------------------------------
+# Ledger path resolution (cycle-124 FR-6).
+#
+# One resolver for the writer (cheval.py's BudgetEnforcer) and the readers
+# (rollup.py, cost-report.sh) so a redirected ledger moves reads and writes
+# together. Mirrors audit/modelinv.py::_resolve_log_path for the MODELINV log.
+# -----------------------------------------------------------------------------
+
+COST_LEDGER_ENV = "LOA_COST_LEDGER_PATH"
+DEFAULT_COST_LEDGER_PATH = ".run/cost-ledger.jsonl"
+
+
+def resolve_cost_ledger_path(metering_config: Optional[Dict[str, Any]] = None) -> str:
+    """Return the canonical cost-ledger path.
+
+    Precedence:
+      1. ``LOA_COST_LEDGER_PATH`` env — test isolation / operator redirect
+      2. ``metering.ledger_path`` from the merged config
+      3. ``.run/cost-ledger.jsonl`` relative to the working directory (today's
+         literal fallback; ``append_ledger`` still creates ``.run/`` on first
+         write, so the default needs no existing parent)
+
+    Path safety (sprint Flatline SKP-003): the result is canonicalized with
+    ``os.path.realpath`` (``..``/``.`` segments collapse); a symlink at the
+    target path is rejected for every source; an env- or config-supplied path
+    must have an existing parent directory — a typo'd redirect is an error,
+    not a ``mkdir``. Rejections raise ``ConfigError`` (``INVALID_CONFIG``).
+    """
+    override = os.environ.get(COST_LEDGER_ENV)
+    if override:
+        candidate, source = override, f"env {COST_LEDGER_ENV}"
+    else:
+        configured = (metering_config or {}).get("ledger_path")
+        if configured:
+            candidate, source = str(configured), "metering.ledger_path"
+        else:
+            candidate, source = DEFAULT_COST_LEDGER_PATH, "default"
+
+    if os.path.islink(candidate):
+        raise ConfigError(
+            f"cost ledger path {candidate!r} ({source}) is a symlink; refusing to follow it"
+        )
+    resolved = os.path.realpath(candidate)
+    parent = os.path.dirname(resolved)
+    if source != "default" and not os.path.isdir(parent):
+        raise ConfigError(
+            f"cost ledger parent directory {parent!r} ({source}) does not exist"
+        )
+    return resolved
 
 
 def create_ledger_entry(
@@ -110,7 +163,13 @@ def append_ledger(entry: Dict[str, Any], ledger_path: str) -> None:
     # Ensure parent directory exists
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
 
-    fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    # O_NOFOLLOW: a symlink swapped in between resolve_cost_ledger_path's
+    # check and this open fails (ELOOP) instead of being followed (FR-6).
+    fd = os.open(
+        ledger_path,
+        os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+        0o644,
+    )
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         os.write(fd, encoded)

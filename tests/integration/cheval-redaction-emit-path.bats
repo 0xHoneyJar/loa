@@ -42,6 +42,7 @@ setup() {
     : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"
     MODELINV_LOG="$BATS_TEST_TMPDIR/model-invoke.jsonl"
     : > "$MODELINV_LOG"
+    export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
 
     # Disable audit signing for tests (the test runner doesn't bootstrap keys).
     # No LOA_AUDIT_SKIP_TRUST_STORE_CHECK — the trust-store check returns
@@ -56,7 +57,7 @@ setup() {
 }
 
 teardown() {
-    unset LOA_MODELINV_LOG_PATH LOA_FORCE_LEGACY_MODELS
+    unset LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH LOA_FORCE_LEGACY_MODELS
     return 0
 }
 

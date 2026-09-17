@@ -80,3 +80,17 @@ print(default_ledger_path())
     [ "$status" -eq 0 ]
     [ "$output" = "grimoires/loa/a2a/cost-ledger.jsonl" ]
 }
+
+@test "rollup: LOA_COST_LEDGER_PATH overrides the config default — readers follow the writer (cycle-124 FR-6)" {
+    cd "$REPO_ROOT"
+    run env LOA_COST_LEDGER_PATH="$LEDGER" python3 -c "
+from loa_cheval.metering.rollup import default_ledger_path
+print(default_ledger_path())
+"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$LEDGER" ]
+    # The CLI without --ledger reads the redirected ledger's rows.
+    run env LOA_COST_LEDGER_PATH="$LEDGER" python3 -m loa_cheval.metering.rollup --by agent --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.rows | length')" = "2" ]
+}

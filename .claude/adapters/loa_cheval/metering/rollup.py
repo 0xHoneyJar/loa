@@ -31,10 +31,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict, Iterable, List
 
-from loa_cheval.metering.ledger import read_ledger
+from loa_cheval.metering.ledger import COST_LEDGER_ENV, read_ledger
 
 GROUP_KEYS = ("agent", "model", "provider", "day", "trace")
 
@@ -43,8 +44,13 @@ FALLBACK_LEDGER = ".run/cost-ledger.jsonl"
 
 def default_ledger_path() -> str:
     """Resolve the ledger path the way cheval itself does (codex P2 on #1000):
-    metering.ledger_path from the merged config when loadable, else the
-    literal fallback cheval.py uses. An explicit --ledger always wins."""
+    LOA_COST_LEDGER_PATH when set (cycle-124 FR-6 — a redirected writer is
+    read from the same place), else metering.ledger_path from the merged
+    config when loadable, else the literal fallback cheval.py uses. An
+    explicit --ledger always wins."""
+    override = os.environ.get(COST_LEDGER_ENV)
+    if override:
+        return override
     try:
         import yaml  # repo CI installs PyYAML; degrade gracefully without it
 

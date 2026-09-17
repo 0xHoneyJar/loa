@@ -29,6 +29,32 @@ function repoRoot(): string {
   return out.trim();
 }
 
+// cycle-124 FR-6 — the delegate spreads process.env into the cheval spawn, so
+// pointing both ledger env vars at a scratch dir keeps the repo's .run/ ledgers
+// byte-identical across this suite. The 44 `/tmp/cheval-e2e-empty-*` MODELINV
+// rows that tools/check-ledger-hygiene.sh hunts came from the second case
+// below before this isolation existed.
+const LEDGER_ENV = {
+  LOA_COST_LEDGER_PATH: "cost-ledger.jsonl",
+  LOA_MODELINV_LOG_PATH: "model-invoke.jsonl",
+} as const;
+
+function isolateLedgers(dir: string): Record<string, string | undefined> {
+  const saved: Record<string, string | undefined> = {};
+  for (const [name, basename] of Object.entries(LEDGER_ENV)) {
+    saved[name] = process.env[name];
+    process.env[name] = join(dir, basename);
+  }
+  return saved;
+}
+
+function restoreLedgers(saved: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(saved)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+}
+
 describe("ChevalDelegateAdapter end-to-end with real cheval.py + --mock-fixture-dir", () => {
   if (!pythonAvailable()) {
     it("skipped — python3 not on PATH", () => {
@@ -42,6 +68,8 @@ describe("ChevalDelegateAdapter end-to-end with real cheval.py + --mock-fixture-
 
   it("delegate → cheval --mock-fixture-dir → ReviewResponse round-trip", async () => {
     const fixtureDir = mkdtempSync(join(tmpdir(), "cheval-e2e-fixture-"));
+    const ledgerDir = mkdtempSync(join(tmpdir(), "cheval-e2e-ledgers-"));
+    const savedEnv = isolateLedgers(ledgerDir);
     try {
       writeFileSync(
         join(fixtureDir, "response.json"),
@@ -73,12 +101,16 @@ describe("ChevalDelegateAdapter end-to-end with real cheval.py + --mock-fixture-
       assert.ok(typeof result.provider === "string" && result.provider.length > 0);
       assert.ok(typeof result.model === "string" && result.model.length > 0);
     } finally {
+      restoreLedgers(savedEnv);
+      rmSync(ledgerDir, { recursive: true, force: true });
       rmSync(fixtureDir, { recursive: true, force: true });
     }
   });
 
   it("missing fixture → typed INVALID_REQUEST error (exit 2)", async () => {
     const fixtureDir = mkdtempSync(join(tmpdir(), "cheval-e2e-empty-"));
+    const ledgerDir = mkdtempSync(join(tmpdir(), "cheval-e2e-ledgers-"));
+    const savedEnv = isolateLedgers(ledgerDir);
     try {
       const adapter = new ChevalDelegateAdapter({
         model: "reviewer",
@@ -104,6 +136,8 @@ describe("ChevalDelegateAdapter end-to-end with real cheval.py + --mock-fixture-
         },
       );
     } finally {
+      restoreLedgers(savedEnv);
+      rmSync(ledgerDir, { recursive: true, force: true });
       rmSync(fixtureDir, { recursive: true, force: true });
     }
   });

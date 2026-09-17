@@ -222,6 +222,7 @@ _count_non_https_connects() {
     export LOA_HEADLESS_MODE="cli-only"
     local modelinv_log="$SCRATCH/modelinv.jsonl"
     export LOA_MODELINV_LOG_PATH="$modelinv_log"
+    export LOA_COST_LEDGER_PATH="$SCRATCH/cost-ledger.jsonl"
 
     python3 "$CHEVAL" \
         --agent flatline-reviewer \

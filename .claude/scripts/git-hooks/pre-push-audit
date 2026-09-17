@@ -14,6 +14,17 @@
 #  hard security boundary.)
 set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# cycle-124 FR-6: refuse to push while the local ledgers carry test rows — the
+# operator's box is the only place a polluted (gitignored) .run/ is visible.
+# Tool absent (older checkout) or .run/ absent (fresh clone) → never block.
+HYGIENE="$REPO_ROOT/tools/check-ledger-hygiene.sh"
+if [[ -f "$HYGIENE" && -d "$REPO_ROOT/.run" ]]; then
+    bash "$HYGIENE" --root "$REPO_ROOT/.run" --quiet && hygiene_rc=0 || hygiene_rc=$?
+    if [[ "$hygiene_rc" -ne 0 ]]; then
+        echo "pre-push-audit: check-ledger-hygiene.sh exit $hygiene_rc — run 'bash tools/check-ledger-hygiene.sh', then rotate per grimoires/loa/runbooks/ledger-hygiene-rotation.md" >&2
+        exit "$hygiene_rc"
+    fi
+fi
 GATE="$REPO_ROOT/.claude/scripts/audit-verify-for-merge.sh"
 [[ -f "$GATE" ]] || exit 0                      # gate absent (older checkout) → never block
 exec env PROJECT_ROOT="$REPO_ROOT" bash "$GATE" # pin the root (ignore any stale inherited PROJECT_ROOT)
