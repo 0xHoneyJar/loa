@@ -316,6 +316,57 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "FR-5 audit path validates the review trailer: audit APPROVED but review APPROVED with counts.critical=1 ⇒ audited=false" {
+    skip_if_no_jq
+    cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
+All good
+<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":1,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
+APPROVED - LET'S FUCKING GO
+<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run --separate-stderr _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"engineer-feedback.md"* ]]
+    # and the implicit review pass is denied with it
+    run _gp_sprint_is_reviewed sprint-1
+    [ "$status" -eq 1 ]
+}
+
+@test "FR-5 audit cross-check: a non-integer review excluded (1.0) denies instead of reading as 0" {
+    skip_if_no_jq
+    cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
+All good
+<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1.0,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
+APPROVED - LET'S FUCKING GO
+<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run --separate-stderr _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"non-integer excluded"* ]]
+}
+
+@test "FR-5 audit cross-check: a non-integer audit excluded_confirmed (\"1\") never confirms review excluded=1" {
+    skip_if_no_jq
+    cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
+All good
+<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
+APPROVED - LET'S FUCKING GO
+<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded_confirmed":"1","sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run --separate-stderr _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"excluded_confirmed=invalid"* ]]
+}
+
 # =============================================================================
 # Doc-lock (AC-5.2): run-mode/SKILL.md and sprint-completion.md describe the
 # gate in verdict-derive terms.

@@ -106,16 +106,25 @@ _gp_verdict_gate() {
     return 1
 }
 
-# Read one integer field straight off a file's LOA-VERDICT trailer line;
-# absent file/trailer/field (or a non-integer) reads as 0. verdict-derive.sh
-# does not know the FR-8 exclusion fields yet (Sprint 3), so the audit
-# cross-check below parses the trailer line directly.
+# Read one integer field straight off a file's LOA-VERDICT trailer line.
+# Absent file/trailer/field reads as 0; a PRESENT field that is not a
+# non-negative integer (1.0, "1", null) prints "invalid" so the caller fails
+# closed instead of treating it as 0 (review round-1 high #4). The trailer is
+# located the way verdict-derive.sh locates it — whitespace-tolerant marker,
+# LAST occurrence — so the two never disagree about which line is the trailer.
+# verdict-derive.sh does not know the FR-8 exclusion fields yet (Sprint 3),
+# hence the direct parse.
 _gp_trailer_int() {
-    local file="$1" field="$2" val
-    val=$(grep -o '<!-- LOA-VERDICT {.*} -->' "${file}" 2>/dev/null | head -1 \
-          | sed 's/^<!-- LOA-VERDICT //; s/ -->$//' \
-          | jq -r --arg f "${field}" '.[$f] // 0' 2>/dev/null) || val=""
-    [[ "${val}" =~ ^[0-9]+$ ]] && echo "${val}" || echo 0
+    local file="$1" field="$2" payload val
+    payload=$(grep -oE '<!-- LOA-VERDICT[[:space:]]+\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
+              | sed -E 's/^<!-- LOA-VERDICT[[:space:]]+//; s/[[:space:]]*-->$//')
+    if [[ -z "${payload}" ]]; then
+        echo 0
+        return 0
+    fi
+    val=$(printf '%s' "${payload}" | jq -r --arg f "${field}" \
+          'if has($f) then (if (.[$f] | type) == "number" and (.[$f] | floor) == .[$f] and .[$f] >= 0 then (.[$f] | tostring) else "invalid" end) else "0" end' 2>/dev/null) || val="invalid"
+    [[ "${val}" =~ ^[0-9]+$ ]] && echo "${val}" || echo invalid
 }
 
 # Check if a sprint has been reviewed (no findings or no required changes).
@@ -167,14 +176,26 @@ _gp_sprint_is_audited() {
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
            grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
             _gp_verdict_gate "${sprint_dir}/auditor-sprint-feedback.md" audit || return 1
+            # An audit implies review, so the review trailer would otherwise
+            # never meet verdict-derive.sh: when it exists, it must pass the
+            # same gate (review round-1 high #4 — fail closed).
+            if [[ -f "${sprint_dir}/engineer-feedback.md" ]] && \
+               grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+                _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review || return 1
+            fi
             # FR-5 cross-check: a reviewer-demoted high (review trailer
             # `excluded`, FR-8) passes only when the auditor confirmed exactly
-            # that many (`excluded_confirmed`) — fail closed, absent reads as 0.
+            # that many (`excluded_confirmed`) — fail closed: absent reads as
+            # 0, a malformed value denies.
             local excluded excluded_confirmed
             excluded=$(_gp_trailer_int "${sprint_dir}/engineer-feedback.md" excluded)
+            if [[ "${excluded}" == "invalid" ]]; then
+                echo "golden-path: review trailer carries a non-integer excluded field in ${sprint_dir}/engineer-feedback.md" >&2
+                return 1
+            fi
             if [[ "${excluded}" -gt 0 ]]; then
                 excluded_confirmed=$(_gp_trailer_int "${sprint_dir}/auditor-sprint-feedback.md" excluded_confirmed)
-                if [[ "${excluded_confirmed}" -ne "${excluded}" ]]; then
+                if [[ "${excluded_confirmed}" == "invalid" || "${excluded_confirmed}" -ne "${excluded}" ]]; then
                     echo "golden-path: review trailer excluded=${excluded} but audit trailer excluded_confirmed=${excluded_confirmed} in ${sprint_dir}/auditor-sprint-feedback.md" >&2
                     return 1
                 fi
