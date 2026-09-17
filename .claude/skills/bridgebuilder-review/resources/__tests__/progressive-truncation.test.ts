@@ -304,6 +304,13 @@ describe("progressiveTruncate budget clamp (cycle-124 FR-3)", () => {
     assert.ok(clamped.excluded.length > 0 || clamped.level > 1);
   });
 
+  it("treats inherited object keys as unknown ids (prototype-safe lookup)", () => {
+    // "__proto__"/"constructor" are `in` every object; they must not count as known.
+    const r = progressiveTruncate(many, 300_000, "constructor", 560_000, 0);
+    assert.ok(r.success);
+    assert.equal(r.files.length, 40);
+  });
+
   it("does NOT clamp an unknown id to the 100K default row (review round-1 low 7)", () => {
     assert.equal(getTokenBudget("some-future-model").maxInput, TOKEN_BUDGETS["default"].maxInput);
     // fixed = 140 000 tokens: over the 100K default row, under the 300K operator budget

@@ -553,11 +553,15 @@ export const TOKEN_BUDGETS = {
     "gpt-5.2": { maxInput: 128_000, maxOutput: 4_096, coefficient: 0.23 },
     default: { maxInput: 100_000, maxOutput: 4_096, coefficient: 0.25 },
 };
+/** Own-key lookup: "constructor"/"__proto__" are `in` every object and must read as unknown ids. */
+function ownBudget(table, id) {
+    return Object.prototype.hasOwnProperty.call(table, id) ? table[id] : undefined;
+}
 export function getTokenBudget(model) {
     // cycle-124 FR-3: the generated twin (model-config.yaml) wins over the
     // hand-maintained table; the hand table remains the fallback for ids the
     // yaml does not carry.
-    return GENERATED_TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS["default"];
+    return ownBudget(GENERATED_TOKEN_BUDGETS, model) ?? ownBudget(TOKEN_BUDGETS, model) ?? TOKEN_BUDGETS["default"];
 }
 /** Estimate tokens from string using model-specific coefficient. */
 export function estimateTokens(text, model) {
@@ -731,7 +735,8 @@ export function progressiveTruncate(files, budgetTokens, model, systemPromptLen,
     // the operator's budget rather than being cut to the 100K default row
     // (review round-1 low 7).
     const { coefficient, maxInput } = getTokenBudget(model);
-    const known = model in GENERATED_TOKEN_BUDGETS || (model in TOKEN_BUDGETS && model !== "default");
+    const known = ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
+        (model !== "default" && ownBudget(TOKEN_BUDGETS, model) !== undefined);
     const targetBudget = Math.floor((known ? Math.min(budgetTokens, maxInput) : budgetTokens) * 0.9);
     const fixedTokens = Math.ceil((systemPromptLen + metadataLen) * coefficient);
     // Apply size-aware security handling first (SKP-005)
