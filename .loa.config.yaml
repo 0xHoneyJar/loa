@@ -33,7 +33,7 @@ advisor_strategy:
     implementation: advisor
   tier_aliases:
     advisor:
-      anthropic: claude-opus-4-8
+      anthropic: claude-opus-5   # cycle-124 FR-3: 4-8 → 5
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:

@@ -525,6 +525,14 @@ def _preflight_check(
     )
 
 
+# cycle-124 FR-3 (PRD FR-3, SDD §3.2): the Anthropic non-streaming HTTP path
+# empties / disconnects above ~40K input tokens (KF-002 layer 3, Issue #823
+# replay: 36K gate). The streaming-probed 180K `effective_input_ceiling`
+# replaced the per-entry `legacy_max_input_tokens: 36000` fields; this
+# constant is that wall, applied only when LOA_CHEVAL_DISABLE_STREAMING is set.
+_LEGACY_TRANSPORT_INPUT_WALL = 36_000
+
+
 def _lookup_max_input_tokens(
     provider: str,
     model_id: str,
@@ -575,20 +583,26 @@ def _lookup_max_input_tokens(
     if not isinstance(model_config, dict):
         return None
 
+    # T3.4 split-aware lookup. Operator kill switch decides which field.
+    _streaming_killed = os.environ.get(
+        "LOA_CHEVAL_DISABLE_STREAMING", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
     # cycle-109 Sprint 1 T1.3 — prefer v3 `effective_input_ceiling` when
     # present. The v3 field is the empirically-calibrated tight bound; v2
     # streaming/legacy fields are the broader fallback for unmigrated
     # entries. Sequencing: pre-flight gate consults `_lookup_capability`
     # directly for the richer surface; this helper continues to return
     # Optional[int] for the legacy chain-walk gate at cheval.py:858.
+    # cycle-124 FR-3: Anthropic entries no longer carry the v2 split fields;
+    # the 180K ceiling was probed under streaming, so with streaming killed
+    # the pre-Sprint-4A 36K wall (KF-002 layer 3, Issue #823) applies again.
     v3_ceiling = model_config.get("effective_input_ceiling")
     if isinstance(v3_ceiling, int) and v3_ceiling > 0:
+        if _streaming_killed and provider == "anthropic":
+            return min(v3_ceiling, _LEGACY_TRANSPORT_INPUT_WALL)
         return v3_ceiling
 
-    # T3.4 split-aware lookup. Operator kill switch decides which field.
-    _streaming_killed = os.environ.get(
-        "LOA_CHEVAL_DISABLE_STREAMING", ""
-    ).strip().lower() in ("1", "true", "yes", "on")
     preferred_field = (
         "legacy_max_input_tokens" if _streaming_killed
         else "streaming_max_input_tokens"

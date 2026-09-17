@@ -211,6 +211,7 @@ jobs:
             tests/integration/audit-envelope-signing.bats \
             tests/integration/audit-snapshot.bats \
             tests/integration/audit-snapshot-strict-pin.bats \
+            tests/integration/cheval-input-gate.bats \
             tests/integration/modelinv-rollup-grouping.bats \
             tests/integration/flatline-content-qualified-quorum.bats \
             tests/integration/flatline-issue-sweep.bats \

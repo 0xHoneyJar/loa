@@ -210,6 +210,14 @@ class AnthropicAdapter(ProviderAdapter):
                         f"HTTP {status}: {_extract_error_message(err_json)}",
                     )
                 _msg = _extract_error_message(err_json)
+                # cycle-124 FR-3: model-not-found on a newly named primary id
+                # (an account that does not serve it yet) walks the within-
+                # company chain instead of failing terminally at first use.
+                if status == 404:
+                    raise ProviderUnavailableError(
+                        self.provider,
+                        f"HTTP 404 model-not-found: {_msg}",
+                    )
                 # cycle-109 followup #883 Bug 3 — billing-class 400s raise
                 # ProviderUnavailableError so the cycle-104 within-company
                 # chain walks to its claude-headless CLI terminal.
@@ -339,6 +347,12 @@ class AnthropicAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            # cycle-124 FR-3: 404 model-not-found is chain-walkable (see the
+            # streaming twin above).
+            if status == 404:
+                raise ProviderUnavailableError(
+                    self.provider, f"HTTP 404 model-not-found: {msg}"
+                )
             # cycle-109 followup #883 Bug 3 — billing-class 400s raise
             # ProviderUnavailableError so the within-company chain walks.
             if _is_billing_class_error(msg):

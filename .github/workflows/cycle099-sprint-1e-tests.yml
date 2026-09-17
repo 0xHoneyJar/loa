@@ -97,17 +97,22 @@ jobs:
       - name: Run migrate-model-config CLI tests (T1.14)
         run: bats tests/integration/migrate-model-config.bats
 
-      - name: Smoke test — migrate the production cycle-095 yaml
+      - name: Smoke test — migrate the production yaml to v3
         run: |
           # Defense in depth: even if the unit/integration tests pass on
-          # synthetic fixtures, the migrator MUST handle the real cycle-095
-          # SoT without rejecting valid v1 input. AC-S1.11 verification.
+          # synthetic fixtures, the migrator MUST handle the real SoT without
+          # rejecting valid input. AC-S1.11 verification. cycle-124 FR-3: the
+          # production catalog now carries v3 fields (effective_input_ceiling,
+          # ceiling_calibration, typed params), so the smoke migrates to v3
+          # and validates against the v3 schema (the v2 schema has no home
+          # for those fields).
           python .claude/scripts/loa-migrate-model-config.py \
               .claude/defaults/model-config.yaml \
               -o /tmp/migrated.yaml \
+              --to-v3 \
               --model-permissions .claude/data/model-permissions.yaml \
               --report-format json
-          # Independent post-migration v2 schema validation
+          # Independent post-migration v3 schema validation
           python - <<'PY'
           import json, sys
           import jsonschema
@@ -115,11 +120,11 @@ jobs:
           y = YAML(typ='safe')
           with open('/tmp/migrated.yaml') as f:
               data = y.load(f)
-          with open('.claude/data/schemas/model-config-v2.schema.json') as f:
+          with open('.claude/data/schemas/model-config-v3.schema.json') as f:
               schema = json.load(f)
           jsonschema.Draft202012Validator(schema).validate(data)
-          if data.get('schema_version') != 2:
-              print('ERROR: migrated file missing schema_version: 2', file=sys.stderr)
+          if data.get('schema_version') != 3:
+              print('ERROR: migrated file missing schema_version: 3', file=sys.stderr)
               sys.exit(1)
-          print('Smoke test: migrated production yaml passes v2 schema validation')
+          print('Smoke test: migrated production yaml passes v3 schema validation')
           PY

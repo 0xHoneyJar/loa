@@ -395,3 +395,49 @@ assert sv.get('const') == 3, f'expected const:3 got {sv}'
     run validate_v3 "$doc"
     [ "$status" -ne 0 ]
 }
+
+# -----------------------------------------------------------------------------
+# cycle-124 FR-1/FR-3 (SDD §2.1): typed `params` wire gates + live catalog
+# -----------------------------------------------------------------------------
+
+@test "V3-add (c124): params.thinking_adaptive + temperature_supported booleans accepted" {
+    doc='{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"claude-opus-5": {"context_window": 1000000, "params": {"thinking_adaptive": true, "temperature_supported": false}}}}}}'
+    run validate_v3 "$doc"
+    [ "$status" -eq 0 ]
+}
+
+@test "Reject (c124): params.thinking_adaptive must be boolean (string rejected)" {
+    doc='{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"claude-opus-5": {"context_window": 1000000, "params": {"thinking_adaptive": "yes"}}}}}}'
+    run validate_v3 "$doc"
+    [ "$status" -ne 0 ]
+}
+
+@test "Reject (c124): unknown params key rejected (a misspelt gate must not silently no-op)" {
+    doc='{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"claude-opus-5": {"context_window": 1000000, "params": {"thinking_adaptve": true}}}}}}'
+    run validate_v3 "$doc"
+    [ "$status" -ne 0 ]
+}
+
+@test "Live (c124): production model-config.yaml migrated with --to-v3 validates against v3 and keeps the catalog's own ceiling" {
+    MIGRATE="$PROJECT_ROOT/.claude/scripts/loa-migrate-model-config.py"
+    "$PYTHON_BIN" -c "import ruamel.yaml" 2>/dev/null || skip "ruamel.yaml not available in $PYTHON_BIN"
+    run "$PYTHON_BIN" "$MIGRATE" "$PROJECT_ROOT/.claude/defaults/model-config.yaml" \
+        -o "$WORK_DIR/live-v3.yaml" --to-v3 \
+        --model-permissions "$PROJECT_ROOT/.claude/data/model-permissions.yaml" \
+        --report-format json
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    run "$PYTHON_BIN" - <<PYEOF
+import json, jsonschema
+from ruamel.yaml import YAML
+data = YAML(typ="safe").load(open("$WORK_DIR/live-v3.yaml"))
+schema = json.load(open("$SCHEMA_V3"))
+jsonschema.Draft202012Validator(schema).validate(data)
+assert data["schema_version"] == 3, data.get("schema_version")
+m = data["providers"]["anthropic"]["models"]["claude-opus-5"]
+assert m["effective_input_ceiling"] == 180000, m.get("effective_input_ceiling")
+assert m["params"]["thinking_adaptive"] is True, m.get("params")
+print("OK")
+PYEOF
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [[ "$output" == *"OK"* ]]
+}

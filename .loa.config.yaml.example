@@ -2672,7 +2672,7 @@ qmd_context:
 #   # Tier → provider → model alias.
 #   tier_aliases:
 #     advisor:
-#       anthropic: claude-opus-4-7
+#       anthropic: claude-opus-5
 #       # openai: gpt-5.5-pro              # optional cross-provider
 #       # google: gemini-3.1-pro-preview   # optional cross-provider
 #     executor:

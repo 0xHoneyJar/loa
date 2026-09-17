@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-09-14T07:20:46Z",
-  "source_hash": "397e73f3468cffe8c28e2627d3f002bf28560d4b28af32692ccc4d612a83cb09",
+  "generated_at": "2026-09-17T05:49:15Z",
+  "source_hash": "cafad6723ad428a004209da2861d07ccb13835cf83c119aeb81552a15bfc4518",
   "file_count": 42,
   "files": [
     {
@@ -42,7 +42,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.generated.ts",
-      "sha256": "5d7c44c3e4b65156d73ac2a0e355af91c8dac44a17bbf321f8b5ec9db6dd7df1"
+      "sha256": "480a554ec4268645c956522a28e98217c937099bd2a903b599dc51a96a5b4d48"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
@@ -118,7 +118,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
-      "sha256": "2cedc909376c28ea37f4add3abc68fb9fbf1e9bc5a405cb2a4df7469d2cfa291"
+      "sha256": "bf6e2b88a5ecd96ae4b66b00957241389fdae203fc9b94f76886a3a3005699d3"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts",
