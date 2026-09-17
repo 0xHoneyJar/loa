@@ -146,15 +146,30 @@ def test_thinking_shape_accepted(model, served_models):
             assert kinds.index("thinking") < kinds.index("text"), "thinking block must precede text"
 
 
-def test_second_identical_call_reads_the_cache(served_models):
-    """AC-4.3: cache_read_input_tokens > 0 on the second identical BB-voice call."""
+def test_second_identical_call_reads_the_cache(served_models, tmp_path, monkeypatch):
+    """AC-4.3: cache_read_input_tokens > 0 on the second identical BB-voice call.
+
+    The body is built by the PRODUCTION path, not by hand: Bridgebuilder
+    dispatches `--agent reviewing-code` (no persona.md) with its stable prefix
+    (INJECTION_HARDENING + .claude/data/bridgebuilder-persona.md) as the
+    --system file, so `cheval._persona_messages` must mark that whole payload
+    and `AnthropicAdapter._transform_messages` must emit exactly one breakpoint
+    (review round-1 high #1 — the hand-built body could not observe the defect)."""
+    import cheval
+    from loa_cheval.providers.anthropic_adapter import _transform_messages
+
     model = "claude-opus-5" if "claude-opus-5" in served_models else "claude-opus-4-8"
-    persona = REPO_ROOT / ".claude" / "skills" / "bridgebuilder-review" / "persona.md"
-    prefix = persona.read_text() if persona.exists() else ""
+    assert not (REPO_ROOT / ".claude" / "skills" / "reviewing-code" / "persona.md").exists()
+    prefix = "SYSTEM SECURITY NOTICE\n\n" + (REPO_ROOT / ".claude" / "data" / "bridgebuilder-persona.md").read_text()
     # Pad to ≥ 4096 tokens so the minimum-prefix rule holds on every model.
     while len(prefix) < 4096 * 4:
         prefix += "\n\nContext padding paragraph for the live floor check. " * 8
-    system = [{"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}}]
+    system_file = tmp_path / "bb-system.md"
+    system_file.write_text(prefix)
+    monkeypatch.chdir(REPO_ROOT)  # persona lookup is CWD-relative, as in production
+    messages = cheval._persona_messages("reviewing-code", str(system_file))
+    system, _ = _transform_messages(messages + [{"role": "user", "content": "Reply with the single word: ready."}])
+    assert isinstance(system, list) and sum(1 for b in system if "cache_control" in b) == 1, system
     first_status, first = _request("POST", "/messages", _messages_body(model, system=system, max_tokens=64))
     assert first_status == 200, first
     _charge(model, first.get("usage", {}))

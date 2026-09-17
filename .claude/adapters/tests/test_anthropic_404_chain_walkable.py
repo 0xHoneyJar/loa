@@ -71,6 +71,7 @@ def _mock_error_stream(status: int, body: dict):
 
 
 NOT_FOUND = _error_body("not_found_error", f"model: {MODEL}")
+ENDPOINT_404 = _error_body("not_found_error", "Not Found")
 BAD_PARAM = _error_body("invalid_request_error", "temperature: Extra inputs are not permitted")
 
 
@@ -96,6 +97,28 @@ def test_streaming_404_walks_the_chain(monkeypatch):
             adapter.complete(_make_request())
     assert exc_info.value.retryable is True
     assert "404" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_endpoint_404_stays_terminal(monkeypatch, streaming):
+    """A 404 whose message is not `model: <id>` (a typo'd endpoint, a proxy
+    path) is a config error, not a served-model gap: it must NOT walk the
+    chain — every hop would 404 identically (review round-1 medium 1)."""
+    if streaming:
+        monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+        seam = patch(
+            "loa_cheval.providers.anthropic_adapter.http_post_stream",
+            _mock_error_stream(404, ENDPOINT_404),
+        )
+    else:
+        monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+        seam = patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(404, ENDPOINT_404))
+    adapter = AnthropicAdapter(_make_config())
+    with seam:
+        with pytest.raises(InvalidInputError) as exc_info:
+            adapter.complete(_make_request())
+    assert "404" in str(exc_info.value)
+    assert "model-not-found" not in str(exc_info.value)
 
 
 @pytest.mark.parametrize("streaming", [False, True])

@@ -243,11 +243,16 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         """Resolve effort with explicit precedence (matches codex pattern).
 
         Priority:
-          1. request.metadata["effort"] OR ["reasoning_effort"]
-          2. ModelConfig.extra["effort"] OR ["reasoning_effort"]
-          3. None (let claude CLI use its own default)
+          1. request.effort (cheval --effort, cycle-124)
+          2. request.metadata["effort"] OR ["reasoning_effort"]
+          3. ModelConfig.extra["effort"] OR ["reasoning_effort"]
+          4. None (let claude CLI use its own default)
         """
         candidates: List[Optional[str]] = []
+        # cycle-124 FR-2: cheval threads `--effort` onto CompletionRequest.effort
+        # (validated against the same levels); it is the first candidate so the
+        # CLI hop honours what the MODELINV envelope records.
+        candidates.append(getattr(request, "effort", None))
         if request.metadata and isinstance(request.metadata, dict):
             candidates.append(request.metadata.get("effort"))
             candidates.append(request.metadata.get("reasoning_effort"))

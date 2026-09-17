@@ -84,6 +84,10 @@ def _capture_streaming(monkeypatch, config, request) -> dict:
 @pytest.fixture(autouse=True)
 def _no_legacy_wire(monkeypatch):
     monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+    # The temperature-drop warning is once-per-model-per-process; start each
+    # test with a clean memory so ordering cannot change what it observes.
+    import loa_cheval.providers.anthropic_adapter as _aa
+    monkeypatch.setattr(_aa, "_TEMPERATURE_DROP_WARNED", set(), raising=False)
 
 
 # --- emission per family --------------------------------------------------------
@@ -125,6 +129,33 @@ def test_legacy_wire_restores_the_pre_cycle_body(monkeypatch, value):
     assert body == {"model": "claude-opus-5", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1024}
 
 
+def test_legacy_wire_body_per_live_catalog_family(monkeypatch):
+    """Scoped claim (review round-1 low 2): under LOA_CHEVAL_LEGACY_WIRE every
+    Anthropic HTTP family in the LIVE catalog sends only model/messages/
+    max_tokens (+ temperature where the catalog still allows it). The flag
+    removes what this cycle ADDED (thinking, cache blocks, format); the
+    temperature omission is catalog-driven (`temperature_supported: false`)
+    and is NOT restored by the flag — entries that gained that flag this
+    cycle drop temperature on the legacy wire too."""
+    import yaml
+    catalog = yaml.safe_load((ROOT.parents[1] / ".claude" / "defaults" / "model-config.yaml").read_text())
+    entries = {m: e for m, e in catalog["providers"]["anthropic"]["models"].items() if e.get("auth_type") == "http_api"}
+    assert len(entries) >= 8
+    cfg = ProviderConfig(
+        name="anthropic", type="anthropic", endpoint="https://api.anthropic.com/v1",
+        auth="sk-ant-test", connect_timeout=10.0, read_timeout=30.0,
+        models={m: ModelConfig(capabilities=["chat"], context_window=int(e.get("context_window") or 200_000),
+                               params=dict(e.get("params") or {})) for m, e in entries.items()},
+    )
+    monkeypatch.setenv("LOA_CHEVAL_LEGACY_WIRE", "1")
+    for model, entry in entries.items():
+        body = _capture_nonstreaming(monkeypatch, cfg, _req(model, temperature=0.3))
+        expected = {"model": model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1024}
+        if (entry.get("params") or {}).get("temperature_supported", True):
+            expected["temperature"] = 0.3
+        assert body == expected, model
+
+
 def test_flag_value_must_be_literal_true(monkeypatch):
     for bad in ("true", 1, "yes"):
         cfg = _make_config(params_override={"temperature_supported": False, "thinking_adaptive": bad})
@@ -138,6 +169,21 @@ def test_non_default_temperature_dropped_with_warning(monkeypatch, caplog):
     body = _capture_nonstreaming(monkeypatch, _make_config(), _req("claude-opus-5", temperature=0.3))
     assert "temperature" not in body
     assert any("temperature 0.3 dropped for claude-opus-5" in r.getMessage() for r in caplog.records)
+
+
+def test_temperature_drop_warns_once_per_model_then_logs_info(monkeypatch, caplog):
+    """review round-1 low 1: the framework's bindings run at 0.2–0.6, so a
+    per-call WARNING would fire on essentially every dispatch. First drop per
+    model is WARNING; later drops for the same model are INFO; a different
+    model warns again."""
+    import logging
+    caplog.set_level(logging.INFO, logger="loa_cheval.providers.anthropic")
+    _capture_nonstreaming(monkeypatch, _make_config(), _req("claude-opus-5", temperature=0.3))
+    _capture_nonstreaming(monkeypatch, _make_config(), _req("claude-opus-5", temperature=0.4))
+    _capture_nonstreaming(monkeypatch, _make_config(), _req("claude-sonnet-5", temperature=0.3))
+    drops = [(r.levelno, r.getMessage()) for r in caplog.records if "dropped for" in r.getMessage()]
+    assert [lvl for lvl, _ in drops] == [logging.WARNING, logging.INFO, logging.WARNING], drops
+    assert "temperature 0.4 dropped for claude-opus-5" in drops[1][1]
 
 
 def test_default_temperature_drops_silently(monkeypatch, caplog):

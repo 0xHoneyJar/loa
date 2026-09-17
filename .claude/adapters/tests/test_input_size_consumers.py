@@ -112,6 +112,7 @@ def _args(prompt: str):
 @pytest.fixture(autouse=True)
 def _no_persona(monkeypatch):
     monkeypatch.setattr(cheval, "_load_persona", lambda *_a, **_kw: None)
+    monkeypatch.setattr(cheval, "_load_persona_parts", lambda *_a, **_kw: (None, None))
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *_a, **_kw: None)
 
 

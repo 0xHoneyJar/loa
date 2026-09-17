@@ -52,6 +52,25 @@ _VALID_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
 # rather than 400ing the call. Keyed by model-id prefix — no catalog key.
 _EFFORT_UNSUPPORTED_PREFIXES = ("claude-sonnet-4-5", "claude-haiku-4-5")
 _EFFORT_NO_XHIGH_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
+# Every other Anthropic HTTP family accepts all five levels. Kept as a
+# positive list so the catalog invariant test can prove each id falls in
+# exactly one of the three tuples (a new id must be classified, not assumed).
+_EFFORT_FULL_PREFIXES = ("claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5")
+
+
+def _is_model_not_found(message: str) -> bool:
+    """True for Anthropic's model-not-found 404 (`model: <id>`), not for an
+    endpoint/config 404 (`Not Found`) — only the former is chain-walkable
+    (cycle-124 FR-3; the review panel's endpoint-typo scenario stays terminal).
+    """
+    return str(message or "").lstrip().lower().startswith("model:")
+
+
+# cycle-124 FR-1 review follow-up: the framework's own bindings run at 0.2–0.6,
+# so a per-call WARNING would fire on essentially every dispatch and bury the
+# budget/stop-reason warnings that share the channel. Warn once per model per
+# process; later drops for the same model log at INFO.
+_TEMPERATURE_DROP_WARNED: set = set()
 
 
 def _effort_for_model(model: str, effort: str) -> Optional[str]:
@@ -154,8 +173,11 @@ class AnthropicAdapter(ProviderAdapter):
             # cycle-124 FR-1 (SDD §3.3): the silent omission is now visible —
             # thinking-enabled models reject sampling params with HTTP 400, so
             # a caller-supplied temperature (top_p / top_k are not request
-            # fields) is dropped, and said so once per call.
-            logger.warning(
+            # fields) is dropped — WARNING the first time per model, INFO after.
+            _level = logging.INFO if request.model in _TEMPERATURE_DROP_WARNED else logging.WARNING
+            _TEMPERATURE_DROP_WARNED.add(request.model)
+            logger.log(
+                _level,
                 "temperature %s dropped for %s (thinking-enabled / sampling params rejected)",
                 request.temperature, request.model,
             )
@@ -252,7 +274,7 @@ class AnthropicAdapter(ProviderAdapter):
                 # cycle-124 FR-3: model-not-found on a newly named primary id
                 # (an account that does not serve it yet) walks the within-
                 # company chain instead of failing terminally at first use.
-                if status == 404:
+                if status == 404 and _is_model_not_found(_msg):
                     raise ProviderUnavailableError(
                         self.provider,
                         f"HTTP 404 model-not-found: {_msg}",
@@ -388,7 +410,7 @@ class AnthropicAdapter(ProviderAdapter):
             msg = _extract_error_message(resp)
             # cycle-124 FR-3: 404 model-not-found is chain-walkable (see the
             # streaming twin above).
-            if status == 404:
+            if status == 404 and _is_model_not_found(msg):
                 raise ProviderUnavailableError(
                     self.provider, f"HTTP 404 model-not-found: {msg}"
                 )

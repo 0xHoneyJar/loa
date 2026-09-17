@@ -221,7 +221,8 @@ def _persona_messages(agent_name: str, system_override: Optional[str] = None) ->
 
     persona.md is the stable prefix shared by every call of an agent, so it
     carries the ONE prompt-cache breakpoint; the per-call `--system` context
-    follows it as a second system message. The Anthropic adapter turns the
+    follows it as a second system message. With no persona the whole
+    `--system` payload is the stable prefix and carries the breakpoint. The Anthropic adapter turns the
     marked message into a `cache_control` text block; every other adapter
     ignores the extra key and joins the two contents with "\n\n" — the exact
     text `_load_persona()` produces.
@@ -246,7 +247,14 @@ def _persona_messages(agent_name: str, system_override: Optional[str] = None) ->
                 ),
             })
     elif system_text:
-        out.append({"role": "system", "content": system_text})
+        # PRD FR-4: with no persona the whole --system payload IS the stable
+        # prefix (Bridgebuilder: INJECTION_HARDENING + bridgebuilder-persona.md
+        # under --agent reviewing-code), so it carries the breakpoint too.
+        out.append({
+            "role": "system",
+            "content": system_text,
+            "cache_control": dict(_PERSONA_CACHE_CONTROL),
+        })
     return out
 
 
@@ -726,12 +734,18 @@ def _hop_max_tokens(
     return explicit
 
 
-def _entry_thinking_adaptive(entry: Any, hounfour: Dict[str, Any]) -> bool:
-    """True iff the catalog marks this hop's model `params.thinking_adaptive` (cycle-124 FR-1)."""
+def _entry_thinking_class(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """True iff this hop's model reasons before answering (cycle-124 FR-1).
+
+    Two catalog shapes mean "thinking on": `params.thinking_adaptive: true`
+    (the 4.6–4.8 family and Opus 5 / Sonnet 5, where the adapter requests it)
+    and `params.temperature_supported: false` without the flag (Fable 5 /
+    5.1, where thinking is always on and the param must be omitted).
+    """
     try:
         models = (hounfour.get("providers", {}) or {}).get(entry.provider, {}).get("models", {}) or {}
         params = (models.get(entry.model_id, {}) or {}).get("params") or {}
-        return params.get("thinking_adaptive") is True
+        return params.get("thinking_adaptive") is True or params.get("temperature_supported") is False
     except AttributeError:
         return False
 
@@ -2137,12 +2151,14 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             # stopped at max_tokens spent the budget on reasoning — the
             # visible answer is truncated. Flag it on the envelope and to the
             # operator instead of letting a short verdict pass silently.
-            if _result_meta.get("stop_reason") == "max_tokens" and _entry_thinking_adaptive(_entry, hounfour):
+            if _result_meta.get("stop_reason") == "max_tokens" and (
+                _entry_thinking_class(_entry, hounfour) or bool(getattr(_result, "thinking", None))
+            ):
                 _modelinv_state["operator_visible_warn"] = True
                 print(
                     f"[cheval] WARN: {_entry.provider}:{_entry.model_id} stopped at "
-                    f"max_tokens={_entry_request.max_tokens} with adaptive thinking "
-                    "on — the answer is truncated; raise --max-tokens or lower --effort",
+                    f"max_tokens={_entry_request.max_tokens} with thinking on — "
+                    "the answer is truncated; raise --max-tokens or lower --effort",
                     file=sys.stderr,
                 )
             # cycle-113 sprint-170 T3.3 (FR-C-1, I-3): propagate the

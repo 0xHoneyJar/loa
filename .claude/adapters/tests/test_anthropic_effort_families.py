@@ -112,6 +112,28 @@ def test_unset_effort_keeps_body_shape(monkeypatch, model):
     assert "output_config" not in body
 
 
+def test_every_catalog_http_id_is_classified_by_exactly_one_effort_tuple():
+    """Falsifiable totality (review round-1 low 3): a new Anthropic id must be
+    placed in exactly one of the three prefix tuples — the pass-through default
+    in `_effort_for_model` no longer counts as classification."""
+    import yaml
+    from loa_cheval.providers.anthropic_adapter import (
+        _EFFORT_FULL_PREFIXES, _EFFORT_NO_XHIGH_PREFIXES, _EFFORT_UNSUPPORTED_PREFIXES,
+    )
+    catalog = ROOT.parents[1] / ".claude" / "defaults" / "model-config.yaml"
+    with catalog.open() as fh:
+        models = yaml.safe_load(fh)["providers"]["anthropic"]["models"]
+    tables = (_EFFORT_UNSUPPORTED_PREFIXES, _EFFORT_NO_XHIGH_PREFIXES, _EFFORT_FULL_PREFIXES)
+    for model_id, entry in models.items():
+        if entry.get("auth_type") != "http_api":
+            continue
+        hits = [p for table in tables for p in table if model_id.startswith(p)]
+        assert len(hits) == 1, (model_id, hits)
+    # The FULL tuple is behaviour, not decoration: each member passes xhigh through.
+    for prefix in _EFFORT_FULL_PREFIXES:
+        assert _effort_for_model(prefix, "xhigh") == "xhigh", prefix
+
+
 def test_effort_for_model_table_is_total_over_the_catalog():
     """Every Anthropic HTTP id in the live catalog resolves through the table (SDD §2.1 invariant)."""
     import yaml

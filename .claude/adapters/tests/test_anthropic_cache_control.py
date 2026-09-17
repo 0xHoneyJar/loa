@@ -71,10 +71,30 @@ def test_persona_only_is_a_single_marked_message(persona_tree):
     assert msgs[0]["content"] == cheval._load_persona("agentx", None) == PERSONA
 
 
-def test_context_without_persona_is_unmarked(persona_tree):
+def test_context_without_persona_is_the_marked_stable_prefix(persona_tree):
+    """PRD FR-4: with no persona the WHOLE --system payload is the stable block
+    and carries the breakpoint — Bridgebuilder dispatches `--agent reviewing-code`
+    (no persona.md) with a 9 KB stable system file and must cache too
+    (review round-1 high #1 flipped the earlier 'unmarked' pin)."""
     msgs = cheval._persona_messages("no-such-agent", persona_tree)
-    assert msgs == [{"role": "system", "content": CONTEXT}]
+    assert msgs == [{"role": "system", "content": CONTEXT, "cache_control": dict(MARK)}]
     assert cheval._load_persona("no-such-agent", persona_tree) == CONTEXT
+
+
+def test_bridgebuilder_shape_no_persona_gets_exactly_one_breakpoint(tmp_path, monkeypatch):
+    """The real BB prefix (INJECTION_HARDENING + .claude/data/bridgebuilder-persona.md)
+    through the production path: _persona_messages → _transform_messages."""
+    repo_root = Path(__file__).resolve().parents[3]
+    bb = (repo_root / ".claude" / "data" / "bridgebuilder-persona.md").read_text()
+    assert not (repo_root / ".claude" / "skills" / "reviewing-code" / "persona.md").exists()
+    system_file = tmp_path / "bb-system.md"
+    system_file.write_text("SYSTEM SECURITY NOTICE\n\n" + bb)
+    monkeypatch.chdir(repo_root)
+    msgs = cheval._persona_messages("reviewing-code", str(system_file))
+    system, _ = _transform_messages(msgs + [{"role": "user", "content": "review"}])
+    assert isinstance(system, list) and len(system) == 1
+    assert system[0]["cache_control"] == MARK
+    assert system[0]["text"] == cheval._load_persona("reviewing-code", str(system_file))
 
 
 def test_nothing_loaded_yields_no_system_messages(persona_tree):
@@ -275,20 +295,29 @@ def test_absent_cache_usage_is_zero_in_cli_and_absent_in_modelinv(persona_tree, 
     assert captured.get("tokens_cache_read") == 0
 
 
-def test_thinking_truncation_sets_operator_visible_warn(persona_tree, monkeypatch, capsys):
-    cfg = _cfg("anthropic", "claude-opus-5")
-    cfg["providers"]["anthropic"]["models"]["claude-opus-5"]["params"] = {"temperature_supported": False, "thinking_adaptive": True}
+@pytest.mark.parametrize("model, params, thinking_text", [
+    ("claude-opus-5", {"temperature_supported": False, "thinking_adaptive": True}, "…"),
+    # Fable: thinking is always on and the param is OMITTED — the catalog carries
+    # only temperature_supported:false, so the flag alone would never fire
+    # (review round-1 high #2).
+    ("claude-fable-5-1", {"temperature_supported": False}, None),
+    # A response that visibly carried thinking is flagged whatever the catalog says.
+    ("claude-opus-4-8", {}, "reasoning trace"),
+])
+def test_thinking_truncation_sets_operator_visible_warn(persona_tree, monkeypatch, capsys, model, params, thinking_text):
+    cfg = _cfg("anthropic", model)
+    cfg["providers"]["anthropic"]["models"][model]["params"] = params
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *_a, **_kw: None)
     captured: dict = {}
 
     def _retry_side(_adapter, req, _cfg, budget_hook=None):
-        return CompletionResult(content="partial", model="claude-opus-5", provider="anthropic",
+        return CompletionResult(content="partial", model=model, provider="anthropic",
                                 usage=Usage(input_tokens=10, output_tokens=64), latency_ms=1, tool_calls=None,
-                                thinking="…", metadata={"streaming": True, "stop_reason": "max_tokens"})
+                                thinking=thinking_text, metadata={"streaming": True, "stop_reason": "max_tokens"})
 
     with patch.object(cheval, "load_config", return_value=(cfg, {})), \
          patch.object(cheval, "resolve_execution", return_value=(MagicMock(temperature=0.7, capability_class=None),
-                                                                  MagicMock(provider="anthropic", model_id="claude-opus-5"))), \
+                                                                  MagicMock(provider="anthropic", model_id=model))), \
          patch.object(cheval, "_build_provider_config", return_value=MagicMock()), \
          patch.object(cheval, "get_adapter", return_value=MagicMock()), \
          patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
@@ -297,4 +326,30 @@ def test_thinking_truncation_sets_operator_visible_warn(persona_tree, monkeypatc
          patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
         assert cheval.cmd_invoke(_args("agentx", persona_tree)) == 0
     assert captured["operator_visible_warn"] is True
-    assert "stopped at max_tokens=64000 with adaptive thinking" in capsys.readouterr().err
+    assert "stopped at max_tokens=64000 with thinking on" in capsys.readouterr().err
+
+
+def test_non_thinking_max_tokens_stop_is_not_flagged(persona_tree, monkeypatch, capsys):
+    """A plain (no thinking) max_tokens stop is the caller's budget choice, not a hidden truncation."""
+    cfg = _cfg("anthropic", "claude-haiku-4-5-20251001")
+    cfg["providers"]["anthropic"]["models"]["claude-haiku-4-5-20251001"]["params"] = {}
+    monkeypatch.setattr(cheval, "_check_feature_flags", lambda *_a, **_kw: None)
+    captured: dict = {}
+
+    def _retry_side(_adapter, req, _cfg, budget_hook=None):
+        return CompletionResult(content="partial", model="claude-haiku-4-5-20251001", provider="anthropic",
+                                usage=Usage(input_tokens=10, output_tokens=64), latency_ms=1, tool_calls=None,
+                                thinking=None, metadata={"streaming": True, "stop_reason": "max_tokens"})
+
+    with patch.object(cheval, "load_config", return_value=(cfg, {})), \
+         patch.object(cheval, "resolve_execution", return_value=(MagicMock(temperature=0.7, capability_class=None),
+                                                                  MagicMock(provider="anthropic", model_id="claude-haiku-4-5-20251001"))), \
+         patch.object(cheval, "_build_provider_config", return_value=MagicMock()), \
+         patch.object(cheval, "get_adapter", return_value=MagicMock()), \
+         patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
+         patch("loa_cheval.audit_envelope.audit_emit", lambda level, event, payload, *a, **k: captured.update(payload)), \
+         patch("loa_cheval.audit.modelinv.redact_payload_strings", side_effect=lambda x: x), \
+         patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
+        assert cheval.cmd_invoke(_args("agentx", persona_tree)) == 0
+    assert captured.get("operator_visible_warn") is not True
+    assert "with thinking on" not in capsys.readouterr().err

@@ -28,11 +28,12 @@ Configured via `.loa.config.yaml` (see `.loa.config.yaml.example`); model tiers 
 
 ## Prompt caching (cycle-124 FR-4)
 
-cheval marks the persona (`.claude/skills/<agent>/persona.md`) as the single Anthropic `cache_control: ephemeral` breakpoint and sends the per-call `--system` context after it; no code decides eligibility — the marker is always emitted and the returned counts (`usage.cache_read_input_tokens`, MODELINV `tokens_cache_read`) tell the truth. Reads bill at 0.1× input (Fable 5.1: 0.025×), writes at 1.25×; `LOA_CHEVAL_LEGACY_WIRE=1` removes the marker.
+cheval marks the stable prefix as the single Anthropic `cache_control: ephemeral` breakpoint — the persona (`.claude/skills/<agent>/persona.md`) when the agent has one, with the per-call `--system` context sent after it; otherwise the whole `--system` payload (PRD FR-4). No code decides eligibility — the marker is always emitted and the returned counts (`usage.cache_read_input_tokens`, MODELINV `tokens_cache_read`) tell the truth. Reads bill at 0.1× input (Fable 5.1: 0.025×), writes at 1.25×; `LOA_CHEVAL_LEGACY_WIRE=1` removes the marker.
 
 | Caller | Cacheable prefix | Min. cacheable prefix (reference, 2026-06-24) | Expected outcome |
 |---|---|---|---|
-| Bridgebuilder voices, Flatline review/skeptic/scorer, adversarial dissent | persona.md (stable across calls of one agent) | 512 tokens on Opus 5 / Fable; 1024 on Opus 4.8 / Sonnet 5 / Sonnet 4.6; 4096 on Opus 4.6 / Haiku 4.5 | second and later calls within 5 min read the prefix (`cache_read > 0`); personas shorter than the minimum are never cached — the count stays 0, not an error |
-| Ad-hoc `cheval --prompt` with no persona | none | — | no marker, no cache traffic |
+| Flatline review/skeptic/scorer, adversarial dissent (agents with a persona.md) | persona.md (stable across calls of one agent) | 512 tokens on Opus 5 / Fable; 1024 on Opus 4.8 / Sonnet 5 / Sonnet 4.6; 4096 on Opus 4.6 / Haiku 4.5 | second and later calls within 5 min read the prefix (`cache_read > 0`); personas shorter than the minimum are never cached — the count stays 0, not an error |
+| Bridgebuilder voices (`--agent reviewing-code`, no persona.md) | the whole `--system` file: `INJECTION_HARDENING` + `.claude/data/bridgebuilder-persona.md` (~9 KB, stable per voice) | same minimums | second and later calls of a voice read the prefix; the per-PR diff travels in the user turn and is never cached |
+| Ad-hoc `cheval --prompt` with neither persona nor `--system` | none | — | no system block, no marker, no cache traffic |
 | claude-headless (CLI) | Claude Code's own system prompt; persona rides in the prompt body | CLI-managed | counts come from the CLI's `usage` block; Loa does not add a marker |
 | Non-Anthropic providers | n/a (marker ignored; single joined system string) | — | bodies byte-identical to pre-cycle-124 |

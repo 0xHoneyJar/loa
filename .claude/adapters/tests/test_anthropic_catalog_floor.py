@@ -222,6 +222,18 @@ def test_fallback_chain_targets_exist(catalog, anthropic):
     ]
 
 
+def test_advisor_loader_resolves_the_review_role_to_opus_5():
+    """AC-3.4 via the code path cheval takes (review round-1 low 4): the loader
+    over the live .loa.config.yaml resolves role=review on the Anthropic
+    provider to the advisor tier's claude-opus-5."""
+    from loa_cheval.config.advisor_strategy import load_advisor_strategy
+    cfg = load_advisor_strategy(REPO_ROOT)
+    assert cfg.enabled, "advisor_strategy is disabled in .loa.config.yaml"
+    tier = cfg.resolve(role="review", skill="reviewing-code", provider="anthropic")
+    assert tier.tier == "advisor"
+    assert tier.model_id == "claude-opus-5"
+
+
 def test_advisor_tier_points_at_opus_5():
     with LOA_CONFIG.open() as fh:
         cfg = yaml.safe_load(fh)

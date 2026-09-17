@@ -116,6 +116,7 @@ def test_real_cli_dispatch_records_same_cost_in_ledger_and_modelinv(tmp_path, mo
     monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(binary))
     monkeypatch.setenv("LOA_HEADLESS_MODE", "cli-only")
     monkeypatch.setattr(cheval, "_load_persona", lambda *a, **kw: None)
+    monkeypatch.setattr(cheval, "_load_persona_parts", lambda *a, **kw: (None, None))
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *a, **kw: None)
     ledger = tmp_path / "cost.jsonl"
     cfg = {
