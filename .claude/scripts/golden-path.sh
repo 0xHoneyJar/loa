@@ -85,6 +85,39 @@ _gp_sprint_is_complete() {
     [[ -f "${sprint_dir}/COMPLETED" ]]
 }
 
+# FR-5 (cycle-124): the one verdict gate behind both call sites below. Every
+# caller has already confirmed the file carries a LOA-VERDICT marker, so a
+# verdict-derive.sh exit 2 here can only be a present-but-unparseable trailer
+# or a usage error (it exits 2 BEFORE emit_json) — any rc != 0 denies, as
+# does missing/broken jq. Passes only on rc 0 AND .consistent AND APPROVED.
+# Returns 0 pass / 1 deny; diagnostics go to stderr, never stdout.
+_gp_verdict_gate() {
+    local file="$1" gate="$2"
+    local verdict_json rc consistent verdict
+    verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${file}" --gate "${gate}" --json 2>/dev/null) && rc=0 || rc=$?
+    consistent=$(printf '%s' "${verdict_json}" | jq -r '.consistent // false' 2>/dev/null) || consistent="false"
+    if [[ "${rc}" -ne 0 || "${consistent}" != "true" ]]; then
+        echo "golden-path: inconsistent LOA-VERDICT trailer in ${file}" >&2
+        printf '%s' "${verdict_json}" | jq -r '.violations[]? // empty' >&2 2>/dev/null || true
+        return 1
+    fi
+    verdict=$(printf '%s' "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+    [[ "${verdict}" == "APPROVED" ]] && return 0
+    return 1
+}
+
+# Read one integer field straight off a file's LOA-VERDICT trailer line;
+# absent file/trailer/field (or a non-integer) reads as 0. verdict-derive.sh
+# does not know the FR-8 exclusion fields yet (Sprint 3), so the audit
+# cross-check below parses the trailer line directly.
+_gp_trailer_int() {
+    local file="$1" field="$2" val
+    val=$(grep -o '<!-- LOA-VERDICT {.*} -->' "${file}" 2>/dev/null | head -1 \
+          | sed 's/^<!-- LOA-VERDICT //; s/ -->$//' \
+          | jq -r --arg f "${field}" '.[$f] // 0' 2>/dev/null) || val=""
+    [[ "${val}" =~ ^[0-9]+$ ]] && echo "${val}" || echo 0
+}
+
 # Check if a sprint has been reviewed (no findings or no required changes).
 # Detection: feedback file exists AND contains no "## Changes Required" or "## Findings" sections,
 # OR the sprint has already passed audit (which implies review was acceptable).
@@ -109,11 +142,8 @@ _gp_sprint_is_reviewed() {
         # back to the legacy prose heuristic (which could reverse the verdict).
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
            grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
-            local verdict_json verdict rc
-            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
-            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
-            [[ "${verdict}" == "APPROVED" ]] && return 0
-            return 1
+            _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review
+            return $?
         fi
 
         # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
@@ -136,11 +166,20 @@ _gp_sprint_is_audited() {
         # R2 review (cycle-119): -f + bash invocation, same rationale as above.
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
            grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
-            local verdict_json verdict rc
-            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
-            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
-            [[ "${verdict}" == "APPROVED" ]] && return 0
-            return 1
+            _gp_verdict_gate "${sprint_dir}/auditor-sprint-feedback.md" audit || return 1
+            # FR-5 cross-check: a reviewer-demoted high (review trailer
+            # `excluded`, FR-8) passes only when the auditor confirmed exactly
+            # that many (`excluded_confirmed`) — fail closed, absent reads as 0.
+            local excluded excluded_confirmed
+            excluded=$(_gp_trailer_int "${sprint_dir}/engineer-feedback.md" excluded)
+            if [[ "${excluded}" -gt 0 ]]; then
+                excluded_confirmed=$(_gp_trailer_int "${sprint_dir}/auditor-sprint-feedback.md" excluded_confirmed)
+                if [[ "${excluded_confirmed}" -ne "${excluded}" ]]; then
+                    echo "golden-path: review trailer excluded=${excluded} but audit trailer excluded_confirmed=${excluded_confirmed} in ${sprint_dir}/auditor-sprint-feedback.md" >&2
+                    return 1
+                fi
+            fi
+            return 0
         fi
 
         # Legacy prose logic (byte-identical to pre-cycle-119 behavior)

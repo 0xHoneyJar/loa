@@ -120,11 +120,14 @@ while circuit_breaker.state == CLOSED:
   2. Commit changes, then track deletions (see "Deleted Files Tracking" below)
   3. update_state(phase: REVIEW)
   4. /review-sprint $target
-  5. If engineer-feedback.md has findings → record_cycle(findings), check circuit breaker
+  5. If `verdict-derive.sh --gate review` on engineer-feedback.md does not exit 0 with
+     `.verdict == APPROVED` (anything else — including an inconsistent trailer — counts as
+     findings) → record_cycle(findings), check circuit breaker
      (see "Circuit Breaker" below); on trip, HALT; else continue loop (back to step 1)
   6. update_state(phase: AUDIT)
   7. /audit-sprint $target
-  8. If auditor-sprint-feedback.md has findings → same as step 5
+  8. If `verdict-derive.sh --gate audit` on auditor-sprint-feedback.md does not exit 0 with
+     `.verdict == APPROVED` → same as step 5
   9. RED_TEAM_CODE gate (if enabled) — see below
   10. If COMPLETED marker exists → update_state(state: COMPLETE); break
 Create draft PR (see "Completion and PR Creation")
@@ -200,9 +203,13 @@ On the first trigger that fires, trip the breaker:
 
 ### Issue Hash Tracking (Same-Issue trigger)
 
-1. After each `/review-sprint` or `/audit-sprint`, compute a hash of the findings section:
-   `grep -A 100 "## Findings\|## Issues\|## Changes Required" <feedback-file> | head -50 | md5sum | cut -d' ' -f1`
-   (or `echo "none"` if the feedback file doesn't exist).
+1. After each `/review-sprint` or `/audit-sprint`, compute the same-issue hash from the
+   DERIVED verdict when the feedback file carries a `<!-- LOA-VERDICT` trailer:
+   `bash .claude/scripts/verdict-derive.sh --file <feedback-file> --gate review|audit --json 2>/dev/null | jq -Sc '{verdict,counts}' | md5sum | cut -d' ' -f1`
+   No-trailer fallback (legacy files only, today's prose recipe verbatim): `grep -A 100 "## Findings\|## Issues\|## Changes Required" <feedback-file> | head -50 | md5sum | cut -d' ' -f1`
+   (or `echo "none"` if the feedback file doesn't exist). The derived hash is coarser than the
+   prose hash — identical verdict+counts on different findings collide, so the breaker trips
+   sooner, which HALTs for a human (the loud direction).
 2. Read `last_hash` via `jq -r '.triggers.same_issue.last_hash // "none"' .run/circuit-breaker.json`.
 3. If the new hash equals `last_hash` and is not `"none"`: increment count
    (`jq '.triggers.same_issue.count += 1'`). Otherwise: reset — set count to 1 and
