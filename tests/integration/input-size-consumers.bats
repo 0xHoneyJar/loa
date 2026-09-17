@@ -49,7 +49,7 @@ for (const id of ids) {
   const b = GENERATED_TOKEN_BUDGETS[id];
   if (!b || b.maxInput !== 160000) { console.error('bad budget', id, JSON.stringify(b)); process.exit(1); }
 }
-if (GENERATED_TOKEN_BUDGETS['claude-headless'].maxInput !== 200000) process.exit(2);
+if (GENERATED_TOKEN_BUDGETS['claude-headless'].maxInput !== 1000000) process.exit(2);
 console.log('OK');
 "
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }

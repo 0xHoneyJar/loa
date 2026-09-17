@@ -103,8 +103,8 @@ _assert_resolves() {
             return 1
         }
     done
-    # Entries without a ceiling keep context_window (claude-headless has no ceiling).
-    grep -qE '"claude-headless": \{ maxInput: 200000,' "$BB_TRUNC_TS"
+    # Entries without a ceiling keep context_window (claude-headless has no ceiling; 1M mirrors its cli_model).
+    grep -qE '"claude-headless": \{ maxInput: 1000000,' "$BB_TRUNC_TS"
 }
 
 @test "c124-1.3-9: dist/ twin of truncation.generated.ts carries identical maxInput values" {

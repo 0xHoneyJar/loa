@@ -693,10 +693,10 @@ providers:
         dispatch_group: anthropic-claude
         kind: cli
         capabilities: [chat]            # No tool_use, no thinking
-        # #881 close: claude CLI dispatches sonnet/opus, both of which
-        # advertise 200000-token context (matches the http_api
-        # claude-opus-4-7 / claude-sonnet-4-6 entries in this file).
-        context_window: 200000
+        # #881 close: claude CLI dispatches whatever cli_model names below;
+        # context_window mirrors that model's http_api sibling (bug-881-1b
+        # invariant). cycle-124 FR-3: fable → claude-fable-5-1 = 1M.
+        context_window: 1000000
         # No static pricing: record CLI-reported total_cost_usd when available.
         # OAuth does not establish zero cost or actual billing; see KF-020.
         # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal

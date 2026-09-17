@@ -23,6 +23,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
     http_post_stream,
+    _legacy_wire,
 )
 from loa_cheval.streaming import StreamingRecoveryAbort
 from loa_cheval.types import (
@@ -149,6 +150,23 @@ class AnthropicAdapter(ProviderAdapter):
         params = model_config.params if isinstance(model_config.params, dict) else {}
         if params.get("temperature_supported", True):
             body["temperature"] = request.temperature
+        elif request.temperature != 0.7:
+            # cycle-124 FR-1 (SDD §3.3): the silent omission is now visible —
+            # thinking-enabled models reject sampling params with HTTP 400, so
+            # a caller-supplied temperature (top_p / top_k are not request
+            # fields) is dropped, and said so once per call.
+            logger.warning(
+                "temperature %s dropped for %s (thinking-enabled / sampling params rejected)",
+                request.temperature, request.model,
+            )
+
+        # cycle-124 FR-1 (SDD §3.3): adaptive thinking is OFF unless requested
+        # on Opus 4.6/4.7/4.8 + Sonnet 4.6 and default-on for Opus 5 / Sonnet 5;
+        # the catalog flag makes every hop behave the same. NEVER budget_tokens
+        # (400 on 4.7+), NEVER type=disabled (400 on Fable — omit instead).
+        # LOA_CHEVAL_LEGACY_WIRE restores the pre-cycle body.
+        if params.get("thinking_adaptive") is True and not _legacy_wire():
+            body["thinking"] = {"type": "adaptive"}
 
         if system_prompt:
             body["system"] = system_prompt
@@ -421,6 +439,10 @@ class AnthropicAdapter(ProviderAdapter):
         usage = Usage(
             input_tokens=usage_data.get("input_tokens", 0),
             output_tokens=usage_data.get("output_tokens", 0),
+            # cycle-124 FR-4: cache telemetry on the non-streaming path
+            # (the streaming parser already carries it).
+            cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0) or 0,
+            cache_creation_input_tokens=usage_data.get("cache_creation_input_tokens", 0) or 0,
             reasoning_tokens=0,  # Anthropic reports thinking tokens differently
             source="actual" if usage_data else "estimated",
         )
@@ -492,6 +514,12 @@ def _transform_messages(
     """
     system_prompt = None
     anthropic_messages = []
+    # cycle-124 FR-4 (SDD §3.3): (content, cache_control) per system message.
+    # No marker anywhere ⇒ the joined string exactly as before; any marker ⇒
+    # a list of text blocks with the marker on its block. The "\n\n" joiner is
+    # folded into the following block's text so the model sees the same
+    # characters either way. LOA_CHEVAL_LEGACY_WIRE ignores markers.
+    system_parts: List[tuple] = []
 
     for msg in messages:
         role = msg.get("role", "user")
@@ -503,6 +531,8 @@ def _transform_messages(
                 system_prompt = content
             else:
                 system_prompt += "\n\n" + content
+            cache_control = msg.get("cache_control") if not _legacy_wire() else None
+            system_parts.append((content, cache_control if isinstance(cache_control, dict) else None))
         elif role == "tool":
             # Anthropic represents tool results differently
             anthropic_messages.append({
@@ -518,6 +548,15 @@ def _transform_messages(
                 "role": role,
                 "content": content,
             })
+
+    if any(cc for _, cc in system_parts):
+        blocks: List[Dict[str, Any]] = []
+        for i, (content, cc) in enumerate(system_parts):
+            block: Dict[str, Any] = {"type": "text", "text": content if i == 0 else "\n\n" + content}
+            if cc:
+                block["cache_control"] = cc
+            blocks.append(block)
+        return blocks, anthropic_messages
 
     return system_prompt, anthropic_messages
 

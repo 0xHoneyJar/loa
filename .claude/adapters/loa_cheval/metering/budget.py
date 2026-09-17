@@ -59,6 +59,13 @@ DOWNGRADE = "DOWNGRADE"
 BLOCK = "BLOCK"
 
 
+def _int_or_zero(value: Any) -> int:
+    """Non-negative int passthrough; anything else (None, mocks, bools) → 0."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return value
+
+
 class BudgetEnforcer:
     """Pre/post call budget enforcement hook.
 
@@ -226,6 +233,10 @@ class BudgetEnforcer:
                 input_tokens=result.usage.input_tokens,
                 output_tokens=result.usage.output_tokens,
                 reasoning_tokens=result.usage.reasoning_tokens,
+                # cycle-124 FR-4: cache tokens priced at the entry's cache rates
+                # (ints only — a provider stub without the fields counts as 0).
+                cache_read_tokens=_int_or_zero(getattr(result.usage, "cache_read_input_tokens", 0)),
+                cache_creation_tokens=_int_or_zero(getattr(result.usage, "cache_creation_input_tokens", 0)),
                 latency_ms=result.latency_ms,
                 config=self._config,
                 usage_source=result.usage.source,

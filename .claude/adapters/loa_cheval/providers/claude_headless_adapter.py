@@ -316,6 +316,10 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             # Anthropic's API doesn't surface a separate reasoning_output_tokens
             # field through Claude Code yet — when it does, map it here.
             reasoning_tokens=int(usage_data.get("reasoning_output_tokens") or 0),
+            # cycle-124 FR-4: cache telemetry on Usage as well as metadata so
+            # the MODELINV / CLI-JSON capture reads one place for every transport.
+            cache_read_input_tokens=int(usage_data.get("cache_read_input_tokens") or 0),
+            cache_creation_input_tokens=int(usage_data.get("cache_creation_input_tokens") or 0),
             source="actual" if usage_data else "estimated",
         )
 

@@ -96,19 +96,20 @@ setup() {
 # T3: parity with hardcoded TOKEN_BUDGETS in resources/core/truncation.ts
 # ---------------------------------------------------------------------------
 
-@test "T3: truncation.generated.ts contains claude-opus-4-7 with maxInput=200000, maxOutput=8192, coefficient=0.25" {
+# cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling (180000) − 20000.
+@test "T3: truncation.generated.ts contains claude-opus-4-7 with maxInput=160000, maxOutput=8192, coefficient=0.25" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-opus-4-7":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*200000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    grep -E '"claude-opus-4-7":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains claude-opus-4-6 with parity" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-opus-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*200000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    grep -E '"claude-opus-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains claude-sonnet-4-6 with parity" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-sonnet-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*200000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    grep -E '"claude-sonnet-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains gpt-5.2 with maxInput=128000, maxOutput=4096, coefficient=0.23" {

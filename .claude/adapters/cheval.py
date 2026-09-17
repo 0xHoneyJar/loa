@@ -47,7 +47,7 @@ from loa_cheval.routing.resolver import (
 )
 from loa_cheval.routing.context_filter import audit_filter_context
 from loa_cheval.providers import cli_adapter_types, get_adapter
-from loa_cheval.providers.base import default_max_tokens  # cycle-124 FR-2
+from loa_cheval.providers.base import _legacy_wire, default_max_tokens  # cycle-124 FR-2/FR-4
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
 
@@ -136,15 +136,14 @@ PERSONA_AUTHORITY = (
 )
 
 
-def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Optional[str]:
-    """Load persona.md for the given agent with optional system merge (SDD §4.3.2).
+def _load_persona_parts(
+    agent_name: str, system_override: Optional[str] = None
+) -> tuple:
+    """Return (persona_text, system_text) — each None when absent.
 
-    Resolution:
-      1. Load persona.md from .claude/skills/<agent>/persona.md
-      2. If --system file provided and exists: merge persona + system with
-         context isolation wrapper
-      3. If --system file missing: fall back to persona alone (not None)
-      4. If no persona found: return system alone (backward compat) or None
+    cycle-124 FR-4: split out of `_load_persona` so the persona (the stable,
+    cacheable prefix) and the per-call context can travel as two system
+    messages; `_load_persona` still returns the joined string.
     """
     # Step 1: Find persona.md
     persona_text = None
@@ -172,6 +171,21 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         else:
             logger.warning("System prompt file not found: %s — falling back to persona", system_override)
 
+    return persona_text, system_text
+
+
+def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Optional[str]:
+    """Load persona.md for the given agent with optional system merge (SDD §4.3.2).
+
+    Resolution:
+      1. Load persona.md from .claude/skills/<agent>/persona.md
+      2. If --system file provided and exists: merge persona + system with
+         context isolation wrapper
+      3. If --system file missing: fall back to persona alone (not None)
+      4. If no persona found: return system alone (backward compat) or None
+    """
+    persona_text, system_text = _load_persona_parts(agent_name, system_override)
+
     # Step 3: Merge or return
     if persona_text and system_text:
         # Merge: persona + separator + context-isolated system + authority reinforcement
@@ -190,6 +204,50 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         return system_text
     else:
         return None
+
+
+# cycle-124 FR-4 (SDD §3.3): every adapter joins consecutive system messages
+# with "\n\n" (anthropic_adapter._transform_messages, openai instructions,
+# google system_parts, headless_cli._build_prompt). CONTEXT_SEPARATOR starts
+# with exactly that joiner, so splitting the merged prompt at it keeps the
+# joined text byte-identical to `_load_persona()` on every transport.
+assert CONTEXT_SEPARATOR.startswith("\n\n")
+_CONTEXT_TAIL_SEPARATOR = CONTEXT_SEPARATOR[len("\n\n"):]
+_PERSONA_CACHE_CONTROL: Dict[str, str] = {"type": "ephemeral"}
+
+
+def _persona_messages(agent_name: str, system_override: Optional[str] = None) -> List[Dict[str, Any]]:
+    """System messages for an Anthropic-company chain (cycle-124 FR-4).
+
+    persona.md is the stable prefix shared by every call of an agent, so it
+    carries the ONE prompt-cache breakpoint; the per-call `--system` context
+    follows it as a second system message. The Anthropic adapter turns the
+    marked message into a `cache_control` text block; every other adapter
+    ignores the extra key and joins the two contents with "\n\n" — the exact
+    text `_load_persona()` produces.
+    """
+    persona_text, system_text = _load_persona_parts(agent_name, system_override)
+    out: List[Dict[str, Any]] = []
+    if persona_text:
+        out.append({
+            "role": "system",
+            "content": persona_text,
+            "cache_control": dict(_PERSONA_CACHE_CONTROL),
+        })
+        if system_text:
+            out.append({
+                "role": "system",
+                "content": (
+                    _CONTEXT_TAIL_SEPARATOR
+                    + CONTEXT_WRAPPER_START
+                    + system_text
+                    + CONTEXT_WRAPPER_END
+                    + PERSONA_AUTHORITY
+                ),
+            })
+    elif system_text:
+        out.append({"role": "system", "content": system_text})
+    return out
 
 
 # cycle-104 Sprint 2 T2.11 amendment: kind:cli adapter routing.
@@ -666,6 +724,16 @@ def _hop_max_tokens(
         )
         return model_max
     return explicit
+
+
+def _entry_thinking_adaptive(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """True iff the catalog marks this hop's model `params.thinking_adaptive` (cycle-124 FR-1)."""
+    try:
+        models = (hounfour.get("providers", {}) or {}).get(entry.provider, {}).get("models", {}) or {}
+        params = (models.get(entry.model_id, {}) or {}).get("params") or {}
+        return params.get("thinking_adaptive") is True
+    except AttributeError:
+        return False
 
 
 def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str) -> Optional[str]:
@@ -1411,6 +1479,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # clean-output in /loa status --economy (replaces the Phase A
         # estimate-only proxy).
         "tokens_input": None,
+        # cycle-124 FR-4: prompt-cache telemetry (schema fields from U0).
+        "tokens_cache_read": None,
+        "tokens_cache_creation": None,
         "tokens_output": None,
     }
     _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
@@ -1440,11 +1511,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # Build messages
     messages = []
 
-    # System prompt: persona.md merged with --system (context isolation)
-    persona = _load_persona(agent_name, system_override=args.system)
-    if persona:
-        messages.append({"role": "system", "content": persona})
+    # System prompt: persona.md merged with --system (context isolation).
+    # cycle-124 FR-4: an Anthropic-company chain (HTTP hops + the claude-headless
+    # terminal — chains never cross companies) gets persona + context as two
+    # system messages with the cache breakpoint on the persona; everything else
+    # keeps the single merged string (AC-4.4 golden bodies). The legacy-wire
+    # kill switch restores the merged string on Anthropic too.
+    if resolved.provider == "anthropic" and not _legacy_wire():
+        persona_msgs = _persona_messages(agent_name, system_override=args.system)
+        persona = persona_msgs[0]["content"] if persona_msgs else None
+        messages.extend(persona_msgs)
     else:
+        persona = _load_persona(agent_name, system_override=args.system)
+        if persona:
+            messages.append({"role": "system", "content": persona})
+    if not persona:
         logger.warning(
             "No system prompt loaded for agent '%s'. "
             "Expected persona at: .claude/skills/%s/persona.md — "
@@ -2043,8 +2124,27 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     _modelinv_state["tokens_input"] = _in
                 if isinstance(_out, int) and _out >= 0:
                     _modelinv_state["tokens_output"] = _out
+                # cycle-124 FR-4: cache counts, same defensive shape.
+                _cr = getattr(_usage, "cache_read_input_tokens", None)
+                _cc = getattr(_usage, "cache_creation_input_tokens", None)
+                if isinstance(_cr, int) and not isinstance(_cr, bool) and _cr >= 0:
+                    _modelinv_state["tokens_cache_read"] = _cr
+                if isinstance(_cc, int) and not isinstance(_cc, bool) and _cc >= 0:
+                    _modelinv_state["tokens_cache_creation"] = _cc
             _result_meta = getattr(_result, "metadata", None) or {}
             _modelinv_state["streaming"] = _result_meta.get("streaming")
+            # cycle-124 FR-1/FR-4 (SDD §3.3): a thinking-enabled response that
+            # stopped at max_tokens spent the budget on reasoning — the
+            # visible answer is truncated. Flag it on the envelope and to the
+            # operator instead of letting a short verdict pass silently.
+            if _result_meta.get("stop_reason") == "max_tokens" and _entry_thinking_adaptive(_entry, hounfour):
+                _modelinv_state["operator_visible_warn"] = True
+                print(
+                    f"[cheval] WARN: {_entry.provider}:{_entry.model_id} stopped at "
+                    f"max_tokens={_entry_request.max_tokens} with adaptive thinking "
+                    "on — the answer is truncated; raise --max-tokens or lower --effort",
+                    file=sys.stderr,
+                )
             # cycle-113 sprint-170 T3.3 (FR-C-1, I-3): propagate the
             # streaming_recovery telemetry from result.metadata to the
             # MODELINV emit. The parser attaches a complete
@@ -2073,6 +2173,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         _snapshot["reasoning_per_mtok"] = int(_pricing_entry.reasoning_per_mtok)
                     if getattr(_pricing_entry, "per_task_micro_usd", 0):
                         _snapshot["per_task_micro_usd"] = int(_pricing_entry.per_task_micro_usd)
+                    # cycle-124 FR-4: cache rates travel with the snapshot so
+                    # roll-ups price cache tokens from the envelope, not from
+                    # today's catalog.
+                    if getattr(_pricing_entry, "cache_read_per_mtok", 0):
+                        _snapshot["cache_read_per_mtok"] = int(_pricing_entry.cache_read_per_mtok)
+                    if getattr(_pricing_entry, "cache_write_per_mtok", 0):
+                        _snapshot["cache_write_per_mtok"] = int(_pricing_entry.cache_write_per_mtok)
                     _modelinv_state["pricing_snapshot"] = _snapshot
             except Exception:  # noqa: BLE001 — pricing capture is fail-soft
                 # Missing or malformed pricing → envelope omits the field
@@ -2129,6 +2236,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "usage": {
                     "input_tokens": _result.usage.input_tokens,
                     "output_tokens": _result.usage.output_tokens,
+                    # cycle-124 FR-4: cache telemetry (0 when the provider
+                    # reports none — the count tells the truth about eligibility).
+                    "cache_read_input_tokens": getattr(_result.usage, "cache_read_input_tokens", 0) or 0,
+                    "cache_creation_input_tokens": getattr(_result.usage, "cache_creation_input_tokens", 0) or 0,
                 },
                 "latency_ms": _result.latency_ms,
             }
@@ -2233,6 +2344,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # cycle-124 FR-2: requested effort (schema field since cycle-114
                     # FR-8, never populated before this cycle).
                     effort=getattr(args, "effort", None),
+                    # cycle-124 FR-4: prompt-cache telemetry.
+                    tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
+                    tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],

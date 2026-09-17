@@ -659,10 +659,13 @@ export function applyLoaTierExclusion(
 // headroom and avoid context-window overflows at runtime.
 
 export const TOKEN_BUDGETS: Record<string, TokenBudget> = {
-  "claude-sonnet-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-  "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-  "claude-opus-4-7": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-  "claude-opus-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
+  // cycle-124 FR-3: Anthropic rows mirror the generated twin (effective_input_ceiling
+  // 180K − 20K headroom); getTokenBudget() serves the generated value first, so these
+  // are the fallback for a checkout whose codegen is stale.
+  "claude-sonnet-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+  "claude-sonnet-4-5-20250929": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+  "claude-opus-4-7": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+  "claude-opus-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
   "gpt-5.2": { maxInput: 128_000, maxOutput: 4_096, coefficient: 0.23 },
   default: { maxInput: 100_000, maxOutput: 4_096, coefficient: 0.25 },
 };

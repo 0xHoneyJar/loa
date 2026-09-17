@@ -43,7 +43,7 @@ export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {
   "claude-headless": {
     provider: "anthropic",
     modelId: "claude-headless",
-    contextWindow: 200000,
+    contextWindow: 1000000,
     capabilities: ["chat"],
   },
   "claude-opus-4-6": {

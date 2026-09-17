@@ -44,6 +44,11 @@ class PricingEntry:
     reasoning_per_mtok: int = 0  # micro-USD per 1M reasoning tokens
     per_task_micro_usd: int = 0  # Flat per-task cost (Deep Research)
     pricing_mode: str = "token"  # "token" | "task" | "hybrid"
+    # cycle-124 FR-4: prompt-cache rates. Anthropic bills cache reads at 0.1×
+    # input (Fable 5.1: 0.025×) and cache writes at 1.25× input; the catalog
+    # carries cache_read_per_mtok explicitly, cache_write derives when absent.
+    cache_read_per_mtok: int = 0
+    cache_write_per_mtok: int = 0
 
 
 @dataclass
@@ -57,6 +62,12 @@ class CostBreakdown:
     remainder_input: int
     remainder_output: int
     remainder_reasoning: int
+    # cycle-124 FR-4: cache read / write costs (0 when the provider reports
+    # no cache tokens or the entry has no cache rate).
+    cache_read_cost_micro: int = 0
+    cache_write_cost_micro: int = 0
+    remainder_cache_read: int = 0
+    remainder_cache_write: int = 0
 
 
 def calculate_cost_micro(tokens: int, price_micro_per_million: int) -> tuple:
@@ -86,6 +97,8 @@ def calculate_total_cost(
     output_tokens: int,
     reasoning_tokens: int,
     pricing: PricingEntry,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
 ) -> CostBreakdown:
     """Calculate total cost for a completion in micro-USD.
 
@@ -93,6 +106,10 @@ def calculate_total_cost(
     - "token": Standard per-token pricing (default)
     - "task": Flat per-task cost (e.g., Deep Research) — token counts ignored
     - "hybrid": Token cost + flat per-task cost summed
+
+    cycle-124 FR-4: `cache_read_tokens` / `cache_creation_tokens` are the
+    Anthropic usage fields (NOT included in `input_tokens`), priced at the
+    entry's cache_read_per_mtok / cache_write_per_mtok.
     """
     if pricing.pricing_mode == "task":
         # Flat per-task cost only — no token math
@@ -117,7 +134,16 @@ def calculate_total_cost(
     else:
         reas_cost, reas_rem = 0, 0
 
-    token_total = inp_cost + out_cost + reas_cost
+    if pricing.cache_read_per_mtok and cache_read_tokens:
+        cr_cost, cr_rem = calculate_cost_micro(cache_read_tokens, pricing.cache_read_per_mtok)
+    else:
+        cr_cost, cr_rem = 0, 0
+    if pricing.cache_write_per_mtok and cache_creation_tokens:
+        cw_cost, cw_rem = calculate_cost_micro(cache_creation_tokens, pricing.cache_write_per_mtok)
+    else:
+        cw_cost, cw_rem = 0, 0
+
+    token_total = inp_cost + out_cost + reas_cost + cr_cost + cw_cost
 
     # Hybrid: add flat per-task cost on top of token cost
     if pricing.pricing_mode == "hybrid":
@@ -131,6 +157,10 @@ def calculate_total_cost(
         remainder_input=inp_rem,
         remainder_output=out_rem,
         remainder_reasoning=reas_rem,
+        cache_read_cost_micro=cr_cost,
+        cache_write_cost_micro=cw_cost,
+        remainder_cache_read=cr_rem,
+        remainder_cache_write=cw_rem,
     )
 
 
@@ -180,12 +210,18 @@ def find_pricing(
     if not pricing:
         return None
 
+    input_per_mtok = pricing.get("input_per_mtok", 0)
     return PricingEntry(
         provider=provider,
         model=model,
-        input_per_mtok=pricing.get("input_per_mtok", 0),
+        input_per_mtok=input_per_mtok,
         output_per_mtok=pricing.get("output_per_mtok", 0),
         reasoning_per_mtok=pricing.get("reasoning_per_mtok", 0),
         per_task_micro_usd=pricing.get("per_task_micro_usd", 0),
         pricing_mode=pricing.get("pricing_mode", "token"),
+        # cycle-124 FR-4: explicit catalog rate, else the Anthropic defaults
+        # (0.1× read, 1.25× write); providers that never report cache tokens
+        # never exercise them.
+        cache_read_per_mtok=pricing.get("cache_read_per_mtok", input_per_mtok // 10),
+        cache_write_per_mtok=pricing.get("cache_write_per_mtok", input_per_mtok * 5 // 4),
     )

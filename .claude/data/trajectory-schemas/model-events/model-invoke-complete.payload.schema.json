@@ -357,6 +357,16 @@
               "type": "integer",
               "minimum": 0
             },
+            "cache_read_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "cycle-124 FR-4: prompt-cache read rate captured with the snapshot (micro-USD per million tokens)."
+            },
+            "cache_write_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "cycle-124 FR-4: prompt-cache write (creation) rate captured with the snapshot (micro-USD per million tokens)."
+            },
             "pricing_mode": {
               "enum": [
                 "token",

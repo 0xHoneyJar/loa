@@ -99,8 +99,15 @@ def create_ledger_entry(
     usage_source: str = "actual",
     interaction_id: Optional[str] = None,
     reported_cost_micro_usd: Optional[int] = None,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
 ) -> Dict[str, Any]:
     """Create a ledger entry dict matching SDD §4.5.1 format.
+
+    cycle-124 FR-4: `cache_read_tokens` / `cache_creation_tokens` (Anthropic
+    usage fields, not part of input_tokens) are priced at the entry's cache
+    rates and recorded as `tokens_cache_read` / `tokens_cache_creation` when
+    non-zero (rows without cache traffic keep their pre-cycle shape).
 
     A normalized CLI-reported amount supersedes config pricing. Otherwise,
     calculates cost from config; absent pricing is 'unknown' with cost 0.
@@ -116,7 +123,9 @@ def create_ledger_entry(
         pricing_mode = "token"
     elif pricing:
         breakdown = calculate_total_cost(
-            input_tokens, output_tokens, reasoning_tokens, pricing
+            input_tokens, output_tokens, reasoning_tokens, pricing,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
         )
         cost_micro_usd = breakdown.total_cost_micro
         pricing_source = "config"
@@ -148,6 +157,10 @@ def create_ledger_entry(
 
     if interaction_id:
         entry["interaction_id"] = interaction_id
+    if cache_read_tokens:
+        entry["tokens_cache_read"] = cache_read_tokens
+    if cache_creation_tokens:
+        entry["tokens_cache_creation"] = cache_creation_tokens
 
     return entry
 

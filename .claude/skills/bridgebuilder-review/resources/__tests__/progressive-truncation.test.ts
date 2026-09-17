@@ -34,14 +34,14 @@ describe("TOKEN_BUDGETS", () => {
   it("has entry for claude-sonnet-4-5-20250929", () => {
     const budget = TOKEN_BUDGETS["claude-sonnet-4-5-20250929"];
     assert.ok(budget);
-    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxInput, 160_000);
     assert.equal(budget.coefficient, 0.25);
   });
 
   it("has entry for claude-opus-4-6", () => {
     const budget = TOKEN_BUDGETS["claude-opus-4-6"];
     assert.ok(budget);
-    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxInput, 160_000);
   });
 
   it("has entry for gpt-5.2", () => {

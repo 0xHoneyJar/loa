@@ -17,7 +17,7 @@ export const GENERATED_TOKEN_BUDGETS = {
     "claude-fable-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-fable-5-1": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-haiku-4-5-20251001": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-headless": { maxInput: 1000000, maxOutput: 8192, coefficient: 0.25 },
     "claude-opus-4-6": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-opus-4-7": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-opus-4-8": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
