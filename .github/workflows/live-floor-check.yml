@@ -13,23 +13,21 @@ name: Live floor check (Anthropic)
 #     from `reference` to `probed`.
 #
 # Secret gating: GitHub does not allow `secrets.*` inside a step `if:`, so the
-# job exports HAS_KEY from the secret and every step is gated on it. Fork PRs
-# never see the secret, so the job is meaningful only on same-repo branches
-# and on manual dispatch — until the operator adds ANTHROPIC_API_KEY and
-# marks this check required, its recorded pass is the named MERGE
-# PRECONDITION of the cycle-124 draft PR (not a CI failure).
+# job exports HAS_KEY from the secret and every step is gated on it.
+#
+# Trigger: MANUAL ONLY (Sprint 1 audit, cross-model dissent finding). A
+# `pull_request` trigger would hand ANTHROPIC_API_KEY to a pytest run over
+# PR-controlled code — HAS_KEY only says the secret exists, it does not make
+# the checked-out code trusted. The operator dispatches this workflow on the
+# candidate branch; its recorded pass is the named MERGE PRECONDITION of the
+# cycle-124 draft PR (not a CI failure). The job targets the `live-floor`
+# environment so the key can be stored as an ENVIRONMENT secret behind
+# required reviewers rather than as a repository secret.
 #
 # Cost ceiling: the scaffold caps itself at ~$5 per run (LOA_LIVE_BUDGET_USD).
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - '.claude/adapters/**'
-      - '.claude/defaults/model-config.yaml'
-      - '.claude/schemas/wire/**'
-      - 'tests/replay/test_cycle124_live_floor.py'
-      - '.github/workflows/live-floor-check.yml'
 
 permissions:
   contents: read
@@ -42,6 +40,7 @@ jobs:
   live-floor:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: live-floor
     env:
       # `secrets.*` cannot be read in `if:` directly — compare here once.
       HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}

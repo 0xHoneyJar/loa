@@ -56,3 +56,17 @@ EXPECTED_SKIPS=8
     # every step that touches the key is gated
     [ "$(grep -c "if: env.HAS_KEY == 'true'" "$wf")" -ge 3 ]
 }
+
+@test "c124-1.8-5: live-floor-check.yml is manual-only and targets the live-floor environment (no secret over PR-controlled code)" {
+    local wf="$PROJECT_ROOT/.github/workflows/live-floor-check.yml"
+    run "$PYTHON_BIN" - "$wf" <<'PY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+on = d.get("on", d.get(True))
+triggers = set(on) if isinstance(on, dict) else {on}
+assert triggers == {"workflow_dispatch"}, f"triggers: {sorted(triggers)}"
+job = d["jobs"]["live-floor"]
+assert job.get("environment") == "live-floor", job.get("environment")
+PY
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+}
