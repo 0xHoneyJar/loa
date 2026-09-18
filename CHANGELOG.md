@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MODELINV payload schema: optional `tokens_cache_read`, `tokens_cache_creation`, `schema_enforced`, `output_schema_sha256`; committed mixed-writer fixture.
 - Live floor scaffold `tests/replay/test_cycle124_live_floor.py` + `tools/ceiling-probe.py` (credential-gated; the recorded pass is the cycle's merge precondition).
 
+### Added — cycle-124 Sprint 2 (structured outputs, FR-7)
+
+- **Wire schemas** `.claude/schemas/wire/{dissent-review,dissent-audit,flatline-reviewer,flatline-skeptic,flatline-scorer}.wire.json` — the strict subset both Anthropic `output_config.format` and OpenAI `text.format` accept, each carrying its persona's complete documented field set; `tests/unit/wire-schemas-api-safe.bats` pins closure, the keyword subset (incl. no `$schema` meta-URI — the Claude CLI validator rejects it), enum parity with the dissent prompts (⊆ `validate_finding`) and persona field parity.
+- **`cheval --json-schema FILE`** (object root, ≤ 64 KB, read once, canonical sha256 on the envelope): enforced as `output_config.format` on Anthropic `structured_json` entries and forwarded as `--json-schema` to `claude-headless` (`structured_output` preferred; a CLI-side schema rejection retries once unenforced); other hops run unenforced. `CompletionRequest.output_schema`; MODELINV `schema_enforced` + `output_schema_sha256` (only when a schema was requested); CLI JSON `schema_enforced` + `stop_reason`; `model-adapter.sh --json-schema` + `translate_output` passthrough. `tool_choice` `required`/unknown now raise on the Anthropic adapter.
+- **Dissent and Flatline consume it**: `adversarial-review.sh` passes `dissent-<type>.wire.json`, parses an enforced payload strictly (invalid JSON or `stop_reason=max_tokens` ⇒ `malformed_response`, `parse_path=schema_enforced`) and keeps the tolerant path + the KF-004 repair loop — now flag-less — for unenforced voices; DEGRADED on any rejected finding; `flatline-orchestrator.sh` passes the reviewer/skeptic/scorer schemas on every review/skeptic/score call and qualifies enforced voices strictly (`enforced_parse_failed`). `repair_loop:` removed from both configs.
+- **OpenAI pass-through** (isolated commit, droppable): `/v1/responses` `text.format = {json_schema, strict}` when a schema is supplied.
+- **Fixture corpus** `tests/fixtures/structured-outputs/{kf004,kf023,truncated.json}` (synthetic, per-path expectations) driven through both parse paths.
+
+### Fixed — cycle-124 Sprint 2
+
+- `ledger-lib.sh`: every jq walk over `.cycles[].sprints[]` skips bug-fix cycles' label-string entries (`update_sprint_status` returned LEDGER_ERROR on the live ledger).
+- Ledger isolation: `tests/unit/ledger-isolation-discovery.bats` now recognises the indirect spawners (`adversarial-review.sh`, `flatline-orchestrator.sh`); `adversarial-review-e2e.bats` and `adversarial-review.bats` redirect both ledgers (they had written mock rows into the operator's `.run/`).
+- Flatline `--help` text: score calls pass 16000 (was still saying 4000).
+
 ### Fixed — cycle-124 Sprint 1
 
 - **Golden-path verdict gate** (framework-review §9 item 1 / rec 2): `_gp_sprint_is_reviewed/_is_audited` derive the verdict from the `LOA-VERDICT` trailer through `verdict-derive.sh`, fail closed on any inconsistency (an APPROVED label with `counts.critical=1` no longer marks a sprint reviewed), and the audit gate confirms the review's `excluded` count.

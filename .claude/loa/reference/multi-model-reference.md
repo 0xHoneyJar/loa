@@ -46,6 +46,20 @@ config restoration, baseline comparison against
 and CI re-validation. Operators do NOT need to flip a runtime flag; they
 revert.
 
+cycle-124 Sprint 2 (FR-7) — **structured outputs**: `cheval --json-schema FILE`
+(object root, ≤ 64 KB) is enforced as Anthropic `output_config.format` on
+catalog entries with the `structured_json` capability and forwarded as
+`--json-schema` to `claude-headless` (`structured_output` is the answer); other
+hops run unenforced. The MODELINV envelope records `schema_enforced` and
+`output_schema_sha256` whenever a schema was requested; the dissent
+(`adversarial-review.sh`, `dissent-<type>.wire.json`) and Flatline
+(review/skeptic/scorer wire schemas) parse an enforced payload strictly and keep
+the tolerant normalize path — with the KF-004 repair loop, now flag-less — only
+for unenforced voices. Wire schemas live in `.claude/schemas/wire/`; the
+provider-safe subset is pinned by `tests/unit/wire-schemas-api-safe.bats`. Ratio
+one-liner over the log:
+`jq -r 'select(.payload.schema_enforced != null) | [.payload.final_model_id, .payload.schema_enforced] | @tsv' .run/model-invoke.jsonl | sort | uniq -c`.
+
 cycle-124 adds one **backstop** (not a rollback): `LOA_CHEVAL_LEGACY_WIRE=1`
 makes the Anthropic adapter emit the pre-cycle-124 request body (no adaptive
 `thinking`, no `cache_control` blocks, 4096 default `max_tokens`) so a wire
