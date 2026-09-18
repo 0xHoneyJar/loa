@@ -9,6 +9,7 @@ import {
   isAdjacentTest,
   estimateTokens,
   getTokenBudget,
+  effectiveInputBudget,
   TOKEN_BUDGETS,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
@@ -302,6 +303,16 @@ describe("progressiveTruncate budget clamp (cycle-124 FR-3)", () => {
     // fixed = ceil(560 000 × 0.25) = 140 000 > floor(160 000 × 0.9) − 40 000
     const clamped = progressiveTruncate(many, 300_000, "claude-opus-5", 560_000, 0);
     assert.ok(clamped.excluded.length > 0 || clamped.level > 1);
+  });
+
+  it("effectiveInputBudget: known ids clamp, unknown ids and the 'default' row keep the operator budget", () => {
+    assert.equal(effectiveInputBudget(300_000, "claude-opus-5"), 160_000);
+    assert.equal(effectiveInputBudget(120_000, "claude-opus-5"), 120_000);
+    assert.equal(effectiveInputBudget(300_000, "some-future-model"), 300_000);
+    assert.equal(effectiveInputBudget(300_000, "default"), 300_000);
+    assert.equal(effectiveInputBudget(300_000, "constructor"), 300_000);
+    // the adaptive retry (reviewer.ts) derives from this, so it shrinks below the clamp
+    assert.ok(Math.floor(effectiveInputBudget(300_000, "claude-opus-5") * 0.85) < 160_000);
   });
 
   it("treats inherited object keys as unknown ids (prototype-safe lookup)", () => {

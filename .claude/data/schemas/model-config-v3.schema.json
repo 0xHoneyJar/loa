@@ -155,7 +155,15 @@
           }
         },
         "extra": {"type": "object"},
-        "pricing": {"type": "object"},
+        "pricing": {
+          "type": "object",
+          "properties": {
+            "input_per_mtok": {"type": "integer", "minimum": 0},
+            "output_per_mtok": {"type": "integer", "minimum": 0},
+            "cache_read_per_mtok": {"type": "integer", "minimum": 0},
+            "cache_write_per_mtok": {"type": "integer", "minimum": 0}
+          }
+        },
         "permissions": {"$ref": "#/$defs/permissionsBlock"},
         "fallback_to": {"type": "string"},
         "fallback_mapping_version": {"type": "integer"},

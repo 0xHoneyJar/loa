@@ -557,6 +557,20 @@ export const TOKEN_BUDGETS = {
 function ownBudget(table, id) {
     return Object.prototype.hasOwnProperty.call(table, id) ? table[id] : undefined;
 }
+/**
+ * The input budget a caller may actually prepare for `model`: the operator
+ * budget clamped to the model's dispatchable input when the id is KNOWN to
+ * the generated twin or the hand table; an unknown id (and the literal
+ * "default" row, which is not a model) keeps the operator budget. Used by
+ * progressiveTruncate and by the reviewer's adaptive retry, so a retry never
+ * re-sends the same clamped payload (Sprint 1 audit, slice D).
+ */
+export function effectiveInputBudget(budgetTokens, model) {
+    const known = model !== "default" &&
+        (ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
+            ownBudget(TOKEN_BUDGETS, model) !== undefined);
+    return known ? Math.min(budgetTokens, getTokenBudget(model).maxInput) : budgetTokens;
+}
 export function getTokenBudget(model) {
     // cycle-124 FR-3: the generated twin (model-config.yaml) wins over the
     // hand-maintained table; the hand table remains the fallback for ids the
@@ -734,10 +748,8 @@ export function progressiveTruncate(files, budgetTokens, model, systemPromptLen,
     // generated twin or the hand table KNOW are clamped — an unknown id keeps
     // the operator's budget rather than being cut to the 100K default row
     // (review round-1 low 7).
-    const { coefficient, maxInput } = getTokenBudget(model);
-    const known = ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
-        (model !== "default" && ownBudget(TOKEN_BUDGETS, model) !== undefined);
-    const targetBudget = Math.floor((known ? Math.min(budgetTokens, maxInput) : budgetTokens) * 0.9);
+    const { coefficient } = getTokenBudget(model);
+    const targetBudget = Math.floor(effectiveInputBudget(budgetTokens, model) * 0.9);
     const fixedTokens = Math.ceil((systemPromptLen + metadataLen) * coefficient);
     // Apply size-aware security handling first (SKP-005)
     const capped = files.map((f) => isHighRisk(f.filename) ? capSecurityFile(f) : f);

@@ -418,6 +418,15 @@ assert sv.get('const') == 3, f'expected const:3 got {sv}'
     [ "$status" -ne 0 ]
 }
 
+@test "Reject (c124 audit): pricing.cache_read_per_mtok must be a non-negative integer (string rejected)" {
+    doc='{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"claude-opus-5": {"context_window": 1000000, "pricing": {"input_per_mtok": 5000000, "output_per_mtok": 25000000, "cache_read_per_mtok": "250000"}}}}}}'
+    run validate_v3 "$doc"
+    [ "$status" -ne 0 ]
+    doc='{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"claude-opus-5": {"context_window": 1000000, "pricing": {"input_per_mtok": 5000000, "output_per_mtok": 25000000, "cache_read_per_mtok": 250000}}}}}}'
+    run validate_v3 "$doc"
+    [ "$status" -eq 0 ]
+}
+
 @test "Live (c124): production model-config.yaml migrated with --to-v3 validates against v3 and keeps the catalog's own ceiling" {
     MIGRATE="$PROJECT_ROOT/.claude/scripts/loa-migrate-model-config.py"
     "$PYTHON_BIN" -c "import ruamel.yaml" 2>/dev/null || skip "ruamel.yaml not available in $PYTHON_BIN"

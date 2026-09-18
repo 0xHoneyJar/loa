@@ -100,6 +100,15 @@ export interface LoaTierResult {
  */
 export declare function applyLoaTierExclusion(files: PullRequestFile[], loaPatterns: string[]): LoaTierResult;
 export declare const TOKEN_BUDGETS: Record<string, TokenBudget>;
+/**
+ * The input budget a caller may actually prepare for `model`: the operator
+ * budget clamped to the model's dispatchable input when the id is KNOWN to
+ * the generated twin or the hand table; an unknown id (and the literal
+ * "default" row, which is not a model) keeps the operator budget. Used by
+ * progressiveTruncate and by the reviewer's adaptive retry, so a retry never
+ * re-sends the same clamped payload (Sprint 1 audit, slice D).
+ */
+export declare function effectiveInputBudget(budgetTokens: number, model: string): number;
 export declare function getTokenBudget(model: string): TokenBudget;
 /** Estimate tokens from string using model-specific coefficient. */
 export declare function estimateTokens(text: string, model: string): number;

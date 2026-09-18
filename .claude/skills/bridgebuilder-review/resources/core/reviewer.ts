@@ -30,6 +30,7 @@ import {
   progressiveTruncate,
   estimateTokens,
   getTokenBudget,
+  effectiveInputBudget,
   deriveCallConfig,
 } from "./truncation.js";
 
@@ -470,7 +471,11 @@ export class ReviewPipeline {
             pr: pr.number,
           });
 
-          const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+          // 85% of the budget the first attempt ACTUALLY used (the clamped
+          // one), or the retry re-sends an identical payload (audit, slice D).
+          const retryBudget = Math.floor(
+            effectiveInputBudget(this.config.maxInputTokens, this.config.model) * 0.85,
+          );
           const retryResult = progressiveTruncate(
             effectiveItem.files,
             retryBudget,
@@ -941,7 +946,9 @@ export class ReviewPipeline {
         });
       } catch (llmErr: unknown) {
         if (isTokenRejection(llmErr)) {
-          const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+          const retryBudget = Math.floor(
+            effectiveInputBudget(this.config.maxInputTokens, this.config.model) * 0.85,
+          );
           const retryResult = progressiveTruncate(
             effectiveItem.files, retryBudget, this.config.model,
             finalConvergenceSystem.length, 2000,
