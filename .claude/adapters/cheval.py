@@ -1630,7 +1630,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         max_tokens=_hop_max_tokens(
             _explicit_max_tokens, _chain.primary.provider, _chain.primary.model_id, hounfour
         ),
-        metadata={"agent": agent_name},
+        metadata=(
+            {"agent": agent_name, "output_schema_name": os.path.basename(str(args.json_schema))}
+            if _output_schema is not None else {"agent": agent_name}
+        ),
         effort=getattr(args, "effort", None),
         output_schema=_output_schema,
     )
