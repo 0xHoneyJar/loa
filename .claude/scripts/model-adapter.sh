@@ -300,7 +300,8 @@ translate_output() {
             model: $model,
             mode: $mode,
             phase: $phase,
-            cost_usd: 0
+            cost_usd: 0,
+            schema_enforced: (.schema_enforced // false)
         }'
 }
 
@@ -383,6 +384,7 @@ main() {
     # as calling_primitive.
     local skill=""
     local max_tokens=""
+    local json_schema=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -425,6 +427,12 @@ main() {
                 # bounded output shape (adversarial dissent) pass it explicitly
                 # so cheval's per-model default (Anthropic 64K) does not apply.
                 max_tokens="$2"
+                shift 2
+                ;;
+            --json-schema)
+                # cycle-124 FR-7 — wire schema file forwarded to MODEL_INVOKE;
+                # cheval enforces it where the hop can and reports schema_enforced.
+                json_schema="$2"
                 shift 2
                 ;;
             --max-retries)
@@ -542,6 +550,9 @@ main() {
     fi
     if [[ -n "$max_tokens" ]]; then
         invoke_args+=(--max-tokens "$max_tokens")
+    fi
+    if [[ -n "$json_schema" ]]; then
+        invoke_args+=(--json-schema "$json_schema")
     fi
 
     # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's

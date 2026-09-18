@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import logging
 import os
@@ -214,6 +215,37 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
 assert CONTEXT_SEPARATOR.startswith("\n\n")
 _CONTEXT_TAIL_SEPARATOR = CONTEXT_SEPARATOR[len("\n\n"):]
 _PERSONA_CACHE_CONTROL: Dict[str, str] = {"type": "ephemeral"}
+
+
+_OUTPUT_SCHEMA_MAX_BYTES = 64 * 1024
+
+
+def _read_output_schema(path: str) -> tuple:
+    """Read `--json-schema FILE` once (cycle-124 FR-7).
+
+    Returns (schema_dict, sha256_hex). The hash is over ONE canonical
+    serialization — `json.dumps(sort_keys=True, separators=(",", ":"))`, the
+    same bytes `jq -cS .` produces — so semantically identical files hash
+    equal. Raises ValueError (mapped to INVALID_INPUT by the caller) when the
+    file is unreadable, not JSON, not an object, or above the 64 KB cap.
+    """
+    try:
+        size = os.path.getsize(path)
+    except OSError as e:
+        raise ValueError(f"--json-schema {path!r}: {e.strerror or e}") from e
+    if size > _OUTPUT_SCHEMA_MAX_BYTES:
+        raise ValueError(
+            f"--json-schema {path!r}: {size} bytes exceeds the {_OUTPUT_SCHEMA_MAX_BYTES}-byte cap"
+        )
+    try:
+        with open(path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+    except (OSError, ValueError) as e:
+        raise ValueError(f"--json-schema {path!r}: not readable JSON ({e})") from e
+    if not isinstance(schema, dict):
+        raise ValueError(f"--json-schema {path!r}: root must be a JSON object")
+    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+    return schema, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _persona_messages(agent_name: str, system_override: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -1205,6 +1237,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # cycle-124 FR-2: `--max-tokens` is optional; None ⇒ per-hop default.
     # 0 / negative used to be silently rewritten to 4096 (`or 4096`) — an
     # operator asking for zero output is a misconfiguration, so refuse.
+    # cycle-124 FR-7: --json-schema is read ONCE, validated (object root,
+    # <= 64 KB, parseable) and hashed canonically for the envelope; a bad file
+    # is INVALID_INPUT before any model is touched.
+    _output_schema: Optional[Dict[str, Any]] = None
+    _output_schema_sha: Optional[str] = None
+    if getattr(args, "json_schema", None):
+        try:
+            _output_schema, _output_schema_sha = _read_output_schema(args.json_schema)
+        except ValueError as _schema_err:
+            print(_error_json("INVALID_INPUT", str(_schema_err)), file=sys.stderr)
+            return EXIT_CODES.get("INVALID_INPUT", 2)
+
     _explicit_max_tokens = getattr(args, "max_tokens", None)
     if _explicit_max_tokens is not None and _explicit_max_tokens <= 0:
         print(_error_json(
@@ -1308,6 +1352,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             ),
             "effort": getattr(args, "effort", None),
         }
+        if _output_schema_sha is not None:
+            result["output_schema_sha256"] = _output_schema_sha
         print(json.dumps(result, indent=2), file=sys.stdout)
         # Dry-run does not invoke a model — no MODELINV emit.
         return EXIT_CODES["SUCCESS"]
@@ -1586,6 +1632,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         ),
         metadata={"agent": agent_name},
         effort=getattr(args, "effort", None),
+        output_schema=_output_schema,
     )
 
     # cycle-104 Sprint 2: async mode is incompatible with multi-entry chain
@@ -1888,6 +1935,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 metadata=base_request.metadata,
                 tools=getattr(base_request, "tools", None),
                 effort=base_request.effort,
+                output_schema=base_request.output_schema,
             )
 
             # 4. Async mode (chain length forced to 1 by upfront check).
@@ -2147,6 +2195,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     _modelinv_state["tokens_cache_creation"] = _cc
             _result_meta = getattr(_result, "metadata", None) or {}
             _modelinv_state["streaming"] = _result_meta.get("streaming")
+            # cycle-124 FR-7: enforcement telemetry only when a schema was
+            # requested — absent rows mean "no schema", never "unenforced".
+            if _output_schema is not None:
+                _modelinv_state["schema_enforced"] = bool(_result_meta.get("schema_enforced", False))
+                _modelinv_state["output_schema_sha256"] = _output_schema_sha
             # cycle-124 FR-1/FR-4 (SDD §3.3): a thinking-enabled response that
             # stopped at max_tokens spent the budget on reasoning — the
             # visible answer is truncated. Flag it on the envelope and to the
@@ -2258,6 +2311,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     "cache_creation_input_tokens": getattr(_result.usage, "cache_creation_input_tokens", 0) or 0,
                 },
                 "latency_ms": _result.latency_ms,
+                # cycle-124 FR-7: whether the provider enforced the requested
+                # schema (false when none was requested or the hop cannot).
+                "schema_enforced": bool((getattr(_result, "metadata", None) or {}).get("schema_enforced", False)),
             }
             if _result.thinking and getattr(args, "include_thinking", False):
                 output["thinking"] = _result.thinking
@@ -2363,6 +2419,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # cycle-124 FR-4: prompt-cache telemetry.
                     tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
                     tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),
+                    # cycle-124 FR-7: structured-output telemetry (schema requested only).
+                    schema_enforced=_modelinv_state.get("schema_enforced"),
+                    output_schema_sha256=_modelinv_state.get("output_schema_sha256"),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
@@ -2540,6 +2599,15 @@ def main() -> int:
         help=(
             "Anthropic output_config.effort (cycle-124 FR-2). Omitted on models that "
             "predate the control; xhigh is downgraded to high on the 4.6 generation."
+        ),
+    )
+    parser.add_argument(
+        "--json-schema", dest="json_schema", metavar="FILE", default=None,
+        help=(
+            "JSON Schema file the answer must conform to (cycle-124 FR-7). Enforced "
+            "on Anthropic `structured_json` entries (output_config.format) and on "
+            "claude-headless (--json-schema); other hops run unenforced and the "
+            "MODELINV envelope records schema_enforced=false. Object root, <= 64 KB."
         ),
     )
     parser.add_argument(

@@ -497,6 +497,10 @@ def emit_model_invoke_complete(
     # cycle-124 FR-4 — prompt-cache telemetry (U0 schema fields).
     tokens_cache_read: Optional[int] = None,
     tokens_cache_creation: Optional[int] = None,
+    # cycle-124 FR-7 — structured-output telemetry (U0 schema fields); present
+    # only when a schema was requested for the call.
+    schema_enforced: Optional[bool] = None,
+    output_schema_sha256: Optional[str] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -574,6 +578,10 @@ def emit_model_invoke_complete(
         payload["tokens_cache_read"] = tokens_cache_read
     if tokens_cache_creation is not None:
         payload["tokens_cache_creation"] = tokens_cache_creation
+    if schema_enforced is not None:
+        payload["schema_enforced"] = bool(schema_enforced)
+    if output_schema_sha256 is not None:
+        payload["output_schema_sha256"] = output_schema_sha256
     if tokens_output is not None:
         payload["tokens_output"] = tokens_output
     # cycle-114 FR-11 (sprint-4): per-iteration cost telemetry from the
