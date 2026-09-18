@@ -33,8 +33,10 @@ else
     _PYTHON_BIN="$(command -v python3 || true)"
 fi
 # exit 0 + path · 3 = resolver refused (message on stderr) · 4 = substrate unavailable
+# No `cd`: a relative LOA_COST_LEDGER_PATH is CWD-relative for the writer and
+# must be for the reader too (Sprint 1 audit, slice B).
 _resolve_default_ledger() {
-    (cd "${PROJECT_ROOT}/.claude/adapters" && "${_PYTHON_BIN}" - <<'PY'
+    PYTHONPATH="${PROJECT_ROOT}/.claude/adapters${PYTHONPATH:+:$PYTHONPATH}" "${_PYTHON_BIN}" - <<'PY'
 import sys
 try:
     from loa_cheval.metering.rollup import default_ledger_path
@@ -47,7 +49,6 @@ except ConfigError as e:
     print(f"cost-report: {e.code}: {e}", file=sys.stderr)
     sys.exit(3)
 PY
-    )
 }
 LEDGER_PATH=""
 REPORT_DAYS=30
@@ -93,7 +94,14 @@ if [[ -z "$LEDGER_PATH" ]]; then
             echo "ERROR: cost ledger path rejected by the resolver (see message above); pass --ledger <path> to read another file" >&2
             exit 2
         fi
-        LEDGER_PATH="${LOA_COST_LEDGER_PATH:-${PROJECT_ROOT}/.run/cost-ledger.jsonl}"
+        # Substrate unavailable: only an explicit env redirect is trustworthy;
+        # guessing .run/ would report another file's numbers.
+        if [[ -n "${LOA_COST_LEDGER_PATH:-}" ]]; then
+            LEDGER_PATH="$LOA_COST_LEDGER_PATH"
+        else
+            echo "ERROR: cannot resolve the cost ledger (the cheval Python substrate is unavailable); pass --ledger <path> or set LOA_COST_LEDGER_PATH" >&2
+            exit 2
+        fi
     fi
 fi
 

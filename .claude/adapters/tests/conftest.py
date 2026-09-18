@@ -5,11 +5,11 @@ subprocess (``os.environ`` is inherited) — appends a cost-ledger row and a
 MODELINV envelope. Before this fixture those rows landed in the operator's
 real ``.run/`` ledgers (155 mock rows / 106 tmp-path rows on 2026-09-17).
 
-Set-only-if-unset: a test that wants the config fallback can
-``monkeypatch.delenv`` either variable.
+Unconditional (Sprint 1 audit, slice B): an operator who exports the two
+variables for their own redirected ledgers must not receive test rows there
+either — the hygiene tripwire only scans ``.run/``. A test that wants the
+config fallback ``monkeypatch.delenv``s the variable (test_cli_reported_cost).
 """
-
-import os
 
 import pytest
 
@@ -22,5 +22,4 @@ _LEDGER_ENV = {
 @pytest.fixture(autouse=True)
 def _isolate_ledgers(monkeypatch, tmp_path):
     for var, basename in _LEDGER_ENV.items():
-        if not os.environ.get(var):
-            monkeypatch.setenv(var, str(tmp_path / basename))
+        monkeypatch.setenv(var, str(tmp_path / basename))

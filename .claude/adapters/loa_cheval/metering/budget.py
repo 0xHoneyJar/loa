@@ -156,7 +156,8 @@ class BudgetEnforcer:
         summary_path = _daily_spend_path(self._ledger_path, today)
         os.makedirs(os.path.dirname(summary_path) or ".", exist_ok=True)
 
-        fd = os.open(summary_path, os.O_RDWR | os.O_CREAT, 0o644)
+        # O_NOFOLLOW: same hardening as ledger.update_daily_spend (audit, slice B).
+        fd = os.open(summary_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
 

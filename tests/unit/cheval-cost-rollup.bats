@@ -113,3 +113,10 @@ print(default_ledger_path())
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.entry_count')" = "3" ]
 }
+
+@test "cost-report: a RELATIVE LOA_COST_LEDGER_PATH resolves against the caller's CWD, as it does for the writer (audit slice B)" {
+    cd "$TMP_DIR"
+    run env LOA_COST_LEDGER_PATH="ledger.jsonl" bash "$REPO_ROOT/.claude/scripts/cost-report.sh" --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.entry_count')" = "3" ]
+}

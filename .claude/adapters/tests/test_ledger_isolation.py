@@ -177,6 +177,34 @@ class TestPathSafety:
         with pytest.raises(ConfigError):
             resolve_cost_ledger_path({"ledger_path": str(target)})
 
+    def test_daily_spend_sidecar_refuses_a_planted_symlink(self, tmp_path):
+        """audit slice B: the sidecar beside the ledger is truncated and rewritten
+        on every call; a symlink planted at today's sidecar path must fail
+        (ELOOP) instead of clobbering its target."""
+        from datetime import datetime, timezone
+        from loa_cheval.metering.ledger import _daily_spend_path, update_daily_spend
+        ledger = tmp_path / "cost-ledger.jsonl"
+        ledger.write_text("")
+        victim = tmp_path / "victim.txt"
+        victim.write_text("keep me")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        Path(_daily_spend_path(str(ledger), today)).symlink_to(victim)
+        with pytest.raises(OSError):
+            update_daily_spend(1, str(ledger))
+        assert victim.read_text() == "keep me"
+
+    def test_reader_refuses_when_the_merged_config_cannot_load(self, monkeypatch):
+        """audit slice B: an unloadable merged config (PyYAML missing, a failed
+        ${env:VAR} interpolation) must not make the reader guess .run/."""
+        import loa_cheval.config.loader as loader
+        monkeypatch.delenv(COST_LEDGER_ENV, raising=False)
+        def _boom(*_a, **_kw):
+            raise RuntimeError("yaml not importable")
+        monkeypatch.setattr(loader, "load_config", _boom)
+        with pytest.raises(ConfigError) as excinfo:
+            default_ledger_path()
+        assert "pass --ledger" in str(excinfo.value)
+
     def test_missing_parent_rejected(self, monkeypatch, tmp_path):
         missing = tmp_path / "nope" / "ledger.jsonl"
 
@@ -224,11 +252,14 @@ class TestIsolation:
         repo_run = _real(PROJECT_ROOT / ".run") + os.sep
         for var in (COST_LEDGER_ENV, MODELINV_ENV):
             value = os.environ.get(var)
-            assert value, f"{var} must be set (tests/conftest.py sets it when unset)"
+            assert value, f"{var} must be set by tests/conftest.py"
             assert not _real(Path(value)).startswith(repo_run), (
                 f"{var}={value!r} points into the repo's .run/ — the adapter suite "
                 "would append test rows to a production ledger"
             )
+            # audit slice B: the redirect is unconditional — an operator's own
+            # export must not collect test rows either.
+            assert value.startswith(str(tmp_path) + os.sep), (var, value)
 
     @pytest.mark.skipif(not MOCK_FIXTURE_DIR.is_dir(), reason="mock fixture dir absent")
     def test_mock_run_leaves_repo_ledgers_byte_identical(self):

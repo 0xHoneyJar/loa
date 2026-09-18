@@ -56,12 +56,20 @@ def default_ledger_path() -> str:
     file and report its numbers as the ledger's."""
     metering: Dict[str, Any] = {}
     if not os.environ.get(COST_LEDGER_ENV):
+        # An absent .loa.config.yaml is handled inside load_config (empty
+        # overlay); anything that RAISES here (unparseable yaml, a failed
+        # ${env:VAR} interpolation, PyYAML missing) means the writer's path is
+        # unknown — refuse rather than guess (Sprint 1 audit, slice B).
         try:
             from loa_cheval.config.loader import load_config
 
             metering = load_config()[0].get("metering") or {}
-        except Exception:  # no project config reachable — the resolver's default applies
-            metering = {}
+        except ConfigError:
+            raise
+        except Exception as e:  # noqa: BLE001 — re-typed, not swallowed
+            raise ConfigError(
+                f"cannot resolve the cost ledger: merged config failed to load ({type(e).__name__}: {e}); pass --ledger"
+            ) from e
     return resolve_cost_ledger_path(metering)
 
 

@@ -278,7 +278,10 @@ def update_daily_spend(entry_cost_micro: int, ledger_path: str) -> None:
 
     os.makedirs(os.path.dirname(summary_path) or ".", exist_ok=True)
 
-    fd = os.open(summary_path, os.O_RDWR | os.O_CREAT, 0o644)
+    # O_NOFOLLOW (Sprint 1 audit, slice B): the sidecar lives beside the
+    # ledger, whose directory an env redirect may now place anywhere; this
+    # open truncates and rewrites, so a planted symlink must fail (ELOOP).
+    fd = os.open(summary_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
 
