@@ -2100,8 +2100,8 @@ Options:
                          (issue #774) — both the Anthropic AND OpenAI cheval
                          paths fail on long-prompt requests with the typed
                          transport error; the gemini path is unaffected.
-                         When unset (cycle-124 FR-2): review/skeptic calls
-                         pass 16000, score calls pass 4000 — cheval's own
+                         When unset (cycle-124 FR-2): review/skeptic/score
+                         calls pass 16000 — cheval's own
                          per-model default (Anthropic 64K/16K, others 4096)
                          is sized for open-ended calls, not these.
   --json                 Output as JSON

@@ -11,7 +11,8 @@
 #   W3  no unsupported keyword anywhere (minimum, maximum, exclusive*, multipleOf,
 #       minLength, maxLength, pattern, patternProperties, format, if/then/else,
 #       dependentRequired, dependentSchemas, unevaluated*, minItems/maxItems,
-#       uniqueItems, minProperties/maxProperties)
+#       uniqueItems, minProperties/maxProperties) and no `$schema`/`$id`
+#       meta keys (the Claude CLI validator rejects the 2020-12 meta-URI)
 #   W4  dissent enums == the enums adversarial-review.sh advertises in its prompt
 #       (label-anchored) AND ⊆ validate_finding() (marker-anchored); severities equal
 #   W5  every field a Flatline persona documents is present AND required in its twin
@@ -68,7 +69,11 @@ import json, sys, glob, os
 FORBIDDEN = {"minimum","maximum","exclusiveMinimum","exclusiveMaximum","multipleOf","minLength","maxLength",
              "pattern","patternProperties","format","if","then","else","dependentRequired","dependentSchemas",
              "unevaluatedProperties","unevaluatedItems","minItems","maxItems","uniqueItems","minProperties",
-             "maxProperties","contains","propertyNames","not","oneOf","allOf","$ref","$defs","definitions","default"}
+             "maxProperties","contains","propertyNames","not","oneOf","allOf","$ref","$defs","definitions","default",
+             # Claude Code's --json-schema validator rejects a 2020-12 `$schema` URI
+             # ("no schema with key or ref …") — measured live 2026-09-18; neither
+             # provider needs the meta-schema declaration, so it is forbidden.
+             "$schema","$id","$comment","$anchor","$dynamicRef","$dynamicAnchor","$vocabulary"}
 bad = []
 def walk(node, path, fname, in_props=False):
     if isinstance(node, dict):

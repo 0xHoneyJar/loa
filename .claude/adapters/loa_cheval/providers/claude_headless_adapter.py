@@ -85,6 +85,11 @@ _JSON_SCHEMA_FLAG: Optional[bool] = None
 _JSON_SCHEMA_FLAG_LOCK = threading.Lock()
 
 
+def _is_schema_rejection(proc) -> bool:
+    text = (getattr(proc, "stderr", "") or "") + (getattr(proc, "stdout", "") or "")
+    return "not a valid JSON Schema" in text
+
+
 def _cli_supports_json_schema(cli_bin: str) -> bool:
     global _JSON_SCHEMA_FLAG
     with _JSON_SCHEMA_FLAG_LOCK:
@@ -141,7 +146,26 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
-        return run_subprocess_pgkill(command, **kwargs)
+        proc = run_subprocess_pgkill(command, **kwargs)
+        # cycle-124 FR-7: the CLI validates the schema itself ("--json-schema
+        # is not a valid JSON Schema: …", measured live 2026-09-18 on a
+        # 2020-12 `$schema` URI). That is a schema/CLI mismatch, not a model
+        # or transport failure — retry ONCE unenforced so the voice still
+        # answers (schema_enforced reports false) instead of dropping out of
+        # the chain.
+        if (
+            proc.returncode != 0
+            and "--json-schema" in command
+            and _is_schema_rejection(proc)
+        ):
+            logger.warning(
+                "claude rejected --json-schema (%s); retrying once without it (unenforced)",
+                ((proc.stderr or proc.stdout or "").strip().splitlines() or ["?"])[0][:200],
+            )
+            idx = list(command).index("--json-schema")
+            stripped = list(command[:idx]) + list(command[idx + 2:])
+            proc = run_subprocess_pgkill(stripped, **kwargs)
+        return proc
 
     def _finish_completion(
         self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,

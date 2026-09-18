@@ -125,3 +125,30 @@ def test_plain_result_is_reported_unenforced(monkeypatch):
         result = adapter.complete(_req())
     assert result.content == "PONG"
     assert result.metadata["schema_enforced"] is False
+
+
+def test_cli_schema_rejection_retries_once_unenforced(monkeypatch):
+    """Measured live 2026-09-18: the CLI's own validator rejected the wire
+    schemas' 2020-12 `$schema` URI and the whole voice dropped out. A schema
+    rejection is retried ONCE without the flag; the answer is unenforced."""
+    monkeypatch.setattr(mod, "_JSON_SCHEMA_FLAG", True)
+    adapter = ClaudeHeadlessAdapter(_config())
+    rejected = SimpleNamespace(returncode=1, stdout="", stderr='Error: --json-schema is not a valid JSON Schema: no schema with key or ref "https://json-schema.org/draft/2020-12/schema"\n')
+    with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill", side_effect=[rejected, _proc(CLI_JSON_PLAIN)]) as run:
+        result = adapter.complete(_req())
+    assert run.call_count == 2
+    first, second = run.call_args_list[0].args[0], run.call_args_list[1].args[0]
+    assert "--json-schema" in first and "--json-schema" not in second
+    assert second == [a for a in first if a not in ("--json-schema", COMPACT)]
+    assert result.content == "PONG"
+    assert result.metadata["schema_enforced"] is False
+
+
+def test_other_cli_failures_are_not_retried(monkeypatch):
+    monkeypatch.setattr(mod, "_JSON_SCHEMA_FLAG", True)
+    adapter = ClaudeHeadlessAdapter(_config())
+    failed = SimpleNamespace(returncode=1, stdout="", stderr="Error: something else went wrong\n")
+    with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill", side_effect=[failed, _proc(CLI_JSON_PLAIN)]) as run:
+        with pytest.raises(Exception):
+            adapter.complete(_req())
+    assert run.call_count == 1
