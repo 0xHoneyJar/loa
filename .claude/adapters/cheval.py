@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import os
+import stat
 import sys
 import traceback
 from dataclasses import dataclass
@@ -230,9 +231,14 @@ def _read_output_schema(path: str) -> tuple:
     file is unreadable, not JSON, not an object, or above the 64 KB cap.
     """
     try:
-        size = os.path.getsize(path)
+        st = os.stat(path)
     except OSError as e:
         raise ValueError(f"--json-schema {path!r}: {e.strerror or e}") from e
+    # A FIFO/device would make the open below block or read forever; only a
+    # regular file is a schema (same rule as the ledger resolver).
+    if not stat.S_ISREG(st.st_mode):
+        raise ValueError(f"--json-schema {path!r}: not a regular file")
+    size = st.st_size
     if size > _OUTPUT_SCHEMA_MAX_BYTES:
         raise ValueError(
             f"--json-schema {path!r}: {size} bytes exceeds the {_OUTPUT_SCHEMA_MAX_BYTES}-byte cap"

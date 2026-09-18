@@ -55,6 +55,17 @@ def test_bad_schema_files_raise(tmp_path, content, why):
         cheval._read_output_schema(str(f))
 
 
+def test_non_regular_schema_path_raises(tmp_path):
+    """A FIFO passed as --json-schema would block cheval on open forever."""
+    import os as _os
+    fifo = tmp_path / "schema.fifo"
+    _os.mkfifo(fifo)
+    with pytest.raises(ValueError, match="not a regular file"):
+        cheval._read_output_schema(str(fifo))
+    with pytest.raises(ValueError, match="not a regular file"):
+        cheval._read_output_schema(str(tmp_path))
+
+
 def test_oversized_and_missing_files_raise(tmp_path):
     big = tmp_path / "big.json"
     big.write_text(json.dumps({"pad": "x" * (64 * 1024 + 1)}))

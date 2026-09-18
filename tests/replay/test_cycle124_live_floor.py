@@ -185,17 +185,23 @@ def test_schema_enforced_response_is_strict_json(served_models):
     (the same `output_config.format` shape the adapter emits on
     `structured_json` entries)."""
     model = "claude-opus-5" if "claude-opus-5" in served_models else "claude-opus-4-8"
-    schema = {"type": "object", "properties": {"answer": {"type": "string"}, "n": {"type": "integer"}},
-              "required": ["answer", "n"], "additionalProperties": False}
-    body = _messages_body(model, max_tokens=64)
-    body["messages"] = [{"role": "user", "content": "Answer with answer=PONG and n=42."}]
+    # The REAL artifact the dissent sends — nullable `anyOf` fields, enums,
+    # closed objects — so a live pass proves the authored subset, not a toy.
+    schema = json.loads((REPO_ROOT / ".claude" / "schemas" / "wire" / "dissent-review.wire.json").read_text())
+    body = _messages_body(model, max_tokens=400)
+    body["messages"] = [{"role": "user", "content": (
+        "Review this diff and report exactly one ADVISORY finding in category other, anchored to x.sh:f, "
+        "scope diff, with a one-sentence description and failure_mode:\n+ echo hi")}]
     body["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
     status, payload = _request("POST", "/messages", body)
     assert status == 200, payload
     _charge(model, payload.get("usage", {}))
     text = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
     obj = json.loads(text)
-    assert set(obj) == {"answer", "n"} and isinstance(obj["n"], int), obj
+    assert set(obj) == {"findings"} and isinstance(obj["findings"], list), obj
+    for finding in obj["findings"]:
+        assert set(finding) == set(schema["properties"]["findings"]["items"]["properties"]), finding
+        assert finding["severity"] in ("BLOCKING", "ADVISORY")
 
 
 def test_ceiling_probe_writes_evidence(tmp_path, served_models):
