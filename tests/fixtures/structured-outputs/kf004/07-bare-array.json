@@ -1,0 +1,12 @@
+{
+  "_case": "KF-004 07-bare-array",
+  "_expect": {
+    "unenforced": "malformed_response",
+    "enforced": "malformed_response"
+  },
+  "content": "[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"injection\",\"description\":\"d\",\"failure_mode\":\"fm\"}]",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

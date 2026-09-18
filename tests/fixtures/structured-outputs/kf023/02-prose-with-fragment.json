@@ -1,0 +1,12 @@
+{
+  "_case": "KF-023 02-prose-with-fragment",
+  "_expect": {
+    "unenforced": "normalization_failed",
+    "enforced": "enforced_parse_failed"
+  },
+  "content": "Here are my thoughts: improvements: none really; summary: looks fine {\"improvements\": [",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

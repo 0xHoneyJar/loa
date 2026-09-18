@@ -126,6 +126,13 @@ PER_CALL_MAX_TOKENS=""
 # cycle-124 FR-2: bounded output budgets per call kind (see call_model).
 FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
 FLATLINE_SCORE_MAX_TOKENS=16000    # cross-scoring JSON arrays (adaptive thinking on opus-5 shares this budget)
+# cycle-124 FR-7: wire schemas per call kind, passed as call_model's 7th arg by
+# the review / skeptic / score sites (run_inquiry passes none — its prompts
+# ask for a free-form perspective object, regression-locked).
+WIRE_SCHEMA_DIR="$SCRIPT_DIR/../schemas/wire"
+WIRE_REVIEWER="$WIRE_SCHEMA_DIR/flatline-reviewer.wire.json"
+WIRE_SKEPTIC="$WIRE_SCHEMA_DIR/flatline-skeptic.wire.json"
+WIRE_SCORER="$WIRE_SCHEMA_DIR/flatline-scorer.wire.json"
 
 # State tracking
 STATE="INIT"
@@ -325,8 +332,20 @@ qualify_flatline_content() {
         reason="missing_or_empty_envelope"
     else
         content=$(jq -r '.content // ""' "$file" 2>/dev/null) || content=""
+        # cycle-124 FR-7: a voice that reports schema_enforced=true is parsed
+        # strictly — its content IS the enforced object; no fence strip or
+        # raw_decode rescue (normalize_json_response) applies, so a non-JSON
+        # body is a wire/prompt drift signal, not something to repair.
+        local enforced
+        enforced=$(jq -r 'if .schema_enforced == true then "true" else "false" end' "$file" 2>/dev/null) || enforced="false"
         if [[ -z "$content" || "$content" == "null" ]]; then
             reason="empty_content"
+        elif [[ "$enforced" == "true" ]]; then
+            if ! normalized=$(printf '%s' "$content" | jq -c '.' 2>/dev/null); then
+                reason="enforced_parse_failed"
+            elif ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
+                reason="schema_invalid"
+            fi
         elif ! normalized=$(normalize_json_response "$content" 2>/dev/null); then
             reason="normalization_failed"
         elif ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
@@ -907,6 +926,8 @@ call_model() {
     local phase="$4"
     local context="${5:-}"
     local timeout="${6:-$DEFAULT_MODEL_TIMEOUT}"
+    # cycle-124 FR-7: optional wire schema (7th positional) → cheval --json-schema.
+    local schema_file="${7:-}"
 
     # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
     # pre-fix `if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]];
@@ -990,6 +1011,12 @@ call_model() {
 
         if [[ -n "$context" && -f "$context" ]]; then
             args+=(--system "$context")
+        fi
+        # cycle-124 FR-7: appended AFTER the D3 if/else above so both argv
+        # branches (--model pin and --role routing) carry the schema; cheval
+        # enforces it where the hop can and reports schema_enforced either way.
+        if [[ -n "$schema_file" && -f "$schema_file" ]]; then
+            args+=(--json-schema "$schema_file")
         fi
 
         # Per-invocation diagnostic log (unique suffix for parallel calls)
@@ -1578,14 +1605,14 @@ run_phase1() {
 
     # Wave 1: Review calls (all models concurrently)
     {
-        call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
             > "$gpt_review_file" 2>"$gpt_review_stderr"
     } &
     pids+=($!)
     pid_labels+=("gpt-review")
 
     {
-        call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
             > "$opus_review_file" 2>"$opus_review_stderr"
     } &
     pids+=($!)
@@ -1593,7 +1620,7 @@ run_phase1() {
 
     if [[ "$has_tertiary" == "true" ]]; then
         {
-            call_model "$tertiary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+            call_model "$tertiary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
                 > "$tertiary_review_file" 2>"$tertiary_review_stderr"
         } &
         pids+=($!)
@@ -1605,14 +1632,14 @@ run_phase1() {
 
     # Wave 2: Skeptic calls (all models concurrently)
     {
-        call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
             > "$gpt_skeptic_file" 2>"$gpt_skeptic_stderr"
     } &
     pids+=($!)
     pid_labels+=("gpt-skeptic")
 
     {
-        call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
             > "$opus_skeptic_file" 2>"$opus_skeptic_stderr"
     } &
     pids+=($!)
@@ -1620,7 +1647,7 @@ run_phase1() {
 
     if [[ "$has_tertiary" == "true" ]]; then
         {
-            call_model "$tertiary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+            call_model "$tertiary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
                 > "$tertiary_skeptic_file" 2>"$tertiary_skeptic_stderr"
         } &
         pids+=($!)
@@ -1789,14 +1816,14 @@ run_phase2() {
 
     # GPT scores Opus items
     {
-        call_model "$secondary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+        call_model "$secondary_model" score "$opus_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
             > "$gpt_scores_file" 2>/dev/null
     } &
     pids+=($!)
 
     # Opus scores GPT items
     {
-        call_model "$primary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+        call_model "$primary_model" score "$gpt_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
             > "$opus_scores_file" 2>/dev/null
     } &
     pids+=($!)
@@ -1805,28 +1832,28 @@ run_phase2() {
     if [[ "$has_tertiary" == "true" ]]; then
         # Tertiary scores Opus items
         {
-            call_model "$tertiary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+            call_model "$tertiary_model" score "$opus_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$tertiary_scores_opus_file" 2>/dev/null
         } &
         pids+=($!)
 
         # Tertiary scores GPT items
         {
-            call_model "$tertiary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+            call_model "$tertiary_model" score "$gpt_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$tertiary_scores_gpt_file" 2>/dev/null
         } &
         pids+=($!)
 
         # GPT scores Tertiary items
         {
-            call_model "$secondary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+            call_model "$secondary_model" score "$tertiary_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$gpt_scores_tertiary_file" 2>/dev/null
         } &
         pids+=($!)
 
         # Opus scores Tertiary items
         {
-            call_model "$primary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+            call_model "$primary_model" score "$tertiary_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$opus_scores_tertiary_file" 2>/dev/null
         } &
         pids+=($!)

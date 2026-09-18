@@ -1,0 +1,12 @@
+{
+  "_case": "KF-004 02-preamble-prose",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "malformed_response"
+  },
+  "content": "Using the review skill because the diff touches bash. Here is the JSON:\n{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"injection\",\"description\":\"d\",\"failure_mode\":\"fm\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

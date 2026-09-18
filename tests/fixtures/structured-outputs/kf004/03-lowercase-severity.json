@@ -1,0 +1,14 @@
+{
+  "_case": "KF-004 03-lowercase-severity",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "reviewed",
+    "unenforced_findings": 1,
+    "enforced_findings": 0
+  },
+  "content": "{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\" blocking \",\"category\":\"injection\",\"description\":\"d\",\"failure_mode\":\"fm\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}
