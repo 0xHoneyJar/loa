@@ -1,0 +1,16 @@
+{
+  "_case": "KF-004 enforced-valid: audit all four severities",
+  "_type": "audit",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "reviewed",
+    "enforced_rejected": 0,
+    "unenforced_findings": 4,
+    "enforced_findings": 4
+  },
+  "content": "{\"findings\": [{\"id\": \"DISS-001\", \"severity\": \"CRITICAL\", \"category\": \"injection\", \"anchor\": \"a.sh:f\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"d1\", \"failure_mode\": \"f1\", \"suggested_fix\": \"s1\"}, {\"id\": \"DISS-002\", \"severity\": \"HIGH\", \"category\": \"authz\", \"anchor\": \"a.sh:g\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"d2\", \"failure_mode\": \"f2\", \"suggested_fix\": \"s2\"}, {\"id\": \"DISS-003\", \"severity\": \"MEDIUM\", \"category\": \"config\", \"anchor\": \"a.sh:h\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"d3\", \"failure_mode\": \"f3\", \"suggested_fix\": \"s3\"}, {\"id\": \"DISS-004\", \"severity\": \"LOW\", \"category\": \"other\", \"anchor\": \"a.sh:i\", \"anchor_type\": \"function\", \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"d4\", \"failure_mode\": \"f4\", \"suggested_fix\": \"s4\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

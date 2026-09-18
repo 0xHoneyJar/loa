@@ -1,0 +1,13 @@
+{
+  "_case": "KF-023 valid: reasoned empty review",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "accepted",
+    "enforced": "accepted"
+  },
+  "content": "{\"improvements\":[],\"summary\":\"0 improvements identified\",\"no_findings_reason\":\"The acceptance criteria, dependencies, and rollback path are complete and internally consistent.\",\"reviewed_sections\":[\"Acceptance Criteria\",\"Dependencies\",\"Rollback\"]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

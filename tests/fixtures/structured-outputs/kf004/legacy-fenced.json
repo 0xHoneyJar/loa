@@ -1,0 +1,14 @@
+{
+  "_case": "KF-004 legacy: fenced JSON (unenforced rescues, enforced refuses)",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "malformed_response",
+    "unenforced_findings": 1
+  },
+  "content": "```json\n{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"injection\",\"anchor\":\"a.sh:f\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"trigger_anchor\":null,\"cross_file_justification\":null,\"description\":\"d\",\"failure_mode\":\"fm\",\"suggested_fix\":\"s\"}]}\n```",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

@@ -1,5 +1,6 @@
 {
-  "_case": "KF-004 07-bare-array",
+  "_case": "negative: bare array without a findings key",
+  "_type": "review",
   "_expect": {
     "unenforced": "malformed_response",
     "enforced": "malformed_response"

@@ -1,5 +1,6 @@
 {
-  "_case": "KF-023 03-empty-content",
+  "_case": "extra: empty content",
+  "_type": "review",
   "_expect": {
     "unenforced": "empty_content",
     "enforced": "empty_content"

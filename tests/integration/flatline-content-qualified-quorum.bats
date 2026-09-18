@@ -194,7 +194,7 @@ _reason_of() {  # runs qualify_flatline_content and prints the rejection reason 
     [ "$(_reason_of "$SCRATCH/v.json")" = "" ]
 }
 
-@test "CQ-E5: the KF-023 corpus — every fixture rejects with the expected reason on both paths" {
+@test "CQ-E5: the KF-023 corpus — every fixture lands where _expect says on both paths (accepted or the named reason)" {
     local corpus="$PROJECT_ROOT/tests/fixtures/structured-outputs/kf023"
     local n=0 f
     for f in "$corpus"/*.json; do
@@ -204,8 +204,10 @@ _reason_of() {  # runs qualify_flatline_content and prints the rejection reason 
         expect_u=$(jq -r '._expect.unenforced' "$f"); expect_e=$(jq -r '._expect.enforced' "$f")
         write_voice "$SCRATCH/u.json" opus "$content" false
         write_voice "$SCRATCH/e.json" opus "$content" true
-        [ "$(_reason_of "$SCRATCH/u.json")" = "$expect_u" ] || { echo "$f unenforced: got $(_reason_of "$SCRATCH/u.json") want $expect_u" >&2; return 1; }
-        [ "$(_reason_of "$SCRATCH/e.json")" = "$expect_e" ] || { echo "$f enforced: got $(_reason_of "$SCRATCH/e.json") want $expect_e" >&2; return 1; }
+        [ "$expect_u" = "accepted" ] && expect_u=""
+        [ "$expect_e" = "accepted" ] && expect_e=""
+        [ "$(_reason_of "$SCRATCH/u.json")" = "$expect_u" ] || { echo "$f unenforced: got '$(_reason_of "$SCRATCH/u.json")' want '$expect_u'" >&2; return 1; }
+        [ "$(_reason_of "$SCRATCH/e.json")" = "$expect_e" ] || { echo "$f enforced: got '$(_reason_of "$SCRATCH/e.json")' want '$expect_e'" >&2; return 1; }
     done
-    [ "$n" = "3" ]
+    [ "$n" = "5" ]
 }

@@ -125,27 +125,35 @@ SHIM
     grep -q 'invoke_dissenter "\$_ADVERSARIAL_WORKDIR/system-prompt.txt" "\$_ADVERSARIAL_WORKDIR/user-prompt.txt" "\$try_model" "\$timeout" "\$vq_sidecar" "\$type" "\$SCRIPT_DIR/../schemas/wire/dissent-\${type}.wire.json"' "$ADVERSARIAL_REVIEW"
 }
 
-@test "FR7-10: the KF-004 corpus + the truncated payload — every fixture lands where _expect says on both parse paths" {
+@test "FR7-10: the KF-004 corpus + the truncated payload — every fixture lands where _expect says on both parse paths; enforced-valid ones reject nothing" {
     local corpus="$PROJECT_ROOT/tests/fixtures/structured-outputs"
     # the unenforced path DOES try the repair round-trip; a quiet failing stub = "repair unavailable"
     _repair_finding_via_model() { return 1; }
     local n=0 f
     for f in "$corpus"/kf004/*.json "$corpus"/truncated.json; do
         n=$((n + 1))
-        local raw_u raw_e result_u result_e
-        raw_u=$(jq -c 'del(._case, ._expect)' "$f")
-        raw_e=$(jq -c 'del(._case, ._expect) + {schema_enforced: true}' "$f")
-        result_u=$(process_findings "$raw_u" "review" "m" "$SPRINT" "0" "")
-        result_e=$(process_findings "$raw_e" "review" "m" "$SPRINT" "0" "")
+        local typ raw_u raw_e result_u result_e
+        typ=$(jq -r '._type // "review"' "$f")
+        raw_u=$(jq -c 'del(._case, ._type, ._expect)' "$f")
+        raw_e=$(jq -c 'del(._case, ._type, ._expect) + {schema_enforced: true}' "$f")
+        result_u=$(process_findings "$raw_u" "$typ" "m" "$SPRINT" "0" "")
+        result_e=$(process_findings "$raw_e" "$typ" "m" "$SPRINT" "0" "")
         [ "$(jq -r '.metadata.status' <<<"$result_u")" = "$(jq -r '._expect.unenforced' "$f")" ] \
             || { echo "$f unenforced: $(jq -c .metadata <<<"$result_u")" >&2; return 1; }
         [ "$(jq -r '.metadata.status' <<<"$result_e")" = "$(jq -r '._expect.enforced' "$f")" ] \
             || { echo "$f enforced: $(jq -c .metadata <<<"$result_e")" >&2; return 1; }
         [ "$(jq -r '.metadata.parse_path // "-"' <<<"$result_e")" = "schema_enforced" ]
+        if [ "$(jq -r '._expect.enforced_rejected // empty' "$f")" != "" ]; then
+            [ "$(jq -r '.metadata.rejected_count // 0' <<<"$result_e")" = "$(jq -r '._expect.enforced_rejected' "$f")" ] || { echo "$f enforced rejected_count" >&2; return 1; }
+            local sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-${typ}.jsonl"
+            [ ! -s "$sidecar" ] || { echo "$f: enforced-valid payload wrote a sidecar row" >&2; return 1; }
+        fi
         if [ "$(jq -r '._expect.unenforced_findings // empty' "$f")" != "" ]; then
             [ "$(jq '.findings | length' <<<"$result_u")" = "$(jq -r '._expect.unenforced_findings' "$f")" ] || { echo "$f unenforced findings" >&2; return 1; }
+        fi
+        if [ "$(jq -r '._expect.enforced_findings // empty' "$f")" != "" ]; then
             [ "$(jq '.findings | length' <<<"$result_e")" = "$(jq -r '._expect.enforced_findings' "$f")" ] || { echo "$f enforced findings" >&2; return 1; }
         fi
     done
-    [ "$n" = "8" ]
+    [ "$n" = "11" ]
 }

@@ -1,5 +1,6 @@
 {
   "_case": "truncated at max_tokens",
+  "_type": "review",
   "_expect": {
     "unenforced": "malformed_response",
     "enforced": "malformed_response"

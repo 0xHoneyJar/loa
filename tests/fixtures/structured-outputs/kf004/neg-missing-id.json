@@ -1,5 +1,6 @@
 {
-  "_case": "KF-004 05-missing-id",
+  "_case": "negative: missing id (the Sprint 1 audit sidecar shape)",
+  "_type": "review",
   "_expect": {
     "unenforced": "reviewed",
     "enforced": "reviewed",

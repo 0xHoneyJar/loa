@@ -1,5 +1,6 @@
 {
-  "_case": "KF-004 03-lowercase-severity",
+  "_case": "negative: case-mismatched severity",
+  "_type": "review",
   "_expect": {
     "unenforced": "reviewed",
     "enforced": "reviewed",

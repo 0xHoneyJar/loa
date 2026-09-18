@@ -1,0 +1,14 @@
+{
+  "_case": "KF-004 legacy: prose preamble",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "malformed_response",
+    "unenforced_findings": 1
+  },
+  "content": "Using the review skill because the diff touches bash. Here is the JSON:\n{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"BLOCKING\",\"category\":\"injection\",\"anchor\":\"a.sh:f\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"trigger_anchor\":null,\"cross_file_justification\":null,\"description\":\"d\",\"failure_mode\":\"fm\",\"suggested_fix\":\"s\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

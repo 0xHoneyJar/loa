@@ -1,5 +1,6 @@
 {
-  "_case": "KF-023 01-prose-only",
+  "_case": "KF-023: prose instead of the object",
+  "_type": "review",
   "_expect": {
     "unenforced": "normalization_failed",
     "enforced": "enforced_parse_failed"

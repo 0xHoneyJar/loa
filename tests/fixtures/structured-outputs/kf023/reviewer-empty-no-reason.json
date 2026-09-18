@@ -1,0 +1,13 @@
+{
+  "_case": "KF-023: empty review without a reason \u21d2 persona contract violated",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "schema_invalid",
+    "enforced": "schema_invalid"
+  },
+  "content": "{\"improvements\":[],\"summary\":\"0 improvements identified\"}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

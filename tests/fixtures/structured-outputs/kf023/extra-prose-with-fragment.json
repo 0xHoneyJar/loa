@@ -1,5 +1,6 @@
 {
-  "_case": "KF-023 02-prose-with-fragment",
+  "_case": "extra: prose with a JSON fragment",
+  "_type": "review",
   "_expect": {
     "unenforced": "normalization_failed",
     "enforced": "enforced_parse_failed"
