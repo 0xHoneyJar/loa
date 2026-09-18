@@ -575,7 +575,7 @@ resolve_sprint() {
     # First try to find by local_label in active cycle
     local global_id
     global_id=$(jq -r --arg cycle_id "$active_cycle" --arg label "$input" \
-        '(.cycles[] | select(.id == $cycle_id)).sprints[] | select(.local_label == $label) | .global_id // "UNRESOLVED"' \
+        '(.cycles[] | select(.id == $cycle_id)).sprints[]? | select(type == "object") | select(.local_label == $label) | .global_id // "UNRESOLVED"' \
         "$ledger_path" 2>/dev/null || echo "UNRESOLVED")
 
     if [[ "$global_id" != "UNRESOLVED" ]] && [[ -n "$global_id" ]]; then
@@ -587,7 +587,7 @@ resolve_sprint() {
     if [[ "$sprint_num" =~ ^[0-9]+$ ]]; then
         local exists
         exists=$(jq -r --argjson num "$sprint_num" \
-            '[.cycles[].sprints[] | select(.global_id == $num)] | length' \
+            '[.cycles[].sprints[]? | select(type == "object") | select(.global_id == $num)] | length' \
             "$ledger_path" 2>/dev/null || echo "0")
 
         if [[ "$exists" -gt 0 ]]; then
@@ -602,6 +602,11 @@ resolve_sprint() {
 
 # Update sprint status
 # Args: $1 - Global sprint ID, $2 - New status (planned, in_progress, completed)
+# NOTE (cycle-124): /bug cycles record their sprint as a bare label string
+# (`"sprints": ["sprint-bug-108"]`); every jq walk over `.cycles[].sprints[]`
+# below filters `select(type == "object")` so those entries are skipped
+# instead of erroring out (`Cannot index string with string "global_id"`),
+# which used to make this function return LEDGER_ERROR on the live ledger.
 update_sprint_status() (
     _lock_ledger_transaction || return $LEDGER_ERROR
     local global_id="$1"
@@ -624,7 +629,7 @@ update_sprint_status() (
 
     local exists
     exists=$(jq --argjson id "$global_id" \
-        'any(.cycles[].sprints[]; .global_id == $id)' "$ledger_path") || return $LEDGER_ERROR
+        'any(.cycles[].sprints[]? | select(type == "object"); .global_id == $id)' "$ledger_path") || return $LEDGER_ERROR
     if [[ "$exists" != "true" ]]; then
         echo "Sprint not found: $global_id" >&2
         return $LEDGER_SPRINT_NOT_FOUND
@@ -637,14 +642,14 @@ update_sprint_status() (
     if [[ "$status" == "completed" ]]; then
         # Set completed timestamp
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" --arg completed "$now" \
-            '(.cycles[].sprints[] | select(.global_id == $id)) |= (.status = $status | .completed = $completed)' \
+            '(.cycles[].sprints[]? | select(type == "object") | select(.global_id == $id)) |= (.status = $status | .completed = $completed)' \
             "$ledger_path") || {
             echo "ERROR: failed to build updated ledger content" >&2
             return $LEDGER_ERROR
         }
     else
         ledger_content=$(jq --argjson id "$global_id" --arg status "$status" \
-            '(.cycles[].sprints[] | select(.global_id == $id)).status = $status' \
+            '(.cycles[].sprints[]? | select(type == "object") | select(.global_id == $id)).status = $status' \
             "$ledger_path") || {
             echo "ERROR: failed to build updated ledger content" >&2
             return $LEDGER_ERROR
@@ -828,7 +833,7 @@ archive_cycle() (
     # so the manual ledger-lib path enforces the same invariant.
     local incomplete_count
     incomplete_count=$(jq -r --arg id "$active_cycle" \
-        '[(.cycles[] | select(.id == $id)).sprints[]? | select(.status != "completed")] | length' \
+        '[(.cycles[] | select(.id == $id)).sprints[]? | select(type == "object") | select(.status != "completed")] | length' \
         "$ledger_path") || return $LEDGER_ERROR
 
     if [[ "${incomplete_count:-0}" -gt 0 ]]; then
@@ -858,7 +863,7 @@ archive_cycle() (
     # Copy sprint directories for this cycle
     local sprints
     sprints=$(jq -r --arg id "$active_cycle" \
-        '(.cycles[] | select(.id == $id)).sprints[].global_id' "$ledger_path") || return $LEDGER_ERROR
+        '(.cycles[] | select(.id == $id)).sprints[]? | select(type == "object") | .global_id' "$ledger_path") || return $LEDGER_ERROR
 
     for sprint_id in $sprints; do
         local sprint_dir="${grimoire_dir}/a2a/sprint-${sprint_id}"
