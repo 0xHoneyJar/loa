@@ -77,6 +77,27 @@ _CLI_COST_WARN_LOCK = threading.Lock()
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
+# cycle-124 FR-7: `claude -p --json-schema <schema>` (Claude Code ≥ 2.1.27x)
+# returns the enforced object in `structured_output`. Probed ONCE per process
+# from `claude --help`; an older CLI simply runs unenforced (never an
+# unknown-flag failure).
+_JSON_SCHEMA_FLAG: Optional[bool] = None
+_JSON_SCHEMA_FLAG_LOCK = threading.Lock()
+
+
+def _cli_supports_json_schema(cli_bin: str) -> bool:
+    global _JSON_SCHEMA_FLAG
+    with _JSON_SCHEMA_FLAG_LOCK:
+        if _JSON_SCHEMA_FLAG is None:
+            try:
+                proc = subprocess.run(
+                    [cli_bin, "--help"], capture_output=True, text=True, timeout=20, check=False,
+                )
+                _JSON_SCHEMA_FLAG = "--json-schema" in ((proc.stdout or "") + (proc.stderr or ""))
+            except Exception:  # noqa: BLE001 — missing binary etc.: treated as unsupported
+                _JSON_SCHEMA_FLAG = False
+        return bool(_JSON_SCHEMA_FLAG)
+
 # claude CLI binary name (override via CLAUDE_HEADLESS_BIN env var for testing)
 _CLAUDE_BIN_DEFAULT = "claude"
 
@@ -198,6 +219,11 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         if effort:
             cmd.extend(["--effort", effort])
 
+        # cycle-124 FR-7: forward the schema compactly when the CLI knows the
+        # flag; otherwise the call proceeds unenforced (schema_enforced false).
+        if request.output_schema is not None and _cli_supports_json_schema(self._cli_bin()):
+            cmd.extend(["--json-schema", json.dumps(request.output_schema, separators=(",", ":"))])
+
         extra = (model_config.extra or {})
 
         # System prompt overrides — `system_prompt` REPLACES the default
@@ -313,6 +339,12 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         session_id = parsed.get("session_id") or parsed.get("uuid")
         content = (parsed.get("result") or "").strip("\n")
         stop_reason = parsed.get("stop_reason")
+        # cycle-124 FR-7: with --json-schema the enforced object lives in
+        # `structured_output` (the `result` string may be prose or empty);
+        # prefer it, compactly serialized, and record the enforcement.
+        structured = parsed.get("structured_output")
+        if structured is not None:
+            content = json.dumps(structured, separators=(",", ":"))
 
         usage_data = parsed.get("usage") or {}
         usage = Usage(
@@ -328,7 +360,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             source="actual" if usage_data else "estimated",
         )
 
-        metadata: Dict[str, Any] = {}
+        metadata: Dict[str, Any] = {"schema_enforced": structured is not None}
         cache_read = usage_data.get("cache_read_input_tokens")
         if cache_read:
             metadata["cache_read_input_tokens"] = int(cache_read)

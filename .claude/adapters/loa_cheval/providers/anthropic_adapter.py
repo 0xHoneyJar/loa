@@ -240,6 +240,20 @@ class AnthropicAdapter(ProviderAdapter):
         if effort is not None:
             body.setdefault("output_config", {})["effort"] = effort
 
+        # cycle-124 FR-7 (SDD §2.2): schema-enforced output on entries that
+        # declare the `structured_json` capability — the strict subset the wire
+        # schemas are authored in. Other entries run unenforced (the caller's
+        # tolerant parser stays); LOA_CHEVAL_LEGACY_WIRE omits the key.
+        if (
+            request.output_schema is not None
+            and "structured_json" in (model_config.capabilities or [])
+            and not _legacy_wire()
+        ):
+            body.setdefault("output_config", {})["format"] = {
+                "type": "json_schema",
+                "schema": request.output_schema,
+            }
+
         # Build headers — Anthropic uses x-api-key, not Bearer token
         auth = self._get_auth_header()
         headers = {
@@ -381,6 +395,8 @@ class AnthropicAdapter(ProviderAdapter):
         # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
         _meta = dict(result.metadata or {})
         _meta["streaming"] = True
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        _meta["schema_enforced"] = _schema_enforced(body)
         # issue #1102: a refusal (HTTP 200 + prose + stop_reason:"refusal") must
         # raise a retryable EmptyContentError so the within-company chain walks
         # (caught at cheval.py `except _EmptyContentError`) instead of the
@@ -448,7 +464,11 @@ class AnthropicAdapter(ProviderAdapter):
             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
 
         # Parse response
-        return self._parse_response(resp, latency_ms)
+        result = self._parse_response(resp, latency_ms)
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        result.metadata = dict(result.metadata or {})
+        result.metadata["schema_enforced"] = _schema_enforced(body)
+        return result
 
     def _parse_response(self, resp: Dict[str, Any], latency_ms: int) -> CompletionResult:
         """Extract CompletionResult from Anthropic response (SDD §4.2.5)."""
@@ -621,15 +641,26 @@ def _transform_tools_to_anthropic(tools: List[Dict[str, Any]]) -> List[Dict[str,
     return anthropic_tools
 
 
+def _schema_enforced(body: Dict[str, Any]) -> bool:
+    """True iff the request body carried output_config.format (cycle-124 FR-7)."""
+    return "format" in (body.get("output_config") or {})
+
+
 def _transform_tool_choice(choice: str) -> Dict[str, Any]:
-    """Transform canonical tool_choice to Anthropic format."""
+    """Transform canonical tool_choice to Anthropic format.
+
+    cycle-124 FR-7: only `auto` and `none` are emitted. `required`
+    (Anthropic `any`) and any other value raise — a forced tool call is
+    incompatible with a schema-enforced answer and was never used by a
+    framework caller; silently rewriting it to `auto` hid the mistake.
+    """
     if choice == "auto":
         return {"type": "auto"}
-    elif choice == "required":
-        return {"type": "any"}
-    elif choice == "none":
+    if choice == "none":
         return {"type": "none"}
-    return {"type": "auto"}
+    raise InvalidInputError(
+        f"tool_choice {choice!r} is not supported on the Anthropic adapter; use 'auto' or 'none'"
+    )
 
 
 def _serialize_arguments(input_data: Any) -> str:

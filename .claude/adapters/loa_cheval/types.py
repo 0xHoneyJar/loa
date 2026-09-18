@@ -24,6 +24,11 @@ class CompletionRequest:
     # by adapters that support it (Anthropic Opus 4.5+/Sonnet 4.6). NEVER mapped
     # to thinking.budget_tokens — Opus 4.7/4.8 reject that with HTTP 400.
     effort: Optional[str] = None  # "low" | "medium" | "high" | "xhigh" | "max"
+    # cycle-124 FR-7: JSON Schema the answer must conform to. Emitted as
+    # Anthropic output_config.format on `structured_json` entries, forwarded as
+    # `--json-schema` to claude-headless, `text.format` on OpenAI; ignored
+    # (unenforced) elsewhere. None ⇒ body unchanged.
+    output_schema: Optional[Dict[str, Any]] = None
 
 
 @dataclass

@@ -180,8 +180,22 @@ def test_second_identical_call_reads_the_cache(served_models, tmp_path, monkeypa
     assert usage.get("cache_read_input_tokens", 0) > 0, usage
 
 
-def test_schema_enforced_response_is_strict_json():
-    pytest.skip("lands in Sprint 2 (Task 2.2: output_config.format json_schema)")
+def test_schema_enforced_response_is_strict_json(served_models):
+    """AC-7.x: one schema-enforced call returns strict JSON matching the schema
+    (the same `output_config.format` shape the adapter emits on
+    `structured_json` entries)."""
+    model = "claude-opus-5" if "claude-opus-5" in served_models else "claude-opus-4-8"
+    schema = {"type": "object", "properties": {"answer": {"type": "string"}, "n": {"type": "integer"}},
+              "required": ["answer", "n"], "additionalProperties": False}
+    body = _messages_body(model, max_tokens=64)
+    body["messages"] = [{"role": "user", "content": "Answer with answer=PONG and n=42."}]
+    body["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
+    status, payload = _request("POST", "/messages", body)
+    assert status == 200, payload
+    _charge(model, payload.get("usage", {}))
+    text = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
+    obj = json.loads(text)
+    assert set(obj) == {"answer", "n"} and isinstance(obj["n"], int), obj
 
 
 def test_ceiling_probe_writes_evidence(tmp_path, served_models):

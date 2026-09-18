@@ -212,8 +212,12 @@ class TestToolTransformation:
     def test_tool_choice_auto(self):
         assert _transform_tool_choice("auto") == {"type": "auto"}
 
-    def test_tool_choice_required(self):
-        assert _transform_tool_choice("required") == {"type": "any"}
+    def test_tool_choice_required_raises(self):
+        # cycle-124 FR-7: forced modes are not emitted (schema-enforced answers
+        # and forced tool calls are incompatible; no framework caller used it).
+        from loa_cheval.types import InvalidInputError
+        with pytest.raises(InvalidInputError):
+            _transform_tool_choice("required")
 
     def test_tool_choice_none(self):
         assert _transform_tool_choice("none") == {"type": "none"}
