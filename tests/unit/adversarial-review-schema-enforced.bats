@@ -35,8 +35,10 @@ setup() {
 }
 
 teardown() {
-    local d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
-    if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    local d
+    for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
+        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    done
 }
 
 _env() {  # <content> [schema_enforced] [stop_reason]
@@ -132,12 +134,16 @@ SHIM
     local n=0 f
     for f in "$corpus"/kf004/*.json "$corpus"/truncated.json; do
         n=$((n + 1))
-        local typ raw_u raw_e result_u result_e
+        local typ raw_u raw_e result_u result_e fsprint
+        # one sprint dir (⇒ one sidecar) per fixture and per path, so the
+        # "no sidecar row" assertion never depends on loop order or on the
+        # per-invocation truncation (round-1 dissent DISS-001)
+        fsprint="${SPRINT}-$(basename "$f" .json)"
         typ=$(jq -r '._type // "review"' "$f")
         raw_u=$(jq -c 'del(._case, ._type, ._expect)' "$f")
         raw_e=$(jq -c 'del(._case, ._type, ._expect) + {schema_enforced: true}' "$f")
-        result_u=$(process_findings "$raw_u" "$typ" "m" "$SPRINT" "0" "")
-        result_e=$(process_findings "$raw_e" "$typ" "m" "$SPRINT" "0" "")
+        result_u=$(process_findings "$raw_u" "$typ" "m" "${fsprint}-u" "0" "")
+        result_e=$(process_findings "$raw_e" "$typ" "m" "${fsprint}-e" "0" "")
         [ "$(jq -r '.metadata.status' <<<"$result_u")" = "$(jq -r '._expect.unenforced' "$f")" ] \
             || { echo "$f unenforced: $(jq -c .metadata <<<"$result_u")" >&2; return 1; }
         [ "$(jq -r '.metadata.status' <<<"$result_e")" = "$(jq -r '._expect.enforced' "$f")" ] \
@@ -145,7 +151,7 @@ SHIM
         [ "$(jq -r '.metadata.parse_path // "-"' <<<"$result_e")" = "schema_enforced" ]
         if [ "$(jq -r '._expect.enforced_rejected // empty' "$f")" != "" ]; then
             [ "$(jq -r '.metadata.rejected_count // 0' <<<"$result_e")" = "$(jq -r '._expect.enforced_rejected' "$f")" ] || { echo "$f enforced rejected_count" >&2; return 1; }
-            local sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-${typ}.jsonl"
+            local sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${fsprint}-e/adversarial-rejected-${typ}.jsonl"
             [ ! -s "$sidecar" ] || { echo "$f: enforced-valid payload wrote a sidecar row" >&2; return 1; }
         fi
         if [ "$(jq -r '._expect.unenforced_findings // empty' "$f")" != "" ]; then
