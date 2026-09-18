@@ -2314,6 +2314,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 # cycle-124 FR-7: whether the provider enforced the requested
                 # schema (false when none was requested or the hop cannot).
                 "schema_enforced": bool((getattr(_result, "metadata", None) or {}).get("schema_enforced", False)),
+                # cycle-124 FR-7: the dissent's enforced branch treats a
+                # max_tokens stop as a truncated (malformed) payload.
+                "stop_reason": (getattr(_result, "metadata", None) or {}).get("stop_reason"),
             }
             if _result.thinking and getattr(args, "include_thinking", False):
                 output["thinking"] = _result.thinking

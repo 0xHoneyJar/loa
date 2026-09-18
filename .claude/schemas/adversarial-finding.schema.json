@@ -179,6 +179,15 @@
           "type": "string",
           "description": "Sprint identifier (e.g., sprint-1)"
         },
+        "schema_enforced": {
+          "type": "boolean",
+          "description": "cycle-124 FR-7: the dissenter hop enforced the wire schema (output_config.format / --json-schema)"
+        },
+        "parse_path": {
+          "type": "string",
+          "enum": ["schema_enforced", "normalized"],
+          "description": "cycle-124 FR-7: strict parse of an enforced payload, or the tolerant normalize path (fence strip + raw_decode + repair loop)"
+        },
         "timestamp": {
           "type": "string",
           "format": "date-time",

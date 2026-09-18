@@ -301,7 +301,8 @@ translate_output() {
             mode: $mode,
             phase: $phase,
             cost_usd: 0,
-            schema_enforced: (.schema_enforced // false)
+            schema_enforced: (.schema_enforced // false),
+            stop_reason: (.stop_reason // null)
         }'
 }
 

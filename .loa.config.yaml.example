@@ -1397,9 +1397,10 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
     budget_cents: 150            # Max cost per dissent call
-    # cycle-119 C14 (KF-004 repair loop) — default OFF.
-    # When true, a dissenter finding that fails validate_finding gets ONE
-    # bounded repair round-trip to the SAME model before being rejected:
+    # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
+    # A dissenter finding from an UNENFORCED hop that fails validate_finding
+    # gets ONE bounded repair round-trip to the SAME model before rejection
+    # (schema-enforced payloads never enter the loop):
     # a normalization pre-pass (case-fold severity/category + whitespace
     # trim only, no synonym mapping) runs first; if the finding still
     # fails, only the offending finding JSON + the violated validation
@@ -1412,7 +1413,6 @@ flatline_protocol:
     # and in the degraded-verdict trajectory record, so findings the
     # dissenter model produced but that were silently dropped for a
     # trivial schema mismatch (KF-004's original complaint) stay visible.
-    repair_loop: false
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
