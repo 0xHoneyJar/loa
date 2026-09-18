@@ -31,6 +31,7 @@ from loa_cheval.types import (
     CompletionResult,
     InvalidInputError,
     ProviderStreamError,
+    ModelNotFoundError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
@@ -56,6 +57,29 @@ _EFFORT_NO_XHIGH_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
 # positive list so the catalog invariant test can prove each id falls in
 # exactly one of the three tuples (a new id must be classified, not assumed).
 _EFFORT_FULL_PREFIXES = ("claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5")
+
+
+# cycle-124 audit (slice A): under LOA_CHEVAL_DISABLE_STREAMING the default
+# output budget is 16K with thinking on, but the non-streaming read timeout is
+# a flat 120 s — a long answer became an httpx.ReadTimeout retried four times,
+# each attempt billed. The read timeout is never shortened, only lengthened to
+# cover the requested budget at a conservative 25 tok/s, capped at 600 s.
+_NONSTREAMING_TIMEOUT_TOKENS_PER_S = 25.0
+_NONSTREAMING_TIMEOUT_CAP_S = 600.0
+_NONSTREAMING_TIMEOUT_FLOOR_TOKENS = 4096
+
+
+def _nonstreaming_read_timeout(configured: float, max_tokens: Any) -> float:
+    """Read timeout for one non-streaming call: the configured value, or
+    longer when `max_tokens` exceeds the pre-cycle 4096 default."""
+    try:
+        budget = int(max_tokens)
+    except (TypeError, ValueError):
+        return configured
+    if budget <= _NONSTREAMING_TIMEOUT_FLOOR_TOKENS:
+        return configured
+    needed = min(_NONSTREAMING_TIMEOUT_CAP_S, 30.0 + budget / _NONSTREAMING_TIMEOUT_TOKENS_PER_S)
+    return max(float(configured), needed)
 
 
 def _is_model_not_found(message: str) -> bool:
@@ -275,7 +299,7 @@ class AnthropicAdapter(ProviderAdapter):
                 # (an account that does not serve it yet) walks the within-
                 # company chain instead of failing terminally at first use.
                 if status == 404 and _is_model_not_found(_msg):
-                    raise ProviderUnavailableError(
+                    raise ModelNotFoundError(
                         self.provider,
                         f"HTTP 404 model-not-found: {_msg}",
                     )
@@ -393,7 +417,7 @@ class AnthropicAdapter(ProviderAdapter):
             headers=headers,
             body=body,
             connect_timeout=self.config.connect_timeout,
-            read_timeout=self.config.read_timeout,
+            read_timeout=_nonstreaming_read_timeout(self.config.read_timeout, body.get("max_tokens")),
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -411,7 +435,7 @@ class AnthropicAdapter(ProviderAdapter):
             # cycle-124 FR-3: 404 model-not-found is chain-walkable (see the
             # streaming twin above).
             if status == 404 and _is_model_not_found(msg):
-                raise ProviderUnavailableError(
+                raise ModelNotFoundError(
                     self.provider, f"HTTP 404 model-not-found: {msg}"
                 )
             # cycle-109 followup #883 Bug 3 — billing-class 400s raise

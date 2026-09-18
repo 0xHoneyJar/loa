@@ -19,6 +19,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cheval import _LEGACY_TRANSPORT_INPUT_WALL, _lookup_max_input_tokens  # noqa: E402
+from loa_cheval.providers.base import default_max_tokens  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOG = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
@@ -60,16 +61,19 @@ V2_INPUT_FIELDS = ("max_input_tokens", "streaming_max_input_tokens", "legacy_max
 # Documented exceptions to the 0.1× cache-read rule (catalog-evidence.md).
 CACHE_READ_EXCEPTIONS = {"claude-fable-5-1": 250_000}  # 0.025× per the reference
 CEILING_CAP = 180_000
-# SDD §2.2 default_max_tokens() mirrored for the ceiling arithmetic; Task 1.4
-# switches this to the real helper once it lands.
-_LEGACY_DEFAULT_MAX_TOKENS = 4096
+
+
+@pytest.fixture(autouse=True)
+def _streaming_default_env(monkeypatch):
+    """default_max_tokens() reads two env switches; the ceiling arithmetic is
+    defined against the streaming default (audit slice D: the test used to
+    mirror the helper locally and would not have noticed a constant change)."""
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
 
 
 def _default_max_tokens(entry: dict) -> int:
-    mo = entry.get("max_output_tokens")
-    if isinstance(mo, int) and mo > 0:
-        return min(64_000, mo)
-    return _LEGACY_DEFAULT_MAX_TOKENS
+    return default_max_tokens(provider="anthropic", model_max_output=entry.get("max_output_tokens"))
 
 
 @pytest.fixture(scope="module")
@@ -155,10 +159,11 @@ def test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch(catalog, ht
 def test_thinking_adaptive_exactly_on_the_adaptive_set(anthropic):
     flagged = {m for m, e in anthropic.items() if (e.get("params") or {}).get("thinking_adaptive") is True}
     assert flagged == ADAPTIVE
-    # Any non-boolean value is a misspelling the schema cannot catch.
+    # Any non-boolean value is a misspelling the schema cannot catch —
+    # `is None or isinstance(bool)`, because `1 in (None, True, False)` is True.
     for model_id, entry in anthropic.items():
         val = (entry.get("params") or {}).get("thinking_adaptive")
-        assert val in (None, True, False), (model_id, val)
+        assert val is None or isinstance(val, bool), (model_id, val)
 
 
 def test_thinking_adaptive_implies_temperature_unsupported(anthropic):

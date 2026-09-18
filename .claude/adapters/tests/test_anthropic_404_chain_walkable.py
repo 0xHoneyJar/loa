@@ -99,6 +99,33 @@ def test_streaming_404_walks_the_chain(monkeypatch):
     assert "404" in str(exc_info.value)
 
 
+def test_model_not_found_is_typed_and_does_not_trip_the_provider_breaker(monkeypatch):
+    """audit slice A: five unserved-id calls in five minutes must not open the
+    (anthropic, http_api) breaker for served ids — the 404 is model-specific."""
+    from loa_cheval.providers import retry as retry_mod
+    from loa_cheval.types import ModelNotFoundError
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+    adapter = AnthropicAdapter(_make_config())
+    with patch("loa_cheval.providers.anthropic_adapter.http_post", return_value=(404, NOT_FOUND)):
+        with pytest.raises(ModelNotFoundError) as exc_info:
+            adapter.complete(_make_request())
+    assert isinstance(exc_info.value, ProviderUnavailableError)  # the chain still walks
+
+    recorded = []
+    monkeypatch.setattr(retry_mod, "_record_failure", lambda *a, **k: recorded.append(a))
+    fake = MagicMock(provider="anthropic", auth_type="http_api")
+    fake.complete.side_effect = ModelNotFoundError("anthropic", "HTTP 404 model-not-found: model: x")
+    from loa_cheval.types import RetriesExhaustedError
+    with pytest.raises(RetriesExhaustedError):
+        retry_mod.invoke_with_retry(fake, _make_request(), {"retry": {"max_retries": 0}})
+    assert fake.complete.call_count == 1
+    assert recorded == [], "a model-not-found 404 must not count against the provider breaker"
+    fake.complete.side_effect = ProviderUnavailableError("anthropic", "HTTP 503")
+    with pytest.raises(RetriesExhaustedError):
+        retry_mod.invoke_with_retry(fake, _make_request(), {"retry": {"max_retries": 0}})
+    assert len(recorded) == 1, "a genuine provider failure still counts"
+
+
 @pytest.mark.parametrize("streaming", [False, True])
 def test_endpoint_404_stays_terminal(monkeypatch, streaming):
     """A 404 whose message is not `model: <id>` (a typo'd endpoint, a proxy

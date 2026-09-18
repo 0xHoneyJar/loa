@@ -134,9 +134,12 @@ def test_every_catalog_http_id_is_classified_by_exactly_one_effort_tuple():
         assert _effort_for_model(prefix, "xhigh") == "xhigh", prefix
 
 
-def test_effort_for_model_table_is_total_over_the_catalog():
-    """Every Anthropic HTTP id in the live catalog resolves through the table (SDD §2.1 invariant)."""
+def test_effort_for_model_expected_table_over_the_catalog():
+    """Every Anthropic HTTP id in the live catalog resolves to the EXPECTED
+    per-family value (audit slice D: the previous form accepted any level and
+    could not fail)."""
     import yaml
+    from loa_cheval.providers.anthropic_adapter import _EFFORT_NO_XHIGH_PREFIXES, _EFFORT_UNSUPPORTED_PREFIXES
     catalog = ROOT.parents[1] / ".claude" / "defaults" / "model-config.yaml"
     with catalog.open() as fh:
         models = yaml.safe_load(fh)["providers"]["anthropic"]["models"]
@@ -145,4 +148,10 @@ def test_effort_for_model_table_is_total_over_the_catalog():
             continue
         for effort in ("low", "medium", "high", "xhigh", "max"):
             out = _effort_for_model(model_id, effort)
-            assert out in (None, "low", "medium", "high", "xhigh", "max"), (model_id, effort, out)
+            if model_id.startswith(_EFFORT_UNSUPPORTED_PREFIXES):
+                expected = None
+            elif model_id.startswith(_EFFORT_NO_XHIGH_PREFIXES):
+                expected = "high" if effort == "xhigh" else effort
+            else:
+                expected = effort
+            assert out == expected, (model_id, effort, out, expected)

@@ -202,6 +202,17 @@ class ProviderUnavailableError(ChevalError):
         super().__init__("PROVIDER_UNAVAILABLE", f"Provider '{provider}' unavailable: {reason}", retryable=True, context={"provider": provider})
 
 
+class ModelNotFoundError(ProviderUnavailableError):
+    """HTTP 404 `model: <id>` — the account does not serve this id (cycle-124 FR-3).
+
+    A ProviderUnavailableError so the within-company chain walks to the next
+    hop, but model-specific: retry.py does not count it against the
+    provider-wide circuit breaker (Sprint 1 audit, slice A — five unserved-id
+    calls in five minutes would otherwise open the breaker for every
+    Anthropic HTTP hop, served ids included).
+    """
+
+
 class RateLimitError(ChevalError):
     """Provider returned 429 Too Many Requests."""
 
