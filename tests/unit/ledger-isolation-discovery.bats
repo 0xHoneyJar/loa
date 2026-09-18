@@ -51,7 +51,11 @@ setup() {
 }
 
 # Entry points and the execution shapes that reach them (see header).
-ENTRY_RE='(cheval\.py|\$\{?[A-Z_]*CHEVAL[A-Z_]*\}?|model-adapter\.sh|\$\{?MODEL_ADAPTER[A-Z_]*\}?|\$\{?ADAPTER\}?)'
+# cycle-124 Sprint 2: adversarial-review.sh and flatline-orchestrator.sh are INDIRECT
+# spawners (they exec model-adapter → cheval); a suite that runs them for real,
+# even in FLATLINE_MOCK_MODE, writes MODELINV + cost rows through cheval's
+# mock path — found live 2026-09-18 (adversarial-review-e2e.bats).
+ENTRY_RE='(cheval\.py|\$\{?[A-Z_]*CHEVAL[A-Z_]*\}?|model-adapter\.sh|\$\{?MODEL_ADAPTER[A-Z_]*\}?|\$\{?ADAPTER\}?|adversarial-review\.sh|\$\{?ADVERSARIAL[A-Z_]*\}?|flatline-orchestrator\.sh|\$\{?ORCH(ESTRATOR)?[A-Z_]*\}?)'
 EXEC_RE='(^[[:space:]]*|[;&|(][[:space:]]*|=\$\([[:space:]]*|(^|[[:space:]])(run|bash|python3?|timeout[[:space:]]+[0-9]+|"?\$\{?PYTHON[A-Za-z_]*\}?"?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space:]]+)'
 AFTER_RE='([[:space:]";)]|$)'
 # Non-spawning shapes: dry-run/print flags; grep / git / file-manipulation
@@ -76,7 +80,7 @@ _join_continuations() {  # <file> — fold backslash-continued lines into one
 
 _is_spawner() {  # <file>
     local f="$1"
-    grep -qE 'cheval\.py|model-adapter\.sh|cheval-delegate' "$f" || return 1
+    grep -qE 'cheval\.py|model-adapter\.sh|cheval-delegate|adversarial-review\.sh|flatline-orchestrator\.sh' "$f" || return 1
     case "$f" in
         *.py)
             # A repo-rooted path (REPO*/ROOT*/PROJECT*/parents[…] … cheval.py |
