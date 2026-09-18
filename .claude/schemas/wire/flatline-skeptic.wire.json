@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "flatline-skeptic",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "concerns",
+    "summary"
+  ],
+  "properties": {
+    "concerns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "concern",
+          "severity",
+          "severity_score",
+          "why_matters",
+          "location",
+          "recommendation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "concern": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "severity_score": {
+            "type": "integer"
+          },
+          "why_matters": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

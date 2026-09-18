@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dissent-review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "findings"
+  ],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "anchor",
+          "anchor_type",
+          "scope",
+          "trigger_anchor",
+          "cross_file_justification",
+          "description",
+          "failure_mode",
+          "suggested_fix"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "BLOCKING",
+              "ADVISORY"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "injection",
+              "authz",
+              "data-loss",
+              "null-safety",
+              "concurrency",
+              "type-error",
+              "resource-leak",
+              "error-handling",
+              "spec-violation",
+              "performance",
+              "other"
+            ]
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "anchor_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "function",
+                  "hunk",
+                  "line",
+                  "file"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "diff",
+                  "cross_file"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger_anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cross_file_justification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "failure_mode": {
+            "type": "string"
+          },
+          "suggested_fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

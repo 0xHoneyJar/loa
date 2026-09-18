@@ -280,6 +280,11 @@ validate_finding() {
   local finding="$1"
   local type="$2"
 
+  # wire-enums:validate:start — tests/unit/wire-schemas-api-safe.bats reads the
+  # enums between these markers: the wire schemas' severity enums must EQUAL
+  # these per type and their category enums must be a SUBSET of this list
+  # (the prompt advertises the per-type subset a model is asked for; the
+  # validator stays wide so an unenforced voice's broader tag is not rejected).
   local valid_severities
   if [[ "$type" == "review" ]]; then
     valid_severities='["BLOCKING","ADVISORY"]'
@@ -288,6 +293,7 @@ validate_finding() {
   fi
 
   local valid_categories='["injection","authz","data-loss","null-safety","concurrency","type-error","resource-leak","error-handling","spec-violation","performance","secrets","xss","ssrf","deserialization","crypto","info-disclosure","rate-limiting","input-validation","config","other"]'
+  # wire-enums:validate:end
 
   echo "$finding" | jq -e --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
     (.id | type) == "string" and
