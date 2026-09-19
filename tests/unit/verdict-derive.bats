@@ -247,3 +247,19 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"does not match requested --gate"* ]]
 }
+
+@test "verdict-derive: a TAB in the marker is a malformed-marker violation, never a legacy file" {
+    printf 'APPROVED - LET'"'"'S FUCKING GO\n<!-- LOA-VERDICT\t{"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$TEST_TMPDIR/f.md"
+    run "$SCRIPT" --file "$TEST_TMPDIR/f.md" --gate audit --json
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"malformed"* ]]
+    [[ "$output" != *"NO_TRAILER"* ]]
+}
+
+@test "verdict-derive: counts.high of 2^64 (bash wrap) is a violation, not consistent" {
+    printf 'All good\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":18446744073709551616,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$TEST_TMPDIR/f.md"
+    run "$SCRIPT" --file "$TEST_TMPDIR/f.md" --gate review --json
+    [ "$status" -ne 0 ]
+    [[ "$output" == *'"consistent": false'* ]]
+    [[ "$output" == *"non-numeric"* ]]
+}

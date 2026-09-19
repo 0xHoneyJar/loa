@@ -127,7 +127,8 @@ while circuit_breaker.state == CLOSED:
   6. update_state(phase: AUDIT)
   7. /audit-sprint $target
   8. If `verdict-derive.sh --gate audit` on auditor-sprint-feedback.md does not exit 0 with
-     `.verdict == APPROVED` → same as step 5
+     `.verdict == APPROVED` → same as step 5 (golden-path's `_gp_sprint_is_audited` additionally
+     re-derives the review trailer and cross-checks `excluded` ⇔ `excluded_confirmed`)
   9. RED_TEAM_CODE gate (if enabled) — see below
   10. If COMPLETED marker exists → update_state(state: COMPLETE); break
 Create draft PR (see "Completion and PR Creation")

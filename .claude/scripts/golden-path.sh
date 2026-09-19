@@ -91,6 +91,14 @@ _gp_sprint_is_complete() {
 # or a usage error (it exits 2 BEFORE emit_json) — any rc != 0 denies, as
 # does missing/broken jq. Passes only on rc 0 AND .consistent AND APPROVED.
 # Returns 0 pass / 1 deny; diagnostics go to stderr, never stdout.
+# Trailer DETECTION is deliberately loose — any HTML comment whose text reads
+# LOA…VERDICT with up to four arbitrary bytes before LOA and between the words (tab, NBSP,
+# U+2010, two spaces…) routes the file to verdict-derive.sh, which then accepts
+# ONLY the exact `<!-- LOA-VERDICT {json} -->` form. A malformed marker must
+# never fall through to the legacy prose heuristic, whose `grep -q APPROVED`
+# matches "NOT APPROVED" (Sprint 1 audit, slice C — reproduced).
+_GP_TRAILER_DETECT='<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT'
+
 _gp_verdict_gate() {
     local file="$1" gate="$2"
     local verdict_json rc consistent verdict
@@ -110,21 +118,22 @@ _gp_verdict_gate() {
 # Absent file/trailer/field reads as 0; a PRESENT field that is not a
 # non-negative integer (1.0, "1", null) prints "invalid" so the caller fails
 # closed instead of treating it as 0 (review round-1 high #4). The trailer is
-# located the way verdict-derive.sh locates it — whitespace-tolerant marker,
-# LAST occurrence — so the two never disagree about which line is the trailer.
+# located with the same loose detection as the guards above (LAST occurrence);
+# a value longer than six digits is `invalid` too — bash `-gt`/`-ne` wrap at
+# 2^64, so 18446744073709551616 would read as 0 (Sprint 1 audit, slice C).
 # verdict-derive.sh does not know the FR-8 exclusion fields yet (Sprint 3),
 # hence the direct parse.
 _gp_trailer_int() {
     local file="$1" field="$2" payload val
-    payload=$(grep -oE '<!-- LOA-VERDICT[[:space:]]+\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
-              | sed -E 's/^<!-- LOA-VERDICT[[:space:]]+//; s/[[:space:]]*-->$//')
+    payload=$(grep -oE "${_GP_TRAILER_DETECT}"'[[:space:]]*\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
+              | sed -E 's/^<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT[[:space:]]*//; s/[[:space:]]*-->$//')
     if [[ -z "${payload}" ]]; then
         echo 0
         return 0
     fi
     val=$(printf '%s' "${payload}" | jq -r --arg f "${field}" \
-          'if has($f) then (if (.[$f] | type) == "number" and (.[$f] | floor) == .[$f] and .[$f] >= 0 then (.[$f] | tostring) else "invalid" end) else "0" end' 2>/dev/null) || val="invalid"
-    [[ "${val}" =~ ^[0-9]+$ ]] && echo "${val}" || echo invalid
+          'if has($f) then (if (.[$f] | type) == "number" and (.[$f] | floor) == .[$f] and .[$f] >= 0 and ((.[$f] | tostring | length) <= 6) then (.[$f] | tostring) else "invalid" end) else "0" end' 2>/dev/null) || val="invalid"
+    [[ "${val}" =~ ^[0-9]{1,6}$ ]] && echo "${val}" || echo invalid
 }
 
 # Check if a sprint has been reviewed (no findings or no required changes).
@@ -150,7 +159,7 @@ _gp_sprint_is_reviewed() {
         # chmod-lost executable bit cannot silently drop a present trailer
         # back to the legacy prose heuristic (which could reverse the verdict).
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+           grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
             _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review
             return $?
         fi
@@ -174,13 +183,13 @@ _gp_sprint_is_audited() {
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
         # R2 review (cycle-119): -f + bash invocation, same rationale as above.
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
+           grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
             _gp_verdict_gate "${sprint_dir}/auditor-sprint-feedback.md" audit || return 1
             # An audit implies review, so the review trailer would otherwise
             # never meet verdict-derive.sh: when it exists, it must pass the
             # same gate (review round-1 high #4 — fail closed).
             if [[ -f "${sprint_dir}/engineer-feedback.md" ]] && \
-               grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+               grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
                 _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review || return 1
             fi
             # FR-5 cross-check: a reviewer-demoted high (review trailer

@@ -367,6 +367,50 @@ EOF
     [[ "$stderr" == *"excluded_confirmed=invalid"* ]]
 }
 
+@test "slice-C HIGH: a TAB-marker CHANGES_REQUIRED audit trailer under 'NOT APPROVED' prose is neither audited nor reviewed (no fall-through to the prose heuristic)" {
+    skip_if_no_jq
+    cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
+All good
+<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    printf 'Status: NOT APPROVED - 2 HIGH findings\n<!-- LOA-VERDICT\t{"gate":"audit","verdict":"CHANGES_REQUIRED","counts":{"critical":0,"high":2,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$SPRINT_DIR/auditor-sprint-feedback.md"
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run --separate-stderr _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"malformed"* ]]
+    # and the sprint is not implicitly reviewed via "already audited"
+    rm -f "$SPRINT_DIR/engineer-feedback.md"
+    run _gp_sprint_is_reviewed sprint-1
+    [ "$status" -eq 1 ]
+}
+
+@test "slice-C HIGH: NBSP and U+2010 marker variants on a CHANGES_REQUIRED review trailer ⇒ reviewed=false" {
+    skip_if_no_jq
+    local nbsp=$' ' hyph=$'‐'
+    for marker in "<!--${nbsp}LOA-VERDICT " "<!-- LOA${hyph}VERDICT "; do
+        printf '%s%s{"gate":"review","verdict":"CHANGES_REQUIRED","counts":{"critical":0,"high":3,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' "Looks fine overall." $'\n'"$marker" > "$SPRINT_DIR/engineer-feedback.md"
+        source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+        run _gp_sprint_is_reviewed sprint-1
+        [ "$status" -eq 1 ] || { echo "marker variant accepted: $marker" >&2; return 1; }
+    done
+}
+
+@test "slice-C MEDIUM: excluded=2^64 (wraps to 0 in bash) is invalid, not 'no exclusions'" {
+    skip_if_no_jq
+    cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
+All good
+<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":18446744073709551616,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
+APPROVED - LET'S FUCKING GO
+<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
+EOF
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run --separate-stderr _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"non-integer excluded"* ]]
+}
+
 # =============================================================================
 # Doc-lock (AC-5.2): run-mode/SKILL.md and sprint-completion.md describe the
 # gate in verdict-derive terms.

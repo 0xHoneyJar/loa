@@ -70,13 +70,13 @@ A sprint is considered reviewed if:
 1. It has already been audited (audit implies review passed), OR
 2. `engineer-feedback.md` exists AND contains no "Changes Required", "Findings", or "Issues" sections
 
-When `engineer-feedback.md` carries a `<!-- LOA-VERDICT {...} -->` trailer, the trailer path replaces rule 2: `_gp_verdict_gate` runs `verdict-derive.sh --gate review --json` and passes only when it exits 0, `.consistent` is `true` and `.verdict` is `APPROVED`. The gate fails closed — an inconsistent or unparseable trailer, any non-zero exit, or a missing `jq` all read as "not reviewed"; the prose heuristic applies only to files with no trailer at all.
+When `engineer-feedback.md` carries a `<!-- LOA-VERDICT {...} -->` trailer — detected loosely: any HTML comment reading `LOA…VERDICT` with whitespace or hyphen variants counts as a trailer and is sent to `verdict-derive.sh`, which accepts only the exact `<!-- LOA-VERDICT {json} -->` form and fails closed on anything else; the prose heuristic applies only to files with no such marker at all — the trailer path replaces rule 2: `_gp_verdict_gate` runs `verdict-derive.sh --gate review --json` and passes only when it exits 0, `.consistent` is `true` and `.verdict` is `APPROVED`. The gate fails closed — an inconsistent or unparseable trailer, any non-zero exit, or a missing `jq` all read as "not reviewed"; the prose heuristic applies only to files with no trailer at all.
 
 ### `_gp_sprint_is_audited()`
 
 A sprint is audited if `auditor-sprint-feedback.md` exists and contains "APPROVED".
 
-With a trailer, the same fail-closed gate runs with `--gate audit`; additionally, when the review trailer carries `excluded > 0`, the audit trailer's `excluded_confirmed` must equal it (absent reads as 0).
+With a trailer, the same fail-closed gate runs with `--gate audit`; additionally (a) when `engineer-feedback.md` carries a trailer it is re-derived with `--gate review` and must be APPROVED (an audit implies review), (b) when the review trailer carries `excluded > 0`, the audit trailer's `excluded_confirmed` must equal it (absent reads as 0; a non-integer or a value longer than six digits denies).
 
 ## A2A Directory Structure
 

@@ -56,7 +56,14 @@ Exit codes:
 EOF
 }
 
-is_num() { [[ "$1" =~ ^[0-9]+$ ]]; }
+# ≤ 6 digits: bash arithmetic wraps at 2^64, so an absurd count like
+# 18446744073709551616 would sum to 0 and read as consistent (audit, slice C).
+is_num() { [[ "$1" =~ ^[0-9]{1,6}$ ]]; }
+# Detection is loose (tab/NBSP/U+2010 variants are still "a trailer"); the
+# canonical form is enforced below — a malformed marker is a violation, never a
+# silent fall-through to the legacy prose heuristic.
+TRAILER_DETECT='<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT'
+TRAILER_CANON='^<!-- LOA-VERDICT \{.*\} -->$'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -124,7 +131,7 @@ emit_plain() {
     fi
 }
 
-trailer_count=$(grep -c '<!-- LOA-VERDICT ' -- "$FILE" 2>/dev/null || true)
+trailer_count=$(grep -cE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
 [[ -z "$trailer_count" ]] && trailer_count=0
 
 # --- No trailer at all: legacy file ---
@@ -148,8 +155,11 @@ last_line="${last_line%$'\r'}"
 if [[ "$trailer_count" -gt 1 ]]; then
     violations+=("multiple LOA-VERDICT trailers found ($trailer_count) — keep exactly one trailer, as the last line of the file")
 else
-    trailer_line=$(grep '<!-- LOA-VERDICT ' -- "$FILE" | head -1)
+    trailer_line=$(grep -E "$TRAILER_DETECT" -- "$FILE" | head -1)
     trailer_line="${trailer_line%$'\r'}"
+    if [[ ! "$trailer_line" =~ $TRAILER_CANON ]]; then
+        violations+=("LOA-VERDICT marker is malformed — the exact form is '<!-- LOA-VERDICT {json} -->' (single ASCII spaces, ASCII hyphen)")
+    fi
     if [[ "$trailer_line" != "$last_line" ]]; then
         violations+=("LOA-VERDICT trailer is not the last line of the file — move it to be the final line with nothing after it")
     fi
