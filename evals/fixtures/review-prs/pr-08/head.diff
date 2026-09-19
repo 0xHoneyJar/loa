@@ -1,0 +1,138 @@
+diff --git a/.claude/scripts/ledger-lib.sh b/.claude/scripts/ledger-lib.sh
+--- a/.claude/scripts/ledger-lib.sh
++++ b/.claude/scripts/ledger-lib.sh
+@@ -149,11 +149,13 @@
+     ledger_path=$(get_ledger_path)
+     local lock_file="${ledger_path}.lock"
+ 
++    # GUARD (bug 20260808-a008c6): refuse empty/unparseable content BEFORE
++    # touching lock, backup, or ledger. An empty string here previously
+     # passed through the last_updated jq stamp (jq on empty input emits
+     # nothing and exits 0) and truncated the ledger to a 1-byte newline
+-    if [[ -z "$content" ]] || \
+-       ! printf '%s' "$content" | jq -es 'length == 1 and (.[0] | type == "object")' >/dev/null 2>&1; then
+-        echo "ERROR: refusing to write empty, unparseable, or non-object ledger content" >&2
++    # while every caller reported success.
++    if [[ -z "$content" ]] || ! echo "$content" | jq empty 2>/dev/null; then
++        echo "ERROR: refusing to write empty or unparseable ledger content" >&2
+         return $LEDGER_ERROR
+     fi
+ 
+@@ -174,7 +176,7 @@
+ 
+     # Update last_updated timestamp
+     local updated_content
+-    updated_content=$(printf '%s' "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
++    updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
+     if [[ -z "$updated_content" ]]; then
+         echo "ERROR: timestamp stamping produced empty content, aborting write" >&2
+         flock -u 9
+diff --git a/tools/check-no-swallowed-jq.sh b/tools/check-no-swallowed-jq.sh
+--- a/tools/check-no-swallowed-jq.sh
++++ b/tools/check-no-swallowed-jq.sh
+@@ -110,43 +110,16 @@
+     in_heredoc = 0
+     hd_term = ""
+     hd_dash = 0
+-    hd_exec = 0
+-    split("sh bash zsh ksh dash ash python python2 python3 perl ruby node deno php", _il, " ")
+-    for (_i in _il) INTERP[_il[_i]] = 1
+ }
+ 
+ function _line_has_swallowed_jq(line) {
+     return (line ~ /(^|[^[:alnum:]_])jq[[:space:]].*\|\|[[:space:]]*(echo|printf)([^[:alnum:]_]|$)/)
+ }
+ 
+-function _hd_command(line, rs,    prefix, n, w, i, words) {
+-    prefix = substr(line, 1, rs - 1)
+-    sub(/.*[|;&(`]/, "", prefix)
+-    n = split(prefix, words, /[[:space:]]+/)
+-    for (i = 1; i <= n; i++) {
+-        w = words[i]
+-        if (w == "" || w ~ /^-/) continue                    # options / bare `-`
+-        if (w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue         # env assignments
+-        if (w == "env" || w == "sudo" || w == "command" || w == "exec" || w == "nohup" || w == "time") continue
+-        sub(/.*\//, "", w)                                   # strip path prefix
+-        return w
+-    }
+-    return ""
+-}
+-
+-function _start_heredoc(line,    scan, pre, sq, dq, rest, term, rs, rl, cmd, post) {
+-    scan = line
+-    gsub(/\$\(\(.*\)\)/, "", scan)
+-    gsub(/\(\(.*\)\)/, "", scan)
+-    gsub(/<<<[[:space:]]*("[^"]*"|'[^']*'|[^[:space:]]+)/, "", scan)
+-    if (match(scan, /<<-?[[:space:]]*['"]?[A-Za-z_][A-Za-z0-9_]*['"]?/)) {
+-        rs = RSTART; rl = RLENGTH
+-        pre = substr(scan, 1, rs - 1)
+-        sq = gsub(/\047/, "", pre)
+-        dq = gsub(/"/, "", pre)
+-        if (sq % 2 == 1 || dq % 2 == 1) return
+-        hd_dash = (substr(scan, rs, 3) == "<<-")
+-        rest = substr(scan, rs + (hd_dash ? 3 : 2), rl - (hd_dash ? 3 : 2))
++function _start_heredoc(line,    rest, term) {
++    if (match(line, /<<-?[[:space:]]*['"]?[A-Za-z_][A-Za-z0-9_]*['"]?/)) {
++        hd_dash = (substr(line, RSTART, 3) == "<<-")
++        rest = substr(line, RSTART + (hd_dash ? 3 : 2), RLENGTH - (hd_dash ? 3 : 2))
+         gsub(/^[[:space:]]+/, "", rest)
+         term = rest
+         if (substr(term, 1, 1) == "\047" || substr(term, 1, 1) == "\"") term = substr(term, 2)
+@@ -155,33 +128,29 @@
+         if (term != "") {
+             hd_term = term
+             in_heredoc = 1
+-            hd_quoted = (substr(rest, 1, 1) == "\047" || substr(rest, 1, 1) == "\"")
+-            cmd = _hd_command(scan, rs)
+-            post = substr(scan, rs + rl)
+-            hd_exec = (cmd in INTERP) || !hd_quoted || \
+-                (post ~ /\|[[:space:]]*([^[:space:]|;&]*\/)?(sh|bash|zsh|ksh|dash|ash|python[0-9.]*|perl|ruby|node|deno|php)([[:space:]]|$)/)
+         }
+     }
+ }
+ 
++# Step 1: when in a heredoc body, skip fixture/documentation text until the
++# terminator. Without this, --root scans of bats tests can flag planted bad
++# examples instead of executable scanner code.
+ in_heredoc {
+-    if ($0 == hd_term) { in_heredoc = 0; hd_exec = 0; next }
++    if ($0 == hd_term) { in_heredoc = 0; next }
+     if (hd_dash) {
+         no_tabs = $0
+         gsub(/^\t+/, "", no_tabs)
+-        if (no_tabs == hd_term) { in_heredoc = 0; hd_exec = 0; next }
+-    }
+-    if (hd_exec) {
+-        if ($0 ~ /^[[:space:]]*#/) next
+-        if ($0 ~ /#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/) next
+-        if (_line_has_swallowed_jq($0)) print FILENAME ":" NR ":" $0
++        if (no_tabs == hd_term) { in_heredoc = 0; next }
+     }
+     next
+ }
+ 
++# Step 2: skip line-leading comments.
+ /^[[:space:]]*#/ { next }
+ 
+-/#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ { _start_heredoc($0); next }
++# Step 3: skip lines with the suppression marker. Requires `#` leader so
++# string-literal mentions don't silence real invocations.
++/#[^\n]*check-no-swallowed-jq:[[:space:]]*ok/ { next }
+ 
+ # Step 4: match a jq invocation followed by `|| echo` / `|| printf` on the
+ # same line. LHS word-boundary so identifiers like `dijq` don't match; jq
+diff --git a/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py b/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py
+--- a/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py
++++ b/.claude/adapters/loa_cheval/providers/agy_headless_adapter.py
+@@ -163,11 +163,6 @@
+                         self.provider,
+                         f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
+                     ) from exc
+-                except ValueError as exc:
+-                    raise ProviderUnavailableError(
+-                        self.provider,
+-                        f"agy -p got un-execable argv (embedded NUL in the prompt?): {exc}",
+-                    ) from exc
+         except _SemaphoreExhausted as exc:
+             raise ProviderUnavailableError(
+                 self.provider,

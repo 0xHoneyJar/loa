@@ -1,0 +1,29 @@
+fixture	kind	commit	file	defect_id	severity	category	must_match
+pr-01	defect	900b27c4	.claude/hooks/safety/block-destructive-bash.sh	D01-decoy-flag-reanchor	critical	authz	_bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|]*commit
+pr-01	defect	5ab3bebc	.claude/scripts/lib/invoke-diagnostics.sh	D02-aws-session-key-redaction	critical	secret-leak	s/AKIA[A-Z0-9]{16}/AKIA***REDACTED***/g
+pr-01	defect	7ce8f98b	.claude/scripts/workflow-state.sh	D03-grep-count-double-zero	low	logic	grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || echo "0"
+pr-02	defect	98103de4	.claude/adapters/loa_cheval/audit_envelope.py	D04-verify-for-merge-trusts-local-pubkey	critical	authz	if status in ("BOOTSTRAP-PENDING", "VERIFIED"):
+pr-02	defect	c8ca3dc3	.claude/scripts/spiral-evidence.sh	D05-backtick-command-paths	medium	input-validation	echo "$content" | grep -oE "(^|[^a-zA-Z0-9_/.-])(src|tests|
+pr-02	defect	d94b20d4	.claude/scripts/semver-bump.sh	D06-prerelease-tags-rejected	low	logic	if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+pr-03	defect	63d10ac1	.claude/scripts/ledger-lib.sh	D07-empty-ledger-write	critical	error-handling	updated_content=$(echo "$content" | jq --arg ts "$(now_iso)" '.last_updated = $ts')
+pr-03	defect	731672d9	.claude/scripts/mount-submodule.sh	D08-relative-symlink-resolved-from-cwd	high	input-validation	resolved_target=$(cd "$(dirname "$target")" && pwd)/$(basename "$target")
+pr-03	defect	41b28f42	.claude/scripts/classify-pr-type.sh	D09-release-merge-misclassified	low	logic	if echo "$title" | grep -qE "^fix"; then
+pr-04	defect	c1c40631	.claude/adapters/loa_cheval/providers/base.py	D10-auth-mode-selectors-not-scrubbed	critical	secret-leak	"GOOGLE_APPLICATION_CREDENTIALS",
+pr-04	defect	3da4bcb5	.claude/scripts/flatline-orchestrator.sh	D11-mktemp-unchecked	high	error-handling	arbiter_prompt_file=$(mktemp)
+pr-04	defect	266efb1a	.claude/scripts/loa-status.sh	D12-unknown-flag-silent	low	input-validation	ECONOMY_ARGS+=("$arg")
+pr-05	defect	ef81358f	.claude/hooks/safety/block-destructive-bash.sh	D13-find-exec-multi-root	critical	authz	_seg_find_root="${BASH_REMATCH[3]}"
+pr-05	defect	802eb960	.claude/adapters/loa_cheval/providers/anthropic_adapter.py	D14-billing-400-terminal	high	error-handling	f"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}"
+pr-05	defect	0059366a	.claude/scripts/workflow-state.sh	D15-completed-sprints-unscoped	medium	logic	sprint_dirs=$(find "${a2a_dir}" -maxdepth 1 -type d -name "sprint-*" 2>/dev/null || true)
+pr-06	defect	4b37d02c	.claude/adapters/loa_cheval/providers/claude_headless_adapter.py	D16-spawn-oserror-crashes-chain	high	error-handling	f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+pr-06	defect	3197e455	.claude/scripts/flatline-orchestrator.sh	D17-skeptic-bare-array-envelope	high	logic	extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
+pr-06	defect	6f31fa7b	.claude/scripts/construct-index-gen.sh	D18-event-key-alternation-on-array	medium	logic	emits_json=$(jq -c '.events.emits // [] | [.[].name // empty]' "$manifest" 2>/dev/null || echo "[]")
+pr-07	defect	5cf0aaba	.claude/hooks/safety/block-destructive-bash.sh	D19-hidden-dir-denylist-leaks	high	secret-leak	_re_allow_exclude='^\./($|\*|\.$|\.\.($|/)|\.git($|/)|\.ssh($|/)|\.aws($|/)|\.kube($|/)|\.gnupg($|/)|\.docker($|/)|\.config($|/)|\.claude($|/)|\.env)'
+pr-07	defect	27d03666	.claude/scripts/constructs-lib.sh	D20-local-source-ignores-slug	high	logic	if [[ -d "$path" && ( -f "$path/construct.yaml" || -f "$path/manifest.json" ) ]]; then
+pr-07	defect	2adc19bc	.claude/scripts/lib/symlink-manifest.sh	D21-blind-dotdot-rejection	medium	input-validation	if _path_has_traversal "$link" || _path_has_traversal "$target"; then
+pr-08	defect	e2a274eb	.claude/scripts/ledger-lib.sh	D22-ledger-shape-unpinned	high	input-validation	if [[ -z "$content" ]] || ! echo "$content" | jq empty 2>/dev/null; then
+pr-08	defect	4406815a	tools/check-no-swallowed-jq.sh	D23-heredoc-body-fail-open	medium	logic	if ($0 == hd_term) { in_heredoc = 0; next }
+pr-08	defect	381d065d	.claude/adapters/loa_cheval/providers/agy_headless_adapter.py	D24-embedded-nul-valueerror	medium	error-handling	f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
+pr-09	clean	1166c97b	.claude/scripts/butterfreezone-validate.sh	-	-	-	-
+pr-09	clean	1166c97b	tests/unit/butterfreezone-validate-route-false-positive.bats	-	-	-	-
+pr-10	clean	f3f280c1	.claude/scripts/loa-doctor.sh	-	-	-	-
+pr-10	clean	f3f280c1	tests/unit/bug-725-ajv-version-probe.bats	-	-	-	-

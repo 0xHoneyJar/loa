@@ -25,6 +25,24 @@ Options:
   --json                 JSON output
   --quiet                Minimal output
 
+A/B freshness (cycle-124 S3, PRD FR-9):
+  --suite-file <yaml>    Suite file carrying `ab.floor_commit` / `ab.corpus_manifest`
+                         (default: evals/suites/<suite>.yaml when --suite is given)
+  --prompt-tree <dir>    Repo whose .claude/ tree is "current" (default: this repo)
+  --baseline-out <file>  Where --update-baseline writes (default: baselines/<suite>.baseline.yaml)
+  A baseline carrying prompt_tree_sha is refused (exit 2) when it equals the
+  current prompt tree (tautological), when captured_at_commit is not a
+  descendant of ab.floor_commit (stale), or when corpus_sha256 drifted.
+
+A/B arm comparison:
+  --ab --arm-a <run-dir> --arm-b <run-dir> --metric recall|audit|discipline
+  Gates: recall  mean recall over defect tasks B >= A - 0.1; false positives on
+                 clean tasks B <= A
+         audit   the recall gates + tokens_ratio (mean tokens per call B/A <= 0.5)
+         discipline  mean pass rate B >= A
+  Invalid (exit 2): model id skew across arms/trials, a dirty prompt tree,
+  identical prompt trees.
+
 Exit codes:
   0  No regressions
   1  Regressions detected
@@ -44,9 +62,23 @@ UPDATE_BASELINE=false
 REASON=""
 JSON_OUTPUT=false
 QUIET=false
+SUITE_FILE=""
+PROMPT_TREE="$REPO_ROOT"
+BASELINE_OUT=""
+AB_MODE=false
+ARM_A=""
+ARM_B=""
+AB_METRIC="recall"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --suite-file) SUITE_FILE="$2"; shift 2 ;;
+    --prompt-tree) PROMPT_TREE="$2"; shift 2 ;;
+    --baseline-out) BASELINE_OUT="$2"; shift 2 ;;
+    --ab) AB_MODE=true; shift ;;
+    --arm-a) ARM_A="$2"; shift 2 ;;
+    --arm-b) ARM_B="$2"; shift 2 ;;
+    --metric) AB_METRIC="$2"; shift 2 ;;
     --results) RESULTS_FILE="$2"; shift 2 ;;
     --run-dir) RUN_DIR="$2"; shift 2 ;;
     --suite) SUITE="$2"; shift 2 ;;
@@ -61,6 +93,16 @@ while [[ $# -gt 0 ]]; do
     *) echo "ERROR: Unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+# --- A/B arm comparison (cycle-124 S3) -------------------------------------
+if [[ "$AB_MODE" == "true" ]]; then
+  [[ -n "$ARM_A" && -n "$ARM_B" ]] || { echo "ERROR: --ab requires --arm-a and --arm-b" >&2; exit 2; }
+  [[ -f "$ARM_A/results.jsonl" ]] || { echo "ERROR: $ARM_A/results.jsonl not found" >&2; exit 2; }
+  [[ -f "$ARM_B/results.jsonl" ]] || { echo "ERROR: $ARM_B/results.jsonl not found" >&2; exit 2; }
+  case "$AB_METRIC" in recall|audit|discipline) ;; *) echo "ERROR: --metric must be recall|audit|discipline" >&2; exit 2 ;; esac
+  python3 "$SCRIPT_DIR/compare-ab.py" "$ARM_A/results.jsonl" "$ARM_B/results.jsonl" "$AB_METRIC" "$JSON_OUTPUT"
+  exit $?
+fi
 
 # Resolve results file
 if [[ -n "$RUN_DIR" && -z "$RESULTS_FILE" ]]; then
@@ -100,9 +142,62 @@ aggregate_results() {
       passes: [.[] | select(.composite.pass == true)] | length,
       pass_rate: (([.[] | select(.composite.pass == true)] | length) / length),
       mean_score: ([.[].composite.score] | add / length),
-      status: "active"
+      status: "active",
+      # cycle-124 S3: per-task A/B metrics when the recall grader / executor ran
+      recall: ([.[] | .graders[]? | select(.name=="recall-vs-defects.sh") | .details | objects | .recall | numbers] | if length > 0 then (add / length) else null end),
+      false_positives: ([.[] | .graders[]? | select(.name=="recall-vs-defects.sh") | .details | objects | .false_positives | numbers] | if length > 0 then (add / length) else null end),
+      tokens_mean: ([.[] | .executor? | objects | .usage | objects | ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0) + (.output_tokens // 0))] | if length > 0 then (add / length) else null end)
     })
   ' "$results_file"
+}
+
+# --- Freshness rule (cycle-124 S3, PRD FR-9) ---------------------------------
+# Refuses a baseline that would make the A/B tautological or stale.
+resolve_suite_file() {
+  if [[ -n "$SUITE_FILE" ]]; then printf '%s' "$SUITE_FILE"; return; fi
+  if [[ -n "$SUITE" && -f "$EVALS_DIR/suites/${SUITE}.yaml" ]]; then printf '%s' "$EVALS_DIR/suites/${SUITE}.yaml"; fi
+}
+
+corpus_manifest_sha() {  # prints sha256 of the suite's corpus manifest, or nothing
+  local sf; sf="$(resolve_suite_file)"
+  [[ -n "$sf" && -f "$sf" ]] || return 0
+  local m; m="$(yq -r '.ab.corpus_manifest // ""' "$sf" 2>/dev/null || true)"
+  [[ -n "$m" && "$m" != "null" ]] || return 0
+  [[ "$m" == /* ]] || m="$REPO_ROOT/$m"
+  [[ -f "$m" ]] || { echo "ERROR: corpus manifest not found: $m" >&2; return 1; }
+  sha256sum "$m" | cut -d' ' -f1
+}
+
+check_freshness() {
+  local baseline_file="$1"
+  local bl_tree bl_commit bl_corpus cur_tree sf floor cur_corpus
+  bl_tree="$(yq -r '.prompt_tree_sha // ""' "$baseline_file" 2>/dev/null || true)"
+  [[ -n "$bl_tree" && "$bl_tree" != "null" ]] || return 0   # legacy baseline: no rule
+  cur_tree="$(git -C "$PROMPT_TREE" rev-parse HEAD:.claude 2>/dev/null || echo unknown)"
+  if [[ "$bl_tree" == "$cur_tree" ]]; then
+    echo "ERROR: baseline prompt_tree_sha equals the current prompt tree ($cur_tree) — tautological comparison; capture the baseline on the pre-change tree" >&2
+    return 2
+  fi
+  bl_commit="$(yq -r '.captured_at_commit // ""' "$baseline_file" 2>/dev/null || true)"
+  sf="$(resolve_suite_file)"
+  if [[ -n "$bl_commit" && "$bl_commit" != "null" && -n "$sf" && -f "$sf" ]]; then
+    floor="$(yq -r '.ab.floor_commit // ""' "$sf" 2>/dev/null || true)"
+    if [[ -n "$floor" && "$floor" != "null" ]]; then
+      if ! git -C "$PROMPT_TREE" merge-base --is-ancestor "$floor" "$bl_commit" 2>/dev/null; then
+        echo "ERROR: baseline captured_at_commit $bl_commit predates (is not a descendant of) the suite floor commit $floor — stale baseline" >&2
+        return 2
+      fi
+    fi
+  fi
+  bl_corpus="$(yq -r '.corpus_sha256 // ""' "$baseline_file" 2>/dev/null || true)"
+  if [[ -n "$bl_corpus" && "$bl_corpus" != "null" ]]; then
+    cur_corpus="$(corpus_manifest_sha)" || return 2
+    if [[ -n "$cur_corpus" && "$cur_corpus" != "$bl_corpus" ]]; then
+      echo "ERROR: corpus manifest drifted since the baseline (baseline $bl_corpus, current $cur_corpus) — fixtures must be frozen across arms" >&2
+      return 2
+    fi
+  fi
+  return 0
 }
 
 # --- Early stopping check for multi-trial evals ---
@@ -337,6 +432,14 @@ update_baseline() {
   local run_id
   run_id="$(jq -r '.[0].run_id // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
 
+  # cycle-124 S3: prompt-tree identity + corpus freeze + executor model, so
+  # compare.sh can refuse a tautological or stale re-baseline.
+  local tree_sha tree_commit executor_model corpus_sha
+  tree_sha="$(git -C "$PROMPT_TREE" rev-parse HEAD:.claude 2>/dev/null || echo "")"
+  tree_commit="$(git -C "$PROMPT_TREE" rev-parse HEAD 2>/dev/null || echo "")"
+  executor_model="$(jq -r 'select(.executor? | objects) | .executor.model_id // empty' "$RESULTS_FILE" 2>/dev/null | head -1 || true)"
+  corpus_sha="$(corpus_manifest_sha 2>/dev/null || true)"
+
   # Generate baseline YAML
   {
     echo "version: 1"
@@ -345,8 +448,15 @@ update_baseline() {
     echo "recorded_at: \"$(date -u +%Y-%m-%d)\""
     echo "recorded_from_run: \"$run_id\""
     echo "update_reason: \"$reason\""
+    [[ -n "$tree_sha" ]] && echo "prompt_tree_sha: \"$tree_sha\""
+    [[ -n "$tree_commit" ]] && echo "captured_at_commit: \"$tree_commit\""
+    [[ -n "$executor_model" ]] && echo "executor_model: \"$executor_model\""
+    [[ -n "$corpus_sha" ]] && echo "corpus_sha256: \"$corpus_sha\""
     echo "tasks:"
-    echo "$current_json" | jq -r '.[] | "  \(.task_id):\n    pass_rate: \(.pass_rate)\n    trials: \(.trials)\n    mean_score: \(.mean_score | floor)\n    status: active"'
+    echo "$current_json" | jq -r '.[] | "  \(.task_id):\n    pass_rate: \(.pass_rate)\n    trials: \(.trials)\n    mean_score: \(.mean_score | floor)\n    status: active"
+      + (if .recall != null then "\n    recall: \(.recall)" else "" end)
+      + (if .false_positives != null then "\n    false_positives: \(.false_positives)" else "" end)
+      + (if .tokens_mean != null then "\n    tokens_mean: \(.tokens_mean | floor)" else "" end)'
   } > "$output_file"
 
   echo "Baseline updated: $output_file" >&2
@@ -357,12 +467,13 @@ current_aggregated="$(aggregate_results "$RESULTS_FILE")"
 
 if [[ "$UPDATE_BASELINE" == "true" ]]; then
   suite_name="${SUITE:-unknown}"
-  update_baseline "$current_aggregated" "$suite_name" "$REASON"
+  update_baseline "$current_aggregated" "$suite_name" "$REASON" "$BASELINE_OUT"
   exit 0
 fi
 
 # Compare against baseline
 if [[ -n "$BASELINE_FILE" && -f "$BASELINE_FILE" ]]; then
+  check_freshness "$BASELINE_FILE" || exit 2
   comparison="$(compare_baseline "$current_aggregated" "$BASELINE_FILE" "$THRESHOLD")"
 else
   comparison="$(echo "$current_aggregated" | jq '[.[] | . + {classification: "new", baseline_pass_rate: null, delta: null}]')"

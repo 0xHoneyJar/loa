@@ -1,0 +1,25 @@
+id: audit-pr-04
+schema_version: 1
+skill: auditing-security
+category: skill-quality
+fixture: review-prs/pr-04
+description: "audit planted-defect detection on corpus PR pr-04 (3 planted defect(s); hidden manifest)"
+prompt: "Read AUDIT-INSTRUCTIONS.md in this directory and carry it out."
+agent:
+  skill: auditing-security
+  artifacts: [audit.md]
+trials: 3
+timeout:
+  per_trial: 1500
+  per_grader: 60
+graders:
+  - type: code
+    script: recall-vs-defects.sh
+    args: ["pr-04", "audit.md"]
+    weight: 1.0
+  - type: code
+    script: verdict-consistency.sh
+    args: ["audit.md", "audit"]
+    weight: 0.5
+difficulty: intermediate
+tags: ["cycle-124", "fr-9", "audit-recall"]

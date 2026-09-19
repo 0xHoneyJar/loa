@@ -1,0 +1,127 @@
+diff --git a/.claude/hooks/safety/block-destructive-bash.sh b/.claude/hooks/safety/block-destructive-bash.sh
+--- a/.claude/hooks/safety/block-destructive-bash.sh
++++ b/.claude/hooks/safety/block-destructive-bash.sh
+@@ -767,9 +767,13 @@
+   # C15/cycle-119: matches the text immediately preceding an rm segment
+   # (bounded to the SAME statement, via the identical boundary-alternation
+   # style used by every other pattern in this file) when it is a
++  # `find ROOT ... -exec` prefix. `$`-anchored: nothing may sit between
+   # `-exec` and this rm invocation (sudo / an absolute /path/to/rm are
+   # consumed by the rm_segment extraction itself, not this prefix). Group 3
+-  _re_find_exec_prefix='(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?find[[:space:]]+([^;&|)]*)-exec$'
++  # is the FIND ROOT. Scope: the root token is `find`'s FIRST argument —
++  # `find -L root -exec ...` (flags before root) is not covered and keeps
++  # today's conservative behavior (documented gap, not a fixture requirement).
++  _re_find_exec_prefix='(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?find[[:space:]]+([^;&|)[:space:]]+)[^;&|)]*-exec$'
+   # Left-to-right cursor over _fr2_cmd so repeated identical rm segments each
+   # resolve against THEIR OWN preceding text, not the first occurrence's.
+   _fr2_remaining="$_fr2_cmd"
+@@ -800,15 +804,7 @@
+     _fr2_remaining="${_fr2_remaining#*"$rm_segment"}"
+     _seg_find_root=""
+     if [[ "$_seg_prefix" =~ $_re_find_exec_prefix ]]; then
+-      read -r -a _find_span_toks <<<"${BASH_REMATCH[3]}"
+-      _find_root_count=0
+-      for _ftok in ${_find_span_toks[@]+"${_find_span_toks[@]}"}; do
+-        case "$_ftok" in
+-          -*|'!'*|'('*|')'*|'\'*) break ;;
+-          *) _find_root_count=$((_find_root_count + 1)); _seg_find_root="$_ftok" ;;
+-        esac
+-      done
+-      [[ "$_find_root_count" -ne 1 ]] && _seg_find_root=""
++      _seg_find_root="${BASH_REMATCH[3]}"
+     fi
+ 
+     rm_args_raw="${rm_segment#*rm}"
+diff --git a/.claude/adapters/loa_cheval/providers/anthropic_adapter.py b/.claude/adapters/loa_cheval/providers/anthropic_adapter.py
+--- a/.claude/adapters/loa_cheval/providers/anthropic_adapter.py
++++ b/.claude/adapters/loa_cheval/providers/anthropic_adapter.py
+@@ -38,37 +38,6 @@
+ logger = logging.getLogger("loa_cheval.providers.anthropic")
+ 
+ 
+-_BILLING_CLASS_TOKENS = (
+-    "credit balance",
+-    "credit_balance",
+-    "quota_exceeded",
+-    "quota exceeded",
+-    "invoice_overdue",
+-    "invoice overdue",
+-    "billing_disabled",
+-    "billing disabled",
+-    "payment_required",
+-    "payment required",
+-    "insufficient_quota",
+-    "insufficient quota",
+-)
+-
+-
+-def _is_billing_class_error(message: str) -> bool:
+-    """Return True when an HTTP 4xx error message indicates a billing-class
+-    condition (account-side, NOT request-side). Billing-class errors should
+-    chain-walk via ProviderUnavailableError; param errors stay terminal via
+-    InvalidInputError.
+-
+-    Adding a token: append to `_BILLING_CLASS_TOKENS`. Each token matches
+-    case-insensitively as a substring of the upstream error message.
+-    """
+-    if not message:
+-        return False
+-    haystack = message.lower()
+-    return any(token in haystack for token in _BILLING_CLASS_TOKENS)
+-
+-
+ class AnthropicAdapter(ProviderAdapter):
+     """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
+ 
+@@ -167,14 +136,8 @@
+                         self.provider,
+                         f"HTTP {status}: {_extract_error_message(err_json)}",
+                     )
+-                _msg = _extract_error_message(err_json)
+-                if _is_billing_class_error(_msg):
+-                    raise ProviderUnavailableError(
+-                        self.provider,
+-                        f"HTTP {status} billing-class: {_msg}",
+-                    )
+                 raise InvalidInputError(
+-                    f"Anthropic API error (HTTP {status}): {_msg}"
++                    f"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}"
+                 )
+ 
+             # Parse the SSE event stream into a CompletionResult.
+@@ -257,11 +220,6 @@
+ 
+         if status >= 400:
+             msg = _extract_error_message(resp)
+-            if _is_billing_class_error(msg):
+-                raise ProviderUnavailableError(
+-                    self.provider,
+-                    f"HTTP {status} billing-class: {msg}",
+-                )
+             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
+ 
+         # Parse response
+diff --git a/.claude/scripts/workflow-state.sh b/.claude/scripts/workflow-state.sh
+--- a/.claude/scripts/workflow-state.sh
++++ b/.claude/scripts/workflow-state.sh
+@@ -75,13 +75,15 @@
+     fi
+ }
+ 
++# Function: Count completed sprints
+ get_completed_sprints() {
+-    local count=0 total i
++    local count=0
++    local sprint_dirs
+     local a2a_dir="${_GRIMOIRE_DIR}/a2a"
+-    total=$(get_total_sprints)
++    sprint_dirs=$(find "${a2a_dir}" -maxdepth 1 -type d -name "sprint-*" 2>/dev/null || true)
+ 
+-    for ((i = 1; i <= total; i++)); do
+-        if [[ -f "${a2a_dir}/sprint-${i}/COMPLETED" ]]; then
++    for dir in ${sprint_dirs}; do
++        if [[ -f "${dir}/COMPLETED" ]]; then
+             count=$((count + 1))
+         fi
+     done

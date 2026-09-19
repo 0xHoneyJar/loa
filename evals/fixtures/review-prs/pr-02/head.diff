@@ -1,0 +1,218 @@
+diff --git a/.claude/adapters/loa_cheval/audit_envelope.py b/.claude/adapters/loa_cheval/audit_envelope.py
+--- a/.claude/adapters/loa_cheval/audit_envelope.py
++++ b/.claude/adapters/loa_cheval/audit_envelope.py
+@@ -133,16 +133,11 @@
+     return priv
+ 
+ 
+-def _strict_verify_enabled(verify_for_merge: bool = False) -> bool:
+-    """True when verification is running as a merge gate."""
+-    return verify_for_merge or os.environ.get("LOA_AUDIT_STRICT_VERIFY", "0") == "1"
+-
+-
+-def _resolve_pubkey_pem(key_id: str, *, allow_local_fallback: bool = True) -> Optional[str]:
++def _resolve_pubkey_pem(key_id: str) -> Optional[str]:
+     """
+     Resolve the PEM-encoded pubkey for <key_id>:
+       1. Trust-store entry (when YAML + yaml package available)
+-      2. <key-dir>/<key_id>.pub (test/CI fallback, refused in strict verify)
++      2. <key-dir>/<key_id>.pub (test/CI fallback)
+     Returns the PEM string or None if unresolvable.
+     """
+     ts_path = _trust_store_path()
+@@ -158,8 +153,6 @@
+                         return pem
+         except Exception:  # pragma: no cover — defensive
+             pass
+-    if not allow_local_fallback:
+-        return None
+     # Local fallback.
+     pub_path = _key_dir() / f"{key_id}.pub"
+     if pub_path.is_file():
+@@ -466,28 +459,21 @@
+     return status
+ 
+ 
+-def _check_trust_store(*, strict_verify: bool = False) -> None:
++def _check_trust_store() -> None:
+     """
+     Gate function called at top of audit_emit + audit_verify_chain.
+     Raises RuntimeError with [TRUST-STORE-INVALID] on tampered trust-stores.
+     """
+     status = _trust_store_status()
+-    if status == "VERIFIED":
++    if status in ("BOOTSTRAP-PENDING", "VERIFIED"):
+         return
+-    if status == "BOOTSTRAP-PENDING" and not strict_verify:
+-        return
+-    if status == "BOOTSTRAP-PENDING":
+-        raise RuntimeError(
+-            "[TRUST-STORE-BOOTSTRAP-PENDING] trust-store is not signed; "
+-            "strict audit verification refuses BOOTSTRAP-PENDING (ATK-3)"
+-        )
+     raise RuntimeError(
+         "[TRUST-STORE-INVALID] trust-store root_signature does NOT verify "
+         "against pinned root pubkey; refusing all writes/reads (issue #690)"
+     )
+ 
+ 
+-def _read_trust_cutoff(*, strict_verify: bool = False) -> Optional[str]:
++def _read_trust_cutoff() -> Optional[str]:
+     """
+     Read trust_cutoff.default_strict_after from the active trust-store.
+ 
+@@ -497,11 +483,6 @@
+     """
+     ts_path = _trust_store_path()
+     if not ts_path.is_file():
+-        if strict_verify:
+-            raise RuntimeError(
+-                "[TRUST-STORE-MISSING] strict audit verification requires "
+-                "a readable trust-store (ATK-4)"
+-            )
+         return None
+     try:
+         import yaml
+@@ -510,11 +491,6 @@
+         cutoff = ((doc.get("trust_cutoff") or {}).get("default_strict_after") or "").strip()
+         return cutoff or None
+     except Exception:  # pragma: no cover — defensive
+-        if strict_verify:
+-            raise RuntimeError(
+-                "[TRUST-STORE-UNREADABLE] strict audit verification requires "
+-                "a readable trust-store cutoff (ATK-4)"
+-            )
+         return None
+ 
+ 
+@@ -529,7 +505,7 @@
+     return ts_utc >= cutoff
+ 
+ 
+-def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) -> Tuple[bool, str]:
++def audit_verify_chain(log_path: PathLike) -> Tuple[bool, str]:
+     """
+     Walk `log_path` line-by-line; verify each entry's prev_hash matches the
+     SHA-256 of the prior entry's canonical chain-input. First entry must have
+@@ -552,19 +528,14 @@
+     if not log_path.exists():
+         return False, f"file not found: {log_path}"
+ 
+-    strict_verify = _strict_verify_enabled(verify_for_merge)
+-
+     # Issue #690 (Sprint 1.5): auto-verify trust-store before chain walk.
+     try:
+-        _check_trust_store(strict_verify=strict_verify)
++        _check_trust_store()
+     except RuntimeError as exc:
+         return False, str(exc)
+ 
+     verify_sigs = os.environ.get("LOA_AUDIT_VERIFY_SIGS", "1") != "0"
+-    try:
+-        cutoff = _read_trust_cutoff(strict_verify=strict_verify)
+-    except RuntimeError as exc:
+-        return False, str(exc)
++    cutoff = _read_trust_cutoff()
+ 
+     expected_prev = "GENESIS"
+     count = 0
+@@ -604,10 +575,7 @@
+                         )
+ 
+                 if sig_b64 and kid:
+-                    pubkey_pem = _resolve_pubkey_pem(
+-                        kid,
+-                        allow_local_fallback=not strict_verify,
+-                    )
++                    pubkey_pem = _resolve_pubkey_pem(kid)
+                     if pubkey_pem is None:
+                         return False, (
+                             f"BROKEN line {lineno}: cannot resolve public key "
+diff --git a/.claude/scripts/spiral-evidence.sh b/.claude/scripts/spiral-evidence.sh
+--- a/.claude/scripts/spiral-evidence.sh
++++ b/.claude/scripts/spiral-evidence.sh
+@@ -670,8 +670,6 @@
+     # Known source file extensions worth gating on. Markdown/yaml/json are
+     # included so doc/config deliverables (e.g. grammar spec) are covered.
+     local ext_re='(svelte|ts|tsx|js|jsx|vue|py|rs|go|sh|bats|md|yaml|yml|json)'
+-    local content_bare
+-    content_bare="$(printf '%s' "$content" | sed 's/`[^`]*`//g')"
+ 
+     {
+         # Pattern 1: backtick-wrapped paths with at least one `/` before the
+@@ -699,7 +697,7 @@
+         # filenames like foo.test.ts), `+` (SvelteKit route convention like
+         # +page.svelte), `()` (SvelteKit route groups like `(rooms)`).
+         # Trailing `-` sits last in the class so it's literal, not a range.
+-        echo "$content_bare" | grep -oE "(^|[^a-zA-Z0-9_/.-])(src|tests|\.claude/scripts|\.claude/hooks|grimoires)/[a-zA-Z0-9_/.+()-]+\.${ext_re}" \
++        echo "$content" | grep -oE "(^|[^a-zA-Z0-9_/.-])(src|tests|\.claude/scripts|\.claude/hooks|grimoires)/[a-zA-Z0-9_/.+()-]+\.${ext_re}" \
+             2>/dev/null | \
+             sed -E 's/^[^a-zA-Z.]//'
+     } | sort -u
+diff --git a/.claude/scripts/semver-bump.sh b/.claude/scripts/semver-bump.sh
+--- a/.claude/scripts/semver-bump.sh
++++ b/.claude/scripts/semver-bump.sh
+@@ -51,12 +51,10 @@
+ # Version Utilities
+ # =============================================================================
+ 
++# Get current version from the latest git tag matching v*.*.*
+ get_version_from_tag() {
+   local tag
+-  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-*' \
+-    --sort=-v:refname 2>/dev/null \
+-    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' \
+-    | head -1)
++  tag=$(git -C "$PROJECT_ROOT" tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname 2>/dev/null | head -1)
+   if [[ -n "$tag" ]]; then
+     echo "${tag#v}"
+     return 0
+@@ -78,36 +76,21 @@
+   return 1
+ }
+ 
++# Bump a version string by type
+ bump_version() {
+   local current="$1" bump="$2"
+-  local prerelease_re='^([0-9]+)\.([0-9]+)\.([0-9]+)-(alpha|beta|rc)\.([0-9]+)$'
+-  local release_re='^([0-9]+)\.([0-9]+)\.([0-9]+)$'
+-
+-  if [[ "$current" =~ $prerelease_re ]]; then
+-    local major="${BASH_REMATCH[1]}"
+-    local minor="${BASH_REMATCH[2]}"
+-    local patch="${BASH_REMATCH[3]}"
+-    local pre_kind="${BASH_REMATCH[4]}"
+-    local pre_num="${BASH_REMATCH[5]}"
+-    echo "${major}.${minor}.${patch}-${pre_kind}.$((pre_num + 1))"
+-    return 0
++  # Validate version format (M-05)
++  if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
++    echo "ERROR: Invalid version format: $current" >&2
++    return 1
+   fi
+-
+-  if [[ "$current" =~ $release_re ]]; then
+-    local major="${BASH_REMATCH[1]}"
+-    local minor="${BASH_REMATCH[2]}"
+-    local patch="${BASH_REMATCH[3]}"
+-    case "$bump" in
+-      major) echo "$((major + 1)).0.0" ;;
+-      minor) echo "${major}.$((minor + 1)).0" ;;
+-      patch) echo "${major}.${minor}.$((patch + 1))" ;;
+-      *) echo "ERROR: Unknown bump type: $bump" >&2; return 1 ;;
+-    esac
+-    return 0
+-  fi
+-
+-  echo "ERROR: Invalid version format: $current" >&2
+-  return 1
++  IFS='.' read -r major minor patch <<< "$current"
++  case "$bump" in
++    major) echo "$((major + 1)).0.0" ;;
++    minor) echo "${major}.$((minor + 1)).0" ;;
++    patch) echo "${major}.${minor}.$((patch + 1))" ;;
++    *) echo "ERROR: Unknown bump type: $bump" >&2; return 1 ;;
++  esac
+ }
+ 
+ # =============================================================================

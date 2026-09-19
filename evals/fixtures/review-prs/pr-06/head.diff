@@ -1,0 +1,133 @@
+diff --git a/.claude/adapters/loa_cheval/providers/claude_headless_adapter.py b/.claude/adapters/loa_cheval/providers/claude_headless_adapter.py
+--- a/.claude/adapters/loa_cheval/providers/claude_headless_adapter.py
++++ b/.claude/adapters/loa_cheval/providers/claude_headless_adapter.py
+@@ -180,16 +180,6 @@
+                         f"claude CLI not found on PATH (set CLAUDE_HEADLESS_BIN to override). "
+                         f"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}"
+                     ) from exc
+-                except OSError as exc:
+-                    raise ProviderUnavailableError(
+-                        self.provider,
+-                        f"claude -p spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
+-                    ) from exc
+-                except ValueError as exc:
+-                    raise ProviderUnavailableError(
+-                        self.provider,
+-                        f"claude -p got un-executable argv (embedded NUL in the prompt?): {exc}",
+-                    ) from exc
+         except _SemaphoreExhausted as exc:
+             # C12 closure: distinct exit class so MODELINV records
+             # semaphore_exhausted=true and the caller routes the failure
+diff --git a/.claude/scripts/flatline-orchestrator.sh b/.claude/scripts/flatline-orchestrator.sh
+--- a/.claude/scripts/flatline-orchestrator.sh
++++ b/.claude/scripts/flatline-orchestrator.sh
+@@ -294,23 +294,6 @@
+     echo "$normalized"
+ }
+ 
+-normalize_skeptic_envelope() {
+-    local file="$1"
+-    [[ -f "$file" ]] || return 0
+-
+-    local normalized
+-    if normalized=$(jq -c '
+-        if type == "object" then .
+-        elif type == "array" then {concerns: .}
+-        else {concerns: []}
+-        end
+-    ' "$file" 2>/dev/null) && [[ -n "$normalized" ]]; then
+-        printf '%s\n' "$normalized" > "$file"
+-    else
+-        printf '%s\n' '{"concerns":[]}' > "$file"
+-    fi
+-}
+-
+ # Log to trajectory
+ log_trajectory() {
+     local event_type="$1"
+@@ -1613,8 +1596,6 @@
+ 
+     extract_json_content "$gpt_skeptic_file" '{"concerns":[]}' > "$gpt_skeptic_prepared"
+     extract_json_content "$opus_skeptic_file" '{"concerns":[]}' > "$opus_skeptic_prepared"
+-    normalize_skeptic_envelope "$gpt_skeptic_prepared"
+-    normalize_skeptic_envelope "$opus_skeptic_prepared"
+ 
+     # FR-3: Prepare tertiary scoring and skeptic files when available
+     local tertiary_args=()
+@@ -1643,7 +1624,6 @@
+     if [[ -n "$tertiary_skeptic_file" && -s "$tertiary_skeptic_file" ]]; then
+         local tertiary_skeptic_prepared="$TEMP_DIR/tertiary-skeptic-prepared.json"
+         extract_json_content "$tertiary_skeptic_file" '{"concerns":[]}' > "$tertiary_skeptic_prepared"
+-        normalize_skeptic_envelope "$tertiary_skeptic_prepared"
+         tertiary_skeptic_args=(--skeptic-tertiary "$tertiary_skeptic_prepared")
+         log "Including tertiary model skeptic concerns in consensus"
+     fi
+diff --git a/.claude/scripts/construct-index-gen.sh b/.claude/scripts/construct-index-gen.sh
+--- a/.claude/scripts/construct-index-gen.sh
++++ b/.claude/scripts/construct-index-gen.sh
+@@ -299,14 +299,13 @@
+ 
+     # Extract events into emits/consumes arrays
+     local emits_json consumes_json
+-    emits_json=$(jq -c '.events.emits // [] | [.[] | (.name // .event // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
+-    consumes_json=$(jq -c '.events.consumes // [] | [.[] | (.event // .name // .type) // empty]' "$manifest" 2>/dev/null || echo "[]")
++    emits_json=$(jq -c '.events.emits // [] | [.[].name // empty]' "$manifest" 2>/dev/null || echo "[]")
++    consumes_json=$(jq -c '.events.consumes // [] | [.[].event // empty]' "$manifest" 2>/dev/null || echo "[]")
+ 
+     # Initialize overlay fields
+     local writes_json="[]"
+     local reads_json="[]"
+     local gates_json="{}"
+-    local compose_with_json="[]"
+ 
+     # Check for construct.yaml overlay
+     local construct_yaml="$pack_dir/construct.yaml"
+@@ -327,13 +326,6 @@
+         writes_json=$(yq eval -o=json '.writes // []' "$construct_yaml" 2>/dev/null || echo "[]")
+         reads_json=$(yq eval -o=json '.reads // []' "$construct_yaml" 2>/dev/null || echo "[]")
+         gates_json=$(yq eval -o=json '.gates // {}' "$construct_yaml" 2>/dev/null || echo "{}")
+-        compose_with_json=$(yq eval -o=json '[.compose_with[].slug] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+-
+-        local cy_emits cy_consumes
+-        cy_emits=$(yq eval -o=json '[.events.emits[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+-        cy_consumes=$(yq eval -o=json '[.events.consumes[] | (.name // .event // .type) | select(. != null)] // []' "$construct_yaml" 2>/dev/null || echo "[]")
+-        [[ -n "$cy_emits" && "$cy_emits" != "null" && "$cy_emits" != "[]" ]] && emits_json="$cy_emits"
+-        [[ -n "$cy_consumes" && "$cy_consumes" != "null" && "$cy_consumes" != "[]" ]] && consumes_json="$cy_consumes"
+ 
+         # Extract tags from construct.yaml if present
+         local cy_tags
+@@ -382,7 +374,6 @@
+         --argjson gates "$gates_json" \
+         --argjson emits "$emits_json" \
+         --argjson consumes "$consumes_json" \
+-        --argjson compose_with "$compose_with_json" \
+         --argjson tags "$tags_json" \
+         --argjson aggregated_capabilities "$aggregated_caps" \
+         '{
+@@ -402,7 +393,7 @@
+                 consumes: $consumes
+             },
+             tags: $tags,
+-            composes_with: $compose_with,
++            composes_with: [],
+             aggregated_capabilities: $aggregated_capabilities
+         }'
+ }
+@@ -420,7 +411,7 @@
+             . as $i |
+             $all[$i] as $current |
+             $current + {
+-                composes_with: (([
++                composes_with: [
+                     $all | to_entries[] |
+                     select(.key != $i) |
+                     select(
+@@ -428,7 +419,7 @@
+                         (.value.reads as $r | $current.writes | any(. as $w | $r | index($w)))
+                     ) |
+                     .value.slug
+-                ]) + ($current.composes_with // [])) | unique
++                ] | unique
+             }
+         )
+     ' <<< "$constructs_json"

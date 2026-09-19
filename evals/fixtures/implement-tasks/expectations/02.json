@@ -1,0 +1,1 @@
+{"allowlist":["src/timekit/duration.py","tests/test_duration.py"],"test_command":["python3","-m","pytest","-q","tests"],"test_path_regex":"^tests/","src_path_regex":"^src/"}

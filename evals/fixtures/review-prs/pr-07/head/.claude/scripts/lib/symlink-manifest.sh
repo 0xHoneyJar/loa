@@ -1,0 +1,278 @@
+#!/usr/bin/env bash
+# === Authoritative Symlink Manifest (DRY — Bridgebuilder Tension 1) ===
+# Single source of truth for the complete symlink topology.
+# All code paths that create, verify, migrate, or eject symlinks MUST read from this function.
+# To add a new symlink target, change ONLY this file — no other code paths.
+#
+# FAANG parallel: Google's Blaze/Bazel uses single BUILD files as authoritative manifests;
+# Kubernetes uses CRDs. Same principle — one declaration, multiple consumers.
+#
+# Consumers: mount-submodule.sh (create, verify), mount-loa.sh (migrate), loa-eject.sh (eject)
+#
+# Output format: Each entry is "link_path:target_path" where target is relative from link parent.
+# Populates global arrays: MANIFEST_DIR_SYMLINKS, MANIFEST_FILE_SYMLINKS,
+#   MANIFEST_SKILL_SYMLINKS, MANIFEST_CMD_SYMLINKS, MANIFEST_AGENT_SYMLINKS,
+#   MANIFEST_CONSTRUCT_SYMLINKS.
+#
+# `loa-aleph` is intentionally absent from the dynamic skill and command arrays.
+# Its offline installer owns the command, skill, launcher, runtime, and receipt as
+# one verified installation. Symlinking either exposure would make the installed
+# receipt fail closed and would split ownership across two update mechanisms.
+#
+# Construct Extension (Sprint 50, vision-008):
+#   Construct packs can declare their own symlink requirements via .loa-construct-manifest.json
+#   files in their pack directory. These are merged into MANIFEST_CONSTRUCT_SYMLINKS after
+#   validation (boundary enforcement, conflict detection, dependency check).
+#   Like Kubernetes CRDs extending the API or npm peerDependencies declaring requirements.
+
+get_symlink_manifest() {
+  local submodule="${1:-.loa}"
+  local repo_root="${2:-$(pwd)}"
+
+  # Phase 1: Directory symlinks (top-level .claude/ dirs that map 1:1 to submodule)
+  # Issue #755 fix: cycle-099 introduced the cheval Python adapter at
+  # .claude/adapters/cheval.py and the canonical model registry at
+  # .claude/defaults/model-config.yaml. Both are required by model-invoke +
+  # any Flatline-routed call. Without them, fresh-clone consumer repos see:
+  #   - "cheval.py not found at .claude/adapters/cheval.py"
+  #   - "Available agents: []" (cheval loader's Layer 1 System Zone defaults
+  #     can't read .claude/defaults/model-config.yaml)
+  # Both are framework-managed (System Zone) directories that map 1:1 to
+  # the submodule, same as scripts / protocols / data / schemas.
+  #
+  # #842: `.claude/hooks` is DELIBERATELY excluded from the symlink set and
+  # listed in MANIFEST_COPY_DIRS instead. Claude Code's hook executor on
+  # macOS cannot follow relative symlinks like `.claude/hooks ->
+  # ../.loa/.claude/hooks` from a subprocess context — every hook fails
+  # silently with "No such file or directory". Copying is the only fix
+  # that doesn't require changes to Claude Code itself.
+  MANIFEST_DIR_SYMLINKS=(
+    ".claude/scripts:../${submodule}/.claude/scripts"
+    ".claude/protocols:../${submodule}/.claude/protocols"
+    ".claude/data:../${submodule}/.claude/data"
+    ".claude/schemas:../${submodule}/.claude/schemas"
+    ".claude/adapters:../${submodule}/.claude/adapters"
+    ".claude/defaults:../${submodule}/.claude/defaults"
+  )
+
+  # #842: items COPIED into the consumer tree instead of symlinked.
+  # Required for files/dirs that Claude Code (or other subprocess-spawned
+  # executors) reads/exec'd at runtime, where relative-symlink resolution
+  # through `..` traversal fails on macOS. Tradeoff: after `git submodule
+  # update --remote`, operators must re-run `mount-submodule.sh --force`
+  # to pick up changes in these paths. The cost is small (~20 files) and
+  # explicit (mount has to run on every submodule bump anyway).
+  MANIFEST_COPY_DIRS=(
+    ".claude/hooks:${submodule}/.claude/hooks"
+  )
+
+  MANIFEST_COPY_FILES=(
+    ".claude/settings.json:${submodule}/.claude/settings.json"
+  )
+
+  # Phase 2: File and nested symlinks (deeper paths with 2-level relative targets)
+  MANIFEST_FILE_SYMLINKS=(
+    ".claude/loa/CLAUDE.loa.md:../../${submodule}/.claude/loa/CLAUDE.loa.md"
+    ".claude/loa/reference:../../${submodule}/.claude/loa/reference"
+    ".claude/loa/learnings:../../${submodule}/.claude/loa/learnings"
+    ".claude/loa/feedback-ontology.yaml:../../${submodule}/.claude/loa/feedback-ontology.yaml"
+    ".claude/checksums.json:../${submodule}/.claude/checksums.json"
+  )
+
+  # Phase 3: Per-skill symlinks (dynamic — discovered from submodule content)
+  MANIFEST_SKILL_SYMLINKS=()
+  if [[ -d "${repo_root}/${submodule}/.claude/skills" ]]; then
+    for skill_dir in "${repo_root}/${submodule}"/.claude/skills/*/; do
+      if [[ -d "$skill_dir" ]]; then
+        local skill_name
+        skill_name=$(basename "$skill_dir")
+        # cycle-115: receipt-managed by the pinned Aleph installer. This must be
+        # a real directory in the consumer tree, never a submodule symlink.
+        [[ "$skill_name" == "loa-aleph" ]] && continue
+        MANIFEST_SKILL_SYMLINKS+=(".claude/skills/${skill_name}:../../${submodule}/.claude/skills/${skill_name}")
+      fi
+    done
+  fi
+
+  # Phase 4: Per-command symlinks (dynamic — discovered from submodule content)
+  MANIFEST_CMD_SYMLINKS=()
+  if [[ -d "${repo_root}/${submodule}/.claude/commands" ]]; then
+    for cmd_file in "${repo_root}/${submodule}"/.claude/commands/*.md; do
+      if [[ -f "$cmd_file" ]]; then
+        local cmd_name
+        cmd_name=$(basename "$cmd_file")
+        # cycle-115: receipt-managed by the pinned Aleph installer. This must be
+        # a real file in the consumer tree, never a submodule symlink.
+        [[ "$cmd_name" == "loa-aleph.md" ]] && continue
+        MANIFEST_CMD_SYMLINKS+=(".claude/commands/${cmd_name}:../../${submodule}/.claude/commands/${cmd_name}")
+      fi
+    done
+  fi
+
+  # Phase 4.5: Per-agent symlinks (dynamic — discovered from submodule content)
+  # Mirrors Phase 4 (commands). C12/A6, cycle-119: .claude/agents/ (e.g. loa-scout.md)
+  # must be manifest-covered like skills/commands so mount/verify/eject stay in sync.
+  MANIFEST_AGENT_SYMLINKS=()
+  if [[ -d "${repo_root}/${submodule}/.claude/agents" ]]; then
+    for agent_file in "${repo_root}/${submodule}"/.claude/agents/*.md; do
+      if [[ -f "$agent_file" ]]; then
+        local agent_name
+        agent_name=$(basename "$agent_file")
+        MANIFEST_AGENT_SYMLINKS+=(".claude/agents/${agent_name}:../../${submodule}/.claude/agents/${agent_name}")
+      fi
+    done
+  fi
+
+  # Phase 5: Construct pack symlinks (vision-008 — ecosystem extension point)
+  # Discover .loa-construct-manifest.json files in construct pack directories
+  # and merge validated entries into MANIFEST_CONSTRUCT_SYMLINKS.
+  MANIFEST_CONSTRUCT_SYMLINKS=()
+  _discover_construct_manifests "$submodule" "$repo_root"
+}
+
+# Helper: Get flat list of all symlink entries from manifest
+# Returns all entries combined for iteration
+get_all_manifest_entries() {
+  get_symlink_manifest "$@"
+  ALL_MANIFEST_ENTRIES=("${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}" "${MANIFEST_CONSTRUCT_SYMLINKS[@]}")
+}
+
+# =============================================================================
+# Construct Manifest Discovery and Validation (Sprint 50 — vision-008)
+# =============================================================================
+# Discovers .loa-construct-manifest.json files in construct pack directories,
+# validates entries (boundary enforcement, conflict detection, dependency check),
+# and merges valid entries into MANIFEST_CONSTRUCT_SYMLINKS.
+#
+# Like npm peerDependencies: constructs declare what they need, but the
+# framework validates and installs. Like Kubernetes CRDs: constructs extend
+# the topology without modifying the core manifest.
+
+_discover_construct_manifests() {
+  local submodule="${1:-.loa}"
+  local repo_root="${2:-$(pwd)}"
+
+  # Build core link set for conflict detection (O(n) lookup via associative array)
+  local -A _core_links=()
+  local entry
+  for entry in "${MANIFEST_DIR_SYMLINKS[@]}" "${MANIFEST_FILE_SYMLINKS[@]}" "${MANIFEST_SKILL_SYMLINKS[@]}" "${MANIFEST_CMD_SYMLINKS[@]}" "${MANIFEST_AGENT_SYMLINKS[@]}"; do
+    local link_path="${entry%%:*}"
+    _core_links["$link_path"]=1
+  done
+
+  # Search paths for construct manifests:
+  # 1. Inside submodule: ${submodule}/.claude/constructs/*/
+  # 2. User-installed: .claude/constructs/*/
+  local search_dirs=()
+  if [[ -d "${repo_root}/${submodule}/.claude/constructs" ]]; then
+    search_dirs+=("${repo_root}/${submodule}/.claude/constructs")
+  fi
+  if [[ -d "${repo_root}/.claude/constructs" ]]; then
+    search_dirs+=("${repo_root}/.claude/constructs")
+  fi
+
+  for search_dir in "${search_dirs[@]}"; do
+    for pack_dir in "$search_dir"/*/; do
+      [[ -d "$pack_dir" ]] || continue
+      local manifest_file="$pack_dir/.loa-construct-manifest.json"
+      [[ -f "$manifest_file" ]] || continue
+
+      local pack_name
+      pack_name=$(basename "$pack_dir")
+
+      # Parse and validate the construct manifest
+      _parse_construct_manifest "$manifest_file" "$pack_name" "$repo_root" "$submodule"
+    done
+  done
+}
+
+# Parse a single construct manifest and merge validated entries
+_parse_construct_manifest() {
+  local manifest_file="$1"
+  local pack_name="$2"
+  local repo_root="$3"
+  local submodule="$4"
+
+  # Require jq for JSON parsing (graceful skip if unavailable)
+  if ! command -v jq &>/dev/null; then
+    echo "[symlink-manifest] WARNING: jq not available, skipping construct manifest for $pack_name" >&2
+    return 0
+  fi
+
+  # Validate JSON structure
+  if ! jq empty "$manifest_file" 2>/dev/null; then
+    echo "[symlink-manifest] WARNING: Invalid JSON in $manifest_file, skipping" >&2
+    return 0
+  fi
+
+  # Parse directory symlinks — batched jq via process substitution (F-005)
+  # Reduces from 1+2N jq forks to exactly 2 regardless of entry count.
+  # Process substitution keeps while loop in current shell, preserving global array writes.
+  while IFS=$'\t' read -r link target; do
+    [[ -n "$link" ]] || continue
+    _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
+  done < <(jq -r '(.symlinks.directories // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null)
+
+  # Parse file symlinks — same batched pattern
+  while IFS=$'\t' read -r link target; do
+    [[ -n "$link" ]] || continue
+    _validate_and_add_construct_entry "$link" "$target" "$pack_name" "$repo_root"
+  done < <(jq -r '(.symlinks.files // [])[] | [.link, .target] | @tsv' "$manifest_file" 2>/dev/null)
+
+  # Validate requires (dependency check)
+  local req_count
+  req_count=$(jq -r '.requires // [] | length' "$manifest_file" 2>/dev/null) || req_count=0
+  for ((i=0; i<req_count; i++)); do
+    local req
+    req=$(jq -r ".requires[$i]" "$manifest_file" 2>/dev/null)
+    if [[ -z "${_core_links[$req]:-}" ]] && [[ ! -e "$repo_root/$req" ]]; then
+      echo "[symlink-manifest] WARNING: Construct '$pack_name' requires '$req' which is not in core manifest or filesystem" >&2
+    fi
+  done
+}
+
+_path_has_traversal() {
+  local path="$1"
+  [[ "$path" == ".." || "$path" == ../* || "$path" == */../* || "$path" == */.. ]]
+}
+
+# Validate a single construct symlink entry and add if valid
+_validate_and_add_construct_entry() {
+  local link="$1"
+  local target="$2"
+  local pack_name="$3"
+  local repo_root="$4"
+
+  # Validation 0: Require explicit link and target values.
+  if [[ -z "$link" || -z "$target" || "$link" == "null" || "$target" == "null" ]]; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' declares an empty link or target" >&2
+    return 0
+  fi
+
+  # Validation 1: Boundary enforcement — link must be under .claude/
+  if [[ "$link" != .claude/* ]]; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' declares link '$link' outside .claude/ boundary" >&2
+    return 0
+  fi
+
+  # Validation 2: Path sanitization — reject traversal in both link and target.
+  if _path_has_traversal "$link" || _path_has_traversal "$target"; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' link or target contains path traversal (link='$link', target='$target')" >&2
+    return 0
+  fi
+
+  # Validation 3: Reject absolute paths
+  if [[ "$link" == /* ]] || [[ "$target" == /* ]]; then
+    echo "[symlink-manifest] REJECTED: Construct '$pack_name' uses absolute path (link='$link', target='$target')" >&2
+    return 0
+  fi
+
+  # Validation 4: Conflict detection — cannot override core manifest entries
+  if [[ -n "${_core_links[$link]:-}" ]]; then
+    echo "[symlink-manifest] WARNING: Construct '$pack_name' link '$link' conflicts with core manifest entry, skipping" >&2
+    return 0
+  fi
+
+  # All validations passed — add to construct symlinks
+  MANIFEST_CONSTRUCT_SYMLINKS+=("${link}:${target}")
+}

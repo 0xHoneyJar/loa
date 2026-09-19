@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-05",
+  "defects": [
+    {
+      "id": "D13-find-exec-multi-root",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 807,
+      "must_match": "_seg_find_root=\"${BASH_REMATCH[3]}\"",
+      "severity": "critical",
+      "category": "authz",
+      "source_commit": "ef81358f",
+      "synthetic": false
+    },
+    {
+      "id": "D14-billing-400-terminal",
+      "file": ".claude/adapters/loa_cheval/providers/anthropic_adapter.py",
+      "anchor_line": 140,
+      "must_match": "f\"Anthropic API error (HTTP {status}): {_extract_error_message(err_json)}\"",
+      "severity": "high",
+      "category": "error-handling",
+      "source_commit": "802eb960",
+      "synthetic": false
+    },
+    {
+      "id": "D15-completed-sprints-unscoped",
+      "file": ".claude/scripts/workflow-state.sh",
+      "anchor_line": 83,
+      "must_match": "sprint_dirs=$(find \"${a2a_dir}\" -maxdepth 1 -type d -name \"sprint-*\" 2>/dev/null || true)",
+      "severity": "medium",
+      "category": "logic",
+      "source_commit": "0059366a",
+      "synthetic": false
+    }
+  ]
+}

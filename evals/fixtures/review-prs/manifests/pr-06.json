@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-06",
+  "defects": [
+    {
+      "id": "D16-spawn-oserror-crashes-chain",
+      "file": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "anchor_line": 181,
+      "must_match": "f\"Install with: npm install -g @anthropic-ai/claude-code. Original: {exc}\"",
+      "severity": "high",
+      "category": "error-handling",
+      "source_commit": "4b37d02c",
+      "synthetic": false
+    },
+    {
+      "id": "D17-skeptic-bare-array-envelope",
+      "file": ".claude/scripts/flatline-orchestrator.sh",
+      "anchor_line": 1598,
+      "must_match": "extract_json_content \"$opus_skeptic_file\" '{\"concerns\":[]}' > \"$opus_skeptic_prepared\"",
+      "severity": "high",
+      "category": "logic",
+      "source_commit": "3197e455",
+      "synthetic": false
+    },
+    {
+      "id": "D18-event-key-alternation-on-array",
+      "file": ".claude/scripts/construct-index-gen.sh",
+      "anchor_line": 302,
+      "must_match": "emits_json=$(jq -c '.events.emits // [] | [.[].name // empty]' \"$manifest\" 2>/dev/null || echo \"[]\")",
+      "severity": "medium",
+      "category": "logic",
+      "source_commit": "6f31fa7b",
+      "synthetic": false
+    }
+  ]
+}

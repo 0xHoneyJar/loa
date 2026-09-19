@@ -1,0 +1,1 @@
+{"allowlist":["src/listkit/page.py","tests/test_page.py"],"test_command":["python3","-m","pytest","-q","tests"],"test_path_regex":"^tests/","src_path_regex":"^src/"}

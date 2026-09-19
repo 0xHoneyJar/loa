@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-07",
+  "defects": [
+    {
+      "id": "D19-hidden-dir-denylist-leaks",
+      "file": ".claude/hooks/safety/block-destructive-bash.sh",
+      "anchor_line": 856,
+      "must_match": "_re_allow_exclude='^\\./($|\\*|\\.$|\\.\\.($|/)|\\.git($|/)|\\.ssh($|/)|\\.aws($|/)|\\.kube($|/)|\\.gnupg($|/)|\\.docker($|/)|\\.config($|/)|\\.claude($|/)|\\.env)'",
+      "severity": "high",
+      "category": "secret-leak",
+      "source_commit": "5cf0aaba",
+      "synthetic": false
+    },
+    {
+      "id": "D20-local-source-ignores-slug",
+      "file": ".claude/scripts/constructs-lib.sh",
+      "anchor_line": 590,
+      "must_match": "if [[ -d \"$path\" && ( -f \"$path/construct.yaml\" || -f \"$path/manifest.json\" ) ]]; then",
+      "severity": "high",
+      "category": "logic",
+      "source_commit": "27d03666",
+      "synthetic": false
+    },
+    {
+      "id": "D21-blind-dotdot-rejection",
+      "file": ".claude/scripts/lib/symlink-manifest.sh",
+      "anchor_line": 259,
+      "must_match": "if _path_has_traversal \"$link\" || _path_has_traversal \"$target\"; then",
+      "severity": "medium",
+      "category": "input-validation",
+      "source_commit": "2adc19bc",
+      "synthetic": false
+    }
+  ]
+}

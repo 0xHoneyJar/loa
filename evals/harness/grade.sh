@@ -124,8 +124,9 @@ for i in $(seq 0 $((grader_count - 1))); do
     continue
   fi
 
-  # Parse grader JSON output
-  if echo "$grader_output" | jq . &>/dev/null; then
+  # Parse grader JSON output (empty output is NOT JSON — `jq .` accepts an
+  # empty stream, which used to leave pass/score blank and abort grade.sh)
+  if [[ -n "$grader_output" ]] && echo "$grader_output" | jq -e . &>/dev/null; then
     grader_pass="$(echo "$grader_output" | jq -r '.pass // false')"
     grader_score="$(echo "$grader_output" | jq -r '.score // 0')"
     grader_details="$(echo "$grader_output" | jq -r '.details // ""')"
@@ -148,11 +149,19 @@ for i in $(seq 0 $((grader_count - 1))); do
     had_fail=true
   fi
 
+  # cycle-124 S3: a grader may emit structured details (recall, tokens, …);
+  # keep an object as JSON so compare.sh --ab can read it. Strings unchanged.
+  if echo "$grader_output" | jq -e '.details | type == "object"' &>/dev/null; then
+    details_json="$(echo "$grader_output" | jq -c '.details')"
+  else
+    details_json="$(jq -Rn --arg d "$grader_details" '$d')"
+  fi
+
   result="$(jq -n \
     --arg name "$grader_script" \
     --argjson pass "$grader_pass" \
     --argjson score "$grader_score" \
-    --arg details "$grader_details" \
+    --argjson details "$details_json" \
     --argjson exit_code "$grader_exit" \
     --argjson duration_ms "$duration_ms" \
     --argjson weight "$grader_weight" \

@@ -1,0 +1,10 @@
+name: implement-05
+version: "1.0.0"
+language: Python
+runtime: python-3.11
+dependency_strategy: none
+description: "implementation-discipline fixture 05 (cycle-124 FR-9)"
+difficulty: basic
+domain: general
+deprecated: false
+test_command: "python3 -m pytest -q tests"

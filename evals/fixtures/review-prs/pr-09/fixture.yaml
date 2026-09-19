@@ -1,0 +1,9 @@
+name: pr-09
+version: "1.0.0"
+language: mixed
+runtime: none
+dependency_strategy: none
+description: "review-recall corpus PR pr-09 (cycle-124 FR-9); planted defects live in the hidden manifest"
+difficulty: intermediate
+domain: framework
+deprecated: false

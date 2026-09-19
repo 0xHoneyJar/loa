@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-03",
+  "defects": [
+    {
+      "id": "D07-empty-ledger-write",
+      "file": ".claude/scripts/ledger-lib.sh",
+      "anchor_line": 169,
+      "must_match": "updated_content=$(echo \"$content\" | jq --arg ts \"$(now_iso)\" '.last_updated = $ts')",
+      "severity": "critical",
+      "category": "error-handling",
+      "source_commit": "63d10ac1",
+      "synthetic": false
+    },
+    {
+      "id": "D08-relative-symlink-resolved-from-cwd",
+      "file": ".claude/scripts/mount-submodule.sh",
+      "anchor_line": 378,
+      "must_match": "resolved_target=$(cd \"$(dirname \"$target\")\" && pwd)/$(basename \"$target\")",
+      "severity": "high",
+      "category": "input-validation",
+      "source_commit": "731672d9",
+      "synthetic": false
+    },
+    {
+      "id": "D09-release-merge-misclassified",
+      "file": ".claude/scripts/classify-pr-type.sh",
+      "anchor_line": 66,
+      "must_match": "if echo \"$title\" | grep -qE \"^fix\"; then",
+      "severity": "low",
+      "category": "logic",
+      "source_commit": "41b28f42",
+      "synthetic": false
+    }
+  ]
+}
