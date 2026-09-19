@@ -286,8 +286,12 @@ jobs:
           # Verify the scanner ACTUALLY catches both pollution shapes (defends
           # against the scanner exiting 0 from a syntax error or a jq change).
           for bad in mock-row e2e-path; do
-              if bash tools/check-ledger-hygiene.sh --root "tests/fixtures/ledger-hygiene/$bad" --quiet; then
-                  echo "::error::scanner failed to reject tests/fixtures/ledger-hygiene/$bad — scanner regression"
+              rc=0
+              bash tools/check-ledger-hygiene.sh --root "tests/fixtures/ledger-hygiene/$bad" --quiet || rc=$?
+              # exactly 1 = "violation found"; 2 would mean the fixture root is
+              # missing or unreadable, which must not pass as a rejection
+              if [ "$rc" -ne 1 ]; then
+                  echo "::error::scanner did not reject tests/fixtures/ledger-hygiene/$bad with exit 1 (got $rc) — scanner or fixture regression"
                   exit 1
               fi
           done

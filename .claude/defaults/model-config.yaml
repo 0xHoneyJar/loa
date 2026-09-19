@@ -1217,7 +1217,7 @@ retry:
 # Metering
 metering:
   enabled: true
-  ledger_path: "grimoires/loa/a2a/cost-ledger.jsonl"
+  ledger_path: ".run/cost-ledger.jsonl"   # cycle-124 FR-6: the tripwire and the runbook scan .run/; a2a/ is sprint-scoped and gitignored only here
   budget:
     daily_micro_usd: 500000000    # $500/day default (effectively unlimited)
     warn_at_percent: 80

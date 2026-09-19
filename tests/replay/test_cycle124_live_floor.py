@@ -217,4 +217,5 @@ def test_ceiling_probe_writes_evidence(tmp_path, served_models):
     assert proc.returncode == 0, proc.stderr
     result = json.loads(out.read_text())
     assert result["model"] == model and result["source"] == "empirical_probe"
+    assert result["partial"] is False, "budget cap stopped the bisection — raise --budget-usd; a partial record is not evidence"
     assert result["largest_ok_input_tokens"] >= 100_000, result

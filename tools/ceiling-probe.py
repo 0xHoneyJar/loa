@@ -14,13 +14,16 @@ Usage:
       [--output probe.json]
 
 Exit codes: 0 probe completed · 1 a call failed for a non-size reason ·
-2 usage / budget exceeded. A call is OK when the stream reaches `message_stop`
+2 usage · 3 the budget cap stopped the bisection (`partial: true` — the
+record is still written but is NOT full evidence). A call is OK when the
+stream reaches `message_stop`
 without an error event — NOT when a text block arrives: default-on thinking
 (Opus 5 / Fable) can spend a small `max_tokens` entirely on reasoning, which
 is a budget outcome, not a size failure (review round-1 medium 7). Each call
 asks for up to 1024 output tokens and records `stop_reason`; the cost is
 still dominated by input: 200K tokens on Opus 5 ≈ $1.00 per call; the budget
-cap stops the search (largest OK so far is still reported, `partial: true`).
+cap stops the search (largest OK so far is still reported, `partial: true`,
+exit 3).
 
 Never run this from a test without LOA_RUN_LIVE_TESTS=1 — it spends money.
 """
@@ -159,6 +162,9 @@ def main() -> int:
         with open(args.output, "w") as fh:
             fh.write(text + "\n")
         print(f"ceiling-probe: wrote {args.output} (largest_ok={largest_ok}, spent=${record['spent_usd']})", file=sys.stderr)
+    if partial:
+        print("ceiling-probe: budget cap stopped the bisection — partial record (exit 3)", file=sys.stderr)
+        return 3
     return 0
 
 

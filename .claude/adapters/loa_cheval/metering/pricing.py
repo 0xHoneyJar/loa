@@ -193,6 +193,13 @@ class RemainderAccumulator:
         self._remainders.clear()
 
 
+def _int_rate(value: Any, derived: int) -> int:
+    """A catalog rate only when it is a non-negative int (bool excluded); else the derived default."""
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return derived
+
+
 def find_pricing(
     provider: str,
     model: str,
@@ -222,6 +229,9 @@ def find_pricing(
         # cycle-124 FR-4: explicit catalog rate, else the Anthropic defaults
         # (0.1× read, 1.25× write); providers that never report cache tokens
         # never exercise them.
-        cache_read_per_mtok=pricing.get("cache_read_per_mtok", input_per_mtok // 10),
-        cache_write_per_mtok=pricing.get("cache_write_per_mtok", input_per_mtok * 5 // 4),
+        # `dict.get(key, default)` returns an explicit YAML null as-is, which
+        # would price cache tokens at $0 under pricing_source=config (audit,
+        # slice B) — only a real integer overrides the derived rate.
+        cache_read_per_mtok=_int_rate(pricing.get("cache_read_per_mtok"), input_per_mtok // 10),
+        cache_write_per_mtok=_int_rate(pricing.get("cache_write_per_mtok"), input_per_mtok * 5 // 4),
     )

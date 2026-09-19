@@ -243,6 +243,11 @@ def test_advisor_tier_points_at_opus_5():
     with LOA_CONFIG.open() as fh:
         cfg = yaml.safe_load(fh)
     assert cfg["advisor_strategy"]["tier_aliases"]["advisor"]["anthropic"] == "claude-opus-5"
+    # audit slice D: every Opus pin in the live config sits on the floor, not only the advisor tier
+    bb_models = cfg["run_bridge"]["bridgebuilder"]["multi_model"]["models"]
+    assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-opus-5"]
+    assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
+    assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()
     assert "anthropic: claude-opus-5" in example
     assert "anthropic: claude-opus-4-7" not in example.split("tier_aliases:")[1].split("executor:")[0]

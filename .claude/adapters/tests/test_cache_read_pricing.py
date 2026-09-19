@@ -105,3 +105,15 @@ def test_cli_reported_cost_still_wins_over_cache_math(catalog):
     assert entry["cost_micro_usd"] == 777
     assert entry["pricing_source"] == "cli_reported"
     assert entry["tokens_cache_read"] == 20_000
+
+
+def test_explicit_null_cache_rate_falls_back_to_the_derived_rate():
+    """audit slice B: `dict.get(key, default)` returned an explicit YAML null and
+    priced cache tokens at $0 under pricing_source=config."""
+    from loa_cheval.metering.pricing import find_pricing
+    cfg = {"providers": {"anthropic": {"models": {"m": {"pricing": {
+        "input_per_mtok": 5_000_000, "output_per_mtok": 25_000_000,
+        "cache_read_per_mtok": None, "cache_write_per_mtok": "6250000"}}}}}}
+    pr = find_pricing("anthropic", "m", cfg)
+    assert pr.cache_read_per_mtok == 500_000        # derived 0.1×, not None
+    assert pr.cache_write_per_mtok == 6_250_000     # a string is not a rate → derived 1.25×

@@ -32,7 +32,7 @@ cheval marks the stable prefix as the single Anthropic `cache_control: ephemeral
 
 | Caller | Cacheable prefix | Min. cacheable prefix (reference, 2026-06-24) | Expected outcome |
 |---|---|---|---|
-| Flatline review/skeptic/scorer, adversarial dissent (agents with a persona.md) | persona.md (stable across calls of one agent) | 512 tokens on Opus 5 / Fable; 1024 on Opus 4.8 / Sonnet 5 / Sonnet 4.6; 4096 on Opus 4.6 / Haiku 4.5 | second and later calls within 5 min read the prefix (`cache_read > 0`); personas shorter than the minimum are never cached — the count stays 0, not an error |
+| Flatline review/skeptic/scorer, adversarial dissent (agents with a persona.md) | persona.md (stable across calls of one agent) | 512 tokens on Opus 5 / Fable; 1024 on Opus 4.8 / Sonnet 5 / Sonnet 4.6 / Sonnet 4.5; 2048 on Opus 4.7; 4096 on Opus 4.6 / Haiku 4.5 | second and later calls within 5 min read the prefix (`cache_read > 0`); personas shorter than the minimum are never cached — the count stays 0, not an error |
 | Bridgebuilder voices (`--agent reviewing-code`, no persona.md) | the whole `--system` file: `INJECTION_HARDENING` + `.claude/data/bridgebuilder-persona.md` (~9 KB, stable per voice) | same minimums | second and later calls of a voice read the prefix; the per-PR diff travels in the user turn and is never cached |
 | Ad-hoc `cheval --prompt` with neither persona nor `--system` | none | — | no system block, no marker, no cache traffic |
 | claude-headless (CLI) | Claude Code's own system prompt; persona rides in the prompt body | CLI-managed | counts come from the CLI's `usage` block; Loa does not add a marker |
