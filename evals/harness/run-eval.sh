@@ -33,6 +33,7 @@ Options:
   --trusted              Required for local execution (no container sandbox)
   --sandbox-mode <mode>  Sandbox mode: local (default), container
   --concurrency <n>      Max parallel tasks (default: 4)
+  --trials <n>           Override every task's trial count (resuming an A/B arm)
   --no-color             Disable color output
   --verbose              Verbose output
   --help                 Show this help
@@ -63,6 +64,7 @@ JSON_OUTPUT=false
 TRUSTED=false
 SANDBOX_MODE="local"
 CONCURRENCY=4
+TRIALS_OVERRIDE=""
 NO_COLOR=false
 VERBOSE=false
 
@@ -78,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --trusted) TRUSTED=true; shift ;;
     --sandbox-mode) SANDBOX_MODE="$2"; shift 2 ;;
     --concurrency) CONCURRENCY="$2"; shift 2 ;;
+    --trials) TRIALS_OVERRIDE="$2"; shift 2 ;;
     --no-color) NO_COLOR=true; shift ;;
     --verbose) VERBOSE=true; shift ;;
     --help|-h) usage ;;
@@ -355,6 +358,7 @@ execute_task() {
   fixture="$(yq -r '.fixture' "$task_file")"
   local trials
   trials="$(yq -r ".trials // $SUITE_TRIALS" "$task_file")"
+  [[ -n "$TRIALS_OVERRIDE" ]] && trials="$TRIALS_OVERRIDE"
   local timeout_trial
   timeout_trial="$(yq -r ".timeout.per_trial // $SUITE_TIMEOUT_TRIAL" "$task_file")"
   local timeout_grader

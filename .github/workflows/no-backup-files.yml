@@ -49,10 +49,12 @@ jobs:
           git fetch origin "${BASE_REF}" --depth=1
           changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD")
 
-          # Pattern: *.bak, -bak (suffix), *~, *.orig, *.swp, *.swo.
+          # Pattern: *.bak, -bak (suffix), *~, *.orig, *.swp, *.swo, and the
+          # generate-constraints.sh staging twins `<file>.constraint-XXXXXX`
+          # (cycle-124 FR-8: ten of them were committed by an interrupted run).
           # NB: trailing-dot extensions only — does NOT reject `bakery/` dirs.
           violations=$(printf '%s\n' "$changed_files" \
-            | grep -E '(\.bak$|-bak$|~$|\.orig$|\.swp$|\.swo$)' \
+            | grep -E '(\.bak$|-bak$|~$|\.orig$|\.swp$|\.swo$|\.constraint-[A-Za-z0-9]{6}$)' \
             || true)
 
           if [[ -n "$violations" ]]; then

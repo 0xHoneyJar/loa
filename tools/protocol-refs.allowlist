@@ -1,0 +1,8 @@
+# tools/protocol-refs.allowlist — protocols/<name>.md strings that are NOT
+# references to a shipped protocol (cycle-124 FR-8, AC-8.3).
+# Read by tests/unit/protocol-refs-resolve.bats. Format:
+#   <file-path-substring> TAB <name>.md TAB # reason
+# An entry whose substring no longer matches any offending line is itself a
+# failure (stale allowlist rows are not allowed to accumulate).
+.claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts	security-hardening.md	# synthetic path: classifier fixture, no file intended
+.claude/scripts/tests/test-mount-symlinks.bats	test.md	# synthetic path: created inside the test's temp submodule

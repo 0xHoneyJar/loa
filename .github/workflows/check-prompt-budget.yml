@@ -1,0 +1,68 @@
+name: Prompt Budget
+
+# cycle-124 FR-8 (AC-8.1): the always-loaded prompt surface has hard byte
+# budgets — SKILL.md ≤ 16,384 B (charged with unconditionally-read resources),
+# CLAUDE.loa.md ≤ 10,240 B, protocols total ≤ 200,000 B (warn > 143,360 B).
+# tools/check-prompt-budget.sh is the gate; the two sentinel steps prove the
+# gate itself still bites (a scanner that exits 0 from a syntax error must not
+# read as green).
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - '.claude/loa/CLAUDE.loa.md'
+      - '.claude/protocols/**'
+      - 'tools/check-prompt-budget.sh'
+      - 'tests/fixtures/prompt-budget/**'
+      - '.github/workflows/check-prompt-budget.yml'
+  push:
+    branches: [main]
+
+jobs:
+  prompt-budget:
+    name: Byte budgets for the prompt surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        # actions/checkout@v4.3.1 (pinned per cycle-098 supply-chain pattern)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Check budgets
+        run: |
+          set -euo pipefail
+          bash tools/check-prompt-budget.sh --json > prompt-budget.json || rc=$?
+          bash tools/check-prompt-budget.sh || true
+          jq -r '.violations[]? | "::error::prompt budget: \(.)"' prompt-budget.json
+          jq -e '.ok' prompt-budget.json >/dev/null
+
+      - name: Positive control (the gate rejects the over-budget sentinel with exit 1)
+        if: always()
+        run: |
+          set -euo pipefail
+          rc=0
+          bash tools/check-prompt-budget.sh --root tests/fixtures/prompt-budget/over --quiet || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::check-prompt-budget.sh did not reject tests/fixtures/prompt-budget/over with exit 1 (got $rc)"
+            exit 1
+          fi
+          echo "OK: over-budget sentinel rejected"
+
+      - name: Negative control (the gate accepts the under-budget sentinel)
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! bash tools/check-prompt-budget.sh --root tests/fixtures/prompt-budget/under --quiet; then
+            echo "::error::check-prompt-budget.sh false-positive on tests/fixtures/prompt-budget/under"
+            exit 1
+          fi
+          echo "OK: under-budget sentinel accepted"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: prompt-budget-report
+          path: prompt-budget.json
+          retention-days: 14
