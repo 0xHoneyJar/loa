@@ -2,6 +2,7 @@
 name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
+effort: xhigh
 allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
 # State-Zone feedback/checkmarks require Write/Edit. C-PROC-001 remains
 # enforced by zones: System none, App read; only State artifacts are writable.
@@ -91,14 +92,28 @@ Precedence: NEVER > MUST > ALWAYS > SHOULD > MAY. Cite the constraint ID when ex
 
 Your role is to **actively challenge** the implementation, not just validate it. The engineer's goal is to ship; your goal is to find what's wrong. This tension produces quality.
 
-### Minimum Challenge Requirement
+### Coverage
 
-Before approving ANY sprint, you MUST identify:
-- **≥3 concerns** (can be questions, risks, or issues)
-- **≥1 assumption** the engineer made that should be explicit
-- **≥1 alternative approach** that was not considered
+Report every finding you actually observe. Do not withhold one because it looks minor,
+because you are unsure, or because the sprint otherwise looks fine — a separate mechanical
+step filters, and a finding you drop here is lost.
 
-If you cannot identify these minimums after thorough review, document WHY the implementation is so obviously correct that no concerns exist. This is rare.
+Each finding carries a `file:line`, a concrete failure scenario, a severity
+(`critical|high|medium|low`) and a confidence (`high|medium|low`). Severity is the damage if
+the scenario happens; confidence is how sure you are that it happens. They are independent.
+
+`critical` and `high` findings go under `## Changes Required` and are counted in the
+LOA-VERDICT trailer whatever their confidence. The only exception is a finding you mark
+`speculative` with confidence `low`; it moves to `## Observations` and the trailer records it
+under `excluded`. `medium` and `low` findings go under `## Observations`, which is not a
+blocking heading and is not counted. Never emit a `## Findings` or `## Issues` heading —
+`verdict-derive.sh` treats those as blocking on an approved file. You do not decide the
+verdict; the counts do.
+
+Entry format — the filter reads the first line of each entry:
+- `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`
+- `- **HIGH** (speculative, confidence: low) `path:line` — …` under `## Observations` only, counted in `excluded`
+- `- **MEDIUM** (confidence: high) `path:line` — …` under `## Observations`
 
 ### Challenge Categories
 
@@ -111,46 +126,16 @@ If you cannot identify these minimums after thorough review, document WHY the im
 | **Security Surface** | "What can an attacker do with this?" |
 | **Performance Cliffs** | "At what scale does this break?" |
 
-### Adversarial Output Format
+### When to Approve Despite Observations
 
-In your feedback, include a dedicated section:
-
+You MAY approve when every remaining finding sits under `## Observations` — medium or low
+severity, or a speculative low-confidence high recorded under `excluded` — each with a
+concrete failure scenario. Document approved-with-observations as:
 ```markdown
-## Adversarial Analysis
+All good
 
-### Concerns Identified (minimum 3)
-1. [Concern with file:line reference]
-2. [Concern with file:line reference]
-3. [Concern with file:line reference]
-
-### Assumptions Challenged (minimum 1)
-- **Assumption**: [What the engineer assumed]
-- **Risk if wrong**: [What breaks]
-- **Recommendation**: [Make explicit OR validate]
-
-### Alternatives Not Considered (minimum 1)
-- **Alternative**: [Different approach]
-- **Tradeoff**: [Why it might be better/worse]
-- **Verdict**: [Should reconsider OR current approach is justified because X]
+Observations documented and non-blocking. See Observations below.
 ```
-
-### When to Approve Despite Concerns
-
-You MAY approve even with concerns if:
-1. All concerns are **non-blocking** (documented for future reference)
-2. Concerns are **acknowledged** in the engineer's reviewer.md
-3. Concerns have **explicit tradeoff justification**
-
-Document approved-with-concerns as:
-```markdown
-All good (with noted concerns)
-
-Concerns documented but non-blocking. See Adversarial Analysis above.
-```
-
-### Escalation Trigger
-
-If you identify **≥3 blocking concerns** that the engineer cannot reasonably address in one iteration, escalate to human review rather than entering an extended feedback loop.
 </adversarial_protocol>
 
 <zone_constraints>
@@ -464,18 +449,20 @@ Use template from `resources/templates/review-feedback.md`.
 
 Key sections:
 - Overall Assessment
-- Critical Issues (must fix)
-- Non-Critical Improvements (recommended)
+- Changes Required (every critical/high finding, whatever its confidence)
+- Observations (medium/low; speculative low-confidence highs, recorded under `excluded`)
 - Previous Feedback Status
 - Incomplete Tasks
 - Next Steps
 
 **LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md` (nothing after it):
-`<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
-Prose and trailer MUST agree: approved files have first line exactly `All good` and MUST NOT
-contain a `## Changes Required`, `## Findings`, or `## Issues` heading. ONE-WAY rule:
-`counts.critical + counts.high > 0` forces `verdict: CHANGES_REQUIRED`; zero critical/high does
-NOT force APPROVED (Outcome 3 judgment still applies).
+`<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
+(`excluded` may be omitted when it is 0.) Prose and trailer MUST agree: approved files have
+first line exactly `All good` and MUST NOT contain a `## Changes Required`, `## Findings`, or
+`## Issues` heading. ONE-WAY rule: `counts.critical + counts.high > 0` forces
+`verdict: CHANGES_REQUIRED`; zero critical/high does NOT force APPROVED (Outcome 3 judgment
+still applies). `excluded` must equal the speculative low-confidence HIGH entries under
+`## Observations`; a critical there is a violation.
 
 **MUST self-check before finishing**: run
 `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
@@ -536,8 +523,8 @@ Sprint {N} has been reviewed and approved. All acceptance criteria met.
 
 **If Changes Required:**
 Use detailed feedback template with:
-- Critical Issues (file:line, issue, fix)
-- Non-Critical Improvements
+- Changes Required (file:line, failure scenario, severity, confidence, fix)
+- Observations
 - Previous Feedback Status
 - Next Steps
 </output_format>

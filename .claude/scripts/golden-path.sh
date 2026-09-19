@@ -208,6 +208,9 @@ _gp_sprint_is_audited() {
                     echo "golden-path: review trailer excluded=${excluded} but audit trailer excluded_confirmed=${excluded_confirmed} in ${sprint_dir}/auditor-sprint-feedback.md" >&2
                     return 1
                 fi
+                # FR-9: the demotion is visible, not silent — say how many highs
+                # the reviewer excluded and the auditor confirmed.
+                echo "golden-path: ${sprint_id} review excluded ${excluded} speculative low-confidence high finding(s); audit confirmed ${excluded_confirmed}" >&2
             fi
             return 0
         fi

@@ -273,6 +273,11 @@ EOF
     skip_if_no_jq
     cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
 All good
+
+## Observations
+
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
     cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
@@ -290,6 +295,12 @@ EOF
     skip_if_no_jq
     cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
 All good
+
+## Observations
+
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+- **HIGH** (speculative, confidence: low) `src/y.py:9` — might leak a handle
+
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":2,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
     cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
@@ -305,6 +316,11 @@ EOF
     skip_if_no_jq
     cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
 All good
+
+## Observations
+
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
     cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
@@ -355,6 +371,11 @@ EOF
     skip_if_no_jq
     cat > "$SPRINT_DIR/engineer-feedback.md" <<'EOF'
 All good
+
+## Observations
+
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
     cat > "$SPRINT_DIR/auditor-sprint-feedback.md" <<'EOF'
@@ -364,7 +385,9 @@ EOF
     source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
     run --separate-stderr _gp_sprint_is_audited sprint-1
     [ "$status" -eq 1 ]
-    [[ "$stderr" == *"excluded_confirmed=invalid"* ]]
+    # verdict-derive.sh (FR-9) now rejects the string before golden-path's own
+    # integer check runs; either refusal is the fail-closed outcome.
+    [[ "$stderr" == *"excluded_confirmed=invalid"* || "$stderr" == *"excluded_confirmed must be a non-negative integer"* ]]
 }
 
 @test "slice-C HIGH: a TAB-marker CHANGES_REQUIRED audit trailer under 'NOT APPROVED' prose is neither audited nor reviewed (no fall-through to the prose heuristic)" {
@@ -408,7 +431,7 @@ EOF
     source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
     run --separate-stderr _gp_sprint_is_audited sprint-1
     [ "$status" -eq 1 ]
-    [[ "$stderr" == *"non-integer excluded"* ]]
+    [[ "$stderr" == *"non-integer excluded"* || "$stderr" == *"excluded must be a non-negative integer"* ]]
 }
 
 # =============================================================================

@@ -1008,6 +1008,13 @@ call_model() {
             esac
         fi
         args+=(--max-tokens "$per_call_max_tokens")
+        # cycle-124 FR-9 (SDD §3.6): effort per mode — a pure function of the
+        # mode (never per attempt), so the cached prefix survives retries.
+        # review / skeptic reason deeply; the scorer emits a small JSON array.
+        case "$mode" in
+            review|skeptic) args+=(--effort xhigh) ;;
+            score)          args+=(--effort medium) ;;
+        esac
 
         if [[ -n "$context" && -f "$context" ]]; then
             args+=(--system "$context")

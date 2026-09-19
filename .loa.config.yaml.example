@@ -210,21 +210,6 @@ goal_validation:
   require_e2e_task: true     # Require E2E task in final sprint
 
 # -----------------------------------------------------------------------------
-# Effort Parameter (v1.13.0)
-# -----------------------------------------------------------------------------
-effort:
-  default_level: medium
-  budget_ranges:
-    low: { min: 1024, max: 4000 }
-    medium: { min: 8000, max: 16000 }
-    high: { min: 24000, max: 32000 }
-  per_skill:
-    auditing-security: high
-    designing-architecture: high
-    implementing-tasks: medium
-    translating-for-executives: low
-
-# -----------------------------------------------------------------------------
 # Context Editing (v1.13.0)
 # -----------------------------------------------------------------------------
 context_editing:

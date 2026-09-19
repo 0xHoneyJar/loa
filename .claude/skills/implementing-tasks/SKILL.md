@@ -2,6 +2,7 @@
 name: implement
 description: "Execute sprint tasks with production-quality code and tests"
 role: implementation
+effort: xhigh
 capabilities:
   schema_version: 1
   read_files: true

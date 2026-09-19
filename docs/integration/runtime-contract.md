@@ -364,35 +364,14 @@ cat .loa-checkpoint/context-state.yaml
 
 ### Effort Parameter
 
-Runtimes should read effort configuration from `.loa.config.yaml` and pass to API:
-
-```typescript
-interface EffortConfig {
-  default_level: "low" | "medium" | "high";
-  budget_ranges: {
-    low: { min: number; max: number };
-    medium: { min: number; max: number };
-    high: { min: number; max: number };
-  };
-  per_skill: Record<string, "low" | "medium" | "high">;
-}
-
-// Read config and determine effective budget
-function getEffortBudget(skillName: string, config: EffortConfig): number {
-  const level = config.per_skill[skillName] || config.default_level;
-  const range = config.budget_ranges[level];
-  return range.max; // or use midpoint: (range.min + range.max) / 2
-}
-
-// Pass to API
-const request = {
-  model: "claude-opus-4-7",
-  thinking: {
-    budget_tokens: getEffortBudget("auditing-security", config)
-  },
-  // ... other params
-};
-```
+Effort is declared per skill, not configured: the `effort:` key in a skill's `SKILL.md`
+frontmatter (`low | medium | high | xhigh | max`, validated by
+`validate-skill-capabilities.sh`) is the single source. `model-adapter.sh` resolves
+`--effort` arg > skill frontmatter > none and forwards `--effort` to cheval;
+`flatline-orchestrator.sh` maps its modes (review/skeptic → `xhigh`, score → `medium`).
+Runtimes that dispatch a skill through the Messages API pass the resolved level as the
+request's `effort` (Claude 4.6+ adaptive thinking; no `budget_tokens`). There is no
+`effort:` block in `.loa.config.yaml`.
 
 ### Context Editing Signals
 

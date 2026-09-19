@@ -2,7 +2,7 @@
 name: audit
 description: Security and quality audit of application codebase
 role: review
-effort: high  # cycle-114 FR-3: deep-reasoning skill — override baseline /effort
+effort: medium
 allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *)
 # State-Zone feedback/COMPLETED markers require Write/Edit. C-PROC-001 remains
 # enforced by zones: System none, App read; only State artifacts are writable.
@@ -480,6 +480,26 @@ grimoires/loa/a2a/
 mkdir -p "grimoires/loa/a2a/audits/$(date +%Y-%m-%d)/remediation"
 ```
 
+## Coverage (before the tally)
+
+Report every finding you actually observe. Do not withhold one because it looks minor,
+because you are unsure, or because the sprint otherwise looks fine — the tally below is the
+filter, and a finding you drop here is lost.
+
+Each finding carries a `file:line`, a concrete failure scenario, a severity
+(`critical|high|medium|low`) and a confidence (`high|medium|low`). Severity is the damage if
+the scenario happens; confidence is how sure you are that it happens. They are independent.
+
+Every `critical` and `high` finding is tallied whatever its confidence. The only exception is
+a finding you mark `speculative` with confidence `low`: list it under `## Observations`, leave
+it out of the tally, and record the count in the trailer as `excluded` (a critical is never
+excludable). `medium` and `low` findings are tallied and reported; they never force the
+verdict. You do not decide the verdict; the counts do.
+
+Confirm the review's demotions independently: for each high the review trailer counts under
+`excluded`, either confirm it (still speculative, still low confidence) or tally it as a
+finding of your own; record the confirmed count in the trailer as `excluded_confirmed`.
+
 ## Phase 2.5: Severity Tally (MUST — before Verdict)
 
 Before writing the Verdict section, count every finding from Phase 1 by severity into a literal
@@ -515,12 +535,13 @@ The tally table's counts feed the Verdict rule below. ONE-WAY rule: `critical + 
 - Recommendations: Immediate (24h), Short-term (1wk), Long-term (1mo)
 
 **LOA-VERDICT trailer**: append as the LAST line of the audit output file (nothing after it):
-`<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
-Prose and trailer MUST agree: approved sprint/deployment audits use the exact prose
-`APPROVED - LET'S FUCKING GO`.
+`<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"excluded_confirmed":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
+(both extra fields may be omitted when 0). Prose and trailer MUST agree: approved
+sprint/deployment audits use the exact prose `APPROVED - LET'S FUCKING GO`. `excluded_confirmed`
+must equal the review trailer's `excluded`; the golden path refuses to advance otherwise.
 
 **MUST self-check before finishing**: run
-`.claude/scripts/verdict-derive.sh --file <audit-output-file> --gate audit`
+`.claude/scripts/verdict-derive.sh --file <audit-output-file> --gate audit --review-file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md`
 and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
