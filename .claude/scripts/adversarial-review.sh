@@ -89,10 +89,17 @@ _adv_input_budget_for_model() {
     anthropic:*) echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0 ;;
     *:*) echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"; return 0 ;;
   esac
+  # A model id is an alias or provider:id token. Anything else never reaches
+  # the array lookup: bash evaluates an INDEXED array's subscript arithmetically
+  # (command substitutions included), and the arrays are indexed whenever the
+  # maps file fails to source — audit slice C reproduced `x[$(touch pwned)]`.
+  # The arrays are pre-declared associative and a source failure is fatal to
+  # the lookup (default budget), never silently indexed.
+  [[ "$model" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"; return 0; }
   local maps="$SCRIPT_DIR/generated-model-maps.sh"
   if [[ -f "$maps" ]]; then
     local provider
-    provider=$(bash -c 'source "$1" 2>/dev/null; id="${MODEL_IDS[$2]:-$2}"; printf "%s" "${MODEL_PROVIDERS[$id]:-}"' _ "$maps" "$model" 2>/dev/null || true)
+    provider=$(bash -c 'declare -A MODEL_IDS=() MODEL_PROVIDERS=(); source "$1" >/dev/null 2>&1 || exit 3; id="${MODEL_IDS[$2]:-$2}"; printf "%s" "${MODEL_PROVIDERS[$id]:-}"' _ "$maps" "$model" 2>/dev/null || true)
     if [[ "$provider" == "anthropic" ]]; then
       echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0
     fi
@@ -808,7 +815,9 @@ OUTPUT: JSON object {"findings": [...]}. Same field structure as code review.'
   # `jq --arg` fails with "Argument list too long" above ~32K tokens. Feed
   # the prompts through files instead — byte-identical JSON to `--arg`.
   local ctx_tmp
-  ctx_tmp=$(mktemp -d "${TMPDIR:-/tmp}/adv-ctx.XXXXXX") || return 1
+  # Under the EXIT-trapped workdir when one exists, so a kill between the
+  # write and the rm never leaves the full diff in $TMPDIR (audit, slice C).
+  ctx_tmp=$(mktemp -d "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-ctx.XXXXXX") || return 1
   printf '%s' "$system_prompt" > "$ctx_tmp/system"
   printf '%s' "$user_prompt" > "$ctx_tmp/user"
   local jq_rc=0

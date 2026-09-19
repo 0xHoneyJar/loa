@@ -163,3 +163,17 @@ SHIM
     done
     [ "$n" = "11" ]
 }
+
+@test "slice-C MEDIUM: a model id carrying a command substitution never executes it, even when the maps file is unsourceable" {
+    local bad_dir="$TEST_DIR/badscripts"; mkdir -p "$bad_dir"
+    printf 'this is not bash (\n' > "$bad_dir/generated-model-maps.sh"
+    local canary="$TEST_DIR/pwned"
+    local out
+    out=$(SCRIPT_DIR="$bad_dir" _adv_input_budget_for_model "x[\$(touch $canary)]")
+    [ ! -e "$canary" ]
+    [ "$out" = "$DEFAULT_PRIMARY_TOKEN_BUDGET" ]
+    # a valid alias against the real maps still resolves
+    [ "$(SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts" _adv_input_budget_for_model opus)" = "$_ANTHROPIC_DISPATCH_INPUT_BUDGET" ]
+    # and an unsourceable maps file yields the default for a valid id (no silent indexed lookup)
+    [ "$(SCRIPT_DIR="$bad_dir" _adv_input_budget_for_model opus)" = "$DEFAULT_PRIMARY_TOKEN_BUDGET" ]
+}
