@@ -10,7 +10,7 @@ Agents lose discovered knowledge when sessions end. When an agent spends signifi
 
 ## Evaluation Flow
 
-A discovery is extracted only after passing all four quality gates below, in order (Discovery Depth, Reusability, Trigger Clarity, Verification), then a NOTES.md cross-reference check: an exact match in the Decision Log or Technical Debt sections skips extraction, a partial match gets linked from the extracted skill, and no match proceeds.
+A discovery is extracted only after all four quality gates below pass, in order (Discovery Depth, Reusability, Trigger Clarity, Verification), then a NOTES.md cross-reference check: an exact match in the Decision Log or Technical Debt sections skips extraction, a partial match gets linked from the extracted skill, and no match proceeds.
 
 Extraction: generate the skill from `skill-template.md`, write it to `grimoires/loa/skills-pending/{name}/SKILL.md`, log the extraction event to the trajectory log, and update NOTES.md's Session Log.
 

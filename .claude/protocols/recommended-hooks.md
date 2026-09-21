@@ -309,7 +309,7 @@ Prevent accidental pushes to upstream template.
 
 ### 4. Memory Injection Hook
 
-Not a Loa hook: Claude Code's built-in auto-memory handles cross-session recall. (Section number reserved for anchor stability.)
+Not a Loa hook: Claude Code auto-memory owns cross-session recall; the semantic-memory subsystem it replaced is gone (section number reserved for anchor stability).
 
 ### 5. Sprint Completion Hook (PostToolUse)
 

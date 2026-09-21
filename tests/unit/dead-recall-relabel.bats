@@ -26,7 +26,7 @@ setup() {
 }
 
 @test "recommended-hooks.md section 4 documents the deletion (anchor-stable stub)" {
-    grep -q "Memory Injection Hook — REMOVED (cycle-121)" "$REC_HOOKS"
+    grep -q "### 4. Memory Injection Hook" "$REC_HOOKS"
     grep -q "auto-memory owns cross-session recall" "$REC_HOOKS"
 }
 
