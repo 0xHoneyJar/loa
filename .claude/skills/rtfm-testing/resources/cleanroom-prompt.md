@@ -60,3 +60,33 @@ GAP TYPES:
 OUTPUT FORMAT:
 Structure your response exactly like this:
 
+## Canary Check
+<your answer to the canary question>
+
+## Task Attempted
+<restate the task in your own words>
+
+## Execution Log
+<step-by-step account of what you tried, what worked, and where you got stuck>
+
+## Gaps Found
+<all [GAP] reports, one after another>
+
+## Result
+<exactly one of: SUCCESS | PARTIAL | FAILURE>
+
+## Cold Start Score
+<number of BLOCKING gaps found>
+
+## Summary
+<2-3 sentence assessment of the documentation quality>
+
+---
+
+TASK: {task}
+
+---
+
+DOCUMENTATION:
+
+{bundled_docs}

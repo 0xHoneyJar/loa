@@ -378,3 +378,66 @@ Before completing translation:
 - [ ] Every finding answers "So what?"
 - [ ] Actions have owner + timeline
 - [ ] Beads suggested for strategic liabilities
+
+## Translation Examples
+
+### Drift Report -> Board
+
+**Ground Truth:**
+```markdown
+## Drift Score: 34%
+### Ghosts
+| "OAuth Integration" | legacy/api.md:L45 | search-orchestrator.sh hybrid "OAuth" = 0 | GHOST |
+```
+
+**Board Translation:**
+```markdown
+## Documentation Risk Assessment
+
+**Risk Exposure: 34%** (source: drift-report.md:L1)
+
+### Material Finding: Phantom Assets
+
+Our documentation audit identified **3 Phantom Assets**—features documented
+in our prospectus that do not exist in our codebase. This is equivalent to
+having assets on the books that aren't in the vault.
+
+| Asset | Documentation Claim | Audit Finding | Risk |
+|-------|--------------------| --------------|------|
+| OAuth Integration | "Supports OAuth 2.0" (legacy/api.md:L45) | Not found in codebase (drift-report.md:L12) | HIGH |
+
+**Board Action Required:** Approve remediation plan by {date}.
+
+[ASSUMPTION] OAuth may have been descoped without documentation update.
+-> Validator: Engineering Lead
+-> Confidence: MEDIUM
+```
+
+### Hygiene Report -> Executives
+
+**Ground Truth:**
+```markdown
+## Temp Folders: 2 found
+| `.temp_wip/` | 23 files | WIP or abandoned? |
+```
+
+**Executive Translation:**
+```markdown
+## Strategic Liabilities Assessment
+
+**Decisions Pending: 23 items** (source: hygiene-report.md)
+
+### What This Means
+
+We identified **23 items requiring executive decision**. These aren't
+automatically problems—they're unresolved questions that create operational
+uncertainty.
+
+| Category | Items | Question | Source |
+|----------|-------|----------|--------|
+| Temporary Code | 23 files | Keep or delete? | hygiene-report.md:L15 |
+
+**Recommended Action:** Schedule 30-min decision session with Engineering Lead.
+
+**Issue Created:** `br create "Strategic Liability: Resolve 23 temp files" --priority 2`
+```
