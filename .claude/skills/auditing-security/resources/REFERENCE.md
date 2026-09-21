@@ -468,3 +468,12 @@ system_prompt.*=.*\+|messages\[0\]\.content.*req\.
 | Detailed internal architecture | MEDIUM | Review for info leakage |
 | Unredacted logs/traces | HIGH | Scrub sensitive data |
 | API keys in code samples | CRITICAL | Use `YOUR_API_KEY` placeholder |
+
+## Sources and Sinks
+
+Recon catalog for SKILL.md Phase 1A.
+
+- **Untrusted sources**: user input, headers, uploads, external API responses, stored/tainted reads, websockets/SSE, cache reads.
+- **Dangerous sinks**: SQL, command exec, file I/O, HTML render, URL fetch, template eval, log output.
+- **Trust levels**: untrusted / semi-trusted / tainted-from-storage.
+- **Second-order flows** (Phase 1B): stored XSS from profile fields, stored filenames later used in file operations, stored URLs later fetched.

@@ -1,9 +1,5 @@
 # Trajectory Evaluation Protocol (ADK-Level)
 
-**Version**: 2.0
-**Status**: Active
-**Last Updated**: 2025-12-27 (Enhanced for Sprint 3)
-
 > Evaluate not just the output, but the reasoning path.
 
 ## Purpose
@@ -17,70 +13,21 @@ Google's ADK emphasizes evaluating the **step-by-step execution trajectory**, no
 - Searches without clear goals that waste tokens
 - Fishing expeditions (searching without expected outcomes)
 
-**Source**: PRD FR-5.1, FR-5.2, SDD §4.2
-
 ## Intent-First Search Protocol
 
-### Three Required Elements (Before Search)
+### Before Search: State Three Things
 
-Before executing ANY search, agents MUST articulate:
+Before running a search, state:
 
-1. **Intent**: What are we looking for?
-   - Clear, specific target (e.g., "JWT authentication entry points")
-   - Not vague (e.g., "authentication stuff")
+1. **Intent** - the specific target (e.g., "JWT authentication entry points", not "authentication stuff").
+2. **Rationale** - why this search serves the current task, not a generic "to understand the code".
+3. **Expected outcome** - a specific prediction and what would count as success (e.g., "1-3 token validation functions").
 
-2. **Rationale**: Why do we need this for the current task?
-   - Connect to current implementation goal
-   - Justify why this search is necessary now
-   - Not generic (e.g., "to understand the code")
-
-3. **Expected Outcome**: What do we expect to find?
-   - Specific prediction (e.g., "1-3 token validation functions")
-   - Success criteria (what would make this search successful?)
-   - HALT if cannot articulate expected outcome
-
-### XML Format for Agent Reasoning
-
-Agents must structure their search reasoning in this format:
-
-```xml
-<search_execution>
-  <intent>Find JWT authentication entry points</intent>
-  <rationale>Task requires extending auth; need patterns first</rationale>
-  <expected_outcome>Should find 1-3 token validation functions</expected_outcome>
-  <query>hybrid_search("JWT token validation authentication")</query>
-  <path>${PROJECT_ROOT}/src/auth/</path>
-</search_execution>
-```
-
-### HALT Conditions
-
-**DO NOT** proceed with search if:
-
-- ❌ Expected outcome cannot be articulated
-- ❌ Rationale is vague or generic
-- ❌ Intent is too broad (would return >100 results)
-- ❌ Search is redundant (already searched similar query)
-
-**Action**: Refine reasoning FIRST, then search.
-
----
-
-## Trajectory Log Location
-
-```
-grimoires/loa/a2a/trajectory/
-  {agent}-{date}.jsonl
-```
-
-**Examples**:
-- `grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl`
-- `grimoires/loa/a2a/trajectory/reviewing-code-2025-12-27.jsonl`
-- `grimoires/loa/a2a/trajectory/discovering-requirements-2025-12-27.jsonl`
+Record these as the search's `intent` phase log entry (see JSONL Log Format below) before the search runs. Refine the reasoning instead of searching when: the expected outcome can't be stated, the intent is broad enough to return more than 100 results, or the same search already ran with a slight variation.
 
 ## JSONL Log Format
 
-Each line is a complete JSON object (newline-delimited):
+Logs live at `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl` (e.g. `implementing-tasks-2025-12-27.jsonl`). Each line is a complete JSON object (newline-delimited):
 
 ```jsonl
 {"ts":"2025-12-27T10:30:00Z","agent":"implementing-tasks","phase":"intent","intent":"Find JWT authentication entry points","rationale":"Task requires extending auth; need patterns first","expected_outcome":"Should find 1-3 token validation functions"}
@@ -89,7 +36,7 @@ Each line is a complete JSON object (newline-delimited):
 {"ts":"2025-12-27T10:30:10Z","agent":"implementing-tasks","phase":"cite","citations":[{"claim":"System uses JWT validation","code":"export async function validateToken()","path":"/abs/path/src/auth/jwt.ts","line":45}]}
 ```
 
-### Four Trajectory Phases for Search Operations
+### Search Phases
 
 | Phase | When | Required Fields |
 |-------|------|-----------------|
@@ -120,17 +67,9 @@ For non-search operations, use this format:
 }
 ```
 
-## Anti-Fishing Expedition Rules
+## Fishing Expeditions
 
-### Fishing Expedition Detection
-
-A "fishing expedition" is a search without clear purpose. Indicators:
-
-- ❌ No expected outcome articulated
-- ❌ Broad query (>100 results)
-- ❌ Repeated similar searches with slight variations
-- ❌ Unexpected results ignored (keeps searching)
-- ❌ Paginating through results without evaluation
+A "fishing expedition" is a search without clear purpose - also: ignoring unexpected results and continuing anyway, and paginating through results without evaluating them.
 
 ### Prevention Rules
 
@@ -144,7 +83,7 @@ A "fishing expedition" is a search without clear purpose. Indicators:
 
 ### Trajectory Pivot (>50 Results)
 
-When search returns >50 results, MANDATORY pivot log before narrowing:
+When search returns >50 results, log a pivot entry before narrowing:
 
 ```jsonl
 {
@@ -160,14 +99,6 @@ When search returns >50 results, MANDATORY pivot log before narrowing:
 }
 ```
 
-**Required pivot fields**:
-- `reason`: Why query was too broad
-- `original_query`: What we tried
-- `result_count`: How many results
-- `hypothesis_failure`: Why our hypothesis failed
-- `refined_hypothesis`: Updated understanding
-- `new_query`: Improved query string
-
 ---
 
 ## Grounding Types
@@ -179,102 +110,36 @@ When search returns >50 results, MANDATORY pivot log before narrowing:
 | `assumption` | Ungrounded claim | `assumption`, `flag` | "Likely caches tokens [ASSUMPTION]" |
 | `user_input` | Based on user's explicit request | `message_id` or `source` | "User wants JWT support" |
 
-**[ASSUMPTION] flag required** for all ungrounded claims:
-```jsonl
-{
-  "ts": "2025-12-27T10:55:00Z",
-  "agent": "implementing-tasks",
-  "phase": "assumption",
-  "claim": "Tokens likely cached in Redis",
-  "grounding": "assumption",
-  "flag": "[ASSUMPTION: needs verification]"
-}
-```
-
-## Agent Responsibilities
-
-### Before Each Action
-1. Log the intended action
-2. Document the reasoning
-3. Cite grounding (or flag as assumption)
-
-### After Each Action
-1. Summarize the output (not raw data)
-2. State the next action and why
-
-### On Task Completion
-1. Generate trajectory summary
-2. Self-evaluate: "Did I reach this conclusion through grounded reasoning?"
+Flag every ungrounded claim with `[ASSUMPTION]` and log it as its own `assumption`-phase entry (fields above).
 
 ## Evaluation by reviewing-code Agent
 
 When auditing a completed task:
 
-1. Load trajectory log for the implementing agent
-2. Check each step for:
-   - Ungrounded assumptions
-   - Reasoning jumps (conclusions without steps)
-   - Contradictions with previous steps
-3. Flag issues:
-   ```markdown
-   ## Trajectory Audit: PR #42
-
-   Step 5: Ungrounded assumption about cache TTL
-   Step 8: Reasoning jump - no explanation for architecture choice
-   Steps 1-4, 6-7, 9-12: Well-grounded
-
-   Recommendation: Request clarification on steps 5 and 8 before approval.
-   ```
+1. Load the trajectory log for the implementing agent.
+2. Check each step for ungrounded assumptions, reasoning jumps (conclusions without steps), and contradictions with previous steps.
+3. Flag issues in a short report naming the step, the problem, and a recommendation - e.g. "Step 5: ungrounded assumption about cache TTL. Step 8: reasoning jump, no explanation for the architecture choice. Recommendation: request clarification on steps 5 and 8 before approval."
 
 ## Evaluation-Driven Development (EDD)
 
-Before marking a task COMPLETE, agents must:
-
-1. Create 3 diverse test scenarios:
-   ```markdown
-   ## Test Scenarios for: Implement User Authentication
-
-   1. **Happy Path**: Valid credentials -> successful login -> JWT returned
-   2. **Edge Case**: Expired password -> prompt for reset -> block login
-   3. **Adversarial**: SQL injection attempt -> sanitized -> blocked with log
-   ```
-
-2. Verify each scenario is covered by implementation
-
-3. Log test scenario creation in trajectory
+Before marking a task complete, agents create 3 diverse test scenarios (happy path, edge case, adversarial), verify each is covered by the implementation, and log the scenario creation in the trajectory.
 
 ## Outcome Validation
 
-After search execution, validate results against expected outcome:
+After search execution, validate results against the expected outcome:
 
-### Match (✅ Expected)
+### Match (Expected)
 
-Results aligned with expected outcome:
+**Example**: expected "1-3 token validation functions", found 2 (`validateToken`, `verifyToken`). **Action**: log `"outcome_match": "match"`, proceed with synthesis.
 
-**Example**:
-- Expected: "1-3 token validation functions"
-- Found: 2 functions (`validateToken`, `verifyToken`)
-- **Action**: Log `"outcome_match": "match"`, proceed with synthesis
+### Partial (Some Unexpected)
 
-### Partial (⚠️ Some Unexpected)
+**Example**: expected "JWT validation functions", found 2 validation functions plus 5 configuration files. **Action**: log `"outcome_match": "partial"`, extract the relevant subset.
 
-Some results matched, some unexpected:
+### Mismatch (Unexpected)
 
-**Example**:
-- Expected: "JWT validation functions"
-- Found: 2 validation functions + 5 configuration files
-- **Action**: Log `"outcome_match": "partial"`, extract relevant subset
+**Example**: expected "JWT validation in auth module", found OAuth2 flows, SAML handlers, legacy auth. **Action**: log `"outcome_match": "mismatch"`, reassess the rationale, refine the query.
 
-### Mismatch (❌ Unexpected)
-
-Results completely different than expected:
-
-**Example**:
-- Expected: "JWT validation in auth module"
-- Found: OAuth2 flows, SAML handlers, legacy auth
-- **Action**: Log `"outcome_match": "mismatch"`, reassess rationale, refine query
-
-**Trajectory log**:
 ```jsonl
 {
   "ts": "2025-12-27T10:40:00Z",
@@ -287,16 +152,10 @@ Results completely different than expected:
 }
 ```
 
-### Zero Results (🔍 Ghost Feature?)
+### Zero Results (Ghost Feature?)
 
-No results found:
+**Example**: expected "OAuth2 SSO login flow", found 0 results. **Action**: perform Negative Grounding (a second, diverse query), and potentially flag as a Ghost Feature.
 
-**Example**:
-- Expected: "OAuth2 SSO login flow"
-- Found: 0 results
-- **Action**: Perform Negative Grounding (second diverse query), potentially flag as Ghost Feature
-
-**Trajectory log**:
 ```jsonl
 {
   "ts": "2025-12-27T10:45:00Z",
@@ -313,57 +172,14 @@ No results found:
 
 ---
 
-## Model Selection Rationale
-
-When using ck with multiple embedding models, log model selection:
-
-```jsonl
-{
-  "ts": "2025-12-27T11:00:00Z",
-  "agent": "implementing-tasks",
-  "phase": "model_selection",
-  "chosen_model": "nomic-v1.5",
-  "rationale": "Balance between speed and accuracy for code search",
-  "alternatives_considered": ["jina-code", "bge-large"],
-  "why_not_jina": "Slower, overkill for this search scope",
-  "why_not_bge": "Optimized for natural language, not code"
-}
-```
-
-**Required fields**:
-- `chosen_model`: Model used for search
-- `rationale`: Why this model is appropriate
-- `alternatives_considered`: Other models evaluated
-- `why_not_X`: Negative justification for each alternative
-
----
-
 ## Trajectory Audit
 
-### Self-Audit Queries
+Query trajectory logs directly:
 
-Agents can query their own trajectory logs:
-
-**Find all assumptions**:
 ```bash
-grep '"grounding":"assumption"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
-```
-
-**Find all pivots**:
-```bash
-grep '"phase":"pivot"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl
-```
-
-**Calculate grounding ratio**:
-```bash
-# Total claims
-total=$(grep '"phase":"cite"' trajectory.jsonl | wc -l)
-
-# Grounded claims (citations)
-grounded=$(grep '"grounding":"citation"' trajectory.jsonl | wc -l)
-
-# Ratio
-echo "scale=2; $grounded / $total" | bc
+grep '"grounding":"assumption"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl   # assumptions
+grep '"phase":"pivot"' grimoires/loa/a2a/trajectory/implementing-tasks-2025-12-27.jsonl             # pivots
+total=$(grep '"phase":"cite"' trajectory.jsonl | wc -l); grounded=$(grep '"grounding":"citation"' trajectory.jsonl | wc -l); echo "scale=2; $grounded / $total" | bc  # grounding ratio
 ```
 
 ---
@@ -392,41 +208,14 @@ Trajectory logs stored in `grimoires/loa/a2a/trajectory/` with retention:
 | Age | Status | Action |
 |-----|--------|--------|
 | 0-30 days | Active | Keep as .jsonl |
-| 30-365 days | Archived | Compress to .jsonl.gz (via compact-trajectory.sh) |
+| 30-365 days | Archived | Compress to .jsonl.gz (via `.claude/scripts/compact-trajectory.sh`) |
 | >365 days | Purged | Delete archives |
 
-**Compaction script**: `.claude/scripts/compact-trajectory.sh` (Task 3.8)
-
-To preserve a trajectory permanently:
-```bash
-mkdir -p grimoires/loa/a2a/trajectory/archive/
-mv grimoires/loa/a2a/trajectory/implementing-2024-01-10.jsonl \
-   grimoires/loa/a2a/trajectory/archive/
-```
+To preserve a trajectory permanently: `mv grimoires/loa/a2a/trajectory/<file>.jsonl grimoires/loa/a2a/trajectory/archive/`
 
 ## Communication Guidelines
 
-### What Agents Should Say (User-Facing)
-
-✅ **CORRECT**:
-- "Searching for JWT authentication entry points..."
-- "Found 3 high-relevance files for authentication work."
-- "No results found for OAuth2 SSO - flagging as potential Ghost Feature."
-
-❌ **INCORRECT** (internal details exposed):
-- "Logging intent phase to trajectory before searching..."
-- "Expected outcome: 1-3 functions. Let me validate against actual results..."
-- "Trajectory pivot required due to >50 results..."
-
-### Internal State (Not Shown to User)
-
-Agents should internally track:
-- Trajectory log file path
-- Current phase being logged
-- Grounding type for each claim
-- Outcome validation results
-
-**All internal state logged to trajectory only, never shown to user.**
+State outcomes plainly to the user (e.g. "Found 3 high-relevance files for authentication work") and never expose internal logging mechanics (e.g. "Logging intent phase to trajectory..."). Track the log file path, current phase, grounding type, and outcome-validation results internally; never surface them to the user.
 
 ---
 
@@ -434,11 +223,8 @@ Agents should internally track:
 
 ### Tool Result Clearing
 
-After logging `phase: "result"`, apply Tool Result Clearing if:
-- `result_count > 20` OR
-- `tokens_estimated > 2000`
+After logging `phase: "result"`, apply Tool Result Clearing if `result_count > 20` or `tokens_estimated > 2000`:
 
-**Trajectory entry**:
 ```jsonl
 {
   "ts": "2025-12-27T11:05:00Z",
@@ -454,13 +240,13 @@ After logging `phase: "result"`, apply Tool Result Clearing if:
 
 ### Self-Audit Checkpoint
 
-Before completing task, verify trajectory log:
+Before completing a task, verify the trajectory log:
 
-- [ ] All searches have intent phase logged
+- [ ] All searches have an intent phase logged
 - [ ] All results have outcome validation
 - [ ] All citations logged with code quotes
 - [ ] Zero unflagged assumptions
-- [ ] Grounding ratio ≥ 0.95
+- [ ] Grounding ratio >= 0.95
 
 ### Negative Grounding Protocol
 
@@ -486,39 +272,16 @@ When detecting Ghost Features:
 
 ---
 
-## Why This Matters
-
-Traditional evaluation checks only:
-- Did the output compile?
-- Did tests pass?
-- Does the feature work?
-
-Trajectory evaluation also checks:
-- Was the reasoning sound?
-- Were assumptions made explicit?
-- Would this approach generalize?
-- Did the agent understand *why*, not just *what*?
-- Were searches goal-directed or fishing expeditions?
-- Were all claims properly grounded in code?
-
-This catches "lucky guesses" and ensures reproducible quality.
-
----
-
-## Session Handoff Phase (v0.9.0)
+## Session Handoff Phase
 
 > **Protocol**: See `.claude/protocols/session-continuity.md`
 > **Paradigm**: Clear, Don't Compact
 
 The `session_handoff` phase is logged when context is cleared via `/clear`.
 
-### Session Handoff Log Format
-
 ```jsonl
 {"ts":"2024-01-15T14:30:00Z","agent":"implementing-tasks","phase":"session_handoff","session_id":"sess-002","root_span_id":"span-def","bead_id":"beads-x7y8","notes_refs":["grimoires/loa/NOTES.md:68-92"],"edd_verified":true,"grounding_ratio":0.97,"test_scenarios":3,"next_session_ready":true}
 ```
-
-### Required Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -532,34 +295,15 @@ The `session_handoff` phase is logged when context is cleared via `/clear`.
 | `test_scenarios` | number | Count of test scenarios documented |
 | `next_session_ready` | boolean | State Zone ready for recovery |
 
-### Lineage Tracking
+The `root_span_id` tracks work across session boundaries. Query lineage: `grep '"root_span_id":"span-abc"' grimoires/loa/a2a/trajectory/*.jsonl`
 
-The `root_span_id` enables tracking work across session boundaries:
+## Delta Sync Phase
 
-```
-Session 1: span-abc (initial work)
-    └── Session 2: span-def (continues from span-abc)
-        └── Session 3: span-ghi (continues from span-def)
-```
-
-Query lineage:
-```bash
-grep '"root_span_id":"span-abc"' grimoires/loa/a2a/trajectory/*.jsonl
-```
-
----
-
-## Delta Sync Phase (v0.9.0)
-
-The `delta_sync` phase is logged at the 5,000-token accumulated threshold (see the context_discipline blocks in SKILL.md files / `.claude/protocols/tool-result-clearing.md`) for partial persistence.
-
-### Delta Sync Log Format
+The `delta_sync` phase is logged at the 5,000-token accumulated threshold (see `.claude/protocols/tool-result-clearing.md`) for partial persistence.
 
 ```jsonl
 {"ts":"2024-01-15T12:00:00Z","agent":"implementing-tasks","phase":"delta_sync","tokens":5000,"decisions_persisted":3,"bead_updated":true,"notes_updated":true}
 ```
-
-### Required Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -569,28 +313,17 @@ The `delta_sync` phase is logged at the 5,000-token accumulated threshold (see t
 | `bead_updated` | boolean | Whether active Bead was updated |
 | `notes_updated` | boolean | Whether NOTES.md was updated |
 
-### Purpose
+Delta sync survives an unexpected session end without an explicit `/clear`; recovery resumes from this state.
 
-Delta sync provides crash recovery:
-- Work persisted before session terminates unexpectedly
-- Partial progress saved even without explicit `/clear`
-- Recovery can resume from delta-synced state
-
----
-
-## Grounding Check Phase (v0.9.0)
+## Grounding Check Phase
 
 > **Protocol**: See `.claude/protocols/grounding-enforcement.md`
 
-The `grounding_check` phase is logged during synthesis checkpoint.
-
-### Grounding Check Log Format
+The `grounding_check` phase is logged during the synthesis checkpoint.
 
 ```jsonl
 {"ts":"2024-01-15T14:29:00Z","agent":"implementing-tasks","phase":"grounding_check","total_claims":20,"grounded_claims":19,"assumptions":1,"grounding_ratio":0.95,"threshold":0.95,"status":"pass"}
 ```
-
-### Required Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -602,24 +335,4 @@ The `grounding_check` phase is logged during synthesis checkpoint.
 | `threshold` | number | Required minimum (default 0.95) |
 | `status` | string | `"pass"` or `"fail"` |
 
-### Enforcement
-
-- **strict mode**: `/clear` blocked if status = "fail"
-- **warn mode**: Warning shown but `/clear` permitted
-- **disabled**: No enforcement
-
----
-
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2024-01-10 | Initial protocol creation |
-| 2.0 | 2025-12-27 | Enhanced for Sprint 3: Intent-First Search, Anti-Fishing Rules, Outcome Validation |
-| 2.1 | 2025-12-27 | v0.9.0 Lossless Ledger: session_handoff, delta_sync, grounding_check phases |
-
----
-
-**Status**: ✅ Protocol Enhanced
-**Paradigm**: Clear, Don't Compact
-**Next**: Integrate into search orchestrator (Sprint 4)
+Enforcement: **strict mode** blocks `/clear` if status is `"fail"`; **warn mode** shows a warning but permits `/clear`; **disabled** applies no enforcement.
