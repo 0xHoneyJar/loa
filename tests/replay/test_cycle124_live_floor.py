@@ -205,12 +205,12 @@ def test_schema_enforced_response_is_strict_json(served_models):
 
 
 def test_ceiling_probe_writes_evidence(tmp_path, served_models):
-    """tools/ceiling-probe.py flips the evidence file's ceiling row from reference to probed."""
+    """tools/ceiling-probe-live.py flips the evidence file's ceiling row from reference to probed."""
     import subprocess
     model = "claude-opus-5" if "claude-opus-5" in served_models else "claude-opus-4-8"
     out = tmp_path / "probe.json"
     proc = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "tools" / "ceiling-probe.py"), "--model", model,
+        [sys.executable, str(REPO_ROOT / "tools" / "ceiling-probe-live.py"), "--model", model,
          "--max-tokens-probe", "200000", "--output", str(out), "--budget-usd", "1.5"],
         capture_output=True, text=True, timeout=1200,
     )

@@ -40,8 +40,8 @@ EXPECTED_SKIPS=8
     [[ "$output" == *"${EXPECTED_SKIPS} skipped"* ]]
 }
 
-@test "c124-1.8-3: ceiling-probe.py refuses to run without ANTHROPIC_API_KEY (exit 2)" {
-    run env -u ANTHROPIC_API_KEY "$PYTHON_BIN" "$PROJECT_ROOT/tools/ceiling-probe.py" --model claude-opus-5
+@test "c124-1.8-3: ceiling-probe-live.py refuses to run without ANTHROPIC_API_KEY (exit 2)" {
+    run env -u ANTHROPIC_API_KEY "$PYTHON_BIN" "$PROJECT_ROOT/tools/ceiling-probe-live.py" --model claude-opus-5
     [ "$status" -eq 2 ]
     [[ "$output" == *"ANTHROPIC_API_KEY is required"* ]]
 }

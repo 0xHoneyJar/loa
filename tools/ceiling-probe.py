@@ -1,170 +1,311 @@
 #!/usr/bin/env python3
-"""ceiling-probe.py — binary-search the safe input size for an Anthropic model.
+"""cycle-109 Sprint 1 T1.7 — ceiling-probe protocol (PRD §FR-1.6, IMP-007).
 
-cycle-124 Sprint 1 Task 1.8 (SDD §2.5 / §6). The catalog ships
-`effective_input_ceiling: 180000` as `kf_derived` (the streaming-probed
-KF-002 ceiling). This probe measures it on a real account under the same
-transport cheval uses (streaming) and emits a JSON record the operator pastes
-into grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md and into
-`ceiling_calibration` (source: empirical_probe, calibrated_at, sample_size).
+Empirical binary-search derivation of `effective_input_ceiling` per
+(provider, model_id). Probes ``N prompts × M input sizes`` and selects
+the ceiling as the LARGEST probed size whose empty-content rate is
+≤ ``empty_threshold`` (default 5%). When every size is empty-free, the
+ceiling is the maximum probed size. When the smallest probed size
+already exceeds the threshold, the ceiling collapses to the smallest
+probed size (defensive lower bound — the substrate refuses to dispatch
+above a known-bad ceiling).
 
-Usage:
-  ANTHROPIC_API_KEY=... tools/ceiling-probe.py --model claude-opus-5 \
-      [--max-tokens-probe 200000] [--min-tokens-probe 32000] [--budget-usd 1.5] \
-      [--output probe.json]
+Per PRD §FR-1.6 the canonical probe geometry is ``5 prompts × 5 sizes``
+at ``[10K, 20K, 30K, 40K, 50K]`` input tokens. Operators can override
+the geometry via ``--sizes`` and ``--samples-per-size``.
 
-Exit codes: 0 probe completed · 1 a call failed for a non-size reason ·
-2 usage · 3 the budget cap stopped the bisection (`partial: true` — the
-record is still written but is NOT full evidence). A call is OK when the
-stream reaches `message_stop`
-without an error event — NOT when a text block arrives: default-on thinking
-(Opus 5 / Fable) can spend a small `max_tokens` entirely on reasoning, which
-is a budget outcome, not a size failure (review round-1 medium 7). Each call
-asks for up to 1024 output tokens and records `stop_reason`; the cost is
-still dominated by input: 200K tokens on Opus 5 ≈ $1.00 per call; the budget
-cap stops the search (largest OK so far is still reported, `partial: true`,
-exit 3).
+Probe backends
+---------------
+``fixture`` — read a deterministic JSON file mapping ``size`` →
+``(empty_count, sample_count)``. The fixture mode is used by the bats
+suite (no network) and by operators who want to replay a prior
+calibration trace. Schema::
 
-Never run this from a test without LOA_RUN_LIVE_TESTS=1 — it spends money.
+    {
+      "provider": "anthropic",
+      "model_id": "claude-opus-4-7",
+      "trials": [
+        { "size": 10000, "empty_count": 0, "sample_count": 5 },
+        ...
+      ]
+    }
+
+``live`` — invoke cheval.cmd_invoke in batch against the real provider.
+**Currently disabled** under the cycle-109 substrate-degraded posture
+(Anthropic credit-too-low + OpenAI Responses API insufficient_quota).
+Live calibration is the cycle-109 operator-driven track per
+``grimoires/loa/cycles/cycle-109-substrate-hardening/operator-approval.md::C109.OP-6``
+and the T1.10 baselines artifact. The ``live`` backend exits 6 with a
+clear message pointing the operator at the runbook.
+
+Output
+------
+``--apply``  writes the calibration record back to model-config.yaml
+under ``providers.<p>.models.<m>.ceiling_calibration`` and updates
+``effective_input_ceiling`` in place.
+
+Without ``--apply`` the script emits the calibration record as compact
+JSON on stdout (dry-run; no file mutation).
 """
 
 from __future__ import annotations
 
 import argparse
-import datetime as dt
+import datetime
 import json
-import os
 import sys
-import urllib.error
-import urllib.request
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-API = "https://api.anthropic.com/v1/messages"
-_PRICE_IN = {"claude-opus-5": 5_000_000, "claude-fable-5-1": 10_000_000, "claude-sonnet-5": 2_000_000,
-             "claude-opus-4-8": 5_000_000, "claude-haiku-4-5-20251001": 1_000_000}
-_FILLER = "The quick brown fox jumps over the lazy dog. "  # ≈ 10 tokens
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    print("[ceiling-probe] FATAL: PyYAML required.", file=sys.stderr)
+    raise
 
-
-def _probe_once(model: str, tokens: int, key: str) -> tuple[bool, str, str | None]:
-    """Stream one request with ≈`tokens` input tokens.
-
-    Returns (ok, detail, stop_reason): ok iff the stream reached `message_stop`
-    with no error event — the request was accepted at this size whatever the
-    model chose to do with its output budget."""
-    body = {
-        "model": model, "max_tokens": 1024, "stream": True,
-        "messages": [{"role": "user", "content": _FILLER * (tokens // 10) + "\n\nReply: ok."}],
-    }
-    req = urllib.request.Request(
-        API, data=json.dumps(body).encode(), method="POST",
-        headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json",
-                 "accept": "text/event-stream"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
-            saw_stop, stop_reason = False, None
-            for raw in resp:
-                line = raw.decode("utf-8", errors="replace").strip()
-                if not line.startswith("data: "):
-                    continue
-                try:
-                    event = json.loads(line[6:])
-                except json.JSONDecodeError:
-                    continue
-                kind = event.get("type")
-                if kind == "error":
-                    return False, line[:300], None
-                if kind == "message_delta":
-                    stop_reason = (event.get("delta") or {}).get("stop_reason") or stop_reason
-                if kind == "message_stop":
-                    saw_stop = True
-            if saw_stop:
-                return True, "", stop_reason
-            return False, "stream ended before message_stop (transport / truncation class)", stop_reason
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:300]
-        if e.code in (400, 413) and ("too long" in detail or "exceed" in detail or "maximum" in detail):
-            return False, f"HTTP {e.code}: {detail}", None
-        raise RuntimeError(f"HTTP {e.code} (non-size failure): {detail}")
-    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-        return False, f"transport: {e}", None
+DEFAULT_SIZES = [10000, 20000, 30000, 40000, 50000]
+DEFAULT_SAMPLES_PER_SIZE = 5
+DEFAULT_EMPTY_THRESHOLD = 0.05  # 5%
+DEFAULT_STALE_AFTER_DAYS = 30
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--model", required=True)
-    ap.add_argument("--max-tokens-probe", type=int, default=200_000)
-    ap.add_argument("--min-tokens-probe", type=int, default=32_000)
-    ap.add_argument("--budget-usd", type=float, default=1.5)
-    ap.add_argument("--output", default="-")
-    args = ap.parse_args()
+# ---------------------------------------------------------------------------
+# Fixture probe backend
+# ---------------------------------------------------------------------------
 
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        print("ceiling-probe: ANTHROPIC_API_KEY is required", file=sys.stderr)
-        return 2
-    if args.min_tokens_probe >= args.max_tokens_probe:
-        print("ceiling-probe: --min-tokens-probe must be below --max-tokens-probe", file=sys.stderr)
-        return 2
+def load_fixture(path: Path) -> List[Tuple[int, int, int]]:
+    """Load a probe-fixture JSON file and return [(size, empty, sample), ...].
 
-    price_in = _PRICE_IN.get(args.model, 10_000_000)
-    spent_micro = 0
-    lo, hi = args.min_tokens_probe, args.max_tokens_probe
-    largest_ok, smallest_fail, samples, partial = 0, None, [], False
+    Raises ValueError on malformed fixtures (missing keys, type errors,
+    empty trials list).
+    """
+    if not path.is_file():
+        raise ValueError(f"fixture not found: {path}")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"fixture root must be an object: {path}")
+    trials = raw.get("trials")
+    if not isinstance(trials, list) or len(trials) == 0:
+        raise ValueError(f"fixture missing or empty 'trials' list: {path}")
+    out: List[Tuple[int, int, int]] = []
+    for idx, t in enumerate(trials):
+        if not isinstance(t, dict):
+            raise ValueError(f"fixture trial[{idx}] not a dict: {path}")
+        for key in ("size", "empty_count", "sample_count"):
+            if key not in t:
+                raise ValueError(f"fixture trial[{idx}] missing '{key}': {path}")
+            if not isinstance(t[key], int):
+                raise ValueError(
+                    f"fixture trial[{idx}].{key} must be int: {path}"
+                )
+        if t["sample_count"] <= 0:
+            raise ValueError(f"fixture trial[{idx}].sample_count must be >0: {path}")
+        if t["empty_count"] < 0 or t["empty_count"] > t["sample_count"]:
+            raise ValueError(
+                f"fixture trial[{idx}] empty_count out of range: {path}"
+            )
+        out.append((t["size"], t["empty_count"], t["sample_count"]))
+    out.sort(key=lambda x: x[0])
+    return out
 
-    def within_budget(tokens: int) -> bool:
-        return spent_micro + tokens * price_in // 1_000_000 <= args.budget_usd * 1_000_000
 
-    try:
-        # Anchor the top first: if the max works, the ceiling is at least that.
-        for tokens in (hi,):
-            if not within_budget(tokens):
-                partial = True
-                break
-            ok, why, stop_reason = _probe_once(args.model, tokens, key)
-            spent_micro += tokens * price_in // 1_000_000
-            samples.append({"tokens": tokens, "ok": ok, "stop_reason": stop_reason, "detail": why})
-            if ok:
-                largest_ok = tokens
-            else:
-                smallest_fail = tokens
-        while largest_ok < hi and smallest_fail is not None and smallest_fail - max(largest_ok, lo) > 8_000:
-            mid = (max(largest_ok, lo) + smallest_fail) // 2
-            if not within_budget(mid):
-                partial = True
-                break
-            ok, why, stop_reason = _probe_once(args.model, mid, key)
-            spent_micro += mid * price_in // 1_000_000
-            samples.append({"tokens": mid, "ok": ok, "stop_reason": stop_reason, "detail": why})
-            if ok:
-                largest_ok = mid
-            else:
-                smallest_fail = mid
-    except RuntimeError as e:
-        print(f"ceiling-probe: {e}", file=sys.stderr)
-        return 1
+# ---------------------------------------------------------------------------
+# Ceiling-pick logic
+# ---------------------------------------------------------------------------
 
-    record = {
-        "model": args.model,
-        "transport": "streaming",
-        "source": "empirical_probe",
-        "calibrated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "sample_size": len(samples),
-        "largest_ok_input_tokens": largest_ok,
-        "smallest_failed_input_tokens": smallest_fail,
-        "partial": partial,
-        "spent_usd": round(spent_micro / 1_000_000, 4),
-        "samples": samples,
-    }
-    text = json.dumps(record, indent=2)
-    if args.output == "-":
-        print(text)
+def pick_ceiling(
+    trials: List[Tuple[int, int, int]],
+    empty_threshold: float = DEFAULT_EMPTY_THRESHOLD,
+) -> Tuple[int, int]:
+    """Pick the ceiling per PRD §FR-1.6.
+
+    Returns (ceiling_tokens, total_sample_size).
+
+    Rules:
+      - safe_size = largest size whose empty_rate <= empty_threshold.
+      - If a safe_size exists → ceiling = safe_size.
+      - If no safe_size exists (smallest probed already over threshold)
+        → ceiling = smallest probed size (defensive lower bound).
+    """
+    if not trials:
+        raise ValueError("pick_ceiling: empty trials list")
+    safe_sizes: List[int] = []
+    total_samples = 0
+    for size, empty_count, sample_count in trials:
+        total_samples += sample_count
+        rate = empty_count / sample_count
+        if rate <= empty_threshold:
+            safe_sizes.append(size)
+    if safe_sizes:
+        ceiling = max(safe_sizes)
     else:
-        with open(args.output, "w") as fh:
-            fh.write(text + "\n")
-        print(f"ceiling-probe: wrote {args.output} (largest_ok={largest_ok}, spent=${record['spent_usd']})", file=sys.stderr)
-    if partial:
-        print("ceiling-probe: budget cap stopped the bisection — partial record (exit 3)", file=sys.stderr)
-        return 3
+        # No safe size — defensive bound is the smallest probed size.
+        ceiling = min(t[0] for t in trials)
+    return ceiling, total_samples
+
+
+# ---------------------------------------------------------------------------
+# Calibration record + model-config write
+# ---------------------------------------------------------------------------
+
+def build_calibration_record(
+    ceiling: int,
+    sample_size: int,
+    *,
+    stale_after_days: int = DEFAULT_STALE_AFTER_DAYS,
+    now: Optional[datetime.datetime] = None,
+) -> Dict[str, Any]:
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return {
+        "source": "empirical_probe",
+        "calibrated_at": now.isoformat().replace("+00:00", "Z"),
+        "sample_size": sample_size,
+        "stale_after_days": stale_after_days,
+        "reprobe_trigger": (
+            "first KF entry referencing model OR "
+            f"{stale_after_days}d elapsed OR operator-forced"
+        ),
+    }
+
+
+def apply_calibration(
+    model_config_path: Path,
+    provider: str,
+    model_id: str,
+    ceiling: int,
+    calibration: Dict[str, Any],
+) -> None:
+    cfg = yaml.safe_load(model_config_path.read_text(encoding="utf-8")) or {}
+    providers = cfg.setdefault("providers", {})
+    prov_block = providers.setdefault(provider, {})
+    models = prov_block.setdefault("models", {})
+    model_entry = models.get(model_id)
+    if not isinstance(model_entry, dict):
+        raise ValueError(
+            f"model not found in config: {provider}:{model_id}"
+        )
+    model_entry["effective_input_ceiling"] = ceiling
+    model_entry["ceiling_calibration"] = calibration
+    with model_config_path.open("w", encoding="utf-8") as fh:
+        yaml.safe_dump(cfg, fh, sort_keys=False, default_flow_style=None, allow_unicode=True)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="cycle-109 T1.7 — empirical ceiling probe (PRD §FR-1.6).",
+    )
+    parser.add_argument("--provider", required=True)
+    parser.add_argument("--model-id", required=True, dest="model_id")
+    parser.add_argument(
+        "--model-config",
+        required=True,
+        type=Path,
+        help="Path to model-config.yaml (v3 schema).",
+    )
+    parser.add_argument(
+        "--probe-backend",
+        choices=("fixture", "live"),
+        default="fixture",
+        dest="probe_backend",
+        help="Probe backend. 'fixture' replays a JSON trace (test mode); "
+             "'live' invokes cheval against the real provider — DISABLED "
+             "under cycle-109 substrate-degraded posture.",
+    )
+    parser.add_argument(
+        "--fixture",
+        type=Path,
+        default=None,
+        help="JSON fixture path (required for --probe-backend fixture).",
+    )
+    parser.add_argument(
+        "--sizes",
+        default=",".join(str(s) for s in DEFAULT_SIZES),
+        help="Comma-separated input sizes in tokens (live mode only).",
+    )
+    parser.add_argument(
+        "--samples-per-size",
+        type=int,
+        default=DEFAULT_SAMPLES_PER_SIZE,
+        dest="samples_per_size",
+        help="Number of probe prompts per size (live mode only).",
+    )
+    parser.add_argument(
+        "--empty-threshold",
+        type=float,
+        default=DEFAULT_EMPTY_THRESHOLD,
+        dest="empty_threshold",
+        help="Empty-content rate above which a size is considered unsafe.",
+    )
+    parser.add_argument(
+        "--stale-after-days",
+        type=int,
+        default=DEFAULT_STALE_AFTER_DAYS,
+        dest="stale_after_days",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the result to model-config.yaml; without --apply the "
+             "result JSON is emitted to stdout (dry-run).",
+    )
+    args = parser.parse_args(argv)
+
+    if args.probe_backend == "live":
+        print(
+            "[ceiling-probe] live backend is disabled in cycle-109 "
+            "(substrate-degraded — Anthropic credit-too-low + OpenAI "
+            "Responses API insufficient_quota). Live calibration is "
+            "operator-driven per C109.OP-6 and the T1.10 baselines "
+            "artifact. Re-enable after operator-side billing restoration.",
+            file=sys.stderr,
+        )
+        return 6
+
+    if args.fixture is None:
+        print(
+            "[ceiling-probe] --fixture <path> required when "
+            "--probe-backend fixture (the cycle-109 default).",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        trials = load_fixture(args.fixture)
+    except ValueError as e:
+        print(f"[ceiling-probe] ERROR: {e}", file=sys.stderr)
+        return 2
+
+    ceiling, sample_size = pick_ceiling(trials, args.empty_threshold)
+    calibration = build_calibration_record(
+        ceiling, sample_size,
+        stale_after_days=args.stale_after_days,
+    )
+
+    result = {
+        "provider": args.provider,
+        "model_id": args.model_id,
+        "effective_input_ceiling": ceiling,
+        "ceiling_calibration": calibration,
+    }
+
+    if args.apply:
+        try:
+            apply_calibration(
+                args.model_config,
+                args.provider,
+                args.model_id,
+                ceiling,
+                calibration,
+            )
+        except ValueError as e:
+            print(f"[ceiling-probe] ERROR: {e}", file=sys.stderr)
+            return 2
+
+    print(json.dumps(result, separators=(",", ":"), ensure_ascii=False))
     return 0
 
 

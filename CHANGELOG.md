@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Adaptive thinking + prompt caching on the Anthropic wire**: `thinking: {type: adaptive}` per catalog flag (never `budget_tokens`); persona.md travels as the single `cache_control` breakpoint with the `--system` context after it, byte-identical text on every transport; `Usage.cache_*` on all paths → MODELINV `tokens_cache_read` / `tokens_cache_creation`, CLI JSON `usage`, ledger rows, `pricing_snapshot` cache rates; cache read/write priced at the catalog rates. `LOA_CHEVAL_LEGACY_WIRE=1` restores the pre-cycle request body byte-for-byte.
 - **Ledger isolation** (framework-review rec 6): `LOA_COST_LEDGER_PATH` (env > `metering.ledger_path` > default, symlink-safe `O_NOFOLLOW` writer), pytest/bats/TS harness isolation, `tools/check-ledger-hygiene.sh` tripwire in CI and `pre-push-audit`, rotation runbook.
 - MODELINV payload schema: optional `tokens_cache_read`, `tokens_cache_creation`, `schema_enforced`, `output_schema_sha256`; committed mixed-writer fixture.
-- Live floor scaffold `tests/replay/test_cycle124_live_floor.py` + `tools/ceiling-probe.py` (credential-gated; the recorded pass is the cycle's merge precondition).
+- Live floor scaffold `tests/replay/test_cycle124_live_floor.py` + `tools/ceiling-probe-live.py` (credential-gated; the recorded pass is the cycle's merge precondition).
 
 ### Added — cycle-124 Sprint 2 (structured outputs, FR-7)
 

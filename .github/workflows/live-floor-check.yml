@@ -8,7 +8,7 @@ name: Live floor check (Anthropic)
 #   - two identical BB-voice calls show cache_read_input_tokens > 0 on the
 #     second;
 #   - one schema-enforced call returns strict JSON;
-#   - GET /v1/models lists every catalog id and tools/ceiling-probe.py flips
+#   - GET /v1/models lists every catalog id and tools/ceiling-probe-live.py flips
 #     grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md values
 #     from `reference` to `probed`.
 #

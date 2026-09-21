@@ -372,7 +372,7 @@ providers:
         # its 36K legacy wall (_LEGACY_TRANSPORT_INPUT_WALL) instead; the v2
         # max_input_tokens / streaming_* / legacy_* fields are gone from every
         # Anthropic entry. `kf_derived` + calibrated_at null ⇒ non-stale;
-        # tools/ceiling-probe.py (Sprint 1 Task 1.8) sets calibrated_at.
+        # tools/ceiling-probe-live.py (Sprint 1 Task 1.8) sets calibrated_at.
         effective_input_ceiling: 180000
         ceiling_calibration:
           source: kf_derived

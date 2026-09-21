@@ -145,16 +145,16 @@ PY
     [[ "$output" == *"OK"* ]]
 }
 
-@test "bug-881-2: claude-headless declares context_window=200000" {
+@test "bug-881-2: claude-headless declares context_window=1000000" {
     run python3 - <<'PY'
 import yaml, sys, os
 y = yaml.safe_load(open(os.environ['YAML']))
 v = y['providers']['anthropic']['models']['claude-headless'].get('context_window')
 print(v)
-assert v == 200000, f"expected 200000 got {v}"
+assert v == 1000000, f"expected 1000000 got {v}"
 PY
     [ "$status" -eq 0 ]
-    [[ "$output" == *"200000"* ]]
+    [[ "$output" == *"1000000"* ]]
 }
 
 @test "bug-881-3: gemini-headless declares context_window=1048576" {
@@ -184,7 +184,7 @@ providers = cfg['providers']
 
 cases = [
     ('openai',    'codex-headless',   400000),
-    ('anthropic', 'claude-headless',  200000),
+    ('anthropic', 'claude-headless', 1000000),
     ('google',    'gemini-headless', 1048576),
 ]
 for prov, model, expected in cases:

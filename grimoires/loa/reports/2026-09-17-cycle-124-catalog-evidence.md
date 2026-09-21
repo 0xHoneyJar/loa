@@ -5,7 +5,7 @@
 Every Anthropic catalog value changed this cycle, with its provenance.
 `reference` = the `claude-api` skill's model table (cached 2026-06-24, read
 2026-09-17 on this host). `probed` = confirmed by a live call (`GET
-/v1/models` for ids, `tools/ceiling-probe.py` for the ceiling, one metered
+/v1/models` for ids, `tools/ceiling-probe-live.py` for the ceiling, one metered
 call for pricing) — **probed wins**. No Anthropic HTTP credential exists on
 this host, so nothing is `probed` yet; `.github/workflows/live-floor-check.yml`
 (Task 1.4) flips the column when the operator adds `ANTHROPIC_API_KEY`.
@@ -35,7 +35,7 @@ this host, so nothing is `probed` yet; `.github/workflows/live-floor-check.yml`
    id in the first column must appear (`claude-opus-5`, `claude-fable-5-1`
    especially). A missing id is chain-walkable at runtime (HTTP 404 ⇒
    `ProviderUnavailableError`) but must be recorded here as `absent`.
-2. `tools/ceiling-probe.py --model <id>` (Task 1.8 scaffold): binary-search
+2. `tools/ceiling-probe-live.py --model <id>` (Task 1.8 scaffold): binary-search
    input size under streaming; write `ceiling_calibration.calibrated_at` and
    `source: empirical_probe`.
 3. One metered call per priced entry: compare MODELINV `cost_micro_usd`
