@@ -11,7 +11,7 @@
       "text_variants": {
         "claude-loa-md": "NEVER write application code outside `/implement` (OR a construct with declared `workflow.gates`), and NEVER reach implementation except via `/run sprint-plan`, `/run sprint-N`, or `/bug` against an existing sprint plan"
       },
-      "why": "Code outside /implement bypasses review+audit; /run wraps the cycle with a circuit breaker. Mechanical stack (cycle-122): implement-gate.sh fail-asks Write/Edit-tool App-Zone writes outside /implement//bug; disallowed-tools strips write tools from pure-review skills; the adversarial gates catch the rest. Bash-path App-Zone writes remain review-territory (accepted fence gap, same class as the spiral guard's).",
+      "why": "Code outside /implement bypasses review+audit; /run wraps the cycle with a circuit breaker. Mechanical stack: implement-gate.sh fail-asks Write/Edit-tool App-Zone writes outside /implement//bug; disallowed-tools strips write tools from pure-review skills; the adversarial gates catch the rest. Bash-path App-Zone writes remain review-territory (accepted fence gap, same class as the spiral guard's).",
       "construct_yield": {
         "enabled": true,
         "condition": "construct with workflow.gates is active",
@@ -626,7 +626,7 @@
       "text_variants": {
         "claude-loa-md": "ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit"
       },
-      "why": "The Write tool rejects writes to un-Read existing files (~570 errors/month fleet-wide, issue #1177 item F) and blind writes clobber cross-session state.",
+      "why": "The Write tool rejects writes to un-Read existing files (hundreds of failed writes a month across mounts) and blind writes clobber cross-session state.",
       "order": 11,
       "layers": [
         {

@@ -522,8 +522,6 @@ visual_communication:
 
 ## Related Protocols
 
-- `.claude/protocols/upgrade-process.md` - Framework upgrade workflow
 - `.claude/protocols/constructs-integration.md` - Registry integration
 - `.claude/protocols/recommended-hooks.md` - Hook patterns
-- `.claude/protocols/risk-analysis.md` - Pre-mortem analysis framework
 - `.claude/protocols/visual-communication.md` - Visual output standards

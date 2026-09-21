@@ -435,7 +435,7 @@ EOF
 }
 
 # =============================================================================
-# Doc-lock (AC-5.2): run-mode/SKILL.md and sprint-completion.md describe the
+# Doc-lock (AC-5.2): run-mode/SKILL.md and feedback-loops.md describe the
 # gate in verdict-derive terms.
 # =============================================================================
 
@@ -470,10 +470,10 @@ EOF
     printf '%s\n' "$loop" | grep -qi 'inconsistent trailer'
 }
 
-@test "FR-5 doc-lock: sprint-completion.md names the trailer path and the fail-closed rule" {
+@test "FR-5 doc-lock: feedback-loops.md names the trailer path and the fail-closed rule (sprint-completion.md archived in cycle-124)" {
     local repo_root proto
     repo_root="$(cd "$BATS_TEST_DIR/../.." && pwd)"
-    proto="$repo_root/.claude/protocols/sprint-completion.md"
+    proto="$repo_root/.claude/protocols/feedback-loops.md"
 
     grep -q 'LOA-VERDICT' "$proto"
     grep -q 'verdict-derive.sh' "$proto"

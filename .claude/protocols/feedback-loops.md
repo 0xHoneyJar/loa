@@ -106,6 +106,17 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 4. **If changes required**: DevOps addresses feedback, regenerates report
 5. **Repeat** until approved
 
+## Verdict Trailers and the Gate
+
+Both feedback files end with a machine trailer, `<!-- LOA-VERDICT {json} -->`, as their last line
+(gate, verdict, counts, optional `excluded` / `excluded_confirmed`). `golden-path.sh` and run mode
+read the trailer, not the prose: a file with any `LOA…VERDICT` marker is sent to
+`verdict-derive.sh`, which accepts only the exact canonical form and is fail-closed — an
+inconsistent, malformed or unparseable trailer, a non-zero exit or a missing `jq` all read as
+"not reviewed" / "not audited". The prose heuristic applies only to legacy files with no marker at
+all. An audit implies review: with a trailer, `engineer-feedback.md` is re-derived too, and a review
+`excluded > 0` passes only when the audit trailer's `excluded_confirmed` equals it.
+
 ## A2A Directory Structure
 
 ```
@@ -204,12 +215,12 @@ Move to sprint-2 or deployment
 ## Overall Assessment
 [Summary of review]
 
-## Critical Issues (MUST FIX)
+## Changes Required
 - **Issue**: [Description]
 - **File**: `path/to/file.ts:42`
 - **Required Fix**: [Specific fix]
 
-## Non-Critical Improvements
+## Observations
 - [Recommendations]
 
 ## Previous Feedback Status
