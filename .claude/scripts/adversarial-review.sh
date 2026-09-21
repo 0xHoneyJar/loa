@@ -35,6 +35,9 @@
 
 set -euo pipefail
 
+# Repair round-trips per run (KF-004 repair loop, unenforced branch only).
+readonly ADV_REPAIR_MAX_PER_RUN=5
+
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -402,7 +405,7 @@ _write_rejected_sidecar() {
 # =============================================================================
 # KF-004 Repair Loop (cycle-119 C14) — always on for UNENFORCED voices
 # =============================================================================
-# cycle-124 FR-7 removed the `repair_loop` flag: on the unenforced branch
+# cycle-124 FR-7 removed the repair-loop flag: on the unenforced branch
 # (the hop could not enforce the wire schema) a finding that fails
 # validate_finding gets ONE bounded repair round-trip to the SAME model
 # before being rejected; the schema-enforced branch never enters it (a
@@ -497,7 +500,9 @@ _repair_finding_via_model() {
   local timeout="${5:-60}"
 
   local workdir
-  workdir=$(mktemp -d "${TMPDIR:-/tmp}/adv-repair.XXXXXX") || return 1
+  # Under the EXIT-trapped adversarial workdir when one exists, so a kill
+  # mid-repair leaves nothing behind in $TMPDIR (late Sprint 2 review).
+  workdir=$(mktemp -d "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair.XXXXXX") || return 1
   local sys_file="$workdir/repair-system.txt"
   local user_file="$workdir/repair-user.txt"
 
@@ -856,6 +861,10 @@ invoke_dissenter() {
   local -a schema_args=()
   if [[ -n "$schema_file" && -f "$schema_file" ]]; then
     schema_args=(--json-schema "$schema_file")
+  elif [[ -n "$schema_file" ]]; then
+    # A named schema that is not on disk means every voice runs unenforced
+    # and the schema_enforced ratio is silently skewed — say so.
+    log "WARN: wire schema not found, dispatching unenforced: $schema_file"
   fi
 
   # Build the skill string for /loa status --economy attribution AND
@@ -986,8 +995,11 @@ process_findings() {
     local _enforced_err=""
     if [[ "$resp_stop_reason" == "max_tokens" ]]; then
       _enforced_err="schema-enforced payload truncated (stop_reason=max_tokens) — raise DISSENT_MAX_OUTPUT_TOKENS"
-    elif ! parsed=$(printf '%s' "$content" | JQ_STRICT_CTX="adversarial-review:enforced-parse" jq_strict -c '.'); then
-      _enforced_err="schema-enforced content is not valid JSON (no fence strip or repair on the enforced branch)"
+    elif ! parsed=$(printf '%s' "$content" | JQ_STRICT_CTX="adversarial-review:enforced-parse" \
+                     jq_strict -ces 'if length == 1 and (.[0] | type) == "object" then .[0] else error("enforced content must be exactly one JSON object") end'); then
+      # -s: a multi-object stream is not an enforced object (a two-object
+      # stream used to read as clean-zero — late Sprint 2 review, slice B)
+      _enforced_err="schema-enforced content is not valid JSON as exactly one object (no fence strip or repair on the enforced branch)"
     fi
     if [[ -n "$_enforced_err" ]]; then
       log "Enforced branch: $_enforced_err — emitting malformed_response"
@@ -1164,6 +1176,11 @@ while i < len(text):
   local rejected_count=0
   # cycle-119 C14 (KF-004 repair loop); always reported since cycle-124.
   local repaired_count=0
+  # Each repair is a serial live model call bounded only by CONF_TIMEOUT; a
+  # voice that returns thirty out-of-enum findings would otherwise cost thirty
+  # calls per review. At most ADV_REPAIR_MAX_PER_RUN repairs per run; the rest
+  # are rejected unrepaired and counted in repair_budget_exhausted.
+  local repairs_used=0 repair_budget_exhausted=0
   while [[ $i -lt $finding_count ]]; do
     local finding
     finding=$(echo "$parsed" | jq ".findings[$i]")
@@ -1190,8 +1207,11 @@ while i < len(text):
       local sidecar_reject_reason="$reject_reason"
       local accepted_finding=""
 
-      if [[ "$schema_enforced" != "true" ]]; then
+      if [[ "$schema_enforced" != "true" ]] && (( repairs_used >= ADV_REPAIR_MAX_PER_RUN )); then
+        repair_budget_exhausted=$((repair_budget_exhausted + 1))
+      elif [[ "$schema_enforced" != "true" ]]; then
         repair_attempted="true"
+        repairs_used=$((repairs_used + 1))
         local violated_field
         violated_field=$(_repair_violated_field "$reject_reason")
         local repaired
@@ -1256,7 +1276,8 @@ while i < len(text):
   # findings and whether the hop enforced the wire schema.
   local repair_metadata_json
   repair_metadata_json=$(jq -nc --argjson rc "$repaired_count" --arg se "$schema_enforced" --arg pp "$parse_path" \
-    '{repaired_count: $rc, schema_enforced: ($se == "true"), parse_path: $pp}')
+    --argjson rbe "$repair_budget_exhausted" \
+    '{repaired_count: $rc, schema_enforced: ($se == "true"), parse_path: $pp, repair_budget_exhausted: $rbe}')
 
   jq -n \
     --argjson findings "$validated_findings" \
@@ -1658,9 +1679,14 @@ _emit_rejection_degraded() {
   _c14_rejected=$(echo "$result_json" | jq -r '.metadata.rejected_count // 0' 2>/dev/null) || _c14_rejected=0
   _c14_repaired=$(echo "$result_json" | jq -r '.metadata.repaired_count // 0' 2>/dev/null) || _c14_repaired=0
   _c14_pp=$(echo "$result_json" | jq -r '.metadata.parse_path // "normalized"' 2>/dev/null) || _c14_pp="normalized"
+  local _c14_rbe _c14_rbe_note=""
+  _c14_rbe=$(echo "$result_json" | jq -r '.metadata.repair_budget_exhausted // 0' 2>/dev/null) || _c14_rbe=0
+  if [[ "$_c14_rbe" =~ ^[0-9]+$ ]] && [[ "$_c14_rbe" -gt 0 ]]; then
+    _c14_rbe_note="; ${_c14_rbe} past the ${ADV_REPAIR_MAX_PER_RUN}-repair budget"
+  fi
   if [[ "$_c14_rejected" =~ ^[0-9]+$ ]] && [[ "$_c14_rejected" -gt 0 ]]; then
     degraded_verdict_maybe_emit "adversarial-review:${type}:repair-loop" "DEGRADED" \
-      "kf-004-repair-loop: ${_c14_rejected} rejected finding(s) survived repair (${_c14_repaired} repaired; parse_path=${_c14_pp})" \
+      "kf-004-repair-loop: ${_c14_rejected} rejected finding(s) survived repair (${_c14_repaired} repaired${_c14_rbe_note}; parse_path=${_c14_pp})" \
       "$sprint_id" "-"
   fi
 }

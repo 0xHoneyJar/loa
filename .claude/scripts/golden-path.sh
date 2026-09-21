@@ -98,6 +98,9 @@ _gp_sprint_is_complete() {
 # never fall through to the legacy prose heuristic, whose `grep -q APPROVED`
 # matches "NOT APPROVED" (Sprint 1 audit, slice C — reproduced).
 _GP_TRAILER_DETECT='<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT'
+# Matched case-insensitively (grep -i) everywhere below: a lowercase marker
+# must reach verdict-derive.sh and fail as malformed, not fall through to the
+# legacy prose heuristic (late Sprint 2 review, slice B).
 
 _gp_verdict_gate() {
     local file="$1" gate="$2"
@@ -125,7 +128,7 @@ _gp_verdict_gate() {
 # hence the direct parse.
 _gp_trailer_int() {
     local file="$1" field="$2" payload val
-    payload=$(grep -oE "${_GP_TRAILER_DETECT}"'[[:space:]]*\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
+    payload=$(grep -oiE "${_GP_TRAILER_DETECT}"'[[:space:]]*\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
               | sed -E 's/^<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT[[:space:]]*//; s/[[:space:]]*-->$//')
     if [[ -z "${payload}" ]]; then
         echo 0
@@ -159,7 +162,7 @@ _gp_sprint_is_reviewed() {
         # chmod-lost executable bit cannot silently drop a present trailer
         # back to the legacy prose heuristic (which could reverse the verdict).
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+           grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
             _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review
             return $?
         fi
@@ -183,13 +186,13 @@ _gp_sprint_is_audited() {
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
         # R2 review (cycle-119): -f + bash invocation, same rationale as above.
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
+           grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
             _gp_verdict_gate "${sprint_dir}/auditor-sprint-feedback.md" audit || return 1
             # An audit implies review, so the review trailer would otherwise
             # never meet verdict-derive.sh: when it exists, it must pass the
             # same gate (review round-1 high #4 — fail closed).
             if [[ -f "${sprint_dir}/engineer-feedback.md" ]] && \
-               grep -qE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+               grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
                 _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review || return 1
             fi
             # FR-5 cross-check: a reviewer-demoted high (review trailer

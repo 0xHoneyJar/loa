@@ -12,8 +12,8 @@ setup() {
     ! grep -nE '^\s*repair_loop:' "$PROJECT_ROOT/.loa.config.yaml" "$PROJECT_ROOT/.loa.config.yaml.example"
 }
 
-@test "RL-2: no CONF_REPAIR_LOOP anywhere under .claude/" {
-    ! grep -rn 'CONF_REPAIR_LOOP' "$PROJECT_ROOT/.claude"
+@test "RL-2: the PRD AC-7.3 grep is empty — no repair_loop or CONF_REPAIR_LOOP under .claude/ or either config" {
+    ! grep -rn 'repair_loop\|CONF_REPAIR_LOOP' "$PROJECT_ROOT/.claude" "$PROJECT_ROOT/.loa.config.yaml" "$PROJECT_ROOT/.loa.config.yaml.example"
 }
 
 @test "RL-3: no yq read of a repair_loop key under .claude/scripts" {

@@ -479,3 +479,36 @@ EOF
     grep -q 'verdict-derive.sh' "$proto"
     grep -qi 'fail.closed' "$proto"
 }
+
+# =============================================================================
+# Late Sprint 2 review (slice B): detection is case-insensitive; the canon is
+# byte-exact and pinned.
+# =============================================================================
+
+@test "late-S2 MEDIUM: a lowercase loa-verdict marker is a malformed trailer for verdict-derive.sh (exit 1), never a legacy file" {
+    skip_if_no_jq
+    printf 'NOT APPROVED\n<!-- loa-verdict {"gate":"audit","verdict":"CHANGES_REQUIRED","counts":{"critical":1,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$TEST_TMPDIR/lc.md"
+    run "$TEST_TMPDIR/.claude/scripts/verdict-derive.sh" --file "$TEST_TMPDIR/lc.md" --gate audit
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"malformed"* ]]
+}
+
+@test "late-S2 MEDIUM: golden-path does not let a lowercase CHANGES_REQUIRED audit marker fall through to the prose heuristic" {
+    skip_if_no_jq
+    printf 'NOT APPROVED\n<!-- loa-verdict {"gate":"audit","verdict":"CHANGES_REQUIRED","counts":{"critical":1,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$SPRINT_DIR/auditor-sprint-feedback.md"
+    source "$TEST_TMPDIR/.claude/scripts/golden-path.sh"
+    run _gp_sprint_is_audited sprint-1
+    [ "$status" -eq 1 ]
+    run _gp_sprint_is_reviewed sprint-1
+    [ "$status" -eq 1 ]
+}
+
+@test "late-S2 LOW (pinned tightening): whitespace after --> or two spaces before the JSON is a malformed marker" {
+    skip_if_no_jq
+    printf 'All good\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} --> \n' > "$TEST_TMPDIR/ws.md"
+    run "$TEST_TMPDIR/.claude/scripts/verdict-derive.sh" --file "$TEST_TMPDIR/ws.md" --gate review
+    [ "$status" -eq 1 ]
+    printf 'All good\n<!-- LOA-VERDICT  {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->\n' > "$TEST_TMPDIR/ws2.md"
+    run "$TEST_TMPDIR/.claude/scripts/verdict-derive.sh" --file "$TEST_TMPDIR/ws2.md" --gate review
+    [ "$status" -eq 1 ]
+}

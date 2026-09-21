@@ -743,6 +743,12 @@ source_lib() {
     [ "$status" -eq 0 ]
     run update_sprint_status "$gid" completed
     [ "$status" -eq 0 ]
+    # late Sprint 2 review: `ledger status` on a bug-fix ACTIVE cycle walked
+    # `.sprints | last | .global_id` unguarded and aborted mid-function.
+    jq '.active_cycle = "cycle-bug-20260418-i548-a2460c"' "$ledger" > "$ledger.tmp" && mv "$ledger.tmp" "$ledger"
+    run get_ledger_status
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
     [ "$(jq -r --argjson id "$gid" '[.cycles[].sprints[]? | select(type=="object") | select(.global_id==$id)][0].status' "$ledger")" = "completed" ]
     run resolve_sprint "sprint-1"
     [ "$status" -eq 0 ]

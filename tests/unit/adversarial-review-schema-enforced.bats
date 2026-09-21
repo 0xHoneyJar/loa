@@ -30,8 +30,10 @@ setup() {
     CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
     SPRINT="sprint-fr7-$$"
-    # repair must never run on the enforced branch — make it fail loudly
-    _repair_finding_via_model() { echo "SHOULD NOT BE CALLED" >&2; return 1; }
+    # repair must never run on the enforced branch — the stub leaves a canary
+    # file that FR7-6 asserts absent (an echo to stderr cannot fail a test)
+    REPAIR_CANARY="$TEST_DIR/repair-called-$$"
+    _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
 }
 
 teardown() {
@@ -98,6 +100,28 @@ GOOD='{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection"
     local sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-review.jsonl"
     [ "$(jq -r '.parse_path' "$sidecar")" = "schema_enforced" ]
     [ "$(jq -r '.repair_attempted' "$sidecar")" = "false" ]
+    [ ! -e "$REPAIR_CANARY" ]
+}
+
+@test "late-S2 LOW: an enforced content that is a two-object stream is malformed_response, never clean-zero" {
+    local stream='{"findings":[]}{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection","description":"d","failure_mode":"fm"}]}'
+    result=$(process_findings "$(_env "$stream" true)" "review" "m" "$SPRINT" "0" "")
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "malformed_response" ]
+    [ "$(jq -r '.metadata.parse_path' <<<"$result")" = "schema_enforced" ]
+}
+
+@test "late-S2 MEDIUM: the unenforced repair loop stops after ADV_REPAIR_MAX_PER_RUN round-trips and reports the remainder" {
+    local i items=""
+    for i in 1 2 3 4 5 6 7; do
+        items+="{\"id\":\"DISS-00$i\",\"severity\":\"bogus\",\"category\":\"injection\",\"description\":\"d\",\"failure_mode\":\"fm\"},"
+    done
+    local content="{\"findings\":[${items%,}]}"
+    result=$(process_findings "$(_env "$content" false)" "review" "m" "$SPRINT" "0" "")
+    [ "$(jq -r '.metadata.rejected_count' <<<"$result")" = "7" ]
+    [ "$(jq -r '.metadata.repair_budget_exhausted' <<<"$result")" = "2" ]
+    local sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-review.jsonl"
+    [ "$(jq -s '[.[] | select(.repair_attempted == true)] | length' "$sidecar")" = "5" ]
+    [ "$(jq -s '[.[] | select(.repair_attempted == false)] | length' "$sidecar")" = "2" ]
 }
 
 @test "FR7-7: enforced + zero findings → clean, still stamped with parse_path/schema_enforced" {

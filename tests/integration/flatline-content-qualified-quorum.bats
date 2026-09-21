@@ -211,3 +211,18 @@ _reason_of() {  # runs qualify_flatline_content and prints the rejection reason 
     done
     [ "$n" = "5" ]
 }
+
+@test "CQ-E6: an enforced voice that stopped at max_tokens is rejected as enforced_truncated even when the fragment parses" {
+    local content
+    content=$(jq -r '.content' "$PROJECT_ROOT/tests/fixtures/structured-outputs/truncated.json")
+    jq -n --arg c '{"improvements": [], "summary": "0 improvements identified", "no_findings_reason": "The acceptance criteria, rollback path and dependency gates are concrete and consistent.", "reviewed_sections": ["Acceptance Criteria"]}' \
+        '{content: $c, schema_enforced: true, stop_reason: "max_tokens"}' > "$SCRATCH/t.json"
+    [ "$(_reason_of "$SCRATCH/t.json")" = "enforced_truncated" ]
+    jq -n --arg c "$content" '{content: $c, schema_enforced: true, stop_reason: "max_tokens"}' > "$SCRATCH/t2.json"
+    [ "$(_reason_of "$SCRATCH/t2.json")" = "enforced_truncated" ]
+}
+
+@test "CQ-E7: an enforced two-object stream is enforced_parse_failed, not accepted" {
+    jq -n --arg c '{"improvements": []}{"improvements": []}' '{content: $c, schema_enforced: true}' > "$SCRATCH/m.json"
+    [ "$(_reason_of "$SCRATCH/m.json")" = "enforced_parse_failed" ]
+}

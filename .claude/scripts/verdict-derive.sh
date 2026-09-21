@@ -198,7 +198,9 @@ emit_plain() {
     fi
 }
 
-trailer_count=$(grep -cE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
+# Late Sprint 2 review: detection is case-insensitive as well — a lowercase
+# `loa-verdict` marker is a malformed trailer (violation), never a legacy file.
+trailer_count=$(grep -ciE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
 [[ -z "$trailer_count" ]] && trailer_count=0
 
 # --- No trailer at all: legacy file ---
@@ -222,7 +224,7 @@ last_line="${last_line%$'\r'}"
 if [[ "$trailer_count" -gt 1 ]]; then
     violations+=("multiple LOA-VERDICT trailers found ($trailer_count) — keep exactly one trailer, as the last line of the file")
 else
-    trailer_line=$(grep -E "$TRAILER_DETECT" -- "$FILE" | head -1)
+    trailer_line=$(grep -iE "$TRAILER_DETECT" -- "$FILE" | head -1)
     trailer_line="${trailer_line%$'\r'}"
     if [[ ! "$trailer_line" =~ $TRAILER_CANON ]]; then
         violations+=("LOA-VERDICT marker is malformed — the exact form is '<!-- LOA-VERDICT {json} -->' (single ASCII spaces, ASCII hyphen)")
@@ -289,7 +291,7 @@ else
             warnings+=("WARN: APPROVED with excluded=$t_excluded speculative low-confidence HIGH finding(s) demoted — the audit gate must confirm each one (excluded_confirmed)")
         fi
         if [[ "$GATE" == "audit" && -n "$REVIEW_FILE" ]]; then
-            rev_line=$(grep -E "$TRAILER_DETECT" -- "$REVIEW_FILE" 2>/dev/null | tail -1)
+            rev_line=$(grep -iE "$TRAILER_DETECT" -- "$REVIEW_FILE" 2>/dev/null | tail -1)
             rev_line="${rev_line%$'\r'}"
             rev_payload=$(printf '%s' "$rev_line" | sed -E 's/^<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT[[:space:]]*//; s/[[:space:]]*-->[[:space:]]*$//')
             rev_ex="0"

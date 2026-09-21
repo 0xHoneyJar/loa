@@ -698,9 +698,9 @@ get_ledger_status() {
 
         # Get latest sprint in active cycle
         current_sprint=$(jq -r --arg id "$active_cycle" \
-            '(.cycles[] | select(.id == $id)).sprints | last | .global_id // "null"' "$ledger_path")
+            '(.cycles[] | select(.id == $id)).sprints | map(select(type == "object")) | last | .global_id // "null"' "$ledger_path")
         current_sprint_local=$(jq -r --arg id "$active_cycle" \
-            '(.cycles[] | select(.id == $id)).sprints | last | .local_label // "null"' "$ledger_path")
+            '(.cycles[] | select(.id == $id)).sprints | map(select(type == "object")) | last | .local_label // "null"' "$ledger_path")
     fi
 
     local next_sprint

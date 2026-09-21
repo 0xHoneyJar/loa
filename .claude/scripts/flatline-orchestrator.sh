@@ -341,7 +341,15 @@ qualify_flatline_content() {
         if [[ -z "$content" || "$content" == "null" ]]; then
             reason="empty_content"
         elif [[ "$enforced" == "true" ]]; then
-            if ! normalized=$(printf '%s' "$content" | jq -c '.' 2>/dev/null); then
+            # A truncated or refused enforced payload is not the enforced
+            # object even when what arrived parses (PRD FR-7 item 4; late
+            # Sprint 2 review) — and exactly ONE object is required (-s: a
+            # two-object stream is not "clean").
+            local stop_reason
+            stop_reason=$(jq -r '.stop_reason // empty' "$file" 2>/dev/null) || stop_reason=""
+            if [[ "$stop_reason" == "max_tokens" || "$stop_reason" == "refusal" ]]; then
+                reason="enforced_truncated"
+            elif ! normalized=$(printf '%s' "$content" | jq -ces 'if length == 1 and (.[0] | type) == "object" then .[0] else error("not one object") end' 2>/dev/null); then
                 reason="enforced_parse_failed"
             elif ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
                 reason="schema_invalid"
@@ -1024,6 +1032,8 @@ call_model() {
         # enforces it where the hop can and reports schema_enforced either way.
         if [[ -n "$schema_file" && -f "$schema_file" ]]; then
             args+=(--json-schema "$schema_file")
+        elif [[ -n "$schema_file" ]]; then
+            log "WARN: wire schema not found, dispatching unenforced: $schema_file"
         fi
 
         # Per-invocation diagnostic log (unique suffix for parallel calls)
