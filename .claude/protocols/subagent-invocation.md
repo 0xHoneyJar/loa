@@ -1,33 +1,8 @@
 # Subagent Invocation Protocol
 
-**Version**: 1.0.0
-**Status**: Active
-**Owner**: Framework
-
----
-
 ## Purpose
 
 Define how Loa agents invoke validation subagents and process their results within the quality gate pipeline.
-
----
-
-## Invocation Flow
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   /implement    │────▶│   Subagents     │────▶│  /review-sprint │
-│   sprint-N      │     │   (optional)    │     │   sprint-N      │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │  subagent-reports/  │
-                    │  ├── arch-*.md      │
-                    │  ├── security-*.md  │
-                    │  └── test-*.md      │
-                    └─────────────────────┘
-```
 
 ---
 
@@ -54,14 +29,7 @@ triggers:
   - command: /validate type     # On-demand invocation
 ```
 
-**Timing Options**:
-
-| Option | When | Pros | Cons |
-|--------|------|------|------|
-| Post-implement | After `/implement` completes | Early detection | May slow workflow |
-| Pre-review | Before `/review-sprint` approves | Safety net | Issues found late |
-| On-demand only | `/validate` command | User control | May be forgotten |
-| Hybrid (Recommended) | On-demand + pre-review | Flexibility + safety | Moderate complexity |
+Default timing is hybrid: on-demand plus pre-review (post-implement runs are opt-in via config).
 
 ---
 
@@ -87,17 +55,6 @@ Subagents determine which files to validate using this priority:
    git diff HEAD~1 --name-only
    # Scope: recently changed files
    ```
-
-### Scope Resolution Logic
-
-```
-if explicit_path:
-    scope = explicit_path
-elif sprint_context_available:
-    scope = extract_files_from_sprint_tasks()
-else:
-    scope = git_diff_files()
-```
 
 ---
 
@@ -141,18 +98,6 @@ Each report must include:
 | architecture-validator | CRITICAL_VIOLATION | Block review approval |
 | security-scanner | CRITICAL, HIGH | Block review approval |
 | test-adequacy-reviewer | INSUFFICIENT | Block review approval |
-
-### Integration with Quality Gates
-
-```
-Subagent runs
-      ↓
-Verdict returned
-      ↓
-[Blocking verdict?]
-      ├── Yes → Stop workflow, require fixes
-      └── No → Continue to next phase
-```
 
 ### Blocking Behavior
 
@@ -246,16 +191,6 @@ subagents:
 LOA_SUBAGENTS_ENABLED=0           # Disable all subagents
 LOA_SUBAGENTS_BLOCKING=0          # Ignore blocking verdicts (not recommended)
 ```
-
----
-
-## Best Practices
-
-1. **Run early, run often**: Use `/validate` during development
-2. **Fix blocking issues immediately**: Don't accumulate technical debt
-3. **Review drift warnings**: Minor issues compound over time
-4. **Keep SDD updated**: Subagents validate against SDD, not assumptions
-5. **Scope appropriately**: Narrow scope for faster validation
 
 ---
 

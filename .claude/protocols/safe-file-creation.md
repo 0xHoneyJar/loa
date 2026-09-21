@@ -1,9 +1,5 @@
 # Safe File Creation Protocol
 
-> **Protocol Version**: 1.0.0
-> **Last Updated**: 2026-02-06
-> **Issue Reference**: #197
-
 ## Overview
 
 This protocol prevents silent file corruption when using Bash heredocs to create source files containing template literal syntax (`${...}`).
@@ -16,31 +12,7 @@ This protocol prevents silent file corruption when using Bash heredocs to create
 
 ## Decision Tree
 
-```
-Creating a file?
-│
-├─► Is it a SOURCE FILE? (.tsx, .jsx, .ts, .js, .vue, .svelte, etc.)
-│   │
-│   └─► YES ─────────────────────────────────────────────────────────┐
-│                                                                    │
-│       ┌────────────────────────────────────────────────────────────┤
-│       │                                                            │
-│       ▼                                                            │
-│   ╔═══════════════════════════════════════════════════════════╗   │
-│   ║  USE WRITE TOOL (PREFERRED)                               ║   │
-│   ║  Content is passed exactly as-is, no shell interpretation ║   │
-│   ╚═══════════════════════════════════════════════════════════╝   │
-│                                                                    │
-└─► NO (shell script, config, etc.)                                  │
-    │                                                                │
-    ├─► Does content contain ${...} that should be LITERAL?          │
-    │   │                                                            │
-    │   └─► YES ─► Use QUOTED heredoc (<<'EOF') ◄────────────────────┘
-    │
-    └─► NO (shell expansion is INTENTIONAL)
-        │
-        └─► Unquoted heredoc (<< EOF) is acceptable
-```
+Source file (`.tsx`, `.jsx`, `.ts`, `.js`, `.vue`, `.svelte`, …) → Write tool. Anything else whose content must keep a literal `${...}` → quoted heredoc (`<<'EOF'`). Content where shell expansion is intended → unquoted heredoc (`<< EOF`).
 
 ---
 
@@ -74,38 +46,6 @@ These extensions commonly contain `${...}` template literal syntax:
 ---
 
 ## Examples
-
-### SAFE: Write Tool (PREFERRED)
-
-```
-Use the Write tool to create file.tsx with content:
-
-export function Button({ active }: { active: boolean }) {
-  return (
-    <button className={`btn ${active ? 'active' : ''}`}>
-      Click me
-    </button>
-  );
-}
-```
-
-The Write tool passes content exactly as written. No shell interpretation occurs.
-
-### SAFE: Quoted Heredoc
-
-```bash
-cat > file.tsx <<'EOF'
-export function Button({ active }: { active: boolean }) {
-  return (
-    <button className={`btn ${active ? 'active' : ''}`}>
-      Click me
-    </button>
-  );
-}
-EOF
-```
-
-The **quoted** `'EOF'` delimiter prevents shell expansion. `${active}` is preserved literally.
 
 ### DANGEROUS: Unquoted Heredoc
 
@@ -146,48 +86,14 @@ Before creating any file, verify:
 
 ## Why This Matters
 
-### Silent Failure Mode
-
-Unlike syntax errors that fail loudly, heredoc expansion failures are **silent**:
-
-1. The command succeeds (exit code 0)
-2. The file is created
-3. The content is corrupted
-4. No error message is shown
-5. The build may even succeed (with wrong behavior)
-
-### Autonomous Run Risk
-
-During `/run` mode:
-- Human is not watching
-- Agent assumes file was created correctly
-- Corrupted code may pass linting (valid syntax)
-- Bug only discovered at runtime or review
-
-### Token/Time Cost
-
-Debugging corrupted output:
-- Requires re-reading generated files
-- Requires re-implementing the fix
-- Wastes context window and tokens
-- Delays sprint completion
-
----
-
-## Integration Points
-
-### implementing-tasks Skill
-
-The implementing-tasks skill includes file creation safety guidance and adds this to the pre-implementation checklist.
-
-### CLAUDE.loa.md
-
-Main instructions include a brief reference to this protocol for quick access.
+The failure is silent: the command exits 0, the file exists, the build may pass, and the corruption surfaces only at runtime or review — in a `/run` session nobody is watching, and the rework costs context and time.
 
 ---
 
 ## Related
 
-- **Issue**: https://github.com/0xHoneyJar/loa/issues/197
 - **Bash Manual**: [Here Documents](https://www.gnu.org/software/bash/manual/bash.html#Here-Documents)
-- **Similar Pattern**: PR #199 (macOS date compatibility - silent failure)
+
+## Provenance
+
+Protocol v1.0.0 (2026-02-06) for issue #197; the same silent-failure class as PR #199 (macOS date compatibility).
