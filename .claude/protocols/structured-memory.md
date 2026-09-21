@@ -1,7 +1,6 @@
 # Structured Agentic Memory Protocol (NOTES.md)
 
-> v0.16.0 lineage (required sections + agent discipline); v0.9.0 session-continuity integration.
-> cycle-121 (v2.0): shrunk to the load-bearing contract. The old MUST-section tables and semantic-decay ritual were enforced by nothing, followed by nothing (three-way drift between this file, `check-loa.sh check_notes_template`, and the live NOTES.md), and Claude-5-class models synthesize without a scripted ritual. What models cannot infer is WHERE durable notes go — that table stays.
+What a model cannot infer is WHERE durable notes go — that is the contract this file carries.
 
 ## Where durable knowledge goes
 
@@ -15,7 +14,7 @@
 
 ## Required Sections (NOTES.md template)
 
-`.claude/templates/NOTES.md.template` is the mechanical carrier for new mounts: Current Focus, Session Log, Decisions, Blockers, Technical Debt, Goal Status, Learnings, Session Continuity. `check-loa.sh check_notes_template` WARNs (never fails) when the live file lacks **Session Continuity** or **Decision Log** — the two recovery-critical sections KF forensics depend on (KF-002/KF-003 attempts tables cite Decision Log entries). Known drift: the template ships `## Decisions` while the validator and live convention use dated `## Decision Log` headings — a fresh mount WARNs until renamed (tracked as a discovered issue; alignment is template-owner work, not per-session).
+`.claude/templates/NOTES.md.template` is the mechanical carrier for new mounts: Current Focus, Session Log, Decisions, Blockers, Technical Debt, Goal Status, Learnings, Session Continuity. `check-loa.sh check_notes_template` WARNs (never fails) when the live file lacks **Session Continuity** or **Decision Log** — the two recovery-critical sections KF forensics depend on (the known-failures.md attempts tables cite Decision Log entries). Known drift: the template ships `## Decisions` while the validator and live convention use dated `## Decision Log` headings, so a fresh mount WARNs until renamed.
 
 ## Agent Discipline (when to write)
 
@@ -28,3 +27,7 @@
 | Session end / pre-compaction | update Session Continuity |
 
 Recovery procedure (tiered L1/L2/L3): `.claude/protocols/session-continuity.md`. Clearing thresholds + synthesis format: `.claude/protocols/tool-result-clearing.md`.
+
+## Provenance
+
+v0.16.0 required sections and agent discipline; v0.9.0 session-continuity integration; v2.0 shrink to the load-bearing contract in cycle-121.

@@ -166,7 +166,8 @@ The following hooks run asynchronously by default in `.claude/settings.json`:
       "hooks": [{
         "type": "command",
         "command": ".claude/scripts/check-updates.sh --notify",
-        "async": true
+        "async": true,
+        "once": true
       }]
     }],
     "PermissionRequest": [{
@@ -306,9 +307,9 @@ Prevent accidental pushes to upstream template.
 
 ---
 
-### 4. Memory Injection Hook — REMOVED (cycle-121)
+### 4. Memory Injection Hook
 
-The semantic-memory subsystem (its inject/writer hooks and observation store) was deleted in cycle-121; Claude Code auto-memory owns cross-session recall. Section number retained to keep inbound anchors stable.
+Not a Loa hook: Claude Code's built-in auto-memory handles cross-session recall. (Section number reserved for anchor stability.)
 
 ### 5. Sprint Completion Hook (PostToolUse)
 
@@ -519,3 +520,7 @@ mv .claude/settings.json .claude/settings.json.bak
 - [Claude Code Hooks Guide](https://code.claude.com/docs/en/hooks-guide)
 - [Kiro Agent Hooks](https://kiro.dev/docs/hooks/)
 - [Continuous-Claude-v3 Session Hooks](https://github.com/parcadei/Continuous-Claude-v3)
+
+## Provenance
+
+Section 4 (Memory Injection Hook): the semantic-memory subsystem was removed in cycle-121; Claude Code auto-memory replaced it. Section number kept stable for existing anchors.
