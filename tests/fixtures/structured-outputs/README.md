@@ -15,8 +15,11 @@ Each file is a translated model envelope (`content`, token/cost fields, optional
   (`schema_invalid`), `reviewer-prose` (`normalization_failed` / `enforced_parse_failed`),
   plus two `extra-*` shapes.
 - `_expect` — the outcome per parse path: `unenforced` (today's tolerant path:
-  fence strip + raw_decode + normalization + repair) and `enforced` (strict parse
-  only). For `process_findings` the value is the envelope `metadata.status`; for
+  fence strip + raw_decode + normalization; the bats stub the model repair call
+  to fail, so `unenforced` pins the path *without* a successful repair) and
+  `enforced` (strict parse only). "Enforced-valid" is pinned mechanically by
+  `.claude/adapters/tests/test_structured_outputs_fixtures_wire_valid.py`
+  (every such fixture validates against its wire schema; every `neg-*` does not). For `process_findings` the value is the envelope `metadata.status`; for
   `qualify_flatline_content` it is the rejection reason (or `accepted`); optional
   `enforced_rejected` / `*_findings` pin the counts.
 

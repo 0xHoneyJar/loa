@@ -221,6 +221,24 @@ _PERSONA_CACHE_CONTROL: Dict[str, str] = {"type": "ephemeral"}
 _OUTPUT_SCHEMA_MAX_BYTES = 64 * 1024
 
 
+def _effective_stop_reason(meta):
+    """The stop reason a consumer should act on.
+
+    Anthropic adapters set ``metadata.stop_reason``; the OpenAI adapters record
+    truncation as ``metadata.truncated`` / ``truncation_reason`` instead. The
+    dissent's enforced branch keys its "payload truncated — raise the output
+    budget" hint on ``stop_reason == "max_tokens"``, so a truncated GPT hop
+    must read the same way (late Sprint 2 review, slice A).
+    """
+    meta = meta or {}
+    reason = meta.get("stop_reason")
+    if reason:
+        return reason
+    if meta.get("truncated"):
+        return "max_tokens"
+    return None
+
+
 def _read_output_schema(path: str) -> tuple:
     """Read `--json-schema FILE` once (cycle-124 FR-7).
 
@@ -1248,7 +1266,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # is INVALID_INPUT before any model is touched.
     _output_schema: Optional[Dict[str, Any]] = None
     _output_schema_sha: Optional[str] = None
-    if getattr(args, "json_schema", None):
+    if getattr(args, "json_schema", None) is not None:
+        # `is not None`: `--json-schema ""` is a bad path (INVALID_INPUT), not
+        # "no schema requested" (late Sprint 2 review, slice A).
         try:
             _output_schema, _output_schema_sha = _read_output_schema(args.json_schema)
         except ValueError as _schema_err:
@@ -2213,7 +2233,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             # stopped at max_tokens spent the budget on reasoning — the
             # visible answer is truncated. Flag it on the envelope and to the
             # operator instead of letting a short verdict pass silently.
-            if _result_meta.get("stop_reason") == "max_tokens" and (
+            if _effective_stop_reason(_result_meta) == "max_tokens" and (
                 _entry_thinking_class(_entry, hounfour) or bool(getattr(_result, "thinking", None))
             ):
                 _modelinv_state["operator_visible_warn"] = True
@@ -2325,7 +2345,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "schema_enforced": bool((getattr(_result, "metadata", None) or {}).get("schema_enforced", False)),
                 # cycle-124 FR-7: the dissent's enforced branch treats a
                 # max_tokens stop as a truncated (malformed) payload.
-                "stop_reason": (getattr(_result, "metadata", None) or {}).get("stop_reason"),
+                "stop_reason": _effective_stop_reason(getattr(_result, "metadata", None) or {}),
             }
             if _result.thinking and getattr(args, "include_thinking", False):
                 output["thinking"] = _result.thinking

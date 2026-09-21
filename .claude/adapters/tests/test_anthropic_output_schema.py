@@ -158,3 +158,26 @@ def test_streaming_metadata_schema_enforced_is_derived_from_the_body(monkeypatch
     assert result.content == '{"ok": true}'
     assert result.metadata["schema_enforced"] is expected
     assert result.metadata["streaming"] is True
+
+
+# --- late Sprint 2 review (slice C, MEDIUM): the AC-7.1 ids on the LIVE catalog --
+
+def _live_config(model_id: str) -> ProviderConfig:
+    import yaml
+    catalog = yaml.safe_load((ROOT.parents[1] / ".claude" / "defaults" / "model-config.yaml").read_text())
+    entry = catalog["providers"]["anthropic"]["models"][model_id]
+    return ProviderConfig(
+        name="anthropic", type="anthropic", endpoint="https://api.anthropic.com/v1",
+        auth="sk-ant-test", connect_timeout=10.0, read_timeout=30.0,
+        models={model_id: ModelConfig(capabilities=list(entry.get("capabilities") or []),
+                                      context_window=int(entry.get("context_window") or 200_000),
+                                      params=dict(entry.get("params") or {}))},
+    )
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_live_catalog_opus_4_8_emits_format_and_opus_4_7_does_not(monkeypatch, streaming):
+    body = _capture(monkeypatch, _live_config("claude-opus-4-8"), _req(model="claude-opus-4-8"), streaming)
+    assert body["output_config"]["format"] == {"type": "json_schema", "schema": SCHEMA}
+    body = _capture(monkeypatch, _live_config("claude-opus-4-7"), _req(model="claude-opus-4-7"), streaming)
+    assert "output_config" not in body

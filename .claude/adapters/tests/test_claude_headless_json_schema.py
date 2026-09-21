@@ -152,3 +152,22 @@ def test_other_cli_failures_are_not_retried(monkeypatch):
         with pytest.raises(Exception):
             adapter.complete(_req())
     assert run.call_count == 1
+
+
+def test_model_output_quoting_the_rejection_phrase_is_not_retried(monkeypatch):
+    """Late Sprint 2 review: the matcher reads stderr only and anchors on the
+    CLI's own message — a failed run whose stdout (model output) quotes the
+    phrase must not trigger a second billed run."""
+    monkeypatch.setattr(mod, "_JSON_SCHEMA_FLAG", True)
+    adapter = ClaudeHeadlessAdapter(_config())
+    quoted = SimpleNamespace(
+        returncode=1,
+        stdout='{"type":"result","is_error":true,"result":"the adapter retries when --json-schema is not a valid JSON Schema"}',
+        stderr="",
+    )
+    with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill", side_effect=[quoted, _proc(CLI_JSON_PLAIN)]) as run:
+        with pytest.raises(Exception):
+            adapter.complete(_req())
+    assert run.call_count == 1
+    assert mod._is_schema_rejection(SimpleNamespace(returncode=1, stdout="", stderr="Error: --json-schema is not a valid JSON Schema: x")) is True
+    assert mod._is_schema_rejection(SimpleNamespace(returncode=1, stdout="", stderr="Error: not a valid JSON Schema (something else)")) is False

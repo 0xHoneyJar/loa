@@ -32,7 +32,8 @@ If the count is not 0, stop: a test row carried real pricing and the sidecar tot
 
 ```bash
 bash tools/check-ledger-hygiene.sh        # expect two "SKIP: … absent" lines and exit 0
-jq -c . "$ARCHIVE" | head -3              # archive is readable JSON
+grep '^{' "$ARCHIVE" | jq -c . | head -3  # archive rows are JSON; its LAST line is the
+                                          # `[MODELINV-DISABLED]` rotation seal, not JSON
 ls -la .run/archive/                      # both archive paths
 ```
 

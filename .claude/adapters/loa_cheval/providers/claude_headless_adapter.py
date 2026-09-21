@@ -85,9 +85,14 @@ _JSON_SCHEMA_FLAG: Optional[bool] = None
 _JSON_SCHEMA_FLAG_LOCK = threading.Lock()
 
 
+# The CLI's own validator message, on stderr only. stdout is model output: a
+# reviewer that quotes this phrase must not trigger a second billed run
+# (late Sprint 2 review, slice A).
+_SCHEMA_REJECTION_MARK = "--json-schema is not a valid JSON Schema"
+
+
 def _is_schema_rejection(proc) -> bool:
-    text = (getattr(proc, "stderr", "") or "") + (getattr(proc, "stdout", "") or "")
-    return "not a valid JSON Schema" in text
+    return _SCHEMA_REJECTION_MARK in (getattr(proc, "stderr", "") or "")
 
 
 def _cli_supports_json_schema(cli_bin: str) -> bool:

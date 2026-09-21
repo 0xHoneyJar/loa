@@ -18,7 +18,7 @@ class CompletionRequest:
     temperature: float = 0.7
     max_tokens: int = 4096
     tools: Optional[List[Dict[str, Any]]] = None
-    tool_choice: Optional[str] = None  # "auto" | "required" | "none"
+    tool_choice: Optional[str] = None  # "auto" | "none"; "required" raises on Anthropic (a 400 on Fable 5.1), Bedrock still maps it to "any"
     metadata: Optional[Dict[str, Any]] = None  # agent, trace_id, sprint_id (not sent to provider)
     # cycle-114 FR-2: reasoning-depth control. Serialized as output_config.effort
     # by adapters that support it (Anthropic Opus 4.5+/Sonnet 4.6). NEVER mapped

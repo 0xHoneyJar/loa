@@ -117,3 +117,22 @@ def test_explicit_null_cache_rate_falls_back_to_the_derived_rate():
     pr = find_pricing("anthropic", "m", cfg)
     assert pr.cache_read_per_mtok == 500_000        # derived 0.1×, not None
     assert pr.cache_write_per_mtok == 6_250_000     # a string is not a rate → derived 1.25×
+
+
+def _cfg_with_cache_rate(rate):
+    return {"providers": {"anthropic": {"models": {"m": {"pricing": {
+        "input_per_mtok": 5_000_000, "output_per_mtok": 25_000_000, "cache_read_per_mtok": rate}}}}}}
+
+
+def test_whole_number_float_cache_rate_is_accepted(caplog):
+    """Late Sprint 2 review: a YAML float like 250000.0 used to be discarded
+    silently, so an override looked applied but was not."""
+    assert find_pricing("anthropic", "m", _cfg_with_cache_rate(250_000.0)).cache_read_per_mtok == 250_000
+
+
+def test_non_integer_cache_rate_falls_back_and_is_logged(caplog):
+    import logging
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.metering.pricing"):
+        entry = find_pricing("anthropic", "m", _cfg_with_cache_rate(2.5))
+    assert entry.cache_read_per_mtok == 500_000        # derived 0.1× input
+    assert any("ignoring non-integer cache rate" in r.message for r in caplog.records)

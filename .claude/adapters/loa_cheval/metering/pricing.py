@@ -6,9 +6,13 @@ No floating-point anywhere in the cost path.
 
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger("loa_cheval.metering.pricing")
 
 # Overflow guard: max safe integer for cost calculation.
 # Python ints are arbitrary-precision, but we enforce this for parity with loa-finn
@@ -194,9 +198,21 @@ class RemainderAccumulator:
 
 
 def _int_rate(value: Any, derived: int) -> int:
-    """A catalog rate only when it is a non-negative int (bool excluded); else the derived default."""
-    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+    """A catalog rate only when it is a non-negative whole number (bool excluded); else the derived default.
+
+    A YAML float that is a whole number (``250000.0``) is accepted as that int;
+    a non-null value that is discarded is logged so an override that "looks
+    applied" never silently is not (late Sprint 2 review, slice A).
+    """
+    if isinstance(value, bool):
+        logger.warning("pricing: ignoring boolean cache rate %r (using derived %d)", value, derived)
+        return derived
+    if isinstance(value, int) and value >= 0:
         return value
+    if isinstance(value, float) and value.is_integer() and value >= 0:
+        return int(value)
+    if value is not None:
+        logger.warning("pricing: ignoring non-integer cache rate %r (using derived %d)", value, derived)
     return derived
 
 

@@ -126,19 +126,23 @@ def _cfg():
     }
 
 
-def _invoke(monkeypatch, schema_file, enforced: bool, output_format="text"):
+def _invoke(monkeypatch, schema_file, enforced: bool, output_format="text", meta=None, cfg=None, fail_first=False):
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *_a, **_kw: None)
     monkeypatch.setattr(cheval, "_load_persona_parts", lambda *_a, **_kw: (None, None))
     monkeypatch.setattr(cheval, "_load_persona", lambda *_a, **_kw: None)
     seen, captured = [], {}
+    result_meta = meta if meta is not None else {"streaming": True, "schema_enforced": enforced}
 
     def _retry_side(_adapter, req, _cfg, budget_hook=None):
         seen.append(req)
-        return CompletionResult(content='{"ok": true}', model="claude-opus-5", provider="anthropic",
+        if fail_first and len(seen) == 1:
+            from loa_cheval.types import ProviderUnavailableError
+            raise ProviderUnavailableError("anthropic", "hop 1 down (test)")
+        return CompletionResult(content='{"ok": true}', model=req.model, provider="anthropic",
                                 usage=Usage(input_tokens=10, output_tokens=5), latency_ms=1, tool_calls=None,
-                                thinking=None, metadata={"streaming": True, "schema_enforced": enforced})
+                                thinking=None, metadata=dict(result_meta))
 
-    with patch.object(cheval, "load_config", return_value=(_cfg(), {})), \
+    with patch.object(cheval, "load_config", return_value=(cfg if cfg is not None else _cfg(), {})), \
          patch.object(cheval, "resolve_execution", return_value=(MagicMock(temperature=0.7, capability_class=None),
                                                                   MagicMock(provider="anthropic", model_id="claude-opus-5"))), \
          patch.object(cheval, "_build_provider_config", return_value=MagicMock()), \
@@ -178,3 +182,64 @@ def test_no_schema_means_no_envelope_fields_and_cli_false(monkeypatch, capsys):
     assert seen[0].output_schema is None
     assert "schema_enforced" not in captured and "output_schema_sha256" not in captured
     assert json.loads(capsys.readouterr().out)["schema_enforced"] is False
+
+
+# --- late Sprint 2 review (slice A) -------------------------------------------
+
+def test_openai_style_truncation_reads_as_stop_reason_max_tokens(tmp_path, monkeypatch, capsys):
+    """The OpenAI adapters record truncation as metadata.truncated, not
+    stop_reason; the dissent's enforced branch keys its 'raise the output
+    budget' hint on stop_reason == max_tokens, so the CLI JSON must say so."""
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps(SCHEMA))
+    code, _, _ = _invoke(monkeypatch, str(f), enforced=True, output_format="json",
+                         meta={"schema_enforced": True, "truncated": True, "truncation_reason": "max_output_tokens"})
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["schema_enforced"] is True
+    assert out["stop_reason"] == "max_tokens"
+
+
+def test_explicit_stop_reason_wins_over_the_truncated_flag(tmp_path, monkeypatch, capsys):
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps(SCHEMA))
+    code, _, _ = _invoke(monkeypatch, str(f), enforced=True, output_format="json",
+                         meta={"schema_enforced": True, "stop_reason": "end_turn", "truncated": False})
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["stop_reason"] == "end_turn"
+
+
+def test_empty_json_schema_path_is_invalid_input_not_no_schema(monkeypatch, capsys):
+    """`--json-schema ""` (an unset shell variable) must fail loudly instead of
+    running unenforced with the envelope reading as 'no schema requested'."""
+    code, seen, captured = _invoke(monkeypatch, "", enforced=True, output_format="json")
+    assert code == 2
+    assert seen == []
+    assert "schema_enforced" not in captured
+    err = capsys.readouterr().err
+    assert "INVALID_INPUT" in err
+
+
+def _cfg_two_hops():
+    cfg = _cfg()
+    models = cfg["providers"]["anthropic"]["models"]
+    models["claude-opus-5"] = dict(models["claude-opus-5"], fallback_chain=["anthropic:claude-sonnet-5"])
+    models["claude-sonnet-5"] = {"capabilities": ["chat", "structured_json"], "context_window": 1_000_000, "max_output_tokens": 64_000}
+    cfg["aliases"]["claude-sonnet-5"] = "anthropic:claude-sonnet-5"
+    return cfg
+
+
+def test_schema_rides_on_every_hop_of_a_chain_walk(tmp_path, monkeypatch, capsys):
+    """Late Sprint 2 review (slice C, MEDIUM): only hop 0 was asserted. Hop 1
+    fails with a retryable error; the per-hop rebuild for hop 2 must still
+    carry the schema and the envelope must report the hop that answered."""
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps(SCHEMA))
+    code, seen, captured = _invoke(monkeypatch, str(f), enforced=True, output_format="json",
+                                   cfg=_cfg_two_hops(), fail_first=True)
+    assert code == 0, capsys.readouterr().err
+    assert len(seen) == 2
+    assert [r.model for r in seen] == ["claude-opus-5", "claude-sonnet-5"]
+    assert all(r.output_schema == SCHEMA for r in seen)
+    assert captured["schema_enforced"] is True
+    assert captured["output_schema_sha256"] == PINNED_SHA

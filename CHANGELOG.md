@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (late Sprint 2 review input, cycle-124)
+- Trailer DETECTION in `verdict-derive.sh` and `golden-path.sh` is case-insensitive; a lowercase `loa-verdict` marker is a malformed-trailer violation, never a fall-through to the legacy prose heuristic. The canonical marker form is byte-exact (whitespace after `-->` is malformed) — pinned.
+- `ledger-lib.sh get_ledger_status` no longer aborts on a bug-fix active cycle whose last sprint entry is a label string.
+- `adversarial-review.sh`: at most 5 repair round-trips per run (`metadata.repair_budget_exhausted` counts the rest); the enforced branch requires exactly one JSON object; a missing wire schema logs a WARN; the repair workdir sits under the trapped adversarial workdir.
+- `flatline-orchestrator.sh qualify_flatline_content` rejects an enforced voice that stopped at `max_tokens`/`refusal` (`enforced_truncated`) and requires exactly one object.
+- cheval CLI JSON `stop_reason` reads `max_tokens` when an OpenAI hop recorded `metadata.truncated`; `--json-schema ""` is `INVALID_INPUT`; the claude-headless schema-rejection retry keys on the CLI's stderr message only; whole-number float cache rates in the catalog are accepted and discarded values are logged.
+
+
 ### Added — cycle-124 "model-generation floor", Sprint 1
 
 - **Catalog at the current generation**: `claude-opus-5` (now the `opus` alias) and `claude-fable-5-1` (now `fable`); the 4.6+ family at its real 1M-context / 128K-output envelope; Sonnet 5 priced at the reference $2/$10; typed `params.thinking_adaptive` / `temperature_supported`, `structured_json` capability, `cache_read_per_mtok`; v2 input fields replaced by `effective_input_ceiling: 180000` + `ceiling_calibration` on every Anthropic HTTP entry. One regen script (`tools/regen-model-artifacts.sh`, `--check` for the three drift gates) rebuilds every generated twin. Values are `reference` until `live-floor-check.yml` probes them (`grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md`).
