@@ -1,0 +1,128 @@
+--- a/.claude/protocols/helper-scripts.md
++++ b/.claude/protocols/helper-scripts.md
+@@ -1,9 +1,5 @@
+ # Helper Scripts Reference
+ 
+-> **Protocol Version**: 1.0
+-> **Last Updated**: 2026-01-22
+-> **CLAUDE.md Reference**: Section "Helper Scripts"
+-
+ Complete documentation for Loa framework scripts in `.claude/scripts/`.
+ 
+ ## Script Directory Structure
+@@ -80,7 +76,7 @@
+ | `--skip-beads` | Don't install/initialize Beads CLI |
+ | `--no-commit` | Skip creating git commit after mount |
+ 
+-**Clean Upgrade Behavior** (v1.4.0+):
++**Clean Upgrade Behavior**:
+ - Creates a single atomic commit: `chore(loa): mount framework v{VERSION}`
+ - Creates version tag: `loa@v{VERSION}`
+ - Respects stealth mode (no commits)
+@@ -146,7 +142,7 @@
+ 
+ ---
+ 
+-## Permission Audit (v0.18.0)
++## Permission Audit
+ 
+ Logs and analyzes permission requests that required HITL approval.
+ 
+@@ -178,7 +174,7 @@
+ 
+ ---
+ 
+-## Context Cleanup (v0.19.0)
++## Context Cleanup
+ 
+ Archives and cleans discovery context directory after sprint plan completion.
+ 
+@@ -206,7 +202,7 @@
+ 
+ ---
+ 
+-## Update Check (v0.14.0)
++## Update Check
+ 
+ Automatic version checking on session start.
+ 
+@@ -247,7 +243,7 @@
+ 
+ ---
+ 
+-## Anthropic Oracle (v0.13.0)
++## Anthropic Oracle
+ 
+ Monitors Anthropic official sources for updates relevant to Loa.
+ 
+@@ -266,7 +262,7 @@
+ 
+ ---
+ 
+-## Context Manager (v0.11.0)
++## Context Manager
+ 
+ Manages context compaction with preservation rules and RLM probe-before-load pattern.
+ 
+@@ -315,14 +311,14 @@
+ | Tool results | COMPACTABLE | Summarized after use |
+ | Thinking blocks | COMPACTABLE | Logged to trajectory |
+ 
+-**Simplified Checkpoint** (7 steps → 3 manual):
++**Checkpoint** (3 manual steps):
+ 1. Verify Decision Log updated
+ 2. Verify Bead updated
+ 3. Verify EDD test scenarios
+ 
+ ---
+ 
+-## Context Benchmark (v0.11.0)
++## Context Benchmark
+ 
+ Measure context management performance.
+ 
+@@ -344,14 +340,14 @@
+ .claude/scripts/context-benchmark.sh run --save  # Save to analytics
+ ```
+ 
+-**Target Metrics (v0.11.0)**:
++**Target Metrics**:
+ - Token reduction: -15%
+-- Checkpoint steps: 3 (was 7)
++- Checkpoint steps: 3
+ - Recovery success: 100%
+ 
+ ---
+ 
+-## RLM Benchmark (v0.15.0)
++## RLM Benchmark
+ 
+ Benchmarks RLM (Relevance-based Loading Method) pattern effectiveness.
+ 
+@@ -385,7 +381,7 @@
+ 
+ ---
+ 
+-## Schema Validator (v0.11.0)
++## Schema Validator
+ 
+ Validates agent outputs against JSON schemas.
+ 
+@@ -427,7 +423,7 @@
+ 
+ ---
+ 
+-## Thinking Logger (v0.12.0)
++## Thinking Logger
+ 
+ Logs agent reasoning with extended thinking support.
+ 
+@@ -476,7 +472,7 @@
+ 
+ ---
+ 
+-## Mermaid URL Generator (v1.10.0)
++## Mermaid URL Generator
+ 
+ Generates Beautiful Mermaid preview URLs for diagram rendering.
+ 

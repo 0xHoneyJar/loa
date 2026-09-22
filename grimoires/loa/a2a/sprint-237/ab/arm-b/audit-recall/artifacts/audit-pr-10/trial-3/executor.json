@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "auditing-security",
+  "run_id": "run-20260922-021513-cd64c82c",
+  "trial_id": "run-20260922-021513-cd64c82c-audit-pr-10-trial-3",
+  "model_requested": "claude-sonnet-5",
+  "model_id": "claude-sonnet-5",
+  "effort": "medium",
+  "prompt_tree": "/home/merlin/Documents/thj/code/loa",
+  "prompt_tree_sha": "4f13f15c6d8273d6d5c663cc4e3fd46b344cba1f",
+  "prompt_tree_commit": "734f3837d9e5266dc1c3303168fb13977569a5da",
+  "prompt_tree_dirty": false,
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 117540,
+  "num_turns": 14,
+  "total_cost_usd": 0.47640219999999994,
+  "usage": {
+    "input_tokens": 28,
+    "output_tokens": 8692,
+    "cache_creation_input_tokens": 54350,
+    "cache_read_input_tokens": 860131
+  },
+  "tool_writes": [
+    {
+      "seq": 1,
+      "tool": "Write",
+      "path": "/tmp/loa-eval-run-20260922-021513-cd64c82c-audit-pr-10-trial-3-kSifsd/workspace/audit.md"
+    }
+  ]
+}

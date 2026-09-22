@@ -1,0 +1,112 @@
+--- a/.claude/protocols/beads-integration.md
++++ b/.claude/protocols/beads-integration.md
+@@ -214,33 +214,6 @@
+ | `br sync` | Bidirectional | Full reconciliation |
+ | `br sync --status` | Check only | Verify state |
+ 
+-### Sync Protocol for Loa Agents
+-
+-**Session Start:**
+-```bash
+-# Always import latest state
+-br sync --import-only 2>/dev/null || br init
+-```
+-
+-**After Write Operations:**
+-```bash
+-# After creating/updating/closing issues
+-br sync --flush-only
+-```
+-
+-**Before Git Commit:**
+-```bash
+-br sync --flush-only
+-git add .beads/
+-git commit -m "Update task graph: [summary]"
+-```
+-
+-**After Git Pull:**
+-```bash
+-git pull origin main
+-br sync --import-only
+-```
+-
+ ---
+ 
+ ## Configuration
+@@ -280,26 +253,7 @@
+ 
+ ## Uncertainty Protocol
+ 
+-When task state is ambiguous or unclear:
+-
+-1. **State uncertainty explicitly:**
+-   ```
+-   "I cannot verify that issue <id> exists in the beads graph."
+-   ```
+-
+-2. **Verify with query:**
+-   ```bash
+-   br show <id> --json 2>/dev/null || echo "Issue not found"
+-   ```
+-
+-3. **If not found, check for similar:**
+-   ```bash
+-   br list --json | jq '.[] | select(.id | contains("<partial>"))'
+-   ```
+-
+-4. **Ask for clarification** rather than assuming
+-
+-5. **NEVER fabricate** issue IDs or states
++When an issue's state is ambiguous, verify before asserting anything about it: `br show <id> --json` to confirm it exists, or `br list --json | jq '.[] | select(.id | contains("<partial>"))'` to find near matches if it isn't. State what you verified rather than assuming, and never fabricate an issue ID or status.
+ 
+ ---
+ 
+@@ -359,7 +313,13 @@
+ ### Session Start (Hook)
+ ```bash
+ .claude/scripts/beads/install-br.sh
+-br init 2>/dev/null || br sync --import-only
++br sync --import-only 2>/dev/null || br init
++```
++
++### After Git Pull
++```bash
++git pull origin main
++br sync --import-only
+ ```
+ 
+ ### `/sprint-plan`
+@@ -406,32 +366,3 @@
+ | Semantic compaction | Simplicity | Manual archival |
+ | Linear/Jira sync | Focused scope | External integration |
+ | `br prime` | Original beads feature | `loa-prime.sh` script |
+-
+----
+-
+-## Quick Reference Card
+-
+-```bash
+-# Session start
+-br sync --import-only
+-
+-# Find work
+-br ready --json | jq '.[0]'
+-
+-# Claim task
+-br update beads-xxx --status in_progress
+-
+-# Log progress
+-br comments add beads-xxx "Progress update"
+-
+-# Discover issue
+-br create "Found: bug" --type bug -p 2 --json
+-br label add beads-new discovered-during:beads-xxx
+-
+-# Complete task
+-br close beads-xxx --reason "Done: summary"
+-
+-# Session end
+-br sync --flush-only
+-git add .beads/ && git commit -m "Update tasks"
+-```

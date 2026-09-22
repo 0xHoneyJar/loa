@@ -1,0 +1,278 @@
+--- a/.claude/protocols/cross-platform-shell.md
++++ b/.claude/protocols/cross-platform-shell.md
+@@ -1,8 +1,6 @@
+ # Cross-Platform Shell Scripting Protocol
+ 
+ **Version**: 1.0.0
+-**Issue**: https://github.com/0xHoneyJar/loa/issues/195
+-**Origin**: Discovered during Flatline Protocol execution on macOS (#194)
+ 
+ ## Overview
+ 
+@@ -12,22 +10,17 @@
+ 
+ ## Decision: Library-First, Not Inline
+ 
+-**Use `compat-lib.sh` functions instead of inline platform checks.**
+-
+-This is the same principle Kubernetes applies in `hack/lib/util.sh` and Google's Bazel applies in its shell utility layer: fix once in a library, test once, benefit everywhere. Inline platform checks are error-prone because each developer re-implements the detection logic slightly differently.
++**Use `compat-lib.sh` functions instead of inline platform checks.** Fix detection once in a library, test once, benefit everywhere — inline platform checks are error-prone because each developer re-implements the detection logic slightly differently.
+ 
+ ```bash
+-# Source the library (usually via bootstrap.sh)
+-source "${SCRIPT_DIR}/compat-lib.sh"  # or source via bootstrap chain
+-
+-# Then use portable functions throughout your script
++source "${SCRIPT_DIR}/compat-lib.sh"  # or via bootstrap chain
+ ```
+ 
+ ## Required Patterns
+ 
+ ### Bash 4.0+ Version Guard
+ 
+-**Library**: `bash-version-guard.sh` (since Issue #240)
++**Library**: `bash-version-guard.sh`
+ 
+ ```bash
+ # WRONG — crashes with cryptic "unbound variable" on macOS bash 3.2
+@@ -38,13 +31,11 @@
+ declare -A MY_MAP=( ["key"]="value" )
+ ```
+ 
+-**Why it's subtle**: macOS ships with bash 3.2. `declare -A` (associative arrays) requires bash 4.0+. On bash 3.2, the script crashes with `unbound variable` instead of a clear version error. The guard detects this and prints upgrade instructions.
+-
+-The guard uses source-time detection (no function call needed) and has a double-source guard. This is the same fail-fast pattern used by `compat-lib.sh`.
++**Why it's subtle**: macOS ships with bash 3.2. `declare -A` (associative arrays) requires bash 4.0+. On bash 3.2, the script crashes with `unbound variable` instead of a clear version error. The guard detects this at source time and prints upgrade instructions.
+ 
+ ### Timestamps
+ 
+-**Library**: `time-lib.sh` (since PR #199)
++**Library**: `time-lib.sh`
+ 
+ ```bash
+ # WRONG — macOS outputs literal "N", doesn't error
+@@ -55,7 +46,7 @@
+ start_time=$(get_timestamp_ms)
+ ```
+ 
+-**Why it's subtle**: macOS `date +%s%3N` outputs `1738742714N` (with a literal N character). The command succeeds (exit 0), so fallback patterns like `$(date +%s%3N 2>/dev/null || date +%s)000` silently produce garbage. The fix tests whether the output is all-numeric, not whether the command succeeded. This is the same class of bug that caused CloudFlare's 2017 leap-second outage — trusting exit codes instead of validating output.
++**Why it's subtle**: macOS `date +%s%3N` outputs `1738742714N` (with a literal N character). The command succeeds (exit 0), so fallback patterns like `$(date +%s%3N 2>/dev/null || date +%s)000` silently produce garbage. The fix tests whether the output is all-numeric, not whether the command succeeded.
+ 
+ ### In-place sed
+ 
+@@ -73,96 +64,12 @@
+ sed_inplace 's/old/new/' file.txt
+ ```
+ 
+-**For atomic writes** (when partial writes would corrupt state):
+-```bash
+-# RIGHT — temp file + mv (atomic on POSIX filesystems)
+-sed 's/old/new/' file.txt > file.txt.tmp && mv file.txt.tmp file.txt
+-```
+-
+-Google's Shell Style Guide recommends the temp-file-and-mv pattern for production scripts. We provide `sed_inplace()` as a convenience for the common case, but critical state files (like ledger.json) should use the atomic pattern.
+-
+-### Canonical Paths
+-
+-**Library**: `compat-lib.sh` → `get_canonical_path()`
++**For atomic writes** (when partial writes would corrupt state, e.g. `ledger.json`), use temp file + mv instead of `sed_inplace()`:
+ 
+ ```bash
+-# WRONG — not available on macOS
+-path=$(readlink -f "$file")
+-
+-# WRONG — realpath may not exist either
+-path=$(realpath "$file")
+-
+-# RIGHT — use compat-lib (3-tier fallback: readlink → realpath → pure bash)
+-source "${SCRIPT_DIR}/compat-lib.sh"
+-path=$(get_canonical_path "$file")
+-```
+-
+-The pure bash fallback uses the `cd + pwd -P` pattern, which is the same approach Node.js uses in its configure script for portability.
+-
+-### File Modification Time
+-
+-**Library**: `compat-lib.sh` → `get_file_mtime()`
+-
+-```bash
+-# WRONG — inconsistent inline fallbacks scattered everywhere
+-mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null)
+-
+-# RIGHT — cached detection, single branch per call
+-source "${SCRIPT_DIR}/compat-lib.sh"
+-mtime=$(get_file_mtime "$file")
+-```
+-
+-### Version Sorting
+-
+-**Library**: `compat-lib.sh` → `version_sort`
+-
+-```bash
+-# WRONG — not available on macOS <10.15
+-echo "$versions" | sort -V
+-
+-# RIGHT — fallback to numeric component sort
+-source "${SCRIPT_DIR}/compat-lib.sh"
+-echo "$versions" | version_sort
+-```
+-
+-### Temp Files with Suffix
+-
+-**Library**: `compat-lib.sh` → `make_temp()`
+-
+-```bash
+-# WRONG — GNU-only flag
+-tmpfile=$(mktemp --suffix=.mmd)
+-
+-# RIGHT — portable with auto-fallback
+-source "${SCRIPT_DIR}/compat-lib.sh"
+-tmpfile=$(make_temp ".mmd")
+-```
+-
+-### Find + Sort by Time
+-
+-**Library**: `compat-lib.sh` → `find_sorted_by_time()`
+-
+-```bash
+-# WRONG — -printf not available on macOS
+-find "$dir" -name "*.log" -type f -printf '%T+ %p\n' | sort
+-
+-# RIGHT — portable with stat fallback
+-source "${SCRIPT_DIR}/compat-lib.sh"
+-find_sorted_by_time "$dir" "*.log"
+-```
+-
+-### Regex in grep
+-
+-```bash
+-# WRONG — -P (PCRE) not available on macOS
+-grep -P '\d+' file
+-
+-# RIGHT — use extended regex (available everywhere)
+-grep -E '[0-9]+' file
++sed 's/old/new/' file.txt > file.txt.tmp && mv file.txt.tmp file.txt
+ ```
+ 
+-No library wrapper needed — just use `-E` instead of `-P`.
+-
+ ### Timeout Execution
+ 
+ **Library**: `compat-lib.sh` → `run_with_timeout()`
+@@ -176,11 +83,7 @@
+ run_with_timeout 30 grep -rn "pattern" ./src
+ ```
+ 
+-**Why it's subtle**: macOS doesn't include GNU coreutils `timeout`. Homebrew provides it as `gtimeout` (via the `coreutils` package), but not all environments have Homebrew. The `run_with_timeout()` function detects available backends at call time (not source time) and falls back through: GNU `timeout` → `gtimeout` → perl's `alarm()/fork()/waitpid()` → warn and run without timeout.
+-
+-Exit code 124 indicates a timeout (matching the GNU convention). The perl fallback uses fork+waitpid rather than bare exec to preserve the `$SIG{ALRM}` handler — bare exec would replace the process image and produce exit 137 (SIGKILL) instead of 124.
+-
+-**Migration pattern**: Replace every `timeout N command...` with `run_with_timeout N command...` after sourcing `compat-lib.sh`.
++**Why it's subtle**: macOS doesn't include GNU coreutils `timeout` (Homebrew provides `gtimeout`, but not every environment has Homebrew). `run_with_timeout()` falls back through GNU `timeout` → `gtimeout` → perl's `alarm()` → warn and run without timeout, detected at call time. Exit code 124 indicates a timeout, matching the GNU convention; the perl fallback uses fork+waitpid rather than bare exec to preserve the `$SIG{ALRM}` handler, since bare exec would produce exit 137 (SIGKILL) instead of 124.
+ 
+ ### Curl Auth Config Files (SHELL-002)
+ 
+@@ -200,16 +103,22 @@
+ rm -f "$cfg"
+ ```
+ 
+-**Why it's subtle**: Passing API keys via `-H` exposes them in process listings (`ps aux`). The `write_curl_auth_config()` function creates a temporary file with `chmod 600` permissions and validates that the header value contains no CR (`\r`), LF (`\n`), null bytes (`\0`), or backslashes (`\`) — all of which can be used for header injection attacks. Double quotes within the value are escaped automatically.
++**Why it's subtle**: passing API keys via `-H` exposes them in process listings (`ps aux`). `write_curl_auth_config()` writes a `chmod 600` temp file and rejects header values containing CR, LF, null bytes, or backslashes (header-injection defense), escaping embedded double quotes automatically.
+ 
+-**Validation rules**:
+-- Rejects carriage return (CR) — header injection
+-- Rejects line feed (LF) — header injection
+-- Detects null byte truncation — binary injection
+-- Rejects backslash — escape injection
+-- Escapes double quotes — safe quoting in curl config format
++**Reference**: SHELL-002 security control; tests in `tests/unit/curl-config-guard.bats`.
+ 
+-**Reference**: SHELL-002 security control. See also `tests/unit/curl-config-guard.bats` for comprehensive test coverage.
++### Other `compat-lib.sh` Wrappers
++
++Source `compat-lib.sh`, then replace each non-portable command:
++
++| Non-portable | Fix |
++|---|---|
++| `readlink -f` / `realpath` (absent on macOS) | `get_canonical_path "$file"` (3-tier: readlink → realpath → pure bash) |
++| `stat -c %Y` / `stat -f %m` | `get_file_mtime "$file"` |
++| `sort -V` (absent on macOS <10.15) | pipe through `version_sort` |
++| `mktemp --suffix=X` (GNU-only) | `make_temp X` |
++| `find ... -printf` (GNU-only) | `find_sorted_by_time "$dir" "$pattern"` |
++| `grep -P` (absent on macOS) | no wrapper needed — use `grep -E` instead |
+ 
+ ## Patterns That Are Already Portable
+ 
+@@ -218,7 +127,6 @@
+ | Command | Notes |
+ |---------|-------|
+ | `mktemp -d` | Works on all platforms (without `--suffix`) |
+-| `grep -E` | Extended regex, universally supported |
+ | `date +%s` | Epoch seconds, universally supported |
+ | `basename`, `dirname` | POSIX, universally supported |
+ | `uname -s` | Universally supported for platform detection |
+@@ -228,21 +136,15 @@
+ 
+ ```
+ .claude/scripts/
+-├── time-lib.sh        # Timestamps (PR #199)
++├── time-lib.sh        # Timestamps
+ ├── path-lib.sh        # Grimoire path resolution
+-├── compat-lib.sh      # Cross-platform utilities (this PR)
++├── compat-lib.sh      # Cross-platform utilities
+ └── lib/
+     ├── api-resilience.sh     # API retry/circuit breaker
+     ├── schema-validator.sh   # JSON schema validation
+     └── validation-history.sh # Circular prevention
+ ```
+ 
+-Each library:
+-- **Detects once** at source time (cached in `_COMPAT_*` variables)
+-- **Dispatches per-call** via cached flags (no fork per call)
+-- **Guards against double-sourcing** with `_*_LOADED` flags
+-- **Provides debug output** via `LOA_*_DEBUG=1` environment variables
+-
+ ## CI Enforcement
+ 
+ The `shell-compat-lint.yml` workflow catches platform-specific patterns at PR time:
+@@ -262,24 +164,11 @@
+ 
+ ## Adding a New Portable Function
+ 
+-When you encounter a new cross-platform incompatibility:
+-
+-1. Add the function to `compat-lib.sh` with feature detection
+-2. Add the pattern to the CI lint script
+-3. Document it in this protocol
+-4. Update existing scripts to use the new function
++New incompatibility: add the function to `compat-lib.sh` with feature detection, add the pattern to the CI lint script, document it here, and update existing scripts to use it.
+ 
+ ## Testing
+ 
+-Portable functions should be verified on the CI matrix:
+-
+-```yaml
+-strategy:
+-  matrix:
+-    os: [ubuntu-latest, macos-latest]
+-```
+-
+-For local testing, use `LOA_COMPAT_DEBUG=1` to verify detection:
++Portable functions are verified on CI's `ubuntu-latest` / `macos-latest` matrix. For local testing, use `LOA_COMPAT_DEBUG=1` to verify detection:
+ 
+ ```bash
+ LOA_COMPAT_DEBUG=1 source .claude/scripts/compat-lib.sh
+@@ -291,11 +180,6 @@
+ # [compat-lib] stat: bsd
+ ```
+ 
+-## Related
++## Provenance
+ 
+-- `time-lib.sh` — Cross-platform timestamps (PR #199)
+-- `path-lib.sh` — Configurable grimoire path resolution
+-- Issue #194 — Original macOS `date +%N` bug report
+-- Issue #195 — This protocol proposal
+-- Google Shell Style Guide — <https://google.github.io/styleguide/shellguide.html>
+-- Kubernetes hack/lib — <https://github.com/kubernetes/kubernetes/tree/master/hack/lib>
++Removed from rule text: origin issue #194 (macOS `date +%N`), tracking issue #195, `bash-version-guard.sh` from issue #240, `time-lib.sh` from PR #199.

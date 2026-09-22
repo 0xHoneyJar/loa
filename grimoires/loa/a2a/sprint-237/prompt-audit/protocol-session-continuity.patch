@@ -1,0 +1,562 @@
+--- a/.claude/protocols/session-continuity.md
++++ b/.claude/protocols/session-continuity.md
+@@ -1,15 +1,14 @@
+ # Session Continuity Protocol
+ 
+-> **Version**: 1.1 (v0.11.0 Claude Platform Integration)
+ > **Paradigm**: Clear, Don't Compact
+ 
+ ## Purpose
+ 
+ Ensure zero information loss across context wipes (`/clear`), compaction events, and session boundaries. The context window is treated as a **disposable workspace**; State Zone artifacts are the **lossless ledgers**.
+ 
+-## Context Compaction Integration (v0.11.0)
++## Context Compaction Integration
+ 
+-As of v0.11.0, this protocol integrates with Claude Code's client-side compaction feature.
++This protocol integrates with Claude Code's client-side compaction feature.
+ 
+ ### Compaction vs /clear
+ 
+@@ -55,65 +54,40 @@
+ 
+ ## Truth Hierarchy
+ 
+-```
+-IMMUTABLE TRUTH HIERARCHY:
+-
+-1. CODE (src/)           ← ABSOLUTE truth, verified by ck
+-2. BEADS (.beads/)       ← Lossless task graph, rationale, state
+-3. NOTES.md              ← Decision log, session continuity
+-4. TRAJECTORY            ← Audit trail, handoff records
+-5. PRD/SDD               ← Design intent, may drift
+-6. LEGACY DOCS           ← Historical, often stale
+-7. CONTEXT WINDOW        ← TRANSIENT, disposable, never authoritative
+-
+-CODE is the ABSOLUTE source of truth. All claims must be grounded in code.
+-CRITICAL: Nothing in transient context overrides external ledgers.
+-```
++Order of authority, highest first: code (`src/`, verified by `ck`) > Beads (`.beads/` — lossless task graph, rationale, state) > `NOTES.md` (decision log, session continuity) > trajectory (audit trail, handoff records) > PRD/SDD (design intent, may drift) > legacy docs (historical, often stale) > the context window (transient, disposable, never authoritative). All claims must be grounded in code; nothing in transient context overrides an external ledger.
+ 
+ ### Fork Detection
+ 
+-If context window state conflicts with ledger state:
+-1. **Ledger always wins** - External artifacts are source of truth
+-2. **Flag the fork** - Log discrepancy to trajectory
+-3. **Resync from ledger** - Re-read authoritative state
++When context window state conflicts with ledger state, the ledger wins: log the discrepancy to trajectory, then re-read the authoritative state and resync from the ledger.
+ 
+ ## Session Lifecycle
+ 
+-### Phase 1: Session Start (After /clear or New Session)
++### Phase 1: Session Start (after /clear or a new session)
+ 
+-```
+-SESSION RECOVERY SEQUENCE:
++Recovery runs in order:
+ 
+-0. Check Run Mode State              # NEW v1.27.0 - FIRST!
+-   - If .run/sprint-plan-state.json exists with state=RUNNING:
+-   - Resume autonomous execution WITHOUT confirmation
+-   - Skip interactive recovery, continue sprint loop
+-1. br ready                          # Identify available tasks
+-2. br show <active_id>               # Load task context (decisions[], handoffs[])
+-3. Tiered Ledger Recovery            # Load NOTES.md (Level 1 default)
+-4. Verify lightweight identifiers    # Don't load content yet
+-5. Resume from "Reasoning State"     # Continue where left off
+-```
++0. **Run mode first.** If `.run/sprint-plan-state.json` has `state: RUNNING`, resume `sprints.current` immediately — no interactive recovery, no confirmation.
++1. `br ready` — identify available tasks.
++2. `br show <active_id>` — load task context (`decisions[]`, `handoffs[]`).
++3. Tiered Ledger Recovery — load `NOTES.md` (Level 1 by default).
++4. Verify lightweight identifiers without loading their content yet.
++5. Resume from the "Reasoning State" left at the last checkpoint.
+ 
+-#### Run Mode State Check (v1.27.0)
++#### Run Mode State Check
+ 
+-**CRITICAL**: Before any interactive recovery, check for active run mode:
++Before any interactive recovery, check for an active run:
+ 
+ ```bash
+-# Step 0: Run mode takes precedence
+ if [[ -f .run/sprint-plan-state.json ]]; then
+   state=$(jq -r '.state' .run/sprint-plan-state.json)
+   if [[ "$state" == "RUNNING" ]]; then
+-    echo "Run mode active - resuming autonomous execution"
+     current=$(jq -r '.sprints.current' .run/sprint-plan-state.json)
+-    # Continue sprint $current without user confirmation
+-    exit 0  # Skip normal recovery
++    # Resume sprint $current without confirmation; skip normal recovery below
+   fi
+ fi
+-# Proceed with normal recovery if not in run mode
+ ```
+ 
+-This ensures `/run sprint-plan` survives context compaction during overnight execution.
++This is what lets `/run sprint-plan` survive context compaction during unattended execution.
+ 
+ #### Tiered Ledger Recovery
+ 
+@@ -125,40 +99,34 @@
+ 
+ **Level 1 Recovery** (default):
+ ```bash
+-# Load only Session Continuity section (~100 tokens)
+ head -50 "${PROJECT_ROOT}/grimoires/loa/NOTES.md" | grep -A 20 "## Session Continuity"
+ ```
+ 
+ **Level 2 Recovery** (on-demand):
+ ```bash
+-# Semantic search for specific context
+ ck --hybrid "authentication decision" "${PROJECT_ROOT}/grimoires/loa/" --top-k 3 --jsonl
+ ```
+ 
+ **Level 3 Recovery** (explicit):
+ ```bash
+-# Full read for architectural review
+ cat "${PROJECT_ROOT}/grimoires/loa/NOTES.md"
+ ```
+ 
+ ### Phase 2: During Session
+ 
+-```
+-CONTINUOUS SYNTHESIS:
++Continuous synthesis:
+ 
+-1. Write decisions to NOTES.md Decision Log IMMEDIATELY
+-2. Update Bead decisions[] array as work progresses
+-3. Store lightweight identifiers (paths only)
+-4. Monitor attention budget (advisory)
+-5. Delta-Synthesis at Yellow threshold (5k tokens)
+-```
++1. Write decisions to the NOTES.md Decision Log immediately.
++2. Update the Bead's `decisions[]` array as work progresses.
++3. Store lightweight identifiers (paths only).
++4. Monitor the attention budget (advisory).
++5. Run Delta-Synthesis at the Yellow threshold (5,000 tokens).
+ 
+ #### Delta-Synthesis Protocol
+ 
+-Triggered at Yellow threshold (5,000 tokens):
++At the Yellow threshold, persist without clearing context: append findings to the Decision Log, update the active Bead's progress, and log a trajectory entry —
+ 
+ ```yaml
+-# Trajectory log entry
+ phase: delta_sync
+ tokens: 5000
+ decisions_persisted: 3
+@@ -167,31 +135,21 @@
+ timestamp: 2024-01-15T14:30:00Z
+ ```
+ 
+-**Purpose**: Ensure work survives crashes or unexpected session termination.
+-
+-**Actions**:
+-1. Append recent findings to NOTES.md Decision Log
+-2. Update active Bead with progress-to-date
+-3. Log trajectory: `{"phase":"delta_sync","tokens":5000,"decisions_persisted":N}`
+-4. DO NOT clear context yet - just persist
++This exists so work survives a crash or unexpected session termination.
+ 
+ ### Phase 3: Before /clear
+ 
+-```
+-SYNTHESIS CHECKPOINT (BLOCKING):
+-
+-1. Grounding verification (>= 0.95)         ← BLOCKING
+-2. Negative grounding (Ghost Features)      ← BLOCKING in strict mode
+-3. Update Decision Log (AST-aware evidence)
+-4. Update Bead (decisions[], next_steps[])
+-5. Log trajectory session_handoff
+-6. Decay raw output -> lightweight identifiers
+-7. Verify EDD (3 test scenarios documented)
++Synthesis checkpoint, blocking in order:
+ 
+-IF ANY BLOCKING STEP FAILS -> REJECT /clear
+-```
++1. Grounding verification (>= 0.95) — **blocking**.
++2. Negative grounding / Ghost Features — **blocking** in strict mode.
++3. Update the Decision Log with AST-aware evidence.
++4. Update the Bead's `decisions[]` and `next_steps[]`.
++5. Log a `session_handoff` trajectory entry.
++6. Decay raw output to lightweight identifiers.
++7. Verify EDD (3 test scenarios documented).
+ 
+-See: `.claude/protocols/synthesis-checkpoint.md` for detailed checkpoint protocol.
++If any blocking step fails, `/clear` is rejected. See `.claude/protocols/synthesis-checkpoint.md` for the full checkpoint protocol.
+ 
+ ## NOTES.md Session Continuity Section
+ 
+@@ -236,7 +194,8 @@
+ 
+ ### Path Requirements
+ 
+-**REQUIRED**: All paths must use `${PROJECT_ROOT}` prefix
++All paths use the `${PROJECT_ROOT}` prefix — relative and hardcoded absolute paths are both invalid:
++
+ ```
+ VALID:   ${PROJECT_ROOT}/src/auth/jwt.ts:45
+ INVALID: src/auth/jwt.ts:45 (relative)
+@@ -246,7 +205,7 @@
+ 
+ ## Bead Schema Extensions
+ 
+-Extended Bead fields for session continuity (v0.9.0 Lossless Ledger Protocol).
++Extended Bead fields for session continuity.
+ 
+ ### Schema Overview
+ 
+@@ -259,10 +218,7 @@
+ created: 2024-01-15T10:00:00Z
+ assignee: null
+ 
+-# EXISTING FIELDS (unchanged)
+-# ...all standard Bead fields work as before...
+-
+-# NEW v0.9.0: Decision history (append-only ledger)
++# Decision history (append-only ledger)
+ decisions:
+   - ts: 2024-01-15T10:30:00Z
+     decision: "Use rotating refresh tokens"
+@@ -272,15 +228,7 @@
+         line: 12
+         quote: "export async function rotateRefreshToken()"
+ 
+-  - ts: 2024-01-15T14:30:00Z
+-    decision: "Add 15-minute grace period"
+-    rationale: "Balance security with UX"
+-    evidence:
+-      - path: ${PROJECT_ROOT}/src/auth/jwt.ts
+-        line: 52
+-        quote: "export function isTokenExpired(token, graceMs = 900000)"
+-
+-# NEW v0.9.0: EDD test scenario requirements
++# EDD test scenario requirements
+ test_scenarios:
+   - name: "Token expires at boundary"
+     type: edge_case
+@@ -294,7 +242,7 @@
+     type: error_handling
+     expected: "Full re-authentication flow"
+ 
+-# NEW v0.9.0: Session handoff chain (lineage tracking)
++# Session handoff chain (lineage tracking)
+ handoffs:
+   - session_id: "sess-001"
+     ended: 2024-01-15T12:00:00Z
+@@ -302,12 +250,6 @@
+     trajectory_ref: "trajectory/impl-2024-01-15.jsonl:span-abc"
+     grounding_ratio: 0.97
+ 
+-  - session_id: "sess-002"
+-    ended: 2024-01-15T14:30:00Z
+-    notes_ref: "grimoires/loa/NOTES.md:68-92"
+-    trajectory_ref: "trajectory/impl-2024-01-15.jsonl:span-def"
+-    grounding_ratio: 0.95
+-
+ # Next steps (specific, actionable)
+ next_steps:
+   - "Implement clock skew tolerance (±30 seconds)"
+@@ -353,46 +295,21 @@
+ | `trajectory_ref` | string | Yes | Reference to trajectory log entry |
+ | `grounding_ratio` | number | Yes | Grounding ratio at handoff (>= 0.95) |
+ 
+-### Backwards Compatibility
++### Defaults
+ 
+-**All new fields are OPTIONAL and ADDITIVE**:
+-
+-- Existing Beads without new fields continue to work
+-- Missing `decisions[]` treated as empty array
+-- Missing `test_scenarios[]` treated as empty array
+-- Missing `handoffs[]` treated as empty array
+-
+-**Migration**: No migration required. New fields added on first update.
++`decisions[]`, `test_scenarios[]`, and `handoffs[]` are all optional; a missing array is treated as empty.
+ 
+ ### Fork Detection
+ 
+-When context window state conflicts with Bead state:
++When context and Bead state disagree, the Bead's `decisions[]` wins: log the conflict to trajectory, discard the conflicting context claim, and resync from the Bead.
+ 
+-```
+-FORK DETECTION PROTOCOL:
+-┌─────────────────────────────────────────────────────────────────┐
+-│ 1. Compare context's "decision" with Bead decisions[]           │
+-│                                                                  │
+-│ 2. IF CONFLICT DETECTED:                                         │
+-│    - Log to trajectory: {"phase":"fork_detected",...}           │
+-│    - Bead state wins (external ledger is authoritative)         │
+-│    - Notify agent: "Fork detected, resyncing from Bead"         │
+-│                                                                  │
+-│ 3. Resync from Bead:                                            │
+-│    - Re-read decisions[] array                                  │
+-│    - Discard conflicting context state                          │
+-│    - Continue from Bead state                                   │
+-└─────────────────────────────────────────────────────────────────┘
+-```
+-
+-**Trajectory log for fork**:
+ ```jsonl
+ {"ts":"2024-01-15T15:00:00Z","agent":"implementing-tasks","phase":"fork_detected","bead_id":"beads-x7y8","context_decision":"Use stateless tokens","bead_decision":"Use rotating refresh tokens","resolution":"bead_wins"}
+ ```
+ 
+ ### CLI Extensions (br commands)
+ 
+-Extended beads_rust CLI operations for v0.19.0:
++Extended beads_rust CLI operations:
+ 
+ | Operation | Command | Purpose |
+ |-----------|---------|---------|
+@@ -401,74 +318,22 @@
+ | Log handoff | `br comments add <id> "HANDOFF: ..."` | Records session handoff |
+ | Check fork | `br diff <id>` | Compare context vs Bead state |
+ 
+-**Note**: CLI extensions are optional enhancements. NOTES.md provides fallback.
+-
+-### beads_rust CLI Integration Examples
+-
+-#### Display Decisions History
+-
+-```bash
+-# Show bead with full decision history
+-br show br-x7y8
+-
+-# Output includes:
+-#   id: br-x7y8
+-#   title: "Implement token refresh"
+-#   status: in_progress
+-#   comments:
+-#     - [2024-01-15T10:30:00Z] DECISION: Use rotating refresh tokens
+-#     - [2024-01-15T14:30:00Z] DECISION: Add 15-minute grace period
+-#   labels:
+-#     - sprint:3
+-#     - security-approved
+-```
+-
+-#### Append Decision to Bead
++Comment convention: prefix with `DECISION:` (followed by `Rationale:` and `Evidence:` lines) or `HANDOFF:` (session, NOTES ref, trajectory ref, grounding ratio):
+ 
+ ```bash
+-# Add a new decision with evidence
+ br comments add br-x7y8 "DECISION: Use RSA256 for JWT signing
+ Rationale: Industry standard, key rotation support
+ Evidence: ${PROJECT_ROOT}/src/auth/jwt.ts:23"
+-
+-# Decision is appended to comments, not replaced
+-```
+-
+-#### Log Session Handoff
+-
+-```bash
+-# Record session handoff when session ends
+-br comments add br-x7y8 "HANDOFF:
+-Session: sess-003
+-NOTES ref: grimoires/loa/NOTES.md:93-120
+-Trajectory: trajectory/impl-2024-01-15.jsonl:span-ghi
+-Grounding ratio: 0.96"
+-```
+-
+-#### Check for Fork Detection
+-
+-```bash
+-# Compare current context state with bead state
+-br diff br-x7y8
+-
+-# Output if fork detected:
+-#   FORK DETECTED:
+-#   Context: "Use stateless tokens"
+-#   Bead: "Use rotating refresh tokens"
+-#   Resolution: Bead wins (external ledger is authoritative)
+ ```
+ 
+ ### Fallback When beads_rust Unavailable
+ 
+-If beads_rust CLI (`br`) is not installed, all decision tracking falls back to NOTES.md:
++If `br` is not installed, decision tracking falls back to NOTES.md:
+ 
+ ```bash
+-# Check if br is available
+ if command -v br &>/dev/null; then
+-    # Use beads_rust for decision tracking
+     br comments add "$BEAD_ID" "DECISION: $decision"
+ else
+-    # Fallback: Append to NOTES.md Decision Log
+     echo "#### $(date -u +%Y-%m-%dT%H:%M:%SZ) - $title" >> grimoires/loa/NOTES.md
+     echo "**Decision**: $decision" >> grimoires/loa/NOTES.md
+     echo "**Rationale**: $rationale" >> grimoires/loa/NOTES.md
+@@ -489,7 +354,6 @@
+ Always run `br sync --flush-only` at session end to export Bead changes:
+ 
+ ```bash
+-# Session end protocol
+ br sync --flush-only  # Export bead changes to JSONL
+ git add .beads/       # Stage for git
+ git commit -m "..."   # Commit with code changes
+@@ -500,83 +364,20 @@
+ 
+ | Anti-Pattern | Correct Approach |
+ |--------------|------------------|
+-| "I'll remember this" | Write to NOTES.md **NOW** |
+-| Trust compacted context | Trust only **ledgers** |
+-| Relative paths | ALWAYS `${PROJECT_ROOT}` absolute paths |
+-| Defer synthesis | Synthesize **continuously** |
+-| Reason without Bead | ALWAYS `br show` first |
+-| Eager load files | Store **identifiers**, JIT retrieve |
+-| `/clear` without checkpoint | Execute **synthesis checkpoint** first |
+-| Load full Decision Log | Level 1 recovery: **last 3 decisions only** |
++| "I'll remember this" | Write to NOTES.md now |
++| Trust compacted context | Trust only ledgers |
++| Relative paths | Always `${PROJECT_ROOT}` absolute paths |
++| Defer synthesis | Synthesize continuously |
++| Reason without Bead | Always `br show` first |
++| Eager load files | Store identifiers, JIT retrieve |
++| `/clear` without checkpoint | Execute synthesis checkpoint first |
++| Load full Decision Log | Level 1 recovery: last 3 decisions only |
+ 
+ ## Integration Points
+ 
+-### Protocol Dependency Diagram
+-
+-```
+-┌────────────────────────────────────────────────────────────────────────────┐
+-│              v0.11.0 LOSSLESS LEDGER PROTOCOL DEPENDENCIES                  │
+-├────────────────────────────────────────────────────────────────────────────┤
+-│                                                                            │
+-│  SESSION-CONTINUITY (Core Protocol)                                        │
+-│       │                                                                    │
+-│       ├──▶ CONTEXT-COMPACTION (v0.11.0 - Compaction rules)                │
+-│       │         │                                                          │
+-│       │         └──▶ Preservation rules, simplified checkpoint            │
+-│       │                                                                    │
+-│       ├──▶ SYNTHESIS-CHECKPOINT (Pre-clear validation)                    │
+-│       │         │                                                          │
+-│       │         ├──▶ GROUNDING-ENFORCEMENT (Citation verification)        │
+-│       │         │         │                                                │
+-│       │         │         └──▶ TRAJECTORY-EVALUATION (Claim logging)      │
+-│       │         │                                                          │
+-│       │         └──▶ NEGATIVE-GROUNDING (Ghost feature verification)      │
+-│       │                                                                    │
+-│       ├──▶ ATTENTION-BUDGET (Token monitoring - ADVISORY)                 │
+-│       │         │                                                          │
+-│       │         └──▶ Delta-Synthesis trigger at Yellow threshold           │
+-│       │                                                                    │
+-│       ├──▶ JIT-RETRIEVAL (Token-efficient evidence)                       │
+-│       │         │                                                          │
+-│       │         └──▶ ck integration / grep fallback                       │
+-│       │                                                                    │
+-│       └──▶ STRUCTURED-MEMORY (NOTES.md protocol)                          │
+-│                 │                                                          │
+-│                 └──▶ Decision Log, Session Continuity section             │
+-│                                                                            │
+-│  SCRIPTS                                                                   │
+-│  ├── context-manager.sh ───── manages ──▶ compaction, checkpoint          │
+-│  ├── synthesis-checkpoint.sh ─ calls ───▶ grounding-check.sh              │
+-│  ├── grounding-check.sh ────── reads ───▶ trajectory/*.jsonl              │
+-│  └── self-heal-state.sh ────── recovers ▶ State Zone files                │
+-│                                                                            │
+-│  FLOW:                                                                     │
+-│  Session Start ──▶ self-heal-state.sh (if needed)                         │
+-│       │                                                                    │
+-│       ▼                                                                    │
+-│  Work (with JIT retrieval, trajectory logging)                             │
+-│       │                                                                    │
+-│       ▼ (Yellow threshold)                                                 │
+-│  Delta-Synthesis (partial persist)                                         │
+-│       │                                                                    │
+-│       ├──▶ (User: /compact)                                                │
+-│       │    context-manager.sh checkpoint (simplified 3-step)               │
+-│       │    │                                                               │
+-│       │    ▼ (PASS)                                                        │
+-│       │    Compaction with preservation rules                              │
+-│       │                                                                    │
+-│       └──▶ (User: /clear)                                                  │
+-│            synthesis-checkpoint.sh ──▶ grounding-check.sh                  │
+-│            │                                                               │
+-│            ▼ (PASS)                                                        │
+-│            Context cleared, Level 1 Recovery (~100 tokens)                 │
+-│                                                                            │
+-└────────────────────────────────────────────────────────────────────────────┘
+-```
+-
+ ### Related Protocols
+ 
+-- **synthesis-checkpoint.md**: Pre-clear validation (BLOCKING)
++- **synthesis-checkpoint.md**: Pre-clear validation (blocking)
+ - **tool-result-clearing.md**: Clearing thresholds + NOTES.md synthesis discipline
+ - **grounding-enforcement.md**: Citation quality verification
+ - **trajectory-evaluation.md**: Handoff logging
+@@ -596,40 +397,34 @@
+ 
+ ### Scenario 1: Clean /clear
+ 
+-```
+-1. User: /clear
+-2. Hook: synthesis-checkpoint.sh
+-3. Grounding ratio >= 0.95 ✓
+-4. No unverified ghosts ✓
+-5. Ledgers synced ✓
+-6. /clear executes
+-7. Session Recovery: Level 1 (~100 tokens)
+-8. Resume from Reasoning State
+-```
++1. User runs `/clear`.
++2. `synthesis-checkpoint.sh` runs.
++3. Grounding ratio >= 0.95.
++4. No unverified ghosts.
++5. Ledgers synced.
++6. `/clear` executes.
++7. Session Recovery: Level 1 (~100 tokens).
++8. Resume from Reasoning State.
+ 
+ ### Scenario 2: Session Crash
+ 
+-```
+-1. Session terminates unexpectedly
+-2. Delta-synthesis may have run (Yellow threshold)
+-3. New session starts
+-4. br ready -> identify in-progress task
+-5. br show <id> -> load decisions[], handoffs[]
+-6. NOTES.md Session Continuity -> last checkpoint
+-7. Resume from last known state
+-8. Some work may be lost (since last delta-sync)
+-```
++1. Session terminates unexpectedly.
++2. Delta-synthesis may have run (Yellow threshold).
++3. New session starts.
++4. `br ready` identifies the in-progress task.
++5. `br show <id>` loads `decisions[]`, `handoffs[]`.
++6. NOTES.md Session Continuity gives the last checkpoint.
++7. Resume from last known state.
++8. Some work may be lost (since the last delta-sync).
+ 
+ ### Scenario 3: Missing State Zone Files
+ 
+-```
+-1. Session starts
+-2. NOTES.md missing
+-3. Self-healing: git show HEAD:grimoires/loa/NOTES.md
+-4. If git fails: Create from template
+-5. Log recovery to trajectory
+-6. Continue operation (never halt)
+-```
++1. Session starts.
++2. NOTES.md is missing.
++3. Self-heal: `git show HEAD:grimoires/loa/NOTES.md`.
++4. If git fails: create from template.
++5. Log the recovery to trajectory.
++6. Continue operation — never halt.
+ 
+ ## Configuration
+ 
+@@ -641,9 +436,3 @@
+   level1_tokens: 100        # Max tokens for Level 1
+   level2_tokens: 500        # Max tokens for Level 2
+ ```
+-
+----
+-
+-**Document Version**: 1.1
+-**Protocol Version**: v2.3 (Claude Platform Integration)
+-**Paradigm**: Clear, Don't Compact

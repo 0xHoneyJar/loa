@@ -1,0 +1,135 @@
+--- a/.claude/protocols/git-safety.md
++++ b/.claude/protocols/git-safety.md
+@@ -11,7 +11,7 @@
+ 
+ Detection uses a 4-layer approach with fallback behavior:
+ 
+-### Layer 1: Cached Detection (Fastest, < 100ms)
++### Layer 1: Cached Detection
+ 
+ ```bash
+ # Check .loa-setup-complete for cached template_source
+@@ -24,9 +24,7 @@
+ fi
+ ```
+ 
+-**When to use**: Always check first. If `template_source.detected` is `true`, use this result.
+-
+-### Layer 2: Origin URL Check (Local, < 1s)
++### Layer 2: Origin URL Check
+ 
+ ```bash
+ ORIGIN_URL=$(git remote get-url origin 2>/dev/null)
+@@ -36,9 +34,7 @@
+ fi
+ ```
+ 
+-**When to use**: When cache miss or verifying cache.
+-
+-### Layer 3: Upstream Remote Check (Local, < 1s)
++### Layer 3: Upstream Remote Check (catches forks whose upstream is the template)
+ 
+ ```bash
+ if git remote -v | grep -E "^(upstream|loa)\s" | grep -qE "(0xHoneyJar|thj-dev)/loa"; then
+@@ -47,9 +43,7 @@
+ fi
+ ```
+ 
+-**When to use**: Catches forks where origin is user's repo but upstream points to template.
+-
+-### Layer 4: GitHub API Check (Network, < 3s)
++### Layer 4: GitHub API Check (when local detection is inconclusive)
+ 
+ ```bash
+ if command -v gh &>/dev/null; then
+@@ -61,40 +55,14 @@
+ fi
+ ```
+ 
+-**When to use**: When local detection is inconclusive, or for authoritative verification.
+-
+ ## Detection Procedure
+ 
+ Before executing ANY `git push`, `gh pr create`, or GitHub MCP PR creation:
+ 
+-```
+-START Detection Procedure
+-│
+-├─► Step 1: Identify target remote
+-│   Run: git remote -v
+-│   Extract the URL for the remote being pushed to
+-│
+-├─► Step 2: Check against known templates
+-│   Does URL contain "(0xHoneyJar|thj-dev)/loa"?
+-│   ├── YES → Template detected, proceed to Warning
+-│   └── NO  → Safe to proceed, skip to Step 6
+-│
+-├─► Step 3: Display warning message
+-│   Fill all placeholders with actual values
+-│   NEVER proceed without showing this warning
+-│
+-├─► Step 4: Wait for user response (MANDATORY)
+-│   Use AskUserQuestion tool
+-│   DO NOT auto-proceed under any circumstances
+-│
+-├─► Step 5: Handle user response
+-│   ├── "Proceed anyway" → Execute operation ONCE
+-│   ├── "Cancel"         → Stop, do nothing further
+-│   └── "Fix remotes"    → Display remediation, then stop
+-│
+-└─► Step 6: Execute or stop based on user choice
+-    END Detection Procedure
+-```
++1. Identify the target remote (`git remote -v`) and its URL.
++2. If the URL matches `(0xHoneyJar|thj-dev)/loa` (or a layer above says template), show the warning below with every placeholder filled — never proceed without it.
++3. Ask via `AskUserQuestion` (below); never auto-proceed, and free-text "yes" is not a confirmation.
++4. "Proceed anyway" → execute the operation once; "Cancel" → stop; "Fix remotes" → show the remediation guide, then stop.
+ 
+ ## Warning Message Template
+ 
+@@ -157,14 +125,6 @@
+ })
+ ```
+ 
+-## Response Handling
+-
+-| User Selection | Behavior |
+-|----------------|----------|
+-| "Proceed anyway" | Log confirmation, execute operation ONCE |
+-| "Cancel" | Stop immediately, inform user |
+-| "Fix my remotes" | Display remediation steps, then stop |
+-
+ ## Remediation Steps
+ 
+ When user selects "Fix my remotes":
+@@ -194,24 +154,10 @@
+   loa       https://github.com/0xHoneyJar/loa.git (fetch)
+ ```
+ 
+-## Edge Cases
++## Edge Cases and Exceptions
+ 
+-1. **User explicitly requests push**: Still show warning - they may not realize origin points to upstream
+-2. **User says "yes" without seeing options**: Use AskUserQuestion anyway - free-text is insufficient
+-3. **User asks to bypass all warnings**: Explain this is per-operation; no global disable
+-4. **Same session, same remote**: Show warning each time - don't assume previous confirmation applies
+-5. **`/contribute` command running**: Skip this check - it has its own safeguards
+-
+-## Exceptions
+-
+-- `/contribute` command handles upstream PRs with its own safeguards
+-- User explicit "proceed anyway" via AskUserQuestion allows the operation
+-- If `.loa-setup-complete` shows `template_source.detected: false`, skip warnings
+-- Operations targeting remotes that don't match known templates proceed without warning
+-
+-## Error Handling
+-
+-- All commands use `2>/dev/null` for graceful failures
+-- Layer 4 skipped if `gh` CLI not installed
+-- Network failures in Layer 4 fall back to local detection
+-- Missing `.loa-setup-complete` does NOT disable safety checks
++- Show the warning even when the user explicitly asked for the push, and again for the same remote later in the session — there is no global disable, only per-operation confirmation.
++- `/contribute` skips this check; it has its own safeguards.
++- `.loa-setup-complete` with `template_source.detected: false` skips the warning; a missing file does NOT disable the checks.
++- Remotes that match no known template proceed without a warning.
++- Commands use `2>/dev/null`; Layer 4 is skipped without `gh` or on network failure, falling back to local detection.

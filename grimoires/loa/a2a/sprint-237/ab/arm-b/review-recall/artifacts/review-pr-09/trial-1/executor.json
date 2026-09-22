@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "skill": "reviewing-code",
+  "run_id": "run-20260922-020732-bd977596",
+  "trial_id": "run-20260922-020732-bd977596-review-pr-09-trial-1",
+  "model_requested": "claude-sonnet-5",
+  "model_id": "claude-sonnet-5",
+  "effort": "medium",
+  "prompt_tree": "/home/merlin/Documents/thj/code/loa",
+  "prompt_tree_sha": "4f13f15c6d8273d6d5c663cc4e3fd46b344cba1f",
+  "prompt_tree_commit": "734f3837d9e5266dc1c3303168fb13977569a5da",
+  "prompt_tree_dirty": false,
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 159625,
+  "num_turns": 20,
+  "total_cost_usd": 0.5530784000000001,
+  "usage": {
+    "input_tokens": 40,
+    "output_tokens": 9941,
+    "cache_creation_input_tokens": 51905,
+    "cache_read_input_tokens": 1229842
+  },
+  "tool_writes": [
+    {
+      "seq": 1,
+      "tool": "Write",
+      "path": "/tmp/route_test.txt"
+    },
+    {
+      "seq": 2,
+      "tool": "Write",
+      "path": "/tmp/route_test2.txt"
+    },
+    {
+      "seq": 3,
+      "tool": "Write",
+      "path": "/tmp/loa-eval-run-20260922-020732-bd977596-review-pr-09-trial-1-V1jg5J/workspace/review.md"
+    }
+  ]
+}

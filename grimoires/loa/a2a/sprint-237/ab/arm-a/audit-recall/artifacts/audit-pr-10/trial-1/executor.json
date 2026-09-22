@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "skill": "auditing-security",
+  "run_id": "run-20260922-001135-8bb7118f",
+  "trial_id": "run-20260922-001135-8bb7118f-audit-pr-10-trial-1",
+  "model_requested": "claude-sonnet-5",
+  "model_id": "claude-sonnet-5",
+  "effort": "medium",
+  "prompt_tree": "/tmp/claude-1000/-home-merlin-Documents-thj-code-loa/0fedc0f6-e930-42c1-bbd6-0066aa17b5bd/scratchpad/arm-a-tree",
+  "prompt_tree_sha": "4e38de2632d83e8e634972f8854da8d4c60aea36",
+  "prompt_tree_commit": "72bdb7d27b80e9387c7d61400956cb3abbef5785",
+  "prompt_tree_dirty": false,
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 132423,
+  "num_turns": 22,
+  "total_cost_usd": 0.7114034,
+  "usage": {
+    "input_tokens": 44,
+    "output_tokens": 10076,
+    "cache_creation_input_tokens": 69039,
+    "cache_read_input_tokens": 1671997
+  },
+  "tool_writes": [
+    {
+      "seq": 1,
+      "tool": "Write",
+      "path": "/tmp/ajvtest/bin/ajv"
+    },
+    {
+      "seq": 2,
+      "tool": "Write",
+      "path": "/tmp/loa-eval-run-20260922-001135-8bb7118f-audit-pr-10-trial-1-eh9g8L/workspace/audit.md"
+    }
+  ]
+}

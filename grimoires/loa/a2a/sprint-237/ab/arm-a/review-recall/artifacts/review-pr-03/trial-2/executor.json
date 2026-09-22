@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "skill": "reviewing-code",
+  "run_id": "run-20260921-012015-8073032c",
+  "trial_id": "run-20260921-012015-8073032c-review-pr-03-trial-2",
+  "model_requested": "claude-sonnet-5",
+  "model_id": "claude-sonnet-5",
+  "effort": "medium",
+  "prompt_tree": "/tmp/claude-1000/-home-merlin-Documents-thj-code-loa/0fedc0f6-e930-42c1-bbd6-0066aa17b5bd/scratchpad/arm-a-tree",
+  "prompt_tree_sha": "4e38de2632d83e8e634972f8854da8d4c60aea36",
+  "prompt_tree_commit": "72bdb7d27b80e9387c7d61400956cb3abbef5785",
+  "prompt_tree_dirty": false,
+  "exit_code": 0,
+  "is_error": false,
+  "duration_ms": 174988,
+  "num_turns": 16,
+  "total_cost_usd": 0.6175486,
+  "usage": {
+    "input_tokens": 24,
+    "output_tokens": 14277,
+    "cache_creation_input_tokens": 74720,
+    "cache_read_input_tokens": 874338
+  },
+  "tool_writes": [
+    {
+      "seq": 1,
+      "tool": "Write",
+      "path": "/tmp/loa-eval-run-20260921-012015-8073032c-review-pr-03-trial-2-nyOLdm/workspace/review.md"
+    }
+  ]
+}

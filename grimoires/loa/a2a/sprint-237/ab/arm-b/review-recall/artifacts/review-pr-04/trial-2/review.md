@@ -1,0 +1,27 @@
+# Review: chore(cheval,flatline,status): shorten headless env scrub, temp-file handling, flag parsing
+
+## Summary
+
+The PR frames itself as a pure simplification/cleanup, but two of the three files remove
+behavior that was added deliberately to close named issues, and the third silently drops
+CLI input validation. None of this is "shortening" in the safe sense — it's reverting fixes.
+
+## Changes Required
+
+- **CRITICAL** (confidence: high) `head/.claude/adapters/loa_cheval/providers/base.py:472` — `_HEADLESS_STRIPPED_AUTH_VARS` drops `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_GENAI_USE_GCA`, `GOOGLE_GEMINI_BASE_URL`, and `GEMINI_CLI_USE_COMPUTE_ADC` from the strip list, re-opening the exact class of bug the surrounding comment says these lines exist to close (issues #879/#880). The base version's docstring (`base/.claude/adapters/loa_cheval/providers/base.py:489-494`) explicitly documents that the "auth-mode-selector sub-class" must be stripped alongside credentials, because leaving it in a headless subprocess's env silently redirects the CLI's auth path (e.g. to Vertex AI, GCA, or an operator/attacker-controlled `GOOGLE_GEMINI_BASE_URL`) even though `LOA_HEADLESS_KEEP_API_KEY` was never set. Concretely: an operator with `GOOGLE_GEMINI_BASE_URL` set in their shell for unrelated reasons (e.g. a personal Gemini proxy) will now have every headless-adapter subprocess call silently routed through that URL instead of the intended OAuth-subscription path — defeating the headless adapter's isolation guarantee without any opt-in. `head/.claude/adapters/loa_cheval/providers/base.py:502` (`for var in _HEADLESS_STRIPPED_AUTH_VARS`) confirms the loop just iterates the now-shorter tuple, so this isn't offset by logic elsewhere. This must be restored; there is no stated justification for removing these four entries, and the PR description ("shorten... env scrub") does not mention weakening the auth-mode isolation contract.
+
+- **HIGH** (confidence: high) `head/.claude/scripts/flatline-orchestrator.sh:577` — the `mktemp` failure guard was removed (`tmp=$(mktemp "${TEMP_DIR:-/tmp}/vq-input.XXXXXX.json")` with no error check), but the file still runs under `set -euo pipefail` (`head/.claude/scripts/flatline-orchestrator.sh:47`). Previously, a failed `mktemp` (e.g. `/tmp` full, no free inodes, or a restricted `TEMP_DIR`) logged a warning and `continue`d to the next input file, degrading gracefully. Now the same failure is an unguarded command substitution under `set -e`, so it aborts the entire `aggregate_and_write_final_consensus` call — and, transitively, the whole flatline-orchestrator run — instead of just skipping one voice's verdict-quality envelope. This converts a low-probability, previously-handled degradation into a hard crash of an orchestration script that other automation depends on.
+
+- **HIGH** (confidence: high) `head/.claude/scripts/flatline-orchestrator.sh:2281` — same regression for the arbiter-prompt temp file: `arbiter_prompt_file=$(mktemp)` has no failure check, where the base version logged `"ERROR: mktemp failed for arbiter prompt — skipping arbiter step for $phase"` and `continue`d past just that phase. Under `set -e` this now takes down the whole orchestrator run on a transient `mktemp` failure instead of skipping a single arbiter step.
+
+- **MEDIUM** (confidence: high) `head/.claude/scripts/loa-status.sh:62-65` — the entire unknown-argument validation path was deleted (the `UNKNOWN_ARGS` array, the `USAGE_LINE` check, and the `exit 2` with usage text are all gone from `base/.claude/scripts/loa-status.sh:71-90`). In non-`--economy` mode, an unrecognized flag (e.g. a typo like `--jso`) is now silently swallowed into `ECONOMY_ARGS` and never surfaced — the script proceeds as if nothing was wrong, producing normal status output instead of erring out with a usage message. This is a real UX regression for a CLI: a mistyped flag now fails silently rather than loudly, and there is no note in the PR description that input validation was intentionally being cut.
+
+## Observations
+
+- `head/.claude/scripts/loa-status.sh:30-35` — colors (`RED`/`GREEN`/`YELLOW`/`CYAN`/`BOLD`/`NC`) are now hardcoded unconditionally, dropping the `NO_COLOR` and `[[ -t 1 ]]` (non-TTY) detection that existed in `base/.claude/scripts/loa-status.sh:29-42`. Piping `loa-status.sh` output to a file, log aggregator, or any consumer that doesn't render ANSI escapes will now embed raw `\033[...]` sequences, and users who set `NO_COLOR` per convention will no longer get plain text. This is lower severity than the validation removal (it's a display nuisance, not silent data loss/security), but it's still an unannounced behavior change that a "shorten... colour setup" description undersells — it doesn't just shorten the setup, it removes a feature.
+
+## Recommendation
+
+Restore the four auth-mode-selector vars in `_HEADLESS_STRIPPED_AUTH_VARS`, restore the `mktemp` failure guards in both flatline-orchestrator.sh call sites (or justify in the PR why the corresponding failure mode is now acceptable to crash on), and restore unknown-flag validation in loa-status.sh. If the `NO_COLOR`/TTY detection removal is intentional, say so explicitly and confirm downstream consumers (CI logs, `--json` mode callers) were checked for ANSI-escape pollution.
+
+<!-- LOA-VERDICT {"gate":"review","verdict":"CHANGES_REQUIRED","counts":{"critical":1,"high":2,"medium":1,"low":0},"sprint_id":"pr-review","ts":"2026-09-22T00:00:00Z"} -->

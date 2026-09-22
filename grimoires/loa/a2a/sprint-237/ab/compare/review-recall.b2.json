@@ -1,0 +1,379 @@
+{
+  "valid": true,
+  "reasons": [],
+  "metric": "recall",
+  "arms": {
+    "a": {
+      "trials_completed": 30,
+      "error_trials": 0,
+      "models": [
+        "claude-sonnet-5"
+      ],
+      "prompt_trees": [
+        "4e38de2632d83e8e634972f8854da8d4c60aea36"
+      ],
+      "recall": 0.9583,
+      "false_positives": 0.0,
+      "tokens_mean": 1621778.0667,
+      "pass_rate": 0.7667
+    },
+    "b": {
+      "trials_completed": 30,
+      "error_trials": 0,
+      "models": [
+        "claude-sonnet-5"
+      ],
+      "prompt_trees": [
+        "397d903686c21e8c66f18090acadf01411c3fc8d"
+      ],
+      "recall": 0.9445,
+      "false_positives": 0.1666,
+      "tokens_mean": 1575797.5,
+      "pass_rate": 0.7333
+    }
+  },
+  "gates": [
+    {
+      "name": "recall",
+      "a": 0.9583,
+      "b": 0.9445,
+      "pass": true,
+      "rule": "mean recall over defect tasks: B >= A - 0.1"
+    },
+    {
+      "name": "false_positives",
+      "a": 0.0,
+      "b": 0.1666,
+      "pass": false,
+      "rule": "mean critical+high findings on clean tasks: B <= A"
+    }
+  ],
+  "per_defect": [
+    {
+      "id": "D01-decoy-flag-reanchor",
+      "a": 0.3333,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D02-aws-session-key-redaction",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D03-grep-count-double-zero",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D04-verify-for-merge-trusts-local-pubkey",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D05-backtick-command-paths",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D06-prerelease-tags-rejected",
+      "a": 1.0,
+      "b": 0.6667,
+      "regressed": true
+    },
+    {
+      "id": "D07-empty-ledger-write",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D08-relative-symlink-resolved-from-cwd",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D09-release-merge-misclassified",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D10-auth-mode-selectors-not-scrubbed",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D11-mktemp-unchecked",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D12-unknown-flag-silent",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D13-find-exec-multi-root",
+      "a": 1.0,
+      "b": 0.6667,
+      "regressed": true
+    },
+    {
+      "id": "D14-billing-400-terminal",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D15-completed-sprints-unscoped",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D16-spawn-oserror-crashes-chain",
+      "a": 1.0,
+      "b": 0.6667,
+      "regressed": true
+    },
+    {
+      "id": "D17-skeptic-bare-array-envelope",
+      "a": 0.6667,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D18-event-key-alternation-on-array",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D19-hidden-dir-denylist-leaks",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D20-local-source-ignores-slug",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D21-blind-dotdot-rejection",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D22-ledger-shape-unpinned",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D23-heredoc-body-fail-open",
+      "a": 1.0,
+      "b": 1.0,
+      "regressed": false
+    },
+    {
+      "id": "D24-embedded-nul-valueerror",
+      "a": 1.0,
+      "b": 0.6667,
+      "regressed": true
+    }
+  ],
+  "per_task": {
+    "review-pr-01": {
+      "a": {
+        "planted": 3,
+        "recall": 0.7778,
+        "false_positives": 0.0,
+        "tokens_mean": 2110571.6667,
+        "pass_rate": 0.3333,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1838387.3333,
+        "pass_rate": 1.0,
+        "trials": 3
+      }
+    },
+    "review-pr-02": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1498034.0,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 0.8889,
+        "false_positives": 0.0,
+        "tokens_mean": 1157458.0,
+        "pass_rate": 0.6667,
+        "trials": 3
+      }
+    },
+    "review-pr-03": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1335460.3333,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1714340.3333,
+        "pass_rate": 1.0,
+        "trials": 3
+      }
+    },
+    "review-pr-04": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1255695.0,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1646957.3333,
+        "pass_rate": 0.3333,
+        "trials": 3
+      }
+    },
+    "review-pr-05": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1789511.3333,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 0.8889,
+        "false_positives": 0.0,
+        "tokens_mean": 1577537.0,
+        "pass_rate": 0.6667,
+        "trials": 3
+      }
+    },
+    "review-pr-06": {
+      "a": {
+        "planted": 3,
+        "recall": 0.8889,
+        "false_positives": 0.0,
+        "tokens_mean": 1754511.0,
+        "pass_rate": 0.6667,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 0.8889,
+        "false_positives": 0.0,
+        "tokens_mean": 1119328.6667,
+        "pass_rate": 0.6667,
+        "trials": 3
+      }
+    },
+    "review-pr-07": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1191094.6667,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1168388.3333,
+        "pass_rate": 1.0,
+        "trials": 3
+      }
+    },
+    "review-pr-08": {
+      "a": {
+        "planted": 3,
+        "recall": 1.0,
+        "false_positives": 0.0,
+        "tokens_mean": 1542790.0,
+        "pass_rate": 1.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 3,
+        "recall": 0.8889,
+        "false_positives": 0.0,
+        "tokens_mean": 2090314.3333,
+        "pass_rate": 0.6667,
+        "trials": 3
+      }
+    },
+    "review-pr-09": {
+      "a": {
+        "planted": 0,
+        "recall": null,
+        "false_positives": 0.0,
+        "tokens_mean": 1945831.6667,
+        "pass_rate": 0.0,
+        "trials": 3
+      },
+      "b": {
+        "planted": 0,
+        "recall": null,
+        "false_positives": 0.3333,
+        "tokens_mean": 1495352.0,
+        "pass_rate": 0.3333,
+        "trials": 3
+      }
+    },
+    "review-pr-10": {
+      "a": {
+        "planted": 0,
+        "recall": null,
+        "false_positives": 0.0,
+        "tokens_mean": 1794281.0,
+        "pass_rate": 0.6667,
+        "trials": 3
+      },
+      "b": {
+        "planted": 0,
+        "recall": null,
+        "false_positives": 0.0,
+        "tokens_mean": 1949911.6667,
+        "pass_rate": 1.0,
+        "trials": 3
+      }
+    }
+  }
+}

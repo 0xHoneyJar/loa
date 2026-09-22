@@ -1,0 +1,737 @@
+--- a/.claude/skills/riding-codebase/SKILL.md
++++ b/.claude/skills/riding-codebase/SKILL.md
+@@ -19,40 +19,24 @@
+ 
+ # Riding Through the Codebase
+ 
+-You are analyzing an existing codebase to generate evidence-grounded Loa artifacts following the v0.6.0 Enterprise-Grade Managed Scaffolding model.
++You are analyzing an existing codebase to generate evidence-grounded Loa artifacts (PRD, SDD, drift and consistency reports) that reflect what the code actually does.
+ 
+ > *"The Loa rides through the code, channeling truth into the grimoire."*
+ 
+ ## Core Principles
+ 
+-```
+-CODE IS TRUTH → Loa channels CODE → Grimoire reflects REALITY
+-```
+-
+ 1. **Never trust documentation** - Verify everything against code
+ 2. **Flag, don't fix** - Dead code/issues flagged for human decision
+ 3. **Evidence required** - Every claim needs `file:line` citation
+ 4. **Target repo awareness** - Grimoire lives WITH the code it documents
+ 
++Artifacts tagged **WRITE TO DISK** below are created with `Write`, never rendered inline as a substitute; Glob-verify immediately (expect 1 match), retry once, and on repeat failure log `{"phase": N, "action": "write_failed", "artifact": "<name>", "status": "error"}` and continue — Phase 10.0's gate catches what still didn't land.
++
+ ---
+ 
+ ## Phase 0: Preflight & Mount Verification
+ 
+-### 0.1 Verify Loa is Mounted
+-
+-Check for `.loa-version.json`. If missing, instruct user to run `/mount` first. Extract and display framework version.
+-
+-### 0.2 System Zone Integrity Check (BLOCKING)
+-
+-Verify `.claude/checksums.json` against actual file hashes. If drift detected:
+-
+-- Display drifted files list
+-- Offer options: move customizations to `.claude/overrides/`, `--force-restore` to reset, `/update-loa --force-restore` to sync
+-- BLOCK unless `--force-restore` passed
+-
+-If no checksums file exists (first ride), skip with warning.
+-
+-### 0.3 Detect Execution Context
++Check for `.loa-version.json` (if missing, instruct the user to run `/mount` first; extract and display the framework version). Verify `.claude/checksums.json` against actual file hashes (BLOCKING): if drift is detected, display the drifted files, offer to move customizations to `.claude/overrides/` or reset via `--force-restore` / `/update-loa --force-restore`, and block unless `--force-restore` is passed; skip with a warning if no checksums file exists yet (first ride).
+ 
+ ```bash
+ if [[ -f ".claude/commands/ride.md" ]] && [[ -d ".claude/skills/riding-codebase" ]]; then
+@@ -63,89 +47,29 @@
+ fi
+ ```
+ 
+-### 0.4 Target Resolution (Framework Repo Only)
+-
+-If `IS_FRAMEWORK_REPO=true`, use `AskUserQuestion` to select target repo. The Loa rides codebases, not itself.
+-
+-### 0.5 Initialize Ride Trajectory
++If `IS_FRAMEWORK_REPO=true`, use `AskUserQuestion` to select a target repo — the Loa rides codebases, not itself.
+ 
+ ```bash
+ TRAJECTORY_FILE="grimoires/loa/a2a/trajectory/riding-$(date +%Y%m%d).jsonl"
+ mkdir -p grimoires/loa/a2a/trajectory
+ ```
+ 
+-Log preflight completion to trajectory.
+-
+-### 0.6 Artifact Staleness Check
+-
+-If `grimoires/loa/reality/.reality-meta.json` exists:
+-
+-1. Read `generated_at` timestamp from the JSON
+-2. Read `ride.staleness_days` from `.loa.config.yaml` (default: 7)
+-3. If artifacts are fresh (< staleness_days old) AND `--fresh` flag NOT passed:
+-   - Use `AskUserQuestion`: "Ride artifacts are N days old. [R]e-analyze or [S]kip?"
+-   - If skip: Exit with message "Using existing ride artifacts from [date]"
+-4. If `--fresh` flag: proceed regardless of artifact age
+-5. If `.reality-meta.json` does not exist: proceed (first ride)
+-
+-Log staleness check to trajectory:
+-```json
+-{"phase": 0.6, "action": "staleness_check", "status": "fresh|stale|first_ride", "artifact_age_days": N}
+-```
++Log preflight completion to trajectory. Then, if `grimoires/loa/reality/.reality-meta.json` exists and `--fresh` was not passed, compare its `generated_at` timestamp against `ride.staleness_days` in `.loa.config.yaml` (default 7): if the artifacts are still fresh, ask via `AskUserQuestion` whether to re-analyze or skip (skipping exits with a message naming the existing artifact date); `--fresh` always proceeds, as does a missing meta file (first ride). Log the staleness status and artifact age to trajectory.
+ 
+ ---
+ 
+ ## Enrichment Flags (Opt-In Depth Control)
+ 
+-Parse the user's invocation text for enrichment flags. These control whether optional Phases 12-14 run after the standard ride.
+-
+-### Flag Detection
+-
+-Scan the user's invocation for these flags:
++| Flag | Variable | Phase | Action name |
++|------|----------|-------|-------------|
++| `--with-gaps` | `ENRICH_GAPS` | 12: Gap Tracker | `gap_tracker` |
++| `--with-decisions` | `ENRICH_DECISIONS` | 13: Decision Archaeology | `decision_archaeology` |
++| `--with-terms` | `ENRICH_TERMS` | 14: Terminology Extraction | `terminology_extraction` |
++| `--with-simplicity` | `ENRICH_SIMPLICITY` | 15: Over-Engineering Audit + shortcut ledger | `simplicity_audit` |
+ 
+-| Flag | Variable | Default | Effect |
+-|------|----------|---------|--------|
+-| `--with-gaps` | `ENRICH_GAPS` | `false` | Enable Phase 12: Gap Tracker |
+-| `--with-decisions` | `ENRICH_DECISIONS` | `false` | Enable Phase 13: Decision Archaeology |
+-| `--with-terms` | `ENRICH_TERMS` | `false` | Enable Phase 14: Terminology Extraction |
+-| `--with-simplicity` | `ENRICH_SIMPLICITY` | `false` | Enable Phase 15: Over-Engineering Audit + shortcut ledger |
+-| `--enriched` | Sets all four above | `false` | Enable all enrichment phases |
+-
+-### Parsing Rules
+-
+-1. If `--enriched` is present, set `ENRICH_GAPS=true`, `ENRICH_DECISIONS=true`, `ENRICH_TERMS=true`, `ENRICH_SIMPLICITY=true`
+-2. Individual flags can be combined: `--with-gaps --with-decisions`
+-3. If NO enrichment flags are present, all variables remain `false` — standard ride proceeds unchanged
+-4. Log parsed flags to trajectory:
+-```json
+-{"phase": "flags", "action": "enrichment_flags_parsed", "status": "complete", "details": {"ENRICH_GAPS": false, "ENRICH_DECISIONS": false, "ENRICH_TERMS": false}}
+-```
+-
+-### Configuration Defaults
+-
+-Read enrichment thresholds from `.loa.config.yaml` (used by Phases 12-14):
+-
+-```bash
+-# Gap tracker thresholds
+-GAP_MAX_OPEN=$(yq eval '.ride.enrichment.gaps.max_open // 200' .loa.config.yaml 2>/dev/null || echo "200")
+-GAP_WARN_AT=$(yq eval '.ride.enrichment.gaps.warn_at // 150' .loa.config.yaml 2>/dev/null || echo "150")
+-
+-# Decision archaeology thresholds
+-DECISION_STALE_MONTHS=$(yq eval '.ride.enrichment.decisions.stale_months // 12' .loa.config.yaml 2>/dev/null || echo "12")
+-DECISION_EXTRA_PATHS=$(yq eval '.ride.enrichment.decisions.extra_paths // []' .loa.config.yaml 2>/dev/null || echo "[]")
+-
+-# Terminology thresholds
+-TERM_MAX_TERMS=$(yq eval '.ride.enrichment.terminology.max_terms // 50' .loa.config.yaml 2>/dev/null || echo "50")
+-```
+-
+-### QMD Reality Context (Optional)
+-
+-During drift analysis, if `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false`:
++`--enriched` sets all four; unset flags default `false` (standard ride unchanged). Log the resolved set to trajectory (`{"phase": "flags", "action": "enrichment_flags_parsed", ...}`).
+ 
+-1. Build query from module names being analyzed
+-2. Run: `.claude/scripts/qmd-context-query.sh --query "<module_names>" --scope reality --budget 2000 --format text`
+-3. Include output as additional context during drift comparison
+-4. If script missing, disabled, or returns empty: proceed normally (graceful no-op)
++See `resources/enrichment-config.md` when any flag is set, for the threshold defaults each phase reads and the optional QMD integration.
+ 
+ ---
+ 
+@@ -163,15 +87,9 @@
+ 
+ ---
+ 
+-## Phase 0.5: Codebase Probing (RLM Pattern)
++## Phase 0.5: Codebase Probing
+ 
+-Before loading any files, probe the codebase to determine optimal loading strategy.
+-
+-### 0.5.1 Run Codebase Probe
+-
+-Use `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` to get file count, line count, estimated tokens, and codebase size category. Fall back to eager loading if probe unavailable.
+-
+-### 0.5.2 Determine Loading Strategy
++Before loading any files, probe the codebase to pick a loading strategy. Run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (fall back to eager loading if unavailable) for file count, lines, tokens, and size category:
+ 
+ | Codebase Size | Lines | Strategy |
+ |---------------|-------|----------|
+@@ -179,33 +97,21 @@
+ | Medium | 10K-50K | Prioritized — high-relevance first |
+ | Large | >50K | Excerpts only — too large for full load |
+ 
+-### 0.5.3 Generate Loading Plan
+-
+-Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-load decision. For prioritized/excerpts strategies, sort files by relevance score using `.claude/scripts/context-manager.sh should-load "$file" --json`.
+-
+-Log probe results to trajectory.
++Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-load decision; for prioritized/excerpts strategies, sort by relevance score using `.claude/scripts/context-manager.sh should-load "$file" --json`. Log probe results to trajectory.
+ 
+ ---
+ 
+ ## Phase 1: Interactive Context Discovery
+ 
+-### 1.1 Check for Existing Context
++### 1.1 Context Discovery Setup
+ 
+-Scan `grimoires/loa/context/` for existing documentation files.
++Scan `grimoires/loa/context/` for existing documentation files, then use `AskUserQuestion` to offer the user a chance to add more (architecture docs, tribal knowledge, roadmaps) to `grimoires/loa/context/` before the interview.
+ 
+-### 1.2 Context File Prompt
++### 1.2 Analyze Existing Context (Pre-Interview)
+ 
+-Use `AskUserQuestion` to offer the user a chance to add context files (architecture docs, tribal knowledge, roadmaps) to `grimoires/loa/context/` before the interview.
++If context files exist, analyze them before the interview and generate `grimoires/loa/context/context-coverage.md` listing the topics covered (skippable in the interview), the gaps still to explore, and the claims extracted to verify against code.
+ 
+-### 1.3 Analyze Existing Context (Pre-Interview)
+-
+-If context files exist, analyze them BEFORE the interview. Generate `grimoires/loa/context/context-coverage.md` listing:
+-- Files analyzed with key topics
+-- Topics already covered (will skip in interview)
+-- Gaps to explore in interview
+-- Claims extracted to verify against code
+-
+-### 1.4 Interactive Discovery (Gap-Focused Interview)
++### 1.3 Interactive Discovery (Gap-Focused Interview)
+ 
+ Use `AskUserQuestion` for each topic, skipping questions answered by context files:
+ 
+@@ -215,52 +121,25 @@
+ 4. **Work in Progress**: Intentionally incomplete code, planned features
+ 5. **History**: Codebase age, architecture evolution
+ 
+-### 1.5 Generate Claims to Verify (MANDATORY OUTPUT)
+-
+-**YOU MUST CREATE** `grimoires/loa/context/claims-to-verify.md` with tables for:
+-- Architecture Claims (claim, source, verification strategy)
+-- Domain Claims
+-- Tribal Knowledge (handle carefully)
+-- WIP Status
+-
+-Even if interview is skipped, create this file from existing context.
++### 1.4 Generate Claims to Verify
+ 
+-### 1.6 File Persistence Checkpoint (CP-1)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/context/claims-to-verify.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/context/claims-to-verify.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 1, "action": "write_failed", "artifact": "claims-to-verify.md", "status": "error"}
+-```
+-
+-**Do NOT render the artifact inline without also writing it to disk.**
+-
+-### 1.7 Tool Result Clearing Checkpoint
+-
+-Clear raw interview data. Summarize captured claims count and top investigation areas.
++Create `grimoires/loa/context/claims-to-verify.md` with tables for: Architecture Claims (claim, source, verification strategy), Domain Claims, Tribal Knowledge (handle carefully), WIP Status - even if the interview was skipped, from existing context alone. **WRITE TO DISK.**
+ 
+ ---
+ 
+ ## Phase 2: Code Reality Extraction
+ 
+-### Setup
+-
+ ```bash
+ mkdir -p grimoires/loa/reality
+ cd "$TARGET_REPO"
+ ```
+ 
+-Apply the loading strategy from Phase 0.5 to control which files get fully loaded, excerpted, or skipped.
+-
+-### Extraction Steps
+-
+-Execute the following extractions, writing results to `grimoires/loa/reality/`:
++Apply the loading strategy from Phase 0.5, then execute the following extractions, writing results to `grimoires/loa/reality/`:
+ 
+ | Step | Output File | What to Extract |
+ |------|-------------|-----------------|
+ | 2.2 | `structure.md` | Directory tree (max depth 4, excluding node_modules/dist/build) |
+-| 2.3 | `api-routes.txt` | Route definitions (@Get, @Post, router.*, app.get, etc.) |
++| 2.3 | `api-routes.txt` | Route definitions (@Get, @Post, router.*, app.get) |
+ | 2.4 | `data-models.txt` | Models, entities, schemas, CREATE TABLE, interfaces |
+ | 2.5 | `env-vars.txt` | process.env.*, os.environ, os.Getenv references |
+ | 2.6 | `tech-debt.txt` | TODO, FIXME, HACK, XXX, @deprecated, @ts-ignore |
+@@ -268,63 +147,26 @@
+ 
+ **See**: `resources/references/deep-analysis-guide.md` for detailed extraction commands and loading strategy helpers.
+ 
+-### 2.8 Tool Result Clearing Checkpoint (MANDATORY)
+-
+-Clear raw tool outputs. Report counts for routes, entities, env vars, tech debt, tests. Include loading strategy results (files loaded/excerpted/skipped, tokens saved).
++Clear raw tool outputs after extraction; report counts for routes, entities, env vars, tech debt, tests, plus loading-strategy results (files loaded/excerpted/skipped, tokens saved).
+ 
+ ---
+ 
+ ## Phase 2b: Code Hygiene Audit
+ 
+-Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for HUMAN DECISION:
+-
+-- Files outside standard directories
+-- Potential temporary/WIP folders
+-- Commented-out code blocks
+-- Potential dependency conflicts
++Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for HUMAN DECISION: files outside standard directories, potential temporary/WIP folders, commented-out code blocks, and potential dependency conflicts. **WRITE TO DISK.**
+ 
+ **See**: `resources/references/deep-analysis-guide.md` for the hygiene report template and dead code philosophy.
+ 
+-### 2b.1 File Persistence Checkpoint (CP-2b)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/reality/hygiene-report.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/reality/hygiene-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": "2b", "action": "write_failed", "artifact": "hygiene-report.md", "status": "error"}
+-```
+-
+ ---
+ 
+ ## Phase 3: Legacy Documentation Inventory
+ 
+-### 3.1 Find All Documentation
+-
+-Find all .md, .rst, .txt, .adoc files (excluding node_modules, .git, grimoires/loa). Save to `grimoires/loa/legacy/doc-files.txt`.
+-
+-### 3.2 Assess AI Guidance Quality (CLAUDE.md)
+-
+-Score existing CLAUDE.md on: length (>50 lines), tech stack mentions, pattern/convention guidance, warnings. Score out of 7; below 5 is insufficient.
+-
+-### 3.3 Create Inventory
+-
+-Create `grimoires/loa/legacy/INVENTORY.md` listing all docs with type and key claims.
+-
+-### 3.4 File Persistence Checkpoint (CP-3)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/legacy/INVENTORY.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/legacy/INVENTORY.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 3, "action": "write_failed", "artifact": "INVENTORY.md", "status": "error"}
+-```
++Find all .md, .rst, .txt, .adoc files (excluding node_modules, .git, grimoires/loa) and save to `grimoires/loa/legacy/doc-files.txt`. Score existing CLAUDE.md out of 7 (>50 lines, tech-stack mentions, pattern guidance, warnings; below 5 is insufficient). Create `grimoires/loa/legacy/INVENTORY.md` listing all docs with type and key claims. **WRITE TO DISK.**
+ 
+ ---
+ 
+ ## Phase 4: Three-Way Drift Analysis
+ 
+-### 4.1 Drift Categories
+-
+ | Category | Definition | Impact |
+ |----------|------------|--------|
+ | **Missing** | Code exists, no documentation | Medium |
+@@ -334,53 +176,29 @@
+ | **Shadow** | Code exists, completely undocumented | Medium |
+ | **Aligned** | Documentation matches code | Healthy |
+ 
+-### 4.2 Legacy Claim Verification (MANDATORY)
+-
+-Extract claims from legacy docs. For EACH claim, verify against code reality. Determine status: VERIFIED | STALE | HALLUCINATED | MISSING.
+-
+-### 4.3 Generate Drift Report
+-
+-Create `grimoires/loa/drift-report.md` with summary table, drift score, breakdown by type, critical items with verification evidence.
++Extract claims from legacy docs and verify each against code reality (VERIFIED / STALE / HALLUCINATED / MISSING). Create `grimoires/loa/drift-report.md` with a summary table, drift score, breakdown by type, and critical items with verification evidence. **WRITE TO DISK.**
+ 
+ **See**: `resources/references/analysis-checklists.md` for the full drift report template.
+ 
+-Log drift analysis to trajectory.
+-
+-### 4.4 File Persistence Checkpoint (CP-4)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/drift-report.md`.
++During drift analysis, if `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`, run `.claude/scripts/qmd-context-query.sh --query "<module_names>" --scope reality --budget 2000 --format text` as advisory context; missing, disabled or empty output is a graceful no-op.
+ 
+-After writing, verify with `Glob` pattern `grimoires/loa/drift-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 4, "action": "write_failed", "artifact": "drift-report.md", "status": "error"}
+-```
++Log drift analysis to trajectory.
+ 
+ ---
+ 
+-## Phase 5: Consistency Analysis (MANDATORY OUTPUT)
++## Phase 5: Consistency Analysis
+ 
+-**YOU MUST CREATE** `grimoires/loa/consistency-report.md`.
+-
+-Analyze naming patterns (entities, functions, files), compute consistency score (1-10), identify conflicts and improvement opportunities. Flag breaking changes without implementing.
++Create `grimoires/loa/consistency-report.md`: naming-pattern analysis (entities, functions, files), a consistency score (1-10), conflicts/improvement opportunities, and breaking changes flagged (not implemented). **WRITE TO DISK.**
+ 
+ **See**: `resources/references/analysis-checklists.md` for the consistency report template.
+ 
+ Log to trajectory.
+ 
+-### 5.1 File Persistence Checkpoint (CP-5)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/consistency-report.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/consistency-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 5, "action": "write_failed", "artifact": "consistency-report.md", "status": "error"}
+-```
+-
+ ---
+ 
+-## Phase 6: Loa Artifact Generation (WITH GROUNDING MARKERS)
++## Phase 6: Artifact Generation (Grounding Markers)
+ 
+-**MANDATORY**: Every claim in PRD and SDD MUST use grounding markers:
++Every claim in PRD and SDD carries a grounding marker:
+ 
+ | Marker | When to Use |
+ |--------|-------------|
+@@ -388,23 +206,15 @@
+ | `[INFERRED]` | Logical deduction from multiple sources |
+ | `[ASSUMPTION]` | No direct evidence — needs validation |
+ 
+-**Extended Markers** (available when enrichment phases run):
+-
+-| Marker | When to Use | Example |
+-|--------|-------------|---------|
+-| `[CLAIMED: source]` | Single-source evidence with attribution | `[CLAIMED: ADR-003 — Dynamic over Privy]` |
+-| `[DISPUTED: A vs B]` | Conflicting signals between sources | `[DISPUTED: README says Redis, code uses in-memory]` |
+-| `[UNKNOWN: GAP-NNN]` | Linked to gap tracker entry | `[UNKNOWN: GAP-007 — auth session TTL]` |
+-
+-These extended markers complement (not replace) the standard markers above and the BUTTERFREEZONE provenance tags (`CODE-FACTUAL`, `DERIVED`, `OPERATIONAL`). Use them in reality files (`grimoires/loa/reality/*.md`) and the gap tracker when enrichment phases produce evidence that warrants richer attribution.
++See `resources/extended-markers.md` when enrichment phases (12-14) need richer attribution, for the `[CLAIMED]`/`[DISPUTED]`/`[UNKNOWN]` syntax and the BUTTERFREEZONE provenance tags.
+ 
+ ### 6.1 Generate PRD
+ 
+-Create `grimoires/loa/prd.md` with evidence-grounded user types, features, and requirements. Include Source of Truth notice and Document Metadata.
++Create `grimoires/loa/prd.md`: evidence-grounded user types, features, requirements, a Source of Truth notice, and Document Metadata. **WRITE TO DISK.**
+ 
+ ### 6.2 Generate SDD
+ 
+-Create `grimoires/loa/sdd.md` with verified tech stack, module structure, data model, and API surface. All with grounding markers and evidence.
++Create `grimoires/loa/sdd.md` with verified tech stack, module structure, data model, and API surface. All with grounding markers and evidence. **WRITE TO DISK.**
+ 
+ ### 6.3 Grounding Summary Block
+ 
+@@ -416,20 +226,6 @@
+ 
+ Log to trajectory.
+ 
+-### 6.4 File Persistence Checkpoint (CP-6a, CP-6b)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist BOTH artifacts:
+-
+-| File | Path |
+-|------|------|
+-| PRD | `grimoires/loa/prd.md` |
+-| SDD | `grimoires/loa/sdd.md` |
+-
+-After writing each, verify with `Glob` — must return 1 match per file. If either missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 6, "action": "write_failed", "artifact": "prd.md|sdd.md", "status": "error"}
+-```
+-
+ ---
+ 
+ ## Phase 6.5: Reality File Generation (Token-Optimized Codebase Interface)
+@@ -445,40 +241,19 @@
+ | `structure.md` | Annotated directory tree, module responsibilities | < 1000 |
+ | `entry-points.md` | Main files, CLI commands, env requirements | < 500 |
+ | `architecture-overview.md` | System component diagram, data flows, tech stack, entry points | < 1500 |
++| `.reality-meta.json` | Token counts and staleness threshold per file | — |
+ 
+-Also generate `.reality-meta.json` with token counts and staleness threshold.
+-
+-**Total budget**: < 8500 tokens across all files (7000 base + 1500 architecture-overview).
++**Total budget**: < 8500 tokens (7000 base + 1500 for architecture-overview). **WRITE TO DISK** all eight, Glob-verified individually.
+ 
+ **See**: `resources/references/output-formats.md` for all reality file templates.
+ 
+ Log to trajectory.
+ 
+-### 6.5.1 File Persistence Checkpoint (CP-6.5)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist ALL reality files:
+-
+-| File | Path |
+-|------|------|
+-| Index | `grimoires/loa/reality/index.md` |
+-| API Surface | `grimoires/loa/reality/api-surface.md` |
+-| Types | `grimoires/loa/reality/types.md` |
+-| Interfaces | `grimoires/loa/reality/interfaces.md` |
+-| Structure | `grimoires/loa/reality/structure.md` |
+-| Entry Points | `grimoires/loa/reality/entry-points.md` |
+-| Architecture Overview | `grimoires/loa/reality/architecture-overview.md` |
+-| Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
+-
+-After writing each file, verify with `Glob` — each must return 1 match. Log any failures to trajectory:
+-```json
+-{"phase": 6.5, "action": "write_failed", "artifact": "{filename}", "status": "error"}
+-```
+-
+ ---
+ 
+ ## Phase 7: Governance Audit
+ 
+-Generate `grimoires/loa/governance-report.md`:
++Generate `grimoires/loa/governance-report.md`. **WRITE TO DISK.**
+ 
+ | Artifact | Check for |
+ |----------|-----------|
+@@ -488,28 +263,17 @@
+ | CODEOWNERS | Required reviewers |
+ | Semver tags | Release versioning |
+ 
+-### 7.1 File Persistence Checkpoint (CP-7)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/governance-report.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/governance-report.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 7, "action": "write_failed", "artifact": "governance-report.md", "status": "error"}
+-```
+-
+ ---
+ 
+ ## Phase 8: Legacy Deprecation
+ 
+-For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, with reference to `grimoires/loa/drift-report.md`.
+-
+-> **Checkpoint coverage note**: Phases 2 (extraction), 3 (`doc-files.txt`), and 8 (deprecation) produce intermediate or modified artifacts not covered by write checkpoints. Phase 2 extractions are working data consumed immediately by later phases. Phase 3's `INVENTORY.md` is covered by CP-3; `doc-files.txt` is an intermediate file. Phase 8 modifies existing files rather than creating new ones, so existence checks do not apply.
++For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, referencing `grimoires/loa/drift-report.md`.
+ 
+ ---
+ 
+-## Phase 9: Trajectory Self-Audit (MANDATORY OUTPUT)
++## Phase 9: Trajectory Self-Audit
+ 
+-**YOU MUST CREATE** `grimoires/loa/trajectory-audit.md`.
++Create `grimoires/loa/trajectory-audit.md`. **WRITE TO DISK.**
+ 
+ ### 9.1 Review Generated Artifacts
+ 
+@@ -521,18 +285,7 @@
+ 
+ **See**: `resources/references/analysis-checklists.md` for the full self-audit template.
+ 
+-**IMPORTANT**: If trajectory file is empty at Phase 9, flag as failure.
+-
+-Log to trajectory.
+-
+-### 9.3 File Persistence Checkpoint (CP-9)
+-
+-**WRITE TO DISK**: Use the `Write` tool to persist `grimoires/loa/trajectory-audit.md`.
+-
+-After writing, verify with `Glob` pattern `grimoires/loa/trajectory-audit.md` — must return 1 match. If missing after Write, retry once. If still missing, log to trajectory:
+-```json
+-{"phase": 9, "action": "write_failed", "artifact": "trajectory-audit.md", "status": "error"}
+-```
++An empty trajectory file at this point is a failure. Log to trajectory.
+ 
+ ---
+ 
+@@ -540,40 +293,26 @@
+ 
+ ### 10.0 Artifact Verification Gate (BLOCKING)
+ 
+-Before handoff, verify ALL expected artifacts exist on disk using `Glob`.
+-
+-**Full Mode Checklist**:
++Before handoff, Glob-verify every expected artifact exists on disk:
+ 
+-| # | Artifact | Path |
+-|---|----------|------|
+-| 1 | Claims to Verify | `grimoires/loa/context/claims-to-verify.md` |
+-| 2 | Hygiene Report | `grimoires/loa/reality/hygiene-report.md` |
+-| 3 | Drift Report | `grimoires/loa/drift-report.md` |
+-| 4 | Consistency Report | `grimoires/loa/consistency-report.md` |
+-| 5 | PRD | `grimoires/loa/prd.md` |
+-| 6 | SDD | `grimoires/loa/sdd.md` |
+-| 7 | Reality Index | `grimoires/loa/reality/index.md` |
+-| 8 | Governance Report | `grimoires/loa/governance-report.md` |
+-| 9 | Trajectory Audit | `grimoires/loa/trajectory-audit.md` |
+-| 10 | Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
+-| 11 | Legacy Inventory | `grimoires/loa/legacy/INVENTORY.md` |
+-
+-**Enrichment Artifacts** (check only when corresponding flag was set):
+-
+-| # | Artifact | Path | Condition |
+-|---|----------|------|-----------|
+-| 12 | Gap Tracker | `grimoires/loa/gaps.md` | `ENRICH_GAPS == true` |
+-| 13 | Decision Archaeology | `grimoires/loa/reality/decisions.md` | `ENRICH_DECISIONS == true` |
+-| 14 | Domain Terminology | `grimoires/loa/reality/terminology.md` | `ENRICH_TERMS == true` |
+-
+-**Procedure**:
+-1. For each file, use `Glob` to verify existence
+-2. Count: passed / total
+-3. If any missing: attempt to write from context, then re-verify
+-4. Report final count in completion summary
+-5. Log verification to trajectory
++| Artifact | Path |
++|----------|------|
++| Claims to Verify | `grimoires/loa/context/claims-to-verify.md` |
++| Hygiene Report | `grimoires/loa/reality/hygiene-report.md` |
++| Drift Report | `grimoires/loa/drift-report.md` |
++| Consistency Report | `grimoires/loa/consistency-report.md` |
++| PRD | `grimoires/loa/prd.md` |
++| SDD | `grimoires/loa/sdd.md` |
++| Reality Index | `grimoires/loa/reality/index.md` |
++| Governance Report | `grimoires/loa/governance-report.md` |
++| Trajectory Audit | `grimoires/loa/trajectory-audit.md` |
++| Reality Meta | `grimoires/loa/reality/.reality-meta.json` |
++| Legacy Inventory | `grimoires/loa/legacy/INVENTORY.md` |
++| Gap Tracker (`ENRICH_GAPS`) | `grimoires/loa/gaps.md` |
++| Decision Archaeology (`ENRICH_DECISIONS`) | `grimoires/loa/reality/decisions.md` |
++| Domain Terminology (`ENRICH_TERMS`) | `grimoires/loa/reality/terminology.md` |
+ 
+-**The ride MUST NOT complete with 0/N artifacts verified.** If critical artifacts (drift-report, consistency-report, governance-report, trajectory-audit, hygiene-report) are missing, flag as ride failure.
++Count passed/total; retry writing any missing artifact from context and re-verify; log the result. Flag the ride as failed on 0/N verified, or if a critical artifact (drift-report, consistency-report, governance-report, trajectory-audit, hygiene-report) is still missing after the retry.
+ 
+ ### 10.1 Update NOTES.md
+ 
+@@ -581,136 +320,26 @@
+ 
+ ### 10.2 Completion Summary
+ 
+-```
+-The Loa Has Ridden
+-
+-Artifact Verification: X/Y files persisted
+-
+-Grimoire Artifacts Created:
+-- grimoires/loa/prd.md (Product truth)
+-- grimoires/loa/sdd.md (System truth)
+-- grimoires/loa/drift-report.md (Three-way analysis)
+-- grimoires/loa/consistency-report.md (Pattern analysis)
+-- grimoires/loa/governance-report.md (Process gaps)
+-- grimoires/loa/reality/* (Raw extractions + token-optimized files)
+-- grimoires/loa/trajectory-audit.md (Self-audit)
+-
+-Enrichment Outputs (if enabled):
+-- grimoires/loa/gaps.md (Gap tracker — if --with-gaps)
+-- grimoires/loa/reality/decisions.md (Decision archaeology — if --with-decisions)
+-- grimoires/loa/reality/terminology.md (Domain terminology — if --with-terms)
+-
+-Next Steps:
+-1. Review drift-report.md for critical issues
+-2. Address governance gaps
+-3. /translate-ride for executive communications
+-4. Schedule stakeholder PRD review
+-5. Run /implement for high-priority drift
+-6. Review gaps.md and resolve open gaps (if enrichment ran)
+-```
++See `resources/completion-summary.md` when the ride finishes, to render the final summary (artifact list, enrichment outputs, next steps) verbatim.
+ 
+ ---
+ 
+ ## Phase 11: Ground Truth Generation (`--ground-truth` only)
+ 
+-This phase runs only when the `--ground-truth` flag is passed. It produces a token-efficient, deterministically-verified codebase summary for agent consumption.
+-
+-When `--ground-truth --non-interactive` is passed, phases 1 (Interactive Context Discovery), 3 (Legacy Doc Inventory), and 8 (Legacy Deprecation) are skipped — only extraction, analysis, and GT generation run.
++Runs only with `--ground-truth`: produces a token-efficient, deterministically-verified codebase summary for agent consumption. With `--non-interactive` also passed, phases 1, 3, and 8 are skipped — only extraction, analysis, and GT generation run.
+ 
+ **See**: `resources/references/enrichment-phases.md#phase-11-ground-truth-generation` for the full procedure.
+ 
+ ---
+ 
+-## Phase 12: Gap Tracker Generation (`ENRICH_GAPS` only)
+-
+-**Skip condition**: If `ENRICH_GAPS == false`, skip this entire phase. Log skip to trajectory:
+-```json
+-{"phase": 12, "action": "gap_tracker", "status": "skipped", "details": {"reason": "ENRICH_GAPS not set"}}
+-```
+-
+-**See**: `resources/references/enrichment-phases.md#phase-12-gap-tracker-generation` for the full procedure.
+-
+----
+-
+-## Phase 13: Decision Archaeology (`ENRICH_DECISIONS` only)
+-
+-**Skip condition**: If `ENRICH_DECISIONS == false`, skip this entire phase. Log skip to trajectory:
+-```json
+-{"phase": 13, "action": "decision_archaeology", "status": "skipped", "details": {"reason": "ENRICH_DECISIONS not set"}}
+-```
+-
+-**See**: `resources/references/enrichment-phases.md#phase-13-decision-archaeology` for the full procedure.
+-
+----
+-
+-## Phase 14: Domain Terminology Extraction (`ENRICH_TERMS` only)
+-
+-**Skip condition**: If `ENRICH_TERMS == false`, skip this entire phase. Log skip to trajectory:
+-```json
+-{"phase": 14, "action": "terminology_extraction", "status": "skipped", "details": {"reason": "ENRICH_TERMS not set"}}
+-```
++## Phases 12-15: Enrichment (opt-in, one skip condition)
+ 
+-**See**: `resources/references/enrichment-phases.md#phase-14-domain-terminology-extraction` for the full procedure.
++Each phase (flag/action in the table above) runs only when set, else skip and log `{"phase": N, "action": "<action>", "status": "skipped", "details": {"reason": "<VARIABLE> not set"}}`. Full procedures: `resources/references/enrichment-phases.md` (each phase's own `#phase-NN-...` anchor).
+ 
+ ---
+ 
+-## Phase 15: Over-Engineering Audit + Shortcut Ledger (`ENRICH_SIMPLICITY` only)
+-
+-**Skip condition**: If `ENRICH_SIMPLICITY == false`, skip this phase. Log skip to trajectory:
+-```json
+-{"phase": 15, "action": "simplicity_audit", "status": "skipped", "details": {"reason": "ENRICH_SIMPLICITY not set"}}
+-```
+-
+-**See**: `resources/references/enrichment-phases.md#phase-15-over-engineering-audit--shortcut-ledger` for the full procedure.
+-
+----
+-
+-## Uncertainty Protocol
+-
+-If code behavior is ambiguous:
+-
+-1. State: "I'm uncertain about [specific aspect]"
+-2. Quote the ambiguous code with `file:line`
+-3. List possible interpretations
+-4. Ask for clarification via `AskUserQuestion`
+-5. Log uncertainty in `NOTES.md`
+-
+-**Never assume. Always ground in evidence.**
+-
+----
+-
+-## Trajectory Logging (MANDATORY)
+-
+-**YOU MUST LOG EACH PHASE** to `grimoires/loa/a2a/trajectory/riding-{date}.jsonl`.
+-
+-### Log Format
+-
+-Each phase appends a JSON line:
+-
+-```json
+-{"timestamp": "ISO8601", "agent": "riding-codebase", "phase": N, "action": "phase_name", "status": "complete", "details": {...}}
+-```
++## Trajectory Logging
+ 
+-### Phase-Specific Details
++Each phase appends a JSON line to `grimoires/loa/a2a/trajectory/riding-{date}.jsonl`: `{"timestamp": "ISO8601", "agent": "riding-codebase", "phase": N, "action": "phase_name", "status": "complete", "details": {...}}`.
+ 
+-| Phase | Action | Key Details Fields |
+-|-------|--------|--------------------|
+-| 0 | `preflight` | `loa_version` |
+-| 0.5 | `codebase_probe` | `strategy`, `total_files`, `total_lines`, `estimated_tokens` |
+-| 0.6 | `staleness_check` | `status`, `artifact_age_days` |
+-| 1 | `claims_generated` | `claim_count`, `output` |
+-| 2 | `code_extraction` | `routes`, `entities`, `env_vars` |
+-| 2b | `hygiene_audit` | `items_flagged` |
+-| 3 | `legacy_inventory` | `docs_found` |
+-| 4 | `drift_analysis` | `drift_score`, `ghosts`, `shadows`, `stale` |
+-| 5 | `consistency_analysis` | `score`, `output` |
+-| 6 | `artifact_generation` | `prd_claims`, `sdd_claims`, `grounded_pct` |
+-| 6.5 | `reality_generation` | `files`, `total_tokens`, `within_budget` |
+-| 7 | `governance_audit` | `gaps` |
+-| 8 | `legacy_deprecation` | `files_marked` |
+-| 9 | `self_audit` | `quality_score`, `assumptions`, `output` |
+-| 10 | `handoff` | `total_duration_minutes` |
+-| 11 | `ground_truth_generation` | `files`, `total_tokens`, `checksums_count`, `within_budget` |
+-| 12 | `gap_tracker` | `new_gaps`, `total_open`, `highest_id`, `threshold_status` |
+-| 13 | `decision_archaeology` | `adr_dirs_found`, `adrs_parsed`, `active`, `stale`, `output` |
+-| 14 | `terminology_extraction` | `terms_extracted`, `domains`, `output` |
++See `resources/trajectory-fields.md` when logging a phase, for the exact `action`/`details` fields per phase.

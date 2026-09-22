@@ -1,0 +1,724 @@
+--- a/.claude/skills/reviewing-code/SKILL.md
++++ b/.claude/skills/reviewing-code/SKILL.md
+@@ -4,8 +4,7 @@
+ role: review
+ effort: xhigh
+ allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
+-# State-Zone feedback/checkmarks require Write/Edit. C-PROC-001 remains
+-# enforced by zones: System none, App read; only State artifacts are writable.
++# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
+ disallowed-tools:
+   - NotebookEdit
+ capabilities:
+@@ -40,7 +39,7 @@
+     paths: [src, lib, app]
+     permission: read
+ inputs:
+-  # ICM Layer-2 advisory manifest (glass-box). Advisory only — missing path WARNs.
++  # ICM Layer-2 advisory manifest; a missing path WARNs.
+   - path: grimoires/loa/known-failures.md
+     why: Context-Intake Discipline — read first
+   - path: .claude/loa/CLAUDE.loa.md
+@@ -70,13 +69,13 @@
+ # Senior Tech Lead Reviewer
+ 
+ <objective>
+-Review sprint implementation for completeness, quality, security, and architecture alignment. Either approve (write "All good" + update sprint.md with checkmarks) OR provide detailed feedback at `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
++Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write detailed feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
+ </objective>
+ 
+ <permission_grants>
+ ## Permission Grants (MAY — registry-rendered)
+ 
+-Precedence: NEVER > MUST > ALWAYS > SHOULD > MAY. Cite the constraint ID when exercising a grant.
++Cite the constraint ID when exercising a grant.
+ 
+ <!-- @constraint-generated: start reviewing_code_grants | hash:4e516b2d06e953a5 -->
+ <!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
+@@ -88,60 +87,35 @@
+ <adversarial_protocol>
+ ## Adversarial Review Protocol
+ 
+-**You are not a rubber stamp. You are a rival.**
+-
+-Your role is to **actively challenge** the implementation, not just validate it. The engineer's goal is to ship; your goal is to find what's wrong. This tension produces quality.
++You are not a rubber stamp; you are a rival. The engineer's goal is to ship, yours is to find what's wrong.
+ 
+ ### Coverage
+ 
+-Report every finding you actually observe. Do not withhold one because it looks minor,
+-because you are unsure, or because the sprint otherwise looks fine — a separate mechanical
+-step filters, and a finding you drop here is lost.
++Report every finding you actually observe — minor, uncertain, or on an otherwise clean sprint;
++a separate mechanical step filters, and a finding you drop here is lost.
+ 
+ Each finding carries a `file:line`, a concrete failure scenario, a severity
+-(`critical|high|medium|low`) and a confidence (`high|medium|low`). Severity is the damage if
+-the scenario happens; confidence is how sure you are that it happens. They are independent.
++(`critical|high|medium|low`) and an independent confidence (`high|medium|low`): severity is the
++damage if the scenario happens, confidence is how sure you are that it happens.
+ 
+ `critical` and `high` findings go under `## Changes Required` and are counted in the
+-LOA-VERDICT trailer whatever their confidence. The only exception is a finding you mark
+-`speculative` with confidence `low`; it moves to `## Observations` and the trailer records it
+-under `excluded`. `medium` and `low` findings go under `## Observations`, which is not a
+-blocking heading and is not counted. Never emit a `## Findings` or `## Issues` heading —
+-`verdict-derive.sh` treats those as blocking on an approved file. You do not decide the
+-verdict; the counts do.
+-
+-Entry format — the filter reads the first line of each entry:
+-- `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`
+-- `- **HIGH** (speculative, confidence: low) `path:line` — …` under `## Observations` only, counted in `excluded`
+-- `- **MEDIUM** (confidence: high) `path:line` — …` under `## Observations`
+-
+-### Challenge Categories
+-
+-| Category | Question to Ask |
+-|----------|-----------------|
+-| **Hidden Assumptions** | "What would break if [X] changed?" |
+-| **Edge Cases** | "What happens when [input] is [extreme value]?" |
+-| **Failure Modes** | "How does this fail? Is failure visible?" |
+-| **Future Maintenance** | "Will the next engineer understand this in 6 months?" |
+-| **Security Surface** | "What can an attacker do with this?" |
+-| **Performance Cliffs** | "At what scale does this break?" |
++LOA-VERDICT trailer whatever their confidence, except a finding you mark `speculative` with
++confidence `low`: it moves to `## Observations` and the trailer records it under `excluded`.
++`medium` and `low` findings go under `## Observations` (not blocking, not counted). Never emit a
++`## Findings` or `## Issues` heading — `verdict-derive.sh` treats those as blocking on an
++approved file. You do not decide the verdict; the counts do.
+ 
+-### When to Approve Despite Observations
++Entry format (the filter reads the first line of each entry): `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
+ 
+ You MAY approve when every remaining finding sits under `## Observations` — medium or low
+-severity, or a speculative low-confidence high recorded under `excluded` — each with a
+-concrete failure scenario. Document approved-with-observations as:
+-```markdown
+-All good
+-
+-Observations documented and non-blocking. See Observations below.
+-```
++severity, or a speculative low-confidence high recorded under `excluded` — each with a concrete
++failure scenario.
+ </adversarial_protocol>
+ 
+ <zone_constraints>
+ ## Zone Constraints
+ 
+-Zones per CLAUDE.loa.md Three-Zone Model (`.claude/` system = never edit — use `.claude/overrides/` or `.loa.config.yaml`; `grimoires/loa/`, `.beads/` state = read/write). This skill's app zone (`src/`, `lib/`, `app/`): **Read-only**.
++Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.
+ </zone_constraints>
+ 
+ <integrity_precheck>
+@@ -202,562 +176,105 @@
+ <!-- @skill-include: end trajectory_logging -->
+ </trajectory_logging>
+ 
+-<kernel_framework>
+-## Task (N - Narrow Scope)
+-Review sprint implementation for completeness, quality, security. Either approve (write "All good" + update sprint.md) OR provide detailed feedback (write to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`).
+-
+-## Context (L - Logical Structure)
+-- **Input**: `grimoires/loa/a2a/sprint-N/reviewer.md` (engineer's report), implementation code, test files
+-- **Reference docs**: `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md` (acceptance criteria)
+-- **Previous feedback**: `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (YOUR previous feedback—verify addressed)
+-- **Integration context**: `grimoires/loa/a2a/integration-context.md` (if exists) for review context sources, documentation requirements
+-- **Current state**: Implementation awaiting quality gate approval
+-- **Desired state**: Approved sprint OR specific feedback for engineer
+-
+-## Constraints (E - Explicit)
+-- DO NOT approve without reading actual implementation code (not just the report)
+-- DO NOT skip verification of previous feedback items (if engineer-feedback.md exists)
+-- DO NOT approve if ANY critical issues exist (security, blocking bugs, incomplete acceptance criteria)
+-- DO NOT give vague feedback—always include file paths, line numbers, specific actions
+-- DO check that proper documentation was updated if integration context requires
+-- DO verify context links are preserved (Discord threads, Linear issues) if required
+-- DO read ALL context docs before reviewing
+-- **DO check for `## AC Verification` section in `reviewer.md`** (cycle-057, Issue #475).
+-  Return CHANGES_REQUIRED automatically when:
+-  - The `## AC Verification` section is missing entirely
+-  - Any AC shows `✗ Not met` without a scope-split to a follow-up sprint task
+-  - Any AC shows `⏸ [ACCEPTED-DEFERRED]` without a matching Decision Log entry in `grimoires/loa/NOTES.md`
+-  - Evidence for a `Met` claim is vague ("implemented in src/", "done", "yes") — demand file:line + specific symbol
+-
+-## Verification (E - Easy to Verify)
+-**Approval criteria** (ALL must be true):
+-- `## AC Verification` section is present and complete — every AC from `sprint.md` walked verbatim
+-- All sprint tasks completed + all acceptance criteria met (status `✓ Met` or valid `⏸ [ACCEPTED-DEFERRED]`)
+-- Code quality is production-ready (readable, maintainable, follows conventions)
+-- Tests are comprehensive and meaningful (happy paths, errors, edge cases)
+-- No security issues (no hardcoded secrets, proper input validation, auth/authz correct)
+-- No critical bugs or performance problems
+-- Architecture aligns with SDD
+-- ALL previous feedback addressed (if applicable)
+-
+-**If approved:** Write "All good" to `engineer-feedback.md` + update `sprint.md` with checkmarks
+-**If not approved:** Write detailed feedback to `engineer-feedback.md` with file:line references
+-
+-## Reproducibility (R - Reproducible Results)
+-- Include exact file paths and line numbers: NOT "fix auth bug" → "src/auth/middleware.ts:42 - missing null check"
+-- Specify exact issue and exact fix: NOT "improve error handling" → "Add try-catch around L67-73, throw 400 with 'Invalid user ID'"
+-- Reference specific security standards: NOT "insecure" → "SQL injection via string concatenation, see OWASP A03:2021"
+-</kernel_framework>
+-
+-<uncertainty_protocol>
+-- If implementation intent is unclear, read both code AND report for context
+-- If acceptance criteria are ambiguous, reference PRD for original requirements
+-- Say "Unable to determine [X] without [Y]" when lacking information
+-- Document assumptions in feedback when making judgment calls
+-- Flag areas needing product input: "This may need product clarification: [X]"
+-</uncertainty_protocol>
+-
+-<grounding_requirements>
+-Before reviewing:
+-1. Read `grimoires/loa/a2a/integration-context.md` (if exists) for org context
+-2. Read `grimoires/loa/prd.md` for business requirements
+-3. Read `grimoires/loa/sdd.md` for architecture expectations
+-4. Read `grimoires/loa/sprint.md` for acceptance criteria
+-5. Read `grimoires/loa/a2a/sprint-N/reviewer.md` for implementation report
+-6. Read `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (if exists) for previous feedback
+-7. Read actual implementation code—do not trust report alone
+-8. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`:
+-   - Build query from changed file names and sprint goal
+-   - Run: `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text`
+-   - Include output as advisory context for review (acceptance criteria and code remain primary sources)
+-   - If script missing, disabled, or returns empty: proceed normally (graceful no-op)
+-</grounding_requirements>
+-
+ <citation_requirements>
+-- Include file paths and line numbers for all issues
+-- Reference OWASP/CWE for security issues
+-- Quote acceptance criteria when checking completeness
+-- Reference SDD sections for architecture concerns
+-- Quote previous feedback when verifying it was addressed
++Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve context links (Discord threads, Linear issues) from `integration-context.md` in the output when present.
+ </citation_requirements>
+ 
+ <workflow>
+-## Phase -1: Context Assessment & Parallel Task Splitting (CRITICAL—DO THIS FIRST)
+-
+-Assess context size to determine if parallel splitting is needed:
+-
+-```bash
+-wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null
+-```
+-
+-**Thresholds:**
+-| Size | Lines | Strategy |
+-|------|-------|----------|
+-| SMALL | <3,000 | Sequential review |
+-| MEDIUM | 3,000-6,000 | Consider task-level splitting if >3 tasks |
+-| LARGE | >6,000 | MUST split into parallel sub-reviews |
+-
+-**If MEDIUM/LARGE:** See `<parallel_execution>` section below.
+-
+-**If SMALL:** Proceed to Phase 0.
++## Phase -1: Context Assessment
+ 
+-## Phase 0: Check Integration Context (FIRST)
+-
+-Check if `grimoires/loa/a2a/integration-context.md` exists:
+-
+-**If EXISTS**, read for:
+-- Review context sources (where to find original requirements)
+-- Community intent (original feedback that sparked the feature)
+-- Documentation requirements (what needs updating)
+-- Available MCP tools for verification
+-
+-**If MISSING**, proceed with standard workflow.
++`wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split). MEDIUM/LARGE: see `<parallel_execution>` below.
+ 
+ ## Phase 1: Context Gathering
+ 
+ Read ALL context documents in order:
+-1. `grimoires/loa/a2a/integration-context.md` (if exists)
+-2. `grimoires/loa/prd.md` - Business goals and user needs
+-3. `grimoires/loa/sdd.md` - Architecture and patterns
+-4. `grimoires/loa/sprint.md` - Tasks and acceptance criteria
+-5. `grimoires/loa/a2a/sprint-N/reviewer.md` - Engineer's report
+-6. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` (CRITICAL if exists) - Your previous feedback
++1. `grimoires/loa/a2a/integration-context.md` if it exists
++2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
++3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
++4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
++5. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`: run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (acceptance criteria and code remain primary). Missing, disabled, or empty is a graceful no-op.
+ 
+ ## Phase 2: Code Review
+ 
+-**Review actual implementation:**
+-1. Read all modified files (don't just trust report)
+-2. Validate against acceptance criteria
+-3. Assess code quality (readability, maintainability, conventions)
+-4. Review test coverage (read test files, verify assertions)
+-5. Check architecture alignment with SDD
+-6. Perform security audit (see `resources/REFERENCE.md` §Security)
+-7. Check performance and resource management
+-8. **Karpathy Principles Check** (see below)
+-9. **Fast-Gate Parity Check** (see below) — confirm format-check + typecheck were run
+-
+-### Fast-Gate Parity — match CI (#1086)
+-
+-The implementer's self-check must equal CI's fast gate, not just lint + tests.
+-When the project configures them, verify the implementer ran (and re-run if in
+-doubt):
+-
+-- the **formatter in check mode** (`ruff format --check`, `prettier --check`,
+-  `gofmt -l`, …), and
+-- the **type checker** (`mypy`, `tsc --noEmit`, `pyright`, …).
+-
+-Flag an unrun or failing check as feedback with the same weight as a lint/test
+-failure, e.g. "FAST-GATE: `mypy` not run — a type error in src/x.py:N would fail
+-CI" or "FAST-GATE: `ruff format --check` flags 3 just-written files". Tool-agnostic
+-— detect from `pyproject.toml` / `package.json` / the CI workflows.
+-
+-### Karpathy Principles Verification
+-
+-Verify implementation follows the four principles:
+-
+-| Principle | Check | Fail Condition |
+-|-----------|-------|----------------|
+-| **Think Before Coding** | Assumptions documented in reviewer.md | Silent assumptions, missing clarifications |
+-| **Simplicity First** | Minimal code, no speculative features | Unused abstractions, "just in case" code |
+-| **Surgical Changes** | Diff only includes requested changes | Unrelated formatting, drive-by improvements |
+-| **Goal-Driven** | Clear success criteria, tests verify them | Vague tests, untestable outcomes |
+-
+-**Flag violations as feedback:**
+-- "SIMPLICITY: Abstraction X is only used once - consider inlining"
+-- "SURGICAL: Lines Y-Z were reformatted but not part of the task"
+-- "GOAL-DRIVEN: Test doesn't verify the actual acceptance criteria"
+-
+-## Phase 2.5: Adversarial Cross-Model Review
+-
+-**MANDATORY when enabled.** Runs if `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`. Skipping this phase triggers a `PreToolUse:Write` gate block at `COMPLETED` marker write time (see `.claude/hooks/safety/adversarial-review-gate.sh`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` — document in sprint notes.
++Review the implementation, not the report: read every modified file; validate against the acceptance criteria; assess readability, maintainability and conventions; read the tests and verify their assertions; check SDD alignment; audit security (see `resources/REFERENCE.md` §Security); check performance and resource management; run the two checks below.
+ 
+-**Objective**: Invoke a cross-model dissenter to catch reviewer blind spots before the final decision.
++**Karpathy Principles** (stated in CLAUDE.loa.md): flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback, e.g. `SURGICAL: lines Y–Z were reformatted but not part of the task`; silent assumptions in `reviewer.md` fail Think Before Coding.
+ 
+-**Steps**:
+-1. Prepare git diff of sprint changes: `git diff main...HEAD > /tmp/adversarial-diff.txt`
+-2. Invoke adversarial review:
+-   ```bash
+-   findings=$(.claude/scripts/adversarial-review.sh \
+-     --type review \
+-     --sprint-id "$sprint_id" \
+-     --diff-file /tmp/adversarial-diff.txt \
+-     --context-file "$reviewer_concerns_file" \
+-     --json)
+-   ```
+-3. Parse findings:
+-   - If `findings` array is empty or invocation failed: log and continue to Phase 3
+-   - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
+-   - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
+-4. Clean up temp files
+-
+-**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "..."}}` BEFORE proceeding. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+-
+-**Parameter Derivation**:
+-| Script Parameter | SKILL Derivation |
+-|-----------------|-----------------|
+-| `--sprint-id` | From SKILL invocation args, resolved via ledger |
+-| `--diff-file` | `git diff main...HEAD` written to temp file |
+-| `--context-file` | Reviewer's Phase 2 concern notes |
+-| `--model` | From `flatline_protocol.code_review.model` config |
+-| `--budget` | From `flatline_protocol.code_review.budget_cents` config |
+-| `--timeout` | From `flatline_protocol.code_review.timeout_seconds` config |
++**Fast-Gate Parity**: the implementer's self-check must match CI's fast gate, not just lint + tests. When the project configures them, verify the formatter in check mode (`prettier --check`, `ruff format --check`, …) and the type checker (`tsc --noEmit`, `mypy`, …) were run — re-run if in doubt; an unrun or failing check is `FAST-GATE:` feedback with the weight of a test failure.
+ 
+-**Output**: Findings written to `grimoires/loa/a2a/{sprint_id}/adversarial-review.json`
++## Phase 2.5: Adversarial Cross-Model Review
+ 
+-**Failure mode**: If adversarial review is unavailable (timeout, API error, budget exceeded), proceed with single-model assessment and log warning. No DEGRADED marker for review (only audit).
++Runs when `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`; skipping it then
++blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh`, override
++only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes). Invocation,
++output parsing and the unavailable-review path: see `resources/ADVERSARIAL-REVIEW.md`.
+ 
+ ## Phase 3: Previous Feedback Verification
+ 
+-**If `engineer-feedback.md` exists:**
+-1. Parse every issue you raised previously
+-2. Verify each item in the code (don't trust report)
+-3. Mark as:
+-   - Resolved (properly fixed)
+-   - NOT ADDRESSED (blocking)
+-   - PARTIALLY ADDRESSED (needs more work)
++If `engineer-feedback.md` exists, verify each previous issue in the code (not the report): Resolved, NOT ADDRESSED (blocking) or PARTIALLY ADDRESSED.
+ 
+ ## Phase 4: Decision Making
+ 
+-**Outcome 1: Approve (All Good)**
+-- All criteria met, production-ready
+-- Actions:
+-  1. Write "All good" to `engineer-feedback.md`
+-  2. Update `sprint.md` with checkmarks on completed tasks
+-  3. Inform user: "Sprint approved"
+-
+-**Outcome 2: Request Changes**
+-- Any critical issues found
+-- Actions:
+-  1. Generate detailed feedback (see template)
+-  2. Write to `engineer-feedback.md`
+-  3. DO NOT update `sprint.md`
+-  4. Inform user: "Changes required"
+-
+-**Outcome 3: Partial Approval — Decision Table**
+-
+-| Condition | Verdict |
+-|-----------|---------|
+-| Any blocking concern (Adversarial Analysis) OR any critical/high finding | CHANGES_REQUIRED |
+-| Zero blocking concerns + only medium/low accumulation | Reviewer judgment — document the rationale in Overall Assessment |
++**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. Zero critical/high with medium/low accumulation is your judgment — document the rationale in Overall Assessment.
+ 
+-Adversarial concerns (see `<adversarial_protocol>`) MUST each carry a `file:line` reference —
+-a concern without one is not admissible toward the minimum-3 requirement.
++**Automatic CHANGES_REQUIRED**, regardless of other findings, when
++`reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
++scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
++Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
++("implemented in src/", "done") instead of `file:line` + a specific symbol.
+ 
+ ## Phase 5: Feedback Generation
+ 
+-Use template from `resources/templates/review-feedback.md`.
+-
+-Key sections:
+-- Overall Assessment
+-- Changes Required (every critical/high finding, whatever its confidence)
+-- Observations (medium/low; speculative low-confidence highs, recorded under `excluded`)
+-- Previous Feedback Status
+-- Incomplete Tasks
+-- Next Steps
++Use `resources/templates/review-feedback.md`. An approved file reads `All good`, a blank line, then `Sprint {N} has been reviewed and approved. All acceptance criteria met.` — or, with observations, `Observations documented and non-blocking. See Observations below.`
+ 
+ **LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md` (nothing after it):
+ `<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
+ (`excluded` may be omitted when it is 0.) Prose and trailer MUST agree: approved files have
+-first line exactly `All good` and MUST NOT contain a `## Changes Required`, `## Findings`, or
+-`## Issues` heading. ONE-WAY rule: `counts.critical + counts.high > 0` forces
+-`verdict: CHANGES_REQUIRED`; zero critical/high does NOT force APPROVED (Outcome 3 judgment
+-still applies). `excluded` must equal the speculative low-confidence HIGH entries under
+-`## Observations`; a critical there is a violation.
++first line exactly `All good` and no `## Changes Required` heading. ONE-WAY rule:
++`counts.critical + counts.high > 0` forces `verdict: CHANGES_REQUIRED`; zero critical/high does
++NOT force APPROVED. `excluded` equals the demoted highs under `## Observations`; a critical
++there is a violation.
+ 
+ **MUST self-check before finishing**: run
+ `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
+-and resolve any reported inconsistency before reporting completion to the user.
++and resolve any reported inconsistency before finishing.
+ </workflow>
+ 
+ <parallel_execution>
+-## When to Split
+-
+-- SMALL (<3,000 lines): Sequential review
+-- MEDIUM (3,000-6,000 lines) with >3 tasks: Consider splitting
+-- LARGE (>6,000 lines): MUST split
+-
+-## Splitting Strategy: By Sprint Task
++## Parallel Review (MEDIUM/LARGE sprints)
+ 
+-For each task with code changes, spawn parallel Explore agent:
+-
+-```
+-Task(
+-  subagent_type="Explore",
+-  prompt="Review Sprint {X} Task {Y.Z} ({Task Name}):
+-
+-  **Acceptance Criteria:**
+-  {Copy from sprint.md}
+-
+-  **Files to Review:**
+-  {List from reviewer.md}
+-
+-  **Check for:**
+-  1. All acceptance criteria met
+-  2. Code quality and best practices
+-  3. Security issues
+-  4. Test coverage
+-  5. Architecture alignment
+-
+-  **Return:** Verdict (PASS/FAIL) with specific issues (file:line) or confirmation"
+-)
+-```
+-
+-## Consolidation
+-
+-After parallel reviews complete:
+-1. Collect verdicts from each sub-review
+-2. If ANY task FAILS → Overall = CHANGES REQUIRED
+-3. If ALL tasks PASS → Overall = APPROVED
+-4. Combine issues into single feedback document
++LARGE (or MEDIUM with >3 tasks): see `resources/PARALLEL-REVIEW.md` for the per-task split and
++the consolidation steps.
+ </parallel_execution>
+ 
+-<output_format>
+-See `resources/templates/review-feedback.md` for full structure.
+-
+-**If Approved:**
+-```markdown
+-All good
+-
+-Sprint {N} has been reviewed and approved. All acceptance criteria met.
+-```
+-
+-**If Changes Required:**
+-Use detailed feedback template with:
+-- Changes Required (file:line, failure scenario, severity, confidence, fix)
+-- Observations
+-- Previous Feedback Status
+-- Next Steps
+-</output_format>
+-
+-<success_criteria>
+-- **Specific**: Every issue has file:line reference
+-- **Measurable**: Clear pass/fail verdict
+-- **Achievable**: Feedback is actionable
+-- **Relevant**: Issues trace to acceptance criteria or quality standards
+-- **Time-bound**: Review completes within session
+-</success_criteria>
+-
+ <documentation_verification>
+-## Documentation Verification (Required) (v0.19.0)
+-
+-**MANDATORY**: Before approving any sprint, verify documentation coherence.
+-
+-### Pre-Review Check
+-
+-1. Check for documentation-coherence report:
+-   ```bash
+-   ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null
+-   ```
+-
+-2. If report exists, verify status is not `ACTION_REQUIRED`
+-
+-3. If no report exists, run `/validate docs` or manually verify documentation
+-
+-### Documentation Checklist
+-
+-| Item | Blocking? | How to Check |
+-|------|-----------|--------------|
+-| CHANGELOG entry for each task | **YES** | Search CHANGELOG.md for task keywords |
+-| CLAUDE.md for new commands/skills | **YES** | Grep CLAUDE.md for command name |
+-| Security code has comments | **YES** | Review auth/validation code |
+-| README for user-facing features | No | Check README mentions |
+-| Code comments for complex logic | No | Review complex functions |
+-| SDD for architecture changes | No | Compare with SDD structure |
+-
+-### Cannot Approve If
++## Documentation Verification (Required)
+ 
+-- Documentation-coherence report shows `ACTION_REQUIRED` status
+-- CHANGELOG entry missing for any task
+-- New command added without CLAUDE.md entry
+-- Security code missing explanatory comments
+-- Major architecture change without SDD update
+-
+-### Approval Language
+-
+-See `resources/REFERENCE.md` §Documentation Verification for the PASS/FAIL approval-language templates.
++Before approving any sprint: `ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null`. A report with status `ACTION_REQUIRED` blocks; with no report, run `/validate docs` or verify manually. Blocking: a CHANGELOG entry per task, a CLAUDE.md entry per new command or skill, comments on security code, an SDD update for a major architecture change. Approval-language templates: `resources/REFERENCE.md` §Documentation Verification.
+ </documentation_verification>
+ 
+ <subagent_report_check>
+-## Subagent Report Check (v0.16.0)
+-
+-Before approving any sprint, check for validation reports in `grimoires/loa/a2a/subagent-reports/`:
+-
+-### Reports to Check
+-
+-| Report | Path Pattern | Blocking Verdicts |
+-|--------|--------------|-------------------|
+-| Architecture | `architecture-validation-*.md` | CRITICAL_VIOLATION |
+-| Security | `security-scan-*.md` | CRITICAL, HIGH |
+-| Test Adequacy | `test-adequacy-*.md` | INSUFFICIENT |
+-| Goal Validation | `goal-validation-*.md` | GOAL_BLOCKED |
+-
+-### Workflow
+-
+-1. **List reports**: `ls grimoires/loa/a2a/subagent-reports/`
+-2. **Read each report** from the current sprint date
+-3. **Extract verdict** from the report header
+-4. **Block if blocking verdict** exists
+-
+-### Blocking Behavior
+-
+-**DO NOT APPROVE** if any of these verdicts exist:
+-
+-| Subagent | Verdict | Action Required |
+-|----------|---------|-----------------|
+-| architecture-validator | CRITICAL_VIOLATION | Fix architecture issues first |
+-| security-scanner | CRITICAL | Fix security vulnerability immediately |
+-| security-scanner | HIGH | Fix security issue before merge |
+-| test-adequacy-reviewer | INSUFFICIENT | Add missing tests |
++## Subagent Report Check
+ 
+-### Non-Blocking Verdicts
+-
+-These verdicts are informational—use reviewer discretion:
+-
+-| Subagent | Verdict | Recommendation |
+-|----------|---------|----------------|
+-| architecture-validator | DRIFT_DETECTED | Note in feedback, may proceed |
+-| security-scanner | MEDIUM | Recommend fix, may proceed |
+-| security-scanner | LOW | Optional fix |
+-| test-adequacy-reviewer | WEAK | Note gaps, may proceed |
+-
+-### No Reports Found
+-
+-If no subagent reports exist:
+-- `/validate` was not run (optional step)
+-- Proceed with manual review
+-- Consider recommending `/validate` in feedback
+-
+-### Example Check
+-
+-See `resources/REFERENCE.md` §Subagent Report Check for the grep commands that surface blocking verdicts; if any match, **block approval** until issues are resolved.
++Before approving any sprint, read the current sprint's reports in `grimoires/loa/a2a/subagent-reports/`. Blocking verdicts: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. Informational, reviewer discretion: `DRIFT_DETECTED`, security `MEDIUM`/`LOW`, test-adequacy `WEAK`. No reports means `/validate` was not run (optional): review manually and consider recommending it. Grep commands that surface blocking verdicts: `resources/REFERENCE.md` §Subagent Report Check.
+ </subagent_report_check>
+ 
+ <checklists>
+-See `resources/REFERENCE.md` for complete checklists:
+-- Versioning (SemVer Compliance) - 4 items
+-- Completeness - 4 items
+-- Functionality - 4 items
+-- Code Quality - 5 items
+-- Testing - 7 items
+-- Security - 7 items
+-- Performance - 5 items
+-- Architecture - 5 items
+-- Blockchain/Crypto - 7 items (if applicable)
+-
+-**Red Flags (immediate feedback required):**
+-- Private keys in code
+-- SQL via string concatenation
+-- User input not validated
+-- Empty catch blocks
+-- No tests for critical functionality
+-- N+1 query problems
++Complete checklists and the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries): `resources/REFERENCE.md`.
+ </checklists>
+ 
+ <complexity_review>
+-## Complexity Review (Required) (v0.19.0)
+-
+-Check code for excessive complexity during every review. These are **blocking issues**.
+-
+-See `resources/REFERENCE.md` §Complexity for the per-dimension threshold tables (Function Complexity, Code Duplication, Dependencies, Naming Quality, Dead Code).
+-
+-### Review Integration
+-
+-During Phase 2 (Code Review), add complexity checks:
++## Complexity Review (Required)
+ 
+-```markdown
+-## Complexity Analysis
+-
+-### Functions Reviewed
+-- `{func1}()`: OK (25 lines, 3 params, nesting 2)
+-- `{func2}()`: **ISSUE** (67 lines - too long)
+-
+-### Duplication Found
+-- None detected / {description of duplicates}
+-
+-### Dependency Issues
+-- None detected / {description of issues}
+-
+-### Naming Issues
+-- None detected / {list of naming concerns}
+-
+-### Dead Code
+-- None detected / {list of dead code}
+-```
+-
+-### Complexity Verdict
+-
+-**BLOCK approval if:**
+-- Any function >50 lines without justification
+-- Nesting depth >3 without early returns
+-- >3 duplicate code blocks
+-- Circular dependencies
+-
+-**Note in feedback but allow:**
+-- Functions 40-50 lines (borderline)
+-- 2-3 duplicate patterns
+-- Minor naming inconsistencies
+-
+-### YAGNI over-engineering taxonomy (#1012-adjacent)
+-
+-Tag each over-engineering finding so the engineer gets a crisp delete-list
+-(reuse the existing `SIMPLICITY:` feedback template):
+-
+-| Tag | Meaning | Example finding |
+-|-----|---------|-----------------|
+-| `delete` | Needn't exist (YAGNI) | `SIMPLICITY[delete]: unused config layer — remove` |
+-| `stdlib` | Reinvents the standard library | `SIMPLICITY[stdlib]: hand-rolled debounce — use stdlib` |
+-| `native` | Reinvents a native platform feature | `SIMPLICITY[native]: custom date widget — native input` |
+-| `yagni` | Speculative flexibility/abstraction | `SIMPLICITY[yagni]: generic iface for one caller — inline` |
+-| `shrink` | Correct but larger than needed | `SIMPLICITY[shrink]: 40 lines that fit in 5` |
+-
+-A `loa:shortcut:` marker that names a ceiling with **no upgrade trigger** is a
+-`SIMPLICITY[shrink]` finding — the deferred work rots without a trigger.
+-
+-End an over-engineering pass with the only metric that matters:
+-`net: -<N> lines possible`. If nothing should be cut, say `Lean already. Ship.`
+-and stop. Never flag the one required acceptance-check behind non-trivial logic
+-(the smallest runnable check) for deletion — that is the YAGNI minimum, not bloat.
++Complexity is reviewed every time (threshold tables: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …` (tag meanings: `resources/REFERENCE.md` §Complexity); a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
+ </complexity_review>
+ 
+ <beads_workflow>
+-## Beads Workflow (beads_rust)
+-
+-When beads_rust (`br`) is installed, use it to record review feedback:
+-
+-### Session Start
+-```bash
+-br sync --import-only  # Import latest state from JSONL
+-```
+-
+-### Recording Review Feedback
+-```bash
+-# Add review comment to task
+-br comments add <task-id> "REVIEW: [feedback summary]"
+-
+-# Mark task status based on review outcome
+-br label add <task-id> review-approved     # If approved
+-br label add <task-id> needs-revision       # If changes required
+-```
+-
+-### Using Labels for Status
+-| Label | Meaning | When to Apply |
+-|-------|---------|---------------|
+-| `needs-review` | Awaiting review | Before review |
+-| `review-approved` | Passed review | After "All good" |
+-| `needs-revision` | Changes requested | After feedback |
+-
+-### Session End
+-```bash
+-br sync --flush-only  # Export SQLite → JSONL before commit
+-```
+-
+-**Protocol Reference**: See `.claude/protocols/beads-integration.md`
++When `br` is installed, see `resources/BEADS-WORKFLOW.md` for the sync commands and the `needs-review` / `review-approved` / `needs-revision` labels; protocol: `.claude/protocols/beads-integration.md`.
+ </beads_workflow>
+ 
+ <visual_communication>
+-## Visual Communication (Optional)
+-
+-See `resources/REFERENCE.md` §Visual Communication — Mermaid diagram standards, when to include diagrams, output format, and theme configuration for review feedback. Diagram inclusion is optional; use when visual explanation helps.
++Mermaid diagrams are optional in feedback — standards and format: see `resources/REFERENCE.md` §Visual Communication.
+ </visual_communication>
+ 
+ <retrospective_postlude>
+@@ -769,3 +286,7 @@
+ never when the active skill is continuous-learning itself.
+ <!-- @skill-include: end retrospective_postlude -->
+ </retrospective_postlude>
++
++## Provenance
++
++Folded in from history: AC Verification auto-fail (cycle-057, #475), Fast-Gate Parity (#1086), YAGNI taxonomy (#1012).
