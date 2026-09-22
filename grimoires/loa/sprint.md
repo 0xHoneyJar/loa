@@ -185,6 +185,19 @@ The always-loaded prompt surface fits the byte budgets with no measured quality 
 - recall B ≥ A per defect; false positives B ≤ A; audit tokens B ≤ 0.5 × A
 - 32/32 goldens byte-identical
 
+### Sprint 3 follow-ups (scope-split, carried out of the cycle)
+
+AC-9.2 is partially met (report §AC-9.2: review recall within tolerance after one iteration; three residual `✗` sub-gates). Each residual is split to a named follow-up task in beads, tracked from here:
+
+| Residual | Follow-up task (bead) | Concrete next action |
+|---|---|---|
+| Review clean-PR critical+high 0.167 vs baseline 0 (one high-severity finding in one of six clean trials, arm B2) | bd-azrr (implementing-tasks discipline) + a severity-calibration re-measure | widen the review corpus past the two clean PRs, re-run the review suite on the calibrated prompt, and re-read the severity sentence in reviewing-code's Coverage block against the per-trial outputs |
+| Audit tokens per call 0.758 of baseline vs the ≤ 0.5 target | bd-gvxy | re-specify the gate against prompt-attributable tokens (`input_tokens` + `cache_creation_input_tokens`) or drop the 0.5 target; cache reads of the diff dominate the call |
+| Implement-discipline composite 0/15 in both arms (`test_first` never satisfied), surgical 15/15 → 13/15 | bd-azrr | add at least one fixture where test-first is the natural path (or relax `all_must_pass` for this suite) so the composite can move; decide whether the Karpathy kernel needs an explicit no-scratch-files line |
+| Recall grader rewards range citations (anchor ±3) | bd-a4td | credit a citation whose `must_match` string lies within the cited range; record the miss reason per defect |
+
+---
+
 ---
 
 ## Sprint 4: Memory gate (final)

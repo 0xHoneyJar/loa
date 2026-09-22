@@ -49,6 +49,8 @@ def mean(xs):
 
 
 def summarize(rows):
+    # loa:shortcut: one pass over the rows builds every per-task/per-defect aggregate the
+    # gates read; splitting it would thread five dicts through helpers for no reader gain.
     completed = [r for r in rows if r.get("status") == "completed"]
     errors = [r for r in rows if r.get("status") != "completed"]
     models = set()
@@ -109,6 +111,8 @@ def summarize(rows):
 
 
 def main():
+    # loa:shortcut: argument handling, validity reasons and the three gate blocks stay in one
+    # function so the exit-code contract (0 pass / 1 fail / 2 invalid) is visible top to bottom.
     a_path, b_path, metric, json_out = sys.argv[1:5]
     A = summarize(load(a_path))
     B = summarize(load(b_path))

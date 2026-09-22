@@ -19,6 +19,8 @@
 #      prompt_tree_commit, and whether .claude/ had uncommitted changes.
 #   3. Run:  claude -p "<task.prompt>" --output-format stream-json --verbose
 #              --model $EVAL_MODEL [--effort <e>] --allowed-tools Read,Grep,Glob,Write
+#              (--permission-mode acceptEdits also admits Edit/MultiEdit, which is why the
+#              transcript extractor below records them; the tool list is the SDD's fixed set)
 #              --permission-mode acceptEdits --append-system-prompt-file <skill-prompt>
 #              --max-turns $EVAL_MAX_TURNS
 #      cwd = sandbox; env-isolated (LOA_MODELINV_LOG_PATH / LOA_COST_LEDGER_PATH
