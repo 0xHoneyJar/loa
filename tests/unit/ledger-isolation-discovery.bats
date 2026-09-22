@@ -55,14 +55,15 @@ setup() {
 # spawners (they exec model-adapter → cheval); a suite that runs them for real,
 # even in FLATLINE_MOCK_MODE, writes MODELINV + cost rows through cheval's
 # mock path — found live 2026-09-18 (adversarial-review-e2e.bats).
-ENTRY_RE='(cheval\.py|\$\{?[A-Z_]*CHEVAL[A-Z_]*\}?|model-adapter\.sh|\$\{?MODEL_ADAPTER[A-Z_]*\}?|\$\{?ADAPTER\}?|adversarial-review\.sh|\$\{?ADVERSARIAL[A-Z_]*\}?|flatline-orchestrator\.sh|\$\{?ORCH(ESTRATOR)?[A-Z_]*\}?)'
+ENTRY_RE='(cheval\.py|\$\{?[A-Za-z_]*[Cc][Hh][Ee][Vv][Aa][Ll][A-Za-z_]*\}?|model-adapter\.sh|\$\{?MODEL_ADAPTER[A-Z_]*\}?|\$\{?ADAPTER\}?|adversarial-review\.sh|\$\{?ADVERSARIAL[A-Z_]*\}?|flatline-orchestrator\.sh|\$\{?ORCH(ESTRATOR)?[A-Z_]*\}?)'
 EXEC_RE='(^[[:space:]]*|[;&|(][[:space:]]*|=\$\([[:space:]]*|(^|[[:space:]])(run|bash|python3?|timeout[[:space:]]+[0-9]+|"?\$\{?PYTHON[A-Za-z_]*\}?"?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space:]]+)'
 AFTER_RE='([[:space:]";)]|$)'
 # Non-spawning shapes: dry-run/print flags; grep / git / file-manipulation
 # commands in command position (also behind run / if / ! / $( ); file tests;
-# variable definitions; @test titles; a line that is only a quoted path (an
+# variable definitions (assignment-only lines — an env-prefixed command such as
+# `KEY="" run "$CHEVAL" …` IS a spawn, cycle-124 Sprint 4); @test titles; a line that is only a quoted path (an
 # array element or argument continuation — a spawn always carries arguments).
-NOT_SPAWN_RE='--dry-run|--print-effective-config|--print-config|--validate-bindings|--help|--version|(^[[:space:]]*((if|elif|while|until)[[:space:]]+|![[:space:]]*)?(run[[:space:]]+(--[a-z-]+[[:space:]]+)*)?|[(;&][[:space:]]*|=\$\([[:space:]]*)(grep|git|skip|echo|printf|cat|cp|ln|chmod|mkdir|touch|rm|sed|awk|head|tail|wc|ls|diff|cmp|stat|source|\.)[[:space:]]|\[\[?[[:space:]]+!?[[:space:]]*-[a-z][[:space:]]|bash -n|shellcheck|^[[:space:]]*((local|export)[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=[^$(]|^[[:space:]]*@test|^[[:space:]]*"[^"]*"[[:space:]]*$'
+NOT_SPAWN_RE='--dry-run|--print-effective-config|--print-config|--validate-bindings|--help|--version|(^[[:space:]]*((if|elif|while|until)[[:space:]]+|![[:space:]]*)?(run[[:space:]]+(--[a-z-]+[[:space:]]+)*)?|[(;&][[:space:]]*|=\$\([[:space:]]*)(grep|git|skip|echo|printf|cat|cp|ln|chmod|mkdir|touch|rm|sed|awk|head|tail|wc|ls|diff|cmp|stat|source|\.)[[:space:]]|\[\[?[[:space:]]+!?[[:space:]]*-[a-z][[:space:]]|bash -n|shellcheck|^[[:space:]]*((local|export)[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:]$(]*)[[:space:]]*$|^[[:space:]]*@test|^[[:space:]]*"[^"]*"[[:space:]]*$'
 
 # Spawners that pre-date FR-6 and sit outside Task 1.1's file set. Each entry
 # must still exist, still spawn and still lack coverage (DS-2) — fixing one

@@ -80,6 +80,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
+| [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
 
 ---
 
@@ -1449,3 +1450,24 @@ Do not repeat the failed GraphQL convenience call or infer a missing repository 
 ### Reading guide
 
 `bootstrap.sh` is sourced and does not need executable permission. Do not weaken the clean-tree guard or rerun the unchanged workflow. The publication tests now execute the actual YAML preparation blocks, including artifact creation, and BATS CI includes changes to `post-merge.yml` in both event filters. Local tests use a fixture repository and mocked GitHub operations; final confirmation requires the repaired workflow to run on main.
+
+## KF-033: Unit suites reach cheval and write the production ledgers (or make live CLI calls) despite the DS-1 isolation scan
+
+**Status**: open — two suites fixed 2026-09-22, scan tightened; structural class remains
+**Feature**: test isolation / FR-6 ledger hygiene
+**Symptom**: sha256 of .run/model-invoke.jsonl or .run/cost-ledger.jsonl changes across a plain 'bats tests/unit/' run while tools/check-ledger-hygiene.sh still reports OK; cost rows carry real agent ids (trace_id tr-<agent>-<pid>, e.g. tr-reviewing-code-*, tr-flatline-reviewer-*), usage_source actual, cost 0; one row shows ~25k input tokens and ~10 s latency = a real codex-headless dispatch from a unit test
+**First observed**: 2026-09-22 cycle-124 Sprint 4 goal G-6 (sprint-238)
+**Recurrence count**: 1
+**Current workaround**: Bisect: hash both ledgers, run one suite, re-hash (tests/unit loop, seconds per suite). Fix the suite: export LOA_MODELINV_LOG_PATH and LOA_COST_LEDGER_PATH into its tmpdir in setup(); a case that 'expects failure without API keys' must use --mock-fixture-dir (a CLI hop such as codex-headless needs no key and walks for real). Rotate per grimoires/loa/runbooks/ledger-hygiene-rotation.md.
+**Upstream issue**: framework-review-2026-09-17 §9 item 6; cycle-124 FR-6
+**Related visions / lore**: KF-004 (dissent payloads), ledger-isolation-discovery.bats DS-1..DS-5
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-22 | G-6 measured twice (unit suite 5527 cases): each run appended 1 codex-headless row (cheval-preflight-gate.bats P17, real dispatch, ~25k tokens) and 1 claude-headless mock row (lib-curl-fallback-flatline-chat.bats round-trip). Fixed both suites, tightened DS-1 (env-prefix + lowercase var), rotated both ledgers. | Third measurement on fresh ledgers: see sprint-238 report G-6 addendum (archive paths recorded there). | commit ec1064bf tree + follow-up test commit; scratchpad e2e-g6*.log; .run/archive/{model-invoke,cost-ledger}-2026-09-22T*.jsonl |
+
+### Reading guide
+
+DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY="" run "$CHEVAL" …, classified as a variable definition) and (b) lowercase $cheval variables inside a heredoc shim — both closed 2026-09-22. If the hashes still move, do not trust the tripwire (it only recognises mock-* identities): bisect per suite, read the new rows' trace_id, then fix the suite and rotate. Never delete rows from a live ledger.

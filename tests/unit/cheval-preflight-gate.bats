@@ -43,6 +43,14 @@ setup() {
     fi
 
     BATS_TMP="$(mktemp -d "${BATS_TMPDIR:-/tmp}/cheval-preflight-gate.XXXXXX")"
+    # cycle-124 Sprint 4 (G-6): this suite spawns cheval for real — keep its
+    # MODELINV + cost rows out of the production ledgers.
+    export LOA_MODELINV_LOG_PATH="$BATS_TMP/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$BATS_TMP/cost-ledger.jsonl"
+    # P17 needs a completion without a network hop: cheval's mock-fixture path.
+    MOCK_FIXTURE="$BATS_TMP/mock-fixture"
+    mkdir -p "$MOCK_FIXTURE"
+    printf '{"content": "mock reply", "usage": {"input_tokens": 5, "output_tokens": 2}}\n' > "$MOCK_FIXTURE/response.json"
 }
 
 teardown() {
@@ -522,13 +530,16 @@ print('OK')
 }
 
 @test "P17: cheval CLI does NOT fire preflight gate when prompt under ceiling" {
+    # Mock-fixture mode: the pre-flight gate still runs (it sits before the
+    # chain walk) but the completion never leaves the host. Before cycle-124
+    # Sprint 4 this case unset the API keys and expected a failure — on a host
+    # with a CLI hop (codex-headless) the chain walked for real instead.
     OPENAI_API_KEY="" ANTHROPIC_API_KEY="" GOOGLE_API_KEY="" \
     run "$PYTHON_BIN" "$CHEVAL_PY" \
         --agent reviewing-code \
         --prompt "tiny prompt" \
+        --mock-fixture-dir "$MOCK_FIXTURE" \
         2>&1
-    # The new [preflight] marker must not appear. Exit code may be non-zero
-    # due to absent API keys but specifically MUST NOT be 7 from a pre-flight
-    # preemption.
+    [ "$status" -ne 7 ]
     [[ "$output" != *"[preflight] preempt"* ]]
 }
