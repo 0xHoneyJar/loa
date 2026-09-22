@@ -1,12 +1,8 @@
 # Visual Communication Protocol
 
-**Version:** 2.0.0
-**Status:** Active
-**Date:** 2026-02-02
-
 ## Purpose
 
-This protocol defines standards for visual output across all Loa agents using Mermaid diagrams. Version 2.0 introduces a three-mode rendering strategy with GitHub native as the default, replacing the broken external service dependency.
+Defines standards for visual output across Loa agents using Mermaid diagrams; GitHub native is the default rendering mode.
 
 ## Rendering Modes
 
@@ -24,36 +20,29 @@ This protocol defines standards for visual output across all Loa agents using Me
 
 ## When to Include Diagrams
 
-### Required (Must Include)
-
-| Agent | Required Diagrams |
-|-------|-------------------|
-| designing-architecture | System architecture, component interactions, data models, state machines |
-| translating-for-executives | Executive summary diagrams, high-level flows |
-
-### Optional (Agent Discretion)
-
-| Agent | Suggested Diagrams |
-|-------|-------------------|
-| discovering-requirements | User journeys, process flows |
-| planning-sprints | Sprint workflow, task dependencies |
-| reviewing-code | Code flow diagrams |
+| Agent | Diagrams | Requirement |
+|-------|----------|-------------|
+| designing-architecture | System architecture, component interactions, data models, state machines | Required |
+| translating-for-executives | Executive summary diagrams, high-level flows | Required |
+| discovering-requirements | User journeys, process flows | Optional |
+| planning-sprints | Sprint workflow, task dependencies | Optional |
+| reviewing-code | Code flow diagrams | Optional |
 
 ## Diagram Type Selection
 
-| Type | Mermaid Syntax | Use Case |
-|------|----------------|----------|
-| **Flowchart** | `graph TD` / `graph LR` | System architecture, process flows, decision trees |
-| **Sequence** | `sequenceDiagram` | API interactions, agent communication, request flows |
-| **Class** | `classDiagram` | Object models, type relationships, domain models |
-| **State** | `stateDiagram-v2` | State machines, lifecycle diagrams, status flows |
-| **ER** | `erDiagram` | Database schemas, data models, entity relationships |
+| Type | Mermaid Syntax |
+|------|----------------|
+| Flowchart | `graph TD` / `graph LR` |
+| Sequence | `sequenceDiagram` |
+| Class | `classDiagram` |
+| State | `stateDiagram-v2` |
+| ER | `erDiagram` |
 
 ## Output Formats
 
 ### GitHub Native (Default)
 
-The default output format for all Loa documents:
+A plain fenced block, no wrapper needed:
 
 ```markdown
 ### Component Architecture
@@ -66,46 +55,23 @@ graph TD
 ```
 ```
 
-**Benefits:**
-- Zero external dependencies
-- GitHub renders automatically in markdown preview
-- Works in PRs, issues, and wiki
-- No privacy concerns (source code only)
-- No character limits
+No external dependency, no character limit, renders wherever GitHub renders markdown (PRs, issues, wiki).
 
 ### Local Render (Optional)
 
-When image files are needed:
+Same block, plus a rendered-image link:
 
 ```markdown
-### Component Architecture
-
-```mermaid
-graph TD
-    A[User] --> B[API Gateway]
-```
-
 > **Rendered**: [View SVG](grimoires/loa/diagrams/diagram-abc12345.svg)
 ```
 
-**Use Cases:**
-- Documentation exports (PDF generation)
-- Presentations
-- Privacy-sensitive diagrams (no external service)
-- Offline rendering
+Use for documentation exports (PDF generation), presentations, or offline rendering.
 
 ### Preview URL (Legacy)
 
-For backwards compatibility when explicitly configured:
+Same block, plus a preview-service link, only when explicitly configured:
 
 ```markdown
-### Component Architecture
-
-```mermaid
-graph TD
-    A[User] --> B[API Gateway]
-```
-
 > **Preview**: [View diagram](https://agents.craft.do/mermaid?code=...&theme=github)
 ```
 
@@ -113,58 +79,39 @@ graph TD
 
 ## Script Usage
 
-### Generate GitHub Native (Default)
-
 ```bash
-# From stdin
+# GitHub native (default): from stdin
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin
-
-# From file
+# GitHub native: from file
 .claude/scripts/mermaid-url.sh diagram.mmd
-```
 
-### Generate Local Render
-
-```bash
-# Default SVG output
+# Local render: default SVG output
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render
-
-# PNG with theme
+# Local render: PNG with theme
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render --format png --theme dracula
-
-# Custom output directory
+# Local render: custom output directory
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --render --output-dir /tmp/diagrams
-```
 
-### Generate Legacy URL
-
-```bash
+# Legacy URL
 echo 'graph TD; A-->B' | .claude/scripts/mermaid-url.sh --stdin --url
-```
 
-### Check Configuration
-
-```bash
+# Check configuration
 .claude/scripts/mermaid-url.sh --check
 ```
 
 ## Theme Configuration
 
-### Available Themes
+| Theme ID | Best For |
+|----------|----------|
+| `github` | Documentation, PRs (default) |
+| `dracula` | Dark mode users |
+| `nord` | Accessibility |
+| `tokyo-night` | IDE integration |
+| `solarized-light` | Print-friendly |
+| `solarized-dark` | Low-light environments |
+| `catppuccin` | Modern aesthetic |
 
-| Theme ID | Description | Best For |
-|----------|-------------|----------|
-| `github` | GitHub light mode | Documentation, PRs (default) |
-| `dracula` | Dark purple | Dark mode users |
-| `nord` | Arctic blue | Accessibility |
-| `tokyo-night` | Dark blue | IDE integration |
-| `solarized-light` | Warm light | Print-friendly |
-| `solarized-dark` | Warm dark | Low-light environments |
-| `catppuccin` | Pastel dark | Modern aesthetic |
-
-### Reading Theme
-
-Agents should read theme from `.loa.config.yaml`:
+Agents read the theme from `.loa.config.yaml`:
 
 ```yaml
 visual_communication:
@@ -192,42 +139,9 @@ visual_communication:
 
 ## Local Rendering Dependencies
 
-For `--render` mode, install mermaid-cli:
+For `--render` mode, install mermaid-cli: `npm install -g @mermaid-js/mermaid-cli`, or use `npx @mermaid-js/mermaid-cli` (auto-installs on first use). Requires Node.js >= 18 and Chrome/Chromium (for PNG rendering).
 
-```bash
-# Global install
-npm install -g @mermaid-js/mermaid-cli
-
-# Or use npx (auto-installs on first use)
-npx @mermaid-js/mermaid-cli --version
-```
-
-**Requirements:**
-- Node.js >= 18
-- Chrome/Chromium (for PNG rendering)
-
-## Mermaid Syntax Requirements
-
-### General Rules
-
-1. Use clear, descriptive node labels
-2. Prefer `TD` (top-down) for hierarchical diagrams
-3. Prefer `LR` (left-right) for process flows
-4. Keep diagrams focused - split complex systems into multiple diagrams
-5. Use subgraphs to group related components
-
-### Node Naming
-
-```mermaid
-graph TD
-    %% Good: Descriptive labels
-    A[User Interface] --> B[API Gateway]
-
-    %% Avoid: Single letters without context
-    %% A --> B
-```
-
-### Subgraph Usage
+## Subgraph Usage
 
 ```mermaid
 graph TD
@@ -246,9 +160,7 @@ graph TD
 
 ## Integration with Skills
 
-### SKILL.md Reference
-
-Skills that support visual communication should include:
+Skills should include:
 
 ```markdown
 <visual_communication>
@@ -271,58 +183,17 @@ For image exports, use `--render` mode.
 
 ## Privacy & Security
 
-### GitHub Native Mode
+**GitHub Native**: no external data transmission; source stays local.
 
-- No external data transmission
-- Source code stays local
-- No privacy concerns
+**Local Render**: full privacy (no external service); requires local Node.js + mermaid-cli.
 
-### Local Render Mode
+**URL (Legacy)**: sends the Mermaid source (base64 URL-encoded) and theme parameter to the external service. For proprietary architecture or security-sensitive diagrams, use `github` or `render` mode instead.
 
-- Full privacy (no external service)
-- Requires local Node.js + mermaid-cli
-- Suitable for sensitive architecture diagrams
-
-### URL Mode (Legacy)
-
-Diagram content is encoded in the URL and sent to external service.
-
-**What's sent:**
-- Mermaid source code (base64 URL-encoded)
-- Theme parameter
-
-**Privacy Recommendation:**
-For diagrams containing proprietary architecture or security-sensitive details, use `github` or `render` mode.
-
-### Input Validation
-
-The `mermaid-url.sh` script validates:
+`mermaid-url.sh` validates:
 - Theme names against an allowlist (prevents injection)
-- Output format against allowlist
-- Basic Mermaid syntax (requires valid diagram type)
+- Output format against an allowlist
+- Basic Mermaid syntax (requires a valid diagram type)
 - Config values (only allows safe characters)
-
-## Migration from v1.x
-
-### Breaking Changes
-
-1. **Default mode changed**: Now outputs GitHub native code blocks, not preview URLs
-2. **Preview URLs disabled by default**: Set `include_preview_urls: true` for legacy behavior
-
-### Migration Steps
-
-1. **No action required** for most users - GitHub native works everywhere
-2. If you need preview URLs, add to config:
-   ```yaml
-   visual_communication:
-     mode: "url"
-     include_preview_urls: true
-   ```
-3. Remove broken preview URLs from existing docs:
-   ```bash
-   grep -r "agents.craft.do/mermaid" grimoires/ --include="*.md" -l | \
-     xargs sed -i 's/> \*\*Preview\*\*:.*agents\.craft\.do.*//g'
-   ```
 
 ## Related
 
