@@ -2196,7 +2196,7 @@
       "sprint_plan": "grimoires/loa/sprint.md"
     }
   ],
-  "global_sprint_counter": 239,
+  "global_sprint_counter": 240,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2533,6 +2533,20 @@
       "triage": "grimoires/loa/a2a/bug-20260922-13a3d1/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260922-13a3d1/sprint.md",
       "completed_at": "2026-09-22T10:56:23Z"
+    },
+    {
+      "id": "cycle-bug-20260923-27d899",
+      "label": "Bug Fix — The post-merge pipeline cannot cut a pre-release (rc entry, prerelease flag, README rc check)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-09-22T22:05:03Z",
+      "sprints": [
+        "sprint-bug-240"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260923-27d899/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260923-27d899/sprint.md",
+      "completed_at": "2026-09-22T22:21:43Z"
     }
   ],
   "bugfixes": [
@@ -2550,6 +2564,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 239,
-  "last_updated": "2026-09-22T10:56:23Z"
+  "next_sprint_number": 240,
+  "last_updated": "2026-09-22T22:21:43Z"
 }

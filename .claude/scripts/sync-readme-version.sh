@@ -51,19 +51,25 @@ command -v jq >/dev/null || { printf '%s\n' "ERROR: jq required" >&2; exit 2; }
 version=$(jq -r '.framework_version // empty' "$VERSION_FILE")
 [[ -n "$version" ]] || { printf '%s\n' "ERROR: .framework_version missing from $VERSION_FILE" >&2; exit 2; }
 
-# Validate version string format (semver: X.Y.Z)
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  printf '%s\n' "ERROR: .framework_version='$version' is not semver (expected X.Y.Z)" >&2
+# Validate version string format (SemVer X.Y.Z with an optional §9 prerelease
+# such as 2.0.0-rc.1 — sprint-bug-240, same identifier grammar as semver-bump.sh;
+# build metadata is not a framework version)
+pre_id='(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)'
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-${pre_id}(\.${pre_id})*)?$ ]]; then
+  printf '%s\n' "ERROR: .framework_version='$version' is not semver (expected X.Y.Z or X.Y.Z-PRE.N)" >&2
   exit 2
 fi
 
+# shields.io static badges take a literal dash as `--` (2.0.0-rc.1 → 2.0.0--rc.1)
+badge_version="${version//-/--}"
+
 # Detect drift: are both expected lines present?
 expected_comment="Version: $version"
-expected_badge="version-$version-blue.svg"
+expected_badge="version-$badge_version-blue.svg"
 
 drift_lines=()
 grep -qF "$expected_comment" "$README" || drift_lines+=("HTML comment 'Version: $version'")
-grep -qF "$expected_badge" "$README" || drift_lines+=("badge 'version-$version-blue.svg'")
+grep -qF "$expected_badge" "$README" || drift_lines+=("badge '$expected_badge'")
 
 if [[ ${#drift_lines[@]} -eq 0 ]]; then
   printf 'OK: README.md version refs in sync (v%s)\n' "$version"
@@ -83,8 +89,8 @@ tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 sed -E \
-  -e "s|^Version: [0-9]+\\.[0-9]+\\.[0-9]+\$|Version: $version|" \
-  -e "s|version-[0-9]+\\.[0-9]+\\.[0-9]+-blue\\.svg|version-$version-blue.svg|g" \
+  -e "s|^Version: [0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\$|Version: $version|" \
+  -e "s|version-[0-9]+\\.[0-9]+\\.[0-9]+(--[0-9A-Za-z.]+)*-blue\\.svg|version-$badge_version-blue.svg|g" \
   "$README" > "$tmp"
 
 if cmp -s "$tmp" "$README"; then
