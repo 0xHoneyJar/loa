@@ -62,10 +62,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - name: No credential — report and skip (release precondition stays open)
+      - name: No credential — fail loud (release precondition not met)
         if: env.HAS_KEY != 'true'
         run: |
-          echo "::warning::ANTHROPIC_API_KEY is not configured — live floor check skipped. Catalog values stay 'reference' until this job records a pass."
+          echo "live-floor: ran=false (ANTHROPIC_API_KEY not configured in the live-floor environment)" >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::ANTHROPIC_API_KEY is not configured — the live floor check did not run, so the release precondition is NOT met (Bridgebuilder iter-5 F-002: a skipped precondition must not read as green). Catalog values stay 'reference' until this job records a pass."
+          exit 1
 
       # Bridgebuilder (PR #1266, iters 2–3): workflow_dispatch executes THIS file
       # from the selected ref, so YAML-side guards can be edited away by the ref
@@ -139,21 +141,19 @@ jobs:
           PYSUM
           test "$rc" -eq 0
 
-      - name: Validate artifacts before upload (no credential, JSONL only)
+      - name: Validate artifacts before upload (no credential in scope, JSONL only)
         if: always() && env.HAS_KEY == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          set +x
           set -euo pipefail
-          # Bridgebuilder iter-3 F-002: the files were written by test code that
-          # ran with the key in its environment; a trusted step checks them
-          # before anything leaves the runner. Artifacts are not secret-masked.
+          # Bridgebuilder iter-3 F-002 / iter-5 F-001: the files were written by
+          # test code that ran with the key in its environment; a trusted step
+          # with NO credential in scope checks them before anything leaves the
+          # runner (artifacts are not secret-masked). The scan is by key shape.
           for f in model-invoke.jsonl cost-ledger.jsonl junit.xml; do
             p="$RUNNER_TEMP/live-floor/$f"
             [ -f "$p" ] || continue
-            if [ -n "${ANTHROPIC_API_KEY:-}" ] && grep -qF -- "$ANTHROPIC_API_KEY" "$p"; then
-              echo "::error::$f contains the credential; refusing to upload"; rm -f "$p"; exit 1
+            if grep -qE 'sk-ant-[A-Za-z0-9_-]{20,}' "$p"; then
+              echo "::error::$f contains an Anthropic key shape; refusing to upload"; rm -f "$p"; exit 1
             fi
             case "$f" in
               *.jsonl)

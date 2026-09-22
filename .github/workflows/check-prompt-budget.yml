@@ -44,7 +44,7 @@ jobs:
           jq -e '.ok' prompt-budget.json >/dev/null
 
       - name: Positive control (the gate rejects the over-budget sentinel with exit 1)
-        if: always()
+        if: success()   # controls prove the gate bites; a real budget failure above stays the visible failure (Bridgebuilder iter-5 F-003)
         run: |
           set -euo pipefail
           rc=0
@@ -56,7 +56,7 @@ jobs:
           echo "OK: over-budget sentinel rejected"
 
       - name: Negative control (the gate accepts the under-budget sentinel)
-        if: always()
+        if: success()   # controls prove the gate bites; a real budget failure above stays the visible failure (Bridgebuilder iter-5 F-003)
         run: |
           set -euo pipefail
           if ! bash tools/check-prompt-budget.sh --root tests/fixtures/prompt-budget/under --quiet; then
@@ -66,7 +66,7 @@ jobs:
           echo "OK: under-budget sentinel accepted"
 
       - name: Upload report
-        if: always()
+        if: success()   # controls prove the gate bites; a real budget failure above stays the visible failure (Bridgebuilder iter-5 F-003)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: prompt-budget-report
