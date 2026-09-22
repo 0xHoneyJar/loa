@@ -2,6 +2,10 @@
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+    # bug 20260922-13a3d1: Aleph is opt-in — this suite runs only with
+    # LOA_ALEPH_ENABLED=1 or aleph.enabled: true in the repo's .loa.config.yaml.
+    source "$REPO_ROOT/.claude/scripts/lib/aleph-opt-in.sh"
+    aleph_opt_in_enabled "$REPO_ROOT" || skip "Aleph is opt-in (set LOA_ALEPH_ENABLED=1 or aleph.enabled: true to run)"
     MOUNT="$REPO_ROOT/.claude/scripts/mount-submodule.sh"
     UPDATE_LOA="$REPO_ROOT/.claude/scripts/update-loa.sh"
     MANIFEST="$REPO_ROOT/.claude/scripts/lib/symlink-manifest.sh"

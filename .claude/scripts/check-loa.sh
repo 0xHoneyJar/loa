@@ -16,6 +16,13 @@ NOTES_FILE="grimoires/loa/NOTES.md"
 # v0.9.0 Protocol files
 PROTOCOL_DIR=".claude/protocols"
 SCRIPT_DIR=".claude/scripts"
+# bug 20260922-13a3d1: single Aleph opt-in predicate (missing lib → disabled).
+if [[ -f "${SCRIPT_DIR}/lib/aleph-opt-in.sh" ]]; then
+  # shellcheck source=lib/aleph-opt-in.sh
+  source "${SCRIPT_DIR}/lib/aleph-opt-in.sh"
+else
+  aleph_opt_in_enabled() { return 1; }
+fi
 
 # Disable colors in CI or non-interactive mode
 if [[ "${CI:-}" == "true" ]] || [[ ! -t 1 ]]; then
@@ -547,7 +554,13 @@ main() {
   check_dependencies
   check_mounted
   check_integrity
-  check_aleph_integrity
+  # bug 20260922-13a3d1: Aleph is opt-in; its integrity check runs only when
+  # the operator enabled it (LOA_ALEPH_ENABLED=1 or aleph.enabled: true).
+  if aleph_opt_in_enabled "."; then
+    check_aleph_integrity
+  else
+    log "Aleph: opt-in disabled (aleph.enabled: false) — integrity check skipped"
+  fi
   check_schema
   check_memory
   check_config

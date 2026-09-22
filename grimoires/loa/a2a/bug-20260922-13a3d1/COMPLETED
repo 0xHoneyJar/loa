@@ -1,0 +1,4 @@
+sprint-bug-239 — bug 20260922-13a3d1: Aleph gates block Loa; make Aleph opt-in (cycle-bug-20260922-13a3d1, executed inside PR #1266)
+completed_at: 2026-09-22T11:10:00Z
+review: APPROVED round 1 (engineer-feedback.md; 0/0/1/2, excluded 0; dissent gpt-5.5-pro clean)
+audit: APPROVED (auditor-sprint-feedback.md; 0/0/1/2, excluded_confirmed 0; dissent 4 rounds — 2 weaknesses fixed in-diff, 1 accepted consequence → bd-c7ma)

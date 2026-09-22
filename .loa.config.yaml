@@ -581,3 +581,13 @@ registry:
     - "auditing-security"
     - "deploying-infrastructure"
     - "translating-for-executives"
+
+# =============================================================================
+# Aleph (third-party, vendored) — OPT-IN (bug 20260922-13a3d1)
+# =============================================================================
+# Aleph was not authored by the Loa maintainers. Loa never verifies, installs,
+# tests or syncs it unless this is true (or LOA_ALEPH_ENABLED=1 is exported):
+# mount/update skip the Aleph refresh, check-loa skips its integrity check, the
+# tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
+aleph:
+  enabled: false
