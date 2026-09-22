@@ -34,6 +34,12 @@ name: Live floor check (Anthropic)
 #
 # Cost ceiling: the scaffold caps itself at ~$5 per run (LOA_LIVE_BUDGET_USD).
 
+# Operator step before storing the key (Bridgebuilder iter-3 F-001): create the
+# `live-floor` environment with required reviewers AND a deployment-branch
+# policy limited to `main` and `release/*`. The environment enforces that
+# server-side; the in-job ref guard below is only defence in depth, because a
+# dispatched branch runs its own copy of this file. The live check is therefore
+# a release-branch / post-merge verification, not a pre-merge one.
 on:
   workflow_dispatch:
 
@@ -61,9 +67,11 @@ jobs:
         run: |
           echo "::warning::ANTHROPIC_API_KEY is not configured — live floor check skipped. Catalog values stay 'reference' until this job records a pass."
 
-      # Bridgebuilder F-002 (PR #1266): the environment reviewers are the primary
-      # gate, but the workflow also refuses to hand the key to code from an
-      # unexpected ref — only main, release/* and the cycle branches, never a fork.
+      # Bridgebuilder (PR #1266, iters 2–3): workflow_dispatch executes THIS file
+      # from the selected ref, so YAML-side guards can be edited away by the ref
+      # they guard. The load-bearing control is the `live-floor` environment's
+      # deployment-branch policy (main, release/*) — configure it before storing
+      # the key (header). This step is defence in depth and refuses forks.
       - name: Refuse untrusted refs before any credentialed step
         if: env.HAS_KEY == 'true'
         env:
@@ -72,8 +80,8 @@ jobs:
         run: |
           set -euo pipefail
           case "$REF_NAME" in
-            main|release/*|feature/cycle-*) ;;
-            *) echo "::error::live-floor runs only on main, release/* or feature/cycle-* (got: $REF_NAME)"; exit 1 ;;
+            main|release/*) ;;
+            *) echo "::error::live-floor runs only on main or release/* (got: $REF_NAME) — a candidate branch can rewrite this workflow before dispatch, so the check runs on trusted refs only"; exit 1 ;;
           esac
           if [ "$IS_FORK" = "true" ]; then
             echo "::error::live-floor never runs in a fork"; exit 1
@@ -109,6 +117,30 @@ jobs:
             --junitxml "$RUNNER_TEMP/live-floor/junit.xml" \
             2>&1 | tee "$RUNNER_TEMP/live-floor/pytest.log"
           test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Validate artifacts before upload (no credential, JSONL only)
+        if: always() && env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +x
+          set -euo pipefail
+          # Bridgebuilder iter-3 F-002: the files were written by test code that
+          # ran with the key in its environment; a trusted step checks them
+          # before anything leaves the runner. Artifacts are not secret-masked.
+          for f in model-invoke.jsonl cost-ledger.jsonl junit.xml; do
+            p="$RUNNER_TEMP/live-floor/$f"
+            [ -f "$p" ] || continue
+            if [ -n "${ANTHROPIC_API_KEY:-}" ] && grep -qF -- "$ANTHROPIC_API_KEY" "$p"; then
+              echo "::error::$f contains the credential; refusing to upload"; rm -f "$p"; exit 1
+            fi
+            case "$f" in
+              *.jsonl)
+                if ! grep '^{' "$p" | jq -e 'type == "object"' >/dev/null 2>&1; then
+                  echo "::error::$f is not JSONL; refusing to upload"; rm -f "$p"; exit 1
+                fi ;;
+            esac
+          done
 
       - name: Upload live-floor outputs
         if: always() && env.HAS_KEY == 'true'
