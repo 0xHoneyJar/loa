@@ -1,5 +1,0 @@
-sprint-4 (global sprint-238) — cycle-124 model-generation floor
-completed_at: 2026-09-22T09:35:00Z
-head: b1a8ef79
-review: APPROVED round 1 (engineer-feedback.md; 0/0/1/3, excluded 0; dissent gpt-5.5-pro clean)
-audit: APPROVED (auditor-sprint-feedback.md; 0/0/1/2, excluded_confirmed 0; dissent clean; AUD4-M1 pre-existing guardrails run-mode mismatch → bd-rk9o)

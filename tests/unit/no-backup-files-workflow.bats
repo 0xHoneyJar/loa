@@ -119,3 +119,10 @@ _check_violations() {
 @test "no-backup: workflow remediation message includes git rm --cached" {
     grep -qF 'git rm --cached' "$WORKFLOW"
 }
+
+@test "no-backup: workflow ignores DELETED files (removing a backup twin is the remedy, not a violation)" {
+    # cycle-124 PR #1266 deleted eight generate-constraints staging twins and the
+    # check flagged the deletions; the diff must exclude them.
+    grep -qE 'git diff --name-only --diff-filter=d "origin/\$\{BASE_REF\}\.\.\.HEAD"' "$WORKFLOW"
+}
+

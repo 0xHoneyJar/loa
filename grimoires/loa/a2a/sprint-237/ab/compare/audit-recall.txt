@@ -1,5 +1,0 @@
-A/B (audit): valid=True
-  PASS recall: A=0.9722 B=0.9722  [mean recall over defect tasks: B >= A - 0.1]
-  PASS false_positives: A=0.0 B=0.0  [mean critical+high findings on clean tasks: B <= A]
-  FAIL tokens_ratio: A=1346835.9667 B=1021364.4  [mean tokens per call B/A <= 0.5 (ratio=0.7583)]
-  per-defect regressions (advisory): D04-verify-for-merge-trusts-local-pubkey, D06-prerelease-tags-rejected

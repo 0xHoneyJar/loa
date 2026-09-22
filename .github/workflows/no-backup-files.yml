@@ -47,7 +47,10 @@ jobs:
           # latest commit and miss multi-commit PRs that introduced the .bak
           # earlier (bridgebuilder iter-1 finding).
           git fetch origin "${BASE_REF}" --depth=1
-          changed_files=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          # --diff-filter=d: a PR that DELETES a stale backup twin is the remedy,
+          # not a violation (cycle-124 PR #1266 removed eight .constraint-* twins
+          # and this check flagged the deletions).
+          changed_files=$(git diff --name-only --diff-filter=d "origin/${BASE_REF}...HEAD")
 
           # Pattern: *.bak, -bak (suffix), *~, *.orig, *.swp, *.swo, and the
           # generate-constraints.sh staging twins `<file>.constraint-XXXXXX`

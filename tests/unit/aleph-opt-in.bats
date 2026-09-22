@@ -73,11 +73,15 @@ _consumer() {  # <dir> [config-yaml]
   for f in aleph-release-ingestion aleph-framework-integration aleph-submodule-real-installer; do
     grep -qE 'aleph_opt_in_enabled' "$REPO_ROOT/tests/unit/$f.bats"
   done
-  # the cheapest suite really skips (no LOA_ALEPH_ENABLED, repo config says false)
-  run npx --no-install bats "$REPO_ROOT/tests/unit/aleph-release-ingestion.bats"
-  [ "$status" -eq 0 ]
-  [ "$(grep -cE '^ok [0-9]+ .*# skip' <<<"$output")" -ge 1 ]
-  ! grep -qE '^not ok' <<<"$output"
+  # each suite's setup() sources the lib and skips right after the predicate (no nested bats run:
+  # CI and local runners invoke bats differently, and the skip mechanics are bats-core's own)
+  for f in aleph-release-ingestion aleph-framework-integration aleph-submodule-real-installer; do
+    grep -qE 'source "\$REPO_ROOT/.claude/scripts/lib/aleph-opt-in.sh"' "$REPO_ROOT/tests/unit/$f.bats"
+    grep -qE 'aleph_opt_in_enabled "\$REPO_ROOT" \|\| skip ' "$REPO_ROOT/tests/unit/$f.bats"
+  done
+  # and this repository is opted out, so the predicate the setups call returns 1 here
+  run bash -c "source '$LIB' && aleph_opt_in_enabled '$REPO_ROOT'"
+  [ "$status" -eq 1 ]
 }
 
 @test "AO-5 both Aleph workflows carry a config gate: downstream jobs need it and run only when enabled" {

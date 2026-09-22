@@ -1,4 +1,0 @@
-A/B (recall): valid=True
-  PASS recall: A=0.9583 B=0.9445  [mean recall over defect tasks: B >= A - 0.1]
-  FAIL false_positives: A=0.0 B=0.1666  [mean critical+high findings on clean tasks: B <= A]
-  per-defect regressions (advisory): D06-prerelease-tags-rejected, D13-find-exec-multi-root, D16-spawn-oserror-crashes-chain, D24-embedded-nul-valueerror

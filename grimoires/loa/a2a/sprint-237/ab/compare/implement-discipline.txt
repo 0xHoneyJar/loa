@@ -1,2 +1,0 @@
-A/B (discipline): valid=True
-  PASS pass_rate: A=0.0 B=0.0  [mean task pass rate: B >= A]
