@@ -29,8 +29,17 @@ jobs:
       - name: Check budgets
         run: |
           set -euo pipefail
+          rc=0
           bash tools/check-prompt-budget.sh --json > prompt-budget.json || rc=$?
-          bash tools/check-prompt-budget.sh || true
+          # A checker that dies before writing a report must fail LOUD with its
+          # exit code, not as an opaque jq parse error (Bridgebuilder F-003).
+          if ! jq -e . prompt-budget.json >/dev/null 2>&1; then
+            echo "::error::check-prompt-budget.sh --json produced no parseable report (exit $rc)"
+            cat prompt-budget.json || true
+            exit 1
+          fi
+          # Human-readable table for the log; the JSON gate below is the verdict.
+          bash tools/check-prompt-budget.sh || echo "::notice::human-readable run exited non-zero; the JSON gate decides"
           jq -r '.violations[]? | "::error::prompt budget: \(.)"' prompt-budget.json
           jq -e '.ok' prompt-budget.json >/dev/null
 
