@@ -1,0 +1,45 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-237",
+    "timestamp": "2026-09-22T06:21:30Z",
+    "tokens_input": 33174,
+    "tokens_output": 745,
+    "cost_usd": 0,
+    "latency_ms": 19580,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 2,
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-237/adversarial-rejected-audit.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}

@@ -471,7 +471,7 @@ A task that declares `agent.skill` runs the headless CLI inside its sandbox befo
 (`evals/harness/execute-agent.sh`, wired at the grading slot in `run-eval.sh`); every other task
 keeps the pre-existing path. The executor materializes the prompt surface (the skill body, `CLAUDE.md`
 → `CLAUDE.loa.md`, `.claude/rules/`) from `EVAL_PROMPT_TREE` into the sandbox, runs
-`claude -p … --output-format stream-json --model $EVAL_MODEL [--effort …] --allowed-tools Read,Grep,Glob,Write --permission-mode acceptEdits`,
+`claude -p … --output-format stream-json --model $EVAL_MODEL [--effort …] --restricted --tools Read,Grep,Glob,Write --permission-mode acceptEdits`,
 and records `.eval/executor.json` (CLI-echoed model id, usage, `prompt_tree_sha`, ordered tool writes).
 Per-trial outputs land under `evals/results/<run>/artifacts/<task>/trial-N/`.
 

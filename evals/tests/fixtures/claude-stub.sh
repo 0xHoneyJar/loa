@@ -17,7 +17,7 @@ fi
 if [[ -n "${STUB_ENV_FILE:-}" ]]; then
   {
     printf 'PWD=%s\n' "$PWD"
-    for k in LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH HOME EVAL_MODEL; do
+    for k in LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH HOME EVAL_MODEL TMPDIR GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY AWS_SECRET_ACCESS_KEY; do
       printf '%s=%s\n' "$k" "${!k:-}"
     done
   } > "$STUB_ENV_FILE"

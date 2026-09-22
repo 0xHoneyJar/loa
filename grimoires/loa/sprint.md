@@ -195,6 +195,16 @@ AC-9.2 is partially met (report §AC-9.2: review recall within tolerance after o
 | Audit tokens per call 0.758 of baseline vs the ≤ 0.5 target | bd-gvxy | re-specify the gate against prompt-attributable tokens (`input_tokens` + `cache_creation_input_tokens`) or drop the 0.5 target; cache reads of the diff dominate the call |
 | Implement-discipline composite 0/15 in both arms (`test_first` never satisfied), surgical 15/15 → 13/15 | bd-azrr | add at least one fixture where test-first is the natural path (or relax `all_must_pass` for this suite) so the composite can move; decide whether the Karpathy kernel needs an explicit no-scratch-files line |
 | Recall grader rewards range citations (anchor ±3) | bd-a4td | credit a citation whose `must_match` string lies within the cited range; record the miss reason per defect |
+| **Audit round 1 (2026-09-22) — medium findings, none blocking after HIGH-001 was fixed in-sprint** | | |
+| A/B arms measured under an unconfined executor (host allow rules admitted Bash; 30/181 trials wrote to `/tmp`) | bd-vq7v | re-run arms A and B2 under `--restricted --tools` and refresh the baselines; until then the record carries the environment caveat |
+| `compare.sh` freshness hashes `SHA256SUMS` itself; `--verify` has no caller; EA-8/9 pollute the dev eval ledger; citation regex can time a trial out instead of scoring 0 | bd-sk1t | `sha256sum -c` inside `check_freshness`; ledger into the test tmpdir; bound the token or score timeouts 0 |
+| `check-prompt-budget.sh` passes an empty scan; `--json` hides the protocol warn; workflow lacks `permissions:` | bd-tc3i | exit 2 unless ≥1 SKILL.md, CLAUDE.loa.md and ≥1 protocol scanned; surface `protocols.warn`; `permissions: contents: read` |
+| `verdict-derive.sh` accepts integral floats, strips the review marker case-sensitively, scans only uppercase severity words, exits silently on a trailer-less review | bd-zklv | integer-only `trailer_int`; `-i` on strip as on detect; scan the lowercased line; named violation at `:294` |
+| Kernel rule "verdict-bearing work NEVER runs on a pinned cheaper model" dropped by the compression | bd-kqz4 | restore at the dispatch step in `PARALLEL-REVIEW.md` / `PARALLEL-SPLIT.md` and keep-list it |
+| Agent-network L1–L7 read-before-touch imperative and routing table dropped from the kernel | bd-1ju5 | path-scoped `.claude/rules/agent-network.md`; keep-list row |
+| Six low-severity prompt drops (escalation cue, Write-tool-for-source, fence inventory names, trajectory HALT, bridge re-read cue, autonomous clause) | bd-tjkx | decide per item: restore at point of use, widen a `paths:` scope, or record as accepted |
+| Input guardrails fail open on orchestrator error (pre-existing design; dissent) | bd-2a9g | decide whether `LOA_RUN_MODE=run` treats orchestrator errors as BLOCK |
+| Dissent sidecar truncated per run; reject log prints the post-repair reason (pre-existing; KF-004 recurrence 31) | bd-tdtr | per-run sidecar naming; log both reasons |
 
 ---
 

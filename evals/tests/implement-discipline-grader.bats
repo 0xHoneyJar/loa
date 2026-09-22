@@ -76,6 +76,19 @@ writes() {  # writes <path>... — executor.json with tool_writes in the given o
   [ "$(echo "$output" | jq -r '.details.test_first')" = "true" ]
 }
 
+@test "ID-10 test_command runs without the operator's credentials (env -i, toolchain PATH kept)" {
+  # sprint-237 audit: the grader executes agent-authored tests on the host; they must
+  # not inherit GH_TOKEN/OPENAI_API_KEY/AWS_* — and python3 must still be reachable.
+  cat > "$T/expect/98.json" <<'JSON'
+{"allowlist":["src/pkg/mod.py","tests/test_mod.py"],"test_command":["sh","-c","test -z \"$GH_TOKEN\" && test -z \"$OPENAI_API_KEY\" && test -z \"$AWS_SECRET_ACCESS_KEY\" && command -v python3 >/dev/null && [ \"$TMPDIR\" = \"$PWD/.eval/tmp\" ]"],"test_path_regex":"^tests/","src_path_regex":"^src/"}
+JSON
+  export GH_TOKEN=leak-gh OPENAI_API_KEY=leak-openai AWS_SECRET_ACCESS_KEY=leak-aws
+  writes tests/test_mod.py src/pkg/mod.py
+  run "$GRADER" "$WS" 98
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.details.tests_pass')" = "true" ]
+}
+
 @test "ID-6 absolute write paths inside the workspace are normalized before the checks" {
   writes "$WS/tests/test_mod.py" "$WS/src/pkg/mod.py"
   run "$GRADER" "$WS" 99

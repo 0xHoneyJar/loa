@@ -18,16 +18,18 @@
 #      is recorded: prompt_tree_sha = `git rev-parse HEAD:.claude` of the tree,
 #      prompt_tree_commit, and whether .claude/ had uncommitted changes.
 #   3. Run:  claude -p "<task.prompt>" --output-format stream-json --verbose
-#              --model $EVAL_MODEL [--effort <e>] --allowed-tools Read,Grep,Glob,Write
-#              (--permission-mode acceptEdits also admits Edit/MultiEdit, which is why the
-#              transcript extractor below records them; the tool list is the SDD's fixed set)
+#              --model $EVAL_MODEL [--effort <e>] --restricted --tools Read,Grep,Glob,Write
 #              --permission-mode acceptEdits --append-system-prompt-file <skill-prompt>
 #              --max-turns $EVAL_MAX_TURNS
-#      cwd = sandbox; env-isolated (LOA_MODELINV_LOG_PATH / LOA_COST_LEDGER_PATH
-#      point into <ws>/.eval/, FR-6); wall-clock bounded by --timeout.
-#      Effort resolution: EVAL_EFFORT > `.agent.effort` > the skill's
-#      frontmatter `effort:` in the prompt tree > none. An invalid level is
-#      dropped (no flag), mirroring model-adapter.sh resolve_effort().
+#      --restricted --tools names the SDD's fixed tool set EXACTLY: it removes the
+#      code-running tools, ignores the operator's user/project/local settings (their
+#      Bash(...) allow rules leaked into the sprint-237 A/B arms under --allowed-tools,
+#      which only adds rules) and confines Read/Grep/Glob/Write to the sandbox.
+#      Edit/MultiEdit are therefore unavailable; the transcript extractor below still
+#      records them defensively.
+#      cwd = sandbox; env-isolated (LOA_MODELINV_LOG_PATH / LOA_COST_LEDGER_PATH and
+#      TMPDIR into the sandbox; GH_TOKEN/GITHUB_TOKEN/OPENAI_API_KEY/AWS_* unset;
+#      HOME and PATH stay so the CLI finds its own credentials and toolchain).
 #   4. Record <ws>/.eval/events.jsonl (raw stream), agent-output.json (the
 #      `result` event) and executor.json:
 #        {schema_version, skill, model_requested, model_id (the id the CLI
@@ -158,7 +160,7 @@ argv=(
   "$CLAUDE_BIN" -p "$prompt"
   --output-format stream-json --verbose
   --model "$MODEL"
-  --allowed-tools "Read,Grep,Glob,Write"
+  --restricted --tools "Read,Grep,Glob,Write"
   --permission-mode acceptEdits
   --append-system-prompt-file "$eval_dir/skill-prompt.md"
   --max-turns "$MAX_TURNS"
@@ -174,6 +176,11 @@ rc=0
   export LOA_MODELINV_LOG_PATH="$eval_dir/model-invoke.jsonl"
   export LOA_COST_LEDGER_PATH="$eval_dir/cost-ledger.jsonl"
   export EVAL_MODEL="$MODEL"
+  # sprint-237 audit HIGH-001: the CLI keeps HOME (its own credentials live there)
+  # and PATH (its toolchain); the operator's other credentials are not the agent
+  # under test's business, and its temp files stay inside the sandbox.
+  unset GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+  mkdir -p "$eval_dir/tmp" && export TMPDIR="$eval_dir/tmp"
   exec timeout --signal=TERM --kill-after=15 "$TIMEOUT_S" "${argv[@]}"
 ) > "$events" 2> "$stderr_log" || rc=$?
 end_ms="$(date +%s%N | cut -c1-13)"

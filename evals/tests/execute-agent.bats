@@ -91,14 +91,20 @@ make_tree() {  # make_tree <dir> <effort-line-or-empty>
   [ -f "$WS/.claude/skills/reviewing-code/SKILL.md" ]
 }
 
-@test "EA-3 argv carries the fixed tool set, permission mode, model, stream-json and the system-prompt file" {
+@test "EA-3 argv carries the confined fixed tool set (--restricted --tools), permission mode, model, stream-json and the system-prompt file" {
   run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
   [ "$status" -eq 0 ]
   local joined; joined="$(cat "$STUB_ARGV_FILE")"
   grep -qx -- '--model' <<<"$joined"
   grep -qx -- 'claude-sonnet-5' <<<"$joined"
-  grep -qx -- '--allowed-tools' <<<"$joined"
+  # sprint-237 audit HIGH-001: --allowed-tools only ADDS allow rules on top of the
+  # operator's ~/.claude settings (user Bash(...) rules leaked into the A/B arms) and
+  # leaves the file tools unconfined; --restricted --tools names the set exactly,
+  # ignores user/project settings and confines Read/Grep/Glob/Write to the sandbox.
+  grep -qx -- '--restricted' <<<"$joined"
+  grep -qx -- '--tools' <<<"$joined"
   grep -qx -- 'Read,Grep,Glob,Write' <<<"$joined"
+  ! grep -qx -- '--allowed-tools' <<<"$joined"
   grep -qx -- '--permission-mode' <<<"$joined"
   grep -qx -- 'acceptEdits' <<<"$joined"
   grep -qx -- '--output-format' <<<"$joined"
@@ -109,6 +115,19 @@ make_tree() {  # make_tree <dir> <effort-line-or-empty>
   grep -qxF -- 'Read REVIEW-INSTRUCTIONS.md and carry it out.' <<<"$joined"
   # the CLI ran with cwd = workspace
   grep -q "^PWD=$WS\$" "$STUB_ENV_FILE"
+}
+
+@test "EA-10 env hygiene: non-CLI credentials are absent and TMPDIR sits under the sandbox; HOME stays (the CLI reads its own credentials there)" {
+  export GH_TOKEN=leak-gh GITHUB_TOKEN=leak-github OPENAI_API_KEY=leak-openai AWS_SECRET_ACCESS_KEY=leak-aws
+  run "$EXEC" --task-yaml "$T/task.yaml" --workspace "$WS"
+  [ "$status" -eq 0 ]
+  grep -q '^GH_TOKEN=$' "$STUB_ENV_FILE"
+  grep -q '^GITHUB_TOKEN=$' "$STUB_ENV_FILE"
+  grep -q '^OPENAI_API_KEY=$' "$STUB_ENV_FILE"
+  grep -q '^AWS_SECRET_ACCESS_KEY=$' "$STUB_ENV_FILE"
+  grep -q "^TMPDIR=$WS/.eval/tmp\$" "$STUB_ENV_FILE"
+  [ -d "$WS/.eval/tmp" ]
+  grep -q "^HOME=$HOME\$" "$STUB_ENV_FILE"
 }
 
 @test "EA-4 effort: skill frontmatter forwarded, EVAL_EFFORT overrides, absent or invalid yields no flag" {

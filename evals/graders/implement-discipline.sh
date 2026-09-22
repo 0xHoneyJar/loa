@@ -40,11 +40,20 @@ executor="$workspace/.eval/executor.json"
 
 ws_abs="$(cd "$workspace" && pwd)"
 
-# --- run the fixture's tests (deterministic, no network) ---------------------
+# --- run the fixture's tests -------------------------------------------------
+# The test tree is agent-authored and runs on the host (sprint-237 audit): strip
+# the operator's environment with env -i and pass through only what a toolchain
+# needs (PATH, HOME for user-site packages, PYTHONPATH/VIRTUAL_ENV when set);
+# temp files stay inside the workspace.
 mapfile -t test_cmd < <(jq -r '.test_command[]' "$expect")
 tests_pass=false
 if [[ ${#test_cmd[@]} -gt 0 ]]; then
-  if ( cd "$ws_abs" && timeout --signal=TERM --kill-after=5 120 "${test_cmd[@]}" >/dev/null 2>&1 ); then
+  mkdir -p "$ws_abs/.eval/tmp"
+  clean_env=(PATH="$PATH" HOME="$HOME" TMPDIR="$ws_abs/.eval/tmp" LC_ALL=C)
+  [[ -n "${PYTHONPATH:-}" ]] && clean_env+=(PYTHONPATH="$PYTHONPATH")
+  [[ -n "${VIRTUAL_ENV:-}" ]] && clean_env+=(VIRTUAL_ENV="$VIRTUAL_ENV")
+  if ( cd "$ws_abs" && env -i "${clean_env[@]}" \
+         timeout --signal=TERM --kill-after=5 120 "${test_cmd[@]}" >/dev/null 2>&1 ); then
     tests_pass=true
   fi
 fi
