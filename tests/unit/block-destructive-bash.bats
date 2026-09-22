@@ -1471,3 +1471,58 @@ hook_invoke() {
     run hook_invoke 'git commit -m "export $PATH before rm -rf / cleanup"'
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# FR-NOTES — NOTES.md append gate (cycle-124 Sprint 4, PRD FR-10)
+# `>> …grimoires/loa/NOTES.md` is the sanctioned append writer, so it is fenced
+# (not exempted): blocked only while notes-guard.sh check exits 3 (≥ 200 KiB).
+# The size comes from $LOA_GRIMOIRE_DIR/NOTES.md (the configurable dir).
+# =============================================================================
+
+_notes_fixture() {  # <size> — builds $NSCRATCH/grim/NOTES.md and exports LOA_GRIMOIRE_DIR
+    NSCRATCH="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/frnotes-XXXXXX")"
+    mkdir -p "$NSCRATCH/grim"
+    "$PROJECT_ROOT/tests/fixtures/notes/make-large-notes.sh" "$NSCRATCH/grim/NOTES.md" "$1"
+    export LOA_GRIMOIRE_DIR="$NSCRATCH/grim"
+}
+
+@test "FR-NOTES: append to grimoires/loa/NOTES.md is blocked at 200 KiB with the rotate remedy" {
+    _notes_fixture 200k
+    run hook_invoke 'echo "- note" >> grimoires/loa/NOTES.md'
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"FR-NOTES"* ]]
+    [[ "$output" == *"rotate"* ]]
+    run hook_invoke 'printf "%s\n" "x" >> "${PROJECT_ROOT}/grimoires/loa/NOTES.md"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cat >> /home/me/repo/grimoires/loa/NOTES.md <<EOF
+hello
+EOF'
+    [ "$status" -eq 2 ]
+}
+
+@test "FR-NOTES: the same append is allowed below the block line (warn only)" {
+    _notes_fixture 100k
+    run hook_invoke 'echo "- note" >> grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+    _notes_fixture under
+    run hook_invoke 'echo "- note" >> grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+}
+
+@test "FR-NOTES: reads, the rotate escape hatch, other files and a missing NOTES.md are never blocked" {
+    _notes_fixture 200k
+    run hook_invoke 'cat grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'grep -n "## Blockers" grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+    run hook_invoke '.claude/scripts/notes-guard.sh rotate --file grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'echo x >> grimoires/loa/NOTES.md.bak'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'echo x >> grimoires/loa/known-failures.md'
+    [ "$status" -eq 0 ]
+    rm "$NSCRATCH/grim/NOTES.md"
+    run hook_invoke 'echo "- note" >> grimoires/loa/NOTES.md'
+    [ "$status" -eq 0 ]
+}
+

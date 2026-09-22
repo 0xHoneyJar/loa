@@ -31,7 +31,7 @@ fi
 
 ```bash
 # Read structured memory
-[[ -f "grimoires/loa/NOTES.md" ]] && cat grimoires/loa/NOTES.md
+.claude/scripts/notes-guard.sh read   # bounded default (Blockers, latest continuity, 3 newest decisions)
 
 # Check for existing translations
 ls -la grimoires/loa/translations/ 2>/dev/null

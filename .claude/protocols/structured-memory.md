@@ -14,7 +14,7 @@ What a model cannot infer is WHERE durable notes go — that is the contract thi
 
 ## Required Sections (NOTES.md template)
 
-`.claude/templates/NOTES.md.template` is the mechanical carrier for new mounts: Current Focus, Session Log, Decisions, Blockers, Technical Debt, Goal Status, Learnings, Session Continuity. `check-loa.sh check_notes_template` WARNs (never fails) when the live file lacks **Session Continuity** or **Decision Log** — the two recovery-critical sections KF forensics depend on (the known-failures.md attempts tables cite Decision Log entries). Known drift: the template ships `## Decisions` while the validator and live convention use dated `## Decision Log` headings, so a fresh mount WARNs until renamed.
+`.claude/templates/NOTES.md.template` is the mechanical carrier for new mounts: Current Focus, Session Log, Decisions, Blockers, Technical Debt, Goal Status, Learnings, Session Continuity. `check-loa.sh check_notes_template` WARNs (never fails) when the live file lacks **Session Continuity** or **Decision Log** — the two recovery-critical sections KF forensics depend on (the known-failures.md attempts tables cite Decision Log entries).
 
 ## Agent Discipline (when to write)
 
@@ -25,8 +25,9 @@ What a model cannot infer is WHERE durable notes go — that is the contract thi
 | Blocker hit / Blocker resolved | Blockers section |
 | Mistake discovered | Learnings (or KF ledger if recurrence-worthy) |
 | Session end / pre-compaction | update Session Continuity |
+| File reaches 100 KiB / 200 KiB | `notes-guard.sh check` warns at 100 KiB and refuses growth at 200 KiB (hook, `>>` fence, learnings writer); run `/compound` or `notes-guard.sh rotate` (archive first, keep the `read` selection) |
 
-Recovery procedure (tiered L1/L2/L3): `.claude/protocols/session-continuity.md`. Clearing thresholds + synthesis format: `.claude/protocols/tool-result-clearing.md`.
+Recovery procedure (tiered L1/L2/L3, default read = `notes-guard.sh read`, ≤ 68 KiB): `.claude/protocols/session-continuity.md`. Clearing thresholds + synthesis format: `.claude/protocols/tool-result-clearing.md`.
 
 ## Provenance
 

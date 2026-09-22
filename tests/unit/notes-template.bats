@@ -246,3 +246,29 @@ setup() {
 @test "protocol mentions v0.9.0 session continuity" {
     grep -q "v0.9.0" "$PROTOCOL_FILE"
 }
+
+# =============================================================================
+# FR-10 memory gate (cycle-124 Sprint 4) — thresholds documented, readers bounded
+# =============================================================================
+
+@test "protocol documents the notes-guard thresholds (100 KiB warn / 200 KiB block) and the read cap" {
+    grep -q "notes-guard.sh" "$PROTOCOL_FILE"
+    grep -q "100 KiB" "$PROTOCOL_FILE"
+    grep -q "200 KiB" "$PROTOCOL_FILE"
+}
+
+@test "no live prompt or script reads NOTES.md unbounded (cat/head → notes-guard.sh read); frozen translate-ride-v* snapshots excluded" {
+    local hits
+    hits=$(grep -rEn '(cat|head)([[:space:]]+-[[:alnum:]]+)*[[:space:]]+"?(\$\{?PROJECT_ROOT\}?/)?"?grimoires/loa/NOTES\.md' \
+        "$PROJECT_ROOT/.claude" --include='*.md' --include='*.sh' 2>/dev/null \
+        | grep -vE '/config/translate-ride-v[0-9]+\.md:' || true)
+    [ -z "$hits" ] || { echo "unbounded NOTES.md readers: $hits"; false; }
+}
+
+@test "session-continuity Level 1 and Level 3 recipes go through notes-guard.sh" {
+    local sc="$PROJECT_ROOT/.claude/protocols/session-continuity.md"
+    grep -q 'notes-guard.sh read' "$sc"
+    grep -q 'notes-guard.sh read --full' "$sc"
+    ! grep -q 'head -50' "$sc"
+}
+

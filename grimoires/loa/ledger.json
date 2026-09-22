@@ -2178,7 +2178,7 @@
         {
           "global_id": 238,
           "local_label": "sprint-4",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-09-17T03:59:13Z",
           "completed": null,
           "epic": "bd-ianm",
@@ -2537,5 +2537,5 @@
     }
   ],
   "next_sprint_number": 239,
-  "last_updated": "2026-09-22T07:51:00Z"
+  "last_updated": "2026-09-22T08:05:58Z"
 }

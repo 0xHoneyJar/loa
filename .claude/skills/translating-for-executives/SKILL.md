@@ -177,7 +177,7 @@ check_integrity || exit 1
 
 ### Phase 1: Memory Restoration
 
-Read `grimoires/loa/NOTES.md` (Session Continuity) and list any existing `grimoires/loa/translations/`.
+Run `.claude/scripts/notes-guard.sh read` (the bounded NOTES.md default) and list any existing `grimoires/loa/translations/`.
 
 ### Phase 2: Artifact Discovery
 

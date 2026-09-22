@@ -19,7 +19,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-NOTES_FILE="${PROJECT_ROOT}/grimoires/loa/NOTES.md"
+# cycle-124 FR-10: honour the configurable grimoire dir (LOA_GRIMOIRE_DIR), the
+# same contract path-lib.sh and the NOTES size fences use.
+NOTES_FILE="${LOA_GRIMOIRE_DIR:-${PROJECT_ROOT}/grimoires/loa}/NOTES.md"
 
 # Parameters
 READ_STDIN=false
@@ -141,6 +143,19 @@ ensure_learnings_section() {
   fi
 }
 
+# cycle-124 FR-10: the writer-side size gate. notes-guard.sh check exits 3 at
+# 200 KiB; this script then writes NOTHING and exits 3 (rotate first).
+notes_size_gate() {
+  local guard="${SCRIPT_DIR}/notes-guard.sh" rc=0
+  [[ -x "$guard" ]] || return 0
+  "$guard" check --file "$NOTES_FILE" || rc=$?
+  if [[ $rc -eq 3 ]]; then
+    echo "[ERROR] NOTES.md is at or over 200 KiB — not writing learnings. Run .claude/scripts/notes-guard.sh rotate first." >&2
+    exit 3
+  fi
+  return 0
+}
+
 # Update NOTES.md
 update_notes() {
   local learnings
@@ -157,6 +172,7 @@ update_notes() {
   fi
   
   init_notes
+  notes_size_gate
   ensure_learnings_section
   
   # Find the Learnings section and append after it

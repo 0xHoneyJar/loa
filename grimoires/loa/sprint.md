@@ -216,19 +216,19 @@ AC-9.2 is partially met (report §AC-9.2: review recall within tolerance after o
 Session memory is bounded: the default session-start read is heading-based and capped, appends past 200 KiB are refused with a working escape hatch, rotation is tested, and the memory-tool question is decided in writing.
 
 ### Deliverables
-- [ ] `.claude/scripts/notes-guard.sh` (`check | read [--full] | rotate`), `tests/fixtures/notes/make-large-notes.sh`
-- [ ] `.claude/hooks/safety/notes-size-guard.sh` (+ `settings.json` entry), `FR-NOTES` pattern, `update-notes-learnings.sh` writer gate
-- [ ] Readers/docs: `session-continuity.md`, `translating-for-executives/SKILL.md`, `ride-translation.md`, `structured-memory.md`, `context-engineering.md`, `NOTES.md.template`, `hooks-reference.md`; memo `grimoires/loa/reports/2026-09-17-notes-vs-memory-tool.md`
+- [x] `.claude/scripts/notes-guard.sh` (`check | read [--full] | rotate`), `tests/fixtures/notes/make-large-notes.sh`
+- [x] `.claude/hooks/safety/notes-size-guard.sh` (+ `settings.json` entry), `FR-NOTES` pattern, `update-notes-learnings.sh` writer gate
+- [x] Readers/docs: `session-continuity.md`, `translating-for-executives/SKILL.md`, `ride-translation.md`, `structured-memory.md`, `context-engineering.md`, `NOTES.md.template`, `hooks-reference.md`; memo `grimoires/loa/reports/2026-09-17-notes-vs-memory-tool.md`
 
 ### Acceptance Criteria
-- [ ] AC-10.1 … AC-10.3 as written in the PRD
-- [ ] `block-destructive-bash.bats` existing cases green unmodified; `notes-template.bats` existing assertions untouched
+- [x] AC-10.1 … AC-10.3 as written in the PRD
+- [x] `block-destructive-bash.bats` existing cases green unmodified; `notes-template.bats` existing assertions untouched
 
 ### Technical Tasks
 
-- [ ] Task 4.1: **`notes-guard.sh` + fixtures** — thresholds as literals; `check` (`--delta`), heading-based `read` with the 69,632 B cap and drift fallback, `rotate` with archive-fsync-then-write and refuse-existing. Tests first: `tests/unit/notes-guard.bats` (the 750 KB ≤ 20k-token headline, non-empty with the three headings, last-session/3-newest selection, drift marker, `--full` byte-identical, rotate round-trip/fsync order/gitignored/refuse-existing/retained < 100 KiB). → **[G-8]** ⇐ none
-- [ ] Task 4.2: **Fences + writer gate** — `notes-size-guard.sh` (realpath, direction-aware, hook-guard-wrapped, `settings.json:560` array entry); `FR-NOTES` in `block-destructive-bash.sh`; `update-notes-learnings.sh` `check` before append/rewrite. Tests first: `notes-size-guard.bats` (grow denied / shrink allowed at 250 KiB, other paths exit 0, missing file, symlink/relative/custom dir, fail-open, rotate not blocked), extended `block-destructive-bash.bats` (`FR-NOTES` above/below threshold), writer-gate case in `notes-guard.bats`. → **[G-8]** ⇐ Task 4.1
-- [ ] Task 4.3: **Readers, docs, memo, report** — the two live unbounded readers → `read`; `session-continuity.md:129,141`; `structured-memory.md`, `context-engineering.md:14`, `NOTES.md.template` heading, `hooks-reference.md` bypass note; decision memo; extend `notes-template.bats` (thresholds documented; unbounded-`cat` reader set empty); E2E goal validation table (G-1 … G-8, evidence per goal); sprint report + honesty pass; REPO-MAP regen; delete `.run/zone-guard-authorization.json` at cycle end (recorded in the report and PR body). → **[G-8, all]** ⇐ Task 4.2
+- [x] Task 4.1: **`notes-guard.sh` + fixtures** — thresholds as literals; `check` (`--delta`), heading-based `read` with the 69,632 B cap and drift fallback, `rotate` with archive-fsync-then-write and refuse-existing. Tests first: `tests/unit/notes-guard.bats` (the 750 KB ≤ 20k-token headline, non-empty with the three headings, last-session/3-newest selection, drift marker, `--full` byte-identical, rotate round-trip/fsync order/gitignored/refuse-existing/retained < 100 KiB). → **[G-8]** ⇐ none
+- [x] Task 4.2: **Fences + writer gate** — `notes-size-guard.sh` (realpath, direction-aware, hook-guard-wrapped, `settings.json:560` array entry); `FR-NOTES` in `block-destructive-bash.sh`; `update-notes-learnings.sh` `check` before append/rewrite. Tests first: `notes-size-guard.bats` (grow denied / shrink allowed at 250 KiB, other paths exit 0, missing file, symlink/relative/custom dir, fail-open, rotate not blocked), extended `block-destructive-bash.bats` (`FR-NOTES` above/below threshold), writer-gate case in `notes-guard.bats`. → **[G-8]** ⇐ Task 4.1
+- [x] Task 4.3: **Readers, docs, memo, report** — the two live unbounded readers → `read`; `session-continuity.md:129,141`; `structured-memory.md`, `context-engineering.md:14`, `NOTES.md.template` heading, `hooks-reference.md` bypass note; decision memo; extend `notes-template.bats` (thresholds documented; unbounded-`cat` reader set empty); E2E goal validation table (G-1 … G-8, evidence per goal); sprint report + honesty pass; REPO-MAP regen; delete `.run/zone-guard-authorization.json` at cycle end (recorded in the report and PR body). → **[G-8, all]** ⇐ Task 4.2
 
 ### Task 4.E2E: End-to-End Goal Validation
 

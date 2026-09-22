@@ -93,13 +93,13 @@ This is what lets `/run sprint-plan` survive context compaction during unattende
 
 | Level | Tokens | Trigger | Method |
 |-------|--------|---------|--------|
-| **1** | ~100 | Default (all recoveries) | Session Continuity section + last 3 decisions |
+| **1** | ≤ 20k | Default (all recoveries) | `notes-guard.sh read`: Blockers + newest Session Continuity + 3 newest Decision Logs, ≤ 68 KiB |
 | **2** | ~200-500 | Task needs historical context | `ck --hybrid` for specific decisions |
-| **3** | Full | User explicit request | Full NOTES.md read |
+| **3** | Full | User explicit request only | `notes-guard.sh read --full` |
 
 **Level 1 Recovery** (default):
 ```bash
-head -50 "${PROJECT_ROOT}/grimoires/loa/NOTES.md" | grep -A 20 "## Session Continuity"
+"${PROJECT_ROOT}/.claude/scripts/notes-guard.sh" read
 ```
 
 **Level 2 Recovery** (on-demand):
@@ -109,7 +109,7 @@ ck --hybrid "authentication decision" "${PROJECT_ROOT}/grimoires/loa/" --top-k 3
 
 **Level 3 Recovery** (explicit):
 ```bash
-cat "${PROJECT_ROOT}/grimoires/loa/NOTES.md"
+"${PROJECT_ROOT}/.claude/scripts/notes-guard.sh" read --full
 ```
 
 ### Phase 2: During Session

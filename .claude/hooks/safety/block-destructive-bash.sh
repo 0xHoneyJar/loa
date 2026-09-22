@@ -1273,5 +1273,30 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # else: every arg matched the allow list → fall through.
 fi
 
+# -----------------------------------------------------------------------------
+# FR-NOTES — NOTES.md append gate (cycle-124 FR-10, PRD AC-10.1)
+# `>> …grimoires/loa/NOTES.md` is the sanctioned append writer for session
+# memory (team-role-guard-write.sh lists NOTES.md as append-only), so it is
+# fenced rather than exempted: blocked only while notes-guard.sh check exits 3
+# (the file is at/over 200 KiB). Reads, other files, NOTES.md.bak-style
+# siblings and `notes-guard.sh rotate` (the escape hatch; it uses mv) never
+# match. The size is read from $LOA_GRIMOIRE_DIR/NOTES.md (the configurable
+# grimoire dir); a missing file or guard script falls through (allow).
+# pass-8 pre-filter: `NOTES.md` mandatory.
+# -----------------------------------------------------------------------------
+if [[ "$command" == *"NOTES.md"* ]] \
+   && _match '>>[[:space:]]*[^;&|]*grimoires/loa/NOTES\.md($|[^A-Za-z0-9._-])'; then
+  _notes_guard="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/notes-guard.sh"
+  _notes_file="${LOA_GRIMOIRE_DIR:-${LOA_REPO_ROOT:-.}/grimoires/loa}/NOTES.md"
+  if [[ -x "$_notes_guard" && -f "$_notes_file" ]]; then
+    _notes_rc=0
+    "$_notes_guard" check --file "$_notes_file" >/dev/null 2>&1 || _notes_rc=$?
+    if [[ $_notes_rc -eq 3 ]]; then
+      matched=$(echo "$command" | grep -oE '>>[[:space:]]*[^;&|]*grimoires/loa/NOTES\.md' | head -1)
+      emit_block "FR-NOTES" "$matched" "grimoires/loa/NOTES.md is at or over 200 KiB — appends are refused until it is rotated. Run .claude/scripts/notes-guard.sh rotate (archives the whole file, keeps Blockers + the latest Session Continuity + the 3 newest Decision Logs) or /compound; shrinking edits and rotate itself are never blocked."
+    fi
+  fi
+fi
+
 # All checks passed — allow execution.
 exit 0
