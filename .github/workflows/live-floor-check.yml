@@ -19,7 +19,7 @@ name: Live floor check (Anthropic)
 # `pull_request` trigger would hand ANTHROPIC_API_KEY to a pytest run over
 # PR-controlled code — HAS_KEY only says the secret exists, it does not make
 # the checked-out code trusted. The operator dispatches this workflow on the
-# candidate branch; its recorded pass is the named MERGE PRECONDITION of the
+# candidate branch; its recorded pass is the named RELEASE PRECONDITION of the
 # cycle-124 draft PR (not a CI failure). The job targets the `live-floor`
 # environment so the key can be stored as an ENVIRONMENT secret behind
 # required reviewers rather than as a repository secret.
@@ -62,7 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - name: No credential — report and skip (merge precondition stays open)
+      - name: No credential — report and skip (release precondition stays open)
         if: env.HAS_KEY != 'true'
         run: |
           echo "::warning::ANTHROPIC_API_KEY is not configured — live floor check skipped. Catalog values stay 'reference' until this job records a pass."
@@ -112,11 +112,32 @@ jobs:
         run: |
           set +x   # never trace shell with secrets in env
           mkdir -p "$RUNNER_TEMP/live-floor"
+          # Bridgebuilder iter-4 F-002: raw test output is never streamed to the
+          # Actions log while the key is in the environment (masking catches only
+          # exact values). It goes to a runner-local file; the log gets a bounded
+          # summary derived from junit.xml by trusted code below.
+          rc=0
           python -m pytest tests/replay/test_cycle124_live_floor.py \
             -q -p no:cacheprovider \
             --junitxml "$RUNNER_TEMP/live-floor/junit.xml" \
-            2>&1 | tee "$RUNNER_TEMP/live-floor/pytest.log"
-          test "${PIPESTATUS[0]}" -eq 0
+            > "$RUNNER_TEMP/live-floor/pytest.log" 2>&1 || rc=$?
+          python - "$RUNNER_TEMP/live-floor/junit.xml" <<'PYSUM'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              r = ET.parse(sys.argv[1]).getroot()
+              s = r if r.tag == "testsuite" else r.find("testsuite")
+              a = s.attrib
+              print(f"live-floor: tests={a.get('tests')} failures={a.get('failures')} errors={a.get('errors')} skipped={a.get('skipped')}")
+              for tc in s.iter("testcase"):
+                  status = "pass"
+                  for tag in ("failure", "error", "skipped"):
+                      if tc.find(tag) is not None:
+                          status = tag
+                  print(f"  {status:8s} {tc.get('name')}")
+          except Exception as e:  # noqa: BLE001 — summary is best-effort; the exit code below is the verdict
+              print(f"live-floor: junit.xml unreadable ({type(e).__name__}); see runner-local pytest.log")
+          PYSUM
+          test "$rc" -eq 0
 
       - name: Validate artifacts before upload (no credential, JSONL only)
         if: always() && env.HAS_KEY == 'true'
@@ -136,8 +157,9 @@ jobs:
             fi
             case "$f" in
               *.jsonl)
-                if ! grep '^{' "$p" | jq -e 'type == "object"' >/dev/null 2>&1; then
-                  echo "::error::$f is not JSONL; refusing to upload"; rm -f "$p"; exit 1
+                n=$(grep -c '^{' "$p" || true)
+                if [ "$n" -eq 0 ] || ! grep '^{' "$p" | jq -e 'type == "object"' >/dev/null 2>&1; then
+                  echo "::error::$f has no valid JSON object rows ($n candidate lines); refusing to upload"; rm -f "$p"; exit 1
                 fi ;;
             esac
           done

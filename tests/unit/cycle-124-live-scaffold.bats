@@ -46,13 +46,13 @@ EXPECTED_SKIPS=8
     [[ "$output" == *"ANTHROPIC_API_KEY is required"* ]]
 }
 
-@test "c124-1.8-4: live-floor-check.yml gates every credentialed step on HAS_KEY and names the merge precondition" {
+@test "c124-1.8-4: live-floor-check.yml gates every credentialed step on HAS_KEY and names the release precondition" {
     local wf="$PROJECT_ROOT/.github/workflows/live-floor-check.yml"
     [ -f "$wf" ]
     grep -q "HAS_KEY: \${{ secrets.ANTHROPIC_API_KEY != '' }}" "$wf"
     grep -q "tests/replay/test_cycle124_live_floor.py" "$wf"
     grep -q "LOA_RUN_LIVE_TESTS: '1'" "$wf"
-    grep -q "MERGE" "$wf"
+    grep -q "RELEASE" "$wf"
     # every step that touches the key is gated
     [ "$(grep -c "if: env.HAS_KEY == 'true'" "$wf")" -ge 3 ]
 }
