@@ -155,7 +155,7 @@ Display: `[2/8] FLATLINE PRD - Multi-model adversarial review...`
 
 **Update state**: `simstim-orchestrator.sh --update-phase flatline_prd in_progress`
 
-Run the shared Flatline HITL review procedure (→ `resources/flatline-hitl-review.md`) against `grimoires/loa/prd.md` with `--phase prd`. Phases 4 and 6 run the identical procedure against the SDD and sprint plan.
+Run `.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json` and handle the result per the shared HITL review procedure (→ `resources/flatline-hitl-review.md`). Phases 4 and 6 run the identical procedure against the SDD and sprint plan.
 
 Proceed to Phase 3.
 </phase_2_flatline_prd>
@@ -205,7 +205,7 @@ Display: `[4/8] FLATLINE SDD - Multi-model adversarial review...`
 
 **Update state**: `simstim-orchestrator.sh --update-phase flatline_sdd in_progress`
 
-Same procedure as Phase 2 (→ `resources/flatline-hitl-review.md`), against `grimoires/loa/sdd.md` with `--phase sdd`.
+Same procedure as Phase 2 (→ `resources/flatline-hitl-review.md`), invoked as `.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json`.
 
 Proceed to Phase 4.5 (if enabled) or Phase 5.
 </phase_4_flatline_sdd>
@@ -255,7 +255,7 @@ Display: `[6/8] FLATLINE SPRINT - Multi-model adversarial review...`
 
 **Update state**: `simstim-orchestrator.sh --update-phase flatline_sprint in_progress`
 
-Same procedure as Phase 2 (→ `resources/flatline-hitl-review.md`), against `grimoires/loa/sprint.md` with `--phase sprint`.
+Same procedure as Phase 2 (→ `resources/flatline-hitl-review.md`), invoked as `.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/sprint.md --phase sprint --json`.
 
 Proceed to Phase 7.
 </phase_6_flatline_sprint>
