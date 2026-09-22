@@ -23,6 +23,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
     http_post_stream,
+    _legacy_wire,
 )
 from loa_cheval.streaming import StreamingRecoveryAbort
 from loa_cheval.types import (
@@ -30,6 +31,7 @@ from loa_cheval.types import (
     CompletionResult,
     InvalidInputError,
     ProviderStreamError,
+    ModelNotFoundError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
@@ -43,6 +45,67 @@ logger = logging.getLogger("loa_cheval.providers.anthropic")
 # (Opus 4.5+/Sonnet 4.6). Effort governs reasoning depth WITHOUT manual
 # thinking budgets — Opus 4.7/4.8 reject `thinking.budget_tokens` with HTTP 400.
 _VALID_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
+
+# cycle-124 FR-2 (SDD §3.2): per-family effort emission. The reference lists
+# `output_config.effort` on Opus 4.5+ / Sonnet 4.6+ / Fable; `xhigh` is not
+# accepted on the 4.6 generation (downgraded to `high`, logged); the Sonnet
+# 4.5 snapshot and Haiku 4.5 predate the control, so effort is omitted there
+# rather than 400ing the call. Keyed by model-id prefix — no catalog key.
+_EFFORT_UNSUPPORTED_PREFIXES = ("claude-sonnet-4-5", "claude-haiku-4-5")
+_EFFORT_NO_XHIGH_PREFIXES = ("claude-opus-4-6", "claude-sonnet-4-6")
+# Every other Anthropic HTTP family accepts all five levels. Kept as a
+# positive list so the catalog invariant test can prove each id falls in
+# exactly one of the three tuples (a new id must be classified, not assumed).
+_EFFORT_FULL_PREFIXES = ("claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5")
+
+
+# cycle-124 audit (slice A): under LOA_CHEVAL_DISABLE_STREAMING the default
+# output budget is 16K with thinking on, but the non-streaming read timeout is
+# a flat 120 s — a long answer became an httpx.ReadTimeout retried four times,
+# each attempt billed. The read timeout is never shortened, only lengthened to
+# cover the requested budget at a conservative 25 tok/s, capped at 600 s.
+_NONSTREAMING_TIMEOUT_TOKENS_PER_S = 25.0
+_NONSTREAMING_TIMEOUT_CAP_S = 600.0
+_NONSTREAMING_TIMEOUT_FLOOR_TOKENS = 4096
+
+
+def _nonstreaming_read_timeout(configured: float, max_tokens: Any) -> float:
+    """Read timeout for one non-streaming call: the configured value, or
+    longer when `max_tokens` exceeds the pre-cycle 4096 default."""
+    try:
+        budget = int(max_tokens)
+    except (TypeError, ValueError):
+        return configured
+    if budget <= _NONSTREAMING_TIMEOUT_FLOOR_TOKENS:
+        return configured
+    needed = min(_NONSTREAMING_TIMEOUT_CAP_S, 30.0 + budget / _NONSTREAMING_TIMEOUT_TOKENS_PER_S)
+    return max(float(configured), needed)
+
+
+def _is_model_not_found(message: str) -> bool:
+    """True for Anthropic's model-not-found 404 (`model: <id>`), not for an
+    endpoint/config 404 (`Not Found`) — only the former is chain-walkable
+    (cycle-124 FR-3; the review panel's endpoint-typo scenario stays terminal).
+    """
+    return str(message or "").lstrip().lower().startswith("model:")
+
+
+# cycle-124 FR-1 review follow-up: the framework's own bindings run at 0.2–0.6,
+# so a per-call WARNING would fire on essentially every dispatch and bury the
+# budget/stop-reason warnings that share the channel. Warn once per model per
+# process; later drops for the same model log at INFO.
+_TEMPERATURE_DROP_WARNED: set = set()
+
+
+def _effort_for_model(model: str, effort: str) -> Optional[str]:
+    """Map a validated effort onto what `model` accepts; None ⇒ omit the field."""
+    if model.startswith(_EFFORT_UNSUPPORTED_PREFIXES):
+        logger.info("effort %r omitted: %s predates output_config.effort", effort, model)
+        return None
+    if effort == "xhigh" and model.startswith(_EFFORT_NO_XHIGH_PREFIXES):
+        logger.warning("effort xhigh downgraded to high: %s does not accept xhigh", model)
+        return "high"
+    return effort
 
 
 # cycle-109 followup #883 Bug 3 — billing-class error classification.
@@ -130,6 +193,26 @@ class AnthropicAdapter(ProviderAdapter):
         params = model_config.params if isinstance(model_config.params, dict) else {}
         if params.get("temperature_supported", True):
             body["temperature"] = request.temperature
+        elif request.temperature != 0.7:
+            # cycle-124 FR-1 (SDD §3.3): the silent omission is now visible —
+            # thinking-enabled models reject sampling params with HTTP 400, so
+            # a caller-supplied temperature (top_p / top_k are not request
+            # fields) is dropped — WARNING the first time per model, INFO after.
+            _level = logging.INFO if request.model in _TEMPERATURE_DROP_WARNED else logging.WARNING
+            _TEMPERATURE_DROP_WARNED.add(request.model)
+            logger.log(
+                _level,
+                "temperature %s dropped for %s (thinking-enabled / sampling params rejected)",
+                request.temperature, request.model,
+            )
+
+        # cycle-124 FR-1 (SDD §3.3): adaptive thinking is OFF unless requested
+        # on Opus 4.6/4.7/4.8 + Sonnet 4.6 and default-on for Opus 5 / Sonnet 5;
+        # the catalog flag makes every hop behave the same. NEVER budget_tokens
+        # (400 on 4.7+), NEVER type=disabled (400 on Fable — omit instead).
+        # LOA_CHEVAL_LEGACY_WIRE restores the pre-cycle body.
+        if params.get("thinking_adaptive") is True and not _legacy_wire():
+            body["thinking"] = {"type": "adaptive"}
 
         if system_prompt:
             body["system"] = system_prompt
@@ -153,7 +236,23 @@ class AnthropicAdapter(ProviderAdapter):
                     f"invalid effort {effort!r}; expected one of "
                     f"{sorted(_VALID_EFFORT)}"
                 )
+            effort = _effort_for_model(request.model, effort)
+        if effort is not None:
             body.setdefault("output_config", {})["effort"] = effort
+
+        # cycle-124 FR-7 (SDD §2.2): schema-enforced output on entries that
+        # declare the `structured_json` capability — the strict subset the wire
+        # schemas are authored in. Other entries run unenforced (the caller's
+        # tolerant parser stays); LOA_CHEVAL_LEGACY_WIRE omits the key.
+        if (
+            request.output_schema is not None
+            and "structured_json" in (model_config.capabilities or [])
+            and not _legacy_wire()
+        ):
+            body.setdefault("output_config", {})["format"] = {
+                "type": "json_schema",
+                "schema": request.output_schema,
+            }
 
         # Build headers — Anthropic uses x-api-key, not Bearer token
         auth = self._get_auth_header()
@@ -210,6 +309,14 @@ class AnthropicAdapter(ProviderAdapter):
                         f"HTTP {status}: {_extract_error_message(err_json)}",
                     )
                 _msg = _extract_error_message(err_json)
+                # cycle-124 FR-3: model-not-found on a newly named primary id
+                # (an account that does not serve it yet) walks the within-
+                # company chain instead of failing terminally at first use.
+                if status == 404 and _is_model_not_found(_msg):
+                    raise ModelNotFoundError(
+                        self.provider,
+                        f"HTTP 404 model-not-found: {_msg}",
+                    )
                 # cycle-109 followup #883 Bug 3 — billing-class 400s raise
                 # ProviderUnavailableError so the cycle-104 within-company
                 # chain walks to its claude-headless CLI terminal.
@@ -288,6 +395,8 @@ class AnthropicAdapter(ProviderAdapter):
         # cycle-103 T3.2 / AC-3.2: set observed-transport flag for audit.
         _meta = dict(result.metadata or {})
         _meta["streaming"] = True
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        _meta["schema_enforced"] = _schema_enforced(body)
         # issue #1102: a refusal (HTTP 200 + prose + stop_reason:"refusal") must
         # raise a retryable EmptyContentError so the within-company chain walks
         # (caught at cheval.py `except _EmptyContentError`) instead of the
@@ -324,7 +433,7 @@ class AnthropicAdapter(ProviderAdapter):
             headers=headers,
             body=body,
             connect_timeout=self.config.connect_timeout,
-            read_timeout=self.config.read_timeout,
+            read_timeout=_nonstreaming_read_timeout(self.config.read_timeout, body.get("max_tokens")),
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -339,6 +448,12 @@ class AnthropicAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            # cycle-124 FR-3: 404 model-not-found is chain-walkable (see the
+            # streaming twin above).
+            if status == 404 and _is_model_not_found(msg):
+                raise ModelNotFoundError(
+                    self.provider, f"HTTP 404 model-not-found: {msg}"
+                )
             # cycle-109 followup #883 Bug 3 — billing-class 400s raise
             # ProviderUnavailableError so the within-company chain walks.
             if _is_billing_class_error(msg):
@@ -349,7 +464,11 @@ class AnthropicAdapter(ProviderAdapter):
             raise InvalidInputError(f"Anthropic API error (HTTP {status}): {msg}")
 
         # Parse response
-        return self._parse_response(resp, latency_ms)
+        result = self._parse_response(resp, latency_ms)
+        # cycle-124 FR-7: derived from the body actually sent (truthful telemetry).
+        result.metadata = dict(result.metadata or {})
+        result.metadata["schema_enforced"] = _schema_enforced(body)
+        return result
 
     def _parse_response(self, resp: Dict[str, Any], latency_ms: int) -> CompletionResult:
         """Extract CompletionResult from Anthropic response (SDD §4.2.5)."""
@@ -386,6 +505,10 @@ class AnthropicAdapter(ProviderAdapter):
         usage = Usage(
             input_tokens=usage_data.get("input_tokens", 0),
             output_tokens=usage_data.get("output_tokens", 0),
+            # cycle-124 FR-4: cache telemetry on the non-streaming path
+            # (the streaming parser already carries it).
+            cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0) or 0,
+            cache_creation_input_tokens=usage_data.get("cache_creation_input_tokens", 0) or 0,
             reasoning_tokens=0,  # Anthropic reports thinking tokens differently
             source="actual" if usage_data else "estimated",
         )
@@ -457,6 +580,12 @@ def _transform_messages(
     """
     system_prompt = None
     anthropic_messages = []
+    # cycle-124 FR-4 (SDD §3.3): (content, cache_control) per system message.
+    # No marker anywhere ⇒ the joined string exactly as before; any marker ⇒
+    # a list of text blocks with the marker on its block. The "\n\n" joiner is
+    # folded into the following block's text so the model sees the same
+    # characters either way. LOA_CHEVAL_LEGACY_WIRE ignores markers.
+    system_parts: List[tuple] = []
 
     for msg in messages:
         role = msg.get("role", "user")
@@ -468,6 +597,8 @@ def _transform_messages(
                 system_prompt = content
             else:
                 system_prompt += "\n\n" + content
+            cache_control = msg.get("cache_control") if not _legacy_wire() else None
+            system_parts.append((content, cache_control if isinstance(cache_control, dict) else None))
         elif role == "tool":
             # Anthropic represents tool results differently
             anthropic_messages.append({
@@ -483,6 +614,15 @@ def _transform_messages(
                 "role": role,
                 "content": content,
             })
+
+    if any(cc for _, cc in system_parts):
+        blocks: List[Dict[str, Any]] = []
+        for i, (content, cc) in enumerate(system_parts):
+            block: Dict[str, Any] = {"type": "text", "text": content if i == 0 else "\n\n" + content}
+            if cc:
+                block["cache_control"] = cc
+            blocks.append(block)
+        return blocks, anthropic_messages
 
     return system_prompt, anthropic_messages
 
@@ -501,15 +641,26 @@ def _transform_tools_to_anthropic(tools: List[Dict[str, Any]]) -> List[Dict[str,
     return anthropic_tools
 
 
+def _schema_enforced(body: Dict[str, Any]) -> bool:
+    """True iff the request body carried output_config.format (cycle-124 FR-7)."""
+    return "format" in (body.get("output_config") or {})
+
+
 def _transform_tool_choice(choice: str) -> Dict[str, Any]:
-    """Transform canonical tool_choice to Anthropic format."""
+    """Transform canonical tool_choice to Anthropic format.
+
+    cycle-124 FR-7: only `auto` and `none` are emitted. `required`
+    (Anthropic `any`) and any other value raise — a forced tool call is
+    incompatible with a schema-enforced answer and was never used by a
+    framework caller; silently rewriting it to `auto` hid the mistake.
+    """
     if choice == "auto":
         return {"type": "auto"}
-    elif choice == "required":
-        return {"type": "any"}
-    elif choice == "none":
+    if choice == "none":
         return {"type": "none"}
-    return {"type": "auto"}
+    raise InvalidInputError(
+        f"tool_choice {choice!r} is not supported on the Anthropic adapter; use 'auto' or 'none'"
+    )
 
 
 def _serialize_arguments(input_data: Any) -> str:

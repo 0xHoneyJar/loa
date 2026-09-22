@@ -140,6 +140,12 @@
 | MEDIUM | 3+ with deps | Sequential with ordering |
 | LARGE (>8,000) | Any | MUST split |
 
+### Dispatch
+
+- **Phase 0 (feedback)**: when both feedback files exist, dispatch each (audit, engineer) to its own agent; each returns the verdict plus any CRITICAL/HIGH or unaddressed items.
+- **Phase 2 (tasks)**: group sprint tasks into dependency batches and dispatch the independent tasks of a batch to parallel agents, each implementing one task with its own tests.
+- Evidence-gathering fan-outs (feedback checks, codebase surveys) MAY use `loa-scout` (haiku, read-only — `.claude/agents/loa-scout.md`); anything that writes or renders a verdict (feedback classification, AC status) stays in-session or on a full agent.
+
 ### Consolidation Requirements
 
 After parallel implementation:

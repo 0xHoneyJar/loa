@@ -131,6 +131,7 @@ def test_production_dispatch_walks_with_real_retry_and_gates(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LOA_HEADLESS_MODE", "prefer-api")
     monkeypatch.setattr(cheval, "_load_persona", lambda *a, **kw: None)
+    monkeypatch.setattr(cheval, "_load_persona_parts", lambda *a, **kw: (None, None))
     if scenario == "capability_miss":
         config["providers"]["anthropic"]["models"]["primary"]["capabilities"] = []
     if scenario == "circuit_open":

@@ -139,9 +139,31 @@
           "type": ["string", "object"]
         },
         "api_mode": {"type": "string"},
-        "params": {"type": "object"},
+        "params": {
+          "type": "object",
+          "description": "Wire-protocol parameter gates consulted per request by the provider adapter (#641, cycle-124 FR-1). Only the two typed keys exist in the live catalog (grep verified 2026-09-17), so unknown keys are rejected — a misspelt gate must not silently no-op.",
+          "additionalProperties": false,
+          "properties": {
+            "temperature_supported": {
+              "type": "boolean",
+              "description": "False ⇒ the adapter omits `temperature` (Anthropic rejects sampling params on thinking models with HTTP 400)."
+            },
+            "thinking_adaptive": {
+              "type": "boolean",
+              "description": "cycle-124 FR-1: True ⇒ the Anthropic adapter emits `thinking: {type: adaptive}` explicitly (required on Opus 4.6/4.7/4.8 + Sonnet 4.6; harmless default-on for Opus 5 / Sonnet 5). Implies temperature_supported: false."
+            }
+          }
+        },
         "extra": {"type": "object"},
-        "pricing": {"type": "object"},
+        "pricing": {
+          "type": "object",
+          "properties": {
+            "input_per_mtok": {"type": "integer", "minimum": 0},
+            "output_per_mtok": {"type": "integer", "minimum": 0},
+            "cache_read_per_mtok": {"type": "integer", "minimum": 0},
+            "cache_write_per_mtok": {"type": "integer", "minimum": 0}
+          }
+        },
         "permissions": {"$ref": "#/$defs/permissionsBlock"},
         "fallback_to": {"type": "string"},
         "fallback_mapping_version": {"type": "integer"},

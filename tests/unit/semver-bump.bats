@@ -699,3 +699,113 @@ EOF
     [ "$(echo "$output" | jq -r '.current')" = "1.0.0" ]
     [ "$(echo "$output" | jq -r '.next')" = "1.0.1" ]
 }
+
+# =============================================================================
+# sprint-bug-240 (bug 20260923-27d899): prerelease transitions signalled by
+# the CHANGELOG. The pipeline could increment an existing rc (rc.1 -> rc.2)
+# but had no formal way to ENTER a prerelease from a release tag or to
+# PROMOTE out of one. The operator signal is the topmost versioned CHANGELOG
+# heading: an UNTAGGED prerelease of the computed version enters it; an
+# UNTAGGED bare version on a prerelease tag promotes it. Anything else keeps
+# the prior behaviour (heading ignored). `bump` stays the conventional-commit
+# classification; the transition is reported in `prerelease_transition`.
+# =============================================================================
+
+write_changelog_top() {
+    # $1 = heading version placed above the older release, below [Unreleased]
+    printf '# Changelog\n\n## [Unreleased]\n\n## [%s] — 2026-09-23 — Release candidate\n\n- entry\n\n## [0.0.1]\n\n- old\n' "$1" > "$TEST_REPO/CHANGELOG.md"
+    git -C "$TEST_REPO" add CHANGELOG.md
+}
+
+semver_json() {
+    # bats merges stderr into $output; the JSON object starts at the first '{'
+    echo "$output" | sed -n '/^{/,$p'
+}
+
+@test "sprint-bug-240: untagged rc heading of the computed release enters the prerelease (1.2.3 + feat! -> 2.0.0-rc.1)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.2.3"
+    write_changelog_top "2.0.0-rc.1"
+    make_commit "feat!: model floor"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    [ "$(semver_json | jq -r '.next')" = "2.0.0-rc.1" ]
+    [ "$(semver_json | jq -r '.bump')" = "major" ]
+    [ "$(semver_json | jq -r '.prerelease_transition.kind')" = "enter" ]
+    [ "$(semver_json | jq -r '.prerelease_transition.heading')" = "2.0.0-rc.1" ]
+    [ "$(semver_json | jq -r '.prerelease_transition.source')" = "changelog" ]
+}
+
+@test "sprint-bug-240: rc heading whose release triple differs from the computed version is ignored with a warning" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.2.3"
+    write_changelog_top "2.0.0-rc.1"
+    make_commit "feat: minor only"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    [ "$(semver_json | jq -r '.next')" = "1.3.0" ]
+    semver_json | jq -e '.prerelease_transition == null' >/dev/null
+    [[ "$output" == *WARN* ]]
+}
+
+@test "sprint-bug-240: an already-tagged rc heading does not re-enter (rc.1 tagged -> rc.2)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    write_changelog_top "2.0.0-rc.1"
+    make_commit "feat!: rc cut"
+    make_tag "2.0.0-rc.1"
+    make_commit "fix: after rc.1"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    [ "$(semver_json | jq -r '.next')" = "2.0.0-rc.2" ]
+    semver_json | jq -e '.prerelease_transition == null' >/dev/null
+}
+
+@test "sprint-bug-240: untagged bare heading on a prerelease tag promotes (2.0.0-rc.2 -> 2.0.0)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "2.0.0-rc.2"
+    write_changelog_top "2.0.0"
+    make_commit "docs: promote the release candidate"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    [ "$(semver_json | jq -r '.next')" = "2.0.0" ]
+    [ "$(semver_json | jq -r '.prerelease_transition.kind')" = "promote" ]
+    [ "$(semver_json | jq -r '.prerelease_transition.heading')" = "2.0.0" ]
+}
+
+@test "sprint-bug-240: a heading with an invalid prerelease identifier is ignored (leading zero)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.2.3"
+    write_changelog_top "2.0.0-rc.01"
+    make_commit "feat!: model floor"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    [ "$(semver_json | jq -r '.next')" = "2.0.0" ]
+    semver_json | jq -e '.prerelease_transition == null' >/dev/null
+}
+
+@test "sprint-bug-240: without a CHANGELOG the output carries prerelease_transition: null (additive field)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.0.0"
+    make_commit "feat: add feature"
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ]
+    semver_json | jq -e 'has("prerelease_transition") and .prerelease_transition == null and .next == "1.1.0"' >/dev/null
+}

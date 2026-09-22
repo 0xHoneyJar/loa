@@ -5,7 +5,8 @@
 # Cycle-114 (harness-modernization-opus-4.8) FR-1 — contract pin.
 #
 # Asserts that Claude Opus 4.8 is registered and resolvable:
-#   - the `opus` alias resolves to claude-opus-4-8 (retargeted 4-7 → 4-8)
+#   - (cycle-124 retargeted the `opus` alias to claude-opus-5; that pin now
+#     lives in tests/unit/cycle-124-anthropic-catalog.bats)
 #   - both the dash (claude-opus-4-8) and dot (claude-opus-4.8) self-maps
 #     resolve via cheval (parity with the #877 fix for 4-7)
 #   - the generated bash maps and BB config.generated.ts carry 4.8
@@ -51,10 +52,6 @@ _assert_resolves_to_opus_4_8() {
     }
 }
 
-@test "c114-FR1-1: opus alias resolves to claude-opus-4-8" {
-    _assert_resolves_to_opus_4_8 "opus"
-}
-
 @test "c114-FR1-2: claude-opus-4-8 (dash self-map) resolves" {
     _assert_resolves_to_opus_4_8 "claude-opus-4-8"
 }
@@ -68,7 +65,6 @@ _assert_resolves_to_opus_4_8() {
     # provider, id self-map, and cost maps must all carry the entry
     grep -q '\["claude-opus-4-8"\]="anthropic"' "$GENERATED_MAPS"
     grep -q '\["claude-opus-4-8"\]="claude-opus-4-8"' "$GENERATED_MAPS"
-    grep -q '\["opus"\]="claude-opus-4-8"' "$GENERATED_MAPS"
     grep -q '\["claude-opus-4.8"\]="claude-opus-4-8"' "$GENERATED_MAPS"
 }
 

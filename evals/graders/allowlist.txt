@@ -1,16 +1,18 @@
-# Grader command allowlist
-# Commands that graders may invoke. One per line.
-node
-npx
-python3
-pytest
-bash
-sh
-grep
-diff
-jq
-git
-test
 [
 [[
+bash
+# Commands that graders may invoke. One per line.
+diff
+git
+# Grader command allowlist
+grep
+jq
+node
+npx
+pytest
+python3
+sh
+sha256sum
+test
+timeout
 yq

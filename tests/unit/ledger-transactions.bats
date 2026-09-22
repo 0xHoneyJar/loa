@@ -101,7 +101,7 @@ interleave() {
 @test "#1248 concurrent sprint status changes retain both updates" {
     first=(update_sprint_status 1 in_progress)
     second=(update_sprint_status 2 planned)
-    pause_filter='(.cycles[].sprints[] | select(.global_id == $id)).status = $status'
+    pause_filter='(.cycles[].sprints[]? | select(type == "object") | select(.global_id == $id)).status = $status'
     interleave
     [ "$(cat "$SYNC_DIR/second.rc")" = 0 ]
     jq -e '.cycles[0].sprints | .[0].status == "in_progress" and .[1].status == "planned"' "$LEDGER"

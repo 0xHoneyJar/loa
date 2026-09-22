@@ -258,3 +258,157 @@ plan_and_analyze:
     ride_timeout_minutes: 20
 ```
 
+## Codebase Grounding
+
+SKILL.md's Phase -0.5 (Brownfield Only) delegates its configuration, decision
+tree, and `/ride` invocation here.
+
+### Configuration
+
+```bash
+enabled=$(yq eval '.plan_and_analyze.codebase_grounding.enabled // true' .loa.config.yaml 2>/dev/null || echo "true")
+staleness_days=$(yq eval '.plan_and_analyze.codebase_grounding.reality_staleness_days // 7' .loa.config.yaml 2>/dev/null || echo "7")
+timeout_minutes=$(yq eval '.plan_and_analyze.codebase_grounding.ride_timeout_minutes // 20' .loa.config.yaml 2>/dev/null || echo "20")
+skip_on_error=$(yq eval '.plan_and_analyze.codebase_grounding.skip_on_ride_error // false' .loa.config.yaml 2>/dev/null || echo "false")
+```
+
+If `enabled: false`, skip Phase -0.5 entirely (equivalent to GREENFIELD behavior).
+
+### Decision Tree
+
+Check the `codebase_detection` pre-flight result:
+
+| Condition | Action |
+|---|---|
+| `enabled: false`, or `type == GREENFIELD` | Skip to Phase -1; don't mention codebase grounding to the user |
+| `BROWNFIELD`, reality exists, `reality_age_days < staleness_days` and no `--fresh` | Use cached reality; show "Using recent codebase analysis (N days old)" |
+| `BROWNFIELD`, reality exists, stale or `--fresh` passed | Re-run `/ride` (if stale and no `--fresh`, ask the user to choose between re-running or proceeding with the existing analysis) |
+| `BROWNFIELD`, no reality exists | Ask the user to run `/ride`, run `/ride --enriched`, or skip grounding |
+
+**No cached reality** — ask via AskUserQuestion:
+
+```yaml
+question: "This is a brownfield project with no codebase reality files. How would you like to proceed?"
+header: "Grounding"
+options:
+  - label: "Run /ride (Recommended)"
+    description: "Analyze codebase first to ground PRD in code reality"
+  - label: "Run /ride --enriched"
+    description: "Full analysis with gap tracking, decision archaeology, and terminology extraction"
+  - label: "Skip grounding"
+    description: "Proceed without codebase analysis (not recommended for brownfield)"
+multiSelect: false
+```
+
+"Run /ride" invokes the ride skill standard mode; "Run /ride --enriched" invokes it with `--enriched`; "Skip grounding" logs `- [ ] [BLOCKER] PRD created without codebase grounding — user skipped /ride for brownfield project` to NOTES.md blockers, proceeds to Phase -1 without reality context, and adds a warning banner to the generated PRD.
+
+**Invoking /ride**: use the Skill tool (`Skill: ride`), not the `/ride` command. Show progress:
+
+```markdown
+CODEBASE GROUNDING PHASE
+
+Analyzing your existing codebase to ground PRD requirements in reality.
+This typically takes 5-15 minutes depending on codebase size.
+
+Progress:
+- [ ] Extracting component inventory
+- [ ] Analyzing architecture patterns
+- [ ] Identifying existing requirements
+- [ ] Building consistency report
+```
+
+Produces `grimoires/loa/reality/extracted-prd.md`, `extracted-sdd.md`, `component-inventory.md`, and `grimoires/loa/consistency-report.md`.
+
+Error/timeout handling: see "Codebase-grounding error recovery" above.
+
+### Greenfield Fast Path
+
+For GREENFIELD projects: no progress message, no delay, proceed directly to Phase -1, log detection result to trajectory only.
+
+## Parallel Context Ingestion
+
+SKILL.md's Large Context Handling (`LARGE` result) delegates its worked
+ingestor-prompt template here.
+
+Spawn 4 parallel ingestors:
+1. **Vision Ingestor**: Problem, vision, mission
+2. **User Ingestor**: Personas, research, journeys
+3. **Requirements Ingestor**: Features, stories, specs
+4. **Technical Ingestor**: Constraints, stack, integrations
+
+```
+Task(subagent_type="Explore", prompt="
+CONTEXT INGESTION: Problem & Vision
+
+Read these files: [vision.md, any *vision* or *problem* files]
+Extract and summarize:
+- Core problem statement
+- Product vision
+- Mission/purpose
+- 'Why now' factors
+
+Return as structured summary with file:line citations.
+")
+```
+
+Merge summaries into a unified context map before proceeding.
+
+## Post-Completion Debrief
+
+SKILL.md's Post-Completion Debrief step (after saving and validating the PRD)
+delegates its exact format here.
+
+### Debrief Structure
+
+Present the following in this exact order:
+
+1. **Confirmation**: "✓ PRD saved to grimoires/loa/prd.md"
+
+2. **Key Decisions** (3-5 items, one line each): "• {choice made} (not {alternative rejected})"
+
+3. **Assumptions** (1-3 items, falsifiable): "• {assumption} — if wrong, {consequence}"
+
+4. **Biggest Tradeoff** (1 item): "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
+
+5. **Steer Prompt**: Use AskUserQuestion:
+
+```yaml
+question: "Anything to steer before architecture?"
+header: "Review"
+options:
+  - label: "Continue (Recommended)"
+    description: "Design the system architecture now"
+  - label: "Adjust"
+    description: "Tell me what to change — I'll regenerate the PRD"
+  - label: "Stop here"
+    description: "Save progress — resume with /plan next time. Not what you expected? /feedback helps us fix it."
+multiSelect: false
+```
+
+### "Adjust" Flow
+
+When the user selects "Adjust": ask "What would you like to change?" (free-text via AskUserQuestion "Other"), then regenerate the PRD only — prior interview answers, context files, and phase state are retained, not the discovery interview. Re-present the debrief afterward with updated decisions/assumptions/tradeoffs, and note small changes explicitly ("Updated: {decision that changed}"). Cap adjustments at 3 rounds, then suggest "Continue" more firmly.
+
+### Constraints
+
+- "Continue" is always the first option (recommended)
+- "Stop here" always includes /feedback mention
+- If Flatline will run next, add a one-line banner BEFORE the steer prompt: "Next: Multi-model review (~30 seconds)"
+
+## Pre-Generation Gate
+
+SKILL.md's Pre-Generation Gate (when `gate_before_gen` is true) delegates its
+exact completeness-summary template here.
+
+```
+Discovery Complete
+---
+Phases covered: {N}/7
+Questions asked: {count}
+Assumptions made: {count}
+
+Top assumptions (review before I generate), up to 3:
+1. [ASSUMPTION] {description} — if wrong, {impact}
+
+Ready to generate PRD?
+```

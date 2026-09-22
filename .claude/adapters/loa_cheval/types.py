@@ -18,12 +18,17 @@ class CompletionRequest:
     temperature: float = 0.7
     max_tokens: int = 4096
     tools: Optional[List[Dict[str, Any]]] = None
-    tool_choice: Optional[str] = None  # "auto" | "required" | "none"
+    tool_choice: Optional[str] = None  # "auto" | "none"; "required" raises on Anthropic (a 400 on Fable 5.1), Bedrock still maps it to "any"
     metadata: Optional[Dict[str, Any]] = None  # agent, trace_id, sprint_id (not sent to provider)
     # cycle-114 FR-2: reasoning-depth control. Serialized as output_config.effort
     # by adapters that support it (Anthropic Opus 4.5+/Sonnet 4.6). NEVER mapped
     # to thinking.budget_tokens — Opus 4.7/4.8 reject that with HTTP 400.
     effort: Optional[str] = None  # "low" | "medium" | "high" | "xhigh" | "max"
+    # cycle-124 FR-7: JSON Schema the answer must conform to. Emitted as
+    # Anthropic output_config.format on `structured_json` entries, forwarded as
+    # `--json-schema` to claude-headless, `text.format` on OpenAI; ignored
+    # (unenforced) elsewhere. None ⇒ body unchanged.
+    output_schema: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -200,6 +205,17 @@ class ProviderUnavailableError(ChevalError):
 
     def __init__(self, provider: str, reason: str = ""):
         super().__init__("PROVIDER_UNAVAILABLE", f"Provider '{provider}' unavailable: {reason}", retryable=True, context={"provider": provider})
+
+
+class ModelNotFoundError(ProviderUnavailableError):
+    """HTTP 404 `model: <id>` — the account does not serve this id (cycle-124 FR-3).
+
+    A ProviderUnavailableError so the within-company chain walks to the next
+    hop, but model-specific: retry.py does not count it against the
+    provider-wide circuit breaker (Sprint 1 audit, slice A — five unserved-id
+    calls in five minutes would otherwise open the breaker for every
+    Anthropic HTTP hop, served ids included).
+    """
 
 
 class RateLimitError(ChevalError):

@@ -284,6 +284,10 @@ class TestModelAdapterShim:
             "mode": "review",
             "phase": "prd",
             "cost_usd": 0,
+            # cycle-124 FR-7: translate_output carries the enforcement flag and
+            # the stop reason (null when the mock envelope has none)
+            "schema_enforced": False,
+            "stop_reason": None,
         }
         assert "Mock mode — routing via cheval --mock-fixture-dir=" in result.stderr
 

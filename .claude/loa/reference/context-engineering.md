@@ -11,7 +11,8 @@ Pointer map for Loa's context/memory surfaces: what exists, where the detail liv
 | Compaction survival | `pre-compact-marker.sh` (PreCompact) + `post-compact-reminder.sh` (UserPromptSubmit) — mechanical, zero thinking-budget | Active (hooks registered in settings.json) |
 | Pre-clear validation | `.claude/protocols/synthesis-checkpoint.md` | Active |
 | KF ledger surfacing | `loa-kf-surface.sh` (SessionStart) → generated `grimoires/loa/INDEX.md` → `known-failures.md` | Active — three-tier progressive disclosure |
-| Cross-session memory | Claude Code auto-memory (harness-managed, per-user) + git-tracked team surfaces (KF ledger, GT files) + untracked per-operator NOTES.md (`.gitignore:293`) | Active |
+| Cross-session memory | Claude Code auto-memory (harness-managed, per-user) + git-tracked team surfaces (KF ledger, GT files) + untracked per-operator NOTES.md (gitignored) | Active |
+| Memory size gate | `notes-guard.sh` (`check` 100 KiB warn / 200 KiB block, `read` ≤ 68 KiB by heading, `rotate`) + `notes-size-guard.sh` (PreToolUse Write/Edit, direction-aware) + `FR-NOTES` (`>>` appends) + `update-notes-learnings.sh` writer gate | Active (cycle-124 FR-10) |
 | Context tooling scripts | `context-manager.sh`, `cache-manager.sh`, `condense.sh`, `early-exit.sh` — each script's `--help` | Available (low adoption) |
 
 ## What is NOT wired (do not rely on)
@@ -25,3 +26,15 @@ Pointer map for Loa's context/memory surfaces: what exists, where the detail liv
 ## Effort / extended thinking
 
 Configured via `.loa.config.yaml` (see `.loa.config.yaml.example`); model tiers and budgets are governed by the multi-model substrate — see `.claude/loa/reference/multi-model-reference.md`. Do not hardcode model names from this file's history.
+
+## Prompt caching (cycle-124 FR-4)
+
+cheval marks the stable prefix as the single Anthropic `cache_control: ephemeral` breakpoint — the persona (`.claude/skills/<agent>/persona.md`) when the agent has one, with the per-call `--system` context sent after it; otherwise the whole `--system` payload (PRD FR-4). No code decides eligibility — the marker is always emitted and the returned counts (`usage.cache_read_input_tokens`, MODELINV `tokens_cache_read`) tell the truth. Reads bill at 0.1× input (Fable 5.1: 0.025×), writes at 1.25×; `LOA_CHEVAL_LEGACY_WIRE=1` removes the marker.
+
+| Caller | Cacheable prefix | Min. cacheable prefix (reference, 2026-06-24) | Expected outcome |
+|---|---|---|---|
+| Flatline review/skeptic/scorer, adversarial dissent (agents with a persona.md) | persona.md (stable across calls of one agent) | 512 tokens on Opus 5 / Fable; 1024 on Opus 4.8 / Sonnet 5 / Sonnet 4.6 / Sonnet 4.5; 2048 on Opus 4.7; 4096 on Opus 4.6 / Haiku 4.5 | second and later calls within 5 min read the prefix (`cache_read > 0`); personas shorter than the minimum are never cached — the count stays 0, not an error |
+| Bridgebuilder voices (`--agent reviewing-code`, no persona.md) | the whole `--system` file: `INJECTION_HARDENING` + `.claude/data/bridgebuilder-persona.md` (~9 KB, stable per voice) | same minimums | second and later calls of a voice read the prefix; the per-PR diff travels in the user turn and is never cached |
+| Ad-hoc `cheval --prompt` with neither persona nor `--system` | none | — | no system block, no marker, no cache traffic |
+| claude-headless (CLI) | Claude Code's own system prompt; persona rides in the prompt body | CLI-managed | counts come from the CLI's `usage` block; Loa does not add a marker |
+| Non-Anthropic providers | n/a (marker ignored; single joined system string) | — | bodies byte-identical to pre-cycle-124 |

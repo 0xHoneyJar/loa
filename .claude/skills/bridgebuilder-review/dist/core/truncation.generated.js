@@ -8,17 +8,23 @@
 //   openai:                       maxOutput=4096, coefficient=0.23
 //   default fallback:             maxInput=100000, maxOutput=4096, coefficient=0.25
 //
+// maxInput = effective_input_ceiling − 20000 when the yaml entry carries the
+// v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
+// gate instead of dispatching what exit 7 would reject), else context_window.
+//
 // cycle-099 sprint-1 (T1.1). See SDD §1.4.3 + §5.3.
 export const GENERATED_TOKEN_BUDGETS = {
-    "claude-fable-5": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-haiku-4-5-20251001": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-headless": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-sonnet-4-5-20250929": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-sonnet-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-sonnet-5": { maxInput: 1000000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-fable-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-fable-5-1": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-haiku-4-5-20251001": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-headless": { maxInput: 1000000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-opus-4-6": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-opus-4-7": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-opus-4-8": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-opus-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-sonnet-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "us.anthropic.claude-haiku-4-5-20251001-v1:0": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
     "us.anthropic.claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
     "us.anthropic.claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },

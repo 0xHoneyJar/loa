@@ -35,6 +35,9 @@
 
 set -euo pipefail
 
+# Repair round-trips per run (KF-004 repair loop, unenforced branch only).
+readonly ADV_REPAIR_MAX_PER_RUN=5
+
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -69,9 +72,43 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
 source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
 
 # Token budgets (with 80% safety margin per D-009)
-DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k
+DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k — non-Anthropic dissenters
 DEFAULT_SECONDARY_TOKEN_BUDGET=12000  # 80% of 15k
 MAX_ESCALATED_FILES=3                 # Per D-011
+# cycle-124 FR-2/FR-3 (SDD §3.2): Anthropic dissenters take the catalog's
+# 180K effective_input_ceiling minus 20K headroom (same figure BB codegen
+# derives), so an Opus-class dissenter sees the whole diff instead of the
+# 24K slice sized for the 2026-05 non-streaming wall.
+_ANTHROPIC_DISPATCH_INPUT_BUDGET=160000
+DISSENT_MAX_OUTPUT_TOKENS=16000       # bounded findings document (cheval --max-tokens)
+
+# Resolve the primary input budget for the dissenter model's company.
+# Anthropic ⇒ 160K; anything else (or an unresolvable alias) ⇒ 24K.
+# Alias → provider comes from the generated bash maps (SSOT codegen of
+# model-config.yaml); an explicit `anthropic:` pin short-circuits.
+_adv_input_budget_for_model() {
+  local model="$1"
+  case "$model" in
+    anthropic:*) echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0 ;;
+    *:*) echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"; return 0 ;;
+  esac
+  # A model id is an alias or provider:id token. Anything else never reaches
+  # the array lookup: bash evaluates an INDEXED array's subscript arithmetically
+  # (command substitutions included), and the arrays are indexed whenever the
+  # maps file fails to source — audit slice C reproduced `x[$(touch pwned)]`.
+  # The arrays are pre-declared associative and a source failure is fatal to
+  # the lookup (default budget), never silently indexed.
+  [[ "$model" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"; return 0; }
+  local maps="$SCRIPT_DIR/generated-model-maps.sh"
+  if [[ -f "$maps" ]]; then
+    local provider
+    provider=$(bash -c 'declare -A MODEL_IDS=() MODEL_PROVIDERS=(); source "$1" >/dev/null 2>&1 || exit 3; id="${MODEL_IDS[$2]:-$2}"; printf "%s" "${MODEL_PROVIDERS[$id]:-}"' _ "$maps" "$model" 2>/dev/null || true)
+    if [[ "$provider" == "anthropic" ]]; then
+      echo "$_ANTHROPIC_DISPATCH_INPUT_BUDGET"; return 0
+    fi
+  fi
+  echo "$DEFAULT_PRIMARY_TOKEN_BUDGET"
+}
 
 # =============================================================================
 # Logging
@@ -98,11 +135,8 @@ load_adversarial_config() {
   CONF_MAX_FILE_BYTES=51200
   CONF_SECRET_SCANNING="true"
   CONF_SECRET_ALLOWLIST=()  # Patterns that should NOT be redacted
-  # cycle-119 C14 (KF-004 repair loop) — default OFF. Only wired under
-  # flatline_protocol.code_review in .loa.config.yaml.example per spec;
-  # loaded generically here (keyed by config_key like every other knob
-  # above) so a downstream repo can opt audit in independently.
-  CONF_REPAIR_LOOP="false"
+  # cycle-124 FR-7: the KF-004 repair loop has no flag any more — it always
+  # runs on the UNENFORCED branch and never on a schema-enforced payload.
 
   if [[ ! -f "$CONFIG_FILE" ]]; then
     log "Config file not found, using defaults"
@@ -130,7 +164,6 @@ load_adversarial_config() {
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
   CONF_MAX_FILE_BYTES=$(yq eval ".flatline_protocol.context_escalation.max_file_bytes // 51200" "$CONFIG_FILE" 2>/dev/null || echo "51200")
   CONF_SECRET_SCANNING=$(yq eval ".flatline_protocol.secret_scanning.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
-  CONF_REPAIR_LOOP=$(yq eval ".flatline_protocol.${config_key}.repair_loop // false" "$CONFIG_FILE" 2>/dev/null || echo "false")
 
   # Security invariant: secret_scanning MUST be on. Override if config says false.
   if [[ "$CONF_SECRET_SCANNING" != "true" ]]; then
@@ -253,6 +286,11 @@ validate_finding() {
   local finding="$1"
   local type="$2"
 
+  # wire-enums:validate:start — tests/unit/wire-schemas-api-safe.bats reads the
+  # enums between these markers: the wire schemas' severity enums must EQUAL
+  # these per type and their category enums must be a SUBSET of this list
+  # (the prompt advertises the per-type subset a model is asked for; the
+  # validator stays wide so an unenforced voice's broader tag is not rejected).
   local valid_severities
   if [[ "$type" == "review" ]]; then
     valid_severities='["BLOCKING","ADVISORY"]'
@@ -261,6 +299,7 @@ validate_finding() {
   fi
 
   local valid_categories='["injection","authz","data-loss","null-safety","concurrency","type-error","resource-leak","error-handling","spec-violation","performance","secrets","xss","ssrf","deserialization","crypto","info-disclosure","rate-limiting","input-validation","config","other"]'
+  # wire-enums:validate:end
 
   echo "$finding" | jq -e --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
     (.id | type) == "string" and
@@ -320,10 +359,11 @@ _validate_finding_reason() {
 # truncated the file at the start of process_findings.
 #
 # cycle-119 C14 (KF-004 repair loop): two OPTIONAL trailing args,
-# repair_attempted / repair_succeeded ("true"/"false"). Omitted (empty
-# string, the default) => neither key is added to the entry, so callers
-# that don't pass them (repair_loop disabled) get the byte-identical
-# legacy schema. Passed => booleans are added, per C14 contract item 5.
+# repair_attempted / repair_succeeded ("true"/"false"); empty ⇒ key omitted.
+# cycle-124 FR-7: three more OPTIONAL trailing args — schema_enforced,
+# parse_path, stop_reason — so a rejected payload records which parse
+# path produced it (enforced payloads should never land here; when one
+# does, that is a wire-schema/prompt drift signal, not a model slip).
 _write_rejected_sidecar() {
   local sidecar_path="$1"
   local finding="$2"
@@ -334,6 +374,9 @@ _write_rejected_sidecar() {
   local model="$7"
   local repair_attempted="${8:-}"
   local repair_succeeded="${9:-}"
+  local schema_enforced="${10:-}"
+  local parse_path="${11:-}"
+  local stop_reason="${12:-}"
 
   [[ -n "$sidecar_path" ]] || return 0
 
@@ -347,18 +390,28 @@ _write_rejected_sidecar() {
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg ra "$repair_attempted" \
     --arg rs "$repair_succeeded" \
+    --arg se "$schema_enforced" \
+    --arg pp "$parse_path" \
+    --arg sr "$stop_reason" \
     '{ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}
      + (if $ra == "" then {} else {repair_attempted: ($ra == "true")} end)
-     + (if $rs == "" then {} else {repair_succeeded: ($rs == "true")} end)' \
+     + (if $rs == "" then {} else {repair_succeeded: ($rs == "true")} end)
+     + (if $se == "" then {} else {schema_enforced: ($se == "true")} end)
+     + (if $pp == "" then {} else {parse_path: $pp} end)
+     + (if $sr == "" then {} else {stop_reason: $sr} end)' \
     >> "$sidecar_path" 2>/dev/null || true
 }
 
 # =============================================================================
-# KF-004 Repair Loop (cycle-119 C14) — flag default OFF
+# KF-004 Repair Loop (cycle-119 C14) — always on for UNENFORCED voices
 # =============================================================================
-# When flatline_protocol.code_review.repair_loop is true, a finding that
-# fails validate_finding gets ONE bounded repair round-trip to the SAME
-# model before being rejected. Four safety constraints (adversarial
+# cycle-124 FR-7 removed the repair-loop flag: on the unenforced branch
+# (the hop could not enforce the wire schema) a finding that fails
+# validate_finding gets ONE bounded repair round-trip to the SAME model
+# before being rejected; the schema-enforced branch never enters it (a
+# schema-valid payload has nothing to repair, an invalid one is
+# malformed_response). Retirement is keyed to the measured schema_enforced
+# ratio (follow-up bead). Four safety constraints (adversarial
 # design panel, non-negotiable):
 #   1. Normalization pre-pass BEFORE validate_finding: case-fold
 #      severity/category + whitespace trim ONLY — no synonym mapping.
@@ -438,7 +491,7 @@ _repair_diff_ok() {
 # Test seam: bats tests source this file and REDEFINE this function with
 # a mock responder (bash allows re-declaring a sourced function) — see
 # tests/unit/adversarial-review-repair-loop.bats. This real implementation
-# is only exercised in a live run with repair_loop enabled.
+# is only exercised in a live run on an unenforced voice.
 _repair_finding_via_model() {
   local finding_json="$1"
   local type="$2"
@@ -447,7 +500,9 @@ _repair_finding_via_model() {
   local timeout="${5:-60}"
 
   local workdir
-  workdir=$(mktemp -d "${TMPDIR:-/tmp}/adv-repair.XXXXXX") || return 1
+  # Under the EXIT-trapped adversarial workdir when one exists, so a kill
+  # mid-repair leaves nothing behind in $TMPDIR (late Sprint 2 review).
+  workdir=$(mktemp -d "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair.XXXXXX") || return 1
   local sys_file="$workdir/repair-system.txt"
   local user_file="$workdir/repair-user.txt"
 
@@ -615,6 +670,9 @@ assemble_dissent_context() {
   local diff_file="$1"
   local type="$2"
   local context_file="${3:-}"
+  # cycle-124 FR-2: primary budget follows the dissenter's company
+  # (_adv_input_budget_for_model); callers that omit it keep the 24K default.
+  local primary_budget="${4:-$DEFAULT_PRIMARY_TOKEN_BUDGET}"
 
   local diff_content
   diff_content=$(cat "$diff_file")
@@ -625,7 +683,7 @@ assemble_dissent_context() {
   # Primary content: priority-sorted diff with 80% budget
   # prepare_content is guaranteed available from lib-content.sh
   local prepared_diff
-  prepared_diff=$(prepare_content "$diff_content" "$DEFAULT_PRIMARY_TOKEN_BUDGET")
+  prepared_diff=$(prepare_content "$diff_content" "$primary_budget")
 
   # P0 file escalation (if enabled)
   local escalated_content=""
@@ -757,11 +815,25 @@ OUTPUT: JSON object {"findings": [...]}. Same field structure as code review.'
   fi
 
   # Return assembled context as JSON
+  # cycle-124 FR-2: the 160K Anthropic budget makes the prepared diff far
+  # larger than the kernel's single-argument cap (MAX_ARG_STRLEN 128 KiB), so
+  # `jq --arg` fails with "Argument list too long" above ~32K tokens. Feed
+  # the prompts through files instead — byte-identical JSON to `--arg`.
+  local ctx_tmp
+  # Under the EXIT-trapped workdir when one exists, so a kill between the
+  # write and the rm never leaves the full diff in $TMPDIR (audit, slice C).
+  ctx_tmp=$(mktemp -d "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-ctx.XXXXXX") || return 1
+  printf '%s' "$system_prompt" > "$ctx_tmp/system"
+  printf '%s' "$user_prompt" > "$ctx_tmp/user"
+  local jq_rc=0
   jq -n \
-    --arg system "$system_prompt" \
-    --arg user "$user_prompt" \
+    --rawfile system "$ctx_tmp/system" \
+    --rawfile user "$ctx_tmp/user" \
     --argjson escalated "$( [[ "$escalation_used" == "true" ]] && echo true || echo false )" \
-    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated}'
+    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated}' || jq_rc=$?
+  rm -f "$ctx_tmp/system" "$ctx_tmp/user"
+  rmdir "$ctx_tmp" 2>/dev/null || true
+  return $jq_rc
 }
 
 # =============================================================================
@@ -782,6 +854,18 @@ invoke_dissenter() {
   # which phase of adversarial review (review/audit/design) issued the
   # call. Defaults empty for backward-compat with any pre-D-6 caller.
   local type="${6:-}"
+  # cycle-124 FR-7: wire schema forwarded as --json-schema; cheval enforces
+  # it where the hop can (Anthropic structured_json entries, claude-headless)
+  # and the translated envelope reports schema_enforced either way.
+  local schema_file="${7:-}"
+  local -a schema_args=()
+  if [[ -n "$schema_file" && -f "$schema_file" ]]; then
+    schema_args=(--json-schema "$schema_file")
+  elif [[ -n "$schema_file" ]]; then
+    # A named schema that is not on disk means every voice runs unenforced
+    # and the schema_enforced ratio is silently skewed — say so.
+    log "WARN: wire schema not found, dispatching unenforced: $schema_file"
+  fi
 
   # Build the skill string for /loa status --economy attribution AND
   # (cycle-119 C16 / D-6 slice) MODELINV calling_primitive attribution —
@@ -797,6 +881,9 @@ invoke_dissenter() {
     skill_args=(--skill "adversarial-$type" --phase "$type")
   fi
 
+  # cycle-124 FR-2 (SDD §3.2): a dissent verdict is a bounded findings
+  # document — pass the budget explicitly so cheval's per-model default
+  # (Anthropic 64K) never meets the dissenter timeout.
   if [[ -n "$vq_sidecar" ]]; then
     LOA_VERDICT_QUALITY_SIDECAR="$vq_sidecar" \
       "$SCRIPT_DIR/model-adapter.sh" \
@@ -805,7 +892,9 @@ invoke_dissenter() {
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
       --timeout "$timeout" \
-      ${skill_args[@]+"${skill_args[@]}"}
+      --max-tokens "$DISSENT_MAX_OUTPUT_TOKENS" \
+      ${skill_args[@]+"${skill_args[@]}"} \
+      ${schema_args[@]+"${schema_args[@]}"}
   else
     "$SCRIPT_DIR/model-adapter.sh" \
       --model "$model" \
@@ -813,7 +902,9 @@ invoke_dissenter() {
       --input "$user_prompt_file" \
       --context "$system_prompt_file" \
       --timeout "$timeout" \
-      ${skill_args[@]+"${skill_args[@]}"}
+      --max-tokens "$DISSENT_MAX_OUTPUT_TOKENS" \
+      ${skill_args[@]+"${skill_args[@]}"} \
+      ${schema_args[@]+"${schema_args[@]}"}
   fi
 }
 
@@ -890,8 +981,39 @@ process_findings() {
     return 0
   fi
 
+  # cycle-124 FR-7 (SDD §3): two parse paths, chosen by what the hop reports.
+  #   schema_enforced == true  → strict parse ONLY (jq_strict on the raw
+  #     content: no fence strip, no raw_decode rescue, no repair); a failure
+  #     or a max_tokens stop is malformed_response (the chain walks).
+  #   otherwise                → today's tolerant path (fence strip +
+  #     raw_decode + normalization + one repair round-trip), byte-for-byte.
+  local schema_enforced parse_path resp_stop_reason parsed
+  schema_enforced=$(echo "$raw_response" | jq -r 'if .schema_enforced == true then "true" else "false" end' 2>/dev/null) || schema_enforced="false"
+  resp_stop_reason=$(echo "$raw_response" | jq -r '.stop_reason // empty' 2>/dev/null) || resp_stop_reason=""
+  if [[ "$schema_enforced" == "true" ]]; then
+    parse_path="schema_enforced"
+    local _enforced_err=""
+    if [[ "$resp_stop_reason" == "max_tokens" ]]; then
+      _enforced_err="schema-enforced payload truncated (stop_reason=max_tokens) — raise DISSENT_MAX_OUTPUT_TOKENS"
+    elif ! parsed=$(printf '%s' "$content" | JQ_STRICT_CTX="adversarial-review:enforced-parse" \
+                     jq_strict -ces 'if length == 1 and (.[0] | type) == "object" then .[0] else error("enforced content must be exactly one JSON object") end'); then
+      # -s: a multi-object stream is not an enforced object (a two-object
+      # stream used to read as clean-zero — late Sprint 2 review, slice B)
+      _enforced_err="schema-enforced content is not valid JSON as exactly one object (no fence strip or repair on the enforced branch)"
+    fi
+    if [[ -n "$_enforced_err" ]]; then
+      log "Enforced branch: $_enforced_err — emitting malformed_response"
+      jq -n \
+        --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
+        --arg ts "$timestamp" --arg err "$_enforced_err" \
+        '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
+          timestamp: $ts, status: "malformed_response", degraded: false,
+          schema_enforced: true, parse_path: "schema_enforced", error: $err}}'
+      return 0
+    fi
+  else
+    parse_path="normalized"
   # Try to parse as JSON (handle markdown ```json wrapping)
-  local parsed
   parsed=$(echo "$content" | sed -n '/^```json/,/^```$/p' | sed '1d;$d' 2>/dev/null || echo "")
   if [[ -z "$parsed" ]]; then
     parsed="$content"
@@ -929,6 +1051,8 @@ while i < len(text):
     if [[ -n "$extracted" ]]; then
       parsed="$extracted"
     fi
+  fi
+
   fi
 
   # STATE 2: Malformed response
@@ -988,9 +1112,10 @@ while i < len(text):
 
     jq -n \
       --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
-      --arg ts "$timestamp" \
+      --arg ts "$timestamp" --arg se "$schema_enforced" --arg pp "$parse_path" \
       '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
-        timestamp: $ts, status: "malformed_response", degraded: false}}'
+        timestamp: $ts, status: "malformed_response", degraded: false,
+        schema_enforced: ($se == "true"), parse_path: $pp}}'
     return 0
   fi
 
@@ -1003,10 +1128,11 @@ while i < len(text):
     log "finding-count extraction failed on parsed content — emitting malformed_response, not clean-zero (KF-004 guard, #1025)"
     jq -n \
       --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
-      --arg ts "$timestamp" \
+      --arg ts "$timestamp" --arg se "$schema_enforced" --arg pp "$parse_path" \
       --arg err "finding-count extraction failed (.findings | length)" \
       '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
-        timestamp: $ts, status: "malformed_response", degraded: false, error: $err}}'
+        timestamp: $ts, status: "malformed_response", degraded: false, error: $err,
+        schema_enforced: ($se == "true"), parse_path: $pp}}'
     return 0
   fi
   if [[ "$finding_count" == "0" ]]; then
@@ -1016,11 +1142,11 @@ while i < len(text):
     # the degraded axis; status_note covers the high-bar-lens axis.
     jq -n \
       --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
-      --arg ts "$timestamp" \
+      --arg ts "$timestamp" --arg se "$schema_enforced" --arg pp "$parse_path" \
       '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid,
         timestamp: $ts, status: "clean",
         status_note: "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
-        degraded: false}}'
+        degraded: false, schema_enforced: ($se == "true"), parse_path: $pp}}'
     return 0
   fi
 
@@ -1048,19 +1174,23 @@ while i < len(text):
   local validated_findings="[]"
   local i=0
   local rejected_count=0
-  # cycle-119 C14 (KF-004 repair loop) — only meaningful when the flag is
-  # on; stays 0 and is omitted from output metadata otherwise (flag OFF
-  # must be byte-identical legacy behavior).
+  # cycle-119 C14 (KF-004 repair loop); always reported since cycle-124.
   local repaired_count=0
+  # Each repair is a serial live model call bounded only by CONF_TIMEOUT; a
+  # voice that returns thirty out-of-enum findings would otherwise cost thirty
+  # calls per review. At most ADV_REPAIR_MAX_PER_RUN repairs per run; the rest
+  # are rejected unrepaired and counted in repair_budget_exhausted.
+  local repairs_used=0 repair_budget_exhausted=0
   while [[ $i -lt $finding_count ]]; do
     local finding
     finding=$(echo "$parsed" | jq ".findings[$i]")
 
     # Constraint 1: normalization pre-pass BEFORE validate_finding —
-    # case-fold + trim ONLY, gated entirely behind the flag so disabled
-    # behavior never differs from pre-C14.
+    # case-fold + trim ONLY. Unenforced branch only (cycle-124 FR-7): an
+    # enforced payload's enums are exact by construction, and normalizing
+    # one would hide a wire-schema/prompt drift.
     local candidate="$finding"
-    if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+    if [[ "$schema_enforced" != "true" ]]; then
       candidate=$(_normalize_finding_for_validation "$finding")
     fi
 
@@ -1077,8 +1207,11 @@ while i < len(text):
       local sidecar_reject_reason="$reject_reason"
       local accepted_finding=""
 
-      if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
+      if [[ "$schema_enforced" != "true" ]] && (( repairs_used >= ADV_REPAIR_MAX_PER_RUN )); then
+        repair_budget_exhausted=$((repair_budget_exhausted + 1))
+      elif [[ "$schema_enforced" != "true" ]]; then
         repair_attempted="true"
+        repairs_used=$((repairs_used + 1))
         local violated_field
         violated_field=$(_repair_violated_field "$reject_reason")
         local repaired
@@ -1111,11 +1244,8 @@ while i < len(text):
         repaired_count=$((repaired_count + 1))
       else
         log "Rejected invalid finding at index $i: ${sidecar_reject_reason:-unknown-reason}"
-        if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
-          _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model" "$repair_attempted" "$repair_succeeded"
-        else
-          _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model"
-        fi
+        _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model" \
+          "$repair_attempted" "$repair_succeeded" "$schema_enforced" "$parse_path" "$resp_stop_reason"
         rejected_count=$((rejected_count + 1))
       fi
     fi
@@ -1141,13 +1271,13 @@ while i < len(text):
     rejected_sidecar_rel="${rejected_sidecar#"$PROJECT_ROOT/"}"
   fi
 
-  # cycle-119 C14: repaired_count only appears in metadata when the flag
-  # is on — omitted entirely when off, so the envelope is byte-identical
-  # to pre-C14 output in the disabled (default) case.
-  local repair_metadata_json="{}"
-  if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]]; then
-    repair_metadata_json=$(jq -nc --argjson rc "$repaired_count" '{repaired_count: $rc}')
-  fi
+  # cycle-124 FR-7: repaired_count is always reported (0 on the enforced
+  # branch, which never repairs) beside the parse path that produced the
+  # findings and whether the hop enforced the wire schema.
+  local repair_metadata_json
+  repair_metadata_json=$(jq -nc --argjson rc "$repaired_count" --arg se "$schema_enforced" --arg pp "$parse_path" \
+    --argjson rbe "$repair_budget_exhausted" \
+    '{repaired_count: $rc, schema_enforced: ($se == "true"), parse_path: $pp, repair_budget_exhausted: $rbe}')
 
   jq -n \
     --argjson findings "$validated_findings" \
@@ -1532,23 +1662,32 @@ write_output() {
       ${_c117d_legs[@]+"${_c117d_legs[@]}"}
   fi
 
-  # cycle-119 C14 (KF-004 repair loop, #1177-D wiring): rejected+repaired
-  # counts feed the SAME uniform degraded-trajectory channel so "N
-  # findings still silently eaten even after a repair attempt" is visible
-  # without opening the sidecar. Gated on the flag AND rejected_count>0 —
-  # a clean run (or the flag OFF default) never reaches this; distinct
-  # gate suffix so it never collides with the api_failure/verdict_quality
-  # record above.
-  if [[ "${CONF_REPAIR_LOOP:-false}" == "true" ]] \
-     && declare -F degraded_verdict_maybe_emit >/dev/null 2>&1; then
-    local _c14_rejected _c14_repaired
-    _c14_rejected=$(echo "$result_json" | jq -r '.metadata.rejected_count // 0' 2>/dev/null) || _c14_rejected=0
-    _c14_repaired=$(echo "$result_json" | jq -r '.metadata.repaired_count // 0' 2>/dev/null) || _c14_repaired=0
-    if [[ "$_c14_rejected" =~ ^[0-9]+$ ]] && [[ "$_c14_rejected" -gt 0 ]]; then
-      degraded_verdict_maybe_emit "adversarial-review:${type}:repair-loop" "DEGRADED" \
-        "kf-004-repair-loop: ${_c14_rejected} rejected finding(s) survived repair (${_c14_repaired} repaired)" \
-        "$sprint_id" "-"
-    fi
+  _emit_rejection_degraded "$result_json" "$type" "$sprint_id"
+}
+
+# cycle-119 C14 (KF-004 repair loop, #1177-D wiring), unconditional since
+# cycle-124 FR-7: rejected+repaired counts feed the SAME uniform
+# degraded-trajectory channel so "N findings silently eaten" is visible
+# without opening the sidecar — on BOTH parse paths (an enforced payload
+# that still fails validate_finding is a wire-schema/prompt drift signal).
+# Distinct gate suffix so it never collides with the api_failure /
+# verdict_quality record.
+_emit_rejection_degraded() {
+  local result_json="$1" type="$2" sprint_id="$3"
+  declare -F degraded_verdict_maybe_emit >/dev/null 2>&1 || return 0
+  local _c14_rejected _c14_repaired _c14_pp
+  _c14_rejected=$(echo "$result_json" | jq -r '.metadata.rejected_count // 0' 2>/dev/null) || _c14_rejected=0
+  _c14_repaired=$(echo "$result_json" | jq -r '.metadata.repaired_count // 0' 2>/dev/null) || _c14_repaired=0
+  _c14_pp=$(echo "$result_json" | jq -r '.metadata.parse_path // "normalized"' 2>/dev/null) || _c14_pp="normalized"
+  local _c14_rbe _c14_rbe_note=""
+  _c14_rbe=$(echo "$result_json" | jq -r '.metadata.repair_budget_exhausted // 0' 2>/dev/null) || _c14_rbe=0
+  if [[ "$_c14_rbe" =~ ^[0-9]+$ ]] && [[ "$_c14_rbe" -gt 0 ]]; then
+    _c14_rbe_note="; ${_c14_rbe} past the ${ADV_REPAIR_MAX_PER_RUN}-repair budget"
+  fi
+  if [[ "$_c14_rejected" =~ ^[0-9]+$ ]] && [[ "$_c14_rejected" -gt 0 ]]; then
+    degraded_verdict_maybe_emit "adversarial-review:${type}:repair-loop" "DEGRADED" \
+      "kf-004-repair-loop: ${_c14_rejected} rejected finding(s) survived repair (${_c14_repaired} repaired${_c14_rbe_note}; parse_path=${_c14_pp})" \
+      "$sprint_id" "-"
   fi
 }
 
@@ -1672,9 +1811,14 @@ main() {
     exit 4
   fi
 
-  # Assemble context
+  # Assemble context (cycle-124 FR-2: input budget follows the dissenter's
+  # company; the estimate is logged BEFORE dispatch so a truncated diff is
+  # visible in the run log, not discovered from the verdict).
+  local primary_input_budget
+  primary_input_budget=$(_adv_input_budget_for_model "$model")
+  log "Dissenter input: model=$model estimated_input_tokens=$estimated_input_tokens primary_budget=$primary_input_budget max_output_tokens=$DISSENT_MAX_OUTPUT_TOKENS"
   local context_json
-  context_json=$(assemble_dissent_context "$diff_file" "$type" "$context_file")
+  context_json=$(assemble_dissent_context "$diff_file" "$type" "$context_file" "$primary_input_budget")
 
   # Write prompts to workdir
   echo "$context_json" | jq -r '.system_prompt' > "$_ADVERSARIAL_WORKDIR/system-prompt.txt"
@@ -1779,7 +1923,7 @@ main() {
     # parallel adversarial-review invocations don't collide.
     local vq_sidecar
     vq_sidecar="$_vq_tmpdir/vq-${type}-${try_model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
-    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type") || api_exit=$?
+    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || api_exit=$?
     # Collect the per-attempt envelope (if cheval wrote one).
     if [[ -s "$vq_sidecar" ]]; then
       vq_attempt_files+=("$vq_sidecar")

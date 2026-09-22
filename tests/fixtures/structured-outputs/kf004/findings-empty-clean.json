@@ -1,0 +1,14 @@
+{
+  "_case": "KF-004 enforced-valid: empty findings \u21d2 clean",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "clean",
+    "enforced": "clean",
+    "enforced_rejected": 0
+  },
+  "content": "{\"findings\":[]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

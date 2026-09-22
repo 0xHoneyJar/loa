@@ -20,15 +20,18 @@ teardown() {
     [[ -n "${SCRATCH:-}" && -d "$SCRATCH" ]] && rm -rf "$SCRATCH"
 }
 
-write_voice() {
+write_voice() {  # <file> <voice> <content> [schema_enforced]
     local file="$1"
     local voice="$2"
     local content="$3"
+    local enforced="${4:-false}"
     jq -n \
         --arg content "$content" \
         --arg voice "$voice" \
+        --argjson enforced "$enforced" \
         '{
           content: $content,
+          schema_enforced: $enforced,
           verdict_quality: {
             status: "APPROVED",
             consensus_outcome: "consensus",
@@ -156,4 +159,70 @@ reasoned_empty_review() {
 
     [ "$status" -ne 0 ]
     [ ! -e "$(final_consensus_path sprint)" ]
+}
+
+# =============================================================================
+# cycle-124 FR-7: schema-enforced voices are parsed strictly (no normalize path)
+# =============================================================================
+
+_reason_of() {  # runs qualify_flatline_content and prints the rejection reason ("" = accepted)
+    local file="$1"
+    REASONS="$SCRATCH/reasons"; : > "$REASONS"
+    log_trajectory() { [[ "$1" == "consensus.voice_rejected" ]] && jq -r '.reason' <<<"$2" >> "$REASONS"; :; }
+    if qualify_flatline_content "$file" flatline-reviewer opus prd; then echo ""; else tail -1 "$REASONS"; fi
+}
+
+@test "CQ-E1: an enforced voice whose content is prose is rejected as enforced_parse_failed (never normalized)" {
+    write_voice "$SCRATCH/v.json" opus "I looked at it and it is fine." true
+    normalize_json_response() { echo "normalize_json_response must not run on the enforced branch" >&2; return 1; }
+    [ "$(_reason_of "$SCRATCH/v.json")" = "enforced_parse_failed" ]
+}
+
+@test "CQ-E2: an enforced voice with a schema-valid object is accepted without touching normalize_json_response" {
+    write_voice "$SCRATCH/v.json" opus "$(reasoned_empty_review)" true
+    normalize_json_response() { echo "normalize_json_response must not run on the enforced branch" >&2; return 1; }
+    [ "$(_reason_of "$SCRATCH/v.json")" = "" ]
+}
+
+@test "CQ-E3: an enforced voice whose object violates the persona contract is rejected as schema_invalid" {
+    write_voice "$SCRATCH/v.json" opus '{"improvements":"not-an-array"}' true
+    [ "$(_reason_of "$SCRATCH/v.json")" = "schema_invalid" ]
+}
+
+@test "CQ-E4: an unenforced voice keeps today's tolerant path (fenced JSON is rescued)" {
+    write_voice "$SCRATCH/v.json" opus $'```json\n'"$(reasoned_empty_review)"$'\n```' false
+    [ "$(_reason_of "$SCRATCH/v.json")" = "" ]
+}
+
+@test "CQ-E5: the KF-023 corpus — every fixture lands where _expect says on both paths (accepted or the named reason)" {
+    local corpus="$PROJECT_ROOT/tests/fixtures/structured-outputs/kf023"
+    local n=0 f
+    for f in "$corpus"/*.json; do
+        n=$((n + 1))
+        local content expect_u expect_e
+        content=$(jq -r '.content' "$f")
+        expect_u=$(jq -r '._expect.unenforced' "$f"); expect_e=$(jq -r '._expect.enforced' "$f")
+        write_voice "$SCRATCH/u.json" opus "$content" false
+        write_voice "$SCRATCH/e.json" opus "$content" true
+        [ "$expect_u" = "accepted" ] && expect_u=""
+        [ "$expect_e" = "accepted" ] && expect_e=""
+        [ "$(_reason_of "$SCRATCH/u.json")" = "$expect_u" ] || { echo "$f unenforced: got '$(_reason_of "$SCRATCH/u.json")' want '$expect_u'" >&2; return 1; }
+        [ "$(_reason_of "$SCRATCH/e.json")" = "$expect_e" ] || { echo "$f enforced: got '$(_reason_of "$SCRATCH/e.json")' want '$expect_e'" >&2; return 1; }
+    done
+    [ "$n" = "5" ]
+}
+
+@test "CQ-E6: an enforced voice that stopped at max_tokens is rejected as enforced_truncated even when the fragment parses" {
+    local content
+    content=$(jq -r '.content' "$PROJECT_ROOT/tests/fixtures/structured-outputs/truncated.json")
+    jq -n --arg c '{"improvements": [], "summary": "0 improvements identified", "no_findings_reason": "The acceptance criteria, rollback path and dependency gates are concrete and consistent.", "reviewed_sections": ["Acceptance Criteria"]}' \
+        '{content: $c, schema_enforced: true, stop_reason: "max_tokens"}' > "$SCRATCH/t.json"
+    [ "$(_reason_of "$SCRATCH/t.json")" = "enforced_truncated" ]
+    jq -n --arg c "$content" '{content: $c, schema_enforced: true, stop_reason: "max_tokens"}' > "$SCRATCH/t2.json"
+    [ "$(_reason_of "$SCRATCH/t2.json")" = "enforced_truncated" ]
+}
+
+@test "CQ-E7: an enforced two-object stream is enforced_parse_failed, not accepted" {
+    jq -n --arg c '{"improvements": []}{"improvements": []}' '{content: $c, schema_enforced: true}' > "$SCRATCH/m.json"
+    [ "$(_reason_of "$SCRATCH/m.json")" = "enforced_parse_failed" ]
 }

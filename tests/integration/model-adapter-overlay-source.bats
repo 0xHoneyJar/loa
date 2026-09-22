@@ -117,6 +117,10 @@ EOF
 # C — Graceful degradation: missing merged file
 # -----------------------------------------------------------------------------
 
+# cycle-124 T1.3/T1.4 re-baseline: the FALLTHROUGH cases below (C1/D1/F1)
+# resolve `opus` through the framework catalog, whose target moved 4-7 → 4-8
+# (cycle-114) → claude-opus-5 (cycle-124); they had been red on main since
+# cycle-114. B1/E1 resolve through the synthetic overlay fixture and keep 4-7.
 @test "C1: adapter still works when merged file is absent" {
   # Don't create the merged file. Set LOA_OVERLAY_MERGED to a bogus path
   # so the helper's hook-regen also fails (we don't want a real hook
@@ -127,7 +131,7 @@ EOF
     --model opus --mode review \
     --input "$INPUT" --dry-run
   # Resolution should still succeed via model-resolver.sh (framework canonical)
-  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-4-7"* ]]
+  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-5"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -146,7 +150,7 @@ EOF
     --input "$INPUT" --dry-run
   # loa_overlay_init refuses to source the syntactically-invalid file;
   # the adapter falls through to resolve_provider_id (framework canonical).
-  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-4-7"* ]]
+  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-5"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -220,5 +224,5 @@ EOF
     --input "$INPUT" --dry-run
   # Overlay arrays empty → loa_overlay_resolve_provider_id misses → falls
   # through to resolve_provider_id (framework). 'opus' resolves to canonical.
-  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-4-7"* ]]
+  [[ "$stderr" == *"Model: opus → anthropic:claude-opus-5"* ]]
 }

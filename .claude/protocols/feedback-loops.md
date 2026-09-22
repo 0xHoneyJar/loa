@@ -2,14 +2,6 @@
 
 This protocol defines the three feedback loops used for quality assurance in the Loa framework.
 
-## Overview
-
-The framework uses three feedback loops:
-
-1. **Implementation Feedback Loop** (Phases 4-5) - Code quality
-2. **Sprint Security Audit Loop** (Phase 5.5) - Security review
-3. **Deployment Feedback Loop** - Infrastructure security
-
 ## 1. Implementation Feedback Loop (Phases 4-5)
 
 ### Flow
@@ -71,16 +63,6 @@ Engineer → Security Auditor → Engineer → ... → Security Approval
 - Audit feedback has **HIGHEST priority** (checked before engineer feedback)
 - Security issues take precedence over code review feedback
 
-### Security Checklist
-
-- No hardcoded secrets or credentials
-- Proper authentication and authorization
-- Comprehensive input validation
-- No injection vulnerabilities (SQL, command, XSS)
-- Secure API implementation
-- Data privacy protected
-- Dependencies secure (no known CVEs)
-
 ## 3. Deployment Feedback Loop
 
 ### Flow
@@ -106,110 +88,33 @@ DevOps → Security Auditor → DevOps → ... → Deployment Approval
 4. **If changes required**: DevOps addresses feedback, regenerates report
 5. **Repeat** until approved
 
-## A2A Directory Structure
+## Verdict Trailers and the Gate
 
-```
-grimoires/loa/a2a/
-├── index.md                         # Sprint audit trail index (auto-maintained)
-├── integration-context.md           # Feedback configuration
-├── trajectory/                      # v1.20.0: Guardrail and handoff logs
-│   ├── guardrails-2026-02-03.jsonl  # Input guardrail events
-│   └── ...
-├── sprint-1/
-│   ├── reviewer.md                  # Engineer implementation report
-│   ├── engineer-feedback.md         # Senior lead feedback
-│   ├── auditor-sprint-feedback.md   # Security audit feedback
-│   └── COMPLETED                    # Completion marker (audit approval)
-├── sprint-2/
-│   └── ...
-├── deployment-report.md             # DevOps infrastructure report
-└── deployment-feedback.md           # Deployment security audit feedback
-```
+Both feedback files end with a machine trailer, `<!-- LOA-VERDICT {json} -->`, as their last line
+(gate, verdict, counts, optional `excluded` / `excluded_confirmed`). `golden-path.sh` and run mode
+read the trailer, not the prose: a file with any `LOA…VERDICT` marker is sent to
+`verdict-derive.sh`, which accepts only the exact canonical form and is fail-closed — an
+inconsistent, malformed or unparseable trailer, a non-zero exit or a missing `jq` all read as
+"not reviewed" / "not audited". The prose heuristic applies only to legacy files with no marker at
+all. An audit implies review: with a trailer, `engineer-feedback.md` is re-derived too, and a review
+`excluded > 0` passes only when the audit trailer's `excluded_confirmed` equals it.
 
-## Handoff Logging (v1.20.0)
+## Handoff Logging
 
-When agents hand off work to each other, explicit handoff events are logged to trajectory.
-
-### Logging Handoffs
-
-Use `.claude/scripts/log-handoff.sh`:
-
-```bash
-# Log handoff from implementing-tasks to reviewing-code
-log-handoff.sh --from implementing-tasks --to reviewing-code \
-  --artifact grimoires/loa/a2a/sprint-1/reviewer.md \
-  --context sprint_id --context task_list
-```
-
-### Handoff Event Format
-
-```json
-{
-  "type": "handoff",
-  "timestamp": "2026-02-03T10:35:00Z",
-  "session_id": "abc123",
-  "skill": "implementing-tasks",
-  "action": "PROCEED",
-  "from_agent": "implementing-tasks",
-  "to_agent": "reviewing-code",
-  "handoff_type": "file_based",
-  "artifacts": [
-    {"path": "grimoires/loa/a2a/sprint-1/reviewer.md", "size_bytes": 2048}
-  ],
-  "context_preserved": ["sprint_id", "task_list", "commit_hash"]
-}
-```
-
-### When to Log Handoffs
-
-| Transition | Artifacts | Context |
-|------------|-----------|---------|
-| Implement → Review | `reviewer.md` | sprint_id, task_list |
-| Review → Audit | `engineer-feedback.md` | sprint_id, approval_status |
-| Audit → Next Sprint | `COMPLETED` marker | sprint_id, audit_verdict |
-| DevOps → Audit | `deployment-report.md` | environment, infra_type |
-
-### Configuration
-
-```yaml
-# .loa.config.yaml
-guardrails:
-  logging:
-    handoffs: true  # Enable handoff logging
-```
-
-## Complete Sprint Workflow
-
-```
-/implement sprint-1
-    ↓
-/review-sprint sprint-1
-    ↓ (if feedback)
-/implement sprint-1 ←──┐
-    ↓ (if "All good") │
-/audit-sprint sprint-1 │
-    ↓ (if CHANGES_REQUIRED)
-    └──────────────────┘
-    ↓ (if APPROVED)
-Creates COMPLETED marker
-    ↓
-Move to sprint-2 or deployment
-```
+When `guardrails.logging.handoffs: true` in `.loa.config.yaml`, log each agent handoff to the trajectory with `.claude/scripts/log-handoff.sh --from <skill> --to <skill> --artifact <path> --context <key>…` — implement → review (`reviewer.md`; sprint_id, task_list), review → audit (`engineer-feedback.md`; sprint_id, approval_status), audit → next sprint (`COMPLETED`; sprint_id, audit_verdict), DevOps → audit (`deployment-report.md`; environment, infra_type). The script writes the handoff event record.
 
 ## Feedback Document Structure
 
-### Engineer Feedback (when issues found)
-
-```markdown
+The review and audit skills write their feedback from their own templates (`reviewing-code/resources/templates/review-feedback.md`, `auditing-security/resources/templates/audit-report.md`); both end with the trailer described above.
 ## Overall Assessment
 [Summary of review]
 
-## Critical Issues (MUST FIX)
+## Changes Required
 - **Issue**: [Description]
 - **File**: `path/to/file.ts:42`
 - **Required Fix**: [Specific fix]
 
-## Non-Critical Improvements
+## Observations
 - [Recommendations]
 
 ## Previous Feedback Status

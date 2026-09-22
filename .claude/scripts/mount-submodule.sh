@@ -507,6 +507,14 @@ source "${SCRIPT_DIR}/lib/symlink-manifest.sh"
 # the previous inline call silently produced empty strings on every macOS
 # operator's first reconcile, falsely declaring `0 fixed` for missing links.
 source "${SCRIPT_DIR}/lib/portable-realpath.sh"
+# bug 20260922-13a3d1: Aleph is opt-in. The predicate lives in one place; an
+# older submodule without the lib reads as DISABLED (fail closed toward "off").
+if [[ -f "${SCRIPT_DIR}/lib/aleph-opt-in.sh" ]]; then
+  # shellcheck source=lib/aleph-opt-in.sh
+  source "${SCRIPT_DIR}/lib/aleph-opt-in.sh"
+else
+  aleph_opt_in_enabled() { return 1; }
+fi
 # cycle-115: portable hashing is used to authenticate the compiled Aleph
 # installer against the bundle lock before executing it.
 # shellcheck source=compat-lib.sh
@@ -1366,6 +1374,9 @@ _refresh_copy_entry() {
 aleph_refresh_is_applicable() {
   local repo_root="${1:-$(get_repo_root)}"
   local submodule="${2:-${SUBMODULE_PATH:-.loa}}"
+  # bug 20260922-13a3d1: nothing Aleph-related runs unless the consumer opted
+  # in (LOA_ALEPH_ENABLED=1 or aleph.enabled: true in .loa.config.yaml).
+  aleph_opt_in_enabled "$repo_root" || return 1
   local aleph_source="${repo_root}/${submodule}/${ALEPH_BUNDLE_RELATIVE}"
   local aleph_gitlink=""
 

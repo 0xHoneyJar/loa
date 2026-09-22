@@ -26,6 +26,7 @@ setup() {
     TMP_DIR="$(mktemp -d)"
     export PROJECT_ROOT="$REPO_ROOT"
     export LOA_MODELINV_LOG_PATH="$TMP_DIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$TMP_DIR/cost-ledger.jsonl"
     # Disable advisor-strategy so --skill doesn't trigger tier resolution
     # (this test pins envelope attribution, not tier resolution).
     export LOA_ADVISOR_STRATEGY_DISABLE=1

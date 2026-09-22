@@ -26,6 +26,7 @@ setup() {
     REAL_SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../../.claude/scripts" && pwd)"
     cp "$REAL_SCRIPT_DIR/bootstrap.sh" "$TEST_DIR/.claude/scripts/"
     cp "$REAL_SCRIPT_DIR/path-lib.sh" "$TEST_DIR/.claude/scripts/"
+    cp "$REAL_SCRIPT_DIR/compat-lib.sh" "$TEST_DIR/.claude/scripts/"   # sourced by golden-path.sh since PR #1028
     cp "$REAL_SCRIPT_DIR/golden-path.sh" "$TEST_DIR/.claude/scripts/"
 
     # Initialize git so bootstrap.sh can detect PROJECT_ROOT

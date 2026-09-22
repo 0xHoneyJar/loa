@@ -1,19 +1,33 @@
 #!/usr/bin/env bash
-# loa:pre-push-audit:v1
-# pre-push-audit — opt-in LOCAL audit-chain attestation before `git push`.
+# loa:pre-push-audit:v2
+# pre-push-audit — LOCAL push gate: (1) ledger hygiene, ALWAYS ON (cycle-124 FR-6);
+# (2) opt-in audit-chain attestation.
 #
 # Installed by .claude/scripts/install-audit-prepush.sh into .git/hooks/pre-push
 # (per-clone; git hooks are not committed). This is the ONLY wiring point where the
 # strict verify-for-merge gate is meaningful: the operator's box has the real
 # .run/model-invoke.jsonl AND can block transmission. CI/post-merge would be a no-op.
 #
-# DEFAULT OFF: audit-verify-for-merge.sh is itself opt-in — unset LOA_AUDIT_VERIFY_FOR_MERGE
-# prints "DISABLED" and exits 0, so this hook passes through. Set it to 1 to ENFORCE: a
+# The hygiene gate below blocks a push while .run/ carries test rows regardless of any
+# env var (v2; re-run install-audit-prepush.sh to pick it up on a v1 install).
+# The attestation gate is DEFAULT OFF: audit-verify-for-merge.sh is itself opt-in — unset
+# LOA_AUDIT_VERIFY_FOR_MERGE prints "DISABLED" and exits 0. Set it to 1 to ENFORCE: a
 # broken/tampered/unsigned-post-cutoff chain then exits non-zero and BLOCKS the push.
 # (`git push --no-verify` bypasses ALL hooks — this is operator self-attestation, not a
 #  hard security boundary.)
 set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# cycle-124 FR-6: refuse to push while the local ledgers carry test rows — the
+# operator's box is the only place a polluted (gitignored) .run/ is visible.
+# Tool absent (older checkout) or .run/ absent (fresh clone) → never block.
+HYGIENE="$REPO_ROOT/tools/check-ledger-hygiene.sh"
+if [[ -f "$HYGIENE" && -d "$REPO_ROOT/.run" ]]; then
+    bash "$HYGIENE" --root "$REPO_ROOT/.run" --quiet && hygiene_rc=0 || hygiene_rc=$?
+    if [[ "$hygiene_rc" -ne 0 ]]; then
+        echo "pre-push-audit: check-ledger-hygiene.sh exit $hygiene_rc — run 'bash tools/check-ledger-hygiene.sh', then rotate per grimoires/loa/runbooks/ledger-hygiene-rotation.md" >&2
+        exit "$hygiene_rc"
+    fi
+fi
 GATE="$REPO_ROOT/.claude/scripts/audit-verify-for-merge.sh"
 [[ -f "$GATE" ]] || exit 0                      # gate absent (older checkout) → never block
 exec env PROJECT_ROOT="$REPO_ROOT" bash "$GATE" # pin the root (ignore any stale inherited PROJECT_ROOT)

@@ -1,0 +1,16 @@
+{
+  "_case": "KF-004 enforced-valid: review ADVISORY without anchor",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "reviewed",
+    "enforced": "reviewed",
+    "enforced_rejected": 0,
+    "unenforced_findings": 1,
+    "enforced_findings": 1
+  },
+  "content": "{\"findings\": [{\"id\": \"DISS-001\", \"severity\": \"ADVISORY\", \"category\": \"error-handling\", \"anchor\": null, \"anchor_type\": null, \"scope\": \"diff\", \"trigger_anchor\": null, \"cross_file_justification\": null, \"description\": \"missing retry on transient failure\", \"failure_mode\": \"one 503 fails the run\", \"suggested_fix\": \"retry with backoff\"}]}",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

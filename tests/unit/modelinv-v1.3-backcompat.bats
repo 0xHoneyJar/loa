@@ -558,3 +558,47 @@ print("OK")
 PY
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# V-14 (cycle-124 Sprint 1 U0): replay the COMMITTED mixed-writer fixture.
+# V11 replays the live .run/model-invoke.jsonl, which is gitignored and so
+# vacuous in CI (and rotated away by the FR-6 runbook). This case is the
+# deterministic twin: rows from three writers / three transports, with the
+# four cycle-124 optional fields absent, explicit-zero and populated.
+# =============================================================================
+
+@test "V14: replay tests/fixtures/modelinv/mixed-writer-rows.jsonl parses + validates every payload" {
+    _require_schema_deps
+    local fixture="$PROJECT_ROOT/tests/fixtures/modelinv/mixed-writer-rows.jsonl"
+    [[ -f "$fixture" ]]
+    run "$PYTHON_BIN" - <<PY
+import json, sys
+from pathlib import Path
+import jsonschema
+from referencing import Registry, Resource
+ROOT = Path("$PROJECT_ROOT")
+schema = json.load(open("$SCHEMA_PATH"))
+registry = Registry()
+me = ROOT / ".claude" / "data" / "trajectory-schemas" / "model-error.schema.json"
+if me.is_file():
+    registry = registry.with_resource(uri="loa://schemas/model-error/v1.0.0", resource=Resource.from_contents(json.load(me.open())))
+validator = jsonschema.validators.validator_for(schema)(schema, registry=registry)
+count = 0
+with_new = 0
+for lineno, raw in enumerate(open("$fixture"), start=1):
+    raw = raw.strip()
+    if not raw:
+        continue
+    payload = json.loads(raw)["payload"]
+    errs = list(validator.iter_errors(payload))
+    assert not errs, f"line {lineno}: {errs[0].message}"
+    count += 1
+    if any(k in payload for k in ("tokens_cache_read", "tokens_cache_creation", "schema_enforced", "output_schema_sha256")):
+        with_new += 1
+assert count >= 8, count
+assert 0 < with_new < count, (with_new, count)   # a true MIX of pre- and post-cycle rows
+print(f"OK: {count} fixture rows validated ({with_new} carry cycle-124 fields)")
+PY
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [[ "$output" == *"OK:"* ]]
+}

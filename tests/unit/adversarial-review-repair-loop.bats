@@ -2,7 +2,7 @@
 # =============================================================================
 # adversarial-review-repair-loop.bats — cycle-119 C14 (KF-004 repair loop)
 # =============================================================================
-# Flag: flatline_protocol.code_review.repair_loop (default OFF).
+# cycle-124 FR-7: no flag — the loop always runs on the UNENFORCED branch and never on a schema-enforced payload.
 #
 # Covers the 4 non-negotiable safety constraints from the adversarial
 # design panel:
@@ -46,8 +46,7 @@ setup() {
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
 
-    # Defaults load_adversarial_config would set — repair_loop OFF unless
-    # a test explicitly turns it on.
+    # Defaults load_adversarial_config would set.
     CONF_ENABLED="true"
     CONF_MODEL="gpt-5.3-codex"
     CONF_TIMEOUT=60
@@ -58,8 +57,6 @@ setup() {
     CONF_MAX_FILE_BYTES=51200
     CONF_SECRET_SCANNING="true"
     CONF_SECRET_ALLOWLIST=()
-    CONF_REPAIR_LOOP="false"
-
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
 }
 
@@ -87,7 +84,6 @@ _sidecar_path() {
 # =============================================================================
 
 @test "C14: normalization allows a whitespace/case-mismatched finding to validate directly (no repair needed)" {
-    CONF_REPAIR_LOOP="true"
     _REPAIR_TEST_SPRINT="sprint-c14-norm-$$"
     # anchor + matching diff_files so validate_anchor doesn't demote the
     # BLOCKING severity we're asserting on below — that's an orthogonal,
@@ -110,7 +106,6 @@ _sidecar_path() {
 }
 
 @test "C14: normalization does NOT synonym-map (a made-up severity is still rejected)" {
-    CONF_REPAIR_LOOP="true"
     # Force repair to be unavailable so we isolate the normalization step.
     _repair_finding_via_model() { return 1; }
     _REPAIR_TEST_SPRINT="sprint-c14-nosyn-$$"
@@ -171,7 +166,6 @@ _sidecar_path() {
 # =============================================================================
 
 @test "C14: repair succeeds — mock model fixes only the violated field, finding is accepted" {
-    CONF_REPAIR_LOOP="true"
     _REPAIR_TEST_SPRINT="sprint-c14-repair-ok-$$"
 
     # Mock: given the offending finding + violated clause, return the
@@ -209,7 +203,6 @@ _sidecar_path() {
 }
 
 @test "C14: repair mutates a non-violated field — rejected with repair-mutated-nonviolated-field" {
-    CONF_REPAIR_LOOP="true"
     _REPAIR_TEST_SPRINT="sprint-c14-repair-mutate-$$"
 
     # Mock: "fixes" failure_mode but ALSO rewrites description — violates
@@ -245,7 +238,6 @@ _sidecar_path() {
 }
 
 @test "C14: repair unavailable (model call fails) — rejected, original reject_reason preserved, sidecar unchanged semantics" {
-    CONF_REPAIR_LOOP="true"
     _REPAIR_TEST_SPRINT="sprint-c14-repair-fail-$$"
 
     # Mock: repair round-trip fails outright (e.g. timeout / API error twice).
@@ -276,7 +268,6 @@ _sidecar_path() {
 }
 
 @test "C14: repaired finding that is STILL invalid after repair — rejected with the repaired candidate's reason" {
-    CONF_REPAIR_LOOP="true"
     _REPAIR_TEST_SPRINT="sprint-c14-repair-stillbad-$$"
 
     # Mock: "fixes" the field it was told about but leaves it invalid.
@@ -303,51 +294,44 @@ _sidecar_path() {
 }
 
 # =============================================================================
-# Flag OFF — byte-identical legacy behavior
+# Enforced branch — normalization and repair never run (cycle-124 FR-7)
 # =============================================================================
 
-@test "C14: flag OFF (default) — normalization never runs, repair never attempted, output byte-identical to pre-C14 shape" {
-    CONF_REPAIR_LOOP="false"
+@test "FR-7: schema_enforced payload — normalization never runs, repair never attempted, sidecar records the parse path" {
     # If repair were somehow invoked, fail loudly.
     _repair_finding_via_model() { echo "SHOULD NOT BE CALLED" >&2; return 1; }
-    _REPAIR_TEST_SPRINT="sprint-c14-flagoff-$$"
+    _REPAIR_TEST_SPRINT="sprint-c14-enforced-$$"
 
     local content='{"findings":[{"id":"DISS-001","severity":"  blocking ","category":"injection","description":"d","failure_mode":"fm"}]}'
     local raw
-    raw=$(_raw_envelope "$content")
+    raw=$(jq -n --arg c "$content" '{content: $c, tokens_input: 100, tokens_output: 50, cost_usd: 0.01, latency_ms: 500, schema_enforced: true}')
     result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
 
-    # Not normalized -> still rejected (case-mismatched severity).
-    local count
-    count=$(echo "$result" | jq '.findings | length')
-    [[ "$count" == "0" ]]
+    # Not normalized -> still rejected (case-mismatched severity is a drift signal on the enforced branch).
+    [[ "$(echo "$result" | jq '.findings | length')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.parse_path')" == "schema_enforced" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.schema_enforced')" == "true" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "1" ]]
 
-    # No repaired_count key at all in metadata (byte-identical envelope shape).
-    [[ "$(echo "$result" | jq 'has("repaired_count")')" == "false" ]] # top-level guard (should be false either way)
-    [[ "$(echo "$result" | jq '.metadata | has("repaired_count")')" == "false" ]]
-
-    # Sidecar entry has the legacy 7-field schema — no repair_attempted/succeeded.
     local sidecar
     sidecar=$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")
     [[ -f "$sidecar" ]]
-    [[ "$(jq 'has("repair_attempted")' "$sidecar")" == "false" ]]
-    [[ "$(jq 'has("repair_succeeded")' "$sidecar")" == "false" ]]
-    local keys
-    keys=$(jq -c '. | keys | sort' "$sidecar")
-    [[ "$keys" == '["index","model","payload","reject_reason","sprint_id","ts_utc","type"]' ]]
+    [[ "$(jq -r '.repair_attempted' "$sidecar")" == "false" ]]
+    [[ "$(jq -r '.schema_enforced' "$sidecar")" == "true" ]]
+    [[ "$(jq -r '.parse_path' "$sidecar")" == "schema_enforced" ]]
 }
 
-@test "C14: flag unset entirely behaves identically to flag explicitly false" {
-    unset CONF_REPAIR_LOOP
-    _REPAIR_TEST_SPRINT="sprint-c14-unset-$$"
+@test "FR-7: unenforced payload (no flag anywhere) — normalization runs and a clean finding passes; repaired_count is reported" {
+    _REPAIR_TEST_SPRINT="sprint-c14-unenforced-$$"
     local content='{"findings":[{"id":"DISS-001","severity":"BLOCKING","category":"injection","description":"d","failure_mode":"fm"}]}'
     local raw
     raw=$(_raw_envelope "$content")
     result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
-    local count
-    count=$(echo "$result" | jq '.findings | length')
-    [[ "$count" == "1" ]]
-    [[ "$(echo "$result" | jq '.metadata | has("repaired_count")')" == "false" ]]
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.parse_path')" == "normalized" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.schema_enforced')" == "false" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "0" ]]
 }
 
 @test "_write_rejected_sidecar: legacy 7-arg call omits repair_attempted/repair_succeeded" {
@@ -370,8 +354,7 @@ _sidecar_path() {
 # Degraded-verdict trajectory wiring (#1177-D)
 # =============================================================================
 
-@test "C14: write_output emits a repair-loop DEGRADED trajectory record when rejected_count>0 and flag ON" {
-    CONF_REPAIR_LOOP="true"
+@test "C14: write_output emits a repair-loop DEGRADED trajectory record when rejected_count>0 (always, cycle-124)" {
     local sprint_id="sprint-c14-traj-$$"
     _REPAIR_TEST_SPRINT="$sprint_id"
     local traj_dir="$TEST_DIR/trajectory-$sprint_id"
@@ -394,7 +377,6 @@ main() { :; }
 source "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
 push_notify() { echo "PUSH|\$1|\$2|\$3|\$4" >> "$pushlog"; return 0; }
 export LOA_DEGRADED_VERDICT_DIR="$traj_dir"
-CONF_REPAIR_LOOP="true"
 write_output '$result_json' "$sprint_id" "review" "0"
 EOF
     run bash "$runner"
@@ -414,43 +396,6 @@ EOF
 
     rm -rf "$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}" 2>/dev/null || true
 }
-
-@test "C14: write_output emits NOTHING repair-loop-related when flag is OFF, even if rejected_count>0 in metadata" {
-    local sprint_id="sprint-c14-traj-off-$$"
-    _REPAIR_TEST_SPRINT="$sprint_id"
-    local traj_dir="$TEST_DIR/trajectory-off-$sprint_id"
-
-    local runner="$TEST_DIR/runner-off-$sprint_id.sh"
-    local result_json
-    result_json=$(jq -nc --arg sid "$sprint_id" '{
-        findings: [],
-        metadata: {type: "review", model: "gpt-5.3-codex", sprint_id: $sid,
-                   timestamp: "2026-07-07T00:00:00Z", status: "reviewed",
-                   degraded: false, rejected_count: 3}
-    }')
-    cat > "$runner" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-log() { :; }
-error() { printf '%s\n' "\$*" >&2; return 1; }
-main() { :; }
-source "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-export LOA_DEGRADED_VERDICT_DIR="$traj_dir"
-write_output '$result_json' "$sprint_id" "review" "0"
-EOF
-    run bash "$runner"
-    [[ "$status" -eq 0 ]]
-
-    # No trajectory record was ever written -> the directory itself was
-    # never created (degraded_verdict_maybe_emit mkdir -p's it lazily).
-    [[ ! -d "$traj_dir" ]]
-
-    rm -rf "$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}" 2>/dev/null || true
-}
-
-# =============================================================================
-# C16 — MODELINV skill attribution on adversarial-review.sh's own dispatch
-# =============================================================================
 
 @test "C16: invoke_dissenter passes --skill adversarial-<type> through to model-adapter.sh" {
     local fake_dir="$TEST_DIR/fake-adapter-review"

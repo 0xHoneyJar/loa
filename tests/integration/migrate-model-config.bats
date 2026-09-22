@@ -750,9 +750,14 @@ EOF
     # The exact failure class from KF-006: production yaml's
     # max_output_tokens fields were rejected post-migration. With the
     # schema bump, the production yaml should now smoke-migrate clean.
-    run "$PYTHON_BIN" "$CLI" "$PROJECT_ROOT/.claude/defaults/model-config.yaml" -o "$OUT"
+    # cycle-124 FR-3: the production catalog carries v3 fields
+    # (effective_input_ceiling, ceiling_calibration, typed params) which the
+    # closed v2 schema cannot hold, so the production smoke — here and in
+    # cycle099-sprint-1e-tests.yml — targets v3. The v2 path stays covered
+    # by the synthetic fixtures above.
+    run "$PYTHON_BIN" "$CLI" "$PROJECT_ROOT/.claude/defaults/model-config.yaml" -o "$OUT" --to-v3
     [[ "$status" -eq 0 ]]
-    [[ "$output" != *"MIGRATION-PRODUCED-INVALID-V2"* ]]
+    [[ "$output" != *"MIGRATION-PRODUCED-INVALID"* ]]
 }
 
 @test "M19.4 KF-006-symmetric: auth_type passes v2 validation (cycle-110 sprint-2a field)" {

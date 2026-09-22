@@ -15,10 +15,14 @@
 
 ---
 
-## Critical Issues (Must Fix Before Approval)
+## Changes Required
+
+{Every critical/high finding, whatever its confidence. First line of each entry:
+`- **{CRITICAL|HIGH}** (confidence: {high|medium|low}) `{path}:{line}` — {failure scenario}`}
 
 ### 1. {Issue Category - e.g., Security, Testing, Functionality}
 
+- **{CRITICAL|HIGH}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {what fails, and how}
 **File:** `{path/to/file.ts}:{line}`
 **Issue:** {Clear description of what's wrong}
 **Why This Matters:** {Explain the impact - security risk, user experience, maintainability}
@@ -39,10 +43,14 @@
 
 ---
 
-## Non-Critical Improvements (Recommended)
+## Observations
+
+{Medium/low findings, and speculative low-confidence highs (recorded in the trailer under
+`excluded`). Never counted; never a `## Findings` / `## Issues` heading.}
 
 ### 1. {Improvement Category}
 
+- **{MEDIUM|LOW}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {what could fail}
 **File:** `{path/to/file.ts}:{line}`
 **Suggestion:** {What could be better}
 **Benefit:** {Why this improvement matters}
@@ -102,45 +110,6 @@
 **Areas for Improvement:**
 - {What could be better}
 - {Patterns to avoid}
-
----
-
-## Adversarial Analysis
-
-{REQUIRED: Complete this section even if approving}
-
-### Concerns Identified (minimum 3)
-
-1. **{Concern category}** - `{file}:{line}`
-   {Description of concern and potential impact}
-
-2. **{Concern category}** - `{file}:{line}`
-   {Description of concern and potential impact}
-
-3. **{Concern category}** - `{file}:{line}`
-   {Description of concern and potential impact}
-
-{If fewer than 3 concerns found, explain why implementation is exceptionally solid}
-
-### Assumptions Challenged (minimum 1)
-
-- **Assumption**: {What the engineer assumed without explicit validation}
-- **Risk if wrong**: {What breaks if this assumption fails}
-- **Recommendation**: {Make explicit in code/docs OR validate with test OR accept risk because X}
-
-### Alternatives Not Considered (minimum 1)
-
-- **Alternative**: {Different approach that could have been taken}
-- **Tradeoff**: {Pros/cons vs current approach}
-- **Verdict**: {Current approach justified because X OR should reconsider}
-
-### Adversarial Verdict
-
-{BLOCKING / NON-BLOCKING / EXCEPTIONALLY CLEAN}
-
-{If NON-BLOCKING: Concerns are documented but don't prevent approval}
-{If BLOCKING: Must address concerns before approval}
-{If EXCEPTIONALLY CLEAN: Explain why no concerns exist - this is rare}
 
 ---
 

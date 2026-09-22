@@ -1,0 +1,25 @@
+id: review-pr-03
+schema_version: 1
+skill: reviewing-code
+category: skill-quality
+fixture: review-prs/pr-03
+description: "review recall on corpus PR pr-03 (3 planted defect(s); hidden manifest)"
+prompt: "Read REVIEW-INSTRUCTIONS.md in this directory and carry it out."
+agent:
+  skill: reviewing-code
+  artifacts: [review.md]
+trials: 3
+timeout:
+  per_trial: 1500
+  per_grader: 60
+graders:
+  - type: code
+    script: recall-vs-defects.sh
+    args: ["pr-03", "review.md"]
+    weight: 1.0
+  - type: code
+    script: verdict-consistency.sh
+    args: ["review.md", "review"]
+    weight: 0.5
+difficulty: intermediate
+tags: ["cycle-124", "fr-9", "review-recall"]

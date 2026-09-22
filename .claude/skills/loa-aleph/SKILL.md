@@ -1,6 +1,17 @@
 ---
 name: loa-aleph
 description: Drive Aleph through the verified Loa host adapter and its durable run record.
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: false
+  write_files: true
+  execute_commands: true
+  web_access: false
+  user_interaction: true
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
 ---
 
 # Loa Aleph host orchestration

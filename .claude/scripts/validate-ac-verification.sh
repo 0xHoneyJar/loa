@@ -39,7 +39,7 @@ NOTES=""
 
 show_help() {
     cat <<EOF
-Usage: $SCRIPT_NAME --report <reviewer.md> --sprint <sprint.md> [--json] [--notes <NOTES.md>]
+Usage: $SCRIPT_NAME --report <reviewer.md> --sprint <sprint.md> [--sprint-id sprint-N] [--json] [--notes <NOTES.md>]
 
 Validate the '## AC Verification' section of an implementation report against
 the acceptance criteria declared in sprint.md.
@@ -51,6 +51,9 @@ that a cited file:line actually proves the claim, only that a citation exists.
 Options:
   --report PATH   Implementation report to validate (required)
   --sprint PATH   sprint.md to source acceptance criteria from (required)
+  --sprint-id ID  Only walk the criteria under the "## Sprint N" section
+                  whose local id is ID (e.g. sprint-1). A multi-sprint plan
+                  otherwise contributes every sprint's bullets (cycle-124).
   --notes PATH    NOTES.md to check ACCEPTED-DEFERRED entries against
                   (default: <report>/../../../NOTES.md, i.e.
                   grimoires/loa/NOTES.md relative to a standard
@@ -65,10 +68,12 @@ Exit codes:
 EOF
 }
 
+SPRINT_ID=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --report) REPORT="${2:-}"; shift 2 ;;
         --sprint) SPRINT="${2:-}"; shift 2 ;;
+        --sprint-id) SPRINT_ID="${2:-}"; shift 2 ;;
         --notes) NOTES="${2:-}"; shift 2 ;;
         --json) JSON_OUTPUT=true; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -101,6 +106,30 @@ fi
 violations=()
 ac_count=0
 
+# --- Optional sprint scoping (cycle-124): restrict sprint.md to the section
+# headed "## Sprint N" (any trailing title) up to the next "## " heading.
+# Without --sprint-id every "### Acceptance Criteria" block in the file is
+# walked, which is right for single-sprint plans and wrong for multi-sprint
+# ones (a Sprint 1 report would have to quote Sprint 4's criteria).
+SPRINT_SOURCE="$SPRINT"
+if [[ -n "${SPRINT_ID:-}" ]]; then
+    if [[ ! "$SPRINT_ID" =~ ^sprint-[0-9]+$ ]]; then
+        echo "Error: --sprint-id must look like sprint-N (got '$SPRINT_ID')" >&2
+        exit 2
+    fi
+    sprint_num="${SPRINT_ID#sprint-}"
+    SPRINT_SOURCE="$(mktemp "${TMPDIR:-/tmp}/ac-verify-sprint.XXXXXX")"
+    trap 'rm -f -- "$SPRINT_SOURCE"' EXIT
+    awk -v n="$sprint_num" '
+        /^## / { in_sprint = ($0 ~ ("^## +Sprint +" n "([^0-9]|$)")) }
+        in_sprint { print }
+    ' < "$SPRINT" > "$SPRINT_SOURCE"
+    if [[ ! -s "$SPRINT_SOURCE" ]]; then
+        echo "Error: no '## Sprint ${sprint_num}' section found in $SPRINT" >&2
+        exit 2
+    fi
+fi
+
 # --- Check 1: '## AC Verification' section present ---
 if ! grep -qE '^## AC Verification' -- "$REPORT" 2>/dev/null; then
     violations+=("report is missing the required '## AC Verification' section — add it per .claude/skills/implementing-tasks/resources/templates/implementation-report.md")
@@ -128,7 +157,7 @@ sprint_acs=$(awk '
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
         if (length(line) > 0) print line
     }
-' < "$SPRINT")
+' < "$SPRINT_SOURCE")
 
 missing_acs=()
 if [[ -n "$sprint_acs" ]]; then

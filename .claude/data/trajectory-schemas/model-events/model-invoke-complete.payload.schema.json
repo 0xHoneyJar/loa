@@ -149,6 +149,16 @@
       "type": "integer",
       "minimum": 0
     },
+    "tokens_cache_read": {
+      "description": "cycle-124 Sprint 1 U0 (PRD FR-4 / AC-4.2, SDD \u00a72.4). Prompt-cache READ tokens reported by the provider for the final successful attempt (Anthropic usage.cache_read_input_tokens). Optional/additive: absent on pre-cycle-124 emitters, on chain-exhausted / cancelled paths, and on providers that report no cache usage. Readers MUST treat absence as 0. No writer_version bump (SDD \u00a72.4 / PRD NFR-5).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "tokens_cache_creation": {
+      "description": "cycle-124 Sprint 1 U0 (PRD FR-4 / AC-4.2, SDD \u00a72.4). Prompt-cache CREATION (write) tokens reported by the provider for the final successful attempt (Anthropic usage.cache_creation_input_tokens; billed at 1.25x input for the 5-minute TTL, the only TTL cheval emits). Optional/additive; readers MUST treat absence as 0.",
+      "type": "integer",
+      "minimum": 0
+    },
     "kill_switch_active": {
       "description": "True iff LOA_FORCE_LEGACY_MODELS=1 at invocation time (SDD section 11 / gemini IMP-004 HIGH). Audits operator-driven legacy-mode use.",
       "type": "boolean"
@@ -346,6 +356,16 @@
             "per_task_micro_usd": {
               "type": "integer",
               "minimum": 0
+            },
+            "cache_read_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "cycle-124 FR-4: prompt-cache read rate captured with the snapshot (micro-USD per million tokens)."
+            },
+            "cache_write_per_mtok": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "cycle-124 FR-4: prompt-cache write (creation) rate captured with the snapshot (micro-USD per million tokens)."
             },
             "pricing_mode": {
               "enum": [
@@ -731,6 +751,15 @@
         "xhigh",
         "max"
       ]
+    },
+    "schema_enforced": {
+      "description": "cycle-124 (PRD FR-7 / AC-7.4, SDD \u00a72.4; schema slot lands in Sprint 1 U0 so no writer can emit a field the schema rejects). True iff the provider enforced a structured-output schema on THIS call (Anthropic output_format json_schema; claude-headless --json-schema). False when the call proceeded unenforced: a headless hop whose CLI lacks the flag, or a chain hop whose catalog entry lacks structured_json. Optional/additive; readers MUST treat absence as false.",
+      "type": "boolean"
+    },
+    "output_schema_sha256": {
+      "description": "cycle-124 (PRD FR-7 / AC-7.4, SDD \u00a72.4). SHA-256 hex digest of the canonical serialization of the enforced output schema: json.dumps(schema, sort_keys=True, separators=(',', ':')) in Python, `jq -cS .` in bash, so semantically identical schemas with different whitespace hash equal. Present only when a schema was supplied to the call; readers treat absence as 'no schema'. Lowercase hex only (hexdigest output).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "loop_context": {
       "description": "cycle-114 FR-11 (sprint-4): orchestrator loop this invocation ran inside, for per-iteration cost telemetry. Set from LOA_LOOP_CONTEXT by the bridge/post-pr orchestrators. Absent for one-shot (non-loop) calls; readers treat absence as 'not in a tracked loop'. Additive/optional.",

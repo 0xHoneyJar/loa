@@ -8,31 +8,12 @@ The Flatline Protocol provides adversarial review of planning documents (PRD, SD
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Flatline Protocol                            │
-├─────────────────────────────────────────────────────────────────────┤
-│  Phase 0: Knowledge Retrieval (Two-Tier)                            │
-│  ├─ Tier 1: Local learnings (.claude/loa/learnings/ + grimoires/)   │
-│  └─ Tier 2: NotebookLM (optional, browser automation)               │
-├─────────────────────────────────────────────────────────────────────┤
-│  Phase 1: Independent Reviews (4 parallel calls)                    │
-│  ├─ GPT-5.2 Review    ──┐                                           │
-│  ├─ Opus Review       ──┼── Each produces improvements list         │
-│  ├─ GPT-5.2 Skeptic   ──┼── Each produces concerns list             │
-│  └─ Opus Skeptic      ──┘                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│  Phase 2: Cross-Scoring (2 parallel calls)                          │
-│  ├─ GPT scores Opus improvements (0-1000)                           │
-│  └─ Opus scores GPT improvements (0-1000)                           │
-├─────────────────────────────────────────────────────────────────────┤
-│  Phase 3: Consensus Extraction                                      │
-│  ├─ HIGH_CONSENSUS: Both >700 → Auto-integrate                      │
-│  ├─ DISPUTED: Delta >300 → Present to user                          │
-│  ├─ LOW_VALUE: Both <400 → Discard                                  │
-│  └─ BLOCKERS: Skeptic concerns >700 → Must address                  │
-└─────────────────────────────────────────────────────────────────────┘
-```
+The pipeline runs in four phases:
+
+- **Phase 0 - Knowledge Retrieval** (two-tier): Tier 1, local learnings (`.claude/loa/learnings/` + `grimoires/`); Tier 2, NotebookLM (optional, browser automation).
+- **Phase 1 - Independent Reviews** (4 parallel calls): GPT-5.2 and Opus each produce an improvements list (Review) and a concerns list (Skeptic).
+- **Phase 2 - Cross-Scoring** (2 parallel calls): GPT scores Opus's improvements and Opus scores GPT's improvements, 0-1000.
+- **Phase 3 - Consensus Extraction**: HIGH_CONSENSUS (both scores >700) auto-integrates; DISPUTED (delta >300) is presented to the user; LOW_VALUE (both <400) is discarded; BLOCKERS (any skeptic concern >700) must be addressed.
 
 ## Quick Start
 
@@ -54,7 +35,7 @@ flatline_protocol:
   enabled: true
 
   models:
-    primary: opus              # Claude Opus 4.7 (alias; retargeted cycle-082)
+    primary: opus              # Claude Opus 4.7 (model alias)
     secondary: gpt-5.3-codex  # OpenAI GPT-5.3-codex
 
   max_iterations: 5            # Safety cap on Flatline loops
@@ -89,16 +70,6 @@ export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-### 4. Run Flatline Review
-
-```bash
-# Manual invocation
-/flatline-review grimoires/loa/prd.md
-
-# Or via CLI
-.claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
-```
-
 ## End-to-End Workflow
 
 ### Step 1: Create Planning Document
@@ -112,21 +83,12 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ```bash
 /flatline-review grimoires/loa/prd.md
+# or: .claude/scripts/flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json
 ```
 
-**Output**:
-- HIGH_CONSENSUS items: Auto-integrated improvements
-- DISPUTED items: Presented for your decision
-- BLOCKERS: Must address before finalizing
-- LOW_VALUE: Discarded (logged for transparency)
+Output classifies each item as HIGH_CONSENSUS (auto-integrated), DISPUTED (presented for your decision), BLOCKERS (must address before finalizing), or LOW_VALUE (discarded, logged for transparency) - see Architecture above.
 
-### Step 3: Address Results
-
-1. **Review HIGH_CONSENSUS**: These are validated improvements both models agree on
-2. **Decide on DISPUTED**: Choose which suggestions to incorporate
-3. **Resolve BLOCKERS**: Address critical concerns before proceeding
-
-### Step 4: Continue Workflow
+### Step 3: Continue Workflow
 
 ```bash
 /architect              # Review SDD with Flatline
@@ -146,45 +108,14 @@ NotebookLM provides Tier 2 knowledge retrieval - curated domain expertise from y
 ### Installation
 
 ```bash
-# 1. Install patchright (browser automation)
-pip install --user patchright
-
-# 2. Install browser binaries
-patchright install chromium
-
-# 3. One-time authentication
+pip install --user patchright                 # browser automation
+patchright install chromium                    # browser binaries
 python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-auth
 ```
 
-The auth setup:
-1. Opens a browser to notebooklm.google.com
-2. Sign in with your Google account
-3. Navigate to any notebook (confirms access)
-4. Close browser when done
-5. Session saved to `~/.claude/notebooklm-auth/`
+`--setup-auth` opens a browser to notebooklm.google.com for a one-time Google sign-in; the session is saved to `~/.claude/notebooklm-auth/`.
 
-### Create a Knowledge Notebook
-
-1. Go to [notebooklm.google.com](https://notebooklm.google.com)
-2. Create a new notebook
-3. Add sources:
-   - PDFs of domain documentation
-   - Technical specifications
-   - Best practices guides
-   - Architecture references
-4. Copy notebook ID from URL: `notebooklm.google.com/notebook/YOUR_ID`
-
-### Configure NotebookLM
-
-```yaml
-# .loa.config.yaml
-flatline_protocol:
-  knowledge:
-    notebooklm:
-      enabled: true
-      notebook_id: "YOUR_NOTEBOOK_ID"  # From URL
-      timeout_ms: 30000
-```
+Create a notebook at [notebooklm.google.com](https://notebooklm.google.com), add sources (domain docs, specs, best-practice guides, architecture references), and copy the notebook ID from the URL (`notebooklm.google.com/notebook/YOUR_ID`) into `flatline_protocol.knowledge.notebooklm.notebook_id` (see Configuration above).
 
 ### Test NotebookLM
 
@@ -306,7 +237,7 @@ Costs vary based on document size and model response length.
 
 **Cause**: Model responses couldn't be parsed (often markdown-wrapped JSON)
 
-**Fix**: The orchestrator now handles markdown-wrapped JSON automatically. If issue persists, check:
+**Fix**: The orchestrator handles markdown-wrapped JSON automatically. If the issue persists, check:
 ```bash
 # Test model adapter directly
 .claude/scripts/model-adapter.sh --model opus --mode review \
@@ -317,11 +248,7 @@ Costs vary based on document size and model response length.
 
 **Cause**: Missing environment variables
 
-**Fix**:
-```bash
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
+**Fix**: re-export the keys from Quick Start -> Set API Keys above.
 
 ### NotebookLM "Could not find query input"
 
@@ -336,19 +263,19 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 **Cause**: Google session expired
 
-**Fix**:
-```bash
-python3 .claude/skills/flatline-knowledge/resources/notebooklm-query.py --setup-auth
-```
+**Fix**: re-run `--setup-auth` from NotebookLM Setup -> Installation above.
 
 ## Security Considerations
 
 1. **API Keys**: Store in environment variables, never commit to repo
 2. **NotebookLM Auth**: Session stored with 0700 permissions in `~/.claude/notebooklm-auth/`
 3. **Document Privacy**: Planning documents are sent to external APIs (OpenAI, Anthropic)
-4. **Cost Control**: Default budget of $3.00 per review, configurable
 
 ## Related Documentation
 
 - [INSTALLATION.md](../../INSTALLATION.md#notebooklm-optional) - NotebookLM setup
 - [Two-Tier Learnings](../../.claude/loa/CLAUDE.loa.md#two-tier-learnings-architecture) - Knowledge architecture
+
+## Provenance
+
+Removed from the `models.primary` config-example comment: cycle-082 (alias-retarget history; the rule is now stated as current fact without the incident reference).

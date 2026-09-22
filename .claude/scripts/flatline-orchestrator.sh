@@ -123,6 +123,16 @@ DEFAULT_MODEL_TIMEOUT=120
 # knob is a no-op against `failure_class=PROVIDER_DISCONNECT` — the flag is
 # preserved for back-compat only.
 PER_CALL_MAX_TOKENS=""
+# cycle-124 FR-2: bounded output budgets per call kind (see call_model).
+FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
+FLATLINE_SCORE_MAX_TOKENS=16000    # cross-scoring JSON arrays (adaptive thinking on opus-5 shares this budget)
+# cycle-124 FR-7: wire schemas per call kind, passed as call_model's 7th arg by
+# the review / skeptic / score sites (run_inquiry passes none — its prompts
+# ask for a free-form perspective object, regression-locked).
+WIRE_SCHEMA_DIR="$SCRIPT_DIR/../schemas/wire"
+WIRE_REVIEWER="$WIRE_SCHEMA_DIR/flatline-reviewer.wire.json"
+WIRE_SKEPTIC="$WIRE_SCHEMA_DIR/flatline-skeptic.wire.json"
+WIRE_SCORER="$WIRE_SCHEMA_DIR/flatline-scorer.wire.json"
 
 # State tracking
 STATE="INIT"
@@ -322,8 +332,28 @@ qualify_flatline_content() {
         reason="missing_or_empty_envelope"
     else
         content=$(jq -r '.content // ""' "$file" 2>/dev/null) || content=""
+        # cycle-124 FR-7: a voice that reports schema_enforced=true is parsed
+        # strictly — its content IS the enforced object; no fence strip or
+        # raw_decode rescue (normalize_json_response) applies, so a non-JSON
+        # body is a wire/prompt drift signal, not something to repair.
+        local enforced
+        enforced=$(jq -r 'if .schema_enforced == true then "true" else "false" end' "$file" 2>/dev/null) || enforced="false"
         if [[ -z "$content" || "$content" == "null" ]]; then
             reason="empty_content"
+        elif [[ "$enforced" == "true" ]]; then
+            # A truncated or refused enforced payload is not the enforced
+            # object even when what arrived parses (PRD FR-7 item 4; late
+            # Sprint 2 review) — and exactly ONE object is required (-s: a
+            # two-object stream is not "clean").
+            local stop_reason
+            stop_reason=$(jq -r '.stop_reason // empty' "$file" 2>/dev/null) || stop_reason=""
+            if [[ "$stop_reason" == "max_tokens" || "$stop_reason" == "refusal" ]]; then
+                reason="enforced_truncated"
+            elif ! normalized=$(printf '%s' "$content" | jq -ces 'if length == 1 and (.[0] | type) == "object" then .[0] else error("not one object") end' 2>/dev/null); then
+                reason="enforced_parse_failed"
+            elif ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
+                reason="schema_invalid"
+            fi
         elif ! normalized=$(normalize_json_response "$content" 2>/dev/null); then
             reason="normalization_failed"
         elif ! validate_agent_response "$normalized" "$agent" 2>/dev/null; then
@@ -904,6 +934,8 @@ call_model() {
     local phase="$4"
     local context="${5:-}"
     local timeout="${6:-$DEFAULT_MODEL_TIMEOUT}"
+    # cycle-124 FR-7: optional wire schema (7th positional) → cheval --json-schema.
+    local schema_file="${7:-}"
 
     # cycle-109 Sprint 3 T3.6 (commit C in SDD §5.3.1 sequence): the
     # pre-fix `if is_flatline_routing_enabled && [[ -x "$MODEL_INVOKE" ]];
@@ -968,14 +1000,40 @@ call_model() {
         )
 
         # Issue #675 (sub-issue 4): plumb operator-supplied max_tokens override
-        # to model-invoke (cheval --max-tokens). When unset, cheval defaults to
-        # 4096 (cheval.py:337 `args.max_tokens or 4096`).
-        if [[ -n "${PER_CALL_MAX_TOKENS:-}" ]]; then
-            args+=(--max-tokens "$PER_CALL_MAX_TOKENS")
+        # to model-invoke (cheval --max-tokens).
+        # cycle-124 FR-2 (SDD §3.2): cheval's default is now per model
+        # (Anthropic 64K streaming / 16K non-streaming, others 4096), sized
+        # for open-ended calls. Flatline's outputs are bounded — review /
+        # skeptic emit a findings document, score a small JSON array — so
+        # every call passes an explicit budget and the 600 s per-call timeout
+        # never meets a 64K-output generation. --per-call-max-tokens still
+        # overrides both.
+        local per_call_max_tokens="${PER_CALL_MAX_TOKENS:-}"
+        if [[ -z "$per_call_max_tokens" ]]; then
+            case "$mode" in
+                score) per_call_max_tokens="$FLATLINE_SCORE_MAX_TOKENS" ;;
+                *)     per_call_max_tokens="$FLATLINE_REVIEW_MAX_TOKENS" ;;
+            esac
         fi
+        args+=(--max-tokens "$per_call_max_tokens")
+        # cycle-124 FR-9 (SDD §3.6): effort per mode — a pure function of the
+        # mode (never per attempt), so the cached prefix survives retries.
+        # review / skeptic reason deeply; the scorer emits a small JSON array.
+        case "$mode" in
+            review|skeptic) args+=(--effort xhigh) ;;
+            score)          args+=(--effort medium) ;;
+        esac
 
         if [[ -n "$context" && -f "$context" ]]; then
             args+=(--system "$context")
+        fi
+        # cycle-124 FR-7: appended AFTER the D3 if/else above so both argv
+        # branches (--model pin and --role routing) carry the schema; cheval
+        # enforces it where the hop can and reports schema_enforced either way.
+        if [[ -n "$schema_file" && -f "$schema_file" ]]; then
+            args+=(--json-schema "$schema_file")
+        elif [[ -n "$schema_file" ]]; then
+            log "WARN: wire schema not found, dispatching unenforced: $schema_file"
         fi
 
         # Per-invocation diagnostic log (unique suffix for parallel calls)
@@ -1564,14 +1622,14 @@ run_phase1() {
 
     # Wave 1: Review calls (all models concurrently)
     {
-        call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$secondary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
             > "$gpt_review_file" 2>"$gpt_review_stderr"
     } &
     pids+=($!)
     pid_labels+=("gpt-review")
 
     {
-        call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$primary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
             > "$opus_review_file" 2>"$opus_review_stderr"
     } &
     pids+=($!)
@@ -1579,7 +1637,7 @@ run_phase1() {
 
     if [[ "$has_tertiary" == "true" ]]; then
         {
-            call_model "$tertiary_model" review "$doc" "$phase" "$context_file" "$timeout" \
+            call_model "$tertiary_model" review "$doc" "$phase" "$context_file" "$timeout" "$WIRE_REVIEWER" \
                 > "$tertiary_review_file" 2>"$tertiary_review_stderr"
         } &
         pids+=($!)
@@ -1591,14 +1649,14 @@ run_phase1() {
 
     # Wave 2: Skeptic calls (all models concurrently)
     {
-        call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$secondary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
             > "$gpt_skeptic_file" 2>"$gpt_skeptic_stderr"
     } &
     pids+=($!)
     pid_labels+=("gpt-skeptic")
 
     {
-        call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+        call_model "$primary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
             > "$opus_skeptic_file" 2>"$opus_skeptic_stderr"
     } &
     pids+=($!)
@@ -1606,7 +1664,7 @@ run_phase1() {
 
     if [[ "$has_tertiary" == "true" ]]; then
         {
-            call_model "$tertiary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" \
+            call_model "$tertiary_model" skeptic "$doc" "$phase" "$context_file" "$timeout" "$WIRE_SKEPTIC" \
                 > "$tertiary_skeptic_file" 2>"$tertiary_skeptic_stderr"
         } &
         pids+=($!)
@@ -1775,14 +1833,14 @@ run_phase2() {
 
     # GPT scores Opus items
     {
-        call_model "$secondary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+        call_model "$secondary_model" score "$opus_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
             > "$gpt_scores_file" 2>/dev/null
     } &
     pids+=($!)
 
     # Opus scores GPT items
     {
-        call_model "$primary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+        call_model "$primary_model" score "$gpt_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
             > "$opus_scores_file" 2>/dev/null
     } &
     pids+=($!)
@@ -1791,28 +1849,28 @@ run_phase2() {
     if [[ "$has_tertiary" == "true" ]]; then
         # Tertiary scores Opus items
         {
-            call_model "$tertiary_model" score "$opus_items_file" "$phase" "" "$timeout" \
+            call_model "$tertiary_model" score "$opus_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$tertiary_scores_opus_file" 2>/dev/null
         } &
         pids+=($!)
 
         # Tertiary scores GPT items
         {
-            call_model "$tertiary_model" score "$gpt_items_file" "$phase" "" "$timeout" \
+            call_model "$tertiary_model" score "$gpt_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$tertiary_scores_gpt_file" 2>/dev/null
         } &
         pids+=($!)
 
         # GPT scores Tertiary items
         {
-            call_model "$secondary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+            call_model "$secondary_model" score "$tertiary_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$gpt_scores_tertiary_file" 2>/dev/null
         } &
         pids+=($!)
 
         # Opus scores Tertiary items
         {
-            call_model "$primary_model" score "$tertiary_items_file" "$phase" "" "$timeout" \
+            call_model "$primary_model" score "$tertiary_items_file" "$phase" "" "$timeout" "$WIRE_SCORER" \
                 > "$opus_scores_tertiary_file" 2>/dev/null
         } &
         pids+=($!)
@@ -2059,10 +2117,10 @@ Options:
                          (issue #774) — both the Anthropic AND OpenAI cheval
                          paths fail on long-prompt requests with the typed
                          transport error; the gemini path is unaffected.
-                         cheval.py default is already 4096, so passing 4096
-                         is a no-op against the disconnect failure mode.
-                         When unset, downstream defaults apply
-                         (cheval.py: 4096; model-adapter.sh: 4096).
+                         When unset (cycle-124 FR-2): review/skeptic/score
+                         calls pass 16000 — cheval's own
+                         per-model default (Anthropic 64K/16K, others 4096)
+                         is sized for open-ended calls, not these.
   --json                 Output as JSON
   -h, --help             Show this help
 

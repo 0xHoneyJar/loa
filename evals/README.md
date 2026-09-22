@@ -464,3 +464,39 @@ For example, if regression evals show Model A scores 95% on code generation task
 ### Early Stopping
 
 Multi-trial agent evals support **early stopping** via raw pass rate projection. After each trial, the harness computes the best-case pass rate assuming all remaining trials pass. If this best case still indicates regression (pass rate < baseline - threshold), remaining trials are skipped. Early-stopped tasks are marked with `"early_stopped": true` in results. This optimization is transparent to graders and has no effect on single-trial framework evals. Raw pass rate (not Wilson CI) is used for the early stopping decision to avoid false positives from wide confidence intervals at small sample sizes; the full Wilson CI comparison is applied at final comparison time.
+
+## Agent-executed suites and the prompt A/B (cycle-124 FR-9)
+
+A task that declares `agent.skill` runs the headless CLI inside its sandbox before grading
+(`evals/harness/execute-agent.sh`, wired at the grading slot in `run-eval.sh`); every other task
+keeps the pre-existing path. The executor materializes the prompt surface (the skill body, `CLAUDE.md`
+→ `CLAUDE.loa.md`, `.claude/rules/`) from `EVAL_PROMPT_TREE` into the sandbox, runs
+`claude -p … --output-format stream-json --model $EVAL_MODEL [--effort …] --restricted --tools Read,Grep,Glob,Write --permission-mode acceptEdits`,
+and records `.eval/executor.json` (CLI-echoed model id, usage, `prompt_tree_sha`, ordered tool writes).
+Per-trial outputs land under `evals/results/<run>/artifacts/<task>/trial-N/`.
+
+| Suite | Fixtures | Grader | Gate (arm B vs arm A) |
+|-------|----------|--------|-----------------------|
+| `review-recall` | `fixtures/review-prs/pr-01..10` (24 planted defects over 8 PRs, 2 clean) | `recall-vs-defects.sh`, `verdict-consistency.sh` | mean recall ≥ A − 0.1; false positives on clean PRs ≤ A |
+| `audit-recall` | same corpus, `auditing-security` | same | recall gates + mean tokens per call ≤ 0.5 × A |
+| `implement-discipline` | `fixtures/implement-tasks/01..05` | `implement-discipline.sh` (test-first, surgical, zone, tests-pass) | mean pass rate ≥ A |
+
+The corpus is built from this repository's own `fix(...)` commits by `fixtures/build-review-corpus.sh`
+(each defect PR turns fixed code back into the buggy parent; comment-only lines the fix added are
+stripped so the diff removes code, never a confession) and frozen by `review-prs/SHA256SUMS`
+(`build-review-corpus.sh --verify`). Hidden manifests (`review-prs/manifests/`, `implement-tasks/expectations/`)
+are never copied into a sandbox. A defect counts as detected when the output cites the defect's file and
+a line within ±3 of the manifest anchor — no fuzzy adjudication.
+
+```bash
+# arm A on the pre-change prompt tree (a worktree), arm B on the current tree, same model + effort
+EVAL_PROMPT_TREE=/path/to/worktree EVAL_MODEL=claude-sonnet-5 EVAL_EFFORT=medium \
+  ./evals/harness/run-eval.sh --suite review-recall --trusted --concurrency 2
+./evals/harness/compare.sh --results <arm-a>/results.jsonl --suite review-recall --prompt-tree /path/to/worktree \
+  --update-baseline --reason "arm A" --baseline-out evals/baselines/review-recall.baseline.yaml
+./evals/harness/compare.sh --ab --arm-a <arm-a-run-dir> --arm-b <arm-b-run-dir> --metric recall
+```
+
+`compare.sh` refuses a baseline whose `prompt_tree_sha` equals the tree under comparison, whose
+`captured_at_commit` is not a descendant of the suite's `ab.floor_commit`, or whose `corpus_sha256`
+drifted (`evals/tests/recall-baseline-freshness.bats`). Tests: `evals/tests/{execute-agent,eval-recall-grader,implement-discipline-grader,recall-baseline-freshness}.bats`.

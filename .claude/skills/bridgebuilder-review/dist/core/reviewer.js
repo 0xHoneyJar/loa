@@ -6,7 +6,7 @@ import { FindingsBlockSchema } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
 import { summarizeReviewVerdict } from "./review-verdict.js";
 import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
-import { truncateFiles, progressiveTruncate, getTokenBudget, deriveCallConfig, } from "./truncation.js";
+import { truncateFiles, progressiveTruncate, getTokenBudget, effectiveInputBudget, deriveCallConfig, } from "./truncation.js";
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
 /** Patterns that indicate an LLM token rejection (Task 1.8). */
 const TOKEN_REJECTION_PATTERNS = [
@@ -363,7 +363,9 @@ export class ReviewPipeline {
                         repo,
                         pr: pr.number,
                     });
-                    const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+                    // 85% of the budget the first attempt ACTUALLY used (the clamped
+                    // one), or the retry re-sends an identical payload (audit, slice D).
+                    const retryBudget = Math.floor(effectiveInputBudget(this.config.maxInputTokens, this.config.model) * 0.85);
                     const retryResult = progressiveTruncate(effectiveItem.files, retryBudget, this.config.model, finalSystemPrompt.length, 2000);
                     if (!retryResult.success) {
                         return this.skipResult(item, "prompt_too_large_after_truncation");
@@ -736,7 +738,7 @@ export class ReviewPipeline {
             }
             catch (llmErr) {
                 if (isTokenRejection(llmErr)) {
-                    const retryBudget = Math.floor(this.config.maxInputTokens * 0.85);
+                    const retryBudget = Math.floor(effectiveInputBudget(this.config.maxInputTokens, this.config.model) * 0.85);
                     const retryResult = progressiveTruncate(effectiveItem.files, retryBudget, this.config.model, finalConvergenceSystem.length, 2000);
                     if (!retryResult.success) {
                         return this.skipResult(item, "prompt_too_large_after_truncation");

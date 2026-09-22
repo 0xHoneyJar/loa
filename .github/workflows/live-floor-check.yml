@@ -1,0 +1,196 @@
+name: Live floor check (Anthropic)
+
+# cycle-124 Sprint 1 Task 1.4 (PRD FR-1/FR-3/FR-4/FR-7, SDD §6 "Live scaffolds").
+#
+# Runs the credentialed assertions the request-body tests cannot make:
+#   - Opus 5 / Sonnet 5 / Fable 5.1 / Haiku 4.5 answer with the expected
+#     `thinking` shape;
+#   - two identical BB-voice calls show cache_read_input_tokens > 0 on the
+#     second;
+#   - one schema-enforced call returns strict JSON;
+#   - GET /v1/models lists every catalog id and tools/ceiling-probe-live.py flips
+#     grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md values
+#     from `reference` to `probed`.
+#
+# Secret gating: GitHub does not allow `secrets.*` inside a step `if:`, so the
+# job exports HAS_KEY from the secret and every step is gated on it.
+#
+# Trigger: MANUAL ONLY (Sprint 1 audit, cross-model dissent finding). A
+# `pull_request` trigger would hand ANTHROPIC_API_KEY to a pytest run over
+# PR-controlled code — HAS_KEY only says the secret exists, it does not make
+# the checked-out code trusted. The operator dispatches this workflow on the
+# candidate branch; its recorded pass is the named RELEASE PRECONDITION of the
+# cycle-124 draft PR (not a CI failure). The job targets the `live-floor`
+# environment so the key can be stored as an ENVIRONMENT secret behind
+# required reviewers rather than as a repository secret.
+#
+# Residual (audit dissent, accepted): the dispatched run executes the
+# CANDIDATE BRANCH's test code with the key — that is the point of a live
+# check of the branch's adapter, and no checkout trick removes it. The
+# control is the environment: before storing the key, configure `live-floor`
+# with (a) required reviewers who read the branch before approving the run
+# and (b) a deployment-branch rule limited to the branches they intend to
+# check. Never store the key as a repository-level secret.
+#
+# Cost ceiling: the scaffold caps itself at ~$5 per run (LOA_LIVE_BUDGET_USD).
+
+# Operator step before storing the key (Bridgebuilder iter-3 F-001): create the
+# `live-floor` environment with required reviewers AND a deployment-branch
+# policy limited to `main` and `release/*`. The environment enforces that
+# server-side; the in-job ref guard below is only defence in depth, because a
+# dispatched branch runs its own copy of this file. The live check is therefore
+# a release-branch / post-merge verification, not a pre-merge one.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-floor-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: live-floor
+    env:
+      # `secrets.*` cannot be read in `if:` directly — compare here once.
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - name: No credential — fail loud (release precondition not met)
+        if: env.HAS_KEY != 'true'
+        run: |
+          echo "live-floor: ran=false (ANTHROPIC_API_KEY not configured in the live-floor environment)" >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::ANTHROPIC_API_KEY is not configured — the live floor check did not run, so the release precondition is NOT met (Bridgebuilder iter-5 F-002: a skipped precondition must not read as green). Catalog values stay 'reference' until this job records a pass."
+          exit 1
+
+      # Bridgebuilder (PR #1266, iters 2–3): workflow_dispatch executes THIS file
+      # from the selected ref, so YAML-side guards can be edited away by the ref
+      # they guard. The load-bearing control is the `live-floor` environment's
+      # deployment-branch policy (main, release/*) — configure it before storing
+      # the key (header). This step is defence in depth and refuses forks.
+      - name: Refuse untrusted refs before any credentialed step
+        if: env.HAS_KEY == 'true'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          IS_FORK: ${{ github.event.repository.fork }}
+        run: |
+          set -euo pipefail
+          case "$REF_NAME" in
+            main|release/*) ;;
+            *) echo "::error::live-floor runs only on main or release/* (got: $REF_NAME) — a candidate branch can rewrite this workflow before dispatch, so the check runs on trusted refs only"; exit 1 ;;
+          esac
+          if [ "$IS_FORK" = "true" ]; then
+            echo "::error::live-floor never runs in a fork"; exit 1
+          fi
+
+      - name: Set up Python
+        if: env.HAS_KEY == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        if: env.HAS_KEY == 'true'
+        run: |
+          python -m pip install --quiet --upgrade pip
+          # Exact pins (same sites as bats-tests.yml / cycle099-sprint-1e-tests.yml):
+          # this job carries ANTHROPIC_API_KEY, so nothing floats (Bridgebuilder F-002).
+          python -m pip install --quiet 'pytest==9.0.3' 'pyyaml==6.0.2' 'jsonschema==4.26.0' 'referencing==0.36.2' 'httpx==0.28.1'
+
+      - name: Live floor assertions (retries ×2 per assertion, ≤ $5)
+        if: env.HAS_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LOA_RUN_LIVE_TESTS: '1'
+          LOA_LIVE_BUDGET_USD: '5'
+          LOA_MODELINV_LOG_PATH: ${{ runner.temp }}/live-floor/model-invoke.jsonl
+          LOA_COST_LEDGER_PATH: ${{ runner.temp }}/live-floor/cost-ledger.jsonl
+        run: |
+          set +x   # never trace shell with secrets in env
+          mkdir -p "$RUNNER_TEMP/live-floor"
+          # Bridgebuilder iter-4 F-002: raw test output is never streamed to the
+          # Actions log while the key is in the environment (masking catches only
+          # exact values). It goes to a runner-local file; the log gets a bounded
+          # summary derived from junit.xml by trusted code below.
+          rc=0
+          python -m pytest tests/replay/test_cycle124_live_floor.py \
+            -q -p no:cacheprovider \
+            --junitxml "$RUNNER_TEMP/live-floor/junit.xml" \
+            > "$RUNNER_TEMP/live-floor/pytest.log" 2>&1 || rc=$?
+          python - "$RUNNER_TEMP/live-floor/junit.xml" <<'PYSUM'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              r = ET.parse(sys.argv[1]).getroot()
+              s = r if r.tag == "testsuite" else r.find("testsuite")
+              a = s.attrib
+              print(f"live-floor: tests={a.get('tests')} failures={a.get('failures')} errors={a.get('errors')} skipped={a.get('skipped')}")
+              for tc in s.iter("testcase"):
+                  status = "pass"
+                  for tag in ("failure", "error", "skipped"):
+                      if tc.find(tag) is not None:
+                          status = tag
+                  print(f"  {status:8s} {tc.get('name')}")
+          except Exception as e:  # noqa: BLE001 — summary is best-effort; the exit code below is the verdict
+              print(f"live-floor: junit.xml unreadable ({type(e).__name__}); see runner-local pytest.log")
+          PYSUM
+          test "$rc" -eq 0
+
+      - name: Validate artifacts before upload (no credential in scope, JSONL only)
+        if: always() && env.HAS_KEY == 'true'
+        run: |
+          set -euo pipefail
+          # Bridgebuilder iter-3 F-002 / iter-5 F-001: the files were written by
+          # test code that ran with the key in its environment; a trusted step
+          # with NO credential in scope checks them before anything leaves the
+          # runner (artifacts are not secret-masked). Every file is scanned by
+          # key shape; the two machine ledgers additionally reject any
+          # credential indicator and must be JSONL of objects end to end.
+          for f in model-invoke.jsonl cost-ledger.jsonl junit.xml; do
+            p="$RUNNER_TEMP/live-floor/$f"
+            [ -f "$p" ] || continue
+            if grep -qE 'sk-ant-[A-Za-z0-9_-]{20,}' "$p"; then
+              echo "::error::$f contains an Anthropic key shape; refusing to upload"; rm -f "$p"; exit 1
+            fi
+            case "$f" in
+              *.jsonl)
+                # rc-pass F-002: ledger rows are token counts, model ids, transport
+                # and flags — a header name or the variable name is a leak, not data.
+                # junit.xml stays on the key-shape scan: its skip reason legitimately
+                # names ANTHROPIC_API_KEY.
+                if grep -qiE 'ANTHROPIC_API_KEY|x-api-key|authorization:|bearer ' "$p"; then
+                  echo "::error::$f carries a credential indicator; refusing to upload"; rm -f "$p"; exit 1
+                fi
+                # rc-pass F-001: every non-blank line must parse as a JSON object and
+                # there must be at least one; a trailing non-JSON line fails the file
+                # (the previous object-prefixed prefilter let it through).
+                if ! jq -e -n 'reduce inputs as $r (0; if ($r | type) == "object" then . + 1 else error("non-object row") end) > 0' "$p" >/dev/null 2>&1; then
+                  echo "::error::$f is not a non-empty JSONL file of objects; refusing to upload"; rm -f "$p"; exit 1
+                fi ;;
+            esac
+          done
+
+      - name: Upload live-floor outputs
+        if: always() && env.HAS_KEY == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: live-floor-check-${{ github.run_id }}
+          # Only the machine outputs. pytest.log is the raw output of test code
+          # run with ANTHROPIC_API_KEY in the environment; artifacts are not
+          # secret-masked, so it stays on the runner (Bridgebuilder F-003).
+          # The two ledgers carry token counts, model ids, transport and flags
+          # (MODELINV payload keys: tokens_*, final_model_id, schema_enforced,
+          # config_observed, …; cost rows: ids and counts) — never prompt or
+          # response text, never a key — and they are the AC-1.3/AC-4.3 evidence
+          # (cache_read/cache_creation fields), so they are kept (F-004 reviewed).
+          path: |
+            ${{ runner.temp }}/live-floor/junit.xml
+            ${{ runner.temp }}/live-floor/model-invoke.jsonl
+            ${{ runner.temp }}/live-floor/cost-ledger.jsonl
+          if-no-files-found: warn
+          retention-days: 30

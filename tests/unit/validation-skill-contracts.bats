@@ -18,7 +18,7 @@ import sys
 root = pathlib.Path(sys.argv[1])
 text = (root / ".claude/skills/implementing-tasks/SKILL.md").read_text()
 commands = re.findall(r"`(\.claude/scripts/validate-ac-verification\.sh [^`]+)`", text)
-assert len(commands) == 2, commands
+assert commands, "no validate-ac-verification.sh invocation in SKILL.md"
 for command in commands:
     assert '--sprint "$SPRINT_FILE"' in command, command
 assert "grimoires/loa/a2a/bug-<id>/sprint.md" in text

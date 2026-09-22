@@ -31,28 +31,46 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any, Dict, Iterable, List
 
-from loa_cheval.metering.ledger import read_ledger
+from loa_cheval.metering.ledger import COST_LEDGER_ENV, read_ledger, resolve_cost_ledger_path
+from loa_cheval.types import ConfigError
 
 GROUP_KEYS = ("agent", "model", "provider", "day", "trace")
-
-FALLBACK_LEDGER = ".run/cost-ledger.jsonl"
 
 
 def default_ledger_path() -> str:
     """Resolve the ledger path the way cheval itself does (codex P2 on #1000):
-    metering.ledger_path from the merged config when loadable, else the
-    literal fallback cheval.py uses. An explicit --ledger always wins."""
-    try:
-        import yaml  # repo CI installs PyYAML; degrade gracefully without it
+    the SAME resolver over the SAME merged config (system defaults +
+    .loa.config.yaml + env), so a reader never opens a file the writer does
+    not write (review round-1 medium 6 — the old reader read only the system
+    defaults yaml and pointed at grimoires/loa/a2a/ while the writer, via the
+    project overlay, wrote .run/). LOA_COST_LEDGER_PATH still wins inside the
+    resolver. An explicit --ledger always wins over this function.
 
-        with open(".claude/defaults/model-config.yaml") as f:
-            cfg = yaml.safe_load(f) or {}
-        return (cfg.get("metering") or {}).get("ledger_path") or FALLBACK_LEDGER
-    except Exception:
-        return FALLBACK_LEDGER
+    Fail-closed like the writer (round-2 dissent DISS-001): a path the
+    resolver refuses (symlink, non-regular target, missing parent) raises
+    ``ConfigError`` here too — a reader must never silently open some other
+    file and report its numbers as the ledger's."""
+    metering: Dict[str, Any] = {}
+    if not os.environ.get(COST_LEDGER_ENV):
+        # An absent .loa.config.yaml is handled inside load_config (empty
+        # overlay); anything that RAISES here (unparseable yaml, a failed
+        # ${env:VAR} interpolation, PyYAML missing) means the writer's path is
+        # unknown — refuse rather than guess (Sprint 1 audit, slice B).
+        try:
+            from loa_cheval.config.loader import load_config
+
+            metering = load_config()[0].get("metering") or {}
+        except ConfigError:
+            raise
+        except Exception as e:  # noqa: BLE001 — re-typed, not swallowed
+            raise ConfigError(
+                f"cannot resolve the cost ledger: merged config failed to load ({type(e).__name__}: {e}); pass --ledger"
+            ) from e
+    return resolve_cost_ledger_path(metering)
 
 
 def _group_value(entry: Dict[str, Any], by: str) -> str:
@@ -161,7 +179,11 @@ def main(argv: List[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="emit JSON rows")
     args = ap.parse_args(argv)
 
-    ledger = args.ledger or default_ledger_path()
+    try:
+        ledger = args.ledger or default_ledger_path()
+    except ConfigError as e:
+        print(f"cheval-cost-rollup: {e.code}: {e}", file=sys.stderr)
+        return 2
     rows = rollup_entries(read_ledger(ledger), by=args.by, since=args.since)
     if args.json:
         print(json.dumps({"by": args.by, "since": args.since or None, "rows": rows}))

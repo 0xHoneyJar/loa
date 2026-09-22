@@ -33,7 +33,7 @@ advisor_strategy:
     implementation: advisor
   tier_aliases:
     advisor:
-      anthropic: claude-opus-4-8
+      anthropic: claude-opus-5   # cycle-124 FR-3: 4-8 → 5
       openai: gpt-5.5-pro
       google: gemini-3.1-pro-preview
     executor:
@@ -100,7 +100,8 @@ hounfour:
   # is INERT for FL+RT until this flag is true.
   # Rollback: flip to false to restore the cycle-103 legacy model-adapter.sh.legacy path.
   flatline_routing: true # Route Flatline/GPT-review through model-invoke (cheval.py)
-  flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
+  # cycle-124 (2026-09-17): disabled — see flatline_protocol.models.tertiary note (KF-018; 2/3 DEGRADED otherwise)
+  # flatline_tertiary_model: gemini-3.1-pro-preview # 3-model Flatline: Opus + GPT-5.5-pro + Gemini-3.1-pro
   # cycle-109 (2026-05-13, C109.OP-8): headless mode default for /run invocations
   # API path is billing-degraded (Anthropic + OpenAI Pro); CLI subscription path works.
   # Restore to "api" once operator-side billing is resolved.
@@ -253,7 +254,7 @@ run_bridge:
       # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
-          model_id: claude-opus-4-8
+          model_id: claude-opus-5   # cycle-124 floor (was 4-8)
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -312,7 +313,11 @@ flatline_protocol:
     # substrate misdiagnosed model-tier-access-denied as insufficient_quota —
     # FR-1 capability-aware substrate would have caught this at boot.
     secondary: gpt-5.5
-    tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
+    # cycle-124 (2026-09-17): tertiary DISABLED on this host — gemini CLI is tier-blocked (KF-018, rec 2) and
+    # hounfour.headless.mode cli-only never reaches the HTTP rung, so a configured tertiary only turns every
+    # Flatline run into 2/3 DEGRADED (Phase 2 skipped). Fleet baseline (framework-review §10): no tertiary
+    # unless `agy` is installed. Re-enable by restoring the line below.
+    # tertiary: gemini-3.1-pro # cheval bare-alias (resolves to API id gemini-3.1-pro-preview); was gemini-3.1-pro-preview which is not a valid cheval alias — see cycle-102 flatline-prd-degradation.md
   thresholds:
     high_consensus: 700
     disputed_delta: 300
@@ -346,9 +351,6 @@ flatline_protocol:
     model: gpt-5.5-pro
     budget_cents: 200
     timeout_seconds: 600
-    # C-D6 (cycle-120, bd-4na9): dogfood the repair loop on our own review gate.
-    # Observability: adversarial-rejected sidecar + degraded-trajectory gate adversarial-review:code_review:repair-loop.
-    repair_loop: true
     # KF-011 sub-mode (c) mitigation (2026-05-17): Gemini-3.1-pro empty-content
     # on review-type prompts post cycle-109 T4.10. Adding claude-headless as a
     # 4th-line voice so quorum is reachable when Gemini is silent. KF-011
@@ -410,7 +412,7 @@ red_team:
     # + google), so red team now invokes all 3 like Bridgebuilder + Flatline.
     # See grimoires/loa/known-failures.md (post KF-001 resolution context).
     evaluator_multi_model: true
-    evaluator_primary: claude-opus-4-8   # anthropic
+    evaluator_primary: claude-opus-5     # anthropic (cycle-124 floor; was 4-8)
     evaluator_secondary: gpt-5.5-pro     # openai
     evaluator_tertiary: gemini-3.1-pro   # google
   defaults:
@@ -579,3 +581,13 @@ registry:
     - "auditing-security"
     - "deploying-infrastructure"
     - "translating-for-executives"
+
+# =============================================================================
+# Aleph (third-party, vendored) — OPT-IN (bug 20260922-13a3d1)
+# =============================================================================
+# Aleph was not authored by the Loa maintainers. Loa never verifies, installs,
+# tests or syncs it unless this is true (or LOA_ALEPH_ENABLED=1 is exported):
+# mount/update skip the Aleph refresh, check-loa skips its integrity check, the
+# tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
+aleph:
+  enabled: false

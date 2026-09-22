@@ -118,6 +118,55 @@ get_version_from_changelog() {
   return 1
 }
 
+# Prerelease transitions signalled by the CHANGELOG (sprint-bug-240).
+#
+# bump_version() increments an existing prerelease (rc.1 → rc.2) but has no
+# way to ENTER one from a release tag or to PROMOTE out of one; both were
+# "operator-driven" with no formal path through the post-merge pipeline. The
+# operator signal is the topmost versioned CHANGELOG heading, honoured for
+# exactly two transitions and only while that heading is UNTAGGED:
+#
+#   enter    current X.Y.Z (release) and heading X'.Y'.Z'-PRE whose triple
+#            equals the computed next release → next = heading
+#            (1.202.1 + breaking commits → 2.0.0 → 2.0.0-rc.1)
+#   promote  current X.Y.Z-PRE (prerelease) and heading exactly X.Y.Z
+#            → next = heading                    (2.0.0-rc.3 → 2.0.0)
+#
+# Anything else keeps the computed version: a prerelease heading whose triple
+# differs from the computed next warns on stderr (the commits do not warrant
+# it); a tagged heading, an invalid prerelease identifier (SemVer §9 grammar)
+# or a missing CHANGELOG are ignored. Prints "<kind>\t<heading>" and returns 0
+# on a transition; returns 1 otherwise.
+changelog_prerelease_transition() {
+  local current="${1%%+*}" computed="$2"
+  local changelog="${PROJECT_ROOT}/CHANGELOG.md"
+  [[ -f "$changelog" ]] || return 1
+  local heading
+  heading=$(grep -m1 -oE '^## \[(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?\]' "$changelog") || return 1
+  heading="${heading#\#\# [}"
+  heading="${heading%]}"
+  # A tagged heading is history, not intent.
+  if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${heading}" >/dev/null 2>&1; then
+    return 1
+  fi
+  local pre_id='(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)'
+  local prerelease_re="^([0-9]+\.[0-9]+\.[0-9]+)-(${pre_id}(\.${pre_id})*)\$"
+  local release_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+  if [[ "$current" =~ $release_re && "$heading" =~ $prerelease_re ]]; then
+    if [[ "${BASH_REMATCH[1]}" == "$computed" ]]; then
+      printf 'enter\t%s\n' "$heading"
+      return 0
+    fi
+    echo "WARN: CHANGELOG names ${heading} but the commits warrant ${computed}; heading ignored" >&2
+    return 1
+  fi
+  if [[ "$current" =~ $prerelease_re && "$heading" =~ $release_re && "$heading" == "${current%%-*}" ]]; then
+    printf 'promote\t%s\n' "$heading"
+    return 0
+  fi
+  return 1
+}
+
 # Bump a version string by type. Handles two shapes:
 #
 #   1. Release  X.Y.Z          → bump per `bump` arg (major/minor/patch)
@@ -126,8 +175,9 @@ get_version_from_changelog() {
 # Prerelease bumping is type-agnostic by design: while a project is on a
 # prerelease cadence (e.g. 2.0.0-alpha.N), conventional-commit signal
 # (feat/fix/etc.) does not warrant a major/minor/patch flip — the project
-# is still pre-1.0-of-this-major. Promotion out of prerelease (alpha → beta,
-# rc → release) is operator-driven and out of scope for this bump path.
+# is still pre-1.0-of-this-major. Entering a prerelease and promoting out of
+# one are operator-driven through the CHANGELOG heading
+# (changelog_prerelease_transition above), not through this bump path.
 #
 # Validate version format (M-05) — accept either release or prerelease.
 bump_version() {
@@ -279,6 +329,10 @@ main() {
         echo ""
         echo "Options:"
         echo "  --downstream  Filter out non-app commits (system-only, state-only, mixed-internal)"
+        echo ""
+        echo "Pre-releases: an untagged topmost CHANGELOG heading enters a prerelease of the"
+        echo "  computed version (2.0.0 -> 2.0.0-rc.1) or promotes a prerelease to its release"
+        echo "  (2.0.0-rc.3 -> 2.0.0); reported as prerelease_transition in the output."
         echo ""
         echo "Exit codes:"
         echo "  0  Success (JSON on stdout)"
@@ -439,12 +493,22 @@ main() {
   fi
 
   # Calculate next version
-  local next
+  local next transition_json="null"
   if [[ "$version_source" == "initial" ]]; then
     next="0.1.0"
     bump="initial"
   else
     next=$(bump_version "$current" "$bump")
+    # sprint-bug-240: an untagged CHANGELOG heading may enter a prerelease of
+    # the computed version or promote a prerelease to its release. `bump`
+    # keeps the conventional-commit classification; the transition is
+    # reported separately.
+    local transition
+    if transition=$(changelog_prerelease_transition "$current" "$next"); then
+      next="${transition#*$'\t'}"
+      transition_json=$(jq -nc --arg kind "${transition%%$'\t'*}" --arg heading "$next" \
+        '{kind: $kind, source: "changelog", heading: $heading}')
+    fi
   fi
 
   # Output result
@@ -454,8 +518,10 @@ main() {
     --arg bump "$bump" \
     --arg source "$version_source" \
     --argjson commits "$commits_json" \
+    --argjson transition "$transition_json" \
     '{current: $current, next: $next, bump: $bump, commits: $commits,
       version_source: $source,
+      prerelease_transition: $transition,
       classification: {
         source: "conventional_commits",
         reasoning: (if $bump == "initial" then "First release from classified repository history"

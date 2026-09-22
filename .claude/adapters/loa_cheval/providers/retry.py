@@ -19,6 +19,7 @@ from loa_cheval.types import (
     CompletionResult,
     ChevalError,
     ConnectionLostError,
+    ModelNotFoundError,
     ProviderUnavailableError,
     RateLimitError,
     RetriesExhaustedError,
@@ -407,7 +408,11 @@ def invoke_with_retry(
         except ProviderUnavailableError as e:
             latency_ms = int((time.monotonic() - start) * 1000)
             metrics_hook.record_attempt(adapter.provider, False, latency_ms)
-            _record_failure(adapter.provider, auth_type, config)
+            # A model-not-found 404 says nothing about the provider's health;
+            # counting it would open the (provider, auth_type) breaker for
+            # served ids too (cycle-124, audit slice A).
+            if not isinstance(e, ModelNotFoundError):
+                _record_failure(adapter.provider, auth_type, config)
             last_error = str(e)
 
             logger.warning(

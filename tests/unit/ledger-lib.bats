@@ -726,6 +726,35 @@ source_lib() {
     [[ "$after" == "$before" ]]
 }
 
+@test "update_sprint_status / resolve_sprint survive bug-fix cycles whose sprints are label strings (cycle-124 incident)" {
+    skip_if_deps_missing
+    source "$SCRIPT"
+    init_ledger
+    create_cycle "Real Cycle" >/dev/null
+    local gid
+    gid=$(add_sprint "sprint-1")
+    [[ "$gid" =~ ^[0-9]+$ ]]
+    # A /bug cycle records its sprint as a bare label string, not an object;
+    # every jq walk over .cycles[].sprints[] must skip it instead of erroring.
+    local ledger; ledger=$(get_ledger_path)
+    jq '.cycles += [{"id":"cycle-bug-20260418-i548-a2460c","label":"bugfix","status":"completed","sprints":["sprint-bug-108"]}]' \
+        "$ledger" > "$ledger.tmp" && mv "$ledger.tmp" "$ledger"
+    run update_sprint_status "$gid" in_progress
+    [ "$status" -eq 0 ]
+    run update_sprint_status "$gid" completed
+    [ "$status" -eq 0 ]
+    # late Sprint 2 review: `ledger status` on a bug-fix ACTIVE cycle walked
+    # `.sprints | last | .global_id` unguarded and aborted mid-function.
+    jq '.active_cycle = "cycle-bug-20260418-i548-a2460c"' "$ledger" > "$ledger.tmp" && mv "$ledger.tmp" "$ledger"
+    run get_ledger_status
+    [ "$status" -eq 0 ]
+    [ -n "$output" ]
+    [ "$(jq -r --argjson id "$gid" '[.cycles[].sprints[]? | select(type=="object") | select(.global_id==$id)][0].status' "$ledger")" = "completed" ]
+    run resolve_sprint "sprint-1"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$gid" ]
+}
+
 @test "update_sprint_status with non-numeric id fails loudly and preserves ledger (incident repro)" {
     skip_if_deps_missing
     source_lib

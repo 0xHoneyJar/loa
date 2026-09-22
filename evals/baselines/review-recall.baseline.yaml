@@ -1,0 +1,89 @@
+version: 1
+suite: review-recall
+model_version: "claude-sonnet-5"
+recorded_at: "2026-09-22"
+recorded_from_run: "run-20260919-183244-1e91c8fc"
+update_reason: "cycle-124 Sprint 3 arm A: Sprint-2 tip prompts (worktree at 72bdb7d2), Sonnet 5 at medium, 3 trials per task"
+prompt_tree_sha: "4e38de2632d83e8e634972f8854da8d4c60aea36"
+captured_at_commit: "72bdb7d27b80e9387c7d61400956cb3abbef5785"
+executor_model: "claude-sonnet-5"
+corpus_sha256: "1e96a406ad4513aec82f1fd8d4bb6d0690873ff84bde600bcc7fc1b0d4fd8575"
+tasks:
+  review-pr-01:
+    pass_rate: 0.3333333333333333
+    trials: 3
+    mean_score: 78
+    status: active
+    recall: 0.7778
+    false_positives: 0
+    tokens_mean: 2110571
+  review-pr-02:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1498034
+  review-pr-03:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1335460
+  review-pr-04:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1255695
+  review-pr-05:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1789511
+  review-pr-06:
+    pass_rate: 0.6666666666666666
+    trials: 3
+    mean_score: 89
+    status: active
+    recall: 0.8889
+    false_positives: 0
+    tokens_mean: 1754511
+  review-pr-07:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1191094
+  review-pr-08:
+    pass_rate: 1
+    trials: 3
+    mean_score: 100
+    status: active
+    recall: 1
+    false_positives: 0
+    tokens_mean: 1542790
+  review-pr-09:
+    pass_rate: 0
+    trials: 3
+    mean_score: 0
+    status: active
+    false_positives: 0
+    tokens_mean: 1945831
+  review-pr-10:
+    pass_rate: 0.6666666666666666
+    trials: 3
+    mean_score: 66
+    status: active
+    false_positives: 0
+    tokens_mean: 1794281

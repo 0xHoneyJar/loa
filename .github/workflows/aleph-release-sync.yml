@@ -24,9 +24,40 @@ env:
   GH_CLI_LINUX_AMD64_SHA256: 83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60
 
 jobs:
+  # bug 20260922-13a3d1: Aleph is opt-in. Every job below runs only when the
+  # repository's .loa.config.yaml says `aleph.enabled: true`; a missing key or
+  # any other value reads as disabled, and the workflow no-ops.
+  gate:
+    name: Aleph opt-in gate (aleph.enabled)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.read.outputs.enabled }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Read aleph.enabled
+        id: read
+        run: |
+          set -euo pipefail
+          # Same POSIX-awk reader as .claude/scripts/lib/aleph-opt-in.sh — no yq,
+          # so a runner's parser inventory can never decide the gate.
+          enabled=false
+          if [ -f .loa.config.yaml ]; then
+            v=$(awk '
+              /^[A-Za-z_]/ { in_aleph = ($0 ~ /^aleph:[[:space:]]*(#.*)?$/) }
+              in_aleph && /^[[:space:]]+enabled:[[:space:]]*true([[:space:]]*(#.*)?)?$/ { print "true"; exit }
+            ' .loa.config.yaml)
+            [ "$v" = "true" ] && enabled=true
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+          echo "Aleph opt-in (.loa.config.yaml aleph.enabled): $enabled" >> "$GITHUB_STEP_SUMMARY"
   prepare:
     name: Verify and seal candidate
-    if: github.ref == 'refs/heads/main'
+    needs: gate
+    if: github.ref == 'refs/heads/main' && needs.gate.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -566,8 +597,8 @@ jobs:
 
   propose:
     name: Propose sealed candidate for human review
-    needs: prepare
-    if: needs.prepare.outputs.changed == 'true' && github.ref == 'refs/heads/main'
+    needs: [gate, prepare]
+    if: needs.prepare.outputs.changed == 'true' && github.ref == 'refs/heads/main' && needs.gate.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

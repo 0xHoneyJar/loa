@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, statSync, openSync, fstatSync, closeSync, constants as fsConstants, } from "node:fs";
 import { resolve } from "node:path";
 import path from "node:path";
+// cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
+// effective_input_ceiling − 20000 so BB never prepares more than cheval's
+// pre-flight gate accepts (exit 7 above the ceiling).
+import { GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
 // --- Security Patterns Registry (Task 1.1 — SDD Section 3.6) ---
 export const SECURITY_PATTERNS = [
     // Authentication & Authorization
@@ -539,15 +543,39 @@ export function applyLoaTierExclusion(files, loaPatterns) {
 // calibration. These are intentionally conservative (over-estimate) to leave
 // headroom and avoid context-window overflows at runtime.
 export const TOKEN_BUDGETS = {
-    "claude-sonnet-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-    "claude-sonnet-4-5-20250929": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-    "claude-opus-4-7": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
-    "claude-opus-4-6": { maxInput: 200_000, maxOutput: 8_192, coefficient: 0.25 },
+    // cycle-124 FR-3: Anthropic rows mirror the generated twin (effective_input_ceiling
+    // 180K − 20K headroom); getTokenBudget() serves the generated value first, so these
+    // are the fallback for a checkout whose codegen is stale.
+    "claude-sonnet-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+    "claude-sonnet-4-5-20250929": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+    "claude-opus-4-7": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+    "claude-opus-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
     "gpt-5.2": { maxInput: 128_000, maxOutput: 4_096, coefficient: 0.23 },
     default: { maxInput: 100_000, maxOutput: 4_096, coefficient: 0.25 },
 };
+/** Own-key lookup: "constructor"/"__proto__" are `in` every object and must read as unknown ids. */
+function ownBudget(table, id) {
+    return Object.prototype.hasOwnProperty.call(table, id) ? table[id] : undefined;
+}
+/**
+ * The input budget a caller may actually prepare for `model`: the operator
+ * budget clamped to the model's dispatchable input when the id is KNOWN to
+ * the generated twin or the hand table; an unknown id (and the literal
+ * "default" row, which is not a model) keeps the operator budget. Used by
+ * progressiveTruncate and by the reviewer's adaptive retry, so a retry never
+ * re-sends the same clamped payload (Sprint 1 audit, slice D).
+ */
+export function effectiveInputBudget(budgetTokens, model) {
+    const known = model !== "default" &&
+        (ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
+            ownBudget(TOKEN_BUDGETS, model) !== undefined);
+    return known ? Math.min(budgetTokens, getTokenBudget(model).maxInput) : budgetTokens;
+}
 export function getTokenBudget(model) {
-    return TOKEN_BUDGETS[model] ?? TOKEN_BUDGETS["default"];
+    // cycle-124 FR-3: the generated twin (model-config.yaml) wins over the
+    // hand-maintained table; the hand table remains the fallback for ids the
+    // yaml does not carry.
+    return ownBudget(GENERATED_TOKEN_BUDGETS, model) ?? ownBudget(TOKEN_BUDGETS, model) ?? TOKEN_BUDGETS["default"];
 }
 /** Estimate tokens from string using model-specific coefficient. */
 export function estimateTokens(text, model) {
@@ -713,8 +741,15 @@ const LEVEL_DISCLAIMERS = {
  * Budget target: 90% of maxInputTokens (SKP-004).
  */
 export function progressiveTruncate(files, budgetTokens, model, systemPromptLen, metadataLen) {
-    const targetBudget = Math.floor(budgetTokens * 0.9);
+    // cycle-124 FR-3 (Flatline SKP-003): an operator budget above the model's
+    // dispatchable input (effective_input_ceiling − 20K for Anthropic) is
+    // clamped here, so a 900K diff is truncated to what cheval will accept
+    // instead of being prepared and then refused with exit 7. Only ids the
+    // generated twin or the hand table KNOW are clamped — an unknown id keeps
+    // the operator's budget rather than being cut to the 100K default row
+    // (review round-1 low 7).
     const { coefficient } = getTokenBudget(model);
+    const targetBudget = Math.floor(effectiveInputBudget(budgetTokens, model) * 0.9);
     const fixedTokens = Math.ceil((systemPromptLen + metadataLen) * coefficient);
     // Apply size-aware security handling first (SKP-005)
     const capped = files.map((f) => isHighRisk(f.filename) ? capSecurityFile(f) : f);

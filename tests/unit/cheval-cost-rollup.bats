@@ -71,12 +71,52 @@ _rollup() {
     [[ "$output" == *"empty"* ]]
 }
 
-@test "rollup: default ledger resolves from model-config metering.ledger_path (codex P2)" {
-    cd "$REPO_ROOT"
-    run python3 -c "
+@test "rollup: default ledger is the writer's resolution over the MERGED config (codex P2, cycle-124 review)" {
+    # .loa.config.yaml overlays metering.ledger_path=.run/cost-ledger.jsonl on
+    # the system default; the reader must land where the writer writes, from
+    # any CWD, anchored at the project root.
+    cd "$TMP_DIR"
+    run env -u LOA_COST_LEDGER_PATH python3 -c "
 from loa_cheval.metering.rollup import default_ledger_path
 print(default_ledger_path())
 "
     [ "$status" -eq 0 ]
-    [ "$output" = "grimoires/loa/a2a/cost-ledger.jsonl" ]
+    [ "$output" = "$(cd "$REPO_ROOT" && python3 -c "import os; print(os.path.realpath('.run/cost-ledger.jsonl'))")" ]
+}
+
+@test "rollup: LOA_COST_LEDGER_PATH overrides the config default — readers follow the writer (cycle-124 FR-6)" {
+    cd "$REPO_ROOT"
+    run env LOA_COST_LEDGER_PATH="$LEDGER" python3 -c "
+from loa_cheval.metering.rollup import default_ledger_path
+print(default_ledger_path())
+"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$LEDGER" ]
+    # The CLI without --ledger reads the redirected ledger's rows.
+    run env LOA_COST_LEDGER_PATH="$LEDGER" python3 -m loa_cheval.metering.rollup --by agent --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.rows | length')" = "2" ]
+}
+
+@test "rollup + cost-report: a resolver-rejected default is exit 2, never a silent read of another file (round-2 DISS-001)" {
+    cd "$REPO_ROOT"
+    ln -s "$LEDGER" "$TMP_DIR/link.jsonl"
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" python3 -m loa_cheval.metering.rollup --by agent --json
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"INVALID_CONFIG"* ]]
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" bash .claude/scripts/cost-report.sh --json
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"INVALID_CONFIG"* ]]
+    [[ "$output" != *"total_micro_usd"* ]]
+    # explicit --ledger wins and never consults the resolver
+    run env LOA_COST_LEDGER_PATH="$TMP_DIR/link.jsonl" bash .claude/scripts/cost-report.sh --ledger "$LEDGER" --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.entry_count')" = "3" ]
+}
+
+@test "cost-report: a RELATIVE LOA_COST_LEDGER_PATH resolves against the caller's CWD, as it does for the writer (audit slice B)" {
+    cd "$TMP_DIR"
+    run env LOA_COST_LEDGER_PATH="ledger.jsonl" bash "$REPO_ROOT/.claude/scripts/cost-report.sh" --json
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.entry_count')" = "3" ]
 }

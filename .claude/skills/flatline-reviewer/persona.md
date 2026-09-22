@@ -57,3 +57,10 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
 - Each improvement must be independently actionable
 - Avoid vague suggestions — specify what to change and where
 - Do not duplicate concerns (those belong to the skeptic role)
+
+### Coverage
+
+Report every improvement you actually observe. Do not withhold one because it looks minor or because
+you are unsure — a separate scoring step filters, and an item you drop here is lost. Severity
+(priority) is the impact if it happens; confidence is how sure you are that it does. Keep them
+independent: never lower one to express the other. You do not decide the outcome; the scores do.

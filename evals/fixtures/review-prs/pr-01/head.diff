@@ -1,0 +1,85 @@
+diff --git a/.claude/hooks/safety/block-destructive-bash.sh b/.claude/hooks/safety/block-destructive-bash.sh
+--- a/.claude/hooks/safety/block-destructive-bash.sh
++++ b/.claude/hooks/safety/block-destructive-bash.sh
+@@ -207,11 +207,9 @@
+ # quoted value is the LAST capture group (no group follows it). [^;&|]* keeps
+ # the prefix within one segment; (^|[^[:alnum:]_]) is the anti-spoof boundary.
+ _bdb_qval_perm="('[^']*'|\"[^\"]*\")"
+-_bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|'\"]*commit[^;&|'\"]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
+-_bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|'\"]*(create|update)[^;&|'\"]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
+-_bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|'\"]*(issue|pr)[^;&|'\"]*create[^;&|'\"]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
+-
+-_bdb_re_tail="^[[:space:]]*(-m|--message|-d|--description|--body|--title)[[:space:]]+${_bdb_qval_perm}"
++_bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|]*commit[^;&|]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
++_bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|]*(create|update)[^;&|]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
++_bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|]*(issue|pr)[^;&|]*create[^;&|]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
+ 
+ # _bdb_scrub <carrier-ere> <input> — echo the input with every carrier value
+ # that passes the content gate replaced by a single SPACE (never empty, never
+@@ -233,19 +231,6 @@
+       po="${m%"$val"}"                  # matched text minus the trailing value
+       out+="$pre$po "                   # value → single space
+     fi
+-    while [[ "$rest" =~ $_bdb_re_tail ]]; do
+-      m="${BASH_REMATCH[0]}"
+-      vi=$(( ${#BASH_REMATCH[@]} - 1 ))
+-      val="${BASH_REMATCH[$vi]}"
+-      rest="${rest#"$m"}"
+-      inner="${val:1:${#val}-2}"
+-      if [[ "$inner" == *'$('* || "$inner" == *'`'* ]]; then
+-        out+="$m"                       # command-sub value — leave INTACT
+-      else
+-        po="${m%"$val"}"
+-        out+="$po "
+-      fi
+-    done
+   done
+   printf '%s' "$out$rest"
+ }
+diff --git a/.claude/scripts/lib/invoke-diagnostics.sh b/.claude/scripts/lib/invoke-diagnostics.sh
+--- a/.claude/scripts/lib/invoke-diagnostics.sh
++++ b/.claude/scripts/lib/invoke-diagnostics.sh
+@@ -23,6 +23,7 @@
+ #
+ # Redact known secret patterns from stdin.
+ # Expanded patterns: sk-*, ghp_*, gho_*, ghs_*, ghr_*, Bearer, Authorization,
++# AKIA* (AWS), eyJ* (JWT).
+ 
+ redact_secrets() {
+   # Pattern coverage:
+@@ -31,7 +32,9 @@
+   #   gho_*    — GitHub OAuth tokens
+   #   ghs_*    — GitHub App installation tokens
+   #   ghr_*    — GitHub Refresh tokens
++  #   Bearer   — OAuth/JWT Bearer tokens in headers
+   #   Authorization — Full Authorization header values
++  #   AKIA*    — AWS IAM access key IDs
+   #   eyJ*     — JWT/JWS tokens (base64-encoded JSON header starting with {"...)
+   #
+   # Pattern Maintenance: When new model providers are added to the Hounfour
+@@ -42,9 +45,9 @@
+     -e 's/gho_[A-Za-z0-9]{36}/gho_***REDACTED***/g' \
+     -e 's/ghs_[A-Za-z0-9]{36}/ghs_***REDACTED***/g' \
+     -e 's/ghr_[A-Za-z0-9]{36}/ghr_***REDACTED***/g' \
+-    -e 's/(Bearer )[A-Za-z0-9=._-]+/\1***REDACTED***/g' \
++    -e 's/(Bearer )[A-Za-z0-9._-]+/\1***REDACTED***/g' \
+     -e 's/(Authorization: )[A-Za-z0-9._: -]+/\1***REDACTED***/g' \
+-    -e 's/(AKIA|ASIA|AROA|AGPA|AIPA|ANPA|ANVA)[A-Z0-9]{16}/\1***REDACTED***/g' \
++    -e 's/AKIA[A-Z0-9]{16}/AKIA***REDACTED***/g' \
+     -e 's/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/eyJ***REDACTED***/g'
+ }
+ 
+diff --git a/.claude/scripts/workflow-state.sh b/.claude/scripts/workflow-state.sh
+--- a/.claude/scripts/workflow-state.sh
++++ b/.claude/scripts/workflow-state.sh
+@@ -69,9 +69,7 @@
+ # Function: Get sprint count from sprint.md
+ get_total_sprints() {
+     if [[ -f "${SPRINT_FILE}" ]]; then
+-        local n
+-        n=$(grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || true)
+-        echo "${n:-0}"
++        grep -c "^## Sprint [0-9]" "${SPRINT_FILE}" 2>/dev/null || echo "0"
+     else
+         echo "0"
+     fi

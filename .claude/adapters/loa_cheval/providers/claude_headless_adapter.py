@@ -77,6 +77,37 @@ _CLI_COST_WARN_LOCK = threading.Lock()
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
+# cycle-124 FR-7: `claude -p --json-schema <schema>` (Claude Code ≥ 2.1.27x)
+# returns the enforced object in `structured_output`. Probed ONCE per process
+# from `claude --help`; an older CLI simply runs unenforced (never an
+# unknown-flag failure).
+_JSON_SCHEMA_FLAG: Optional[bool] = None
+_JSON_SCHEMA_FLAG_LOCK = threading.Lock()
+
+
+# The CLI's own validator message, on stderr only. stdout is model output: a
+# reviewer that quotes this phrase must not trigger a second billed run
+# (late Sprint 2 review, slice A).
+_SCHEMA_REJECTION_MARK = "--json-schema is not a valid JSON Schema"
+
+
+def _is_schema_rejection(proc) -> bool:
+    return _SCHEMA_REJECTION_MARK in (getattr(proc, "stderr", "") or "")
+
+
+def _cli_supports_json_schema(cli_bin: str) -> bool:
+    global _JSON_SCHEMA_FLAG
+    with _JSON_SCHEMA_FLAG_LOCK:
+        if _JSON_SCHEMA_FLAG is None:
+            try:
+                proc = subprocess.run(
+                    [cli_bin, "--help"], capture_output=True, text=True, timeout=20, check=False,
+                )
+                _JSON_SCHEMA_FLAG = "--json-schema" in ((proc.stdout or "") + (proc.stderr or ""))
+            except Exception:  # noqa: BLE001 — missing binary etc.: treated as unsupported
+                _JSON_SCHEMA_FLAG = False
+        return bool(_JSON_SCHEMA_FLAG)
+
 # claude CLI binary name (override via CLAUDE_HEADLESS_BIN env var for testing)
 _CLAUDE_BIN_DEFAULT = "claude"
 
@@ -120,7 +151,26 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
-        return run_subprocess_pgkill(command, **kwargs)
+        proc = run_subprocess_pgkill(command, **kwargs)
+        # cycle-124 FR-7: the CLI validates the schema itself ("--json-schema
+        # is not a valid JSON Schema: …", measured live 2026-09-18 on a
+        # 2020-12 `$schema` URI). That is a schema/CLI mismatch, not a model
+        # or transport failure — retry ONCE unenforced so the voice still
+        # answers (schema_enforced reports false) instead of dropping out of
+        # the chain.
+        if (
+            proc.returncode != 0
+            and "--json-schema" in command
+            and _is_schema_rejection(proc)
+        ):
+            logger.warning(
+                "claude rejected --json-schema (%s); retrying once without it (unenforced)",
+                ((proc.stderr or proc.stdout or "").strip().splitlines() or ["?"])[0][:200],
+            )
+            idx = list(command).index("--json-schema")
+            stripped = list(command[:idx]) + list(command[idx + 2:])
+            proc = run_subprocess_pgkill(stripped, **kwargs)
+        return proc
 
     def _finish_completion(
         self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
@@ -198,6 +248,11 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         if effort:
             cmd.extend(["--effort", effort])
 
+        # cycle-124 FR-7: forward the schema compactly when the CLI knows the
+        # flag; otherwise the call proceeds unenforced (schema_enforced false).
+        if request.output_schema is not None and _cli_supports_json_schema(self._cli_bin()):
+            cmd.extend(["--json-schema", json.dumps(request.output_schema, separators=(",", ":"))])
+
         extra = (model_config.extra or {})
 
         # System prompt overrides — `system_prompt` REPLACES the default
@@ -243,11 +298,16 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         """Resolve effort with explicit precedence (matches codex pattern).
 
         Priority:
-          1. request.metadata["effort"] OR ["reasoning_effort"]
-          2. ModelConfig.extra["effort"] OR ["reasoning_effort"]
-          3. None (let claude CLI use its own default)
+          1. request.effort (cheval --effort, cycle-124)
+          2. request.metadata["effort"] OR ["reasoning_effort"]
+          3. ModelConfig.extra["effort"] OR ["reasoning_effort"]
+          4. None (let claude CLI use its own default)
         """
         candidates: List[Optional[str]] = []
+        # cycle-124 FR-2: cheval threads `--effort` onto CompletionRequest.effort
+        # (validated against the same levels); it is the first candidate so the
+        # CLI hop honours what the MODELINV envelope records.
+        candidates.append(getattr(request, "effort", None))
         if request.metadata and isinstance(request.metadata, dict):
             candidates.append(request.metadata.get("effort"))
             candidates.append(request.metadata.get("reasoning_effort"))
@@ -308,6 +368,12 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         session_id = parsed.get("session_id") or parsed.get("uuid")
         content = (parsed.get("result") or "").strip("\n")
         stop_reason = parsed.get("stop_reason")
+        # cycle-124 FR-7: with --json-schema the enforced object lives in
+        # `structured_output` (the `result` string may be prose or empty);
+        # prefer it, compactly serialized, and record the enforcement.
+        structured = parsed.get("structured_output")
+        if structured is not None:
+            content = json.dumps(structured, separators=(",", ":"))
 
         usage_data = parsed.get("usage") or {}
         usage = Usage(
@@ -316,10 +382,14 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             # Anthropic's API doesn't surface a separate reasoning_output_tokens
             # field through Claude Code yet — when it does, map it here.
             reasoning_tokens=int(usage_data.get("reasoning_output_tokens") or 0),
+            # cycle-124 FR-4: cache telemetry on Usage as well as metadata so
+            # the MODELINV / CLI-JSON capture reads one place for every transport.
+            cache_read_input_tokens=int(usage_data.get("cache_read_input_tokens") or 0),
+            cache_creation_input_tokens=int(usage_data.get("cache_creation_input_tokens") or 0),
             source="actual" if usage_data else "estimated",
         )
 
-        metadata: Dict[str, Any] = {}
+        metadata: Dict[str, Any] = {"schema_enforced": structured is not None}
         cache_read = usage_data.get("cache_read_input_tokens")
         if cache_read:
             metadata["cache_read_input_tokens"] = int(cache_read)

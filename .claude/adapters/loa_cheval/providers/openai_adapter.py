@@ -11,6 +11,7 @@ empty output, and partial/truncated.
 from __future__ import annotations
 
 import json
+import re
 import logging
 import os
 import time
@@ -58,6 +59,28 @@ _SUPPORTED_PARAMS = {
 }
 
 _ALLOWED_ENDPOINT_FAMILIES = ("chat", "responses")
+
+
+_OUTPUT_SCHEMA_NAME_DEFAULT = "loa_output_schema"
+
+
+def _output_schema_name(request: CompletionRequest) -> str:
+    """`text.format.name` for a schema-enforced /v1/responses call (cycle-124
+    FR-7, SDD §2.4): the schema file's basename without extensions, as cheval
+    records it in request.metadata["output_schema_name"], sanitized to
+    [A-Za-z0-9_-] and capped at 64 characters; a fixed default otherwise."""
+    raw = ""
+    if isinstance(request.metadata, dict):
+        raw = str(request.metadata.get("output_schema_name") or "")
+    raw = raw.split("/")[-1].split(".")[0]
+    clean = re.sub(r"[^A-Za-z0-9_-]", "_", raw).strip("_")[:64]
+    return clean or _OUTPUT_SCHEMA_NAME_DEFAULT
+
+
+def _schema_enforced(body: Dict[str, Any]) -> bool:
+    """True iff the /v1/responses body carried text.format.type == json_schema."""
+    fmt = ((body.get("text") or {}).get("format") or {})
+    return fmt.get("type") == "json_schema"
 
 
 class OpenAIAdapter(ProviderAdapter):
@@ -132,8 +155,13 @@ class OpenAIAdapter(ProviderAdapter):
         # Sprint 4A DISS-001 closure: centralized kill-switch detection so
         # the adapter routing and the MODELINV audit field stay consistent.
         if _streaming_disabled():
-            return self._complete_nonstreaming(url, headers, body, family)
-        return self._complete_streaming(url, headers, body, family)
+            result = self._complete_nonstreaming(url, headers, body, family)
+        else:
+            result = self._complete_streaming(url, headers, body, family)
+        # cycle-124 FR-7: derived from the body actually sent (truthful
+        # telemetry) — only the /v1/responses family can carry a schema.
+        result.metadata = {**(result.metadata or {}), "schema_enforced": _schema_enforced(body)}
+        return result
 
     def _complete_streaming(
         self,
@@ -311,7 +339,7 @@ class OpenAIAdapter(ProviderAdapter):
         self,
         request: CompletionRequest,
         model_config: ModelConfig,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any]:  # noqa: C901 — one body builder, one place
         """Build request body for /v1/responses (cycle-095 Sprint 1, SDD §5.3).
 
         Transformations relative to /v1/chat/completions:
@@ -396,7 +424,22 @@ class OpenAIAdapter(ProviderAdapter):
         # Operator opt-out: set hounfour.openai_no_text_format=true in
         # .loa.config.yaml (or omit; this default-on fix only adds bytes to
         # the request, never removes capability).
-        body["text"] = {"format": {"type": "text"}}
+        #
+        # cycle-124 FR-7 (flagged exception, isolated commit): when the caller
+        # supplies an output schema, `text.format` carries it as a strict
+        # json_schema instead of the plain text format — the same wire-schema
+        # file the Anthropic hop enforces via output_config.format.
+        if request.output_schema is not None:
+            body["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": _output_schema_name(request),
+                    "strict": True,
+                    "schema": request.output_schema,
+                }
+            }
+        else:
+            body["text"] = {"format": {"type": "text"}}
 
         # Wire-protocol parameter gates: respect params.temperature_supported.
         # Defaults to True if absent (preserves existing behavior). Mirrors the

@@ -110,9 +110,13 @@ def test_real_cli_dispatch_records_same_cost_in_ledger_and_modelinv(tmp_path, mo
     )
     binary.chmod(0o755)
     monkeypatch.chdir(tmp_path)
+    # cycle-124 FR-6: LOA_COST_LEDGER_PATH (set by conftest) outranks metering.ledger_path;
+    # this test reads the config-supplied ledger, so drop the env override.
+    monkeypatch.delenv("LOA_COST_LEDGER_PATH", raising=False)
     monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(binary))
     monkeypatch.setenv("LOA_HEADLESS_MODE", "cli-only")
     monkeypatch.setattr(cheval, "_load_persona", lambda *a, **kw: None)
+    monkeypatch.setattr(cheval, "_load_persona_parts", lambda *a, **kw: (None, None))
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *a, **kw: None)
     ledger = tmp_path / "cost.jsonl"
     cfg = {

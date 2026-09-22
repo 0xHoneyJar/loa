@@ -52,3 +52,38 @@ claim that publication succeeded. `DONE` records verified publication.
 
 The workflow no longer requires a model API key or write-capable GitHub token
 to prepare candidates. Explicit publication needs normal repository permissions.
+
+## Pre-release candidates (`X.Y.Z-rc.N`)
+
+The pipeline increments an existing pre-release on its own (a merge on the
+`v2.0.0-rc.1` tag prepares `v2.0.0-rc.2`). Entering a pre-release from a release
+tag and promoting out of one are operator decisions, and the operator states
+them in `CHANGELOG.md` — no flag, no config key (sprint-bug-240,
+`semver-bump.sh` `changelog_prerelease_transition`).
+
+The signal is the topmost versioned heading of `CHANGELOG.md`, honoured only
+while that heading is untagged:
+
+| Current tag | Topmost heading | Commits warrant | Prepared version |
+|-------------|-----------------|-----------------|------------------|
+| `v1.202.1` | `## [2.0.0-rc.1] — …` | `2.0.0` (breaking) | `2.0.0-rc.1` (enter) |
+| `v1.202.1` | `## [2.0.0-rc.1] — …` | `1.203.0` (no breaking) | `1.203.0`; a `WARN` names the ignored heading |
+| `v2.0.0-rc.1` | `## [2.0.0-rc.1] — …` (tagged) | anything | `2.0.0-rc.2` (increment, unchanged) |
+| `v2.0.0-rc.3` | `## [2.0.0] — …` | anything | `2.0.0` (promote) |
+
+To cut a release candidate, the PR that will be merged moves the `[Unreleased]`
+content under `## [2.0.0-rc.1] — <date> — <name>`, leaves `[Unreleased]`
+empty, and sets `.loa-version.json` `framework_version` (and the README
+version references via `sync-readme-version.sh --apply`) to the same string.
+`semver-bump.sh --from-tag` on that branch already reports
+`next: 2.0.0-rc.1` with `prerelease_transition.kind: enter`; the candidate
+carries `tag: v2.0.0-rc.1` and `prerelease: true`, and publication creates
+the GitHub release with `prerelease: true` and verifies the flag on read-back
+(a release created by hand without the flag fails publication). The
+`version_bump` phase stamps the same prerelease string into both framework
+markers. Later fixes merged normally prepare `-rc.2`, `-rc.3`, …
+
+To promote, a PR moves (or rewrites) the rollup under `## [2.0.0] — <date> —
+<name>` above the `-rc.N` headings and sets the markers to `2.0.0`; the next
+merge prepares `2.0.0` with `prerelease: false`, `prerelease_transition.kind:
+promote`. The rc headings stay in the CHANGELOG as history.

@@ -46,6 +46,32 @@ config restoration, baseline comparison against
 and CI re-validation. Operators do NOT need to flip a runtime flag; they
 revert.
 
+cycle-124 Sprint 2 (FR-7) — **structured outputs**: `cheval --json-schema FILE`
+(object root, ≤ 64 KB) is enforced as Anthropic `output_config.format` on
+catalog entries with the `structured_json` capability and forwarded as
+`--json-schema` to `claude-headless` (`structured_output` is the answer); other
+hops run unenforced. The MODELINV envelope records `schema_enforced` and
+`output_schema_sha256` whenever a schema was requested; the dissent
+(`adversarial-review.sh`, `dissent-<type>.wire.json`) and Flatline
+(review/skeptic/scorer wire schemas) parse an enforced payload strictly and keep
+the tolerant normalize path — with the KF-004 repair loop, now flag-less — only
+for unenforced voices. Wire schemas live in `.claude/schemas/wire/`; the
+provider-safe subset is pinned by `tests/unit/wire-schemas-api-safe.bats`. Ratio
+one-liner over the log:
+`jq -r 'select(.payload.schema_enforced != null) | [.payload.final_model_id, .payload.schema_enforced] | @tsv' .run/model-invoke.jsonl | sort | uniq -c`.
+
+cycle-124 adds one **backstop** (not a rollback): `LOA_CHEVAL_LEGACY_WIRE=1`
+makes the Anthropic adapter emit the pre-cycle-124 request body (no adaptive
+`thinking`, no `cache_control` blocks, 4096 default `max_tokens`) so a wire
+regression can be neutralised without a deploy while the credentialed
+`live-floor-check.yml` is still unprobed. It removes what cycle-124 ADDED, no
+more: temperature omission is catalog-driven and stays, and on Opus 5 /
+Sonnet 5 / Fable the server runs thinking whether or not the block is sent, so
+pass `--max-tokens` explicitly on those ids under the switch (the
+`max_tokens` stop warning still fires). The code path stays; reverting is
+still `git revert` of the cycle-124 unit commits (see the Sprint 1 rollback
+proof). Env table: `grimoires/loa/runbooks/cheval-delegate-architecture.md`.
+
 ### Verification (cycle-107 sprint-1 + cycle-109 sprint-2/3 cumulative)
 
 - FL 3-model run: 549s, 3 voices' MODELINV envelopes recorded, chains populated, all primaries succeeded

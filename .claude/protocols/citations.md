@@ -8,7 +8,7 @@
 
 ## Overview
 
-This protocol enforces word-for-word code citations in all agent outputs to ensure claims are properly grounded in actual code, not assumptions or references without evidence.
+This protocol enforces word-for-word code citations in all agent outputs so claims are grounded in actual code, not assumptions or references without evidence.
 
 **Problem**: File:line references alone are insufficient - reviewers cannot verify claims without seeing actual code quotes.
 
@@ -20,13 +20,11 @@ This protocol enforces word-for-word code citations in all agent outputs to ensu
 
 ## Citation Format Template
 
-Every architectural claim must include exact code snippet:
+Every architectural claim includes an exact code snippet:
 
 ```markdown
 "<claim>: `<exact_code_snippet>` [<absolute_path>:<line>]"
 ```
-
-### Format Components
 
 | Component | Description | Example |
 |-----------|-------------|---------|
@@ -39,134 +37,52 @@ Every architectural claim must include exact code snippet:
 
 ## Examples
 
-### ❌ INSUFFICIENT (Reference Only)
-
-These will be **REJECTED** by reviewing-code agent:
-
+❌ **INSUFFICIENT** (rejected by reviewing-code - no code quote, relative path, claim unverifiable without opening the file):
 ```markdown
 "The system uses JWT [src/auth/jwt.ts:45]"
 ```
 
-**Why rejected**: No code quote, relative path, cannot verify claim without opening file
-
----
-
-### ✅ REQUIRED (Word-for-Word Quote)
-
-These will be **ACCEPTED**:
-
+✅ **REQUIRED** (exact code quote, absolute path, verifiable immediately):
 ```markdown
 "The system uses JWT: `export async function validateToken(token: string): Promise<TokenPayload>` [/home/user/project/src/auth/jwt.ts:45]"
 ```
 
-**Why accepted**: Exact code quote, absolute path, claim is verifiable immediately
+The same template applies for every kind of claim - configuration values, middleware wiring, function signatures - and in every document type: PRDs/SDDs, implementation reports, code reviews. Only the claim and the quoted code change; the shape never does.
 
----
+For code longer than ~10 lines, extract the 2-3 most critical lines, mark the truncated middle with `...`, and cite the full line range:
 
-### More Examples
-
-#### Configuration Citation
-
-❌ **INSUFFICIENT**:
 ```markdown
-"Auth uses bcrypt cost factor 12 [src/config/auth.ts:8]"
+"Login function performs multi-step validation: `async function login(email, password) { ... const user = await User.findByEmail(email); ... if (!await bcrypt.compare(password, user.hash)) throw AuthError(); ... }` [/abs/path/src/auth/login.ts:15-35]"
 ```
 
-✅ **REQUIRED**:
-```markdown
-"Auth uses bcrypt cost factor 12: `const BCRYPT_ROUNDS = 12;` [/abs/path/src/config/auth.ts:8]"
-```
-
-#### Middleware Citation
-
-❌ **INSUFFICIENT**:
-```markdown
-"All routes protected by auth middleware [src/server.ts:23]"
-```
-
-✅ **REQUIRED**:
-```markdown
-"All routes protected by auth middleware: `app.use('/api', authMiddleware);` [/abs/path/src/server.ts:23]"
-```
-
-#### Function Signature Citation
-
-❌ **INSUFFICIENT**:
-```markdown
-"Login function takes email and password [src/auth/login.ts:15]"
-```
-
-✅ **REQUIRED**:
-```markdown
-"Login function takes email and password: `async function login(email: string, password: string): Promise<User>` [/abs/path/src/auth/login.ts:15]"
-```
+Use the same line-range format (`15-20`) whenever a citation quotes a multi-line function body rather than a single signature.
 
 ---
 
 ## Requirements
 
-### Mandatory Elements
+Every citation MUST include: a clear architectural claim, an exact code quote (no paraphrasing), an absolute path (`${PROJECT_ROOT}/...`), and the exact line number.
 
-Every citation MUST include:
+**Code quote length**: minimum is the function signature or variable declaration; maximum is 2-3 lines of core logic; anything longer uses `...` with a line range.
 
-1. **Claim**: Clear architectural statement
-2. **Code Quote**: Exact code snippet (no paraphrasing)
-3. **Absolute Path**: `${PROJECT_ROOT}/...` format
-4. **Line Number**: Exact line where code appears
-
-### Code Quote Guidelines
-
-**Length**:
-- **Minimum**: Function signature or variable declaration
-- **Maximum**: 2-3 lines (core logic only)
-- **If longer**: Use ellipsis `...` to indicate truncation
-
-**Example with ellipsis**:
-```markdown
-"User validation uses email regex: `const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; ... return emailRegex.test(email);` [/abs/path/src/validation.ts:12-15]"
-```
-
-**Formatting**:
-- Use backticks for inline code: \`code here\`
-- Preserve original indentation (not required in citation)
-- Include function name, parameters, return type (if available)
-- NO paraphrasing - exact word-for-word match
+**Formatting**: backticks for inline code; include function name, parameters, and return type where available; no paraphrasing - exact word-for-word match.
 
 ---
 
 ## Path Format
 
-### Absolute Paths Only
+**Absolute paths only.** Models frequently struggle with relative paths after navigating directories, so every citation resolves from the project root:
 
-**Why**: Models frequently struggle with relative paths after navigating directories.
-
-**Setup**:
 ```bash
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ```
 
-**Examples**:
-
-❌ **RELATIVE** (will be rejected):
-```markdown
-`export function validate()` [src/auth/validation.ts:45]
-```
-
-✅ **ABSOLUTE** (required):
-```markdown
-`export function validate()` [/home/user/project/src/auth/validation.ts:45]
-```
-
-✅ **ABSOLUTE** (with variable):
-```markdown
-`export function validate()` [${PROJECT_ROOT}/src/auth/validation.ts:45]
-```
+❌ Relative (rejected): `` `export function validate()` [src/auth/validation.ts:45] ``
+✅ Absolute (required): `` `export function validate()` [/home/user/project/src/auth/validation.ts:45] ``
 
 ---
 
 ## Integration with Trajectory Logging
-
-### Cite Phase
 
 After extracting code quotes, log to trajectory:
 
@@ -188,124 +104,18 @@ After extracting code quotes, log to trajectory:
 }
 ```
 
-### Grounding Field
-
-All citations must have `"grounding": "citation"` in trajectory log.
-
----
-
-## Multi-Line Citations
-
-For functions with complex signatures or important logic:
-
-```markdown
-"Login validates credentials and creates session: 
-`async function login(email: string, password: string): Promise<Session> {
-  const user = await User.findByEmail(email);
-  if (!user || !await bcrypt.compare(password, user.passwordHash)) throw new AuthError();
-  return SessionManager.create(user.id);
-}` [/abs/path/src/auth/login.ts:15-20]"
-```
-
-**Note**: Use line range format `15-20` for multi-line quotes.
-
----
-
-## Citation in Different Contexts
-
-### In PRD/SDD Documents
-
-When writing requirements or design docs:
-
-```markdown
-## Authentication Architecture
-
-The system implements JWT-based authentication with token validation: `export async function validateToken(token: string)` [/abs/path/src/auth/jwt.ts:45]
-
-Tokens expire after 1 hour: `const TOKEN_EXPIRY = 3600;` [/abs/path/src/config/auth.ts:12]
-```
-
-### In Implementation Reports
-
-When documenting completed work:
-
-```markdown
-## Task 3.1: Implement JWT Validation
-
-**Implementation**: Created token validation function: `export async function validateToken()` [/abs/path/src/auth/jwt.ts:45]
-
-**Integration**: Added middleware to all API routes: `app.use('/api', authMiddleware);` [/abs/path/src/server.ts:23]
-```
-
-### In Code Reviews
-
-When providing feedback:
-
-```markdown
-## Issue: Hardcoded Salt Rounds
-
-**Problem**: Code uses hardcoded bcrypt rounds: `bcrypt.hash(password, 10)` [/abs/path/src/auth/register.ts:34]
-
-**Expected**: Should use config constant: `const BCRYPT_ROUNDS = 12;` [/abs/path/src/config/auth.ts:8]
-
-**Recommendation**: Update to `bcrypt.hash(password, BCRYPT_ROUNDS)`
-```
+Every citation carries `"grounding": "citation"` in the trajectory log.
 
 ---
 
 ## Edge Cases
 
-### Case 1: Code Snippet Not Available (File Not Found)
+**File or line not found**: flag the claim as `[ASSUMPTION]` instead of citing it, mark it for verification, and log `"grounding": "assumption"` to trajectory - e.g. `"System likely validates JWT tokens [ASSUMPTION: src/auth/jwt.ts:45 not found, requires verification]"`.
 
-If file doesn't exist or line not found:
+**Multiple files implement the same pattern**: cite the primary implementation and reference the others parenthetically - e.g. `[/abs/path/src/auth/middleware.ts:12] (also used in /abs/path/src/admin/middleware.ts:8)`.
 
-**Action**:
-1. Flag as `[ASSUMPTION]` instead of citation
-2. Mark claim for verification
-3. Log to trajectory as `"grounding": "assumption"`
+**Code changed since the search that found it**: re-read the file, update the citation with the current code, and log the discrepancy when it's significant:
 
-**Example**:
-```markdown
-"System likely validates JWT tokens [ASSUMPTION: src/auth/jwt.ts:45 not found, requires verification]"
-```
-
-### Case 2: Code is Very Long (>10 lines)
-
-If core logic spans many lines:
-
-**Action**:
-1. Extract most critical 2-3 lines
-2. Use ellipsis `...` to show truncation
-3. Include line range in citation
-
-**Example**:
-```markdown
-"Login function performs multi-step validation: `async function login(email, password) { ... const user = await User.findByEmail(email); ... if (!await bcrypt.compare(password, user.hash)) throw AuthError(); ... }` [/abs/path/src/auth/login.ts:15-35]"
-```
-
-### Case 3: Multiple Files Implement Same Pattern
-
-If pattern appears in multiple files:
-
-**Action**:
-1. Cite the primary implementation
-2. Reference others parenthetically
-
-**Example**:
-```markdown
-"Authentication middleware pattern: `export const authMiddleware = async (req, res, next) => {...}` [/abs/path/src/auth/middleware.ts:12] (also used in /abs/path/src/admin/middleware.ts:8)"
-```
-
-### Case 4: Code Changed Since Search
-
-If code was modified after search results:
-
-**Action**:
-1. Re-read file to get current code
-2. Update citation with latest code
-3. Log discrepancy to trajectory if significant
-
-**Trajectory log**:
 ```jsonl
 {
   "ts": "2025-12-27T11:15:00Z",
@@ -323,87 +133,55 @@ If code was modified after search results:
 
 ## Self-Audit Checklist
 
-Before completing any task, verify citations:
+Before completing any task, verify:
 
-- [ ] Every claim has code quote (not just file:line)
-- [ ] All quotes are word-for-word (no paraphrasing)
-- [ ] All paths are absolute (${PROJECT_ROOT}/...)
-- [ ] All line numbers are accurate
-- [ ] Multi-line quotes use line ranges (45-50)
-- [ ] Citations logged to trajectory with `"grounding": "citation"`
-- [ ] Zero unflagged [ASSUMPTION] claims
+- [ ] Every claim has a code quote, not just file:line
+- [ ] Every quote is word-for-word (no paraphrasing)
+- [ ] Every path is absolute (`${PROJECT_ROOT}/...`)
+- [ ] Every line number is accurate
+- [ ] Multi-line quotes use line ranges (`45-50`)
+- [ ] Citations are logged to trajectory with `"grounding": "citation"`
+- [ ] Zero unflagged `[ASSUMPTION]` claims remain
 
 ---
 
 ## Validation
 
-Test citation compliance:
-
-### Test 1: Check for Backticks
-
+Check every citation has a code quote:
 ```bash
-# All citations should have backticks (code quotes)
 grep -E '\[.*:.*\]' document.md | grep -v '`' || echo "All citations have code quotes"
 ```
 
-### Test 2: Check for Absolute Paths
-
+Check every citation uses an absolute path:
 ```bash
-# All citations should have absolute paths (start with /)
 grep -E '\[.*:.*\]' document.md | grep -v '^\[/' && echo "ERROR: Relative paths found" || echo "All paths absolute"
 ```
 
-### Test 3: Verify Line Numbers
-
-```bash
-# Extract citation and verify line number matches
-citation_path="/abs/path/src/auth/jwt.ts"
-citation_line=45
-actual_line=$(sed -n '45p' "$citation_path")
-# Compare citation code with actual line
-```
+Verify a line number by re-reading the cited line (`sed -n '<line>p' <file>`) and comparing it against the quoted code.
 
 ---
 
 ## Communication Guidelines
 
-### What Agents Should Say (User-Facing)
+State the result, not the mechanism.
 
-✅ **CORRECT**:
-- "The system uses JWT validation as shown in the code quote above."
-- "All claims are backed by word-for-word code citations."
-- "Implementation verified against actual code at src/auth/jwt.ts:45"
+✅ "The system uses JWT validation as shown in the code quote above." / "All claims are backed by word-for-word code citations." / "Implementation verified against actual code at src/auth/jwt.ts:45."
 
-❌ **INCORRECT** (exposing protocol details):
-- "I'm following the word-for-word citation protocol..."
-- "Let me add backticks to meet citation requirements..."
-- "Logging citations to trajectory with grounding type..."
+❌ "I'm following the word-for-word citation protocol..." / "Let me add backticks to meet citation requirements..." / "Logging citations to trajectory with grounding type..."
 
 ---
 
 ## Troubleshooting
 
-### Symptom: Citations rejected by reviewing-code agent
-
-**Diagnosis**: Missing code quotes or using relative paths
-**Fix**: Add word-for-word quotes, convert to absolute paths
-**Check**: Verify citation format matches template
-
-### Symptom: Code quotes don't match actual file
-
-**Diagnosis**: Code changed after search or incorrect line number
-**Fix**: Re-read file, update citation with current code
-**Check**: `sed -n '<line>p' <file>` to verify line content
-
-### Symptom: Too many code quotes (output verbose)
-
-**Diagnosis**: Over-citing, including non-critical details
-**Fix**: Cite only architectural decisions, not every line
-**Check**: Focus on function signatures, key logic, configuration
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| Citations rejected by reviewing-code | Missing code quotes or relative paths | Add word-for-word quotes, convert to absolute paths |
+| Code quotes don't match the actual file | Code changed after search, or the line number is wrong | Re-read the file, update the citation with current code |
+| Too many code quotes (verbose output) | Over-citing, including non-critical details | Cite only architectural decisions: signatures, key logic, configuration |
 
 ---
 
-## Self-Audit Checkpoint (merged from self-audit-checkpoint.md, cycle-121)
+## Self-Audit Checkpoint
 
 Before marking grounded work complete, verify against the trajectory log:
 
@@ -415,51 +193,43 @@ grounded_claims=$(grep '"grounding":"citation"' trajectory.jsonl | wc -l)
 
 **Claim classification**: GROUNDED (word-for-word citation with file:line) · ASSUMPTION (explicitly `[ASSUMPTION]`-flagged) · GHOST (documented feature with zero code evidence) · SHADOW (code with zero documentation).
 
-**DO NOT complete the task if**: grounding ratio < 0.95 · any unflagged assumption · relative paths in citations · citations without code quotes · Ghost Features untracked (Beads) · Shadow Systems missing from drift-report.md · incomplete evidence chains. Remediate, then re-audit.
+**Do not complete the task if**: grounding ratio < 0.95 · any unflagged assumption · relative paths in citations · citations without code quotes · Ghost Features untracked in Beads · Shadow Systems missing from drift-report.md · incomplete evidence chains. Remediate, then re-audit.
 
 ---
 
-## Negative Grounding — claims of absence (merged from negative-grounding.md, cycle-121)
+## Negative Grounding - claims of absence
 
-A claim that a feature does NOT exist requires **two-query verification** (KF-019 class: confabulated absence):
+A claim that a feature does NOT exist requires two-query verification:
 
-1. **Query 1** — the feature's functional description from docs
-2. **Query 2** — architectural/technical synonyms (different semantic angle)
+1. **Query 1** - the feature's functional description from docs
+2. **Query 2** - architectural/technical synonyms (a different semantic angle)
 
-Exactly two queries (one under-tests, three over-fit). Classification:
+Exactly two queries - one under-tests, three over-fit.
 
 | Code results | Doc mentions | Classification | Action |
 |--------------|--------------|----------------|--------|
 | 0 | 0-2 | CONFIRMED GHOST | Track in Beads, remove from docs, drift-report entry |
-| 0 | 3+ | HIGH AMBIGUITY | Flag for human audit — never assert absence unilaterally |
+| 0 | 3+ | HIGH AMBIGUITY | Flag for human audit - never assert absence unilaterally |
 | 1+ | any | NOT GHOST | Feature exists; verify doc alignment |
 
-Ghost findings never count as grounded claims; log to trajectory with both query strings as evidence.
+Ghost findings never count as grounded claims; log both query strings as evidence.
 
 ---
 
-## Evidence-Driven Decisions (merged from edd-verification.md, cycle-121)
+## Evidence-Driven Decisions
 
-Non-trivial implementation decisions carry an **evidence chain** (citations for each input to the decision) plus **three test scenarios** — happy path, edge case, error handling — each with specific assertions. A decision with unflagged `[ASSUMPTION]`s outstanding is not complete.
+Non-trivial implementation decisions carry an evidence chain (a citation for each input to the decision) plus three test scenarios - happy path, edge case, error handling - each with specific assertions. A decision with unflagged `[ASSUMPTION]`s outstanding is not complete.
 
 ---
 
 ## Related Protocols
 
-- **Trajectory Evaluation** (`.claude/protocols/trajectory-evaluation.md`) - Log citations to trajectory
-- **Tool Result Clearing** (`.claude/protocols/tool-result-clearing.md`) - Extract citations during synthesis
-- **Grounding Enforcement** (`.claude/protocols/grounding-enforcement.md`) - Ratio rule and enforcement detail
+- **Trajectory Evaluation** (`.claude/protocols/trajectory-evaluation.md`) - log citations to trajectory
+- **Tool Result Clearing** (`.claude/protocols/tool-result-clearing.md`) - extract citations during synthesis
+- **Grounding Enforcement** (`.claude/protocols/grounding-enforcement.md`) - ratio rule and enforcement detail
 
 ---
 
-## Version History
+## Provenance
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-12-27 | Initial protocol creation (Sprint 3) |
-| 1.1 | 2026-07-29 | cycle-121: merged unique content of negative-grounding.md, self-audit-checkpoint.md, edd-verification.md (files deleted) |
-
----
-
-**Status**: ✅ Protocol Complete
-**Next**: Integrate into agent skills (Sprint 4)
+Removed from rule text (kept the rules, dropped the archaeology): the "Version History" changelog table and the closing roadmap line; `cycle-121` merge notes on the Self-Audit Checkpoint, Negative Grounding, and Evidence-Driven Decisions headings (content unchanged); an inline `KF-019` taxonomy tag on the negative-grounding rule.

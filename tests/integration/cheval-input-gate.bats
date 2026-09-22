@@ -21,6 +21,9 @@
 # =============================================================================
 
 setup() {
+    # cycle-124 FR-6: never let a test spawn write the repo's ledgers.
+    export LOA_MODELINV_LOG_PATH="${LOA_MODELINV_LOG_PATH:-$BATS_TEST_TMPDIR/model-invoke.jsonl}"
+    export LOA_COST_LEDGER_PATH="${LOA_COST_LEDGER_PATH:-$BATS_TEST_TMPDIR/cost-ledger.jsonl}"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     CHEVAL_PY="$PROJECT_ROOT/.claude/adapters/cheval.py"
@@ -60,8 +63,12 @@ teardown() {
         --max-input-tokens 5 \
         2>&1
     [ "$status" -eq 7 ]
-    [[ "$output" == *"[input-gate]"* ]]
-    [[ "$output" == *"refused"* ]]
+    # cycle-109 T1.3: the pre-flight gate (`[preflight] preempt`) now fires
+    # before the legacy chain-walk gate (`[input-gate]`) on a CLI override,
+    # so the operator-visible marker is the preflight one (cycle-124 T1.3
+    # re-baselined this suite when adding it to CI).
+    [[ "$output" == *"[preflight]"* ]]
+    [[ "$output" == *"preempt"* ]]
     [[ "$output" == *"KF-002"* ]]
 }
 
@@ -191,17 +198,23 @@ import sys, yaml
 with open('$PROJECT_ROOT/.claude/defaults/model-config.yaml') as f:
     cfg = yaml.safe_load(f)
 
-# KF-002 layer 3 thresholds: gpt-5.5-pro fails at 27K (gate at 24K),
-# claude-opus-4-7 fails at >40K (gate at 36K). gemini has no observed
-# failures so no gate ships.
+# KF-002 layer 3 thresholds: gpt-5.5-pro legacy gate 27K, gpt-5.5 24K (per-model;
+# cycle-103 T3.4 split: streaming 200K / legacy 24K — this pin predated the
+# split and was stale until cycle-124 T1.3 added the suite to CI).
+# cycle-124 FR-3: Anthropic entries carry the v3 effective_input_ceiling
+# (180K probed under streaming) instead of the v2 input fields; the 36K
+# legacy wall is a cheval constant (_LEGACY_TRANSPORT_INPUT_WALL). gemini
+# has no observed failures so no gate ships.
 openai_models = cfg['providers']['openai']['models']
 anthropic_models = cfg['providers']['anthropic']['models']
 google_models = cfg['providers']['google']['models']
 
-assert openai_models['gpt-5.5-pro'].get('max_input_tokens') == 24000, openai_models['gpt-5.5-pro'].get('max_input_tokens')
-assert openai_models['gpt-5.5'].get('max_input_tokens') == 24000
-assert anthropic_models['claude-opus-4-7'].get('max_input_tokens') == 36000
-assert anthropic_models['claude-opus-4-6'].get('max_input_tokens') == 36000
+assert openai_models['gpt-5.5-pro'].get('legacy_max_input_tokens') == 27000, openai_models['gpt-5.5-pro']
+assert openai_models['gpt-5.5-pro'].get('streaming_max_input_tokens') == 200000, openai_models['gpt-5.5-pro']
+assert openai_models['gpt-5.5'].get('legacy_max_input_tokens') == 24000, openai_models['gpt-5.5']
+assert anthropic_models['claude-opus-4-7'].get('effective_input_ceiling') == 180000
+assert anthropic_models['claude-opus-4-6'].get('effective_input_ceiling') == 180000
+assert 'max_input_tokens' not in anthropic_models['claude-opus-4-7']
 # Gemini intentionally has no gate
 assert 'max_input_tokens' not in google_models.get('gemini-3.1-pro-preview', {})
 print('OK')
@@ -225,10 +238,13 @@ print('OK')
         2>&1
     [ "$status" -eq 7 ]
     # The operator-visible header is the visible signal; the MODELINV
-    # envelope's operator_visible_warn=true is verified via separate
-    # audit tests at .claude/adapters/tests/test_modelinv.py (carry).
-    [[ "$output" == *"[input-gate]"* ]]
-    [[ "$output" == *"refused"* ]]
-    [[ "$output" == *"--max-input-tokens 0"* ]]
-    [[ "$output" == *"LOA_CHEVAL_DISABLE_INPUT_GATE"* ]]
+    # envelope records PREFLIGHT_PREEMPT in models_failed (verified by
+    # .claude/adapters/tests/test_preflight_preempt_modelinv.py). The
+    # cycle-109 preflight line carries model/estimated/ceiling; the legacy
+    # `[input-gate]` remediation hints belong to the chain-walk gate, which
+    # a CLI override no longer reaches first (cycle-124 T1.3 re-baseline).
+    [[ "$output" == *"[preflight] preempt"* ]]
+    [[ "$output" == *"estimated="* ]]
+    [[ "$output" == *"ceiling=10"* ]]
+    [[ "$output" == *"CONTEXT_TOO_LARGE"* ]]
 }

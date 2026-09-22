@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import logging
 import os
+import stat
 import sys
 import traceback
 from dataclasses import dataclass
@@ -47,6 +49,7 @@ from loa_cheval.routing.resolver import (
 )
 from loa_cheval.routing.context_filter import audit_filter_context
 from loa_cheval.providers import cli_adapter_types, get_adapter
+from loa_cheval.providers.base import _legacy_wire, default_max_tokens  # cycle-124 FR-2/FR-4
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
 
@@ -135,15 +138,14 @@ PERSONA_AUTHORITY = (
 )
 
 
-def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Optional[str]:
-    """Load persona.md for the given agent with optional system merge (SDD §4.3.2).
+def _load_persona_parts(
+    agent_name: str, system_override: Optional[str] = None
+) -> tuple:
+    """Return (persona_text, system_text) — each None when absent.
 
-    Resolution:
-      1. Load persona.md from .claude/skills/<agent>/persona.md
-      2. If --system file provided and exists: merge persona + system with
-         context isolation wrapper
-      3. If --system file missing: fall back to persona alone (not None)
-      4. If no persona found: return system alone (backward compat) or None
+    cycle-124 FR-4: split out of `_load_persona` so the persona (the stable,
+    cacheable prefix) and the per-call context can travel as two system
+    messages; `_load_persona` still returns the joined string.
     """
     # Step 1: Find persona.md
     persona_text = None
@@ -171,6 +173,21 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         else:
             logger.warning("System prompt file not found: %s — falling back to persona", system_override)
 
+    return persona_text, system_text
+
+
+def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Optional[str]:
+    """Load persona.md for the given agent with optional system merge (SDD §4.3.2).
+
+    Resolution:
+      1. Load persona.md from .claude/skills/<agent>/persona.md
+      2. If --system file provided and exists: merge persona + system with
+         context isolation wrapper
+      3. If --system file missing: fall back to persona alone (not None)
+      4. If no persona found: return system alone (backward compat) or None
+    """
+    persona_text, system_text = _load_persona_parts(agent_name, system_override)
+
     # Step 3: Merge or return
     if persona_text and system_text:
         # Merge: persona + separator + context-isolated system + authority reinforcement
@@ -189,6 +206,112 @@ def _load_persona(agent_name: str, system_override: Optional[str] = None) -> Opt
         return system_text
     else:
         return None
+
+
+# cycle-124 FR-4 (SDD §3.3): every adapter joins consecutive system messages
+# with "\n\n" (anthropic_adapter._transform_messages, openai instructions,
+# google system_parts, headless_cli._build_prompt). CONTEXT_SEPARATOR starts
+# with exactly that joiner, so splitting the merged prompt at it keeps the
+# joined text byte-identical to `_load_persona()` on every transport.
+assert CONTEXT_SEPARATOR.startswith("\n\n")
+_CONTEXT_TAIL_SEPARATOR = CONTEXT_SEPARATOR[len("\n\n"):]
+_PERSONA_CACHE_CONTROL: Dict[str, str] = {"type": "ephemeral"}
+
+
+_OUTPUT_SCHEMA_MAX_BYTES = 64 * 1024
+
+
+def _effective_stop_reason(meta):
+    """The stop reason a consumer should act on.
+
+    Anthropic adapters set ``metadata.stop_reason``; the OpenAI adapters record
+    truncation as ``metadata.truncated`` / ``truncation_reason`` instead. The
+    dissent's enforced branch keys its "payload truncated — raise the output
+    budget" hint on ``stop_reason == "max_tokens"``, so a truncated GPT hop
+    must read the same way (late Sprint 2 review, slice A).
+    """
+    meta = meta or {}
+    reason = meta.get("stop_reason")
+    if reason:
+        return reason
+    if meta.get("truncated"):
+        return "max_tokens"
+    return None
+
+
+def _read_output_schema(path: str) -> tuple:
+    """Read `--json-schema FILE` once (cycle-124 FR-7).
+
+    Returns (schema_dict, sha256_hex). The hash is over ONE canonical
+    serialization — `json.dumps(sort_keys=True, separators=(",", ":"))`, the
+    same bytes `jq -cS .` produces — so semantically identical files hash
+    equal. Raises ValueError (mapped to INVALID_INPUT by the caller) when the
+    file is unreadable, not JSON, not an object, or above the 64 KB cap.
+    """
+    try:
+        st = os.stat(path)
+    except OSError as e:
+        raise ValueError(f"--json-schema {path!r}: {e.strerror or e}") from e
+    # A FIFO/device would make the open below block or read forever; only a
+    # regular file is a schema (same rule as the ledger resolver).
+    if not stat.S_ISREG(st.st_mode):
+        raise ValueError(f"--json-schema {path!r}: not a regular file")
+    size = st.st_size
+    if size > _OUTPUT_SCHEMA_MAX_BYTES:
+        raise ValueError(
+            f"--json-schema {path!r}: {size} bytes exceeds the {_OUTPUT_SCHEMA_MAX_BYTES}-byte cap"
+        )
+    try:
+        with open(path, encoding="utf-8") as fh:
+            schema = json.load(fh)
+    except (OSError, ValueError) as e:
+        raise ValueError(f"--json-schema {path!r}: not readable JSON ({e})") from e
+    if not isinstance(schema, dict):
+        raise ValueError(f"--json-schema {path!r}: root must be a JSON object")
+    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":"))
+    return schema, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _persona_messages(agent_name: str, system_override: Optional[str] = None) -> List[Dict[str, Any]]:
+    """System messages for an Anthropic-company chain (cycle-124 FR-4).
+
+    persona.md is the stable prefix shared by every call of an agent, so it
+    carries the ONE prompt-cache breakpoint; the per-call `--system` context
+    follows it as a second system message. With no persona the whole
+    `--system` payload is the stable prefix and carries the breakpoint. The Anthropic adapter turns the
+    marked message into a `cache_control` text block; every other adapter
+    ignores the extra key and joins the two contents with "\n\n" — the exact
+    text `_load_persona()` produces.
+    """
+    persona_text, system_text = _load_persona_parts(agent_name, system_override)
+    out: List[Dict[str, Any]] = []
+    if persona_text:
+        out.append({
+            "role": "system",
+            "content": persona_text,
+            "cache_control": dict(_PERSONA_CACHE_CONTROL),
+        })
+        if system_text:
+            out.append({
+                "role": "system",
+                "content": (
+                    _CONTEXT_TAIL_SEPARATOR
+                    + CONTEXT_WRAPPER_START
+                    + system_text
+                    + CONTEXT_WRAPPER_END
+                    + PERSONA_AUTHORITY
+                ),
+            })
+    elif system_text:
+        # PRD FR-4: with no persona the whole --system payload IS the stable
+        # prefix (Bridgebuilder: INJECTION_HARDENING + bridgebuilder-persona.md
+        # under --agent reviewing-code), so it carries the breakpoint too.
+        out.append({
+            "role": "system",
+            "content": system_text,
+            "cache_control": dict(_PERSONA_CACHE_CONTROL),
+        })
+    return out
 
 
 # cycle-104 Sprint 2 T2.11 amendment: kind:cli adapter routing.
@@ -525,6 +648,14 @@ def _preflight_check(
     )
 
 
+# cycle-124 FR-3 (PRD FR-3, SDD §3.2): the Anthropic non-streaming HTTP path
+# empties / disconnects above ~40K input tokens (KF-002 layer 3, Issue #823
+# replay: 36K gate). The streaming-probed 180K `effective_input_ceiling`
+# replaced the per-entry `legacy_max_input_tokens: 36000` fields; this
+# constant is that wall, applied only when LOA_CHEVAL_DISABLE_STREAMING is set.
+_LEGACY_TRANSPORT_INPUT_WALL = 36_000
+
+
 def _lookup_max_input_tokens(
     provider: str,
     model_id: str,
@@ -575,20 +706,26 @@ def _lookup_max_input_tokens(
     if not isinstance(model_config, dict):
         return None
 
+    # T3.4 split-aware lookup. Operator kill switch decides which field.
+    _streaming_killed = os.environ.get(
+        "LOA_CHEVAL_DISABLE_STREAMING", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
     # cycle-109 Sprint 1 T1.3 — prefer v3 `effective_input_ceiling` when
     # present. The v3 field is the empirically-calibrated tight bound; v2
     # streaming/legacy fields are the broader fallback for unmigrated
     # entries. Sequencing: pre-flight gate consults `_lookup_capability`
     # directly for the richer surface; this helper continues to return
     # Optional[int] for the legacy chain-walk gate at cheval.py:858.
+    # cycle-124 FR-3: Anthropic entries no longer carry the v2 split fields;
+    # the 180K ceiling was probed under streaming, so with streaming killed
+    # the pre-Sprint-4A 36K wall (KF-002 layer 3, Issue #823) applies again.
     v3_ceiling = model_config.get("effective_input_ceiling")
     if isinstance(v3_ceiling, int) and v3_ceiling > 0:
+        if _streaming_killed and provider == "anthropic":
+            return min(v3_ceiling, _LEGACY_TRANSPORT_INPUT_WALL)
         return v3_ceiling
 
-    # T3.4 split-aware lookup. Operator kill switch decides which field.
-    _streaming_killed = os.environ.get(
-        "LOA_CHEVAL_DISABLE_STREAMING", ""
-    ).strip().lower() in ("1", "true", "yes", "on")
     preferred_field = (
         "legacy_max_input_tokens" if _streaming_killed
         else "streaming_max_input_tokens"
@@ -603,6 +740,70 @@ def _lookup_max_input_tokens(
     if not isinstance(threshold, int) or threshold <= 0:
         return None
     return threshold
+
+
+def _lookup_max_output_tokens(
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+) -> Optional[int]:
+    """Catalog `max_output_tokens` for (provider, model_id), or None.
+
+    cycle-124 FR-2: the clamp source for `default_max_tokens()` — the per-hop
+    output budget never exceeds what the catalog says the model can emit.
+    Malformed / absent values read as None (caller falls back to 4096).
+    """
+    models = (hounfour.get("providers", {}) or {}).get(provider, {})
+    if not isinstance(models, dict):
+        return None
+    entry = (models.get("models", {}) or {}).get(model_id, {})
+    if not isinstance(entry, dict):
+        return None
+    value = entry.get("max_output_tokens")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _hop_max_tokens(
+    explicit: Optional[int],
+    provider: str,
+    model_id: str,
+    hounfour: Dict[str, Any],
+) -> int:
+    """Output budget for one chain hop (cycle-124 FR-2, SDD §3.2).
+
+    explicit None ⇒ `default_max_tokens()` for this hop's provider/model.
+    explicit N>0  ⇒ N, clamped to the catalog `max_output_tokens` when the
+    catalog declares one smaller than N (a 200K request against a 128K model
+    would otherwise 400 at the wire).
+    """
+    model_max = _lookup_max_output_tokens(provider, model_id, hounfour)
+    if explicit is None:
+        return default_max_tokens(provider=provider, model_max_output=model_max)
+    if model_max is not None and explicit > model_max:
+        logger.warning(
+            "max_tokens %d exceeds %s:%s max_output_tokens %d — clamped",
+            explicit, provider, model_id, model_max,
+        )
+        return model_max
+    return explicit
+
+
+def _entry_thinking_class(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """True iff this hop's model reasons before answering (cycle-124 FR-1).
+
+    Two catalog shapes mean "thinking on": `params.thinking_adaptive: true`
+    (the 4.6–4.8 family and Opus 5 / Sonnet 5, where the adapter requests it)
+    and `params.temperature_supported: false` without the flag (Fable 5 /
+    5.1, where thinking is always on and the param must be omitted).
+    """
+    try:
+        models = (hounfour.get("providers", {}) or {}).get(entry.provider, {}).get("models", {}) or {}
+        params = (models.get(entry.model_id, {}) or {}).get("params") or {}
+        return params.get("thinking_adaptive") is True or params.get("temperature_supported") is False
+    except AttributeError:
+        return False
 
 
 def _check_feature_flags(hounfour: Dict[str, Any], provider: str, model_id: str) -> Optional[str]:
@@ -1057,6 +1258,32 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json("INVALID_INPUT", "Missing --agent argument"), file=sys.stderr)
         return EXIT_CODES["INVALID_INPUT"]
 
+    # cycle-124 FR-2: `--max-tokens` is optional; None ⇒ per-hop default.
+    # 0 / negative used to be silently rewritten to 4096 (`or 4096`) — an
+    # operator asking for zero output is a misconfiguration, so refuse.
+    # cycle-124 FR-7: --json-schema is read ONCE, validated (object root,
+    # <= 64 KB, parseable) and hashed canonically for the envelope; a bad file
+    # is INVALID_INPUT before any model is touched.
+    _output_schema: Optional[Dict[str, Any]] = None
+    _output_schema_sha: Optional[str] = None
+    if getattr(args, "json_schema", None) is not None:
+        # `is not None`: `--json-schema ""` is a bad path (INVALID_INPUT), not
+        # "no schema requested" (late Sprint 2 review, slice A).
+        try:
+            _output_schema, _output_schema_sha = _read_output_schema(args.json_schema)
+        except ValueError as _schema_err:
+            print(_error_json("INVALID_INPUT", str(_schema_err)), file=sys.stderr)
+            return EXIT_CODES.get("INVALID_INPUT", 2)
+
+    _explicit_max_tokens = getattr(args, "max_tokens", None)
+    if _explicit_max_tokens is not None and _explicit_max_tokens <= 0:
+        print(_error_json(
+            "INVALID_INPUT",
+            f"--max-tokens must be a positive integer (got {_explicit_max_tokens}); "
+            "omit it for the per-model default",
+        ), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+
     # Cycle-108 sprint-1 T1.H + sprint-2 T2.J (C1 closure) — advisor-strategy
     # role-based routing. Backward-compat: --role is OPTIONAL.
     #
@@ -1144,7 +1371,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             "resolved_provider": resolved.provider,
             "resolved_model": resolved.model_id,
             "temperature": binding.temperature,
+            # cycle-124 FR-2: the output budget the primary hop would use
+            # (explicit value clamped, or the per-model default) + effort.
+            "max_tokens": _hop_max_tokens(
+                _explicit_max_tokens, resolved.provider, resolved.model_id, hounfour
+            ),
+            "effort": getattr(args, "effort", None),
         }
+        if _output_schema_sha is not None:
+            result["output_schema_sha256"] = _output_schema_sha
         print(json.dumps(result, indent=2), file=sys.stdout)
         # Dry-run does not invoke a model — no MODELINV emit.
         return EXIT_CODES["SUCCESS"]
@@ -1330,6 +1565,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # clean-output in /loa status --economy (replaces the Phase A
         # estimate-only proxy).
         "tokens_input": None,
+        # cycle-124 FR-4: prompt-cache telemetry (schema fields from U0).
+        "tokens_cache_read": None,
+        "tokens_cache_creation": None,
         "tokens_output": None,
     }
     _verbose = bool(os.environ.get("LOA_HEADLESS_VERBOSE"))
@@ -1359,11 +1597,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # Build messages
     messages = []
 
-    # System prompt: persona.md merged with --system (context isolation)
-    persona = _load_persona(agent_name, system_override=args.system)
-    if persona:
-        messages.append({"role": "system", "content": persona})
+    # System prompt: persona.md merged with --system (context isolation).
+    # cycle-124 FR-4: an Anthropic-company chain (HTTP hops + the claude-headless
+    # terminal — chains never cross companies) gets persona + context as two
+    # system messages with the cache breakpoint on the persona; everything else
+    # keeps the single merged string (AC-4.4 golden bodies). The legacy-wire
+    # kill switch restores the merged string on Anthropic too.
+    if resolved.provider == "anthropic" and not _legacy_wire():
+        persona_msgs = _persona_messages(agent_name, system_override=args.system)
+        persona = persona_msgs[0]["content"] if persona_msgs else None
+        messages.extend(persona_msgs)
     else:
+        persona = _load_persona(agent_name, system_override=args.system)
+        if persona:
+            messages.append({"role": "system", "content": persona})
+    if not persona:
         logger.warning(
             "No system prompt loaded for agent '%s'. "
             "Expected persona at: .claude/skills/%s/persona.md — "
@@ -1403,8 +1651,17 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         messages=messages,
         model=_chain.primary.model_id,
         temperature=binding.temperature or 0.7,
-        max_tokens=args.max_tokens or 4096,
-        metadata={"agent": agent_name},
+        # cycle-124 FR-2: explicit `--max-tokens` (clamped) or the primary
+        # hop's per-model default; each fallback hop recomputes its own.
+        max_tokens=_hop_max_tokens(
+            _explicit_max_tokens, _chain.primary.provider, _chain.primary.model_id, hounfour
+        ),
+        metadata=(
+            {"agent": agent_name, "output_schema_name": os.path.basename(str(args.json_schema))}
+            if _output_schema is not None else {"agent": agent_name}
+        ),
+        effort=getattr(args, "effort", None),
+        output_schema=_output_schema,
     )
 
     # cycle-104 Sprint 2: async mode is incompatible with multi-entry chain
@@ -1434,7 +1691,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     if metering_enabled:
         metering_config = hounfour.get("metering", {})
         if metering_config.get("enabled", True):
-            ledger_path = metering_config.get("ledger_path", ".run/cost-ledger.jsonl")
+            # cycle-124 FR-6: LOA_COST_LEDGER_PATH > metering.ledger_path >
+            # .run/cost-ledger.jsonl, canonicalized; a symlink target or a
+            # missing parent is INVALID_CONFIG (same shape as resolve_execution).
+            try:
+                from loa_cheval.metering.ledger import resolve_cost_ledger_path
+                ledger_path = resolve_cost_ledger_path(metering_config)
+            except ConfigError as e:
+                print(_error_json(e.code, str(e)), file=sys.stderr)
+                return EXIT_CODES.get(e.code, 2)
             budget_hook = BudgetEnforcer(
                 config=hounfour,
                 ledger_path=ledger_path,
@@ -1690,9 +1955,16 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 messages=base_request.messages,
                 model=_entry.model_id,
                 temperature=base_request.temperature,
-                max_tokens=base_request.max_tokens,
+                # cycle-124 FR-2: per-hop budget — a fallback hop with a
+                # smaller max_output_tokens (or a non-Anthropic default) does
+                # not inherit the primary's 64K.
+                max_tokens=_hop_max_tokens(
+                    _explicit_max_tokens, _entry.provider, _entry.model_id, hounfour
+                ),
                 metadata=base_request.metadata,
                 tools=getattr(base_request, "tools", None),
+                effort=base_request.effort,
+                output_schema=base_request.output_schema,
             )
 
             # 4. Async mode (chain length forced to 1 by upfront check).
@@ -1943,8 +2215,34 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     _modelinv_state["tokens_input"] = _in
                 if isinstance(_out, int) and _out >= 0:
                     _modelinv_state["tokens_output"] = _out
+                # cycle-124 FR-4: cache counts, same defensive shape.
+                _cr = getattr(_usage, "cache_read_input_tokens", None)
+                _cc = getattr(_usage, "cache_creation_input_tokens", None)
+                if isinstance(_cr, int) and not isinstance(_cr, bool) and _cr >= 0:
+                    _modelinv_state["tokens_cache_read"] = _cr
+                if isinstance(_cc, int) and not isinstance(_cc, bool) and _cc >= 0:
+                    _modelinv_state["tokens_cache_creation"] = _cc
             _result_meta = getattr(_result, "metadata", None) or {}
             _modelinv_state["streaming"] = _result_meta.get("streaming")
+            # cycle-124 FR-7: enforcement telemetry only when a schema was
+            # requested — absent rows mean "no schema", never "unenforced".
+            if _output_schema is not None:
+                _modelinv_state["schema_enforced"] = bool(_result_meta.get("schema_enforced", False))
+                _modelinv_state["output_schema_sha256"] = _output_schema_sha
+            # cycle-124 FR-1/FR-4 (SDD §3.3): a thinking-enabled response that
+            # stopped at max_tokens spent the budget on reasoning — the
+            # visible answer is truncated. Flag it on the envelope and to the
+            # operator instead of letting a short verdict pass silently.
+            if _effective_stop_reason(_result_meta) == "max_tokens" and (
+                _entry_thinking_class(_entry, hounfour) or bool(getattr(_result, "thinking", None))
+            ):
+                _modelinv_state["operator_visible_warn"] = True
+                print(
+                    f"[cheval] WARN: {_entry.provider}:{_entry.model_id} stopped at "
+                    f"max_tokens={_entry_request.max_tokens} with thinking on — "
+                    "the answer is truncated; raise --max-tokens or lower --effort",
+                    file=sys.stderr,
+                )
             # cycle-113 sprint-170 T3.3 (FR-C-1, I-3): propagate the
             # streaming_recovery telemetry from result.metadata to the
             # MODELINV emit. The parser attaches a complete
@@ -1973,6 +2271,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         _snapshot["reasoning_per_mtok"] = int(_pricing_entry.reasoning_per_mtok)
                     if getattr(_pricing_entry, "per_task_micro_usd", 0):
                         _snapshot["per_task_micro_usd"] = int(_pricing_entry.per_task_micro_usd)
+                    # cycle-124 FR-4: cache rates travel with the snapshot so
+                    # roll-ups price cache tokens from the envelope, not from
+                    # today's catalog.
+                    if getattr(_pricing_entry, "cache_read_per_mtok", 0):
+                        _snapshot["cache_read_per_mtok"] = int(_pricing_entry.cache_read_per_mtok)
+                    if getattr(_pricing_entry, "cache_write_per_mtok", 0):
+                        _snapshot["cache_write_per_mtok"] = int(_pricing_entry.cache_write_per_mtok)
                     _modelinv_state["pricing_snapshot"] = _snapshot
             except Exception:  # noqa: BLE001 — pricing capture is fail-soft
                 # Missing or malformed pricing → envelope omits the field
@@ -2029,8 +2334,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "usage": {
                     "input_tokens": _result.usage.input_tokens,
                     "output_tokens": _result.usage.output_tokens,
+                    # cycle-124 FR-4: cache telemetry (0 when the provider
+                    # reports none — the count tells the truth about eligibility).
+                    "cache_read_input_tokens": getattr(_result.usage, "cache_read_input_tokens", 0) or 0,
+                    "cache_creation_input_tokens": getattr(_result.usage, "cache_creation_input_tokens", 0) or 0,
                 },
                 "latency_ms": _result.latency_ms,
+                # cycle-124 FR-7: whether the provider enforced the requested
+                # schema (false when none was requested or the hop cannot).
+                "schema_enforced": bool((getattr(_result, "metadata", None) or {}).get("schema_enforced", False)),
+                # cycle-124 FR-7: the dissent's enforced branch treats a
+                # max_tokens stop as a truncated (malformed) payload.
+                "stop_reason": _effective_stop_reason(getattr(_result, "metadata", None) or {}),
             }
             if _result.thinking and getattr(args, "include_thinking", False):
                 output["thinking"] = _result.thinking
@@ -2130,6 +2445,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # Same source-of-truth as chunked-path emit above.
                     tokens_input=_modelinv_state.get("tokens_input"),
                     tokens_output=_modelinv_state.get("tokens_output"),
+                    # cycle-124 FR-2: requested effort (schema field since cycle-114
+                    # FR-8, never populated before this cycle).
+                    effort=getattr(args, "effort", None),
+                    # cycle-124 FR-4: prompt-cache telemetry.
+                    tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
+                    tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),
+                    # cycle-124 FR-7: structured-output telemetry (schema requested only).
+                    schema_enforced=_modelinv_state.get("schema_enforced"),
+                    output_schema_sha256=_modelinv_state.get("output_schema_sha256"),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
@@ -2293,7 +2617,31 @@ def main() -> int:
     parser.add_argument("--prompt", help="Inline prompt text (mutually exclusive with --input)")
     parser.add_argument("--system", help="Path to system prompt file (overrides persona.md)")
     parser.add_argument("--model", help="Model override (alias or provider:model-id)")
-    parser.add_argument("--max-tokens", type=int, default=4096, dest="max_tokens", help="Maximum output tokens")
+    parser.add_argument(
+        "--max-tokens", type=int, default=None, dest="max_tokens",
+        help=(
+            "Maximum output tokens. Default (cycle-124 FR-2): per model — Anthropic "
+            "hops min(64000 streaming | 16000 with LOA_CHEVAL_DISABLE_STREAMING, "
+            "catalog max_output_tokens); other providers 4096. Explicit values are "
+            "clamped to the catalog max_output_tokens; 0 is rejected."
+        ),
+    )
+    parser.add_argument(
+        "--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
+        help=(
+            "Anthropic output_config.effort (cycle-124 FR-2). Omitted on models that "
+            "predate the control; xhigh is downgraded to high on the 4.6 generation."
+        ),
+    )
+    parser.add_argument(
+        "--json-schema", dest="json_schema", metavar="FILE", default=None,
+        help=(
+            "JSON Schema file the answer must conform to (cycle-124 FR-7). Enforced "
+            "on Anthropic `structured_json` entries (output_config.format) and on "
+            "claude-headless (--json-schema); other hops run unenforced and the "
+            "MODELINV envelope records schema_enforced=false. Object root, <= 64 KB."
+        ),
+    )
     parser.add_argument(
         "--max-input-tokens",
         type=int,

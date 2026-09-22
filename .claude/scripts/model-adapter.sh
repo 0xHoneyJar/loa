@@ -300,13 +300,36 @@ translate_output() {
             model: $model,
             mode: $mode,
             phase: $phase,
-            cost_usd: 0
+            cost_usd: 0,
+            schema_enforced: (.schema_enforced // false),
+            stop_reason: (.stop_reason // null)
         }'
 }
 
 # =============================================================================
 # Shim Main
 # =============================================================================
+
+# cycle-124 FR-9 (SDD §3.6): effort resolution for the cheval hop.
+#   resolve_effort <arg> <skill> <skills-dir>
+# Precedence: --effort arg > the skill's SKILL.md frontmatter `effort:` (the
+# key validate-skill-capabilities.sh already validates) > none. Anything that
+# is not one of low|medium|high|xhigh|max resolves to nothing (no flag), and a
+# skill name that is not a bare directory name is ignored (no path walk).
+resolve_effort() {
+    local arg="${1:-}" skill="${2:-}" skills_dir="${3:-}" cand="" fm
+    if [[ -n "$arg" ]]; then
+        cand="$arg"
+    elif [[ -n "$skill" && "$skill" =~ ^[A-Za-z0-9_-]+$ && -f "$skills_dir/$skill/SKILL.md" ]]; then
+        fm=$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} NR>1' "$skills_dir/$skill/SKILL.md")
+        cand=$(printf '%s\n' "$fm" | grep -E '^effort:' | head -1 \
+               | sed -E 's/^effort:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]+$//; s/^"(.*)"$/\1/')
+    fi
+    case "$cand" in
+        low|medium|high|xhigh|max) printf '%s' "$cand" ;;
+        *) printf '' ;;
+    esac
+}
 
 usage() {
     cat <<EOF
@@ -382,6 +405,9 @@ main() {
     # omits --skill, model-invoke (cheval) falls back to --agent name
     # as calling_primitive.
     local skill=""
+    local max_tokens=""
+    local json_schema=""
+    local effort_arg=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -417,6 +443,25 @@ main() {
                 # cycle-112 D-6 — forwarded to MODEL_INVOKE for
                 # calling_primitive attribution
                 skill="$2"
+                shift 2
+                ;;
+            --max-tokens)
+                # cycle-124 FR-2 — forwarded to MODEL_INVOKE; callers with a
+                # bounded output shape (adversarial dissent) pass it explicitly
+                # so cheval's per-model default (Anthropic 64K) does not apply.
+                max_tokens="$2"
+                shift 2
+                ;;
+            --json-schema)
+                # cycle-124 FR-7 — wire schema file forwarded to MODEL_INVOKE;
+                # cheval enforces it where the hop can and reports schema_enforced.
+                json_schema="$2"
+                shift 2
+                ;;
+            --effort)
+                # cycle-124 FR-9 — caller override; otherwise the skill's
+                # frontmatter `effort:` decides (resolve_effort below).
+                effort_arg="$2"
                 shift 2
                 ;;
             --max-retries)
@@ -531,6 +576,19 @@ main() {
     # was not passed to model-adapter, cheval falls back to agent name.
     if [[ -n "$skill" ]]; then
         invoke_args+=(--skill "$skill")
+    fi
+    if [[ -n "$max_tokens" ]]; then
+        invoke_args+=(--max-tokens "$max_tokens")
+    fi
+    if [[ -n "$json_schema" ]]; then
+        invoke_args+=(--json-schema "$json_schema")
+    fi
+    # cycle-124 FR-9: effort is a pure function of (arg, skill) — never per
+    # attempt — so it cannot invalidate the cached prompt prefix (FR-4).
+    local effort
+    effort="$(resolve_effort "$effort_arg" "$skill" "$SCRIPT_DIR/../skills")"
+    if [[ -n "$effort" ]]; then
+        invoke_args+=(--effort "$effort")
     fi
 
     # cycle-109 Sprint 3 T3.7 — mock mode routes through cheval's

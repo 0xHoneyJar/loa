@@ -1,0 +1,20 @@
+id: implement-03
+schema_version: 1
+skill: implementing-tasks
+category: skill-quality
+fixture: implement-tasks/03
+description: "implementation discipline on fixture 03: test-first, surgical diff, zone compliance, tests pass"
+prompt: "Implement the task described in TASK.md following your implementing-tasks skill. There is no sprint plan, beads database or grimoires/loa/a2a directory in this workspace: TASK.md is the sprint task and the only input. Skip any pre-flight step that needs them, do not ask questions, and finish by making sure the test suite passes."
+agent:
+  skill: implementing-tasks
+trials: 3
+timeout:
+  per_trial: 1500
+  per_grader: 180
+graders:
+  - type: code
+    script: implement-discipline.sh
+    args: ["03"]
+    weight: 1.0
+difficulty: basic
+tags: ["cycle-124", "fr-9", "implement-discipline"]

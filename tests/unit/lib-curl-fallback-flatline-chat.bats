@@ -26,6 +26,10 @@ setup() {
     # Per-test sandbox for temp files we want to inspect.
     TMP_DIR="$(mktemp -d)"
     export TMP_DIR
+    # cycle-124 Sprint 4 (G-6): the round-trip case reaches the real cheval.py
+    # through a shim — keep its MODELINV + cost rows out of the production ledgers.
+    export LOA_MODELINV_LOG_PATH="$TMP_DIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$TMP_DIR/cost-ledger.jsonl"
 
     # Track temp files at start so we can detect leaks.
     BEFORE_TMP_COUNT=$(find /tmp -maxdepth 1 -name "tmp.*" -newer /dev/null 2>/dev/null | wc -l)

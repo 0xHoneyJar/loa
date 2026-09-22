@@ -243,3 +243,86 @@ EOF
     [[ "$status" -eq 2 ]]
     echo "$output" | grep -q 'Unknown mode'
 }
+
+# -----------------------------------------------------------------------------
+# sprint-bug-240 (bug 20260923-27d899): a SemVer prerelease is a valid
+# framework version. shields.io needs a literal dash escaped as `--`, so the
+# badge for 2.0.0-rc.1 reads version-2.0.0--rc.1-blue.svg.
+# -----------------------------------------------------------------------------
+@test "sprint-bug-240: --check accepts a prerelease framework_version with the shields-escaped badge" {
+    cat > "$TEST_README" <<'README'
+# Loa
+Version: 2.0.0-rc.1
+
+[![Version](https://img.shields.io/badge/version-2.0.0--rc.1-blue.svg)](CHANGELOG.md)
+README
+    jq -n '{framework_version: "2.0.0-rc.1", schema_version: 2}' > "$TEST_VERSION_FILE"
+
+    run "$TEST_SCRIPT" --check
+    [[ "$status" -eq 0 ]] || {
+        echo "Expected exit 0 for a prerelease version; got $status: $output"
+        return 1
+    }
+}
+
+@test "sprint-bug-240: --apply rewrites a release README to the release candidate in lock-step" {
+    _write_synced "1.202.1"
+    jq '.framework_version = "2.0.0-rc.1"' "$TEST_VERSION_FILE" > "$TEST_VERSION_FILE.tmp"
+    mv "$TEST_VERSION_FILE.tmp" "$TEST_VERSION_FILE"
+
+    run "$TEST_SCRIPT" --apply
+    [[ "$status" -eq 0 ]]
+    grep -qF 'Version: 2.0.0-rc.1' "$TEST_README"
+    grep -qF 'version-2.0.0--rc.1-blue.svg' "$TEST_README"
+    if grep -qF '1.202.1' "$TEST_README"; then
+        echo "Stale release reference still present"
+        return 1
+    fi
+
+    run "$TEST_SCRIPT" --check
+    [[ "$status" -eq 0 ]]
+}
+
+@test "sprint-bug-240: --apply promotes a release-candidate README to the release" {
+    cat > "$TEST_README" <<'README'
+# Loa
+Version: 2.0.0-rc.3
+
+[![Version](https://img.shields.io/badge/version-2.0.0--rc.3-blue.svg)](CHANGELOG.md)
+README
+    jq -n '{framework_version: "2.0.0", schema_version: 2}' > "$TEST_VERSION_FILE"
+
+    run "$TEST_SCRIPT" --apply
+    [[ "$status" -eq 0 ]]
+    grep -qF 'Version: 2.0.0' "$TEST_README"
+    grep -qF 'version-2.0.0-blue.svg' "$TEST_README"
+    if grep -qF 'rc.3' "$TEST_README"; then
+        echo "Prerelease reference survived promotion"
+        return 1
+    fi
+}
+
+@test "sprint-bug-240: invalid prerelease identifiers are rejected with exit 2 (SemVer §9 grammar, review dissent DISS-001)" {
+    local bad
+    for bad in "2.0.0-01" "2.0.0-rc..1" "2.0.0-rc." "2.0.0-rc.01"; do
+        _write_synced "1.0.0"
+        jq --arg v "$bad" '.framework_version = $v' "$TEST_VERSION_FILE" > "$TEST_VERSION_FILE.tmp"
+        mv "$TEST_VERSION_FILE.tmp" "$TEST_VERSION_FILE"
+        run "$TEST_SCRIPT" --check
+        [[ "$status" -eq 2 ]] || {
+            echo "Expected exit 2 for '$bad'; got $status: $output"
+            return 1
+        }
+    done
+    # and the valid dotted forms still pass validation (drift, not a format error)
+    for good in "2.0.0-rc.1" "2.0.0-alpha.beta" "2.0.0-0.3.7" "2.0.0-x-y-z.1"; do
+        _write_synced "1.0.0"
+        jq --arg v "$good" '.framework_version = $v' "$TEST_VERSION_FILE" > "$TEST_VERSION_FILE.tmp"
+        mv "$TEST_VERSION_FILE.tmp" "$TEST_VERSION_FILE"
+        run "$TEST_SCRIPT" --check
+        [[ "$status" -eq 1 ]] || {
+            echo "Expected exit 1 (drift) for valid '$good'; got $status: $output"
+            return 1
+        }
+    done
+}

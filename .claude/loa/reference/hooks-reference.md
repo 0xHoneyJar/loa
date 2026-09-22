@@ -153,7 +153,12 @@ It does **NOT** guard:
   wrapping (`bash -c`, `$(...)`), `eval`/base64 decode, SQL comments containing
   `WHERE`, python scripts loaded from disk, and `jq` absent from PATH all bypass
   `block-destructive-bash.sh` by design — see cycle-111 SDD §11 for the full
-  accepted-bypass list and rationale.
+  accepted-bypass list and rationale. The NOTES.md size gate (cycle-124 FR-10)
+  inherits the same classes: `notes-size-guard.sh` sees Write/Edit/MultiEdit
+  payloads and `FR-NOTES` sees `>>` appends; `python -c`, `tee`, heredocs into
+  the file and other Bash writers are an accepted bypass — the writer-side gate
+  is `update-notes-learnings.sh`, and `notes-guard.sh rotate` (mv) is never
+  intercepted, so the escape hatch cannot deadlock.
 
 Treat the safety hooks as defense-in-depth against accidental damage by
 autonomous agents — not as a sandbox.
@@ -172,6 +177,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
 | PreToolUse | Edit | `safety/team-role-guard-write.sh` | Block teammate edits to System Zone, state files, and append-only files |
 | PreToolUse | Skill | `safety/team-skill-guard.sh` | Block lead-only skill invocations for teammates |
+| PreToolUse | Write/Edit/MultiEdit | `safety/notes-size-guard.sh` | Refuse a write that would grow `grimoires/loa/NOTES.md` at/over 200 KiB (shrinking edits and `notes-guard.sh rotate` pass) |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
 | PostToolUse | Write | `audit/write-mutation-logger.sh` | Log Write tool file modifications |
 | PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |

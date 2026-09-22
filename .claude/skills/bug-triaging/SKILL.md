@@ -36,8 +36,8 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:a96d9dc0 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
-## Pre-Execution Guardrails (mechanized — cycle-119)
+<!-- @skill-include: start input_guardrails | hash:6afc5b7e | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+## Pre-Execution Guardrails (mechanized)
 
 Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
@@ -49,7 +49,7 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
 | JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving pre-cycle-119 semantics |
+| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -72,17 +72,6 @@ prompt unchanged.
 Triage a reported bug through structured phases: validate eligibility, gather details,
 analyze codebase, and produce a handoff contract for `/implement`. Bugs always get their
 own micro-sprint. Test-first is non-negotiable.
-
-## Constraint Summary
-
-- NEVER accept feature work through `/bug` — redirect to `/plan`
-- NEVER skip eligibility validation
-- NEVER create micro-sprint without at least one verifiable artifact
-- ALWAYS apply PII redaction to imported content and outputs
-- ALWAYS use atomic writes (temp + rename) for state files
-- ALWAYS halt if no test runner is detected
-
----
 
 ## Phase 0: Dependency Check
 
@@ -108,30 +97,6 @@ If `--from-issue` is used:
 1. Check `gh auth status` succeeds
 2. If not authenticated: HALT with "Run `gh auth login` first"
 
-### Procedure
-
-```
-1. Check required tools (jq, git)
-   - If ANY missing → HALT with install guidance
-2. Check optional tools (gh, br)
-   - If gh missing AND --from-issue used → HALT with auth guidance
-   - If gh missing AND no --from-issue → continue (not needed)
-   - If br missing → WARN and continue without beads
-3. If --from-issue: verify gh auth status
-   - If not authenticated → HALT
-4. Log tool availability to triage output
-```
-
-### Failure Modes
-
-| Failure | Action | Recovery |
-|---------|--------|----------|
-| jq missing | HALT | "Install jq: `brew install jq` / `apt install jq`" |
-| git missing | HALT | "Git is required" |
-| gh not authenticated | HALT | "Run `gh auth login` first" |
-| gh missing + --from-issue | HALT | "Install GitHub CLI: `brew install gh`" |
-| gh missing (no --from-issue) | Continue | Not needed for manual input |
-| br not found | WARN | "Beads not available. Task tracking will be skipped." |
 
 ---
 
@@ -220,19 +185,9 @@ IF score > 2:
 
 ### Exception Policy
 
-Some bugs legitimately require changes matching disqualifiers (e.g., backward-compatible
-schema fix for data corruption). The CONFIRM path handles this:
-- User can override a disqualifier with explicit confirmation
-- Override is logged in triage.md with reasoning
-- Overrides are surfaced in review/audit phases for human verification
+Some bugs legitimately match a disqualifier (a backward-compatible schema fix for data corruption): the user may override it with explicit confirmation; the override and its reasoning are logged in triage.md and surfaced in review/audit.
 
-### Failure Modes
-
-| Failure | Action | Recovery |
-|---------|--------|----------|
-| --from-issue fetch fails | Fallback | Ask user to paste issue content |
-| Score ambiguous (==2) | CONFIRM | Ask user to verify it's a bug |
-| PII detected in import | Quarantine | Redact and show user what was removed |
+If a `--from-issue` fetch fails, ask the user to paste the issue content.
 
 ### Output
 
@@ -284,30 +239,12 @@ Fill gaps in the bug report through targeted follow-up questions.
 5. If user cannot provide reproduction steps:
    - WARN: "Without repro steps, fix may take longer. Proceed?"
    - If yes: mark reproduction_strength = "weak"
-   - If no: HALT
+   - If no: HALT (save the partial triage state; the same applies when the user abandons the interview)
+
+6. After answers, validate all required fields present; resolve contradictory answers with one clarifying question; set reproduction_strength:
+   "strong" (explicit repro steps OR failing test) / "weak" (only an error message) / "manual_only" (requires manual verification)
 ```
 
-### Procedure
-
-```
-1. Parse input for all known fields
-2. Count gaps in required fields
-3. If gaps == 0: skip interview, proceed to Phase 3
-4. If gaps > 0: ask targeted questions (max 5)
-5. After answers: validate all required fields present
-6. Set reproduction_strength:
-   - "strong": explicit repro steps OR failing test
-   - "weak": only error message, no repro steps
-   - "manual_only": requires manual verification
-```
-
-### Failure Modes
-
-| Failure | Action | Recovery |
-|---------|--------|----------|
-| User can't provide repro steps | WARN | Mark reproduction_strength="weak", ask to confirm |
-| Contradictory info | ASK | Clarifying question to resolve |
-| User abandons interview | HALT | Save partial triage state |
 
 ---
 
@@ -330,8 +267,8 @@ Produce a list of suspected files with:
 ### Output: Fix Hints (Multi-Model Handoff)
 
 In addition to the prose `fix_strategy`, generate structured `fix_hints` for each
-suspected file change. These enable smaller models (e.g., 3B parameter fast-code)
-to act on the fix without parsing nuanced prose:
+suspected file change, so a smaller downstream model can act on the fix without
+parsing prose:
 
 | Field | Description | Example |
 |-------|-------------|---------|
@@ -343,13 +280,7 @@ to act on the fix without parsing nuanced prose:
 Generate one hint per suspected file. Prose `fix_strategy` remains the primary
 reference for capable models; hints are the structured fallback.
 
-### Failure Modes
-
-| Failure | Action | Recovery |
-|---------|--------|----------|
-| No test runner found | HALT | "Set up test infrastructure before using /bug" |
-| No suspected files found | WARN | Ask user for hints, expand search radius |
-| All files low confidence | WARN | "Analysis inconclusive. Recommend manual investigation." |
+No test runner found → HALT: "Set up test infrastructure before using /bug". No suspected files → ask the user for hints and widen the search; all files low confidence → WARN "Analysis inconclusive. Recommend manual investigation."
 
 ---
 
@@ -374,11 +305,7 @@ Generate bug_id:
     "20260211-i42-a3f2b1"
 ```
 
-Properties:
-- Unique: random bytes prevent collisions
-- Safe: no user text in filesystem paths
-- Sortable: chronological by prefix
-- Traceable: optional issue number embedded
+Unique (random bytes), safe (no user text in paths), sortable (date prefix), traceable (issue number).
 
 ### State Directory Creation
 
@@ -436,16 +363,10 @@ Invalid transitions (e.g., TRIAGE → AUDITING) must be rejected with an error.
 1. Pick the next safe sprint id via the helper script:
    sprint_id="$(.claude/scripts/next-bug-sprint-id.sh)"
 
-   The script is the source-of-truth for next-id picking. It returns
-   `sprint-bug-{N}` where N is one greater than the maximum of:
-     a) local ledger.json's global_sprint_counter
-     b) max sprint-bug-N referenced on disk in any
-        grimoires/loa/a2a/bug-*/sprint.md
-     c) origin/main's ledger.json's global_sprint_counter (best-effort)
-   This avoids the collision wart where multiple `/bug` invocations
-   from the same starting commit would all pick the same N+1 because
-   they each only consulted local ledger state. See
-   tests/unit/next-bug-sprint-id.bats for the contract.
+   The script is the source of truth for the next id: `sprint-bug-{N}` with N one
+   greater than the max of the local ledger counter, any sprint-bug-N on disk under
+   grimoires/loa/a2a/bug-*/sprint.md, and origin/main's counter (best-effort), so
+   parallel `/bug` runs from one commit cannot collide (contract: tests/unit/next-bug-sprint-id.bats).
 
 2. Create micro-sprint file from template:
    Path: grimoires/loa/a2a/bug-{bug_id}/sprint.md
@@ -490,24 +411,7 @@ Invalid transitions (e.g., TRIAGE → AUDITING) must be rejected with an error.
 
 ### Beads Integration
 
-```
-If br is available:
-  1. Create beads task:
-     br create "Fix: {bug_title}" --label bug --label "severity:{severity}"
-  2. If create fails: WARN and continue without tracking
-
-If br is NOT available:
-  1. Log: "Beads not available. Task tracking skipped."
-  2. Continue without beads
-```
-
-### PII Scan on Outputs
-
-Before writing any output files, scan for PII:
-1. Run PII patterns on triage.md content
-2. Run PII patterns on sprint.md content
-3. If found: redact and log categories removed
-4. Allowlist: test@example.com, 127.0.0.1, localhost
+If `br` is available: `br create "Fix: {bug_title}" --label bug --label "severity:{severity}"`; on failure WARN and continue. Without `br`, log "Beads not available. Task tracking skipped." and continue.
 
 ### Handoff
 
@@ -531,22 +435,10 @@ Next step: /implement {sprint_id}
 In interactive mode, the user runs `/implement` manually.
 In autonomous mode (`/run --bug`), implementation begins automatically.
 
-### Failure Modes
-
-| Failure | Action | Recovery |
-|---------|--------|----------|
-| Ledger write fails | WARN | Proceed without ledger entry, note in NOTES.md |
-| Beads create fails | WARN | Proceed without beads, note in NOTES.md |
-| State directory creation fails | HALT | Filesystem issue, cannot proceed |
-| PII found in output | Redact | Replace with tokens, log categories |
+Ledger write or beads create failures WARN and are noted in NOTES.md; a state-directory creation failure HALTs.
 
 ---
 
 ## Retrospective Postlude
 
-After triage completion, check for learning signals:
-- Novel debugging patterns discovered during codebase analysis
-- Eligibility edge cases that required CONFIRM
-- PII patterns found in imported content
-
-If qualified (3+ quality gates), add to `grimoires/loa/NOTES.md ## Learnings`.
+After triage, check for learning signals (novel debugging patterns, eligibility edge cases that needed CONFIRM, PII patterns in imports); those that pass the continuous-learning quality gates go to `grimoires/loa/NOTES.md ## Learnings`.

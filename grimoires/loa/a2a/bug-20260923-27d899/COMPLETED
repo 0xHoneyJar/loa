@@ -1,0 +1,4 @@
+sprint-bug-240 — bug 20260923-27d899: the post-merge pipeline cannot cut a pre-release (rc entry via the CHANGELOG heading, prerelease flag on the release, README sync accepts an rc version) (cycle-bug-20260923-27d899, executed inside PR #1266)
+completed_at: 2026-09-22T22:22:00Z
+review: APPROVED round 1 (engineer-feedback.md; 0/0/1/2, excluded 0; dissent gpt-5.5-pro 1 advisory DISS-001 — resolved in-round)
+audit: APPROVED (auditor-sprint-feedback.md; 0/0/1/2, excluded_confirmed 0; dissent gpt-5.5-pro clean)

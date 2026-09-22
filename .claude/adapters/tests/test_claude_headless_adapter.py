@@ -228,6 +228,24 @@ class TestCommandConstruction:
         cmd = adapter._build_command(_make_request(), adapter.config.models["claude-opus-4-7"], "x")
         assert cmd[cmd.index("--effort") + 1] == "xhigh"
 
+    def test_request_effort_reaches_argv_and_outranks_metadata_and_config(self):
+        """cycle-124 FR-2 (review round-1 high #3): cheval sets
+        CompletionRequest.effort, never metadata["effort"]; the CLI hop must
+        honour exactly what the MODELINV envelope records."""
+        adapter = ClaudeHeadlessAdapter(_make_config(extra={"effort": "low"}))
+        req = CompletionRequest(
+            messages=[{"role": "user", "content": "hi"}], model="claude-opus-4-7",
+            max_tokens=256, metadata={"effort": "medium"}, effort="xhigh",
+        )
+        cmd = adapter._build_command(req, adapter.config.models["claude-opus-4-7"], "x")
+        assert cmd[cmd.index("--effort") + 1] == "xhigh"
+        # End to end: the argv handed to the subprocess carries it.
+        with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(req)
+        argv = mock_run.call_args.args[0]
+        assert argv[argv.index("--effort") + 1] == "xhigh"
+
     def test_unknown_effort_falls_through(self):
         adapter = ClaudeHeadlessAdapter(_make_config(extra={"effort": "extreme"}))
         cmd = adapter._build_command(_make_request(), adapter.config.models["claude-opus-4-7"], "x")
@@ -336,6 +354,16 @@ class TestJsonParsing:
         assert "cache_read_input_tokens" not in result.metadata  # was 0 — skipped
         assert result.metadata.get("total_cost_usd") == pytest.approx(0.053255, rel=1e-4)
         assert result.metadata.get("stop_reason") == "end_turn"
+
+    def test_usage_carries_cache_counts(self):
+        """cycle-124 FR-4 (AC-4.1, review round-1 medium 4): the cache counts
+        land on Usage itself (what cheval prices and emits), not only metadata."""
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with patch("loa_cheval.providers.claude_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            result = adapter.complete(_make_request())
+        assert result.usage.cache_creation_input_tokens == 14179
+        assert result.usage.cache_read_input_tokens == 0
 
     def test_missing_usage_yields_estimated_source(self):
         no_usage = json.dumps({"type": "result", "is_error": False, "result": "ok", "session_id": "x"})

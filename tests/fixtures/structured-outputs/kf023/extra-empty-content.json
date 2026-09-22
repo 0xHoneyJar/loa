@@ -1,0 +1,13 @@
+{
+  "_case": "extra: empty content",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "empty_content",
+    "enforced": "empty_content"
+  },
+  "content": "",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

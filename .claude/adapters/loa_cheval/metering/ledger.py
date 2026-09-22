@@ -4,6 +4,7 @@ Implements:
 - JSONL append with fcntl.flock for concurrent append safety
 - Atomic daily spend counter with flock-protected read-modify-write
 - Corruption recovery: truncate to last valid JSONL line on read
+- Ledger path resolution shared by writer and readers (cycle-124 FR-6)
 """
 
 from __future__ import annotations
@@ -12,8 +13,10 @@ import fcntl
 import json
 import logging
 import os
+import stat
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.metering.pricing import (
@@ -21,6 +24,7 @@ from loa_cheval.metering.pricing import (
     calculate_total_cost,
     find_pricing,
 )
+from loa_cheval.types import ConfigError
 
 logger = logging.getLogger("loa_cheval.metering.ledger")
 
@@ -28,6 +32,78 @@ logger = logging.getLogger("loa_cheval.metering.ledger")
 def _generate_request_id() -> str:
     """Generate a unique request ID."""
     return f"req-{uuid.uuid4().hex[:12]}"
+
+
+# -----------------------------------------------------------------------------
+# Ledger path resolution (cycle-124 FR-6).
+#
+# One resolver for the writer (cheval.py's BudgetEnforcer) and the readers
+# (rollup.py, cost-report.sh) so a redirected ledger moves reads and writes
+# together. Mirrors audit/modelinv.py::_resolve_log_path for the MODELINV log.
+# -----------------------------------------------------------------------------
+
+COST_LEDGER_ENV = "LOA_COST_LEDGER_PATH"
+DEFAULT_COST_LEDGER_PATH = ".run/cost-ledger.jsonl"
+
+
+def resolve_cost_ledger_path(metering_config: Optional[Dict[str, Any]] = None) -> str:
+    """Return the canonical cost-ledger path.
+
+    Precedence:
+      1. ``LOA_COST_LEDGER_PATH`` env — test isolation / operator redirect
+      2. ``metering.ledger_path`` from the merged config
+      3. ``.run/cost-ledger.jsonl`` (``append_ledger`` still creates ``.run/``
+         on first write, so the default needs no existing parent)
+
+    A relative config or default path is anchored at the project root (the
+    directory holding ``.claude/``), exactly like the MODELINV twin
+    (``audit/modelinv._resolve_log_path``) — cheval invoked from a
+    subdirectory must not fork the ledger. A relative env path stays
+    CWD-relative: it is the test / operator redirect and is documented so.
+
+    Path safety (sprint Flatline SKP-003 + review round-1 high #5): the result
+    is canonicalized with ``os.path.realpath`` (``..``/``.`` segments
+    collapse); a symlink at the target path is rejected for every source; an
+    existing target that is not a regular file (a directory, ``/dev/null``)
+    is rejected here rather than inside ``BudgetEnforcer.post_call`` after
+    the billed call; an env- or config-supplied path must have an existing
+    parent directory — a typo'd redirect is an error, not a ``mkdir``.
+    Rejections raise ``ConfigError`` (``INVALID_CONFIG``).
+    """
+    override = os.environ.get(COST_LEDGER_ENV)
+    if override:
+        candidate, source = override, f"env {COST_LEDGER_ENV}"
+    else:
+        configured = (metering_config or {}).get("ledger_path")
+        if configured:
+            candidate, source = str(configured), "metering.ledger_path"
+        else:
+            candidate, source = DEFAULT_COST_LEDGER_PATH, "default"
+        if not os.path.isabs(candidate):
+            candidate = os.path.join(_project_root(), candidate)
+
+    if os.path.islink(candidate):
+        raise ConfigError(
+            f"cost ledger path {candidate!r} ({source}) is a symlink; refusing to follow it"
+        )
+    resolved = os.path.realpath(candidate)
+    if os.path.lexists(resolved) and not stat.S_ISREG(os.lstat(resolved).st_mode):
+        raise ConfigError(
+            f"cost ledger path {resolved!r} ({source}) exists and is not a regular file"
+        )
+    parent = os.path.dirname(resolved)
+    if source != "default" and not os.path.isdir(parent):
+        raise ConfigError(
+            f"cost ledger parent directory {parent!r} ({source}) does not exist"
+        )
+    return resolved
+
+
+def _project_root() -> str:
+    """The directory holding ``.claude/`` — five levels above this module
+    (``.claude/adapters/loa_cheval/metering/ledger.py``), the same walk the
+    MODELINV emitter uses, so both ledgers anchor to one root."""
+    return str(Path(__file__).resolve().parents[4])
 
 
 def create_ledger_entry(
@@ -46,8 +122,15 @@ def create_ledger_entry(
     usage_source: str = "actual",
     interaction_id: Optional[str] = None,
     reported_cost_micro_usd: Optional[int] = None,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
 ) -> Dict[str, Any]:
     """Create a ledger entry dict matching SDD §4.5.1 format.
+
+    cycle-124 FR-4: `cache_read_tokens` / `cache_creation_tokens` (Anthropic
+    usage fields, not part of input_tokens) are priced at the entry's cache
+    rates and recorded as `tokens_cache_read` / `tokens_cache_creation` when
+    non-zero (rows without cache traffic keep their pre-cycle shape).
 
     A normalized CLI-reported amount supersedes config pricing. Otherwise,
     calculates cost from config; absent pricing is 'unknown' with cost 0.
@@ -63,7 +146,9 @@ def create_ledger_entry(
         pricing_mode = "token"
     elif pricing:
         breakdown = calculate_total_cost(
-            input_tokens, output_tokens, reasoning_tokens, pricing
+            input_tokens, output_tokens, reasoning_tokens, pricing,
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
         )
         cost_micro_usd = breakdown.total_cost_micro
         pricing_source = "config"
@@ -95,6 +180,10 @@ def create_ledger_entry(
 
     if interaction_id:
         entry["interaction_id"] = interaction_id
+    if cache_read_tokens:
+        entry["tokens_cache_read"] = cache_read_tokens
+    if cache_creation_tokens:
+        entry["tokens_cache_creation"] = cache_creation_tokens
 
     return entry
 
@@ -110,7 +199,13 @@ def append_ledger(entry: Dict[str, Any], ledger_path: str) -> None:
     # Ensure parent directory exists
     os.makedirs(os.path.dirname(ledger_path) or ".", exist_ok=True)
 
-    fd = os.open(ledger_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    # O_NOFOLLOW: a symlink swapped in between resolve_cost_ledger_path's
+    # check and this open fails (ELOOP) instead of being followed (FR-6).
+    fd = os.open(
+        ledger_path,
+        os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+        0o644,
+    )
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         os.write(fd, encoded)
@@ -183,7 +278,10 @@ def update_daily_spend(entry_cost_micro: int, ledger_path: str) -> None:
 
     os.makedirs(os.path.dirname(summary_path) or ".", exist_ok=True)
 
-    fd = os.open(summary_path, os.O_RDWR | os.O_CREAT, 0o644)
+    # O_NOFOLLOW (Sprint 1 audit, slice B): the sidecar lives beside the
+    # ledger, whose directory an env redirect may now place anywhere; this
+    # open truncates and rewrites, so a planted symlink must fail (ELOOP).
+    fd = os.open(summary_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
 

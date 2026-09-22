@@ -267,3 +267,51 @@ generate() {
     jq -e '.state == "FAILED" and .phases.notify.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(grep -c -- '--method POST repos/test/repo/issues/7/comments' "$GH_LOG")" = 1 ]
 }
+
+# =============================================================================
+# sprint-bug-240 (bug 20260923-27d899): pre-release candidates. An untagged
+# rc heading on top of CHANGELOG.md makes the candidate carry the prerelease
+# version and `prerelease: true`; publication posts the flag and verifies it
+# on read-back. A release candidate posts `prerelease: false`.
+# =============================================================================
+
+rc_fixture() {
+    printf '# Changelog\n\n## [Unreleased]\n\n## [1.1.0-rc.1] — 2026-09-23 — Release candidate\n\n- model floor\n\n## [1.0.0]\n\n- old change\n' > "$PROJECT_ROOT/CHANGELOG.md"
+    printf 'feature\n' > "$PROJECT_ROOT/feature.txt"
+    git -C "$PROJECT_ROOT" add CHANGELOG.md feature.txt
+    git -C "$PROJECT_ROOT" commit -qm "feat: cut the release candidate"
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+}
+
+@test "publication: an untagged rc heading prepares a prerelease candidate and publishes it flagged pre-release" {
+    rc_fixture
+    generate
+    jq -e '.tag == "v1.1.0-rc.1" and .prerelease == true and .prepared_state.phases.semver.result.prerelease_transition.kind == "enter"' "$CANDIDATE"
+    export GH_MODE=ok
+    run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
+    [ "$status" -eq 0 ]
+    jq -e '.state == "DONE" and .phases.release.result.verified' "$PROJECT_ROOT/.run/post-merge-state.json"
+    jq -e '.tag_name == "v1.1.0-rc.1" and .prerelease == true and .draft == false' "${GH_LOG}.release"
+    [ "$(git --git-dir="$CASE_DIR/remote" rev-parse 'v1.1.0-rc.1^{commit}')" = "$(jq -r '.target_commit' "$CANDIDATE")" ]
+}
+
+@test "publication: a release candidate is published with prerelease false" {
+    generate
+    jq -e '.tag == "v1.0.1" and .prerelease == false' "$CANDIDATE"
+    export GH_MODE=ok
+    run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
+    [ "$status" -eq 0 ]
+    jq -e '.tag_name == "v1.0.1" and .prerelease == false' "${GH_LOG}.release"
+}
+
+@test "publication: a pre-existing release whose prerelease flag disagrees with the tag fails read-back" {
+    rc_fixture
+    generate
+    export GH_MODE=ok
+    jq -n --arg body "$(jq -r '.release_body' "$CANDIDATE")" \
+      '{id:81,tag_name:"v1.1.0-rc.1",body:$body,draft:false,prerelease:false}' > "${GH_LOG}.release"
+    run bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST"
+    [ "$status" -ne 0 ]
+    jq -e '.state == "FAILED" and .phases.release.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    ! grep -q 'issues/comments/73' "$GH_LOG"
+}

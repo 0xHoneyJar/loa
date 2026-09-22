@@ -33,6 +33,7 @@ Options:
   --trusted              Required for local execution (no container sandbox)
   --sandbox-mode <mode>  Sandbox mode: local (default), container
   --concurrency <n>      Max parallel tasks (default: 4)
+  --trials <n>           Override every task's trial count (resuming an A/B arm)
   --no-color             Disable color output
   --verbose              Verbose output
   --help                 Show this help
@@ -63,6 +64,7 @@ JSON_OUTPUT=false
 TRUSTED=false
 SANDBOX_MODE="local"
 CONCURRENCY=4
+TRIALS_OVERRIDE=""
 NO_COLOR=false
 VERBOSE=false
 
@@ -78,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --trusted) TRUSTED=true; shift ;;
     --sandbox-mode) SANDBOX_MODE="$2"; shift 2 ;;
     --concurrency) CONCURRENCY="$2"; shift 2 ;;
+    --trials) TRIALS_OVERRIDE="$2"; shift 2 ;;
     --no-color) NO_COLOR=true; shift ;;
     --verbose) VERBOSE=true; shift ;;
     --help|-h) usage ;;
@@ -326,6 +329,25 @@ validate_tasks() {
 }
 
 # --- PHASE: EXECUTE_TRIALS ---
+# Copy an agent trial's outputs out of the sandbox before it is destroyed:
+# .eval/{executor,agent-output}.json always, plus the files the task lists
+# under `.agent.artifacts` (e.g. review.md). Raw events only with
+# EVAL_KEEP_EVENTS=1 (they embed tool results and can be large).
+_keep_trial_artifacts() {
+  local task_file="$1" sandbox_path="$2" task_id="$3" trial_num="$4"
+  local dest="$RUN_DIR/artifacts/${task_id}/trial-${trial_num}"
+  mkdir -p "$dest"
+  local f
+  for f in executor.json agent-output.json agent-stderr.log; do
+    [[ -f "$sandbox_path/.eval/$f" ]] && cp "$sandbox_path/.eval/$f" "$dest/$f"
+  done
+  [[ "${EVAL_KEEP_EVENTS:-0}" == "1" && -f "$sandbox_path/.eval/events.jsonl" ]] && cp "$sandbox_path/.eval/events.jsonl" "$dest/events.jsonl"
+  while IFS= read -r f; do
+    [[ -n "$f" && "$f" != */* && "$f" != ..* && -f "$sandbox_path/$f" ]] && cp "$sandbox_path/$f" "$dest/$f"
+  done < <(yq -r '.agent.artifacts[]' "$task_file" 2>/dev/null | grep -v '^null$' || true)
+  return 0
+}
+
 execute_task() {
   local task_file="$1"
   local task_id
@@ -336,6 +358,7 @@ execute_task() {
   fixture="$(yq -r '.fixture' "$task_file")"
   local trials
   trials="$(yq -r ".trials // $SUITE_TRIALS" "$task_file")"
+  [[ -n "$TRIALS_OVERRIDE" ]] && trials="$TRIALS_OVERRIDE"
   local timeout_trial
   timeout_trial="$(yq -r ".timeout.per_trial // $SUITE_TIMEOUT_TRIAL" "$task_file")"
   local timeout_grader
@@ -377,8 +400,47 @@ execute_task() {
       continue
     }
 
-    # For framework tasks, there's no agent execution — just run graders directly
-    # For agent tasks (skill-quality, e2e), agent execution would happen here (Phase 3+)
+    # For framework tasks, there's no agent execution — just run graders directly.
+    # cycle-124 S3 (FR-9): a task that declares `.agent.skill` runs the headless
+    # CLI in the sandbox first (execute-agent.sh); every other task keeps the
+    # exact pre-existing path. An executor failure (CLI non-zero / timeout /
+    # missing binary) is an infrastructure error, never a graded zero — a
+    # session cap must not read as a recall drop.
+    local agent_skill=""
+    agent_skill="$(yq -r '.agent.skill // ""' "$task_file" 2>/dev/null || echo "")"
+    local executor_json="null"
+    if [[ -n "$agent_skill" && "$agent_skill" != "null" ]]; then
+      local exec_exit=0
+      "$HARNESS_DIR/execute-agent.sh" \
+        --task-yaml "$task_file" --workspace "$sandbox_path" \
+        --run-id "$RUN_ID" --trial-id "$trial_id" --timeout "$timeout_trial" \
+        >/dev/null 2>"$RUN_DIR/exec-${task_id}-trial-${trial_num}.log" || exec_exit=$?
+      if [[ -f "$sandbox_path/.eval/executor.json" ]]; then
+        executor_json="$(cat "$sandbox_path/.eval/executor.json")"
+      fi
+      if [[ $exec_exit -ne 0 ]]; then
+        local trial_end_ms
+        trial_end_ms="$(date +%s%N | cut -c1-13)"
+        jq -cn \
+          --arg run_id "$RUN_ID" \
+          --arg task_id "$task_id" \
+          --argjson trial "$trial_num" \
+          --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --argjson duration_ms "$(( trial_end_ms - trial_start_ms ))" \
+          --arg model_version "none" \
+          --argjson executor "$executor_json" \
+          --arg msg "execute-agent exit $exec_exit" \
+          --argjson schema_version 1 \
+          '{run_id:$run_id,task_id:$task_id,trial:$trial,timestamp:$timestamp,duration_ms:$duration_ms,
+            model_version:$model_version,status:"error",graders:[],executor:$executor,
+            composite:{strategy:"all_must_pass",pass:false,score:0},
+            error:{type:"agent_error",message:$msg},schema_version:$schema_version}' \
+          >> "$task_result_file"
+        _keep_trial_artifacts "$task_file" "$sandbox_path" "$task_id" "$trial_num"
+        "$HARNESS_DIR/sandbox.sh" destroy --trial-id "$trial_id" 2>/dev/null || true
+        continue
+      fi
+    fi
 
     # Run graders
     local grade_output=""
@@ -409,6 +471,13 @@ execute_task() {
       *) status_str="error"     ; error_json='{"type":"infrastructure_error","message":"Unknown grader exit: '"$grade_exit"'"}' ;;
     esac
 
+    # model_version: the id the CLI echoed for agent tasks (compare.sh's
+    # model-skew detection keys on it); "none" for framework tasks as before.
+    local model_version="none"
+    if [[ "$executor_json" != "null" ]]; then
+      model_version="$(jq -r '.model_id // "none"' <<<"$executor_json")"
+    fi
+
     # Write per-trial result (compact JSONL)
     jq -cn \
       --arg run_id "$RUN_ID" \
@@ -416,16 +485,21 @@ execute_task() {
       --argjson trial "$trial_num" \
       --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       --argjson duration_ms "$trial_duration" \
-      --arg model_version "none" \
+      --arg model_version "$model_version" \
       --arg status "$status_str" \
       --argjson graders "$graders_json" \
       --argjson composite "$composite_json" \
       --argjson error "$error_json" \
+      --argjson executor "$executor_json" \
       --argjson schema_version 1 \
       '{run_id:$run_id,task_id:$task_id,trial:$trial,timestamp:$timestamp,duration_ms:$duration_ms,
         model_version:$model_version,status:$status,graders:$graders,composite:$composite,
-        error:$error,schema_version:$schema_version}' \
+        error:$error,schema_version:$schema_version}
+       + (if $executor == null then {} else {executor:$executor} end)' \
       >> "$task_result_file"
+
+    # Keep per-trial agent outputs (AC-9.2 wants them committed with the A/B)
+    [[ "$executor_json" != "null" ]] && _keep_trial_artifacts "$task_file" "$sandbox_path" "$task_id" "$trial_num"
 
     # Cleanup sandbox
     "$HARNESS_DIR/sandbox.sh" destroy --trial-id "$trial_id" 2>/dev/null || true
@@ -443,7 +517,9 @@ execute_task() {
     # Uses raw pass rate: if best-case (all remaining pass) still below baseline - threshold, stop.
     # Note: 0.90 assumes baseline=1.0 threshold=0.10 (conservative default since baselines
     # aren't loaded during EXECUTE phase — they're loaded in the later COMPARE phase).
-    if [[ "$trials" -gt 1 && "$trial_num" -lt "$trials" ]]; then
+    # Agent tasks are never early-stopped: their A/B metrics are per-trial
+    # means (recall, tokens), not pass rates, and every trial is evidence.
+    if [[ -z "$agent_skill" && "$trials" -gt 1 && "$trial_num" -lt "$trials" ]]; then
       local remaining=$(( trials - trial_num ))
       local should_stop
       should_stop="$(python3 -c "

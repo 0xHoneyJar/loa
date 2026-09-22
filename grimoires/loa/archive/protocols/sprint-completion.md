@@ -1,0 +1,117 @@
+# Sprint Completion Lifecycle
+
+**Version:** 1.0.0
+**Status:** Active
+**Updated:** 2026-02-12
+
+---
+
+## Overview
+
+Sprint completion follows a strict implement → review → audit → complete pipeline. Each gate must pass before the next can execute. The `COMPLETED` marker file is the authoritative signal that a sprint has cleared all quality gates.
+
+## State Transitions
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  IMPLEMENT   │───>│   REVIEW     │───>│   AUDIT      │───>│  COMPLETED   │
+│ /implement   │    │ /review-sprint│   │ /audit-sprint │    │  COMPLETED   │
+│ sprint-N     │    │ sprint-N     │    │ sprint-N     │    │  marker file │
+└──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+                         │                    │
+                         │  Changes Required  │  Changes Required
+                         └────────────────────┘
+                              ↓
+                         Back to IMPLEMENT
+```
+
+## COMPLETED Marker
+
+**File**: `grimoires/loa/a2a/sprint-N/COMPLETED`
+
+**Created by**: The `audit-sprint` skill (`skills/auditing-security/`) upon APPROVED verdict.
+
+**Detection**: `golden-path.sh` checks for this marker via:
+
+```bash
+_gp_sprint_is_complete() {
+    local sprint_id="$1"
+    local sprint_dir="${_GP_A2A_DIR}/${sprint_id}"
+    [[ -f "${sprint_dir}/COMPLETED" ]]
+}
+```
+
+## Detection Functions
+
+### `golden_detect_sprint()`
+
+Finds the first incomplete sprint by iterating sprint-1 through sprint-N:
+
+```
+for each sprint-N:
+  if COMPLETED marker missing → return "sprint-N"
+if all complete → return ""
+```
+
+### `golden_detect_review_target()`
+
+Finds the first sprint needing review:
+
+```
+for each sprint-N:
+  skip if COMPLETED
+  if sprint dir exists (work started) → return "sprint-N"
+return ""
+```
+
+### `_gp_sprint_is_reviewed()`
+
+A sprint is considered reviewed if:
+1. It has already been audited (audit implies review passed), OR
+2. `engineer-feedback.md` exists AND contains no "Changes Required", "Findings", or "Issues" sections
+
+When `engineer-feedback.md` carries a `<!-- LOA-VERDICT {...} -->` trailer — detected loosely: any HTML comment reading `LOA…VERDICT` with whitespace or hyphen variants counts as a trailer and is sent to `verdict-derive.sh`, which accepts only the exact `<!-- LOA-VERDICT {json} -->` form and fails closed on anything else; the prose heuristic applies only to files with no such marker at all — the trailer path replaces rule 2: `_gp_verdict_gate` runs `verdict-derive.sh --gate review --json` and passes only when it exits 0, `.consistent` is `true` and `.verdict` is `APPROVED`. The gate fails closed — an inconsistent or unparseable trailer, any non-zero exit, or a missing `jq` all read as "not reviewed"; the prose heuristic applies only to files with no trailer at all.
+
+### `_gp_sprint_is_audited()`
+
+A sprint is audited if `auditor-sprint-feedback.md` exists and contains "APPROVED".
+
+With a trailer, the same fail-closed gate runs with `--gate audit`; additionally (a) when `engineer-feedback.md` carries a trailer it is re-derived with `--gate review` and must be APPROVED (an audit implies review), (b) when the review trailer carries `excluded > 0`, the audit trailer's `excluded_confirmed` must equal it (absent reads as 0; a non-integer or a value longer than six digits denies).
+
+## A2A Directory Structure
+
+```
+grimoires/loa/a2a/sprint-N/
+├── engineer-feedback.md        # /review-sprint output
+├── auditor-sprint-feedback.md  # /audit-sprint output
+├── COMPLETED                   # Marker file (created on audit approval)
+└── ... (other sprint artifacts)
+```
+
+## Ledger Integration
+
+When a Sprint Ledger exists (`grimoires/loa/ledger.json`):
+
+- Local sprint IDs (sprint-1, sprint-2) map to global IDs via the ledger
+- `/implement`, `/review-sprint`, and `/audit-sprint` all resolve local → global IDs
+- The `COMPLETED` marker uses the local sprint directory structure
+- Ledger sprint entries track status independently (but should be consistent)
+
+## Run Mode Integration
+
+In `/run sprint-plan`, the completion lifecycle runs autonomously:
+
+1. `/implement sprint-N` executes tasks
+2. `/review-sprint sprint-N` validates implementation
+3. `/audit-sprint sprint-N` performs security audit
+4. If audit APPROVED → COMPLETED marker created → next sprint
+5. If audit/review fails → cycle back to implement (circuit breaker limits retries)
+
+## Cross-References
+
+| Resource | Purpose |
+|----------|---------|
+| `.claude/scripts/golden-path.sh` | State detection functions |
+| `.claude/skills/run-mode/SKILL.md` | Autonomous execution lifecycle |
+| `skills/reviewing-code/SKILL.md` | Review gate details |
+| `skills/auditing-security/SKILL.md` | Audit gate details |

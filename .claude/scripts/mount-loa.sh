@@ -84,7 +84,8 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] && [[ -z "${_LOA_MOUNT_REEXEC:-}" ]]; then
   for _f in bootstrap.sh bash-version-guard.sh \
             lib/symlink-manifest.sh \
             lib/scaffold-post-merge-workflow.sh \
-            lib/portable-realpath.sh; do
+            lib/portable-realpath.sh \
+            lib/aleph-opt-in.sh; do
     if ! curl --proto =https --proto-redir =https --max-redirs 10 \
          -fsSL -o "$_loa_tmpdir/$_f" -- "$_loa_base/$_f"; then
       printf '[loa] ERROR: Failed to download required installer dependency: %s\n' "$_f" >&2

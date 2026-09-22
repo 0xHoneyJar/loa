@@ -148,6 +148,8 @@ The optional `## Verification` section provides trust signals beyond the version
 
 The AGENT-CONTEXT `version` field MUST match the latest git tag or package.json version. The `ground-truth-meta` footer tracks the HEAD SHA at generation time for staleness detection.
 
+**Pre-releases.** `semver-bump.sh` computes the next version from conventional commits since the latest tag and increments an existing pre-release on its own (`v2.0.0-rc.1` → `2.0.0-rc.2`). Entering a pre-release and promoting out of one are operator decisions stated in `CHANGELOG.md`: an untagged topmost heading `## [2.0.0-rc.1] — …` whose release triple equals the computed version makes the prepared candidate `2.0.0-rc.1` (`prerelease_transition.kind: enter`); an untagged `## [2.0.0] — …` on a `v2.0.0-rc.N` tag promotes it (`kind: promote`). Any other untagged heading is ignored (a mismatched pre-release heading warns). A version carrying a pre-release identifier is published as a GitHub pre-release (`prerelease: true`, verified on read-back) and stamped as-is into `.loa-version.json` and the `CLAUDE.loa.md` header; `sync-readme-version.sh` accepts it and renders the badge with shields' `--` dash escape. Runbook: `grimoires/loa/runbooks/post-merge-candidates.md` §Pre-release candidates.
+
 ### Integrity Enforcement
 
 The framework uses **Projen-level synthesis protection**:
@@ -203,7 +205,6 @@ Detailed specifications are maintained in separate protocol files (single source
 
 ### Core Protocols
 - **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
-- **Analytics**: `.claude/protocols/analytics.md` - THJ-only usage tracking, schema, helper functions
 - **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
 - **Structured Memory**: `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
 - **Trajectory Evaluation**: `.claude/protocols/trajectory-evaluation.md` - ADK-style reasoning logs, EDD
@@ -212,8 +213,6 @@ Detailed specifications are maintained in separate protocol files (single source
 - **Session Continuity**: `.claude/protocols/session-continuity.md` - Tiered recovery (L1/L2/L3), truth hierarchy
 - **Grounding Enforcement**: `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
 - **Synthesis Checkpoint**: `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
-- **Attention Budget**: `.claude/protocols/attention-budget.md` - Token thresholds (Green/Yellow/Red)
-- **JIT Retrieval**: `.claude/protocols/jit-retrieval.md` - Lightweight identifiers (97% token reduction)
 
 ### Sprint Ledger (v0.13.0)
 - **Ledger Location**: `grimoires/loa/ledger.json` - Global sprint numbering across development cycles
@@ -1721,7 +1720,6 @@ Detailed specifications for complex behaviors:
 
 **Core Protocols**:
 - `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation steps
-- `.claude/protocols/analytics.md` - THJ-only usage tracking, schema definitions
 - `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
 - `.claude/protocols/change-validation.md` - Pre-implementation validation protocol
 - `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
@@ -1731,8 +1729,6 @@ Detailed specifications for complex behaviors:
 - `.claude/protocols/session-continuity.md` - Session lifecycle, tiered recovery
 - `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
 - `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
-- `.claude/protocols/attention-budget.md` - Token thresholds (Green/Yellow/Red)
-- `.claude/protocols/jit-retrieval.md` - Lightweight identifiers (97% token reduction)
 
 **v1.10.0 Compound Learning & Visual Communication**:
 - `.claude/protocols/visual-communication.md` - Beautiful Mermaid integration, diagram standards

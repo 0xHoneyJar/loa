@@ -8,7 +8,9 @@
 #   cost-report.sh [--ledger <path>] [--days N] [--json]
 #
 # Options:
-#   --ledger <path>    Path to cost ledger JSONL (default: grimoires/loa/a2a/cost-ledger.jsonl)
+#   --ledger <path>    Path to cost ledger JSONL (default: the writer's own resolution —
+#                      $LOA_COST_LEDGER_PATH, else metering.ledger_path from the
+#                      merged config, else .run/cost-ledger.jsonl at the project root)
 #   --days <n>         Report period in days (default: 30)
 #   --json             Output as JSON instead of markdown
 #   --top <n>          Show top N most expensive invocations (default: 5)
@@ -19,8 +21,36 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Defaults
-LEDGER_PATH="${PROJECT_ROOT}/grimoires/loa/a2a/cost-ledger.jsonl"
+# Default — resolved AFTER argument parsing (an explicit --ledger never
+# consults the resolver) by the writer's own resolver (cycle-124 FR-6):
+# LOA_COST_LEDGER_PATH > merged metering.ledger_path > .run/cost-ledger.jsonl,
+# anchored at the project root. Fail-closed like the writer (round-2 dissent
+# DISS-001): a path the resolver refuses is an error here, not a silent read
+# of some other file; only an UNAVAILABLE substrate falls back to the literal.
+if [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
+    _PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+else
+    _PYTHON_BIN="$(command -v python3 || true)"
+fi
+# exit 0 + path · 3 = resolver refused (message on stderr) · 4 = substrate unavailable
+# No `cd`: a relative LOA_COST_LEDGER_PATH is CWD-relative for the writer and
+# must be for the reader too (Sprint 1 audit, slice B).
+_resolve_default_ledger() {
+    PYTHONPATH="${PROJECT_ROOT}/.claude/adapters${PYTHONPATH:+:$PYTHONPATH}" "${_PYTHON_BIN}" - <<'PY'
+import sys
+try:
+    from loa_cheval.metering.rollup import default_ledger_path
+    from loa_cheval.types import ConfigError
+except Exception:
+    sys.exit(4)
+try:
+    print(default_ledger_path())
+except ConfigError as e:
+    print(f"cost-report: {e.code}: {e}", file=sys.stderr)
+    sys.exit(3)
+PY
+}
+LEDGER_PATH=""
 REPORT_DAYS=30
 OUTPUT_JSON=false
 TOP_N=5
@@ -54,6 +84,26 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -z "$LEDGER_PATH" ]]; then
+    if LEDGER_PATH="$(_resolve_default_ledger)"; then
+        :
+    else
+        _rc=$?
+        if [[ "$_rc" -eq 3 ]]; then
+            echo "ERROR: cost ledger path rejected by the resolver (see message above); pass --ledger <path> to read another file" >&2
+            exit 2
+        fi
+        # Substrate unavailable: only an explicit env redirect is trustworthy;
+        # guessing .run/ would report another file's numbers.
+        if [[ -n "${LOA_COST_LEDGER_PATH:-}" ]]; then
+            LEDGER_PATH="$LOA_COST_LEDGER_PATH"
+        else
+            echo "ERROR: cannot resolve the cost ledger (the cheval Python substrate is unavailable); pass --ledger <path> or set LOA_COST_LEDGER_PATH" >&2
+            exit 2
+        fi
+    fi
+fi
 
 # Check ledger exists
 if [[ ! -f "$LEDGER_PATH" ]]; then

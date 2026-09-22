@@ -1,0 +1,13 @@
+{
+  "_case": "KF-023: prose instead of the object",
+  "_type": "review",
+  "_expect": {
+    "unenforced": "normalization_failed",
+    "enforced": "enforced_parse_failed"
+  },
+  "content": "I reviewed the document carefully. It is well structured and I have no concerns worth raising at this time.",
+  "tokens_input": 10,
+  "tokens_output": 5,
+  "cost_usd": 0,
+  "latency_ms": 1
+}

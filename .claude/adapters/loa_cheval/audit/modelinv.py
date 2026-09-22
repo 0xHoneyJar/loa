@@ -491,6 +491,16 @@ def emit_model_invoke_complete(
     # shape-identical envelopes (no `tokens_*` keys in payload).
     tokens_input: Optional[int] = None,
     tokens_output: Optional[int] = None,
+    # cycle-124 FR-2 — requested reasoning effort (schema field since
+    # cycle-114 FR-8; first populated this cycle). Optional/additive.
+    effort: Optional[str] = None,
+    # cycle-124 FR-4 — prompt-cache telemetry (U0 schema fields).
+    tokens_cache_read: Optional[int] = None,
+    tokens_cache_creation: Optional[int] = None,
+    # cycle-124 FR-7 — structured-output telemetry (U0 schema fields); present
+    # only when a schema was requested for the call.
+    schema_enforced: Optional[bool] = None,
+    output_schema_sha256: Optional[str] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -562,6 +572,16 @@ def emit_model_invoke_complete(
     # value verbatim and let the JSON-schema gate catch out-of-range.
     if tokens_input is not None:
         payload["tokens_input"] = tokens_input
+    if effort is not None:
+        payload["effort"] = effort
+    if tokens_cache_read is not None:
+        payload["tokens_cache_read"] = tokens_cache_read
+    if tokens_cache_creation is not None:
+        payload["tokens_cache_creation"] = tokens_cache_creation
+    if schema_enforced is not None:
+        payload["schema_enforced"] = bool(schema_enforced)
+    if output_schema_sha256 is not None:
+        payload["output_schema_sha256"] = output_schema_sha256
     if tokens_output is not None:
         payload["tokens_output"] = tokens_output
     # cycle-114 FR-11 (sprint-4): per-iteration cost telemetry from the
@@ -627,7 +647,10 @@ def emit_model_invoke_complete(
         # Defensive copy + integer coerce. Caller may pass numpy ints etc.;
         # JSON schema requires plain ints. Drops keys that don't validate.
         _snapshot: Dict[str, Any] = {}
-        for _k in ("input_per_mtok", "output_per_mtok", "reasoning_per_mtok", "per_task_micro_usd"):
+        # cycle-124 FR-4: cache_read_per_mtok / cache_write_per_mtok ride along
+        # (schema-permitted since U0) so roll-ups price cache tokens from history.
+        for _k in ("input_per_mtok", "output_per_mtok", "reasoning_per_mtok", "per_task_micro_usd",
+                   "cache_read_per_mtok", "cache_write_per_mtok"):
             if _k in pricing_snapshot and pricing_snapshot[_k] is not None:
                 _snapshot[_k] = int(pricing_snapshot[_k])
         if "pricing_mode" in pricing_snapshot and pricing_snapshot["pricing_mode"] is not None:

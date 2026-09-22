@@ -210,21 +210,6 @@ goal_validation:
   require_e2e_task: true     # Require E2E task in final sprint
 
 # -----------------------------------------------------------------------------
-# Effort Parameter (v1.13.0)
-# -----------------------------------------------------------------------------
-effort:
-  default_level: medium
-  budget_ranges:
-    low: { min: 1024, max: 4000 }
-    medium: { min: 8000, max: 16000 }
-    high: { min: 24000, max: 32000 }
-  per_skill:
-    auditing-security: high
-    designing-architecture: high
-    implementing-tasks: medium
-    translating-for-executives: low
-
-# -----------------------------------------------------------------------------
 # Context Editing (v1.13.0)
 # -----------------------------------------------------------------------------
 context_editing:
@@ -493,6 +478,16 @@ feedback:
 # -----------------------------------------------------------------------------
 # Update Loa / Branch Testing (v1.11.0)
 # -----------------------------------------------------------------------------
+# =============================================================================
+# Aleph (third-party, vendored) — OPT-IN (bug 20260922-13a3d1)
+# =============================================================================
+# Aleph was not authored by the Loa maintainers. Loa never verifies, installs,
+# tests or syncs it unless this is true (or LOA_ALEPH_ENABLED=1 is exported):
+# mount/update skip the Aleph refresh, check-loa skips its integrity check, the
+# tests/unit/aleph-*.bats suites skip, and the two Aleph workflows no-op.
+aleph:
+  enabled: false
+
 update_loa:
   # DX Hardening (cycle-052): Emoji "What's New" after /update-loa
   friendly_summary: true
@@ -958,7 +953,7 @@ hounfour:
     reviewer: "openai:gpt-5.3-codex"       # Primary review model (gpt-5.2 → 5.3 per T3.1)
     reasoning: "openai:gpt-5.3-codex"      # Reasoning/skeptic model (gpt-5.2 → 5.3 per T3.1)
     cheap: "anthropic:claude-sonnet-4-6"   # Budget-conscious model
-    opus: "anthropic:claude-opus-4-7"      # High-quality model (retargeted from 4-6 in cycle-082)
+    opus: "anthropic:claude-opus-5"        # High-quality model (cycle-124 floor; 4-7 → 5)
     deep-thinker: "google:gemini-3.1-pro-preview"   # Re-added cycle-093 sprint-4
 
   # Agent bindings — which model each agent uses + requirements
@@ -1008,7 +1003,7 @@ hounfour:
   # Metering — JSONL cost ledger with integer micro-USD arithmetic
   metering:
     enabled: true
-    ledger_path: "grimoires/loa/a2a/cost-ledger.jsonl"
+    ledger_path: ".run/cost-ledger.jsonl"   # cycle-124 FR-6: same default as the catalog; the hygiene tripwire scans .run/
     budget:
       daily_micro_usd: 500000000        # $500/day (500M micro-USD)
       warn_at_percent: 80               # Warn at 80% of daily budget
@@ -1397,9 +1392,10 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
     budget_cents: 150            # Max cost per dissent call
-    # cycle-119 C14 (KF-004 repair loop) — default OFF.
-    # When true, a dissenter finding that fails validate_finding gets ONE
-    # bounded repair round-trip to the SAME model before being rejected:
+    # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
+    # A dissenter finding from an UNENFORCED hop that fails validate_finding
+    # gets ONE bounded repair round-trip to the SAME model before rejection
+    # (schema-enforced payloads never enter the loop):
     # a normalization pre-pass (case-fold severity/category + whitespace
     # trim only, no synonym mapping) runs first; if the finding still
     # fails, only the offending finding JSON + the violated validation
@@ -1412,7 +1408,6 @@ flatline_protocol:
     # and in the degraded-verdict trajectory record, so findings the
     # dissenter model produced but that were silently dropped for a
     # trivial schema mismatch (KF-004's original complaint) stay visible.
-    repair_loop: false
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
@@ -2672,7 +2667,7 @@ qmd_context:
 #   # Tier → provider → model alias.
 #   tier_aliases:
 #     advisor:
-#       anthropic: claude-opus-4-7
+#       anthropic: claude-opus-5
 #       # openai: gpt-5.5-pro              # optional cross-provider
 #       # google: gemini-3.1-pro-preview   # optional cross-provider
 #     executor:

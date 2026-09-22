@@ -1,6 +1,5 @@
 # Synthesis Checkpoint Protocol
 
-> **Version**: 1.1 (v0.11.0 Claude Platform Integration)
 > **Paradigm**: Clear, Don't Compact
 > **Mode**: Blocking (pre-clear validation)
 
@@ -10,7 +9,7 @@ Mandatory validation before any `/clear` command to ensure zero information loss
 
 ## Simplified Checkpoint (Recommended)
 
-As of v0.11.0, the checkpoint can be simplified from 7 steps to **3 manual steps**, with Steps 1, 2, 5, and 6 automated by the context manager.
+The checkpoint has **3 manual steps**; Steps 1, 2, 5, and 6 are automated by the context manager.
 
 ### Running Simplified Checkpoint
 
@@ -56,55 +55,9 @@ context_management:
 
 ---
 
-## 7-Step Checkpoint Process
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│               SYNTHESIS CHECKPOINT PROTOCOL                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  STEP 1: GROUNDING VERIFICATION (BLOCKING)                  │ │
-│  │                                                             │ │
-│  │  Calculate: grounding_ratio = grounded / total_decisions   │ │
-│  │  Threshold: >= 0.95 (configurable)                         │ │
-│  │                                                             │ │
-│  │  IF grounding_ratio < threshold:                           │ │
-│  │    - BLOCK /clear                                          │ │
-│  │    - Display: "Cannot clear: X decisions lack evidence"    │ │
-│  │    - Show: Current ratio, required threshold               │ │
-│  │    - Action: Add evidence or mark [ASSUMPTION]             │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  STEP 2: NEGATIVE GROUNDING (BLOCKING in strict mode)       │ │
-│  │                                                             │ │
-│  │  For each Ghost Feature flagged this session:              │ │
-│  │    - Verify 2 diverse semantic queries executed            │ │
-│  │    - Both returned 0 results below 0.4 threshold           │ │
-│  │                                                             │ │
-│  │  IF any Ghost unverified:                                  │ │
-│  │    - Flag as [UNVERIFIED GHOST]                            │ │
-│  │    - BLOCK /clear in strict mode                           │ │
-│  │    - WARN in warn mode                                      │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  STEPS 3-7: LEDGER SYNC (NON-BLOCKING)                      │ │
-│  │                                                             │ │
-│  │  3. Update Decision Log - Persist to NOTES.md              │ │
-│  │  4. Update Bead - Append decisions[] and next_steps[]      │ │
-│  │  5. Log Session Handoff - Trajectory with notes_refs       │ │
-│  │  6. Decay Raw Output - Convert to lightweight identifiers  │ │
-│  │  7. Verify EDD - Confirm 3 test scenarios documented       │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ALL STEPS COMPLETE -> PERMIT /clear                            │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
 ## Step Details
+
+The full checkpoint runs all 7 steps in order: Steps 1-2 block `/clear` on failure; Steps 3-7 persist state and never block. All 7 must complete before `/clear` is permitted.
 
 ### Step 1: Grounding Verification (BLOCKING)
 
@@ -254,50 +207,7 @@ fi
 - 3 test scenarios per significant decision
 - Types: happy_path, edge_case, error_handling
 
-## Checkpoint Flow
-
-```
-User: /clear
-    │
-    ▼
-┌─────────────────────────────────────────┐
-│        SYNTHESIS CHECKPOINT              │
-├─────────────────────────────────────────┤
-│                                          │
-│  Step 1: Grounding Check                │
-│  ├── ratio = 0.97 >= 0.95 ✓            │
-│  └── PASS                               │
-│                                          │
-│  Step 2: Negative Grounding             │
-│  ├── unverified_ghosts = 0              │
-│  └── PASS                               │
-│                                          │
-│  Step 3: Decision Log Updated           │
-│  └── NOTES.md appended                  │
-│                                          │
-│  Step 4: Bead Updated                   │
-│  └── beads-x7y8 decisions[] appended    │
-│                                          │
-│  Step 5: Session Handoff Logged         │
-│  └── Trajectory entry created           │
-│                                          │
-│  Step 6: Output Decayed                 │
-│  └── 47 code blocks → identifiers       │
-│                                          │
-│  Step 7: EDD Verified                   │
-│  └── 5 test scenarios documented        │
-│                                          │
-│  ALL CHECKS PASSED                       │
-│                                          │
-└─────────────────────────────────────────┘
-    │
-    ▼
-/clear executes normally
-```
-
-## Failure Scenarios
-
-### Grounding Failure
+## Failure Scenario (illustrative — Step 2's report follows the same shape)
 
 ```
 SYNTHESIS CHECKPOINT FAILED
@@ -318,25 +228,6 @@ Actions:
   - Then retry /clear
 
 /clear BLOCKED
-```
-
-### Ghost Feature Failure (strict mode)
-
-```
-SYNTHESIS CHECKPOINT FAILED
-
-Step 2: Negative Grounding - FAILED
-  Unverified Ghost Features: 2
-
-  1. "OAuth2 SSO not implemented" - HIGH AMBIGUITY
-     Code: 0 results, Docs: 5 mentions
-     Action: Human audit required
-
-  2. "WebSocket support not present" - UNVERIFIED
-     Only 1 query executed (need 2)
-     Action: Run second diverse query
-
-/clear BLOCKED (strict mode)
 ```
 
 ## Configuration
@@ -383,52 +274,35 @@ hooks:
 
 ## Remediation Guide
 
-### Low Grounding Ratio
+**Low grounding ratio**: find ungrounded claims (`grep '"grounding":"assumption"' "$TRAJECTORY"`), search for evidence (`ck --hybrid "cache expiry configuration" "${PROJECT_ROOT}/src/" --top-k 5`), then either cite it:
 
-1. **Find ungrounded claims**:
-   ```bash
-   grep '"grounding":"assumption"' "$TRAJECTORY"
-   ```
+```markdown
+Cache TTL is 24 hours: `const CACHE_TTL = 86400` [${PROJECT_ROOT}/src/cache/config.ts:12]
+```
 
-2. **Search for evidence**:
-   ```bash
-   ck --hybrid "cache expiry configuration" "${PROJECT_ROOT}/src/" --top-k 5
-   ```
+or mark it as an assumption:
 
-3. **Add citations**:
-   ```markdown
-   Cache TTL is 24 hours: `const CACHE_TTL = 86400` [${PROJECT_ROOT}/src/cache/config.ts:12]
-   ```
+```markdown
+[ASSUMPTION] Users prefer dark mode (no analytics data available)
+```
 
-4. **Mark assumptions**:
-   ```markdown
-   [ASSUMPTION] Users prefer dark mode (no analytics data available)
-   ```
+**Unverified Ghost Features**: run a second, differently-worded query (ck v0.7.0+ syntax):
 
-### Unverified Ghost Features
+```bash
+ck --sem "alternative terminology for feature" --jsonl "${PROJECT_ROOT}/src/"
+```
 
-1. **Run second query** (ck v0.7.0+ syntax):
-   ```bash
-   ck --sem "alternative terminology for feature" --jsonl "${PROJECT_ROOT}/src/"
-   ```
+and document the verification:
 
-2. **Document verification**:
-   ```jsonl
-   {"phase":"negative_ground","query2":"alternative search","results2":0}
-   ```
+```jsonl
+{"phase":"negative_ground","query2":"alternative search","results2":0}
+```
 
-3. **Or request human audit**:
-   ```markdown
-   [UNVERIFIED GHOST] OAuth2 SSO - Requires human verification
-   ```
+or request human audit instead:
 
-## Best Practices
-
-1. **Cite as you work** - Don't wait until checkpoint
-2. **Flag assumptions early** - Be explicit about unverifiable claims
-3. **Run checkpoint manually** - Before long sessions, run `.claude/scripts/synthesis-checkpoint.sh`
-4. **Review trajectory** - Check grounding distribution regularly
-5. **Use warn mode for exploration** - Switch to strict for implementation
+```markdown
+[UNVERIFIED GHOST] OAuth2 SSO - Requires human verification
+```
 
 ---
 
@@ -438,9 +312,3 @@ hooks:
 - [Session Continuity](session-continuity.md) - Session lifecycle and recovery
 - [Attention Budget](attention-budget.md) - Delta-synthesis triggers
 - [Trajectory Evaluation](trajectory-evaluation.md) - Logging claims and handoffs
-
----
-
-**Protocol Version**: 1.0
-**Last Updated**: 2025-12-27
-**Paradigm**: Clear, Don't Compact

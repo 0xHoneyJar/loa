@@ -56,3 +56,10 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
 - Severity scores must be calibrated: 700+ concerns become blockers in autonomous workflows
 - Focus on: security, error handling, missing edge cases, unstated assumptions, scalability
 - Each concern must include a concrete recommendation
+
+### Coverage
+
+Report every concern you actually observe. Do not withhold one because it looks minor or because
+you are unsure — a separate scoring step filters, and an item you drop here is lost. Severity
+(priority) is the impact if it happens; confidence is how sure you are that it does. Keep them
+independent: never lower one to express the other. You do not decide the outcome; the scores do.

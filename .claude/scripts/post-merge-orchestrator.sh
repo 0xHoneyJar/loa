@@ -1056,6 +1056,13 @@ phase_release() {
   fi
 
   local tag="v${version}"
+  # sprint-bug-240: a version carrying a prerelease identifier (2.0.0-rc.1)
+  # is published as a GitHub pre-release and the flag is verified on read-back
+  # — a pre-release is never "Latest" and never masquerades as the stable cut.
+  local prerelease=false
+  if [[ "$version" == *-* ]]; then
+    prerelease=true
+  fi
 
   if ! check_gh 2>/dev/null; then
     fail_phase release "GitHub CLI is required for publication"
@@ -1064,7 +1071,7 @@ phase_release() {
 
   if [[ "$DRY_RUN" == true ]]; then
     echo "[RELEASE] Would create GitHub Release ${tag} (dry-run)"
-    update_phase "release" "completed" "{\"tag\": \"${tag}\", \"dry_run\": true}"
+    update_phase "release" "completed" "{\"tag\": \"${tag}\", \"prerelease\": ${prerelease}, \"dry_run\": true}"
     increment_metric "phases_completed"
     return 0
   fi
@@ -1100,8 +1107,8 @@ phase_release() {
 
   local response id readback
   if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"); then
-    if ! response=$(jq -nc --arg tag "$tag" --arg body "$notes" --arg title "$release_title" \
-      '{tag_name:$tag,name:$title,body:$body,draft:false}' |
+    if ! response=$(jq -nc --arg tag "$tag" --arg body "$notes" --arg title "$release_title" --argjson pre "$prerelease" \
+      '{tag_name:$tag,name:$title,body:$body,draft:false,prerelease:$pre}' |
       gh api --hostname "$GITHUB_HOST" --method POST "repos/${GITHUB_REPOSITORY}/releases" --input -); then
       fail_phase release "Release creation failed"
       return 1
@@ -1109,12 +1116,12 @@ phase_release() {
   fi
   if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response") ||
       ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}") ||
-      ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" \
-        '.id == $id and .tag_name == $tag and .body == $body and .draft == false' <<< "$readback" >/dev/null; then
+      ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" --argjson pre "$prerelease" \
+        '.id == $id and .tag_name == $tag and .body == $body and .draft == false and .prerelease == $pre' <<< "$readback" >/dev/null; then
     fail_phase release "Release identifier or read-back mismatch"
     return 1
   fi
-  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" '{id:$id,tag:$tag,verified:true}')"
+  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true}')"
   increment_metric phases_completed
   echo "[RELEASE] Verified release ${id}"
 }
@@ -1447,16 +1454,22 @@ prepare_candidate() {
     ([.phases.semver.result.commits[] | "- " + .subject] | join("\n"))' "$STATE_FILE") || return 1
   notification=$(printf '## Prepared release v%s\n\nThe table records generation results. Publication is verified separately in the retained run record.\n\n' "$version"; build_notification_body)
   atomic_state_update '.state = "PREPARED"'
+  # sprint-bug-240: the inspector sees the release flag next to the tag; a
+  # prerelease identifier in the version means a GitHub pre-release.
+  local prerelease=false
+  if [[ "$version" == *-* ]]; then
+    prerelease=true
+  fi
   tmp=$(mktemp "${candidate}.tmp.XXXXXXXX") || return 1
   if ! jq -n --slurpfile state "$STATE_FILE" \
     --arg target "$target" --arg tree "$tree" --arg origin "$origin" \
-    --arg push_url "$push_url" \
+    --arg push_url "$push_url" --argjson prerelease "$prerelease" \
     --arg tag "v${version}" --arg notes "$notes" --arg notification "$notification" \
     '{
       schema_version:1, pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
       merge_sha:$state[0].merge_sha, target_commit:$target, target_tree:$tree,
-      remote_origin:$origin, remote_push_url:$push_url, tag:$tag, release_body:$notes,
-      notification_body:$notification, prepared_state:$state[0]
+      remote_origin:$origin, remote_push_url:$push_url, tag:$tag, prerelease:$prerelease,
+      release_body:$notes, notification_body:$notification, prepared_state:$state[0]
     }' > "$tmp"; then
     rm -f "$tmp"
     return 1
@@ -1486,7 +1499,8 @@ publish_candidate() (
     (.remote_push_url | type == "string" and length > 0) and
     (.release_body | type == "string" and length > 0) and
     (.notification_body | type == "string" and length > 0) and
-    .tag == ("v" + .prepared_state.phases.semver.result.next))' "$PUBLISH_CANDIDATE" >/dev/null; then
+    .tag == ("v" + .prepared_state.phases.semver.result.next) and
+    ((.prerelease // false) == (.tag | test("-"))))' "$PUBLISH_CANDIDATE" >/dev/null; then
     echo "ERROR: Invalid release candidate" >&2
     return 1
   fi

@@ -23,14 +23,11 @@ Complete index of `.claude/protocols/` (one row per file — regenerate this tab
 | `karpathy-principles.md` | Enforcement map + config keys (canonical TEXT lives in CLAUDE.loa.md) | implementing-tasks pointer; CLAUDE.loa.md pointer |
 | `recommended-hooks.md` | Optional Claude Code hook patterns | hooks-reference.md; operators |
 | `ride-translation.md` | /ride codebase-translation flow | riding-codebase skill |
-| `risk-analysis.md` | Risk scoring for changes | audit flows |
 | `safe-file-creation.md` | Write-tool-vs-heredoc decision tree | shell-conventions.md pointer; implementing-tasks |
 | `session-continuity.md` | Tiered recovery (L1/L2/L3), fork detection | structured-memory.md pointer; skills' context_discipline |
-| `sprint-completion.md` | Sprint completion/verification flow | run-mode + implement flows |
 | `structured-memory.md` | NOTES.md contract: where durable knowledge goes, required sections, write discipline | notes-template tests; NOTES.md.template pointer |
 | `subagent-invocation.md` | Subagent dispatch patterns | parallel-execution sections of skills |
 | `synthesis-checkpoint.md` | Pre-clear validation (BLOCKING, 7-step) | check-loa v0.9.0 required; context_discipline |
 | `tool-result-clearing.md` | Clearing thresholds + 4-step synthesis + edge cases | 10 skills' context_discipline blocks; validate-ck-integration required |
 | `trajectory-evaluation.md` | ADK-style reasoning audit trail | implementing-tasks + reviewing-code resources |
-| `upgrade-process.md` | Framework upgrade workflow | update-loa flow |
 | `visual-communication.md` | Mermaid diagram standards | review feedback authoring |

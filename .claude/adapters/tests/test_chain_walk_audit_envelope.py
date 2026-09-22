@@ -155,6 +155,7 @@ def _build_completion_result(model_id: str, provider: str) -> CompletionResult:
 @pytest.fixture(autouse=True)
 def _no_persona(monkeypatch):
     monkeypatch.setattr(cheval, "_load_persona", lambda *_a, **_kw: None)
+    monkeypatch.setattr(cheval, "_load_persona_parts", lambda *_a, **_kw: (None, None))
     monkeypatch.setattr(cheval, "_check_feature_flags", lambda *_a, **_kw: None)
 
 
@@ -472,3 +473,115 @@ def test_static_misconfig_still_hard_aborts(capsys):
     # Hard-abort on the FIRST leg — must NOT walk to the fallback.
     assert exit_code == cheval.EXIT_CODES["INVALID_CONFIG"], out.err
     assert calls["n"] == 1, f"Static misconfig must hard-abort, not walk (got {calls['n']})"
+
+
+# ----------------------------------------------------------------------------
+# cycle-124 Sprint 1 Task 1.4 (FR-2 / SDD §3.2): per-hop output budgets.
+# ----------------------------------------------------------------------------
+
+
+def _anthropic_chain_config():
+    """claude-opus-5 (128K out) → claude-headless (cli, no max_output_tokens)."""
+    return {
+        "aliases": {
+            "opus": "anthropic:claude-opus-5",
+            "claude-headless": "anthropic:claude-headless",
+        },
+        "providers": {
+            "anthropic": {
+                "type": "anthropic",
+                "endpoint": "https://api.anthropic.com/v1",
+                "auth": "dummy",
+                "models": {
+                    "claude-opus-5": {
+                        "capabilities": ["chat"],
+                        "context_window": 1_000_000,
+                        "max_output_tokens": 128_000,
+                        "effective_input_ceiling": 180_000,
+                        "fallback_chain": ["anthropic:claude-headless"],
+                    },
+                    "claude-headless": {
+                        "kind": "cli",
+                        "capabilities": ["chat"],
+                        "context_window": 200_000,
+                    },
+                },
+            },
+        },
+        "feature_flags": {"metering": False},
+    }
+
+
+def _walk_anthropic_chain(explicit_max_tokens, monkeypatch):
+    """Primary raises EmptyContentError, fallback succeeds; return the per-hop requests."""
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+    cfg = _anthropic_chain_config()
+    fake_binding = MagicMock(temperature=0.7, capability_class=None)
+    fake_resolved = MagicMock(provider="anthropic", model_id="claude-opus-5")
+    seen = []
+
+    def _retry_side(_adapter, _req, _cfg, budget_hook=None):
+        seen.append(_req)
+        if len(seen) == 1:
+            raise EmptyContentError(provider="anthropic", model_id="claude-opus-5", reason="empty")
+        return _build_completion_result("claude-headless", "anthropic")
+
+    args = _make_args()
+    args.max_tokens = explicit_max_tokens
+    args.effort = "xhigh"
+    captured, fake_emit = _capture_modelinv()
+    with patch.object(cheval, "load_config", return_value=(cfg, {})), \
+         patch.object(cheval, "resolve_execution", return_value=(fake_binding, fake_resolved)), \
+         patch.object(cheval, "_build_provider_config", return_value=MagicMock()), \
+         patch.object(cheval, "get_adapter", side_effect=[MagicMock(), MagicMock()]), \
+         patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
+         patch("loa_cheval.audit_envelope.audit_emit", fake_emit), \
+         patch("loa_cheval.audit.modelinv.redact_payload_strings", side_effect=lambda x: x), \
+         patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
+        exit_code = cheval.cmd_invoke(args)
+    assert exit_code == cheval.EXIT_CODES["SUCCESS"]
+    assert len(seen) == 2
+    return seen, captured
+
+
+def test_c124_each_hop_gets_its_own_default_budget(monkeypatch):
+    seen, captured = _walk_anthropic_chain(None, monkeypatch)
+    assert seen[0].model == "claude-opus-5" and seen[0].max_tokens == 64_000
+    assert seen[1].model == "claude-headless" and seen[1].max_tokens == 4096
+    assert seen[0].effort == "xhigh" and seen[1].effort == "xhigh"
+    assert captured.get("effort") == "xhigh"
+
+
+def test_c124_explicit_budget_is_clamped_per_hop(monkeypatch):
+    seen, _ = _walk_anthropic_chain(200_000, monkeypatch)
+    assert seen[0].max_tokens == 128_000   # clamped to claude-opus-5 max_output_tokens
+    assert seen[1].max_tokens == 200_000   # headless declares no clamp source
+
+
+def test_c124_streaming_kill_switch_default_is_16k(monkeypatch):
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+    cfg = _anthropic_chain_config()
+    fake_binding = MagicMock(temperature=0.7, capability_class=None)
+    fake_resolved = MagicMock(provider="anthropic", model_id="claude-opus-5")
+    seen = []
+
+    def _retry_side(_adapter, _req, _cfg, budget_hook=None):
+        seen.append(_req)
+        return _build_completion_result("claude-opus-5", "anthropic")
+
+    args = _make_args()
+    args.max_tokens = None
+    args.effort = None
+    captured, fake_emit = _capture_modelinv()
+    with patch.object(cheval, "load_config", return_value=(cfg, {})), \
+         patch.object(cheval, "resolve_execution", return_value=(fake_binding, fake_resolved)), \
+         patch.object(cheval, "_build_provider_config", return_value=MagicMock()), \
+         patch.object(cheval, "get_adapter", return_value=MagicMock()), \
+         patch("loa_cheval.providers.retry.invoke_with_retry", side_effect=_retry_side), \
+         patch("loa_cheval.audit_envelope.audit_emit", fake_emit), \
+         patch("loa_cheval.audit.modelinv.redact_payload_strings", side_effect=lambda x: x), \
+         patch("loa_cheval.audit.modelinv.assert_no_secret_shapes_remain"):
+        assert cheval.cmd_invoke(args) == cheval.EXIT_CODES["SUCCESS"]
+    assert seen[0].max_tokens == 16_000
+    assert "effort" not in captured

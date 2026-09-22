@@ -102,17 +102,29 @@ describe("loadReviewIgnore", () => {
 });
 
 describe("getTokenBudget", () => {
-  it("returns correct budget for claude-sonnet-4-6", () => {
+  // cycle-124 FR-3: the yaml-derived twin wins — Anthropic maxInput is
+  // effective_input_ceiling (180K) − 20K headroom, not the raw context window.
+  it("returns the generated (ceiling − 20K) budget for claude-sonnet-4-6", () => {
     const budget = getTokenBudget("claude-sonnet-4-6");
-    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxInput, 160_000);
     assert.equal(budget.maxOutput, 8_192);
     assert.equal(budget.coefficient, 0.25);
   });
 
-  it("returns correct budget for claude-sonnet-4-5-20250929 (backward compat)", () => {
+  it("returns the generated budget for claude-sonnet-4-5-20250929 (backward compat id)", () => {
     const budget = getTokenBudget("claude-sonnet-4-5-20250929");
-    assert.equal(budget.maxInput, 200_000);
+    assert.equal(budget.maxInput, 160_000);
     assert.equal(budget.maxOutput, 8_192);
+  });
+
+  it("returns the generated budget for the new generation (claude-opus-5 / claude-fable-5-1)", () => {
+    assert.equal(getTokenBudget("claude-opus-5").maxInput, 160_000);
+    assert.equal(getTokenBudget("claude-fable-5-1").maxInput, 160_000);
+  });
+
+  it("falls back to the hand table for ids the yaml does not carry", () => {
+    const budget = getTokenBudget("gpt-5.2-legacy-hand-only");
+    assert.equal(budget.maxInput, 100_000);
   });
 
   it("returns default budget for unknown model", () => {

@@ -320,3 +320,5 @@ grimoires/loa/ledger.json.bak*
 # families (visions/handoffs/observations), so a committed copy would carry dangling refs
 # in a fresh clone (violates the OKF fail-soft non-adoption rule).
 grimoires/loa/INDEX.md
+# ledger-lib flock target (created by every ledger transaction; never content)
+grimoires/loa/ledger.json.lock

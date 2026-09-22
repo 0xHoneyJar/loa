@@ -156,6 +156,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
         """Flatten messages into role-prefixed sections for single-shot inference."""
         sections: List[str] = []
+        last_role = ""
         for msg in messages:
             role = (msg.get("role") or "user").lower()
             content = msg.get("content", "")
@@ -176,5 +177,12 @@ class HeadlessCLIAdapter(ProviderAdapter):
                 "assistant": "## Assistant",
                 "tool": "## Tool result",
             }.get(role, f"## {role.capitalize()}")
-            sections.append(f"{label}\n\n{content}".rstrip())
+            # cycle-124 FR-4: consecutive system messages (persona + context
+            # split for the Anthropic cache breakpoint) render as ONE section
+            # joined with "\n\n" — byte-identical to the merged prompt.
+            if role == "system" and sections and last_role == "system":
+                sections[-1] = f"{sections[-1]}\n\n{content}".rstrip()
+            else:
+                sections.append(f"{label}\n\n{content}".rstrip())
+            last_role = role
         return "\n\n".join(sections) + "\n"

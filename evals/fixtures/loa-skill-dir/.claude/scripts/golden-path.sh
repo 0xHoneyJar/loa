@@ -85,6 +85,60 @@ _gp_sprint_is_complete() {
     [[ -f "${sprint_dir}/COMPLETED" ]]
 }
 
+# FR-5 (cycle-124): the one verdict gate behind both call sites below. Every
+# caller has already confirmed the file carries a LOA-VERDICT marker, so a
+# verdict-derive.sh exit 2 here can only be a present-but-unparseable trailer
+# or a usage error (it exits 2 BEFORE emit_json) — any rc != 0 denies, as
+# does missing/broken jq. Passes only on rc 0 AND .consistent AND APPROVED.
+# Returns 0 pass / 1 deny; diagnostics go to stderr, never stdout.
+# Trailer DETECTION is deliberately loose — any HTML comment whose text reads
+# LOA…VERDICT with up to four arbitrary bytes before LOA and between the words (tab, NBSP,
+# U+2010, two spaces…) routes the file to verdict-derive.sh, which then accepts
+# ONLY the exact `<!-- LOA-VERDICT {json} -->` form. A malformed marker must
+# never fall through to the legacy prose heuristic, whose `grep -q APPROVED`
+# matches "NOT APPROVED" (Sprint 1 audit, slice C — reproduced).
+_GP_TRAILER_DETECT='<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT'
+# Matched case-insensitively (grep -i) everywhere below: a lowercase marker
+# must reach verdict-derive.sh and fail as malformed, not fall through to the
+# legacy prose heuristic (late Sprint 2 review, slice B).
+
+_gp_verdict_gate() {
+    local file="$1" gate="$2"
+    local verdict_json rc consistent verdict
+    verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${file}" --gate "${gate}" --json 2>/dev/null) && rc=0 || rc=$?
+    consistent=$(printf '%s' "${verdict_json}" | jq -r '.consistent // false' 2>/dev/null) || consistent="false"
+    if [[ "${rc}" -ne 0 || "${consistent}" != "true" ]]; then
+        echo "golden-path: inconsistent LOA-VERDICT trailer in ${file}" >&2
+        printf '%s' "${verdict_json}" | jq -r '.violations[]? // empty' >&2 2>/dev/null || true
+        return 1
+    fi
+    verdict=$(printf '%s' "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
+    [[ "${verdict}" == "APPROVED" ]] && return 0
+    return 1
+}
+
+# Read one integer field straight off a file's LOA-VERDICT trailer line.
+# Absent file/trailer/field reads as 0; a PRESENT field that is not a
+# non-negative integer (1.0, "1", null) prints "invalid" so the caller fails
+# closed instead of treating it as 0 (review round-1 high #4). The trailer is
+# located with the same loose detection as the guards above (LAST occurrence);
+# a value longer than six digits is `invalid` too — bash `-gt`/`-ne` wrap at
+# 2^64, so 18446744073709551616 would read as 0 (Sprint 1 audit, slice C).
+# verdict-derive.sh does not know the FR-8 exclusion fields yet (Sprint 3),
+# hence the direct parse.
+_gp_trailer_int() {
+    local file="$1" field="$2" payload val
+    payload=$(grep -oiE "${_GP_TRAILER_DETECT}"'[[:space:]]*\{.*\}[[:space:]]*-->' "${file}" 2>/dev/null | tail -1 \
+              | sed -E 's/^<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT[[:space:]]*//; s/[[:space:]]*-->$//')
+    if [[ -z "${payload}" ]]; then
+        echo 0
+        return 0
+    fi
+    val=$(printf '%s' "${payload}" | jq -r --arg f "${field}" \
+          'if has($f) then (if (.[$f] | type) == "number" and (.[$f] | floor) == .[$f] and .[$f] >= 0 and ((.[$f] | tostring | length) <= 6) then (.[$f] | tostring) else "invalid" end) else "0" end' 2>/dev/null) || val="invalid"
+    [[ "${val}" =~ ^[0-9]{1,6}$ ]] && echo "${val}" || echo invalid
+}
+
 # Check if a sprint has been reviewed (no findings or no required changes).
 # Detection: feedback file exists AND contains no "## Changes Required" or "## Findings" sections,
 # OR the sprint has already passed audit (which implies review was acceptable).
@@ -108,12 +162,9 @@ _gp_sprint_is_reviewed() {
         # chmod-lost executable bit cannot silently drop a present trailer
         # back to the legacy prose heuristic (which could reverse the verdict).
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
-            local verdict_json verdict rc
-            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/engineer-feedback.md" --gate review --json 2>/dev/null) && rc=0 || rc=$?
-            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
-            [[ "${verdict}" == "APPROVED" ]] && return 0
-            return 1
+           grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+            _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review
+            return $?
         fi
 
         # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
@@ -135,12 +186,36 @@ _gp_sprint_is_audited() {
     if [[ -f "${sprint_dir}/auditor-sprint-feedback.md" ]]; then
         # R2 review (cycle-119): -f + bash invocation, same rationale as above.
         if [[ -f "${SCRIPT_DIR}/verdict-derive.sh" ]] && \
-           grep -q '<!-- LOA-VERDICT ' "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
-            local verdict_json verdict rc
-            verdict_json=$(bash "${SCRIPT_DIR}/verdict-derive.sh" --file "${sprint_dir}/auditor-sprint-feedback.md" --gate audit --json 2>/dev/null) && rc=0 || rc=$?
-            verdict=$(echo "${verdict_json}" | jq -r '.verdict // empty' 2>/dev/null) || verdict=""
-            [[ "${verdict}" == "APPROVED" ]] && return 0
-            return 1
+           grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/auditor-sprint-feedback.md" 2>/dev/null; then
+            _gp_verdict_gate "${sprint_dir}/auditor-sprint-feedback.md" audit || return 1
+            # An audit implies review, so the review trailer would otherwise
+            # never meet verdict-derive.sh: when it exists, it must pass the
+            # same gate (review round-1 high #4 — fail closed).
+            if [[ -f "${sprint_dir}/engineer-feedback.md" ]] && \
+               grep -qiE "${_GP_TRAILER_DETECT}" "${sprint_dir}/engineer-feedback.md" 2>/dev/null; then
+                _gp_verdict_gate "${sprint_dir}/engineer-feedback.md" review || return 1
+            fi
+            # FR-5 cross-check: a reviewer-demoted high (review trailer
+            # `excluded`, FR-8) passes only when the auditor confirmed exactly
+            # that many (`excluded_confirmed`) — fail closed: absent reads as
+            # 0, a malformed value denies.
+            local excluded excluded_confirmed
+            excluded=$(_gp_trailer_int "${sprint_dir}/engineer-feedback.md" excluded)
+            if [[ "${excluded}" == "invalid" ]]; then
+                echo "golden-path: review trailer carries a non-integer excluded field in ${sprint_dir}/engineer-feedback.md" >&2
+                return 1
+            fi
+            if [[ "${excluded}" -gt 0 ]]; then
+                excluded_confirmed=$(_gp_trailer_int "${sprint_dir}/auditor-sprint-feedback.md" excluded_confirmed)
+                if [[ "${excluded_confirmed}" == "invalid" || "${excluded_confirmed}" -ne "${excluded}" ]]; then
+                    echo "golden-path: review trailer excluded=${excluded} but audit trailer excluded_confirmed=${excluded_confirmed} in ${sprint_dir}/auditor-sprint-feedback.md" >&2
+                    return 1
+                fi
+                # FR-9: the demotion is visible, not silent — say how many highs
+                # the reviewer excluded and the auditor confirmed.
+                echo "golden-path: ${sprint_id} review excluded ${excluded} speculative low-confidence high finding(s); audit confirmed ${excluded_confirmed}" >&2
+            fi
+            return 0
         fi
 
         # Legacy prose logic (byte-identical to pre-cycle-119 behavior)
