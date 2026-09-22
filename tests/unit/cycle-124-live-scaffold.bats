@@ -70,3 +70,18 @@ assert job.get("environment") == "live-floor", job.get("environment")
 PY
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
 }
+
+@test "c124-1.8-6: artifact validation checks every JSONL line and scans the ledgers for credential indicators (Bridgebuilder rc-pass F-001/F-002)" {
+    local wf="$PROJECT_ROOT/.github/workflows/live-floor-check.yml"
+    local step
+    step=$(awk '/name: Validate artifacts before upload/{f=1} f && /name: Upload live-floor outputs/{exit} f' "$wf")
+    [ -n "$step" ]
+    # F-001: no object-prefixed prefilter — a trailing non-JSON line must fail the file
+    ! grep -q "grep -c '\^{'" <<<"$step"
+    ! grep -q "grep '\^{'" <<<"$step"
+    grep -q 'reduce inputs' <<<"$step"
+    # F-002: the machine ledgers are scanned for credential indicators beyond the key shape;
+    # junit.xml stays on the key-shape scan (its skip reason legitimately names the variable)
+    grep -q 'ANTHROPIC_API_KEY|x-api-key' <<<"$step"
+    grep -q 'sk-ant-\[A-Za-z0-9_-\]{20,}' <<<"$step"
+}

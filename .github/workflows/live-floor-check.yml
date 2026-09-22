@@ -148,7 +148,9 @@ jobs:
           # Bridgebuilder iter-3 F-002 / iter-5 F-001: the files were written by
           # test code that ran with the key in its environment; a trusted step
           # with NO credential in scope checks them before anything leaves the
-          # runner (artifacts are not secret-masked). The scan is by key shape.
+          # runner (artifacts are not secret-masked). Every file is scanned by
+          # key shape; the two machine ledgers additionally reject any
+          # credential indicator and must be JSONL of objects end to end.
           for f in model-invoke.jsonl cost-ledger.jsonl junit.xml; do
             p="$RUNNER_TEMP/live-floor/$f"
             [ -f "$p" ] || continue
@@ -157,9 +159,18 @@ jobs:
             fi
             case "$f" in
               *.jsonl)
-                n=$(grep -c '^{' "$p" || true)
-                if [ "$n" -eq 0 ] || ! grep '^{' "$p" | jq -e 'type == "object"' >/dev/null 2>&1; then
-                  echo "::error::$f has no valid JSON object rows ($n candidate lines); refusing to upload"; rm -f "$p"; exit 1
+                # rc-pass F-002: ledger rows are token counts, model ids, transport
+                # and flags — a header name or the variable name is a leak, not data.
+                # junit.xml stays on the key-shape scan: its skip reason legitimately
+                # names ANTHROPIC_API_KEY.
+                if grep -qiE 'ANTHROPIC_API_KEY|x-api-key|authorization:|bearer ' "$p"; then
+                  echo "::error::$f carries a credential indicator; refusing to upload"; rm -f "$p"; exit 1
+                fi
+                # rc-pass F-001: every non-blank line must parse as a JSON object and
+                # there must be at least one; a trailing non-JSON line fails the file
+                # (the previous object-prefixed prefilter let it through).
+                if ! jq -e -n 'reduce inputs as $r (0; if ($r | type) == "object" then . + 1 else error("non-object row") end) > 0' "$p" >/dev/null 2>&1; then
+                  echo "::error::$f is not a non-empty JSONL file of objects; refusing to upload"; rm -f "$p"; exit 1
                 fi ;;
             esac
           done
