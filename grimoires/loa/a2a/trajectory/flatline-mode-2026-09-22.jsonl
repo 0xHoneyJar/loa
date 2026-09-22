@@ -1,0 +1,3040 @@
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:42Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:42Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:43Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:43Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:43Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:16:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:05Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:06Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:08Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:16Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:17:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:07Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:08Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:08Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:10Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:27Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:28Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:30Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:32Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:39Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:41Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:24:42Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:07Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:07Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:07Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:08Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:08Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:09Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:28Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:30Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:32Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:34Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:41Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:43Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T00:29:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:17Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:17Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:40Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:42Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:43Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:54Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:56Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T01:02:57Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:53Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:54Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:54Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:55Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:55Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:55Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:55Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:55Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:47:56Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:10Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:11Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:13Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:14Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:22Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T05:48:23Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:16Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:17Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:24Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:25Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:13:27Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:34:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:00Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:01Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:03Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:10Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:11Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:35:12Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:31Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:32Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:34Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:35Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:41Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:42Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:51:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:54:56Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:54:56Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T08:54:57Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:18Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:19Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:20Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:34Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:35Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:36Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:38Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:44Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:45Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T09:03:46Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:35Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:35Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:36Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:36Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:37Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:37Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:37Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:37Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:38Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:24:58Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:00Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:02Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:04Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:13Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:15Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}
+{
+  "type": "flatline_mode_detection",
+  "event": "mode_resolved",
+  "timestamp": "2026-09-22T10:25:17Z",
+  "data": {
+    "mode": "interactive",
+    "reason": "Default (no explicit mode specified)",
+    "operator": {
+      "type": "",
+      "confidence": ""
+    },
+    "detection": {
+      "cli_flag": null,
+      "env_var": null,
+      "config": false,
+      "auto_detect": null
+    }
+  }
+}

@@ -1,0 +1,581 @@
+{
+  "type": "flatline_protocol",
+  "event": "consensus.voice_rejected",
+  "timestamp": "2026-09-18T23:02:04Z",
+  "state": "INIT",
+  "data": {
+    "voice": "opus-review",
+    "reason": "empty_content",
+    "agent": "flatline-reviewer",
+    "phase": "spec"
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-09-18T23:02:04Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 0,
+      "model_agreement_percent": 0
+    },
+    "raw_reviews": {
+      "gpt": {
+        "content": "{\"improvements\":[{\"id\":\"IMP-001\",\"description\":\"Add an explicit preflight step that creates `.run/archive` before both rotations and verifies that `.run/model-invoke.jsonl` and `.run/cost-ledger.jsonl` exist before commands that assume them.\",\"rationale\":\"The cost-ledger move relies on `.run/archive` having already been created by the MODELINV section. If an operator runs only the cost-ledger path, or if the MODELINV log is absent, the move can fail or behave inconsistently with the stated rotation procedure.\",\"location\":\"Section 2. Cost ledger — precondition, then move whole\",\"priority\":\"MEDIUM\",\"confidence\":0.86},{\"id\":\"IMP-002\",\"description\":\"Replace the cost-ledger validation command with a command whose exit status matches the documented pass condition, or explicitly instruct operators to ignore exit code 1 when the printed count is 0.\",\"rationale\":\"The current `grep ... | grep -vc ...` command is documented as passing when it prints 0 while also exiting 1. In CI hooks or `set -e` shells this can abort the runbook at the success condition, increasing operator error during cleanup.\",\"location\":\"Section 2. Cost ledger — precondition, then move whole\",\"priority\":\"HIGH\",\"confidence\":0.91},{\"id\":\"IMP-003\",\"description\":\"Capture the cost-ledger archive path in a variable, mirroring `ARCHIVE` for MODELINV, and use that variable in verification, sprint-report recording, and rollback examples.\",\"rationale\":\"The rollback step uses `.run/archive/cost-ledger-<stamp>.jsonl`, but the runbook never records that stamp programmatically. A named variable reduces the chance of restoring the wrong ledger archive or losing the exact rollback path.\",\"location\":\"Sections 2, 3, and 5\",\"priority\":\"MEDIUM\",\"confidence\":0.88},{\"id\":\"IMP-004\",\"description\":\"Add a rollback precondition for `.run/model-invoke.jsonl` being absent or empty before running `seal MODELINV .run/model-invoke.jsonl`, and specify the correct behavior if no fresh chain exists yet.\",\"rationale\":\"Section 3 expects fresh logs may be absent after rotation, but Section 5 unconditionally seals `.run/model-invoke.jsonl`. If no fresh chain has been created, rollback may fail before restoring the archive.\",\"location\":\"Section 5. Restore (rollback)\",\"priority\":\"HIGH\",\"confidence\":0.84},{\"id\":\"IMP-005\",\"description\":\"Add a post-rotation verification that fresh `.run/model-invoke.jsonl` starts at `prev_hash: GENESIS` after the next audit event, or state that this is deferred until the next dispatch.\",\"rationale\":\"The runbook asserts the fresh chain restarts at GENESIS but does not provide an operator-verifiable check. Making the verification explicit would close the gap between the invariant and the operational evidence recorded in the sprint report.\",\"location\":\"Sections 1 and 3\",\"priority\":\"LOW\",\"confidence\":0.72}],\"summary\":\"5 improvements identified, 2 HIGH priority\",\"no_findings_reason\":null,\"reviewed_sections\":[]}",
+        "tokens_input": 26234,
+        "tokens_output": 691,
+        "latency_ms": 18117,
+        "retries": 0,
+        "model": "gpt-5.5",
+        "mode": "review",
+        "phase": "spec",
+        "cost_usd": 0,
+        "verdict_quality": {
+          "consensus_outcome": "consensus",
+          "truncation_waiver_applied": false,
+          "voices_planned": 1,
+          "voices_succeeded": 1,
+          "voices_succeeded_ids": [
+            "codex-headless"
+          ],
+          "voices_dropped": [],
+          "chain_health": "ok",
+          "confidence_floor": "low",
+          "rationale": "single-voice cheval invoke (voice=codex-headless); primary chain entry succeeded; chain_health=ok",
+          "single_voice_call": true,
+          "status": "APPROVED"
+        }
+      }
+    },
+    "note": "Consensus calculation skipped",
+    "phase": "spec",
+    "document": "grimoires/loa/runbooks/ledger-hygiene-rotation.md",
+    "domain": "software development",
+    "verdict_quality": {
+      "consensus_outcome": "consensus",
+      "truncation_waiver_applied": false,
+      "voices_planned": 2,
+      "voices_succeeded": 1,
+      "voices_succeeded_ids": [
+        "codex-headless"
+      ],
+      "voices_dropped": [
+        {
+          "voice": "missing-voice-1",
+          "reason": "Other",
+          "exit_code": 0,
+          "blocker_risk": "unknown"
+        }
+      ],
+      "chain_health": "degraded",
+      "confidence_floor": "med",
+      "rationale": "multi-voice aggregate (1/2 succeeded); chain_health=degraded; dropped: missing-voice-1(Other/unknown)",
+      "single_voice_call": false,
+      "status": "DEGRADED"
+    },
+    "tertiary_model_used": null,
+    "tertiary_status": "disabled",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": "flatline-19918-6672"
+    },
+    "timestamp": "2026-09-18T23:02:04Z",
+    "metrics": {
+      "total_latency_ms": 36000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}
+{
+  "type": "flatline_protocol",
+  "event": "complete",
+  "timestamp": "2026-09-18T23:12:26Z",
+  "state": "DONE",
+  "data": {
+    "consensus_summary": {
+      "high_consensus_count": 0,
+      "disputed_count": 0,
+      "low_value_count": 0,
+      "blocker_count": 4,
+      "model_agreement_percent": 0,
+      "models": 2,
+      "models_available": 2,
+      "tertiary_items": 0,
+      "confidence": "degraded"
+    },
+    "high_consensus": [],
+    "disputed": [],
+    "low_value": [],
+    "medium_value": [
+      {
+        "id": "gpt:0:IMP-001",
+        "description": "Define an explicit rollback variable for the cost ledger archive path, matching the MODELINV `ARCHIVE` variable, and use it consistently in Sections 2 and 5.",
+        "gpt_score": null,
+        "opus_score": 720,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 720,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-001",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:1:IMP-002",
+        "description": "Replace the zero-priced test-row precondition command with a wrapper that treats zero matches as success explicitly, for example by appending `|| test $? -eq 1` or using `awk` to count violations deterministically.",
+        "gpt_score": null,
+        "opus_score": 690,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 690,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-002",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:2:IMP-003",
+        "description": "Add a preflight step to ensure `.run/archive` exists before both ledger moves, or move `mkdir -p .run/archive` into a shared setup block before Sections 1 and 2.",
+        "gpt_score": null,
+        "opus_score": 660,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 660,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-003",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:3:IMP-004",
+        "description": "Clarify what operators should do if `verify-chain .run/model-invoke.jsonl` fails before sealing, including whether to stop, preserve the file in place, escalate, or copy it to a quarantine path.",
+        "gpt_score": null,
+        "opus_score": 780,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 780,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-004",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:4:IMP-005",
+        "description": "Add a guard for an absent fresh `.run/model-invoke.jsonl` during rollback before running `audit-envelope.sh seal MODELINV .run/model-invoke.jsonl`.",
+        "gpt_score": null,
+        "opus_score": 600,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 600,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-005",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:5:IMP-006",
+        "description": "Specify the exact expected output and exit-status handling for `tools/check-ledger-hygiene.sh`, including whether both absent files are required or whether one absent and one clean file is acceptable.",
+        "gpt_score": null,
+        "opus_score": 540,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 540,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-006",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "gpt:6:IMP-007",
+        "description": "Add a short preflight checklist covering required tools and state: `jq`, `npx`, `bats`, clean enough working tree policy for untracked `.run` files, and presence or absence of `LOA_AUDIT_SIGNING_KEY_ID`.",
+        "gpt_score": null,
+        "opus_score": 500,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 500,
+        "scorers_available": 1,
+        "source": "opus_scored",
+        "would_integrate": false,
+        "review_source": "gpt",
+        "original_id": "IMP-007",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:0:IMP-001",
+        "description": "Add a failure branch for the pre-rotation `verify-chain` step. State what to do when it does NOT print `OK N entries` (the likely case when test rows were written unsigned, with a different key, or out-of-chain): whether to still seal and archive with a `chain-broken` note in the manifest, whether to skip `seal` (which itself appends to a broken chain), and which KF to recur/open.",
+        "gpt_score": 910,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 910,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-001",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:10:IMP-011",
+        "description": "Verify and document that a mid-file `[MODELINV-DISABLED]` marker (left in place by §5 restore) is ignored by every consumer listed in §4 — `health.py`, `economy.py`, `journal.py`, `modelinv-rollup.sh`, `modelinv-coverage-audit.py` — not only by the prev-hash walk and `verify-chain`. If any of them treats a DISABLED marker as 'logging is off' or a row-count anomaly, note the expected degradation.",
+        "gpt_score": 560,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 560,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-011",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:11:IMP-012",
+        "description": "Replace `jq -c . \"$ARCHIVE\" | head -3` with a whole-file check such as `jq -e . \"$ARCHIVE\" >/dev/null && wc -l \"$ARCHIVE\"`, and state whether the seal marker line is itself valid JSON (if not, the check must exclude it).",
+        "gpt_score": 690,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 690,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-012",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:12:IMP-013",
+        "description": "Replace the brittle references 'path fixed at line 38' and '(… outside Task 1.1's file set)' with a reference by test name (V11) and a tracked follow-up (bead or issue) for the one-line env override, then link it from the runbook.",
+        "gpt_score": 520,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 520,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-013",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:13:IMP-014",
+        "description": "Add a retention/pruning rule for `.run/archive/` (e.g. keep N most recent rotations or 90 days) and confirm that `tools/check-ledger-hygiene.sh` does not descend into `.run/archive/`, so archived test rows cannot re-trip the scanner.",
+        "gpt_score": 500,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 500,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-014",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:14:IMP-015",
+        "description": "Resolve the scanner/runbook drift on `/tmp/pytest-of-*`: either add that pattern to `tools/check-ledger-hygiene.sh` (and to the §2 precondition) or remove the 'not scanned, but cleared by the same rotation' clause.",
+        "gpt_score": 640,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 640,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-015",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:1:IMP-002",
+        "description": "Add a quiesce precondition before §1 and §2: confirm no cheval / flatline / BB / pytest / bats process is running (e.g. `pgrep -f 'cheval|bats|pytest'`), and hold the same lock `audit_emit` uses (if any) across seal→mv. Also state that CI/`pre-push-audit` runners must never perform the rotation concurrently with a dispatch.",
+        "gpt_score": 940,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 940,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-002",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:2:IMP-003",
+        "description": "Fix the cost-ledger restore: `mv .run/archive/cost-ledger-<stamp>.jsonl .run/cost-ledger.jsonl` silently overwrites any fresh `.run/cost-ledger.jsonl` created after rotation. Because the cost ledger is not chained, restore should concatenate: `cat archive fresh > tmp && mv tmp .run/cost-ledger.jsonl` (or move the fresh file aside first, mirroring the MODELINV path).",
+        "gpt_score": 900,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 900,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-003",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:3:IMP-004",
+        "description": "Broaden and harden the §2 zero-price precondition: it only inspects rows containing `\"mock-`, so `/tmp/cheval-e2e-*` and `/tmp/pytest-of-*` test rows are never checked, and the regex `0[,}]` misses `0.0`, `null`, or a missing field. Replace with a jq filter that selects rows matching the same test-row predicates as `tools/check-ledger-hygiene.sh` and asserts `(.cost_micro_usd // 0) == 0`, ideally by sourcing the scanner's pattern list so the two cannot drift.",
+        "gpt_score": 880,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 880,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-004",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:4:IMP-005",
+        "description": "The §4 worktree replay runs `npx --no-install bats` inside a fresh `git worktree add`, which has no `node_modules`; the command will fail with bats not found unless bats is globally installed. Invoke the main checkout's binary (`\"$MAIN/node_modules/.bin/bats\"`), symlink `node_modules` into the worktree, or state the global-bats prerequisite.",
+        "gpt_score": 650,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 650,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-005",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:5:IMP-006",
+        "description": "Persist rotation state instead of relying on the shell variable `$ARCHIVE`, a second independent `$(date …)` stamp for the cost ledger, and prose in 'the sprint report'. Capture one `STAMP` up front, write `.run/archive/rotation-$STAMP.json` containing both archive paths, row counts, sha256, and the seal marker hash, and have §3 print it and §5 read from it (replacing the `<stamp>` placeholder).",
+        "gpt_score": 820,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 820,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-006",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:6:IMP-007",
+        "description": "Make rotation conditional on which file the scanner flagged. The trigger is 'cost-ledger.jsonl OR model-invoke.jsonl carries test rows' but §1–§3 rotate both unconditionally and §3 expects two SKIP lines. Add 'if only the cost ledger is flagged, skip §1' (and vice versa) and adjust the §3 expected output to 'one SKIP line per rotated file'.",
+        "gpt_score": 700,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 700,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-007",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:7:IMP-008",
+        "description": "In §5, state explicitly that rows emitted on the fresh chain between rotation and restore remain orphaned in `model-invoke-fresh-*.jsonl` (they cannot be re-appended because their `prev_hash` lineage differs), name which consumers (`modelinv-rollup.sh`, `modelinv-coverage-audit.py`, economy/health) must be pointed at both files or accept the gap, and add `verify-chain` on the fresh file before sealing it.",
+        "gpt_score": 760,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 760,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-008",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:8:IMP-009",
+        "description": "Split the remediation by trigger. In the CI post-test step `.run/` is ephemeral, so rotation is a no-op — route that branch to 'fix the harness' only. For the local branch, give a concrete attribution recipe for 'fix the leaking harness first', e.g. `jq -r '.model // .identity, .cwd // .path' .run/model-invoke.jsonl | sort | uniq -c` to map leaked rows to the test that lacks the `conftest.py` / `ledger-isolation` fixture.",
+        "gpt_score": 720,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 720,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-009",
+        "agreement": "INSUFFICIENT"
+      },
+      {
+        "id": "opus:9:IMP-010",
+        "description": "Provide the sidecar recompute procedure referenced by the 'If the count is not 0, stop' branch: name the script or function that regenerates `.run/.daily-spend-*.json` from a ledger (or give the jq group-by-day recipe) and state whether it should run against the archive, the fresh file, or both.",
+        "gpt_score": 740,
+        "opus_score": null,
+        "tertiary_score": null,
+        "delta": null,
+        "average_score": 740,
+        "scorers_available": 1,
+        "source": "gpt_scored",
+        "would_integrate": false,
+        "review_source": "opus",
+        "original_id": "IMP-010",
+        "agreement": "INSUFFICIENT"
+      }
+    ],
+    "blockers": [
+      {
+        "id": "SKP-001",
+        "concern": "No quiesce step. The runbook never tells the operator to stop or exclude concurrent writers (scheduled L3 cycles, an in-flight BB sweep or /run, a bats/pytest run, the pre-push hook itself) before seal → mv. A writer appending between `seal` and `mv` lands post-seal rows in the archive; a process holding an open fd on the old inode keeps appending to the archive after rename; a real cost row appended between the §2 grep and its `mv` is silently moved out of the live ledger.",
+        "severity": "HIGH",
+        "severity_score": 720,
+        "why_matters": "Rotation is framed as lossless ('rotate, never edit'), but without a quiesce/lock window it can drop legitimate production rows from the live ledgers and produce archives whose last line is not the seal marker, so the stated invariant ('archive is terminated by the seal') is unverifiable.",
+        "location": "§1 MODELINV log, §2 Cost ledger",
+        "recommendation": "Add a Step 0: confirm no live dispatch (`.run/sprint-plan-state.json` not RUNNING, no cheval/cycle processes, no bats/pytest running), hold the same lock `audit_emit` uses (or `flock` on the file) across seal → mv, and after the move assert the archive's final line is the seal marker before proceeding.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "Rollback (§5) is itself lossy. `mv \"$ARCHIVE\" .run/model-invoke.jsonl` depends on a shell variable that will not exist in the later session where rollback actually happens; `mv .run/archive/cost-ledger-<stamp>.jsonl .run/cost-ledger.jsonl` clobbers any fresh cost ledger written since rotation with no archive step (asymmetric with the MODELINV branch); and the rows it discards have already been folded into `.run/.daily-spend-*.json`, leaving sidecars and ledger disagreeing.",
+        "severity": "HIGH",
+        "severity_score": 740,
+        "why_matters": "The rollback path is the documented recovery for a failed rotation (PRD §7). A recovery procedure that silently overwrites post-rotation data and leaves budget sidecars inconsistent turns a hygiene action into an unrecoverable data-loss event.",
+        "location": "§5 Restore (rollback)",
+        "recommendation": "Reference the recorded archive paths literally, not `$ARCHIVE`. Before restoring the cost ledger, archive the fresh one (`model-invoke-fresh-*` pattern) and use `mv -n` / an existence check so nothing is clobbered. State explicitly that sidecars will diverge from the restored ledger and give the reconcile command. Add a post-restore verify step for the cost ledger too.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-002",
+        "concern": "The cost-ledger precondition only checks rows containing \"mock-\" and does not check the other stated test-row indicators such as /tmp/cheval-e2e-* or /tmp/pytest-of-* paths.",
+        "severity": "HIGH",
+        "severity_score": 710,
+        "why_matters": "Rows from test paths could carry nonzero pricing but bypass the precondition, leaving daily spend sidecars incorrect after rotation.",
+        "location": "Section 2 cost ledger precondition",
+        "recommendation": "Use the same predicate family as the hygiene check, or a jq-based filter that identifies all test rows by mock identities and known temporary test paths before asserting cost_micro_usd is zero.",
+        "source": "tertiary_skeptic"
+      },
+      {
+        "id": "SKP-007",
+        "concern": "The runbook does not require stopping writers before verifying, sealing, and moving ledger files.",
+        "severity": "CRITICAL",
+        "severity_score": 840,
+        "why_matters": "Concurrent audit_emit or cost-ledger writes during rotation can create lost entries, split chains, or archives that verify before the final write but fail later.",
+        "location": "Overall rotation procedure",
+        "recommendation": "Add a precondition that no dispatch/test process is running and acquire a lock if the project has one. If no lock exists, require CI/hooks to be paused or run rotation in a quiescent maintenance window.",
+        "source": "tertiary_skeptic"
+      }
+    ],
+    "degraded": true,
+    "degraded_model": null,
+    "degraded_models": [],
+    "confidence": "degraded",
+    "raw_reviews": {
+      "gpt": {
+        "content": "{\"improvements\":[{\"id\":\"IMP-001\",\"description\":\"Define an explicit rollback variable for the cost ledger archive path, matching the MODELINV `ARCHIVE` variable, and use it consistently in Sections 2 and 5.\",\"rationale\":\"The restore procedure currently uses `cost-ledger-<stamp>.jsonl`, but the runbook never records that stamp in a variable. This increases rollback risk because operators must manually infer the matching cost-ledger archive path from `ls` output.\",\"location\":\"Sections 2 and 5\",\"priority\":\"HIGH\",\"confidence\":0.91},{\"id\":\"IMP-002\",\"description\":\"Replace the zero-priced test-row precondition command with a wrapper that treats zero matches as success explicitly, for example by appending `|| test $? -eq 1` or using `awk` to count violations deterministically.\",\"rationale\":\"The current command says grep exits 1 on a zero count as the passing case, which can be misread or mishandled under `set -e`, CI wrappers, or copy-paste execution. A hygiene runbook should avoid commands where the successful outcome is a nonzero shell status.\",\"location\":\"Section 2: Cost ledger precondition\",\"priority\":\"HIGH\",\"confidence\":0.88},{\"id\":\"IMP-003\",\"description\":\"Add a preflight step to ensure `.run/archive` exists before both ledger moves, or move `mkdir -p .run/archive` into a shared setup block before Sections 1 and 2.\",\"rationale\":\"Section 2 assumes `.run/archive` exists because Section 1 created it. If an operator rotates only the cost ledger, retries from the middle, or follows the sections independently, the move can fail.\",\"location\":\"Sections 1 and 2\",\"priority\":\"MEDIUM\",\"confidence\":0.84},{\"id\":\"IMP-004\",\"description\":\"Clarify what operators should do if `verify-chain .run/model-invoke.jsonl` fails before sealing, including whether to stop, preserve the file in place, escalate, or copy it to a quarantine path.\",\"rationale\":\"The runbook says verification must pass, but does not define the failure path. Because the log is hash-chained and audit-sensitive, an unclear failure response can lead to accidental data loss or unauthorized manual edits.\",\"location\":\"Section 1: MODELINV log verification\",\"priority\":\"HIGH\",\"confidence\":0.9},{\"id\":\"IMP-005\",\"description\":\"Add a guard for an absent fresh `.run/model-invoke.jsonl` during rollback before running `audit-envelope.sh seal MODELINV .run/model-invoke.jsonl`.\",\"rationale\":\"The restore procedure assumes a fresh chain exists. If rollback is needed before any new dispatch created the file, the seal command may fail and leave the operator unsure whether to continue restoring the archived chain.\",\"location\":\"Section 5: Restore rollback\",\"priority\":\"MEDIUM\",\"confidence\":0.82},{\"id\":\"IMP-006\",\"description\":\"Specify the exact expected output and exit-status handling for `tools/check-ledger-hygiene.sh`, including whether both absent files are required or whether one absent and one clean file is acceptable.\",\"rationale\":\"Section 3 expects two SKIP lines after rotating both files, but the trigger condition may involve only one contaminated ledger. Clear success criteria would reduce false failures during partial rotations or manual recovery.\",\"location\":\"Section 3: Verify and record\",\"priority\":\"MEDIUM\",\"confidence\":0.78},{\"id\":\"IMP-007\",\"description\":\"Add a short preflight checklist covering required tools and state: `jq`, `npx`, `bats`, clean enough working tree policy for untracked `.run` files, and presence or absence of `LOA_AUDIT_SIGNING_KEY_ID`.\",\"rationale\":\"The runbook uses several external commands and depends on signing posture. Making prerequisites explicit avoids mid-procedure failures after files have already been sealed or moved.\",\"location\":\"Before Section 1\",\"priority\":\"MEDIUM\",\"confidence\":0.76}],\"summary\":\"7 improvements identified, 3 HIGH priority\",\"no_findings_reason\":null,\"reviewed_sections\":[\"Trigger condition and rotation rule\",\"Section 1 MODELINV log\",\"Section 2 Cost ledger\",\"Section 3 Verify and record\",\"Section 4 Consumers on the fresh log\",\"Section 5 Restore rollback\"]}",
+        "tokens_input": 26234,
+        "tokens_output": 910,
+        "latency_ms": 21541,
+        "retries": 0,
+        "model": "gpt-5.5",
+        "mode": "review",
+        "phase": "spec",
+        "cost_usd": 0,
+        "verdict_quality": {
+          "consensus_outcome": "consensus",
+          "truncation_waiver_applied": false,
+          "voices_planned": 1,
+          "voices_succeeded": 1,
+          "voices_succeeded_ids": [
+            "codex-headless"
+          ],
+          "voices_dropped": [],
+          "chain_health": "ok",
+          "confidence_floor": "low",
+          "rationale": "single-voice cheval invoke (voice=codex-headless); primary chain entry succeeded; chain_health=ok",
+          "single_voice_call": true,
+          "status": "APPROVED"
+        }
+      },
+      "opus": {
+        "content": "{\"improvements\":[{\"id\":\"IMP-001\",\"description\":\"Add a failure branch for the pre-rotation `verify-chain` step. State what to do when it does NOT print `OK N entries` (the likely case when test rows were written unsigned, with a different key, or out-of-chain): whether to still seal and archive with a `chain-broken` note in the manifest, whether to skip `seal` (which itself appends to a broken chain), and which KF to recur/open.\",\"rationale\":\"The runbook's trigger is test pollution, which is exactly the condition most likely to have already broken the chain. As written, step 1 has a single happy path and an operator hitting a failed verify has no sanctioned next step and will improvise against a hash-chained, invariant-protected log.\",\"location\":\"\\u00a71 MODELINV log \\u2014 verify \\u2192 seal \\u2192 move \\u2192 verify\",\"priority\":\"HIGH\",\"confidence\":0.85},{\"id\":\"IMP-002\",\"description\":\"Add a quiesce precondition before \\u00a71 and \\u00a72: confirm no cheval / flatline / BB / pytest / bats process is running (e.g. `pgrep -f 'cheval|bats|pytest'`), and hold the same lock `audit_emit` uses (if any) across seal\\u2192mv. Also state that CI/`pre-push-audit` runners must never perform the rotation concurrently with a dispatch.\",\"rationale\":\"Between `seal` and `mv` any concurrent `audit_emit` appends a real row after the DISABLED marker (it lands in the archive, not the fresh chain), and a writer that opened the file before `mv` keeps writing to the moved inode. Both produce silent misplacement of production rows with no error.\",\"location\":\"\\u00a71 and \\u00a72 (preconditions)\",\"priority\":\"HIGH\",\"confidence\":0.8},{\"id\":\"IMP-003\",\"description\":\"Fix the cost-ledger restore: `mv .run/archive/cost-ledger-<stamp>.jsonl .run/cost-ledger.jsonl` silently overwrites any fresh `.run/cost-ledger.jsonl` created after rotation. Because the cost ledger is not chained, restore should concatenate: `cat archive fresh > tmp && mv tmp .run/cost-ledger.jsonl` (or move the fresh file aside first, mirroring the MODELINV path).\",\"rationale\":\"Rows priced with real spend emitted between rotation and rollback are destroyed by the current command. The MODELINV restore correctly moves the fresh chain aside first; the cost-ledger restore does not, which is an asymmetric data-loss hazard in the rollback path itself.\",\"location\":\"\\u00a75 Restore (rollback), last line\",\"priority\":\"HIGH\",\"confidence\":0.85},{\"id\":\"IMP-004\",\"description\":\"Broaden and harden the \\u00a72 zero-price precondition: it only inspects rows containing `\\\"mock-`, so `/tmp/cheval-e2e-*` and `/tmp/pytest-of-*` test rows are never checked, and the regex `0[,}]` misses `0.0`, `null`, or a missing field. Replace with a jq filter that selects rows matching the same test-row predicates as `tools/check-ledger-hygiene.sh` and asserts `(.cost_micro_usd // 0) == 0`, ideally by sourcing the scanner's pattern list so the two cannot drift.\",\"rationale\":\"The precondition is what licenses skipping sidecar recomputation. A false pass here leaves `.daily-spend-*.json` totals wrong with no later signal, and the current grep passes trivially (prints 0) whenever the polluted rows are non-mock paths.\",\"location\":\"\\u00a72 Cost ledger \\u2014 precondition\",\"priority\":\"HIGH\",\"confidence\":0.8},{\"id\":\"IMP-005\",\"description\":\"The \\u00a74 worktree replay runs `npx --no-install bats` inside a fresh `git worktree add`, which has no `node_modules`; the command will fail with bats not found unless bats is globally installed. Invoke the main checkout's binary (`\\\"$MAIN/node_modules/.bin/bats\\\"`), symlink `node_modules` into the worktree, or state the global-bats prerequisite.\",\"rationale\":\"As written the archive-replay recipe does not run on a clean operator box, and the section exists precisely because the bats file has no env override to point at the archive directly.\",\"location\":\"\\u00a74 Consumers on the fresh log \\u2014 worktree snippet\",\"priority\":\"MEDIUM\",\"confidence\":0.6},{\"id\":\"IMP-006\",\"description\":\"Persist rotation state instead of relying on the shell variable `$ARCHIVE`, a second independent `$(date \\u2026)` stamp for the cost ledger, and prose in 'the sprint report'. Capture one `STAMP` up front, write `.run/archive/rotation-$STAMP.json` containing both archive paths, row counts, sha256, and the seal marker hash, and have \\u00a73 print it and \\u00a75 read from it (replacing the `<stamp>` placeholder).\",\"rationale\":\"\\u00a73 and \\u00a75 depend on `$ARCHIVE` surviving the session; a rotation done across two terminals or after a shell restart loses the only rollback pointer. The runbook itself states `git revert` cannot recover these files, so the pointer must be durable and machine-readable, not a variable plus a sentence in a report.\",\"location\":\"\\u00a71 ARCHIVE variable, \\u00a72 mv stamp, \\u00a73 'Record both archive paths', \\u00a75 `<stamp>`\",\"priority\":\"MEDIUM\",\"confidence\":0.75},{\"id\":\"IMP-007\",\"description\":\"Make rotation conditional on which file the scanner flagged. The trigger is 'cost-ledger.jsonl OR model-invoke.jsonl carries test rows' but \\u00a71\\u2013\\u00a73 rotate both unconditionally and \\u00a73 expects two SKIP lines. Add 'if only the cost ledger is flagged, skip \\u00a71' (and vice versa) and adjust the \\u00a73 expected output to 'one SKIP line per rotated file'.\",\"rationale\":\"Rotating a clean MODELINV log needlessly severs chain continuity (every rotation starts a new GENESIS chain that downstream rollups must stitch), and `seal` on a non-existent file has undefined behaviour in the runbook.\",\"location\":\"When / \\u00a71 / \\u00a73\",\"priority\":\"MEDIUM\",\"confidence\":0.6},{\"id\":\"IMP-008\",\"description\":\"In \\u00a75, state explicitly that rows emitted on the fresh chain between rotation and restore remain orphaned in `model-invoke-fresh-*.jsonl` (they cannot be re-appended because their `prev_hash` lineage differs), name which consumers (`modelinv-rollup.sh`, `modelinv-coverage-audit.py`, economy/health) must be pointed at both files or accept the gap, and add `verify-chain` on the fresh file before sealing it.\",\"rationale\":\"The section asserts 'appends continue the original chain' but is silent on the fresh rows, so a rollback reads as lossless when it is not. Verifying the fresh file before sealing also prevents archiving a broken fresh chain without noticing.\",\"location\":\"\\u00a75 Restore (rollback)\",\"priority\":\"MEDIUM\",\"confidence\":0.7},{\"id\":\"IMP-009\",\"description\":\"Split the remediation by trigger. In the CI post-test step `.run/` is ephemeral, so rotation is a no-op \\u2014 route that branch to 'fix the harness' only. For the local branch, give a concrete attribution recipe for 'fix the leaking harness first', e.g. `jq -r '.model // .identity, .cwd // .path' .run/model-invoke.jsonl | sort | uniq -c` to map leaked rows to the test that lacks the `conftest.py` / `ledger-isolation` fixture.\",\"rationale\":\"The 'Rule' paragraph says fix the harness first but offers no method to find which harness leaked, and a CI operator following \\u00a71\\u2013\\u00a73 literally would rotate files that vanish with the runner anyway.\",\"location\":\"When / Rule paragraph\",\"priority\":\"MEDIUM\",\"confidence\":0.7},{\"id\":\"IMP-010\",\"description\":\"Provide the sidecar recompute procedure referenced by the 'If the count is not 0, stop' branch: name the script or function that regenerates `.run/.daily-spend-*.json` from a ledger (or give the jq group-by-day recipe) and state whether it should run against the archive, the fresh file, or both.\",\"rationale\":\"The runbook halts the operator with 'recompute them from the archive before moving on' but supplies no way to do so, making the stop branch a dead end exactly when spend totals are known to be wrong.\",\"location\":\"\\u00a72, failure branch\",\"priority\":\"MEDIUM\",\"confidence\":0.7},{\"id\":\"IMP-011\",\"description\":\"Verify and document that a mid-file `[MODELINV-DISABLED]` marker (left in place by \\u00a75 restore) is ignored by every consumer listed in \\u00a74 \\u2014 `health.py`, `economy.py`, `journal.py`, `modelinv-rollup.sh`, `modelinv-coverage-audit.py` \\u2014 not only by the prev-hash walk and `verify-chain`. If any of them treats a DISABLED marker as 'logging is off' or a row-count anomaly, note the expected degradation.\",\"rationale\":\"\\u00a75 asserts the marker is skipped by two code paths; the other five consumers are named in \\u00a74 but their handling of a DISABLED marker mid-stream is not stated, and a health check that pages on it would turn a routine rollback into a false incident.\",\"location\":\"\\u00a74 / \\u00a75\",\"priority\":\"MEDIUM\",\"confidence\":0.5},{\"id\":\"IMP-012\",\"description\":\"Replace `jq -c . \\\"$ARCHIVE\\\" | head -3` with a whole-file check such as `jq -e . \\\"$ARCHIVE\\\" >/dev/null && wc -l \\\"$ARCHIVE\\\"`, and state whether the seal marker line is itself valid JSON (if not, the check must exclude it).\",\"rationale\":\"`head -3` validates only the first three lines; a truncated or non-JSON tail (including the freshly appended seal marker) passes silently, defeating the purpose of the 'archive is readable JSON' step.\",\"location\":\"\\u00a73 Verify and record\",\"priority\":\"LOW\",\"confidence\":0.6},{\"id\":\"IMP-013\",\"description\":\"Replace the brittle references 'path fixed at line 38' and '(\\u2026 outside Task 1.1's file set)' with a reference by test name (V11) and a tracked follow-up (bead or issue) for the one-line env override, then link it from the runbook.\",\"rationale\":\"Line numbers and task-scoped parentheticals rot immediately after the cycle closes; a runbook is read long after Task 1.1 is meaningful, and the follow-up will be lost unless it is tracked.\",\"location\":\"\\u00a74 Consumers on the fresh log\",\"priority\":\"LOW\",\"confidence\":0.7},{\"id\":\"IMP-014\",\"description\":\"Add a retention/pruning rule for `.run/archive/` (e.g. keep N most recent rotations or 90 days) and confirm that `tools/check-ledger-hygiene.sh` does not descend into `.run/archive/`, so archived test rows cannot re-trip the scanner.\",\"rationale\":\"Each rotation adds two files; with no retention policy the directory grows unbounded, and if the scanner ever walks `.run/` recursively the runbook's \\u00a73 'exit 0' expectation becomes false after the first rotation.\",\"location\":\"\\u00a73 / new Retention subsection\",\"priority\":\"LOW\",\"confidence\":0.55},{\"id\":\"IMP-015\",\"description\":\"Resolve the scanner/runbook drift on `/tmp/pytest-of-*`: either add that pattern to `tools/check-ledger-hygiene.sh` (and to the \\u00a72 precondition) or remove the 'not scanned, but cleared by the same rotation' clause.\",\"rationale\":\"A pattern the runbook considers pollution but the scanner ignores means such rows never trigger the runbook, so the stated coverage is misleading and the zero-price precondition in \\u00a72 never inspects them.\",\"location\":\"When (trigger paragraph) / \\u00a72\",\"priority\":\"LOW\",\"confidence\":0.6}],\"summary\":\"15 improvements identified, 4 HIGH priority\",\"no_findings_reason\":null,\"reviewed_sections\":[\"When\",\"Rule\",\"\\u00a71 MODELINV log \\u2014 verify \\u2192 seal \\u2192 move \\u2192 verify\",\"\\u00a72 Cost ledger \\u2014 precondition, then move whole\",\"\\u00a73 Verify and record\",\"\\u00a74 Consumers on the fresh log\",\"\\u00a75 Restore (rollback)\"]}",
+        "tokens_input": 2,
+        "tokens_output": 11717,
+        "latency_ms": 150194,
+        "retries": 0,
+        "model": "opus",
+        "mode": "review",
+        "phase": "spec",
+        "cost_usd": 0,
+        "verdict_quality": {
+          "consensus_outcome": "consensus",
+          "truncation_waiver_applied": false,
+          "voices_planned": 1,
+          "voices_succeeded": 1,
+          "voices_succeeded_ids": [
+            "claude-headless"
+          ],
+          "voices_dropped": [],
+          "chain_health": "ok",
+          "confidence_floor": "low",
+          "rationale": "single-voice cheval invoke (voice=claude-headless); primary chain entry succeeded; chain_health=ok",
+          "single_voice_call": true,
+          "status": "APPROVED"
+        }
+      }
+    },
+    "phase": "spec",
+    "document": "grimoires/loa/runbooks/ledger-hygiene-rotation.md",
+    "domain": "software development",
+    "verdict_quality": {
+      "consensus_outcome": "consensus",
+      "truncation_waiver_applied": false,
+      "voices_planned": 2,
+      "voices_succeeded": 2,
+      "voices_succeeded_ids": [
+        "codex-headless",
+        "claude-headless"
+      ],
+      "voices_dropped": [],
+      "chain_health": "ok",
+      "confidence_floor": "low",
+      "rationale": "Qualified review voices retained; cross-scoring was incomplete or rejected.",
+      "single_voice_call": false,
+      "status": "DEGRADED",
+      "scoring_degraded": true
+    },
+    "tertiary_model_used": null,
+    "tertiary_status": "disabled",
+    "execution": {
+      "mode": "interactive",
+      "mode_reason": "Default (no explicit mode specified)",
+      "run_id": "flatline-14745-23322"
+    },
+    "timestamp": "2026-09-18T23:12:26Z",
+    "metrics": {
+      "total_latency_ms": 235000,
+      "cost_cents": 0,
+      "cost_usd": 0
+    }
+  }
+}

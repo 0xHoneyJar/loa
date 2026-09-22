@@ -1,0 +1,9 @@
+{"timestamp":"2026-09-21T09:23:34Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"architecture,security","vision_count":2,"total_bytes":806,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:35Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"architecture,security","vision_count":2,"total_bytes":806,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:35Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"architecture,security","vision_count":2,"total_bytes":806,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:36Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"architecture,security","vision_count":2,"total_bytes":806,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:36Z","event":"seed_mode_transition","cycle_id":"cycle-cur","from":"full","to":"degraded","reason":"vision_registry_disabled"}
+{"timestamp":"2026-09-21T09:23:36Z","event":"seed_degraded","cycle_id":"cycle-cur","source_cycle_id":"cycle-prev","context_bytes":412}
+{"timestamp":"2026-09-21T09:23:37Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"security","vision_count":1,"total_bytes":490,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:38Z","event":"seed_full","cycle_id":"cycle-cur","query_tags":"architecture,security","vision_count":2,"total_bytes":806,"budget_bytes":4096}
+{"timestamp":"2026-09-21T09:23:38Z","event":"seed_cold","cycle_id":"cycle-cur","reason":"full_mode_zero_results","query_tags":"architecture,security"}
