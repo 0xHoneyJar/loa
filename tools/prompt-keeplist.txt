@@ -3,7 +3,8 @@
 # One entry per line: <id> TAB <path-or-glob> TAB <ERE> TAB <reason>
 # tests/unit/prompt-audit-keeplist.bats asserts that EVERY file matching the
 # glob still matches the ERE. The human companion that explains each entry is
-# grimoires/loa/a2a/sprint-237/prompt-audit/keep-list.md (one row per id).
+# tools/prompt-keeplist.md (one row per id; it moved out of the a2a record
+# because the template repo keeps a2a/sprint-* off main).
 # An audit patch that deletes a keep-listed string is rejected by the lead gate
 # before it is read (PRD FR-8 step 2); this file is itself keep-listed (K-46).
 #

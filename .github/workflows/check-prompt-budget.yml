@@ -8,14 +8,11 @@ name: Prompt Budget
 # read as green).
 
 on:
+  # Every pull request: the gate takes seconds, and a path filter would miss the
+  # shared inputs the checker charges (skill includes rendered into SKILL.md,
+  # resources read unconditionally, the keep list) — Bridgebuilder F-001 on
+  # PR #1266.
   pull_request:
-    paths:
-      - '.claude/skills/**'
-      - '.claude/loa/CLAUDE.loa.md'
-      - '.claude/protocols/**'
-      - 'tools/check-prompt-budget.sh'
-      - 'tests/fixtures/prompt-budget/**'
-      - '.github/workflows/check-prompt-budget.yml'
   push:
     branches: [main]
 

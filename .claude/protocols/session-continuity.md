@@ -159,7 +159,7 @@ The Session Continuity section in NOTES.md is the primary recovery artifact.
 
 ```markdown
 ## Session Continuity
-<!-- CRITICAL: Load this section FIRST after /clear (~100 tokens) -->
+<!-- CRITICAL: Load this section FIRST after /clear (via notes-guard.sh read) -->
 
 ### Active Context
 - **Current Bead**: beads-x7y8 (task description)
@@ -403,7 +403,7 @@ git push              # Push to remote
 4. No unverified ghosts.
 5. Ledgers synced.
 6. `/clear` executes.
-7. Session Recovery: Level 1 (~100 tokens).
+7. Session Recovery: Level 1 (`notes-guard.sh read`, ≤ 68 KiB).
 8. Resume from Reasoning State.
 
 ### Scenario 2: Session Crash
@@ -433,6 +433,6 @@ See `.loa.config.yaml`:
 ```yaml
 session_continuity:
   tiered_recovery: true     # Enable Level 1/2/3 recovery
-  level1_tokens: 100        # Max tokens for Level 1
-  level2_tokens: 500        # Max tokens for Level 2
+  level1_tokens: 20000      # Level 1 = notes-guard.sh read (≤ 68 KiB)
+  level2_tokens: 500        # Max tokens for Level 2 (ck --hybrid)
 ```

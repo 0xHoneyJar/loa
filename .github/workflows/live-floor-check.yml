@@ -71,7 +71,9 @@ jobs:
         if: env.HAS_KEY == 'true'
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet pytest pyyaml jsonschema referencing httpx
+          # Exact pins (same sites as bats-tests.yml / cycle099-sprint-1e-tests.yml):
+          # this job carries ANTHROPIC_API_KEY, so nothing floats (Bridgebuilder F-002).
+          python -m pip install --quiet 'pytest==9.0.3' 'pyyaml==6.0.2' 'jsonschema==4.26.0' 'referencing==0.36.2' 'httpx==0.28.1'
 
       - name: Live floor assertions (retries ×2 per assertion, ≤ $5)
         if: env.HAS_KEY == 'true'
@@ -95,6 +97,12 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: live-floor-check-${{ github.run_id }}
-          path: ${{ runner.temp }}/live-floor/
+          # Only the machine outputs. pytest.log is the raw output of test code
+          # run with ANTHROPIC_API_KEY in the environment; artifacts are not
+          # secret-masked, so it stays on the runner (Bridgebuilder F-003).
+          path: |
+            ${{ runner.temp }}/live-floor/junit.xml
+            ${{ runner.temp }}/live-floor/model-invoke.jsonl
+            ${{ runner.temp }}/live-floor/cost-ledger.jsonl
           if-no-files-found: warn
           retention-days: 30

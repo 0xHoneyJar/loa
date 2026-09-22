@@ -7,7 +7,7 @@
 # contracts, format-pinning examples, agent-network invariants, routing text,
 # the list itself). Each entry is `<id> TAB <glob> TAB <ERE> TAB <reason>`;
 # every file the glob matches must still match the ERE, and the human
-# companion grimoires/loa/a2a/sprint-237/prompt-audit/keep-list.md explains
+# companion tools/prompt-keeplist.md explains
 # every id.
 # =============================================================================
 
@@ -15,7 +15,7 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     LIST="$PROJECT_ROOT/tools/prompt-keeplist.txt"
-    COMPANION="$PROJECT_ROOT/grimoires/loa/a2a/sprint-237/prompt-audit/keep-list.md"
+    COMPANION="$PROJECT_ROOT/tools/prompt-keeplist.md"
 }
 
 entries() { grep -v -E '^\s*(#|$)' "$LIST"; }
