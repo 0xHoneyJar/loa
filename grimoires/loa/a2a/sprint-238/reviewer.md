@@ -77,14 +77,22 @@ Two test-side corrections during the red→green pass, both recorded: NG-6's cro
 | G-7 | `check-prompt-budget.sh`; `capture.sh --verify`; `compare.sh` | budget exit 0 (skills ≤ 16,384 B; protocols 199,525 B ≤ 200,000, warn line still exceeded — bd-72fq); goldens 32/32; A/B compare outputs as recorded in `a2a/sprint-237/ab/compare/` (recall/FP/tokens gates met or residual reported, environment caveat stated) |
 | G-8 | `notes-guard.bats` headline case | NG-1: ≤ 69,632 B, ≤ 20k tokens, non-empty, all three headings |
 
-**G-6** — filled from `scratchpad/e2e-g6.log` when the full `tests/unit/` run completes (see the addendum at the end of this report).
+**G-6 — measured three times; the plan's "identical" expectation failed twice and is met after two test-seam fixes.**
+
+| Run | Window | Ledger hashes | What the unit suite appended |
+|---|---|---|---|
+| 1 | 08:06–08:27Z (doc-lock suites also ran in parallel) | both changed | cost row `tr-reviewing-code-7675` (`codex-headless`, 24,933 tokens in, 10.7 s — a real dispatch) + cost/MODELINV row `tr-flatline-reviewer-28912` (`claude-headless`, 5/7 tokens, latency 0 — a mock) |
+| 2 (clean window) | 08:31–08:49Z | both changed | the same two shapes: `tr-reviewing-code-10177` (24,933 tokens in, 9.6 s) and `tr-flatline-reviewer-25213` |
+| 3 (after the fixes + rotation, fresh ledgers) | 08:58–09:17Z | no ledger file created (identical: absent before and after) | nothing; `tools/check-ledger-hygiene.sh` → `SKIP … absent` ×2, exit 0 |
+
+The tripwire reported `OK` on runs 1 and 2 because it recognises only `mock-*` identities — the rows carried real agent ids. Per-suite bisection (hash both ledgers, run one suite, re-hash) found the two writers: `tests/unit/cheval-preflight-gate.bats` P17 (it unset the API keys and expected a failure; on this host the chain fell through to the `codex-headless` CLI hop, which needs no key, and walked for real — one ~25k-token codex dispatch per `bats tests/unit/` run) and `tests/unit/lib-curl-fallback-flatline-chat.bats` (mock round-trip through a shim that execs the real `cheval.py`). Both now export `LOA_MODELINV_LOG_PATH` / `LOA_COST_LEDGER_PATH` into their tmpdir and P17 runs through `--mock-fixture-dir` (its pre-flight assertion is unchanged and `status -ne 7` is asserted, so the case is not vacuous). `tests/unit/ledger-isolation-discovery.bats` missed both shapes — an env-prefixed command line (`KEY="" run "$CHEVAL" …`) was classified as a variable definition, and a lowercase `$cheval` variable inside a heredoc shim was not an entry — both closed (DS-1..DS-5 green). Recorded as KF-033. Both ledgers were then rotated per `grimoires/loa/runbooks/ledger-hygiene-rotation.md` §1–3 (MODELINV chain verified, sealed, moved, re-verified; cost precondition: no priced mock rows): archives `.run/archive/model-invoke-20260922T085656Z.jsonl` and `.run/archive/cost-ledger-20260922T085656Z.jsonl` (rollback data — untracked, so these paths are the record). Run 3 then proved the suite appends nothing: 5,527 cases, 38 red = the pre-Sprint-4 baseline (30 pre-existing + 8 time-dependent licence fixtures), no ledger file created.
 
 ## Verification matrix (PRD NFR-9)
 
 | Command | Result |
 |---|---|
 | `python3 -m pytest .claude/adapters/tests -q -p no:cacheprovider` | 2276 passed, 6 skipped (live scaffolds), 175 subtests |
-| `npx --no-install bats tests/unit/` | G-6 addendum |
+| `npx --no-install bats tests/unit/` | 5,527 cases, 38 red = pre-Sprint-4 baseline (30 pre-existing + 8 time-dependent licence fixtures); no ledger rows appended (run 3) |
 | `bash .claude/scripts/gen-adapter-maps.sh --check`, `npm run gen-bb-registry:check` (in `.claude/skills/bridgebuilder-review`), `tools/regen-model-artifacts.sh --check`, `.claude/checksums.json` regenerated | all OK |
 | `bash tools/check-ledger-hygiene.sh`, `bash tools/check-prompt-budget.sh`, `bash tools/check-no-swallowed-jq.sh` | OK / exit 0 / OK |
 | `grimoires/loa/perf/skill-loop-2026-07-05/golden/capture.sh --verify` | 32/32 |
@@ -101,6 +109,8 @@ Two test-side corrections during the red→green pass, both recorded: NG-6's cro
 ## Follow-ups (beads)
 
 - bd-72fq — protocol total above the 143,360 B warn line (199,525 B after the FR-10 doc lines).
+- bd-rk9o — `guardrails-orchestrator.sh` passes `--mode run` but `danger-level-enforcer.sh` accepts only `interactive|autonomous`, so every run-mode input-guardrail check errors and falls open (found while running the pre-execution guardrail for this sprint's review; pre-existing at the branch base).
+- KF-033 — unit suites that reach cheval without ledger isolation (class recorded; two instances fixed here).
 - The `translate-ride-v{2,3,4}.md` snapshots keep their unbounded `cat` (frozen versions, excluded from the grep-lock) — noted for the next config-snapshot refresh; no bead (the snapshots are not loaded by any live skill).
 
 ## Sprint 4 residual and cycle close
