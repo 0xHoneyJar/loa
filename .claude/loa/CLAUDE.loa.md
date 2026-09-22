@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 1.196.0 | hash: 99948d56555ca216166444cb5688c4af90f05703b36f15ad11daf208b4a45667 -->
+<!-- @loa-managed: true | version: 2.0.0-rc.1 | hash: 99948d56555ca216166444cb5688c4af90f05703b36f15ad11daf208b4a45667 -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions

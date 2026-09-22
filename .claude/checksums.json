@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-22T22:18:39Z",
+  "generated": "2026-09-22T22:26:55Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1029,7 +1029,7 @@
     ".claude/lib/sync/wal-pruner.ts": "ac3c61dd1dc7aa709e1e7c0ad81b685a773abc3def22463c0def16cf947c223a",
     ".claude/lib/testing/consumer-harness.ts": "5fffe418f3694f6a768bb942b2ce2481de039311ca921e3563e383720a8dbe34",
     ".claude/lib/testing/fake-clock.ts": "1589920167f252b628c8c578fce4118287a5c906d4b2dc3bba2d4ed772470017",
-    ".claude/loa/CLAUDE.loa.md": "0b2a3b4d3dad29d2cf67cc981fed5369fe20e47c570363bb8038aee9521a5ab3",
+    ".claude/loa/CLAUDE.loa.md": "39019e1eabcf6d45adf23a8be1c8621e701acc3538e351905aaa488f2a4b38c8",
     ".claude/loa/feedback-ontology.yaml": "1d9fb5eec23e1ab26dd2ca7df3b6000f1a568d2fc6167e384ab3f1a2a943d04c",
     ".claude/loa/learnings/additional-extraction.json": "5d86db035cc579efbea6e59f924a9558fc7df6b8a17f6fa4465547a82e0a3c8c",
     ".claude/loa/learnings/anti-patterns.json": "c84ce36e19587d41b3612d8d9b834e117bb16895fcb43d08cf3eb834826751b4",
