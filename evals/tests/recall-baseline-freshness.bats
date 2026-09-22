@@ -173,4 +173,7 @@ mk_arm() {  # mk_arm <dir> <model> <tree_sha> <dirty> <recall_pr01> <fp_clean> <
   [ "$(yq -r '.corpus_sha256' "$T/out.yaml")" = "$CORPUS_SHA" ]
   [ "$(yq -r '.tasks."review-pr-01".recall == 1' "$T/out.yaml")" = "true" ]
   [ "$(yq -r '.tasks."review-pr-09".false_positives' "$T/out.yaml")" = "0" ]
+  # results.jsonl is JSONL, not an array: the first-row reads must slurp
+  [ "$(yq -r '.model_version' "$T/out.yaml")" = "m1" ]
+  [ "$(yq -r '.recorded_from_run' "$T/out.yaml")" = "r" ]
 }

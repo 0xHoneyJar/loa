@@ -281,7 +281,7 @@ compare_baseline() {
   # Get current model version from results
   local current_model="unknown"
   if [[ -f "$RESULTS_FILE" ]]; then
-    current_model="$(jq -r '.[0].model_version // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
+    current_model="$(jq -rs '.[0].model_version // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
   fi
 
   # Detect model version skew
@@ -426,11 +426,11 @@ update_baseline() {
 
   # Get model version from results
   local model_version
-  model_version="$(jq -r '.[0].model_version // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
+  model_version="$(jq -rs '.[0].model_version // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
 
   # Get run_id from results
   local run_id
-  run_id="$(jq -r '.[0].run_id // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
+  run_id="$(jq -rs '.[0].run_id // "unknown"' "$RESULTS_FILE" 2>/dev/null || echo "unknown")"
 
   # cycle-124 S3: prompt-tree identity + corpus freeze + executor model, so
   # compare.sh can refuse a tautological or stale re-baseline.
