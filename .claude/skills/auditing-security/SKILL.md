@@ -175,7 +175,7 @@ Execute by category (sequential, or parallel per Phase -1), each per its `resour
 
 Use `resources/templates/audit-report.md`. Output stays in the State Zone: codebase audits → `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` plus a `remediation/` directory (`mkdir -p` it); sprint audits → `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`; deployment audits → `grimoires/loa/a2a/deployment-feedback.md`.
 
-## Coverage (before the tally)
+### Coverage
 
 Report every finding you actually observe — minor, uncertain, or on an otherwise clean sprint;
 the tally below is the filter, and a finding you drop here is lost.

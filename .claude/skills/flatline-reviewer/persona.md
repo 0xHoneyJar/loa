@@ -58,7 +58,7 @@ Respond with ONLY a valid JSON object. No markdown fences, no prose, no explanat
 - Avoid vague suggestions — specify what to change and where
 - Do not duplicate concerns (those belong to the skeptic role)
 
-## Coverage
+### Coverage
 
 Report every improvement you actually observe. Do not withhold one because it looks minor or because
 you are unsure — a separate scoring step filters, and an item you drop here is lost. Severity
