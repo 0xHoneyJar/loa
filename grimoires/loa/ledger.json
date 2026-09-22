@@ -2158,9 +2158,9 @@
         {
           "global_id": 237,
           "local_label": "sprint-3",
-          "status": "planned",
+          "status": "completed",
           "created": "2026-09-17T03:59:12Z",
-          "completed": null,
+          "completed": "2026-09-22T07:51:00Z",
           "epic": "bd-nzvc",
           "beads": [
             "bd-2gs6",
@@ -2537,5 +2537,5 @@
     }
   ],
   "next_sprint_number": 239,
-  "last_updated": "2026-09-19T14:36:06Z"
+  "last_updated": "2026-09-22T07:51:00Z"
 }
