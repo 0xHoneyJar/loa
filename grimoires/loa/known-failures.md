@@ -81,6 +81,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content-ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 1 |
 
 ---
 
@@ -1471,3 +1472,24 @@ Do not repeat the failed GraphQL convenience call or infer a missing repository 
 ### Reading guide
 
 DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY="" run "$CHEVAL" …, classified as a variable definition) and (b) lowercase $cheval variables inside a heredoc shim — both closed 2026-09-22. If the hashes still move, do not trust the tripwire (it only recognises mock-* identities): bisect per suite, read the new rows' trace_id, then fix the suite and rotate. Never delete rows from a live ledger.
+
+## KF-034: post-merge-publication.bats reads red on hosts whose global git config forces annotated/signed tags
+
+**Status**: open
+**Feature**: release pipeline tests
+**Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
+**First observed**: 2026-09-23 (cycle-124 rc prep)
+**Recurrence count**: 1
+**Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
+**Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
+**Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-23 | Re-ran the suite with GIT_CONFIG_GLOBAL=/dev/null while landing sprint-bug-240 | 22/22 green; host config confirmed as the cause | commit 2018c320 (PR #1266); grimoires/loa/a2a/bug-20260923-27d899/auditor-sprint-feedback.md obs 3 |
+
+### Reading guide
+
+If the whole publication suite is red with `no tag message?`, it is the host git config (tag.forceSignAnnotated / tag.gpgSign), not the orchestrator. Re-run with GIT_CONFIG_GLOBAL=/dev/null before triaging anything in post-merge-orchestrator.sh; do not weaken the clean-tree or read-back guards to make it pass.
