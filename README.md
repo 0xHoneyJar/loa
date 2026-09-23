@@ -24,6 +24,8 @@ The first cut of the 2.0 line ships as a **pre-release**: it soaks with real use
 - **Aleph is opt-in** — `aleph.enabled` (default `false`); Aleph users set it to `true` before upgrading.
 - **Release engineering** — the post-merge pipeline prepares an inspectable candidate and publishes only an approved digest; pre-releases enter and promote through the CHANGELOG heading (`2.0.0-rc.1` → `-rc.2` → `2.0.0`).
 
+**Landing in `2.0.0-rc.2` (cycle-125, "friction floor"):** the destructive-command fence stops blocking cache/scratch cleanups it cannot lose data on (corpus-gated), the big planning artefacts read by section (`notes-guard.sh read --file F --section 'Sprint N'`), `/run` refuses to start a run it cannot finish (`run-preflight.sh`, eight predicates) and tells the next session how to resume, `/loa` shows provider health (breakers, credential presence, CLI hops), and the ids the fleet actually calls are priced (dated releases, aliases, CLI hops) with the unpriced share always visible.
+
 Read the [migration guide](docs/migration/v2.0-model-generation-floor.md) (five recipes, every kill switch) and [ADR-004](docs/architecture/ADR-004-model-generation-floor.md) (why the floor, why Aleph is opt-in, why an rc first). The line-by-line audit is in [`grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md`](grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md). Feedback on the candidate: open an issue labelled `2.0.0-rc`.
 
 ## What Is This?

@@ -200,10 +200,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
                 f"{(proc.stderr or '').strip()[:200]})",
             )
 
+        # cycle-125 FR-5: the id claude was asked to run (extra.cli_model),
+        # recorded on the result so the ledger row is priced and attributable.
+        _mc = self.config.models.get(request.model)
+        cli_model = ((_mc.extra if _mc is not None else None) or {}).get("cli_model") or request.model
         return self._parse_json_output(
             parsed=parsed,
             requested_model=request.model,
             latency_ms=latency_ms,
+            cli_model=cli_model,
         )
 
     # ---------------------------------------------------------------------
@@ -337,6 +342,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         parsed: Dict[str, Any],
         requested_model: str,
         latency_ms: int,
+        cli_model: Optional[str] = None,
     ) -> CompletionResult:
         """Parse a successful claude --output-format json single object.
 
@@ -429,6 +435,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         model_usage = parsed.get("modelUsage")
         if isinstance(model_usage, dict) and model_usage:
             actual_model = next(iter(model_usage.keys()), requested_model)
+        # cycle-125 FR-5 (SDD §1.6): record the hop and the id the CLI was
+        # asked to run (the catalog `extra.cli_model`, an alias the pricing
+        # ladder resolves) so the ledger row is priced and attributable even
+        # when the CLI reports no modelUsage. Additive metadata; `model`
+        # keeps its pre-cycle meaning (actual, else requested).
+        metadata["transport"] = "cli:claude"
+        metadata["requested_model"] = requested_model
+        if cli_model and cli_model != requested_model:
+            metadata["resolved_model"] = cli_model
 
         if not content:
             logger.warning(

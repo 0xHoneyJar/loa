@@ -308,6 +308,8 @@ check_schema() {
 
 check_memory() {
   echo "Checking structured memory..."
+  # cycle-125 FR-4: the known-failures ledger is the index-first intake surface
+  [[ -f "$(dirname "$NOTES_FILE")/known-failures.md" ]] || warn "known-failures.md missing - seed it: cp .claude/templates/known-failures.md.template grimoires/loa/known-failures.md"
   [[ -f "$NOTES_FILE" ]] || { warn "NOTES.md missing - memory not initialized"; return; }
 
   # Check for required sections

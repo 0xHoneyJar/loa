@@ -198,11 +198,16 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
         if proc.returncode != 0:
             self._raise_for_subprocess_error(proc.returncode, proc.stderr or "")
 
+        # cycle-125 FR-5: the id codex was asked to run (extra.cli_model),
+        # recorded on the result so the ledger row is priced and attributable.
+        _mc = self.config.models.get(request.model)
+        cli_model = ((_mc.extra if _mc is not None else None) or {}).get("cli_model") or request.model
         return self._parse_jsonl_output(
             stdout=proc.stdout or "",
             stderr=proc.stderr or "",
             requested_model=request.model,
             latency_ms=latency_ms,
+            cli_model=cli_model,
         )
 
     # ---------------------------------------------------------------------
@@ -336,6 +341,7 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
         stderr: str,
         requested_model: str,
         latency_ms: int,
+        cli_model: Optional[str] = None,
     ) -> CompletionResult:
         """Parse codex exec --json output stream.
 
@@ -402,6 +408,13 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
             source="actual" if usage_data else "estimated",
         )
 
+        # cycle-125 FR-5 (SDD §1.6): hop + the id codex was asked to run
+        # (`extra.cli_model`), so the ledger prices and attributes the row
+        # even when the CLI emits no model event. Additive metadata.
+        metadata: Dict[str, Any] = {"transport": "cli:codex", "requested_model": requested_model}
+        if cli_model and cli_model != requested_model:
+            metadata["resolved_model"] = cli_model
+
         return CompletionResult(
             content=content,
             tool_calls=None,
@@ -411,6 +424,7 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
             latency_ms=latency_ms,
             provider=self.provider,
             interaction_id=thread_id,
+            metadata=metadata,
         )
 
     # ---------------------------------------------------------------------

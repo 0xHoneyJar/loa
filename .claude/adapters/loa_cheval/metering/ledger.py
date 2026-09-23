@@ -124,6 +124,8 @@ def create_ledger_entry(
     reported_cost_micro_usd: Optional[int] = None,
     cache_read_tokens: int = 0,
     cache_creation_tokens: int = 0,
+    resolved_model: Optional[str] = None,
+    transport: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a ledger entry dict matching SDD §4.5.1 format.
 
@@ -137,8 +139,19 @@ def create_ledger_entry(
 
     For Deep Research (pricing_mode="task"), tokens are informational only —
     cost is the flat per_task_micro_usd.
+
+    cycle-125 FR-5: pricing resolves through the ladder in `find_pricing`
+    (exact → dated → alias → hop); a config-priced row carries the additive
+    `pricing_resolution`. `resolved_model` (the catalog id a CLI hop actually
+    ran, when it differs from `model`) and `transport` (e.g. `cli:claude`) are
+    recorded when the adapter supplies them, and a config-priced row whose
+    tokens were counted by cheval rather than reported (`usage_source` other
+    than "actual") is marked `cost_estimated: true`. Absent pricing stays
+    `unknown` with cost 0 — never a silent zero dressed as a price.
     """
     pricing = find_pricing(provider, model, config)
+    if pricing is None and resolved_model and resolved_model != model:
+        pricing = find_pricing(provider, resolved_model, config)
 
     if reported_cost_micro_usd is not None:
         cost_micro_usd = reported_cost_micro_usd
@@ -180,6 +193,14 @@ def create_ledger_entry(
 
     if interaction_id:
         entry["interaction_id"] = interaction_id
+    if pricing_source == "config" and pricing is not None:
+        entry["pricing_resolution"] = pricing.resolution
+        if usage_source != "actual":
+            entry["cost_estimated"] = True
+    if resolved_model and resolved_model != model:
+        entry["resolved_model"] = resolved_model
+    if transport:
+        entry["transport"] = transport
     if cache_read_tokens:
         entry["tokens_cache_read"] = cache_read_tokens
     if cache_creation_tokens:

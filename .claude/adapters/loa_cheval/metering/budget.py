@@ -248,6 +248,10 @@ class BudgetEnforcer:
                     if result.metadata.get("pricing_source") == "cli_reported"
                     else None
                 ),
+                # cycle-125 FR-5: headless adapters record the catalog id the
+                # hop actually ran and the transport (metadata, additive).
+                resolved_model=result.metadata.get("resolved_model"),
+                transport=result.metadata.get("transport"),
             )
             record_cost(entry, self._ledger_path)
 

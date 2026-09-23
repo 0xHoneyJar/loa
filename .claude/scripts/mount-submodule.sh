@@ -1118,6 +1118,28 @@ EOF
 }
 
 # === Initialize State Zone ===
+# cycle-125 FR-4 (SDD §1.5): create grimoires/loa/known-failures.md from the
+# framework template when missing. Never overwrites; idempotent; logs once.
+# $1 = grimoire dir (default grimoires/loa). Template: .claude/templates/.
+seed_known_failures_ledger() {
+  local gdir="${1:-grimoires/loa}" kf template tdir
+  kf="$gdir/known-failures.md"
+  [[ -f "$kf" ]] && return 0
+  tdir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/templates"
+  template="$tdir/known-failures.md.template"
+  if [[ ! -f "$template" && -f ".claude/templates/known-failures.md.template" ]]; then
+    template=".claude/templates/known-failures.md.template"
+  fi
+  if [[ -f "$template" ]]; then
+    mkdir -p "$gdir"
+    cp -- "$template" "$kf"
+    log "Created known-failures.md (seeded from the framework template)"
+  else
+    warn "known-failures.md not seeded: template missing at $template"
+  fi
+  return 0
+}
+
 init_state_zone() {
   step "Initializing State Zone..."
 
@@ -1153,6 +1175,10 @@ init_state_zone() {
 EOF
     log "Created NOTES.md"
   fi
+
+  # cycle-125 FR-4: seed the known-failures ledger so the index-first intake
+  # (CLAUDE.md "Context Intake Discipline") has a file to read on day one.
+  seed_known_failures_ledger "grimoires/loa"
 
   # Create .beads directory (legacy — kept for backward compat)
   mkdir -p .beads

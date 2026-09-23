@@ -2486,6 +2486,27 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 )
 
 
+def cmd_reset_breaker(args: argparse.Namespace) -> int:
+    """`cheval --reset-breaker PROVIDER[:AUTH_TYPE]` (cycle-125 FR-4, SDD §1.5).
+
+    Operator action: journals an `operator_reset` marker, then writes the
+    default CLOSED state for the named bucket (or every auth-type bucket of
+    the provider). Prints one JSON object; exit 0 when something was reset,
+    1 when nothing matched, 2 on a malformed spec.
+    """
+    from loa_cheval.routing.circuit_breaker import reset_bucket
+
+    spec = str(args.reset_breaker)
+    provider, _, auth_type = spec.partition(":")
+    try:
+        done = reset_bucket(provider, auth_type or None, ".run", getattr(args, "reset_reason", "operator reset"))
+    except ValueError as exc:
+        print(_error_json("INVALID_INPUT", str(exc)), file=sys.stderr)
+        return EXIT_CODES["INVALID_INPUT"]
+    print(json.dumps({"reset": done, "reason": getattr(args, "reset_reason", "operator reset")}))
+    return 0 if done else 1
+
+
 def cmd_print_config(args: argparse.Namespace) -> int:
     """Print effective merged config with source annotations."""
     config, sources = load_config(cli_args=vars(args))
@@ -2700,6 +2721,10 @@ def main() -> int:
 
     # Utility commands
     parser.add_argument("--dry-run", action="store_true", dest="dry_run", help="Validate and print resolved model, don't call API")
+    parser.add_argument("--reset-breaker", metavar="PROVIDER[:AUTH_TYPE]", dest="reset_breaker",
+                        help="cycle-125 FR-4: reset a provider circuit breaker (or all of a provider's auth-type buckets) to CLOSED; journaled before the write")
+    parser.add_argument("--reset-reason", dest="reset_reason", default="operator reset via cheval --reset-breaker",
+                        help="journal reason recorded with --reset-breaker")
     parser.add_argument("--print-effective-config", action="store_true", dest="print_config", help="Print merged config with source annotations")
     parser.add_argument("--validate-bindings", action="store_true", dest="validate_bindings", help="Validate all agent bindings")
 
@@ -2714,6 +2739,8 @@ def main() -> int:
     _substrate_init_janitor()
 
     # Route to subcommand
+    if getattr(args, "reset_breaker", None):
+        return cmd_reset_breaker(args)
     if args.print_config:
         return cmd_print_config(args)
     if args.validate_bindings:

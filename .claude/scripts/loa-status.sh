@@ -617,12 +617,14 @@ main() {
 
     version_json=$(get_version_info_json)
     agent_network_json=$(get_agent_network_json)
+    providers_json=$(get_providers_json)
 
-    # Merge the JSON objects: workflow base + framework + agent_network
-    jq -s '.[0] * { "framework": .[1], "agent_network": .[2] }' \
+    # Merge the JSON objects: workflow base + framework + agent_network + providers
+    jq -s '.[0] * { "framework": .[1], "agent_network": .[2], "providers": .[3] }' \
       <(echo "$workflow_json") \
       <(echo "$version_json") \
-      <(echo "$agent_network_json")
+      <(echo "$agent_network_json") \
+      <(echo "$providers_json")
   else
     # Human-readable combined output
     echo "═══════════════════════════════════════════════════════════════"
@@ -679,6 +681,11 @@ main() {
       echo "  (workflow-state.sh not found)"
     fi
 
+    # Providers section (cycle-125 FR-4, SDD §1.5): breakers, credential presence, CLI hops.
+    echo ""
+    echo "───────────────────────────────────────────────────────────────"
+    display_providers_section
+
     # Agent-Network Primitives section (cycle-098 Sprint 1C, SDD §4.4).
     echo ""
     echo "───────────────────────────────────────────────────────────────"
@@ -708,6 +715,100 @@ display_artefacts_line() {
   if [[ -n "$warn" ]]; then
     echo "  ⚠ ≥ 100 KiB:${warn} — read by section: notes-guard.sh read --file <F> --section <H> (or --index)"
   fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Providers (cycle-125 FR-4, SDD §1.5): one glance at provider health.
+# Per provider: credential PRESENT/absent (env only — the value is never read
+# into a variable here), CLI hop on PATH, and every breaker bucket with its
+# state, age and probe timing from `breaker_cli --list --json` (jq fallback
+# over the state files when the Python substrate is unavailable).
+# Test seam (bats-gated): LOA_STATUS_RUN_DIR points at a fixture .run/.
+# ---------------------------------------------------------------------------
+_providers_run_dir() {
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_RUN_DIR:-}" ]]; then
+    echo "$LOA_STATUS_RUN_DIR"
+  else
+    echo "$PROJECT_ROOT/.run"
+  fi
+}
+_providers_reset_timeout() {
+  local rt=""
+  if command -v yq >/dev/null 2>&1 && [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
+    rt=$(yq eval '.routing.circuit_breaker.reset_timeout_seconds // ""' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null)
+  fi
+  [[ "$rt" =~ ^[0-9]+$ ]] && echo "$rt" || echo 60
+}
+# Snapshot JSON: {"reset_timeout_seconds":N,"buckets":{prov:{auth:{state,failure_count,opened_at,age_s,probe_due_in_s}}}}
+_providers_snapshot() {
+  local run_dir rt py out
+  run_dir=$(_providers_run_dir); rt=$(_providers_reset_timeout)
+  if [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then py="${PROJECT_ROOT}/.venv/bin/python"; else py="$(command -v python3 || true)"; fi
+  if [[ -n "$py" ]]; then
+    out=$(cd "$PROJECT_ROOT/.claude/adapters" 2>/dev/null && PYTHONPATH="$PROJECT_ROOT/.claude/adapters" "$py" -m loa_cheval.routing.breaker_cli --list --json --run-dir "$run_dir" --reset-timeout "$rt" 2>/dev/null) || out=""
+    if printf '%s' "$out" | jq -e '.buckets | type == "object"' >/dev/null 2>&1; then printf '%s\n' "$out"; return 0; fi
+  fi
+  # jq fallback: same shape from the files (symlinks and the lock skipped)
+  local now f b prov auth st fc opened json='{}'
+  now=$(date +%s)
+  for f in "$run_dir"/circuit-breaker-*.json; do
+    [[ -f "$f" && ! -L "$f" ]] || continue
+    b=$(basename "$f" .json); b="${b#circuit-breaker-}"; prov="${b%%-*}"; auth="${b#*-}"; [[ "$auth" == "$b" ]] && continue
+    st=$(jq -r '.state // "CLOSED"' "$f" 2>/dev/null || echo CLOSED); fc=$(jq -r '.failure_count // 0' "$f" 2>/dev/null || echo 0)
+    opened=$(jq -r '.opened_at // empty' "$f" 2>/dev/null); opened="${opened%.*}"
+    json=$(printf '%s' "$json" | jq -c --arg p "$prov" --arg a "$auth" --arg s "$st" --argjson fc "${fc:-0}" \
+      --argjson age "$( if [[ "$st" == OPEN && "$opened" =~ ^[0-9]+$ ]]; then echo $(( now - opened )); else echo null; fi )" --argjson rt "$rt" \
+      '.[$p][$a] = {state:$s, failure_count:$fc, age_s:$age, probe_due_in_s:(if $age == null then null else ([$rt - $age, 0] | max) end)}')
+  done
+  jq -cn --argjson b "$json" --argjson rt "$rt" '{reset_timeout_seconds:$rt, buckets:$b}'
+}
+_provider_key_present() {  # $1 provider → present|absent (presence only; the value is never read)
+  case "$1" in
+    anthropic) [[ -n "${ANTHROPIC_API_KEY+x}" && -n "${ANTHROPIC_API_KEY:-}" ]] && echo present || echo absent ;;
+    openai)    [[ -n "${OPENAI_API_KEY:-}" ]] && echo present || echo absent ;;
+    google)    [[ -n "${GOOGLE_API_KEY:-}${GEMINI_API_KEY:-}" ]] && echo present || echo absent ;;
+    *) echo "n/a" ;;
+  esac
+}
+_provider_hop() {  # $1 provider → hop binary name or ""
+  local bin=""
+  case "$1" in anthropic) bin=claude ;; openai) bin=codex ;; google) bin=agy ;; esac
+  [[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 && echo "$bin" || echo ""
+}
+_fmt_age_s() { local s="$1"; if [[ ! "$s" =~ ^[0-9]+$ ]]; then echo "-"; elif (( s >= 86400 )); then echo "$(( s / 86400 ))d"; elif (( s >= 3600 )); then echo "$(( s / 3600 ))h"; else echo "$(( s / 60 ))m"; fi; }
+get_providers_json() {
+  local snap provs p
+  snap=$(_providers_snapshot)
+  provs=$(printf '%s' "$snap" | jq -r '.buckets | keys[]' 2>/dev/null; printf 'anthropic\nopenai\ngoogle\n')
+  local out='{}'
+  for p in $(printf '%s\n' $provs | sort -u); do
+    out=$(printf '%s' "$out" | jq -c --arg p "$p" --arg key "$(_provider_key_present "$p")" --arg hop "$(_provider_hop "$p")" \
+      --argjson buckets "$(printf '%s' "$snap" | jq -c --arg p "$p" '.buckets[$p] // {}')" \
+      '.[$p] = {credential:$key, cli_hop:(if $hop == "" then null else $hop end), breakers:$buckets}')
+  done
+  printf '%s' "$out" | jq -c --argjson rt "$(printf '%s' "$snap" | jq '.reset_timeout_seconds // 60')" '{reset_timeout_seconds:$rt, providers:.}'
+}
+display_providers_section() {
+  local pj p key hop line auth st age due
+  pj=$(get_providers_json)
+  echo -e "${BOLD}Providers${NC}"
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    key=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].credential'); hop=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].cli_hop // "-"')
+    line=$(printf '  %-10s key %-8s hop %-7s' "$p" "$key" "$hop")
+    local buckets; buckets=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].breakers | to_entries[] | "\(.key) \(.value.state) \(.value.age_s // "-") \(.value.probe_due_in_s // "-")"')
+    if [[ -z "$buckets" ]]; then line+=" no breaker state"; else
+      while read -r auth st age due; do
+        [[ -n "$auth" ]] || continue
+        if [[ "$st" == "OPEN" ]]; then
+          if [[ "$due" == "0" ]]; then line+=" · $auth OPEN $(_fmt_age_s "$age") (probe overdue → HALF_OPEN on next call)"; else line+=" · $auth OPEN $(_fmt_age_s "$age") (probe due in ${due}s)"; fi
+        else line+=" · $auth $st"; fi
+      done <<<"$buckets"
+    fi
+    echo "$line"
+  done < <(printf '%s' "$pj" | jq -r '.providers | keys[]')
+  echo "  reset: cheval --reset-breaker <provider>[:<auth_type>] · list: python3 -m loa_cheval.routing.breaker_cli --list"
   return 0
 }
 

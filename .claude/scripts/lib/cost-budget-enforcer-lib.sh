@@ -1224,12 +1224,61 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
         return $?
     fi
 
+    # cycle-125 FR-5 (SDD §1.6, Flatline SKP-019): unknown spend is unknown,
+    # not zero. The cost ledger's unpriced share (rows with pricing_source
+    # `unknown`, recorded at cost 0) caps what "under budget" can mean; above
+    # 5 % the enforcer refuses to certify allow and halts on uncertainty
+    # with the share in the payload. An unavailable cost-report is reported
+    # as such (unpriced_share null) and does not block — availability is
+    # not a budget signal.
+    local unpriced_json unpriced_share unpriced_rows
+    unpriced_json="$(_l2_unpriced_share_json)"
+    unpriced_share="$(printf '%s' "$unpriced_json" | jq -r '.unpriced_share // "null"' 2>/dev/null || echo null)"
+    unpriced_rows="$(printf '%s' "$unpriced_json" | jq -r '.unpriced_rows // "null"' 2>/dev/null || echo null)"
+    if [[ "$unpriced_share" != "null" ]] && python3 -c "import sys; sys.exit(0 if float('$unpriced_share') > 0.05 else 1)"; then
+        local diag_up
+        diag_up="$(jq -nc --argjson s "$unpriced_share" --argjson r "$unpriced_rows" --arg l "$(printf '%s' "$unpriced_json" | jq -r '.ledger // ""')" \
+            '{unpriced_share: $s, unpriced_rows: $r, threshold: 0.05, ledger: $l, remedy: "cost-report.sh --json shows pricing_resolution; add catalog pricing for the unpriced ids or fix the adapter id"}')"
+        local payload
+        payload="$(_l2_render_verdict "halt-uncertainty" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id" "unpriced_share" "$diag_up")"
+        _l2_emit_and_return "budget.halt_uncertainty" "$payload"
+        return $?
+    fi
+
     # default: allow. Fail-closed safety: when no observer AND no fresh counter,
     # we treated counter_age==0 (no entries today) as fresh; this is correct
     # because zero-usage is unambiguous.
     local payload
     payload="$(_l2_render_verdict "allow" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id")"
+    payload="$(printf '%s' "$payload" | jq -c --argjson s "$( [[ "$unpriced_share" == "null" ]] && echo null || echo "$unpriced_share" )" '. + {unpriced_share: $s}')"
     _l2_emit_and_return "budget.allow" "$payload"
+}
+
+# -----------------------------------------------------------------------------
+# _l2_unpriced_share_json
+#
+# {"unpriced_share": 0..1|null, "unpriced_rows": N|null, "ledger": "<path>"}
+# from `cost-report.sh --json` (capture-then-parse; the script's exit code is
+# not the contract, its JSON is). Test seam, bats-gated like every other
+# override in this repository: LOA_BUDGET_COST_REPORT_JSON names a file whose
+# contents stand in for the report.
+# -----------------------------------------------------------------------------
+_l2_unpriced_share_json() {
+    local out=""
+    if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_BUDGET_COST_REPORT_JSON:-}" ]]; then
+        [[ -f "$LOA_BUDGET_COST_REPORT_JSON" ]] && out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"
+    else
+        local report
+        report="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cost-report.sh"
+        if [[ -f "$report" ]]; then
+            out="$(timeout 60 bash "$report" --json 2>/dev/null)" || true
+        fi
+    fi
+    if printf '%s' "$out" | jq -e 'type == "object" and has("unpriced_share")' >/dev/null 2>&1; then
+        printf '%s' "$out" | jq -c '{unpriced_share: .unpriced_share, unpriced_rows: .unpriced_rows, ledger: (.ledger // "")}'
+    else
+        printf '{"unpriced_share":null,"unpriced_rows":null,"ledger":""}\n'
+    fi
 }
 
 # -----------------------------------------------------------------------------
