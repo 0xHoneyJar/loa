@@ -24,7 +24,7 @@ setup() {
 teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/dev/null || true; }
 
 @test "LSP-1 human output: Providers block lists presence, hop and buckets; OPEN carries age and probe timing; no credential value" {
-  run timeout 120 bash "$STATUS"
+  run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
   block=$(echo "$output" | sed -n '/^Providers/,/reset: cheval --reset-breaker/p')
   [ -n "$block" ]
@@ -36,17 +36,17 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
 
 @test "LSP-4 a key present only in .env.local counts as present (same rule as the preflight) and its value never prints" {
   printf 'ANTHROPIC_API_KEY="sk-ant-from-dotenv-never-print"\nGOOGLE_API_KEY=\n' > "$T/env/.env.local"
-  run timeout 120 bash "$STATUS"
+  run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
   echo "$output" | grep -qE '^  anthropic +key present \(\.env\.local\)'
   echo "$output" | grep -qE '^  google +key absent'
   [[ "$output" != *"sk-ant-from-dotenv-never-print"* ]]
-  run timeout 120 bash "$STATUS" --json
+  run timeout 120 bash "$STATUS" --no-stale-check --json
   echo "$output" | jq -e '.providers.providers.anthropic.credential == "present (.env.local)" and .providers.providers.google.credential == "absent"' >/dev/null
 }
 
 @test "LSP-2 --json mirrors the block under .providers and carries no credential value" {
-  run timeout 120 bash "$STATUS" --json
+  run timeout 120 bash "$STATUS" --no-stale-check --json
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.providers.reset_timeout_seconds | type == "number"' >/dev/null
   echo "$output" | jq -e '.providers.providers.google.credential == "absent" and .providers.providers.google.breakers.http_api.state == "OPEN" and .providers.providers.google.breakers.http_api.probe_due_in_s == 0' >/dev/null
@@ -57,7 +57,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
 
 @test "LSP-3 a provider with no breaker state is still listed (credential and hop only)" {
   rm "$T/run"/circuit-breaker-*.json
-  run timeout 120 bash "$STATUS"
+  run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
 }
