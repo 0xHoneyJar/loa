@@ -177,20 +177,29 @@ def rows(path):
 
 legacy, legacy_bad = rows(legacy_path)
 current, _ = rows(target_path)
-present = {r.get("request_id") for r in current if r.get("request_id")}
+
+def row_key(r):
+    """request_id when the row has one; else a content key so rows written
+    before request ids existed still migrate exactly once."""
+    rid = r.get("request_id")
+    if rid:
+        return "id:" + str(rid)
+    core = {k: r.get(k) for k in ("ts", "trace_id", "agent", "provider", "model", "tokens_in", "tokens_out", "cost_micro_usd")}
+    return "ck:" + hashlib.sha256(json.dumps(core, sort_keys=True).encode("utf-8")).hexdigest()
+
+present = {row_key(r) for r in current}
 sha_before = sha256(target_path)
 migrated = skipped = 0
 for r in legacy:
-    rid = r.get("request_id")
-    if rid and rid in present:
+    key = row_key(r)
+    if key in present:
         skipped += 1
         continue
     entry = dict(r)
     entry["legacy"] = True
     entry.setdefault("legacy_source", os.path.basename(legacy_path))
     append_ledger(entry, target_path)
-    if rid:
-        present.add(rid)
+    present.add(key)
     migrated += 1
 ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
 receipt = {
@@ -279,10 +288,16 @@ def _read(path, tag_legacy=False):
 entries = _read(ledger_path)
 legacy_rows = 0
 if legacy_path:
-    seen = {e.get("request_id") for e in entries if e.get("request_id")}
+    import hashlib
+    def _row_key(r):
+        rid = r.get("request_id")
+        if rid:
+            return "id:" + str(rid)
+        core = {k: r.get(k) for k in ("ts", "trace_id", "agent", "provider", "model", "tokens_in", "tokens_out", "cost_micro_usd")}
+        return "ck:" + hashlib.sha256(json.dumps(core, sort_keys=True).encode("utf-8")).hexdigest()
+    seen = {_row_key(e) for e in entries}
     for row in _read(legacy_path, tag_legacy=True):
-        rid = row.get("request_id")
-        if rid and rid in seen:
+        if _row_key(row) in seen:
             continue
         entries.append(row)
         legacy_rows += 1

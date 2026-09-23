@@ -79,6 +79,18 @@ teardown() {
   jq -e '.rows_migrated == 0 and .rows_skipped_duplicate == 2' "$(ls -t "$T/run"/cost-ledger-migration-*.json | head -1)" >/dev/null
 }
 
+@test "CR-3b legacy rows WITHOUT a request_id migrate exactly once (content key), in --include-legacy and --migrate-legacy alike" {
+  printf '{"ts":"2026-07-01T10:00:00.000Z","trace_id":"t0","agent":"c","provider":"openai","model":"gpt-5.2","tokens_in":5,"tokens_out":1,"cost_micro_usd":700,"pricing_source":"config"}\n' > "$LEG"
+  run bash "$CR" --ledger "$CUR" --include-legacy --legacy-ledger "$LEG" --json
+  echo "$output" | jq -e '.entry_count == 4 and .legacy_rows == 1' >/dev/null
+  bash "$CR" --ledger "$CUR" --migrate-legacy --legacy-ledger "$LEG" --json >/dev/null 2>&1
+  bash "$CR" --ledger "$CUR" --migrate-legacy --legacy-ledger "$LEG" --json >/dev/null 2>&1
+  [ "$(wc -l < "$CUR")" -eq 4 ]
+  [ "$(grep -c '"trace_id":"t0"' "$CUR")" -eq 1 ]
+  run bash "$CR" --ledger "$CUR" --include-legacy --legacy-ledger "$LEG" --json
+  echo "$output" | jq -e '.entry_count == 4 and .legacy_rows == 0' >/dev/null
+}
+
 @test "CR-4 --migrate-legacy refuses a symlinked target (the writer's O_NOFOLLOW) and a missing legacy file" {
   ln -s "$T/elsewhere.jsonl" "$T/link.jsonl"; : > "$T/elsewhere.jsonl"
   run bash "$CR" --ledger "$T/link.jsonl" --migrate-legacy --legacy-ledger "$LEG" --json
