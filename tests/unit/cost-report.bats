@@ -79,6 +79,15 @@ teardown() {
   jq -e '.rows_migrated == 0 and .rows_skipped_duplicate == 2' "$(ls -t "$T/run"/cost-ledger-migration-*.json | head -1)" >/dev/null
 }
 
+@test "CR-1b a pre-metadata row (no pricing_source) with a cost is unclassified, not unpriced; with cost 0 it is unpriced (BB #1269 FIND-004)" {
+  printf '{"ts":"2026-06-01T10:00:00.000Z","request_id":"old1","agent":"a","provider":"openai","model":"gpt-4o","tokens_in":1,"tokens_out":1,"cost_micro_usd":900}\n{"ts":"2026-06-01T11:00:00.000Z","request_id":"old2","agent":"a","provider":"openai","model":"gpt-4o","tokens_in":1,"tokens_out":1,"cost_micro_usd":0}\n' > "$T/old.jsonl"
+  run bash "$CR" --ledger "$T/old.jsonl" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.entry_count == 2 and .unpriced_rows == 1 and .unclassified_rows == 1 and .unpriced_share == 0.5 and .total_micro_usd == 900' >/dev/null
+  run bash "$CR" --ledger "$T/old.jsonl"
+  echo "$output" | grep -q 'Unpriced rows: 1 (50.0 %) — recorded as cost 0, not as a price; unclassified (pre-metadata, priced by their writer): 1'
+}
+
 @test "CR-3b legacy rows WITHOUT a request_id migrate exactly once (content key), in --include-legacy and --migrate-legacy alike" {
   printf '{"ts":"2026-07-01T10:00:00.000Z","trace_id":"t0","agent":"c","provider":"openai","model":"gpt-5.2","tokens_in":5,"tokens_out":1,"cost_micro_usd":700,"pricing_source":"config"}\n' > "$LEG"
   run bash "$CR" --ledger "$CUR" --include-legacy --legacy-ledger "$LEG" --json

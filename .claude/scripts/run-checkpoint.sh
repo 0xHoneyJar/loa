@@ -82,7 +82,9 @@ cmd_read() {
   s=$(jq -r '.checkpoint.sprint // empty' "$file"); t=$(jq -r '.checkpoint.task // empty' "$file"); p=$(jq -r '.checkpoint.phase // empty' "$file"); ts=$(jq -r '.checkpoint.ts // empty' "$file")
   if [[ -z "$s" || -z "$p" ]]; then reason="malformed checkpoint"
   elif [[ -n "$t" ]]; then
-    bead_closed "$t"; case $? in 0) ;; 2) reason="" ;; *) reason="task $t is not closed in beads";; esac
+    # A task checkpoint is trusted only when beads CONFIRMS the task closed;
+    # "br unavailable" is not a confirmation (Bridgebuilder PR #1269 FIND-003).
+    bead_closed "$t"; case $? in 0) ;; 2) reason="beads unavailable — task $t cannot be verified";; *) reason="task $t is not closed in beads";; esac
   fi
   if [[ -n "$reason" ]]; then
     echo "run-checkpoint: discarding checkpoint ($reason) — resume from the first open bead of $s" >&2

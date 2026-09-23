@@ -51,6 +51,17 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   [[ "$output" == *"discarding checkpoint"* ]]
 }
 
+@test "CK-2b with no br on PATH a task checkpoint is NOT trusted (unverifiable → discarded); a phase-only checkpoint still is" {
+  bash "$CK" write --file "$F" --sprint sprint-1 --task bd-aaaa --phase IMPLEMENT
+  echo closed > "$T/beads/bd-aaaa"
+  run env PATH="/usr/bin:/bin" bash "$CK" read --file "$F" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | tail -n1 | jq -e '.checkpoint==null and (.reason|test("beads unavailable"))' >/dev/null
+  bash "$CK" write --file "$F" --sprint sprint-1 --phase REVIEW
+  run env PATH="/usr/bin:/bin" bash "$CK" read --file "$F" --json
+  echo "$output" | tail -n1 | jq -e '.checkpoint.phase=="REVIEW" and .checkpoint.task==null' >/dev/null
+}
+
 @test "CK-3 a phase-only checkpoint (no task) is trusted without consulting beads; schema 1 / no checkpoint reads as sprint granularity" {
   bash "$CK" write --file "$F" --sprint sprint-1 --phase REVIEW
   run bash "$CK" read --file "$F"
