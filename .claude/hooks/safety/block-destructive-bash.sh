@@ -629,18 +629,37 @@ fi
 # may consult `gh` with a timeout. Any doubt (no git, no such branch, a name
 # with shell metacharacters, no base ref) keeps the block.
 _fr11_all_merged() {
-  local seg names name base merged
+  local seg names name base merged tok deleting segs=0
   command -v git >/dev/null 2>&1 || return 1
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-  seg=$(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^;&|]*' | head -1)
   names=""
-  for name in ${seg#*branch}; do
-    [[ "$name" == -* ]] && continue
-    names+="$name "
-  done
-  [[ -n "$names" ]] || return 1
+  # EVERY `git branch` segment of the command (review round 1, H-4): each
+  # segment that carries a force-delete flag must name ≥ 1 branch, and every
+  # name across all such segments must be merged.
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    deleting=0
+    for tok in ${seg#*branch}; do
+      case "$tok" in
+        --delete|--force|-d|-f) deleting=1 ;;
+        --*) ;;
+        -*D*) deleting=1 ;;
+      esac
+    done
+    (( deleting )) || continue
+    segs=$((segs + 1))
+    local seg_names=""
+    for name in ${seg#*branch}; do
+      [[ "$name" == -* ]] && continue
+      seg_names+="$name "
+    done
+    [[ -n "$seg_names" ]] || return 1
+    names+="$seg_names"
+  done < <(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^;&|]*')
+  (( segs > 0 )) && [[ -n "$names" ]] || return 1
   for name in $names; do
     [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || return 1
+    case "$name" in main|master|develop|trunk) return 1 ;; esac
     git rev-parse -q --verify "refs/heads/$name" >/dev/null 2>&1 || return 1
     merged=0
     for base in origin/main main origin/master master; do
@@ -733,10 +752,17 @@ fi
 # path git itself marks `linguist-generated` in .gitattributes. Every operand
 # must qualify; anything else keeps the block.
 _fr13_all_generated() {
-  local seg names name attr
-  seg=$(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^;&|]*' | head -1)
-  names="${seg#*-- }"
-  [[ -n "$names" ]] || return 1
+  local seg names name attr segs=0
+  names=""
+  # EVERY `git checkout --` segment (review round 1, H-4): all operands of
+  # all segments must qualify; an operand-less segment is not a proof.
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    segs=$((segs + 1))
+    [[ -n "${seg#*-- }" && "${seg#*-- }" != "$seg" ]] || return 1
+    names+="${seg#*-- } "
+  done < <(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^;&|]*')
+  (( segs > 0 )) && [[ -n "${names// /}" ]] || return 1
   for name in $names; do
     [[ "$name" == -* ]] && continue
     [[ "$name" =~ ^[A-Za-z0-9._/@+-]+$ ]] || return 1
@@ -794,8 +820,8 @@ _cmd_lc="${_cmd_match,,}"  # quote-blindness fix: fold the scrub-copy (see above
 # driver call inside them keeps today's text match; a driver call in a
 # script FILE was never matched and still is not (residual, unchanged).
 _sql_runner=0
-if [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(psql|pgcli|mysql|mariadb|mysqlsh|sqlite3|sqlcmd|sqlplus|isql|usql|litecli|duckdb|clickhouse|clickhouse-client|cockroach|bq|wrangler|prisma|supabase|drizzle-kit|knex|sequelize|typeorm|flyway|liquibase|dbmate|goose|sqitch)([[:space:]]|$) ]] \
-   || [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(python[0-9.]*|node|deno|bun|ruby|php|perl)[[:space:]]+(-c|-e|--eval|-)([[:space:]]|$) ]]; then
+if [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(psql|pgcli|mysql|mariadb|mysqlsh|sqlite3|sqlcmd|sqlplus|isql|usql|litecli|duckdb|clickhouse|clickhouse-client|cockroach|bq|wrangler|prisma|supabase|drizzle-kit|knex|sequelize|typeorm|flyway|liquibase|dbmate|goose|sqitch|rails|manage\.py|artisan|alembic|dbt|atlas|mongosh|sqlx)([[:space:]]|$) ]] \
+   || [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(python[0-9.]*|node|deno|bun|ruby|php|perl)[[:space:]]+(-c|-e|-r|--eval|-)([[:space:]]|$) ]]; then
   _sql_runner=1
 fi
 if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"drop"* ]] \
@@ -1212,6 +1238,7 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # ---------------------------------------------------------------------------
   _fr2_temp_root_re='^/(tmp|var/tmp|private/tmp)(/|$)'     # a cd target: the root itself or below
   _fr2_temp_path_re='^/(tmp|var/tmp|private/tmp)/[^/]'      # an rm operand: strictly below a temp root
+  _fr2_temp_glob_re='^/(tmp|var/tmp|private/tmp)/+[*?]+/*$'  # the whole temp root through a glob: block
   _fr2_vocab_re='^(dist|build|out|coverage|target|node_modules|tmp|temp|__pycache__|cdk\.out|\.next|\.turbo|\.terraform|\.terraform\.lock\.hcl|\.venv|venv|\.tox|\.nox|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.parcel-cache|\.npm-cache|\.pnpm-store|[A-Za-z0-9_.+-]+\.egg-info)$'
   _fr2_last_seg=""; _fr2_hidden_mid=0
   # Plain relative path: no leading / ~ $ - , no glob/var/escape/space chars,
@@ -1236,17 +1263,30 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   }
   # Value of a variable assigned EXACTLY once in the command (env-prefix form
   # `NAME=v cmd` and statement-initial `NAME=v` both count); prints it.
+  # Can anything in the command rebind NAME behind the textual check?
+  # Flatline SKP-002/003 and review round 1: a binding is trusted only when
+  # the command contains no other way to change the name — no eval / read /
+  # readarray / mapfile / declare / typeset / local / readonly / unset /
+  # source (or statement-initial `.`) / getopts / printf -v anywhere, no
+  # `for NAME in` / `select NAME in`, no `${NAME:=` / `${NAME=`, no `NAME+=`,
+  # no array element `NAME[`. Any of these → not a proof (return 0 = rebindable).
+  _fr2_rebindable() {
+    local name="$1"
+    local rebind_re=$'(^|[^[:alnum:]_])(eval|read|readarray|mapfile|declare|typeset|local|readonly|unset|source|getopts|printf[[:space:]]+-v)([[:space:]]|$)'
+    local dot_re=$'(^|[;&|(]|\n)[[:space:]]*\\.[[:space:]]'
+    [[ "$command" =~ $rebind_re ]] && return 0
+    [[ "$command" =~ $dot_re ]] && return 0
+    [[ "$command" =~ (^|[^[:alnum:]_])(for|select)[[:space:]]+${name}[[:space:]]+in([[:space:]]|$) ]] && return 0
+    [[ "$command" == *"\${${name}:="* || "$command" == *"\${${name}="* ]] && return 0
+    [[ "$command" == *"${name}+="* || "$command" == *"${name}["* ]] && return 0
+    return 1
+  }
   _fr2_var_value() {
     local name="$1" rest="$command" count=0 val="" m after
-    local re="(^|[;&|(]|\n)[[:space:]]*(export[[:space:]]+)?${name}="
-    # Flatline SKP-002/003: the binding is trusted only when the command
-    # contains no other way to rebind the name — no eval/read/printf -v/
-    # declare/typeset/local/mapfile/unset/source anywhere, no `for NAME in`,
-    # no `${NAME:=`/`${NAME=`; otherwise the textual check is not a proof.
-    local rebind_re=$'(^|[^[:alnum:]_])(eval|read|readarray|mapfile|declare|typeset|local|unset|source|printf[[:space:]]+-v)([[:space:]]|$)'
-    [[ "$command" =~ $rebind_re ]] && return 1
-    [[ "$command" =~ (^|[^[:alnum:]_])for[[:space:]]+${name}[[:space:]]+in([[:space:]]|$) ]] && return 1
-    [[ "$command" == *"\${${name}:="* || "$command" == *"\${${name}="* ]] && return 1
+    # ANSI-C quoting: the newline alternative must be a real newline (a
+    # double-quoted "\n" is the letter n — review round 1, H-1).
+    local re=$'(^|[;&|(]|\n)[[:space:]]*(export[[:space:]]+)?'"${name}="
+    _fr2_rebindable "$name" && return 1
     while [[ "$rest" =~ $re ]]; do
       m="${BASH_REMATCH[0]}"
       count=$((count + 1))
@@ -1281,10 +1321,14 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
     # and `$(mktemp -d)/../..` are refused; Flatline SKP-002).
     [[ "$v" =~ ^\$\(mktemp[[:space:]]+(-d|--directory)([[:space:]]+(-p[[:space:]]+)?[A-Za-z0-9_./\$\{\}\"-]+)*\)$ ]] && return 0
     if [[ "$v" =~ ^\$\{?TMPDIR\}?(/.*)?$ ]]; then
+      suffix="${BASH_REMATCH[1]}"   # capture first: every later =~ clobbers BASH_REMATCH
+      # The real TMPDIR is proof only if the command cannot change it
+      # (assignment, `+=`, read, unset, … — review round 1, H-2).
       [[ "$command" != *"TMPDIR="* ]] || return 1
+      _fr2_rebindable TMPDIR && return 1
       [[ -n "${TMPDIR:-}" && "$TMPDIR" =~ $_fr2_temp_root_re ]] || return 1
-      suffix="${BASH_REMATCH[1]}"
       [[ -z "$suffix" || ! "$suffix" =~ $_re_dotdot ]] || return 1
+      [[ "$suffix" =~ ^/+[*?]+/*$ ]] && return 1   # `$TMPDIR/*` empties the temp dir (DISS-001)
       return 0
     fi
     if (( depth == 0 )) && [[ "$v" =~ ^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?(/[^\$\`\"\']*)?$ ]]; then
@@ -1299,17 +1343,29 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   }
   # Is the working directory scratch for this rm segment? $1 = text before it.
   _fr2_scratch_cwd() {
-    local before="$1" rest last="" pre m
+    local before="$1" rest last="" pre m si=0 tot=0
     local re=$'(^|[;&|(]|\n)[[:space:]]*cd[[:space:]]+([^[:space:];&|)]+)'
+    # Review round 1, H-3b: the cwd is unknown once anything other than a
+    # statement-initial `cd` may have moved it — pushd/popd/eval/source/exec,
+    # an inline shell (`bash -c …`), or a `cd` token that is NOT statement-
+    # initial (quoted, nested, after `-c`). Conservative: return 1.
+    local void_re=$'(^|[^[:alnum:]_])(pushd|popd|eval|source|exec|chdir)([[:space:]]|$)'
+    local shell_c_re=$'(^|[^[:alnum:]_])(ba|z|k|da|fi)?sh[[:space:]]+-[A-Za-z]*c([[:space:]]|$)'
+    local dot_re=$'(^|[;&|(]|\n)[[:space:]]*\\.[[:space:]]'
+    local any_cd_re=$'(^|[^[:alnum:]_./-])cd[[:space:]]'
+    [[ "$before" =~ $void_re || "$before" =~ $shell_c_re || "$before" =~ $dot_re ]] && return 1
+    rest="$before"
+    while [[ "$rest" =~ $any_cd_re ]]; do tot=$((tot + 1)); rest="${rest#*"${BASH_REMATCH[0]}"}"; done
     rest="$before"
     while [[ "$rest" =~ $re ]]; do
       m="${BASH_REMATCH[0]}"
       pre="${rest%%"$m"*}"
       if _bdb_at_command_start "${before%%"$rest"*}$pre${BASH_REMATCH[1]}"; then
-        last="${BASH_REMATCH[2]}"
+        last="${BASH_REMATCH[2]}"; si=$((si + 1))
       fi
       rest="${rest#*"$m"}"
     done
+    (( tot == si )) || return 1
     # Only an explicit `cd` establishes scratch: the hook's own $PWD is not
     # consulted (a project that lives under /tmp — eval sandboxes, CI
     # checkouts — must keep `rm -rf src` blocked; found by the corpus).
@@ -1369,6 +1425,10 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
     # (cursor-advance so a later identical segment doesn't re-match the first
     # occurrence's prefix), then test for a find-exec shape ending right here.
     _seg_prefix="${_fr2_remaining%%"$rm_segment"*}"
+    # cycle-125 D-1.1 (review round 1, H-3a): the FULL text before THIS
+    # occurrence — consumed text plus this segment's own prefix — so a later
+    # identical segment is judged by the `cd` that precedes it, not the first.
+    _seg_before="${_fr2_cmd:0:$(( ${#_fr2_cmd} - ${#_fr2_remaining} + ${#_seg_prefix} ))}"
     _fr2_remaining="${_fr2_remaining#*"$rm_segment"}"
     _seg_find_root=""
     if [[ "$_seg_prefix" =~ $_re_find_exec_prefix ]]; then
@@ -1472,7 +1532,6 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
         any_ambiguous=1; matched_arg="$_seg_find_root"
       fi
     else
-      _seg_before="${_fr2_cmd%%"$rm_segment"*}"   # cycle-125 D-1.1: text before this rm
       for arg in "${rm_args[@]}"; do
         # Skip flag tokens.
         [[ "$arg" == -* ]] && continue
@@ -1486,6 +1545,12 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
         # cycle-125 D-1.1: strictly below /var/tmp or /private/tmp is a temp
         # path, checked here because the catastrophic list below owns the
         # whole `/var/` prefix; a bare `/var/tmp` still falls through to it.
+        # A temp root followed only by a glob (`/tmp/*`, `/tmp//*`) empties the
+        # shared temp directory — catastrophic-equivalent (review dissent
+        # DISS-001; the pre-sprint `/tmp/.+` allow entry let it through).
+        if [[ "$unquoted" =~ $_fr2_temp_glob_re ]]; then
+          any_block=1; matched_arg="$arg"; break
+        fi
         if [[ "$unquoted" =~ $_fr2_temp_path_re ]]; then
           continue
         fi

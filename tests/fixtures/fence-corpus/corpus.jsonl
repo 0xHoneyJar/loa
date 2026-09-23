@@ -79,3 +79,22 @@
 {"id":"D30","cmd":"echo 'cd /tmp' && rm -rf src","expect":"block","rule":"FR-2","why":"a quoted cd is not a statement-initial cd","cwd":"repo"}
 {"id":"D31","cmd":"python3 -c \"import sqlite3; c=sqlite3.connect('local.sqlite'); c.execute('DROP TABLE t')\"","expect":"block","rule":"FR-1.4","why":"inline interpreter program counts as a runner","cwd":"repo"}
 {"id":"D32","cmd":"rm -rf src","expect":"block","rule":"FR-2","why":"bare name with the hook itself running under a temp cwd","cwd":"tmp"}
+{"id":"B47","cmd":"rm -rf /tmp/loa-cache-*","expect":"allow","rule":"FR-2","why":"prefixed glob strictly below a temp root (boundary of DISS-001)","cwd":"repo"}
+{"id":"D33","cmd":"T=$(mktemp -d)\nT=/home/me\nrm -rf \"$T\"","expect":"block","rule":"FR-2","why":"newline-initial rebinding (review r1 H-1)","cwd":"repo"}
+{"id":"D34","cmd":"T=$(mktemp -d); T+=/../..; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"append rebinding (review r1 H-1)","cwd":"repo"}
+{"id":"D35","cmd":"T=$(mktemp -d); readonly T=/; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"readonly rebinding (review r1 H-1)","cwd":"repo"}
+{"id":"D36","cmd":"T=$(mktemp -d); T[0]=/; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"array-element rebinding (review r1 H-1)","cwd":"repo"}
+{"id":"D37","cmd":"T=$(mktemp -d); getopts a: T; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"getopts rebinding (review r1 H-1)","cwd":"repo"}
+{"id":"D38","cmd":"read TMPDIR <<< /home/me; rm -rf \"$TMPDIR\"","expect":"block","rule":"FR-2","why":"TMPDIR rebound by read (review r1 H-2)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
+{"id":"D39","cmd":"TMPDIR+=/../..; rm -rf \"$TMPDIR\"","expect":"block","rule":"FR-2","why":"TMPDIR append (review r1 H-2)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
+{"id":"D40","cmd":"unset TMPDIR; rm -rf \"$TMPDIR/x\"","expect":"block","rule":"FR-2","why":"TMPDIR unset (review r1 H-2)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
+{"id":"D41","cmd":"cd /tmp/x && rm -rf work; cd / && rm -rf work","expect":"block","rule":"FR-2","why":"second identical segment judged by its own cd (review r1 H-3a)","cwd":"repo"}
+{"id":"D42","cmd":"cd /tmp/x && pushd /home && rm -rf work","expect":"block","rule":"FR-2","why":"pushd moves the cwd (review r1 H-3b)","cwd":"repo"}
+{"id":"D43","cmd":"cd /tmp/x && eval \"cd /home\" && rm -rf work","expect":"block","rule":"FR-2","why":"eval hides a cd (review r1 H-3b)","cwd":"repo"}
+{"id":"D44","cmd":"cd /tmp/x && bash -c \"cd /home && rm -rf work\"","expect":"block","rule":"FR-2","why":"inline shell after a safe cd (review r1 H-3b)","cwd":"repo"}
+{"id":"D45","cmd":"git checkout -- dist/x.js; git checkout -- src/app.ts","expect":"block","rule":"FR-1.3","why":"second checkout segment is hand-written (review r1 H-4)","cwd":"repo"}
+{"id":"D46","cmd":"rm -rf /tmp/*","expect":"block","rule":"FR-2","why":"whole temp root through a glob (dissent DISS-001)","cwd":"repo"}
+{"id":"D47","cmd":"rm -rf /var/tmp//*","expect":"block","rule":"FR-2","why":"whole temp root through a glob, doubled slash (dissent DISS-001)","cwd":"repo"}
+{"id":"D48","cmd":"rm -rf \"$TMPDIR\"/*","expect":"block","rule":"FR-2","why":"TMPDIR through a glob (dissent DISS-001)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
+{"id":"D49","cmd":"rm -rf $TMPDIR/*","expect":"block","rule":"FR-2","why":"TMPDIR through a glob, unquoted (dissent DISS-001)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
+{"id":"D50","cmd":"php -r \"mysqli_query($c, 'DROP TABLE t');\"","expect":"block","rule":"FR-1.4","why":"php inline flag is -r (review r1 obs 1)","cwd":"repo"}

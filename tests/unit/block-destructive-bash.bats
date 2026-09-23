@@ -1577,10 +1577,15 @@ corpus_json() {
     local baseline="$PROJECT_ROOT/tests/fixtures/fence-corpus/baseline.json"
     [ -f "$baseline" ] || skip "no baseline recorded yet (Task 1.1 writes it)"
     local j; j=$(corpus_json)
-    local now base limit
+    local now base limit base_rows now_rows scaled
     now=$(echo "$j" | jq -r '.runtime_ms'); base=$(jq -r '.runtime_ms' "$baseline")
-    limit=$(( base * 3 / 2 )); [ "$limit" -lt $(( base + 2000 )) ] && limit=$(( base + 2000 ))
-    echo "runtime: ${now}ms (baseline ${base}ms, limit ${limit}ms)"
+    # The baseline was measured over a smaller corpus; scale it per row so
+    # corpus growth is not read as a slower hook (review round 1, obs 3).
+    base_rows=$(jq -r '.rows // 73' "$baseline")
+    now_rows=$(echo "$j" | jq -r '.benign_total + .dangerous_total + .residual_total')
+    scaled=$(( base * now_rows / base_rows ))
+    limit=$(( scaled * 3 / 2 )); [ "$limit" -lt $(( scaled + 2000 )) ] && limit=$(( scaled + 2000 ))
+    echo "runtime: ${now}ms over ${now_rows} rows (baseline ${base}ms over ${base_rows} rows → scaled ${scaled}ms, limit ${limit}ms)"
     [ "$now" -le "$limit" ]
 }
 
@@ -1839,5 +1844,98 @@ fixture_repo() {
     run hook_invoke "git checkout -- dist/x.js src/app.ts"
     [ "$status" -eq 2 ]
     run hook_invoke "git checkout -- ../dist/x.js"
+    [ "$status" -eq 2 ]
+}
+
+# --- Review round 1 twins (H-1 … H-4) and dissent DISS-001 ----------------
+
+@test "cycle-125 r1 H-1 twin: newline-initial rebinding of a mktemp variable blocks" {
+    run hook_invoke $'T=$(mktemp -d)\nT=/home/me\nrm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-1 twin: +=, readonly, array element and getopts rebinding block" {
+    run hook_invoke 'T=$(mktemp -d); T+=/../..; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); readonly T=/; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); T[0]=/; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); getopts a: T; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-2 twin: TMPDIR mutated by read / += / unset blocks even with a real temp TMPDIR" {
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'read TMPDIR <<< /home/me; rm -rf "$TMPDIR"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'TMPDIR+=/../..; rm -rf "$TMPDIR"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'unset TMPDIR; rm -rf "$TMPDIR/x"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-3a twin: a second identical rm segment is judged by its own preceding cd" {
+    run hook_invoke 'cd /tmp/x && rm -rf work; cd / && rm -rf work'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cd / && rm -rf work; cd /tmp/x && rm -rf work'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-3a: two rm segments both after one scratch cd still allowed" {
+    run hook_invoke 'cd /tmp/x && rm -rf work && rm -rf work'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 r1 H-3b twin: pushd, eval, source and an inline shell void the scratch proof" {
+    run hook_invoke 'cd /tmp/x && pushd /home && rm -rf work'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cd /tmp/x && eval "cd /home" && rm -rf work'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cd /tmp/x && source env.sh && rm -rf work'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cd /tmp/x && bash -c "cd /home && rm -rf work"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'cd /tmp/x && . ./env.sh && rm -rf work'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-4 twin: a second branch -D segment naming an unmerged branch blocks; main by name blocks" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git branch -D merged-br; git branch -D wip-br"
+    [ "$status" -eq 2 ]
+    run hook_invoke "git branch -D merged-br && git branch -D wip-br"
+    [ "$status" -eq 2 ]
+    run hook_invoke "git branch -D main"
+    [ "$status" -eq 2 ]
+    run hook_invoke "git branch --list; git branch -D wip-br"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 r1 H-4: two branch -D segments both merged still allowed" {
+    cd "$(fixture_repo)"
+    git branch -q merged-too main >/dev/null 2>&1 || true
+    run hook_invoke "git branch -D merged-br; git branch -D merged-too"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 r1 H-4 twin: a second checkout -- segment with a hand-written path blocks" {
+    run hook_invoke "git checkout -- dist/x.js; git checkout -- src/app.ts"
+    [ "$status" -eq 2 ]
+    cd "$(fixture_repo)"
+    run hook_invoke "git checkout -- gen/client.ts && git checkout -- a"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 DISS-001: a temp root through a bare glob blocks; a prefixed glob below it is allowed" {
+    run hook_invoke 'rm -rf /tmp/*'
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-2-BLOCK]" ]]
+    run hook_invoke 'rm -rf /var/tmp//*'
+    [ "$status" -eq 2 ]
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'rm -rf "$TMPDIR"/*'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'rm -rf $TMPDIR/*'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'rm -rf /tmp/loa-cache-*'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 r1 obs-1: php -r and rails/manage.py runners count as SQL sinks" {
+    run hook_invoke "php -r \"mysqli_query(\$c, 'DROP TABLE t');\""
+    [ "$status" -eq 2 ]
+    run hook_invoke "bin/rails runner \"ActiveRecord::Base.connection.execute('TRUNCATE TABLE users')\""
+    [ "$status" -eq 2 ]
+    run hook_invoke "python manage.py shell -c \"from django.db import connection; connection.cursor().execute('DELETE FROM users')\""
     [ "$status" -eq 2 ]
 }

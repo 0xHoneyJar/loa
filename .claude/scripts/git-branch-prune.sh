@@ -7,8 +7,10 @@
 # A branch qualifies when ONE of these positively holds:
 #   merged         its head is an ancestor of the base ref (a true merge)
 #   squash-merged  a merged pull request exists for it (`gh pr list
-#                  --state merged --head <name>`, bounded by `timeout 5`;
-#                  skipped when `gh` is absent or LOA_FENCE_NO_NETWORK=1)
+#                  --state merged --head <name>`, bounded by `timeout 5`
+#                  where coreutils `timeout` exists, else unbounded — the
+#                  documented residual; skipped when `gh` is absent or
+#                  LOA_FENCE_NO_NETWORK=1)
 #   gone           its upstream no longer exists (`[gone]` after a
 #                  `git fetch --prune`)
 # The current branch, the base branch, main and master are never deleted.
@@ -76,7 +78,7 @@ if command -v timeout >/dev/null 2>&1; then timeout_cmd=(timeout 5); fi
 squash_merged() {
   local name="$1" n
   (( probe_enabled )) || return 1
-  n=$("${timeout_cmd[@]}" gh pr list --state merged --head "$name" --json number --jq 'length' 2>/dev/null) || return 1
+  n=$(${timeout_cmd[@]+"${timeout_cmd[@]}"} gh pr list --state merged --head "$name" --json number --jq 'length' 2>/dev/null) || return 1
   [[ "$n" =~ ^[0-9]+$ && "$n" -gt 0 ]]
 }
 
