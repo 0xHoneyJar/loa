@@ -105,3 +105,10 @@
 {"id":"D54","cmd":"T=$(mktemp -d); ! T=/; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"negated assignment command rebinds (audit r1)","cwd":"repo"}
 {"id":"D55","cmd":"grep \"$(rm -rf /)\" file","expect":"block","rule":"FR-2","why":"a $(…) inside a grep carrier value is not scrubbed; the inner rm is judged on its own (audit r1, dissent payload 1 refuted)","cwd":"repo"}
 {"id":"R05","cmd":"T=$(mktemp -d); echo T=/ ; rm -rf \"$T\"","expect":"residual","rule":"FR-2","why":"a second NAME= token in any position voids the proof even as echo text — accepted FP (audit r1)","cwd":"repo"}
+{"id":"B48","cmd":"T=$(mktemp -d); bash .claude/scripts/notes-guard.sh read --file grimoires/loa/NOTES.md > \"$T/n.md\"; rm -rf \"$T\"","expect":"allow","rule":"FR-2","why":"'read' as a subcommand argument is text, not the builtin (Sprint 4 dogfooding)","cwd":"repo"}
+{"id":"B49","cmd":"T=$(mktemp -d); echo read local unset > \"$T/w\"; rm -rf \"$T\"","expect":"allow","rule":"FR-2","why":"builtin names as echo arguments","cwd":"repo"}
+{"id":"D56","cmd":"T=$(mktemp -d); while read T; do rm -rf \"$T\"; done < list","expect":"block","rule":"FR-2","why":"read in command position after while","cwd":"repo"}
+{"id":"D57","cmd":"T=$(mktemp -d); IFS= read -r T < f; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read behind an assignment prefix","cwd":"repo"}
+{"id":"D58","cmd":"T=$(mktemp -d); { read T; }; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read inside a brace group","cwd":"repo"}
+{"id":"D59","cmd":"T=$(mktemp -d); command read T < f; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read behind the command builtin","cwd":"repo"}
+{"id":"D60","cmd":"T=$(mktemp -d) && read T < f && rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read after && is command position","cwd":"repo"}

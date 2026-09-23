@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T05:30:45Z",
+  "generated": "2026-09-23T05:34:57Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -679,7 +679,7 @@
     ".claude/cache/.gitignore": "443a6548747d089425e6cdcc06d11d21f2becf78dabd6438b2d0ab7cf2d5c02f",
     ".claude/cache/early-exit/.gitkeep": "8e4a89e279c721e09c9823d164667fad09e8e5ede32acc32c010a9f1e093a26a",
     ".claude/cache/full/.gitkeep": "7e0b7b284394c9693d0c73f7caf6dc4a5928e76a054ec1e3ed09498d90b6b304",
-    ".claude/cache/index.json": "c907aaa52e9d6f3f58c848013744cbdfdb1b69b2acc113e5b41c9c6e982d3f92",
+    ".claude/cache/index.json": "f0a3fa797c670f094a2d6afdcb55a914af73b24912ff1b7c8680cb75dc9cfcaa",
     ".claude/cache/results/.gitkeep": "556fe183f3e68c0f3646a3a1748a1bf774946291cc8bf9edac85d18fb9a45b2e",
     ".claude/cache/results/ee1c8ad3a6e6a2cbf9da536c91aecac71d0016a60092c34ac9a4035e88deae54.json": "1b7fa6935491d7b6c8e3b641ad3cf0800ccd87f23ca7afa8d54633b58ea66a10",
     ".claude/cache/results/f4039118bbc553b1bd1e87cc06a58c509b7217ef27093810209abd47a2124763.json": "f98df7dfea15601905525215fbc99b5b7d20c3007e32d373578c5f3725247671",
@@ -924,7 +924,7 @@
     ".claude/hooks/pre-compact-marker.sh": "1169d5733087df3df22110cbcbba040d78f5e31cde3cac782da0f071b2c08988",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "6ec8c971f8ed8c9470049ac9fd537eae6a4e8ac81cebed08877ace547d018c36",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "7c0076c5c53f95b1246e880e3e15e435ec1d911a82b310244436c071759fbce8",
+    ".claude/hooks/safety/block-destructive-bash.sh": "3504e215466cf8cfb443b2a7fbc25efe49e0476729cce0d32f2660d442951824",
     ".claude/hooks/safety/notes-size-guard.sh": "9371ef5a7e802e0aec01e117520ad18720f30022cc57b09d11ba739366f9eda4",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "1c0c7eee272a4f5e7bfdb56a148283391054ce312364371420b8d681ac93fcf6",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",

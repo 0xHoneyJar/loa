@@ -1968,3 +1968,30 @@ fixture_repo() {
     run hook_invoke "rg -n 'rm -rf dist' docs/"
     [ "$status" -eq 0 ]
 }
+
+# --- Sprint 4 dogfooding: rebinding builtins count in command position only --
+
+@test "cycle-125 s4: a rebinding builtin used as an ARGUMENT does not void the mktemp proof" {
+    run hook_invoke 'T=$(mktemp -d); bash .claude/scripts/notes-guard.sh read --file grimoires/loa/NOTES.md > "$T/n.md"; rm -rf "$T"'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'T=$(mktemp -d); echo read local unset > "$T/w"; rm -rf "$T"'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'T=$(mktemp -d); git log --format=%s | grep -c source > "$T/c"; rm -rf "$T"'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 s4 twins: read in command position (after while / if / && / { / command / assignment prefix) still voids the proof" {
+    run hook_invoke 'T=$(mktemp -d); while read T; do rm -rf "$T"; done < list'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); if read T; then rm -rf "$T"; fi'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d) && read T < f && rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); { read T; }; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); command read T < f; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); IFS= read -r T < f; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); ! read T; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}

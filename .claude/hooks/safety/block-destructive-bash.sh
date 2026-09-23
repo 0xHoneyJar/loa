@@ -1272,7 +1272,15 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # no array element `NAME[`. Any of these → not a proof (return 0 = rebindable).
   _fr2_rebindable() {
     local name="$1"
-    local rebind_re=$'(^|[^[:alnum:]_])(eval|read|readarray|mapfile|declare|typeset|local|readonly|unset|source|getopts|printf[[:space:]]+-v)([[:space:]]|$)'
+    # The rebinding builtins count only in COMMAND position — statement start
+    # (also after `&&`/`||`/`(`/`{`), optionally behind reserved words
+    # (`while read x; do`, `if read x; then`, `! read x`), `command`/`builtin`,
+    # or assignment prefixes (`IFS= read -r x`). As an ARGUMENT the word is
+    # text: `notes-guard.sh read --file …`, `echo read`, `git log --format=…`
+    # never rebind anything (Sprint 4 dogfooding: the framework's own reader
+    # was voiding the mktemp proof).
+    local cmdpos=$'(^|[;&|(){]|\n|\\|\\||&&)[[:space:]]*((if|then|else|elif|while|until|do|time|!|command|builtin)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+    local rebind_re="${cmdpos}"'(eval|read|readarray|mapfile|declare|typeset|local|readonly|unset|source|getopts|printf[[:space:]]+-v)([[:space:]]|$)'
     local dot_re=$'(^|[;&|(]|\n)[[:space:]]*\\.[[:space:]]'
     [[ "$command" =~ $rebind_re ]] && return 0
     [[ "$command" =~ $dot_re ]] && return 0
