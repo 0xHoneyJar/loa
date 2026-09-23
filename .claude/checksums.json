@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T04:38:40Z",
+  "generated": "2026-09-23T04:43:41Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -669,7 +669,7 @@
     ".claude/cache/.gitignore": "443a6548747d089425e6cdcc06d11d21f2becf78dabd6438b2d0ab7cf2d5c02f",
     ".claude/cache/early-exit/.gitkeep": "8e4a89e279c721e09c9823d164667fad09e8e5ede32acc32c010a9f1e093a26a",
     ".claude/cache/full/.gitkeep": "7e0b7b284394c9693d0c73f7caf6dc4a5928e76a054ec1e3ed09498d90b6b304",
-    ".claude/cache/index.json": "dbf7835a36be5bd15becb7a76a1746b576086f1591256c34be94edd3a8b56693",
+    ".claude/cache/index.json": "e09033e37e6974e74baa2e373a904f51275d84c0d3dc383b83664049136020d8",
     ".claude/cache/results/.gitkeep": "556fe183f3e68c0f3646a3a1748a1bf774946291cc8bf9edac85d18fb9a45b2e",
     ".claude/cache/results/ee1c8ad3a6e6a2cbf9da536c91aecac71d0016a60092c34ac9a4035e88deae54.json": "1b7fa6935491d7b6c8e3b641ad3cf0800ccd87f23ca7afa8d54633b58ea66a10",
     ".claude/cache/results/f4039118bbc553b1bd1e87cc06a58c509b7217ef27093810209abd47a2124763.json": "f98df7dfea15601905525215fbc99b5b7d20c3007e32d373578c5f3725247671",
@@ -1411,7 +1411,7 @@
     ".claude/scripts/mount-loa.sh": "ba428c31bcea65e28f22b6dd5067e0980800c5dbf25a3d6fc243e601677f5419",
     ".claude/scripts/mount-submodule.sh": "8a9c861fad398d95f9f4a76d9c83718ce79b5d6a5589c917a47bd5e20e3558f5",
     ".claude/scripts/next-bug-sprint-id.sh": "4c0185c7c35adc8e0d88ac71a3f79ca21415dfe61dcedf34f182b7510fd676fb",
-    ".claude/scripts/notes-guard.sh": "624fd7bc696a7f19402ad54e4dfe46c05b13b19243c145bc5f00fddf1800253c",
+    ".claude/scripts/notes-guard.sh": "437b6fd52528947f6308cea6e8237bbcce3dae00903881063e2bc30477fc474c",
     ".claude/scripts/okf-export.sh": "828ac19b8be6e955b059a1f511ee4d0d60d2d8a6a59f8b43e4c67f2f27f7f779",
     ".claude/scripts/operator-identity.sh": "926e8e2b08e32d7036d9cd429d4136411fc8a97769842e12031f21083931f757",
     ".claude/scripts/panel-distribution-audit.sh": "c6e859f1d7476fa60c170cc675e6a7fbe5ed304a67416f7d4b009d8a0b0d4348",
@@ -1611,7 +1611,7 @@
     ".claude/scripts/tripwire-handler.sh": "0e28efd01e1eb95d7ebe830aae749ae9bbe96227c81cd59c3b9b5d6692d4b15a",
     ".claude/scripts/update-ledger-compound.sh": "faaca564e2dbda0c428a8d92d95717cc6e38633da6b4c3430005f2e797863207",
     ".claude/scripts/update-loa-bump-version.sh": "e6994cd7c790dccb9b65025e1ee461c0b5fbd79d3271dbbd7dfd3d3dd3e4fe4b",
-    ".claude/scripts/update-loa.sh": "43eac78694477e4bbb88049141c81bcdbf6d156658d2717cde1fe2a7d2070aae",
+    ".claude/scripts/update-loa.sh": "c9808ec07e2bbd9f69c5f35ae519ad9a622222851863e559498a7cd91c16f30a",
     ".claude/scripts/update-notes-learnings.sh": "6c910fe4fff4974e9cf1ffc4e08bf7738929a21c1f5a53e08dc919a75960044f",
     ".claude/scripts/update-patterns-registry.sh": "05134e35eb9fa1b5a232f648bd7937a5531a1d8951c22cf9767d27556c383d64",
     ".claude/scripts/update.sh": "ed50e1156559bd715761a77ef31db90b9be01339668685236413aa645c62b49c",

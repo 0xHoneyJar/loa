@@ -575,10 +575,16 @@ Install in submodule mode: mount-loa.sh (default)"
     standard)
       # Delegate to existing update.sh for vendored mode
       local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      local update_script="${script_dir}/update.sh"
+      local update_script="${LOA_VENDORED_UPDATE_SCRIPT:-${script_dir}/update.sh}"
       if [[ -x "$update_script" ]]; then
         log "Delegating to update.sh (vendored mode)..."
-        exec "$update_script" "$@"
+        # Not `exec`: the post-refresh NOTES rotation (cycle-125 FR-2, review
+        # round 1 H-1) must run for vendored installs too. The refresh's exit
+        # code is preserved; the remaining submodule-only steps stay skipped.
+        local vendored_rc=0
+        "$update_script" "$@" || vendored_rc=$?
+        if [[ $vendored_rc -eq 0 ]]; then rotate_oversized_notes; fi
+        exit "$vendored_rc"
       else
         err "update.sh not found at: $update_script"
       fi

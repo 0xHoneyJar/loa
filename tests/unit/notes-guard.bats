@@ -276,6 +276,24 @@ EOF
   [[ "$output" != *"Gamma"* ]]
   run "$GUARD" read --file "$G/sprint.md" --section "Sprint 10"
   [ "$(echo "$output" | head -n1)" = "## Sprint 10: Gamma" ]
+  # review r1: a dotted hotfix sprint listed first must not shadow the integer one
+  printf '## Sprint 2.5: hotfix\n\nhot\n\n## Sprint 2: two\n\ntwo\n' > "$G/dotted.md"
+  run "$GUARD" read --file "$G/dotted.md" --section "Sprint 2"
+  [ "$(echo "$output" | head -n1)" = "## Sprint 2: two" ]
+}
+
+@test "NG-22 a TAB inside a heading does not shift the index fields; a backslash in a substring spec is literal; a directory is refused loudly" {
+  printf '## A\tB heading\n\nbody\n\n## Plain\n\nx\n' > "$G/tab.md"
+  run "$GUARD" read --file "$G/tab.md" --index
+  [ "$status" -eq 0 ]
+  echo "$output" | sed -n 1p | grep -qE $'^L1-L4  22B  ## A\tB heading$'
+  run "$GUARD" read --file "$G/tab.md" --section 'A\tB'
+  echo "$output" | head -n1 | grep -q "^NOTES-GUARD: no section matching"
+  run "$GUARD" read --file "$G/tab.md" --section 'b heading'
+  [ "$(echo "$output" | head -n1)" = $'## A\tB heading' ]
+  run "$GUARD" read --file "$G" --index
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"is not a regular file"* ]]
 }
 
 @test "NG-15 read --section N / N. returns the numbered section" {

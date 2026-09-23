@@ -91,11 +91,13 @@ cmd_check() {
 
 # --- read --------------------------------------------------------------------
 # One awk pass over `^## ` boundaries:
-# "start<TAB>end<TAB>kind<TAB>date<TAB>heading<TAB>bytes" (bytes: the block
+# "start<TAB>end<TAB>kind<TAB>date<TAB>bytes<TAB>heading" (bytes: the block
 # including its heading line and newlines; LC_ALL=C so length() counts bytes).
+# The heading is the LAST field so a TAB inside it cannot shift the others;
+# consumers take the heading as "everything after the fifth TAB".
 index_blocks() {
   awk '
-    function flush(end) { if (start) printf "%d\t%d\t%s\t%s\t%s\t%d\n", start, end, kind, date, heading, bytes }
+    function flush(end) { if (start) printf "%d\t%d\t%s\t%s\t%d\t%s\n", start, end, kind, date, bytes, heading }
     BEGIN { start = 0; bytes = 0 }
     /^## / {
       flush(NR - 1)
@@ -119,23 +121,29 @@ cmd_index() {
     echo "NOTES-GUARD: no '## ' headings in $file ($(size_of "$file") bytes) — use read --full --file $file"
     return 0
   fi
-  awk -F'\t' '{ printf "L%d-L%d  %dB  %s\n", $1, $2, $6, $5 }' <<<"$idx"
+  awk -F'\t' '{ h = $0; for (i = 1; i <= 5; i++) sub(/^[^\t]*\t/, "", h); printf "L%d-L%d  %dB  %s\n", $1, $2, $5, h }' <<<"$idx"
 }
 
 # Resolve a --section SPEC to "start end" (first matching H2), or nothing.
+# `Sprint N` stops at the digit run AND at a dot, so `Sprint 2` never returns
+# `## Sprint 2.5`; the substring spec travels through ENVIRON (no `-v`
+# backslash processing). Headings are rebuilt from the sixth field onward.
 find_section() {
-  local spec="$1" idx re n
+  local spec="$1" idx n
   idx=$(index_blocks)
   [[ -n "$idx" ]] || return 0
   if [[ "$spec" =~ ^[Ss]print[[:space:]]+([0-9]+)$ ]]; then
     n="${BASH_REMATCH[1]}"
-    awk -F'\t' -v n="$n" '$5 ~ ("^## Sprint " n "([^0-9]|$)") { print $1 " " $2; exit }' <<<"$idx"
+    awk -F'\t' -v n="$n" '{ h = $0; for (i = 1; i <= 5; i++) sub(/^[^\t]*\t/, "", h) }
+      h ~ ("^## Sprint " n "([^0-9.]|$)") { print $1 " " $2; exit }' <<<"$idx"
   elif [[ "$spec" =~ ^([0-9]+)\.?$ ]]; then
     n="${BASH_REMATCH[1]}"
-    awk -F'\t' -v n="$n" '$5 ~ ("^## " n "\\. ") { print $1 " " $2; exit }' <<<"$idx"
+    awk -F'\t' -v n="$n" '{ h = $0; for (i = 1; i <= 5; i++) sub(/^[^\t]*\t/, "", h) }
+      h ~ ("^## " n "\\. ") { print $1 " " $2; exit }' <<<"$idx"
   else
-    awk -F'\t' -v s="$(printf '%s' "$spec" | tr '[:upper:]' '[:lower:]')" \
-      'index(tolower($5), s) > 0 { print $1 " " $2; exit }' <<<"$idx"
+    NG_SPEC="$spec" awk -F'\t' 'BEGIN { s = tolower(ENVIRON["NG_SPEC"]) }
+      { h = $0; for (i = 1; i <= 5; i++) sub(/^[^\t]*\t/, "", h) }
+      index(tolower(h), s) > 0 { print $1 " " $2; exit }' <<<"$idx"
   fi
 }
 
@@ -183,6 +191,7 @@ emit_capped() {
 
 cmd_read() {
   if (( full )); then cat -- "$file"; return 0; fi
+  if [[ -e "$file" && ! -f "$file" ]]; then echo "NOTES-GUARD: $file is not a regular file — nothing to read"; return 0; fi
   if [[ ! -f "$file" ]]; then echo "NOTES-GUARD: $file does not exist — nothing to read"; return 0; fi
   local ranges
   if (( index )); then cmd_index; return 0; fi

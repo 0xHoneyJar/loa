@@ -63,6 +63,24 @@ run_rotation() {  # sources update-loa.sh (main is guarded) and runs the step fr
   [ -d "$T/elsewhere/archive/notes" ]
 }
 
+@test "ULR-5 vendored (standard) mode: the refresh runs, then the rotation — no exec short-circuit (review r1 H-1)" {
+  "$GEN" "$N" 250k
+  printf '#!/usr/bin/env bash\ntouch "%s/refreshed"\nexit 0\n' "$T" > "$T/stub-update.sh"; chmod +x "$T/stub-update.sh"
+  run bash -c "cd '$T' && export LOA_VENDORED_UPDATE_SCRIPT='$T/stub-update.sh' && source '$UPDATE' && detect_mode() { echo standard; } && main"
+  [ "$status" -eq 0 ]
+  [ -f "$T/refreshed" ]
+  [[ "$output" == *"rotated"* ]]
+  [ -d "$T/grimoires/loa/archive/notes" ]
+  [ "$(stat -c%s "$N")" -lt 102400 ]
+  # a failing refresh propagates its exit code and does not rotate
+  "$GEN" "$N" 250k
+  rm -rf "$T/grimoires/loa/archive"
+  printf '#!/usr/bin/env bash\nexit 7\n' > "$T/stub-update.sh"
+  run bash -c "cd '$T' && export LOA_VENDORED_UPDATE_SCRIPT='$T/stub-update.sh' && source '$UPDATE' && detect_mode() { echo standard; } && main"
+  [ "$status" -eq 7 ]
+  [ ! -d "$T/grimoires/loa/archive" ]
+}
+
 @test "ULR-4 main() calls the rotation step after the learning import and before the summary" {
   awk '/^main\(\) \{/,/^\}/' "$UPDATE" > "$T/main.txt"
   grep -n 'import_upstream_learnings$' "$T/main.txt" | head -1 | cut -d: -f1 > "$T/a"
