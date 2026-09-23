@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T04:43:41Z",
+  "generated": "2026-09-23T04:46:54Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -669,7 +669,7 @@
     ".claude/cache/.gitignore": "443a6548747d089425e6cdcc06d11d21f2becf78dabd6438b2d0ab7cf2d5c02f",
     ".claude/cache/early-exit/.gitkeep": "8e4a89e279c721e09c9823d164667fad09e8e5ede32acc32c010a9f1e093a26a",
     ".claude/cache/full/.gitkeep": "7e0b7b284394c9693d0c73f7caf6dc4a5928e76a054ec1e3ed09498d90b6b304",
-    ".claude/cache/index.json": "e09033e37e6974e74baa2e373a904f51275d84c0d3dc383b83664049136020d8",
+    ".claude/cache/index.json": "0ec5a02c16e340de73696f85f37b25ff5feef3cf2283edc0cdd6f6e216534adf",
     ".claude/cache/results/.gitkeep": "556fe183f3e68c0f3646a3a1748a1bf774946291cc8bf9edac85d18fb9a45b2e",
     ".claude/cache/results/ee1c8ad3a6e6a2cbf9da536c91aecac71d0016a60092c34ac9a4035e88deae54.json": "1b7fa6935491d7b6c8e3b641ad3cf0800ccd87f23ca7afa8d54633b58ea66a10",
     ".claude/cache/results/f4039118bbc553b1bd1e87cc06a58c509b7217ef27093810209abd47a2124763.json": "f98df7dfea15601905525215fbc99b5b7d20c3007e32d373578c5f3725247671",
@@ -1611,7 +1611,7 @@
     ".claude/scripts/tripwire-handler.sh": "0e28efd01e1eb95d7ebe830aae749ae9bbe96227c81cd59c3b9b5d6692d4b15a",
     ".claude/scripts/update-ledger-compound.sh": "faaca564e2dbda0c428a8d92d95717cc6e38633da6b4c3430005f2e797863207",
     ".claude/scripts/update-loa-bump-version.sh": "e6994cd7c790dccb9b65025e1ee461c0b5fbd79d3271dbbd7dfd3d3dd3e4fe4b",
-    ".claude/scripts/update-loa.sh": "c9808ec07e2bbd9f69c5f35ae519ad9a622222851863e559498a7cd91c16f30a",
+    ".claude/scripts/update-loa.sh": "a1e0fe658570cd159974c9376fe9b814f6aab6507c4c2249b20e2510241b9e18",
     ".claude/scripts/update-notes-learnings.sh": "6c910fe4fff4974e9cf1ffc4e08bf7738929a21c1f5a53e08dc919a75960044f",
     ".claude/scripts/update-patterns-registry.sh": "05134e35eb9fa1b5a232f648bd7937a5531a1d8951c22cf9767d27556c383d64",
     ".claude/scripts/update.sh": "ed50e1156559bd715761a77ef31db90b9be01339668685236413aa645c62b49c",

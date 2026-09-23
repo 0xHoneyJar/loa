@@ -575,7 +575,12 @@ Install in submodule mode: mount-loa.sh (default)"
     standard)
       # Delegate to existing update.sh for vendored mode
       local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      local update_script="${LOA_VENDORED_UPDATE_SCRIPT:-${script_dir}/update.sh}"
+      local update_script="${script_dir}/update.sh"
+      # Test seam, bats-gated like the other test-mode overrides in this
+      # repository: never honoured in a real update (audit round 1, MED-001).
+      if [[ -n "${BATS_TEST_FILENAME:-}" && -n "${LOA_VENDORED_UPDATE_SCRIPT:-}" ]]; then
+        update_script="$LOA_VENDORED_UPDATE_SCRIPT"
+      fi
       if [[ -x "$update_script" ]]; then
         log "Delegating to update.sh (vendored mode)..."
         # Not `exec`: the post-refresh NOTES rotation (cycle-125 FR-2, review

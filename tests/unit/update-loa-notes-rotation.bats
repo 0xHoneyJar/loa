@@ -79,6 +79,11 @@ run_rotation() {  # sources update-loa.sh (main is guarded) and runs the step fr
   run bash -c "cd '$T' && export LOA_VENDORED_UPDATE_SCRIPT='$T/stub-update.sh' && source '$UPDATE' && detect_mode() { echo standard; } && main"
   [ "$status" -eq 7 ]
   [ ! -d "$T/grimoires/loa/archive" ]
+  # the override is a bats-gated test seam: without the bats marker it is ignored
+  printf '#!/usr/bin/env bash\ntouch "%s/leaked"\nexit 0\n' "$T" > "$T/stub-update.sh"
+  run bash -c "cd '$T' && unset BATS_TEST_FILENAME && export LOA_VENDORED_UPDATE_SCRIPT='$T/stub-update.sh' && source '$UPDATE' && detect_mode() { echo standard; } && grep -n 'update_script=\"\${script_dir}/update.sh\"' '$UPDATE' >/dev/null && echo gated"
+  [[ "$output" == *"gated"* ]]
+  [ ! -f "$T/leaked" ]
 }
 
 @test "ULR-4 main() calls the rotation step after the learning import and before the summary" {
