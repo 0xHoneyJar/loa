@@ -42,6 +42,30 @@
 # Current executable limit examples and issue dispositions:
 # docs/runbooks/hook-safety.md (#1047, #1245, #1088, #1031).
 #
+# cycle-125 FR-1 (2026-09-23) — precision pass against the fleet corpus
+# (tests/fixtures/fence-corpus/, replayed by tests/unit/block-destructive-
+# bash.bats). Relaxations, each on a positively established predicate:
+# FR-2 cache/build vocabulary by last segment, bare names after a
+# statement-initial `cd <temp>`, paths strictly below /tmp|/var/tmp|
+# /private/tmp, `$TMPDIR/<name>` only with a real temp TMPDIR, a variable
+# bound exactly once to `$(mktemp -d)`; FR-1.1 branches that are ancestors
+# of main/master (offline `git merge-base`); FR-1.3 generated paths;
+# FR-1.4/5/6 only when a SQL runner (psql, mysql, sqlite3, prisma, …) or an
+# inline interpreter program (`python -c`, `node -e`) is in the command.
+# ACCEPTED RESIDUALS (deliberately not relaxed):
+#   * Remote payloads: `ssh host 'rm -rf /'`, `docker exec c rm -rf /data`,
+#     `kubectl exec p -- rm -rf /` keep blocking. A scrub of quoted remote
+#     payloads was withdrawn at design time (Flatline SKP-001) — the text
+#     fence cannot tell a remote target from a local one, and the blast
+#     radius of a remote wipe is larger, not smaller.
+#   * SQL through a script FILE (`python app.py` that drops a table) was
+#     never matched and still is not; inline programs are matched by text.
+#   * `cd "$(mktemp -d)" && rm -rf out` (substitution as the cd target) and
+#     `rm -rf "$T"` where T came from anything but a plain `$(mktemp -d)`
+#     or a temp path stay blocked — bind the path first, then rm.
+#   * The hook never consults its own $PWD: a project checked out under
+#     /tmp still has `rm -rf src` blocked.
+#
 # Registered in settings.hooks.json as PreToolUse matcher: "Bash"
 # Part of Loa Harness Engineering (cycle-011, issue #297)
 # Source: Trail of Bits claude-code-config safety patterns
@@ -205,6 +229,13 @@ _bdb_qval_perm="('[^']*'|\"([^\"\\\\]|\\\\.)*\")"
 _bdb_re_git="(^|[^[:alnum:]_])git[[:space:]][^;&|'\"]*commit[^;&|'\"]*(-m|--message)[[:space:]]+${_bdb_qval_perm}"
 _bdb_re_brbd="(^|[^[:alnum:]_])(br|bd)[[:space:]][^;&|'\"]*(create|update)[^;&|'\"]*(-d|--description)[[:space:]]+${_bdb_qval_perm}"
 _bdb_re_gh="(^|[^[:alnum:]_])gh[[:space:]][^;&|'\"]*(issue|pr)[^;&|'\"]*create[^;&|'\"]*(--body|--title)[[:space:]]+${_bdb_qval_perm}"
+# cycle-125 FR-1 (D-1.7): the quoted pattern argument of a read-only search
+# tool is text, never a command — `grep -rn "rm -rf dist" file` and
+# `rg 'DROP TABLE' migrations/` were the most common benign shapes the SQL and
+# rm rules matched. Only grep-family tools are carriers here: sed/awk can
+# execute (`s///e`, `system()`), so their scripts stay visible. The value is
+# the first quoted argument after any flags; content-gated like every carrier.
+_bdb_re_grep="(^|[^[:alnum:]_])(grep|egrep|fgrep|rg|ag|ack)[[:space:]]+((-[^[:space:]]+)[[:space:]]+)*${_bdb_qval_perm}"
 
 # Tail-run of contiguous message flags after the primary carrier match. A
 # single `git commit`/`gh create`/… can carry MULTIPLE `-m/--message`/`-d`/
@@ -381,6 +412,9 @@ if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
   _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
 fi
 [[ "$_cmd_match" == *"gh "* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_gh" "$_cmd_match")
+if [[ "$_cmd_match" == *grep* || "$_cmd_match" == *"rg "* || "$_cmd_match" == *"ag "* || "$_cmd_match" == *"ack "* ]]; then
+  _cmd_match=$(_bdb_scrub "$_bdb_re_grep" "$_cmd_match")   # cycle-125 D-1.7
+fi
 _cmd_match=$(printf '%s' "$_cmd_match" | sed -E -e "$_bdb_sed_echo" 2>/dev/null) || _cmd_match="$command"
 # Fail-safe: an empty scrub on a non-empty command → fall back to RAW (stricter
 # matching), never to an empty scrub that would silence every pattern.
@@ -587,10 +621,41 @@ fi
 # pass-8 pre-filter: `branch` is a mandatory concatenation element; every
 # branch of the flags alternation begins with the literal `-`.
 # -----------------------------------------------------------------------------
+# cycle-125 FR-1 (D-1.4): a branch that is already an ancestor of the base
+# holds no unmerged work, so `-D` on it loses nothing. Offline only — one
+# local `git merge-base` per named branch, no network (the hook runs under the
+# fail-open hook-guard). Squash-merged branches are not ancestors; they go
+# through the sanctioned helper `.claude/scripts/git-branch-prune.sh`, which
+# may consult `gh` with a timeout. Any doubt (no git, no such branch, a name
+# with shell metacharacters, no base ref) keeps the block.
+_fr11_all_merged() {
+  local seg names name base merged
+  command -v git >/dev/null 2>&1 || return 1
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  seg=$(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^;&|]*' | head -1)
+  names=""
+  for name in ${seg#*branch}; do
+    [[ "$name" == -* ]] && continue
+    names+="$name "
+  done
+  [[ -n "$names" ]] || return 1
+  for name in $names; do
+    [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || return 1
+    git rev-parse -q --verify "refs/heads/$name" >/dev/null 2>&1 || return 1
+    merged=0
+    for base in origin/main main origin/master master; do
+      git rev-parse -q --verify "$base" >/dev/null 2>&1 || continue
+      if git merge-base --is-ancestor "$name" "$base" 2>/dev/null; then merged=1; break; fi
+    done
+    [[ $merged -eq 1 ]] || return 1
+  done
+  return 0
+}
 if [[ "$command" == *"branch"* && "$command" == *"-"* ]] \
-   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+branch[[:space:]]+(-[a-zA-Z]*D[a-zA-Z]*|--delete[[:space:]]+--force|--force[[:space:]]+--delete|-d[[:space:]]+-f|-f[[:space:]]+-d|--delete([^[:alnum:]_].*)?--force|--force([^[:alnum:]_].*)?--delete)'; then
+   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+branch[[:space:]]+(-[a-zA-Z]*D[a-zA-Z]*|--delete[[:space:]]+--force|--force[[:space:]]+--delete|-d[[:space:]]+-f|-f[[:space:]]+-d|--delete([^[:alnum:]_].*)?--force|--force([^[:alnum:]_].*)?--delete)' \
+   && ! _fr11_all_merged; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^[:space:]&|;]+([[:space:]]+[^[:space:]&|;]+)?' | head -1)
-  emit_block "FR-1.1" "$matched" "git branch -D loses unmerged work. Use 'git branch -d' (lowercase) — it refuses to drop branches with unmerged commits."
+  emit_block "FR-1.1" "$matched" "git branch -D loses unmerged work. Use 'git branch -d' (lowercase) — it refuses to drop branches with unmerged commits. A branch already merged into main/master is allowed; for squash-merged branches use .claude/scripts/git-branch-prune.sh."
 fi
 
 # -----------------------------------------------------------------------------
@@ -662,10 +727,36 @@ fi
 # pass-8 pre-filter: `checkout` and `--` are both mandatory concatenation
 # elements (`--` is the two-char literal between the [[:space:]] runs).
 # -----------------------------------------------------------------------------
+# cycle-125 FR-1 (D-1.5): restoring a GENERATED file overwrites nothing an
+# author typed — build outputs (dist/, build/, coverage/, out/), codegen dirs
+# (_generated/, __generated__/, generated/), build info, lockfiles, and any
+# path git itself marks `linguist-generated` in .gitattributes. Every operand
+# must qualify; anything else keeps the block.
+_fr13_all_generated() {
+  local seg names name attr
+  seg=$(printf '%s' "$_cmd_match" | grep -oE 'git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^;&|]*' | head -1)
+  names="${seg#*-- }"
+  [[ -n "$names" ]] || return 1
+  for name in $names; do
+    [[ "$name" == -* ]] && continue
+    [[ "$name" =~ ^[A-Za-z0-9._/@+-]+$ ]] || return 1
+    [[ "$name" =~ (^|/)\.\.(/|$) ]] && return 1
+    if [[ "$name" =~ (^|/)(dist|build|out|coverage|_generated|__generated__|generated)(/|$) ]]; then continue; fi
+    if [[ "$name" =~ (\.tsbuildinfo|\.lock|-lock\.(json|yaml|yml))$ ]] \
+       || [[ "$name" =~ (^|/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|poetry\.lock|uv\.lock|go\.sum|composer\.lock|Gemfile\.lock)$ ]]; then continue; fi
+    if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      attr=$(git check-attr linguist-generated -- "$name" 2>/dev/null)
+      [[ "$attr" =~ linguist-generated:[[:space:]]*(set|true)$ ]] && continue
+    fi
+    return 1
+  done
+  return 0
+}
 if [[ "$command" == *"checkout"* && "$command" == *"--"* ]] \
-   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^-][^[:space:]]*'; then
+   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^-][^[:space:]]*' \
+   && ! _fr13_all_generated; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^[:space:]&|;]+' | head -1)
-  emit_block "FR-1.3" "$matched" "git checkout -- <file> overwrites uncommitted changes irreversibly. Use 'git stash push <file>' to save first, or 'git restore --source=HEAD <file>' (explicit source)."
+  emit_block "FR-1.3" "$matched" "git checkout -- <file> overwrites uncommitted changes irreversibly. Use 'git stash push <file>' to save first, or 'git restore --source=HEAD <file>' (explicit source). Generated paths (dist/, build/, coverage/, _generated/, lockfiles, linguist-generated) are allowed."
 fi
 
 fi  # ── end pass-8 git-family pre-filter ──
@@ -692,7 +783,22 @@ _cmd_lc="${_cmd_match,,}"  # quote-blindness fix: fold the scrub-copy (see above
 # the folded ERE (the (database|table|schema) alternation is deliberately
 # NOT used — `drop` alone is the necessary literal).
 # -----------------------------------------------------------------------------
-if [[ "$_cmd_lc" == *"drop"* ]] \
+# cycle-125 FR-1 (D-1.3): the DROP / TRUNCATE / DELETE rules guard statements
+# that reach a SQL runner. A keyword in a heredoc written to a file, an echo,
+# a commit body or a search pattern is text (the dominant false-positive
+# class). The precondition is the presence of a runner anywhere in the
+# command — psql/mysql/sqlite3/…, ORM and migration CLIs, docker-exec'd
+# clients included — so `psql <<SQL`, `psql -c`, `mysql -e` and
+# `docker exec db psql …` keep today's matching. Inline interpreter programs
+# (`python -c`, `node -e`, `python3 - <<PY`) count as runners too, so a
+# driver call inside them keeps today's text match; a driver call in a
+# script FILE was never matched and still is not (residual, unchanged).
+_sql_runner=0
+if [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(psql|pgcli|mysql|mariadb|mysqlsh|sqlite3|sqlcmd|sqlplus|isql|usql|litecli|duckdb|clickhouse|clickhouse-client|cockroach|bq|wrangler|prisma|supabase|drizzle-kit|knex|sequelize|typeorm|flyway|liquibase|dbmate|goose|sqitch)([[:space:]]|$) ]] \
+   || [[ "$_cmd_lc" =~ (^|[^[:alnum:]_.-])(python[0-9.]*|node|deno|bun|ruby|php|perl)[[:space:]]+(-c|-e|--eval|-)([[:space:]]|$) ]]; then
+  _sql_runner=1
+fi
+if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"drop"* ]] \
    && _match_ci '(^|[^[:alnum:]_])(drop[[:space:]]+(database|table|schema))($|[^[:alnum:]_])'; then
   matched=$(echo "$command" | grep -oiE '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))[[:space:]]+[^;]*' | head -1)
   emit_block "FR-1.4" "$matched" "DROP {DATABASE,TABLE,SCHEMA} is irreversible. If this is a migration, run via your migration tool with explicit confirmation; otherwise temporarily disable the hook for the next command only."
@@ -709,7 +815,7 @@ fi
 # (the optional table group and the ident alternation share no literal —
 # `truncate` alone is the necessary literal).
 # -----------------------------------------------------------------------------
-if [[ "$_cmd_lc" == *"truncate"* ]] \
+if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"truncate"* ]] \
    && _match_ci '(^|[^[:alnum:]_])truncate[[:space:]]+(table[[:space:]]+)?("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)'; then
   matched=$(echo "$command" | grep -oiE '\bTRUNCATE[[:space:]]+(TABLE[[:space:]]+)?("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)' | head -1)
   emit_block "FR-1.5" "$matched" "TRUNCATE wipes the table. Use 'DELETE FROM <table> WHERE ...' for scoped row removal, or run in a transaction with explicit operator approval."
@@ -733,7 +839,7 @@ fi
 # never leak into the skipped branch.
 # -----------------------------------------------------------------------------
 delete_stmts=""
-if [[ "$_cmd_lc" == *"delete"* && "$_cmd_lc" == *"from"* ]]; then
+if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"delete"* && "$_cmd_lc" == *"from"* ]]; then
   # quote-blindness fix (step 3, CRITICAL): P10's raw grep does NOT go through
   # _cmd_lines, so it must read the scrub-copy _cmd_match too — otherwise a
   # DELETE FROM inside a redacted carrier value (e.g. git commit -m '…DELETE
@@ -1084,7 +1190,143 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   # in the FR-2 *messages* alone: they now name alternatives that actually
   # work (`trash`, `find … -mindepth 1 -delete`) instead of a bogus form.
   _re_allow_exclude='^\./($|\*|\.|\.git$|\.git/|\.ssh$|\.ssh/|\.env)'
-  _re_allow_list='^(\./[^/*.][^*]*|node_modules$|node_modules/|dist$|dist/|build$|build/|target$|target/|\.next$|\.next/|/tmp/.+|out$|out/|coverage$|coverage/)'
+  _re_allow_list='^(\./[^/*.][^*]*|node_modules$|node_modules/|dist$|dist/|build$|build/|target$|target/|\.next$|\.next/|/tmp/.+|/var/tmp/.+|/private/tmp/.+|out$|out/|coverage$|coverage/)'
+
+  # ---------------------------------------------------------------------------
+  # cycle-125 FR-1 (D-1.1): four narrow allowances, evaluated ONLY after the
+  # ..-escape, catastrophic and exclude checks above have not fired. None of
+  # them admits an arbitrary project directory: `rm -rf src` stays AMBIGUOUS
+  # and `./src/` remains the explicit spelling (Flatline SKP-002).
+  #   1. cache vocabulary by LAST segment at any relative depth
+  #      (`packages/web/dist`, `deploy/x/.terraform`); intermediate hidden
+  #      segments are refused (`.git/objects`), so is any glob/var/escape char.
+  #   2. scratch working directory: the last statement-initial `cd <dir>` in
+  #      the text before this rm names a temp root (or the hook's own $PWD is
+  #      one) → bare relative visible names are allowed (`cd /tmp && rm -rf x`).
+  #   3. $TMPDIR/<suffix> when the hook's REAL $TMPDIR resolves under a temp
+  #      root and the command does not assign TMPDIR itself (SKP-004).
+  #   4. a variable bound EXACTLY ONCE in the command to `$(mktemp -d …)` or to
+  #      a literal that this same ladder allows (`S=/tmp/x; rm -rf "$S/y"`);
+  #      a second assignment voids it (`T=$(mktemp -d); T=/; rm -rf "$T"`).
+  # Remote payloads (`ssh h 'rm -rf …'`) keep today's scanning (SKP-001).
+  # ---------------------------------------------------------------------------
+  _fr2_temp_root_re='^/(tmp|var/tmp|private/tmp)(/|$)'     # a cd target: the root itself or below
+  _fr2_temp_path_re='^/(tmp|var/tmp|private/tmp)/[^/]'      # an rm operand: strictly below a temp root
+  _fr2_vocab_re='^(dist|build|out|coverage|target|node_modules|tmp|temp|__pycache__|cdk\.out|\.next|\.turbo|\.terraform|\.terraform\.lock\.hcl|\.venv|venv|\.tox|\.nox|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.parcel-cache|\.npm-cache|\.pnpm-store|[A-Za-z0-9_.+-]+\.egg-info)$'
+  _fr2_last_seg=""; _fr2_hidden_mid=0
+  # Plain relative path: no leading / ~ $ - , no glob/var/escape/space chars,
+  # no . or .. segments. Sets _fr2_last_seg and _fr2_hidden_mid.
+  _fr2_plain_relative() {
+    local p="${1%/}" seg i n
+    local -a segs
+    _fr2_last_seg=""; _fr2_hidden_mid=0
+    [[ -n "$p" && "$p" != /* && "$p" != -* && "$p" != *'*'* && "$p" != *'?'* && "$p" != *'['* && "$p" != *'$'* && "$p" != *'`'* && "$p" != *'~'* && "$p" != *' '* && "$p" != *'\'* ]] || return 1
+    local IFS='/'
+    read -r -a segs <<<"$p"
+    n=${#segs[@]}
+    (( n > 0 )) || return 1
+    for ((i = 0; i < n; i++)); do
+      seg="${segs[i]}"
+      [[ -n "$seg" && "$seg" != "." && "$seg" != ".." ]] || return 1
+      [[ "$seg" =~ ^[A-Za-z0-9_.+-]+$ ]] || return 1
+      if (( i < n - 1 )) && [[ "$seg" == .* ]]; then _fr2_hidden_mid=1; fi
+    done
+    _fr2_last_seg="${segs[n-1]}"
+    return 0
+  }
+  # Value of a variable assigned EXACTLY once in the command (env-prefix form
+  # `NAME=v cmd` and statement-initial `NAME=v` both count); prints it.
+  _fr2_var_value() {
+    local name="$1" rest="$command" count=0 val="" m after
+    local re="(^|[;&|(]|\n)[[:space:]]*(export[[:space:]]+)?${name}="
+    # Flatline SKP-002/003: the binding is trusted only when the command
+    # contains no other way to rebind the name — no eval/read/printf -v/
+    # declare/typeset/local/mapfile/unset/source anywhere, no `for NAME in`,
+    # no `${NAME:=`/`${NAME=`; otherwise the textual check is not a proof.
+    local rebind_re=$'(^|[^[:alnum:]_])(eval|read|readarray|mapfile|declare|typeset|local|unset|source|printf[[:space:]]+-v)([[:space:]]|$)'
+    [[ "$command" =~ $rebind_re ]] && return 1
+    [[ "$command" =~ (^|[^[:alnum:]_])for[[:space:]]+${name}[[:space:]]+in([[:space:]]|$) ]] && return 1
+    [[ "$command" == *"\${${name}:="* || "$command" == *"\${${name}="* ]] && return 1
+    while [[ "$rest" =~ $re ]]; do
+      m="${BASH_REMATCH[0]}"
+      count=$((count + 1))
+      rest="${rest#*"$m"}"
+      val="$rest"
+    done
+    [[ $count -eq 1 ]] || return 1
+    case "$val" in
+      \"\$\(*|\$\(*) # command substitution: keep up to the closing paren; nothing may follow it
+        val="${val#\"}"; after="${val#*\)}"; val="${val%%\)*})"
+        after="${after#\"}"
+        [[ -z "$after" || "$after" =~ ^[[:space:]\;\&\|] ]] || return 1 ;;
+      \"*) val="${val#\"}"; val="${val%%\"*}" ;;
+      \'*) val="${val#\'}"; val="${val%%\'*}" ;;
+      *)   val="${val%%[[:space:];&|]*}" ;;
+    esac
+    [[ -n "$val" ]] || return 1
+    printf '%s' "$val"
+  }
+  # Is this token an allowed scratch/temp location? (depth guards recursion)
+  _fr2_value_allowed() {
+    local v="$1" depth="${2:-0}" name suffix val
+    v="${v#\"}"; v="${v%\"}"; v="${v#\'}"; v="${v%\'}"
+    [[ -n "$v" ]] || return 1
+    [[ "$v" =~ $_re_dotdot ]] && return 1
+    # Strictly below a temp root is allowed before the catastrophic list sees
+    # the `/var/` prefix; a bare temp root (`rm -rf /tmp`) is never allowed.
+    [[ "$v" =~ $_fr2_temp_path_re ]] && return 0
+    [[ "$v" =~ $_re_block_list ]] && return 1
+    # A whole, plain mktemp -d substitution — no `;`, `|`, `&`, redirects or
+    # trailing path text inside or after it (`$(mktemp -d >/dev/null; echo /)`
+    # and `$(mktemp -d)/../..` are refused; Flatline SKP-002).
+    [[ "$v" =~ ^\$\(mktemp[[:space:]]+(-d|--directory)([[:space:]]+(-p[[:space:]]+)?[A-Za-z0-9_./\$\{\}\"-]+)*\)$ ]] && return 0
+    if [[ "$v" =~ ^\$\{?TMPDIR\}?(/.*)?$ ]]; then
+      [[ "$command" != *"TMPDIR="* ]] || return 1
+      [[ -n "${TMPDIR:-}" && "$TMPDIR" =~ $_fr2_temp_root_re ]] || return 1
+      suffix="${BASH_REMATCH[1]}"
+      [[ -z "$suffix" || ! "$suffix" =~ $_re_dotdot ]] || return 1
+      return 0
+    fi
+    if (( depth == 0 )) && [[ "$v" =~ ^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?(/[^\$\`\"\']*)?$ ]]; then
+      name="${BASH_REMATCH[1]}"; suffix="${BASH_REMATCH[2]}"
+      [[ "$name" != HOME && "$name" != TMPDIR && "$name" != PWD && "$name" != OLDPWD ]] || return 1
+      [[ -z "$suffix" || ! "$suffix" =~ $_re_dotdot ]] || return 1
+      val=$(_fr2_var_value "$name") || return 1
+      _fr2_value_allowed "$val" 1
+      return $?
+    fi
+    return 1
+  }
+  # Is the working directory scratch for this rm segment? $1 = text before it.
+  _fr2_scratch_cwd() {
+    local before="$1" rest last="" pre m
+    local re=$'(^|[;&|(]|\n)[[:space:]]*cd[[:space:]]+([^[:space:];&|)]+)'
+    rest="$before"
+    while [[ "$rest" =~ $re ]]; do
+      m="${BASH_REMATCH[0]}"
+      pre="${rest%%"$m"*}"
+      if _bdb_at_command_start "${before%%"$rest"*}$pre${BASH_REMATCH[1]}"; then
+        last="${BASH_REMATCH[2]}"
+      fi
+      rest="${rest#*"$m"}"
+    done
+    # Only an explicit `cd` establishes scratch: the hook's own $PWD is not
+    # consulted (a project that lives under /tmp — eval sandboxes, CI
+    # checkouts — must keep `rm -rf src` blocked; found by the corpus).
+    [[ -n "$last" ]] || return 1
+    local t="$last"; t="${t#\"}"; t="${t%\"}"; t="${t#\'}"; t="${t%\'}"
+    [[ "$t" =~ $_fr2_temp_root_re ]] && return 0
+    _fr2_value_allowed "$last"
+  }
+  # The four allowances for one operand ($1 unquoted, $2 text before the segment).
+  _fr2_extra_allow() {
+    local u="$1" before="$2"
+    if _fr2_plain_relative "$u"; then
+      if (( _fr2_hidden_mid == 0 )) && [[ "$_fr2_last_seg" =~ $_fr2_vocab_re ]]; then return 0; fi
+      if (( _fr2_hidden_mid == 0 )) && [[ "$_fr2_last_seg" != .* ]] && _fr2_scratch_cwd "$before"; then return 0; fi
+    fi
+    _fr2_value_allowed "$u"
+  }
 
   # C15/cycle-119: matches the text immediately preceding an rm segment
   # (bounded to the SAME statement, via the identical boundary-alternation
@@ -1230,6 +1472,7 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
         any_ambiguous=1; matched_arg="$_seg_find_root"
       fi
     else
+      _seg_before="${_fr2_cmd%%"$rm_segment"*}"   # cycle-125 D-1.1: text before this rm
       for arg in "${rm_args[@]}"; do
         # Skip flag tokens.
         [[ "$arg" == -* ]] && continue
@@ -1239,6 +1482,12 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
         # ..-segment escape → conservative block.
         if [[ "$unquoted" =~ $_re_dotdot ]]; then
           any_ambiguous=1; matched_arg="$arg"; continue
+        fi
+        # cycle-125 D-1.1: strictly below /var/tmp or /private/tmp is a temp
+        # path, checked here because the catastrophic list below owns the
+        # whole `/var/` prefix; a bare `/var/tmp` still falls through to it.
+        if [[ "$unquoted" =~ $_fr2_temp_path_re ]]; then
+          continue
         fi
         # BLOCK list (catastrophic paths).
         # cycle-114 FR-6: the home-root trailing-slash forms ($HOME/, ${HOME}/,
@@ -1257,6 +1506,11 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
         if [[ "$unquoted" =~ $_re_allow_list ]]; then
           continue
         fi
+        # cycle-125 D-1.1: cache vocabulary / scratch cwd / real $TMPDIR /
+        # once-bound variable — each positively established, else fall through.
+        if _fr2_extra_allow "$unquoted" "$_seg_before"; then
+          continue
+        fi
         # Ambiguous → conservative block.
         any_ambiguous=1; matched_arg="$arg"
       done
@@ -1268,7 +1522,7 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   if [[ $any_block -eq 1 ]]; then
     emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir) refused. Accepted: an explicit relative VISIBLE subdirectory ('./name/'). Alternatives: 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only)."
   elif [[ $any_ambiguous -eq 1 ]]; then
-    emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Accepted: explicit relative VISIBLE subdirs ('./name/'). Hidden paths ('./.name') and dot-roots are conservatively blocked — use 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only, works on hidden dirs too)."
+    emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Accepted: explicit relative VISIBLE subdirs ('./name/'), build/cache dirs by name at any depth (dist, build, coverage, node_modules, .venv, .terraform, …), bare names after a statement-initial 'cd /tmp/…', /tmp|/var/tmp paths, \$TMPDIR/<name> with a real temp TMPDIR, and a variable bound once to \$(mktemp -d) or such a path. Hidden paths ('./.name') and dot-roots are conservatively blocked — use 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only, works on hidden dirs too)."
   fi
   # else: every arg matched the allow list → fall through.
 fi

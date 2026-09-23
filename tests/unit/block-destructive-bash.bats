@@ -1526,3 +1526,318 @@ EOF'
     [ "$status" -eq 0 ]
 }
 
+
+# =============================================================================
+# Group Z — cycle-125 Sprint 1 (PRD FR-1): the fence corpus is the regression
+# floor. tests/fixtures/fence-corpus/corpus.jsonl replays previously-blocked
+# benign commands (expect: allow), their dangerous twins (expect: block) and
+# accepted residuals (expect: residual, never gated) through the hook via
+# tests/fixtures/fence-corpus/run-corpus.sh. Gates: benign ≥ 80 %, dangerous
+# 100 %, runtime ≤ 1.5× the recorded baseline (the hook runs under the
+# fail-open hook-guard, so latency is a safety property).
+# =============================================================================
+
+CORPUS_RUNNER="tests/fixtures/fence-corpus/run-corpus.sh"
+
+corpus_json() {
+    bash "$PROJECT_ROOT/$CORPUS_RUNNER" --hook "$HOOK" --json
+}
+
+@test "cycle-125 corpus: every dangerous row still blocks (100 %)" {
+    local j; j=$(corpus_json)
+    echo "$j" | jq -r '.mismatches[] | select(test("expected-block"))'
+    [ "$(echo "$j" | jq -r '.dangerous_total')" -ge 15 ]
+    [ "$(echo "$j" | jq -r '.dangerous_block')" -eq "$(echo "$j" | jq -r '.dangerous_total')" ]
+}
+
+@test "cycle-125 corpus: benign rows pass at or above 80 %" {
+    local j; j=$(corpus_json)
+    echo "$j" | jq -r '.mismatches[] | select(test("expected-allow"))'
+    local bp bt; bp=$(echo "$j" | jq -r '.benign_pass'); bt=$(echo "$j" | jq -r '.benign_total')
+    echo "benign pass rate: $bp/$bt"
+    [ "$bt" -ge 40 ]
+    [ $(( bp * 100 )) -ge $(( 80 * bt )) ]
+}
+
+@test "cycle-125 corpus lint: rows carry no hostnames, URLs, IPs, credentials or key shapes" {
+    local corpus="$PROJECT_ROOT/tests/fixtures/fence-corpus/corpus.jsonl"
+    local cmds; cmds=$(jq -r '.cmd' "$corpus")
+    ! grep -nE '://' <<<"$cmds"
+    ! grep -nE '\b[0-9]{1,3}(\.[0-9]{1,3}){3}\b' <<<"$cmds"
+    ! grep -nE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' <<<"$cmds"
+    ! grep -nE '\b(sk-[A-Za-z0-9_-]{8,}|AKIA[0-9A-Z]{8,}|ghp_[A-Za-z0-9]{8,}|s3://)' <<<"$cmds"
+    ! grep -nE '\b[a-z0-9-]+\.(com|io|net|fm|dev|org)\b' <<<"$cmds"
+    # every row parses and carries the required keys
+    jq -e 'select((.id and .cmd and .expect and .rule and .why) | not)' "$corpus" | grep -q . && return 1
+    jq -r '.expect' "$corpus" | sort -u | grep -vxE 'allow|block|residual' && return 1
+    return 0
+}
+
+@test "cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline" {
+    local baseline="$PROJECT_ROOT/tests/fixtures/fence-corpus/baseline.json"
+    [ -f "$baseline" ] || skip "no baseline recorded yet (Task 1.1 writes it)"
+    local j; j=$(corpus_json)
+    local now base limit
+    now=$(echo "$j" | jq -r '.runtime_ms'); base=$(jq -r '.runtime_ms' "$baseline")
+    limit=$(( base * 3 / 2 )); [ "$limit" -lt $(( base + 2000 )) ] && limit=$(( base + 2000 ))
+    echo "runtime: ${now}ms (baseline ${base}ms, limit ${limit}ms)"
+    [ "$now" -le "$limit" ]
+}
+
+# --- Named cases per D-1.x relaxation, each with its dangerous twin --------
+
+# A throwaway git repo for the D-1.4 / D-1.5 predicates that consult git.
+fixture_repo() {
+    local r="$BATS_TEST_TMPDIR/fixture-repo"
+    [ -d "$r/.git" ] && { echo "$r"; return; }
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+    export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+    git init -q -b main "$r" >/dev/null
+    (
+      cd "$r"
+      echo a > a; printf 'gen/** linguist-generated=true\n' > .gitattributes
+      git add -A; git commit -qm init
+      git checkout -qb merged-br; echo m > m; git add m; git commit -qm merged
+      git checkout -q main; git merge -q --no-ff -m merge merged-br
+      git checkout -qb wip-br; echo w > w; git add w; git commit -qm wip
+      git checkout -q main
+    ) >/dev/null 2>&1
+    echo "$r"
+}
+
+# D-1.1 class 1 — cache/build vocabulary by last segment
+@test "cycle-125 D-1.1 vocab: rm -rf node_modules dist .next coverage allowed" {
+    run hook_invoke "rm -rf node_modules dist .next coverage"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 vocab: nested last segment (packages/app/node_modules, apps/web/.turbo) allowed" {
+    run hook_invoke "rm -rf packages/app/node_modules apps/web/.turbo"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 vocab twin: rm -rf src blocks" {
+    run hook_invoke "rm -rf src"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-2-AMBIGUOUS]" ]]
+}
+@test "cycle-125 D-1.1 vocab twin: rm -rf ./.git/ blocks" {
+    run hook_invoke "rm -rf ./.git/"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 vocab twin: hidden middle segment (.git/dist) blocks" {
+    run hook_invoke "rm -rf .git/dist"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 vocab twin: node_modules/../src blocks" {
+    run hook_invoke "rm -rf node_modules/../src"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 vocab twin: dist alongside /etc blocks" {
+    run hook_invoke "rm -rf dist /etc"
+    [ "$status" -eq 2 ]
+}
+
+# D-1.1 class 2 — scratch working directory from a statement-initial cd
+@test "cycle-125 D-1.1 scratch: cd /tmp/loa-work && rm -rf work allowed" {
+    run hook_invoke "cd /tmp/loa-work && rm -rf work"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 scratch: cd \$TMPDIR/probe (real temp TMPDIR) then rm -rf out allowed" {
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'cd "$TMPDIR/probe" && rm -rf out'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 scratch twin: cd /tmp && cd /home && rm -rf work blocks (last cd wins)" {
+    run hook_invoke "cd /tmp && cd /home && rm -rf work"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 scratch twin: quoted 'cd /tmp' text is not a cd" {
+    run hook_invoke "echo 'cd /tmp' && rm -rf src"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 scratch twin: cd /tmp && rm -rf ../etc blocks" {
+    run hook_invoke "cd /tmp && rm -rf ../etc"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 scratch twin: cd /tmp/x && rm -rf .git blocks (hidden name)" {
+    run hook_invoke "cd /tmp/x && rm -rf .git"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 scratch twin: the hook's own cwd under /tmp is not scratch" {
+    mkdir -p "$BATS_TEST_TMPDIR/proj"; cd "$BATS_TEST_TMPDIR/proj"
+    [[ "$PWD" == /tmp/* ]] || skip "test tmpdir is not under /tmp"
+    run hook_invoke "rm -rf src"
+    [ "$status" -eq 2 ]
+}
+
+# D-1.1 class 3 — temp roots
+@test "cycle-125 D-1.1 temp: rm -rf /var/tmp/loa-cache-probe /private/tmp/x allowed" {
+    run hook_invoke "rm -rf /var/tmp/loa-cache-probe /private/tmp/x"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 temp twin: bare /tmp blocks" {
+    run hook_invoke "rm -rf /tmp"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 temp twin: bare /var/tmp and /var/tmp/ block" {
+    run hook_invoke "rm -rf /var/tmp"
+    [ "$status" -eq 2 ]
+    run hook_invoke "rm -rf /var/tmp/"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 temp twin: /var/tmp/../lib and /var/log block" {
+    run hook_invoke "rm -rf /var/tmp/../lib"
+    [ "$status" -eq 2 ]
+    run hook_invoke "rm -rf /var/log"
+    [ "$status" -eq 2 ]
+}
+
+# D-1.1 class 4 — $TMPDIR only with a real temp TMPDIR
+@test "cycle-125 D-1.1 TMPDIR: real temp TMPDIR, rm -rf \"\$TMPDIR/cache\" allowed" {
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'rm -rf "$TMPDIR/cache"'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 TMPDIR twin: inline TMPDIR=/ assignment blocks" {
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'TMPDIR=/ rm -rf "$TMPDIR/cache"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 TMPDIR twin: TMPDIR outside a temp root blocks" {
+    export TMPDIR=/home/nobody/tmp
+    run hook_invoke 'rm -rf "$TMPDIR/cache"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 TMPDIR twin: unset TMPDIR blocks; bare \$TMPDIR blocks even when real" {
+    unset TMPDIR
+    run hook_invoke 'rm -rf "$TMPDIR/cache"'
+    [ "$status" -eq 2 ]
+    export TMPDIR=/tmp/loa-bats-tmp
+    run hook_invoke 'rm -rf "$TMPDIR/../etc"'
+    [ "$status" -eq 2 ]
+}
+
+# D-1.1 class 5 — a variable bound exactly once to $(mktemp -d)
+@test "cycle-125 D-1.1 mktemp: T=\$(mktemp -d); rm -rf \"\$T\" allowed" {
+    run hook_invoke 'T=$(mktemp -d); cp -r fixtures "$T"/; rm -rf "$T"'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 mktemp: WORK=\"\$(mktemp -d)\" && rm -rf \"\$WORK/sub\" allowed" {
+    run hook_invoke 'WORK="$(mktemp -d)" && mkdir -p "$WORK/sub" && rm -rf "$WORK/sub"'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.1 mktemp twin: path text after the substitution blocks" {
+    run hook_invoke 'T=$(mktemp -d)/../..; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 mktemp twin: substitution that is not a plain mktemp blocks" {
+    run hook_invoke 'T=$(mktemp -d >/dev/null; echo /); rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 mktemp twin: rebinding builtin voids the allowance" {
+    run hook_invoke 'T=$(mktemp -d); read T <<< /; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 mktemp twin: two assignments block" {
+    run hook_invoke 'T=$(mktemp -d); T=/; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.1 mktemp twin: literal, unbound and HOME-shaped variables block" {
+    run hook_invoke 'T=/; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'rm -rf "$UNBOUND_DIR"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'H=$HOME; rm -rf "$H"'
+    [ "$status" -eq 2 ]
+}
+
+# D-1.3 — SQL rules need a sink (runner or inline interpreter program)
+@test "cycle-125 D-1.3 SQL: heredoc into a .sql file with DROP TABLE allowed (no runner)" {
+    run hook_invoke $'cat > migrations/002_down.sql <<\'SQL\'\nDROP TABLE IF EXISTS sessions;\nSQL'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.3 SQL: prose mentions of TRUNCATE / DELETE FROM allowed" {
+    run hook_invoke "echo 'TRUNCATE TABLE audit is scheduled weekly' >> grimoires/loa/NOTES.md"
+    [ "$status" -eq 0 ]
+    run hook_invoke "grep -rn 'DELETE FROM users' docs/"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.3 SQL twin: psql -c DROP TABLE blocks [FR-1.4]" {
+    run hook_invoke "psql -c 'DROP TABLE users'"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.4]" ]]
+}
+@test "cycle-125 D-1.3 SQL twin: heredoc piped into psql blocks" {
+    run hook_invoke $'psql app <<SQL\nDROP TABLE users;\nSQL'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.3 SQL twin: mysql -e TRUNCATE blocks [FR-1.5]" {
+    run hook_invoke "mysql -e 'TRUNCATE TABLE sessions'"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.5]" ]]
+}
+@test "cycle-125 D-1.3 SQL twin: sqlite3 DELETE FROM without WHERE blocks [FR-1.6]" {
+    run hook_invoke "sqlite3 app.sqlite 'DELETE FROM users'"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.6]" ]]
+}
+@test "cycle-125 D-1.3 SQL twin: inline interpreter program (python3 -c) blocks" {
+    run hook_invoke "python3 -c \"import sqlite3; c=sqlite3.connect('local.sqlite'); c.execute('DROP TABLE t')\""
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.3 SQL twin: docker exec db psql -c DROP blocks; prisma db execute blocks" {
+    run hook_invoke "docker exec db psql -U app -c 'DROP SCHEMA public CASCADE'"
+    [ "$status" -eq 2 ]
+    run hook_invoke "prisma db execute --stdin <<< 'TRUNCATE TABLE users'"
+    [ "$status" -eq 2 ]
+}
+
+# D-1.4 — git branch -D on an ancestor of main is allowed (offline)
+@test "cycle-125 D-1.4: git branch -D on a branch merged into main allowed" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git branch -D merged-br"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.4 twin: unmerged branch blocks [FR-1.1] and names the helper" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git branch -D wip-br"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]; [[ "$output" =~ "git-branch-prune.sh" ]]
+}
+@test "cycle-125 D-1.4 twin: one unmerged name among merged ones blocks" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git branch -D merged-br wip-br"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.4 twin: unknown branch, metacharacters, and a non-repo cwd all block" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git branch -D no-such-branch"
+    [ "$status" -eq 2 ]
+    run hook_invoke "git branch -D 'merged-br\$(id)'"
+    [ "$status" -eq 2 ]
+    cd "$BATS_TEST_TMPDIR"
+    run hook_invoke "git branch -D merged-br"
+    [ "$status" -eq 2 ]
+}
+
+# D-1.5 — git checkout -- <generated path>
+@test "cycle-125 D-1.5: generated dirs, lockfiles and codegen paths allowed" {
+    run hook_invoke "git checkout -- dist/bundle.js coverage/ build/out.txt"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git checkout -- pnpm-lock.yaml package-lock.json Cargo.lock tsconfig.tsbuildinfo"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git checkout -- api/__generated__/types.ts src/generated/schema.ts"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.5: linguist-generated attribute from .gitattributes allows" {
+    cd "$(fixture_repo)"
+    run hook_invoke "git checkout -- gen/client.ts"
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 D-1.5 twin: a hand-written path blocks [FR-1.3]" {
+    run hook_invoke "git checkout -- src/app.ts"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.3]" ]]
+    cd "$(fixture_repo)"
+    run hook_invoke "git checkout -- a"
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 D-1.5 twin: one hand-written path among generated ones blocks; .. escapes block" {
+    run hook_invoke "git checkout -- dist/x.js src/app.ts"
+    [ "$status" -eq 2 ]
+    run hook_invoke "git checkout -- ../dist/x.js"
+    [ "$status" -eq 2 ]
+}
