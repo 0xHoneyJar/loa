@@ -196,6 +196,20 @@ get_suggested_command() {
     local state="$1"
     local current_sprint="$2"
 
+    # cycle-125 FR-3 (SDD D-3.3): a resumable run outranks the phase
+    # suggestion — HALTED/INTERRUPTED, or RUNNING idle for 12h+, in any of
+    # the .run/ state files. The SessionStart surface script is the single
+    # source of that judgement; its `Run: … → <command>` line is parsed here.
+    local surface="${PROJECT_ROOT}/.claude/hooks/session-start/loa-run-state-surface.sh"
+    if [[ -f "$surface" ]]; then
+        local resume_cmd
+        resume_cmd=$(bash "$surface" --line 2>/dev/null | sed -n 's/^Run: .* → \(\/[a-z-]*\( --resume\)\{0,1\}\).*/\1/p' | head -1)
+        if [[ -n "$resume_cmd" ]]; then
+            echo "$resume_cmd"
+            return 0
+        fi
+    fi
+
     case "${state}" in
         "${STATE_INITIAL}")
             echo "/plan-and-analyze"

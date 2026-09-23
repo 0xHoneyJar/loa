@@ -76,10 +76,12 @@ Exact JSON shapes for .run/ state files. SKILL.md's procedures reference these b
 
 ```json
 {
+  "schema_version": 2,
   "plan_id": "plan-20260119-abc123",
   "branch": "feature/release",
   "state": "RUNNING",
   "timestamps": {"started": "2026-01-19T10:00:00Z", "last_activity": "2026-01-19T14:30:00Z"},
+  "checkpoint": {"sprint": "sprint-3", "task": "bd-a1b2", "phase": "IMPLEMENT", "ts": "2026-01-19T14:30:00Z"},
   "sprints": {
     "total": 4,
     "completed": 2,
@@ -95,6 +97,11 @@ Exact JSON shapes for .run/ state files. SKILL.md's procedures reference these b
   "metrics": {"total_cycles": 6, "total_files_changed": 45, "total_findings_fixed": 12}
 }
 ```
+
+`schema_version` 2 (cycle-125 FR-3) adds `checkpoint` — written only by
+`.claude/scripts/run-checkpoint.sh write` (atomic, locked); `task` is the last CLOSED bead
+(`null` for a phase-only checkpoint). Readers accept 1 and 2; a missing or discarded checkpoint
+means sprint granularity (resume at the first open bead of `sprints.current`).
 
 ## bug-state-schema
 

@@ -668,6 +668,7 @@ main() {
       [[ -n "$current_sprint" ]] && echo "  Current Sprint: ${current_sprint}"
       echo "  Sprints: ${completed_sprints}/${total_sprints} complete"
       display_artefacts_line
+      display_run_line
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -707,6 +708,18 @@ display_artefacts_line() {
   if [[ -n "$warn" ]]; then
     echo "  ⚠ ≥ 100 KiB:${warn} — read by section: notes-guard.sh read --file <F> --section <H> (or --index)"
   fi
+  return 0
+}
+
+# cycle-125 FR-3: the resume line for a stale or halted run (and a passed
+# session-limit reset), from the same script the SessionStart hook runs.
+# Nothing is printed for a clean tree or a live run.
+display_run_line() {
+  local surface="${SCRIPT_DIR}/../hooks/session-start/loa-run-state-surface.sh" line
+  [[ -f "$surface" ]] || return 0
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && echo "  $line"
+  done < <(bash "$surface" --line 2>/dev/null)
   return 0
 }
 

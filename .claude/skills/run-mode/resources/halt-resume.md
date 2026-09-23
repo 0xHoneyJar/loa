@@ -44,6 +44,8 @@
 
 ### Pre-flight
 
+0. Run `.claude/scripts/run-preflight.sh --unattended --resume` (P6 inverted: a resumable state
+   passes, nothing to resume fails). Non-zero exit → surface its checklist and stop.
 1. If `.run/state.json` doesn't exist: "ERROR: No run state found. Start a new run with `/run
    sprint-N`" → exit 1.
 2. Read `.state`. If not `HALTED`: "ERROR: Run is not halted (state: {state})" — if `RUNNING`, add
@@ -67,7 +69,10 @@
 
 ### Resume Execution
 
-1. Read `run_id`, `target`, `phase`, `cycles.current` from `.run/state.json`; report them.
+1. Read `run_id`, `target`, `phase`, `cycles.current` from `.run/state.json`; report them, then
+   report `.claude/scripts/run-checkpoint.sh read` (sprint / last closed task / phase, or
+   "sprint granularity"). `/implement` resumes at the first open bead (`br ready`) — the
+   checkpoint never overrides beads.
 2. If `--reset-ice`: reset the circuit breaker —
    `jq --arg ts "$timestamp" '.state = "CLOSED" | .triggers.same_issue.count = 0 | .triggers.same_issue.last_hash = null | .triggers.no_progress.count = 0 | .triggers.cycle_count.current = 0 | .triggers.timeout.started = $ts'`
    on `.run/circuit-breaker.json`.

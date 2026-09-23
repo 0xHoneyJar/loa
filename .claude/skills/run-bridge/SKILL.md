@@ -90,7 +90,8 @@ parsing without producing real reviews).
 
 ### Phase 2: Orchestrator Invocation
 
-Invoke `bridge-orchestrator.sh` with translated flags:
+First run `.claude/scripts/run-preflight.sh --unattended` (same checklist as `/run`); non-zero →
+HALT and surface it. Then invoke `bridge-orchestrator.sh` with translated flags:
 
 ```bash
 .claude/scripts/bridge-orchestrator.sh \

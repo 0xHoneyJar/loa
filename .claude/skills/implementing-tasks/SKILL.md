@@ -165,7 +165,7 @@ The report MUST include, in order: Executive Summary; **AC Verification**; Tasks
 
 ### AC Verification Gate
 
-Resolve `$SPRINT_FILE` to the plan that owns the current sprint's acceptance criteria: `grimoires/loa/sprint.md` normally, or the bug-cycle micro-sprint (`grimoires/loa/a2a/bug-<id>/sprint.md`) for a `/bug` run — never substitute the repo-level plan for a bug micro-sprint. Every acceptance criterion from that plan appears verbatim in the report's `## AC Verification` section with a status (`✓ Met` / `✗ Not met` / `⚠ Partial` / `⏸ [ACCEPTED-DEFERRED]`) and, for `Met`, file:line evidence. `Partial` needs a scope-split to a follow-up task; `Deferred` needs a matching `grimoires/loa/NOTES.md` Decision Log entry — neither may be silent.
+Resolve `$SPRINT_FILE` to the plan that owns the sprint's acceptance criteria: `grimoires/loa/sprint.md`, or the bug micro-sprint (`grimoires/loa/a2a/bug-<id>/sprint.md`) for a `/bug` run — never substitute the repo-level plan. Every acceptance criterion appears verbatim in the report's `## AC Verification` section with a status (`✓ Met` / `✗ Not met` / `⚠ Partial` / `⏸ [ACCEPTED-DEFERRED]`) and, for `Met`, file:line evidence. `Partial` needs a scope-split to a follow-up task; `Deferred` needs a matching NOTES.md Decision Log entry — neither may be silent.
 
 **MUST**, immediately before writing a `COMPLETED` marker: run
 `.claude/scripts/validate-ac-verification.sh --report grimoires/loa/a2a/sprint-N/reviewer.md --sprint "$SPRINT_FILE" --sprint-id sprint-N`
@@ -210,7 +210,7 @@ status=$(echo "$health" | jq -r '.status')
 
 `HEALTHY` → import state (`br sync --import-only`; `update-beads-state.sh --sync-import`) and proceed. `DEGRADED` → warn, import, proceed. `NOT_INSTALLED`/`NOT_INITIALIZED` → check opt-out (`update-beads-state.sh --opt-out-check`); without one, warn (`cargo install beads_rust && br init` to add it) and fall back to markdown. `MIGRATION_NEEDED`/`UNHEALTHY` → warn, fall back to markdown. Record the outcome: `.claude/scripts/beads/update-beads-state.sh --health "$status"`.
 
-Run the full lifecycle per task yourself: health check → `br sync --import-only` → `br ready` → `br update <id> --status in_progress` → implement → `br close <id>` → `br sync --flush-only` at session end. Log discovered issues as they surface — this adds a `discovered-during:<parent-id>` label for traceability:
+Run the full lifecycle per task yourself: health check → `br sync --import-only` → `br ready` → `br update <id> --status in_progress` → implement → `br close <id>` (run mode: then `.claude/scripts/run-checkpoint.sh write --sprint sprint-N --task <id> --phase IMPLEMENT`) → `br sync --flush-only` at session end. Log discovered issues as they surface — this adds a `discovered-during:<parent-id>` label for traceability:
 
 ```bash
 .claude/scripts/beads/log-discovered-issue.sh "$CURRENT_TASK_ID" "Description of discovered issue" bug 2

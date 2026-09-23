@@ -13,8 +13,9 @@ Try each source in priority order; use the first that returns non-empty:
 
 ## Pre-flight
 
-Same 5 checks as `/run` above (steps 1-5), plus: after the state check, run sprint discovery
-(above); if empty, HALT — "No sprints discovered". Otherwise report the discovered sprint list.
+Same as `/run` (config check, then `.claude/scripts/run-preflight.sh --unattended` — nonzero →
+HALT with its checklist), plus: run sprint discovery (above); if empty, HALT — "No sprints
+discovered". Otherwise report the discovered sprint list.
 
 ## Main Loop
 
@@ -24,13 +25,20 @@ for sprint in filtered_sprints (apply --from/--to: keep sprint N iff from <= N <
   1. Check .run/sprint-plan-state.json for sprint already "completed" → skip
   2. Run the single-sprint main loop above for this sprint (max_cycles, timeout from options)
   3. COMPLETE → continue to next sprint; HALTED → break outer loop, preserve state
-  4. Update .run/sprint-plan-state.json (mark sprint completed, advance current, roll up metrics)
+  4. Update .run/sprint-plan-state.json (mark sprint completed, advance current, roll up metrics);
+     `.claude/scripts/run-checkpoint.sh write --sprint <next> --phase IMPLEMENT`
 create_plan_pr()
 update_state(state: JACKED_OUT)
 ```
 
-State file `.run/sprint-plan-state.json` schema:
+State file `.run/sprint-plan-state.json` schema (`schema_version` 2 adds `checkpoint`; readers
+accept 1 and 2 — a missing checkpoint means sprint granularity):
 → verbatim block: `resources/state-schemas.md` §sprint-plan-state-schema
+
+Checkpoint discipline (cycle-125 FR-3): every write goes through `run-checkpoint.sh` (jq →
+`.tmp.$$` → `mv -f` under `flock`); `/implement` writes `--task <bead-id> --phase IMPLEMENT`
+after each `br close`; the loop above writes the phase changes. `run-checkpoint.sh read`
+discards a checkpoint whose bead is not closed — beads remain the recovery source.
 
 ## Sprint Failure Handling
 
