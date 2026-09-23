@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://0xhoneyjar.dev/loa/schemas/budget-events/budget-halt-uncertainty.payload.schema.json",
   "title": "L2 budget.halt_uncertainty Payload",
-  "description": "Fail-closed verdict emitted under uncertainty modes per PRD §FR-L2-7. Five modes: billing_stale, counter_inconsistent, counter_drift, clock_drift, provider_lag. cycle-098 Sprint 2A.",
+  "description": "Fail-closed verdict emitted under uncertainty modes per PRD §FR-L2-7. Modes: billing_stale, counter_inconsistent, counter_drift, clock_drift, provider_lag, counter_stale, and (cycle-125 FR-5) unpriced_share — the cost ledger's unpriced share exceeds 5 %, so 'under budget' cannot be certified. cycle-098 Sprint 2A.",
   "type": "object",
   "required": [
     "verdict",
@@ -27,7 +27,8 @@
         "counter_drift",
         "clock_drift",
         "provider_lag",
-        "counter_stale"
+        "counter_stale",
+        "unpriced_share"
       ]
     },
     "usd_used": { "type": "number" },
@@ -43,7 +44,7 @@
     "diagnostic": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Mode-specific diagnostic context. counter_inconsistent: {prev, current}; counter_drift: {drift_pct, threshold_pct}; clock_drift: {system_ts, billing_ts, delta_seconds}; provider_lag: {lag_seconds, threshold_seconds}."
+      "description": "Mode-specific diagnostic context. counter_inconsistent: {prev, current}; counter_drift: {drift_pct, threshold_pct}; clock_drift: {system_ts, billing_ts, delta_seconds}; provider_lag: {lag_seconds, threshold_seconds}; unpriced_share: {unpriced_share, unpriced_rows, threshold, ledger, remedy}."
     }
   }
 }

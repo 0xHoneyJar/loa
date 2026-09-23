@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T05:34:57Z",
+  "generated": "2026-09-23T05:39:50Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -868,9 +868,9 @@
     ".claude/data/soul-frontmatter.schema.json": "436afcb840a64f93f42753ad3971125f3f3cf2b31dd82c4ccc6e63fd44dbb193",
     ".claude/data/trajectory-schemas/agent-network-envelope.schema.json": "11064765d20655993bc71f4b3e967460b21af8de3a32082e0026de091d190af2",
     ".claude/data/trajectory-schemas/bridge-triage.schema.json": "893c2723cf62588e64c1df0913668bbd31addb56b78cfc54109a46a5984710a4",
-    ".claude/data/trajectory-schemas/budget-events/budget-allow.payload.schema.json": "769259cda2b4562466274b89d7564d3d863bea4782786abf3e01b97f0b6ac424",
+    ".claude/data/trajectory-schemas/budget-events/budget-allow.payload.schema.json": "c4e8971ae1c05af99d3f8ea473d1848dfd4241a32b6f2647ff3527baf1670c7c",
     ".claude/data/trajectory-schemas/budget-events/budget-halt-100.payload.schema.json": "4a1165ccbc7cb672dbdbe7354439d98dfd47c834375c1c6ca69157bef02c4db8",
-    ".claude/data/trajectory-schemas/budget-events/budget-halt-uncertainty.payload.schema.json": "dc65ad7b75a0ecb57410cde54e032318b88a4e8766cc68e305532758416991db",
+    ".claude/data/trajectory-schemas/budget-events/budget-halt-uncertainty.payload.schema.json": "1108278a5112937afb9484ceec59a2441589a3e4b06f290e1bbefa2ae9c85a3c",
     ".claude/data/trajectory-schemas/budget-events/budget-reconcile.payload.schema.json": "f287ff1e5c04bd8d450d6b9d8b8a53148816e3ec50a6de1dfded23181e2ea2ad",
     ".claude/data/trajectory-schemas/budget-events/budget-record-call.payload.schema.json": "3b2fdf5fefd44e109c0abc1c280639bef3284b280ed242da49703d72fbd857d8",
     ".claude/data/trajectory-schemas/budget-events/budget-warn-90.payload.schema.json": "8004c5d790d2be594d45a9543a32a722c74ee9cb452f2bb2783923e95cd9830d",
@@ -1339,7 +1339,7 @@
     ".claude/scripts/lib/compliance-lib.sh": "1d55ee4e7fce55a934dd667a9640d2542ce418192f6983863b95b70948de2b6d",
     ".claude/scripts/lib/context-isolation-lib.sh": "8a6bd75cb4edc999fee3258d3970259f20a090d0afd38c479dec09de725277f2",
     ".claude/scripts/lib/context-isolation-lib.sh.cycle-100-baseline": "8a6bd75cb4edc999fee3258d3970259f20a090d0afd38c479dec09de725277f2",
-    ".claude/scripts/lib/cost-budget-enforcer-lib.sh": "b5e100b8a42615b8c8ce7329cfc225e9197f0b3bd72f8a1e26fb7880f8e7220c",
+    ".claude/scripts/lib/cost-budget-enforcer-lib.sh": "6da2d3e3133b27eeecacba999a4d0d871d685eee60e434d4d34cc838b9956191",
     ".claude/scripts/lib/cross-repo-status-lib.sh": "895d00b2a19ac9eedd1643926a46ee01d86fc7fbb160b0bccfc7f40c7c0c77a5",
     ".claude/scripts/lib/degraded-verdict-lib.sh": "16037f44adb87eed9d89f48f736ce31465dda4025c871952dc2611c9061f0c9d",
     ".claude/scripts/lib/dx-utils.sh": "426dff7acd54303330750c6a29b9c7dc863bfbb22447f08fb0157e5f99e9ee14",

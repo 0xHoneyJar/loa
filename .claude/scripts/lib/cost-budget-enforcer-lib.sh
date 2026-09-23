@@ -1265,8 +1265,11 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
 # -----------------------------------------------------------------------------
 _l2_unpriced_share_json() {
     local out=""
-    if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_BUDGET_COST_REPORT_JSON:-}" ]]; then
-        [[ -f "$LOA_BUDGET_COST_REPORT_JSON" ]] && out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"
+    if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" ]]; then
+        # Hermetic under bats: only the seam file is ever read — a test that
+        # does not set it sees "report unavailable", never the repository's
+        # live ledger (whose unpriced history would flip every allow).
+        [[ -n "${LOA_BUDGET_COST_REPORT_JSON:-}" && -f "$LOA_BUDGET_COST_REPORT_JSON" ]] && out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"
     else
         local report
         report="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cost-report.sh"
