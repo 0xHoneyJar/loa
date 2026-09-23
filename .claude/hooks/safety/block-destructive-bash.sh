@@ -1294,6 +1294,16 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
       val="$rest"
     done
     [[ $count -eq 1 ]] || return 1
+    # Audit round 1 (dissent, rejected-on-schema but true): an assignment in
+    # command position after a reserved word (`if T=/; then`, `while T=/; do`,
+    # `{ T=/; }`, `! T=/`) is a real rebinding the statement-initial regex
+    # does not see. Every `NAME=` token anywhere in the command must be that
+    # one statement-initial binding; a second occurrence in ANY position
+    # (also `$NAME=`, `--opt=NAME=`) voids the proof.
+    local tot=0 any_re=$'(^|[^[:alnum:]_])'"${name}="
+    rest="$command"
+    while [[ "$rest" =~ $any_re ]]; do tot=$((tot + 1)); rest="${rest#*"${BASH_REMATCH[0]}"}"; done
+    [[ $tot -eq 1 ]] || return 1
     case "$val" in
       \"\$\(*|\$\(*) # command substitution: keep up to the closing paren; nothing may follow it
         val="${val#\"}"; after="${val#*\)}"; val="${val%%\)*})"

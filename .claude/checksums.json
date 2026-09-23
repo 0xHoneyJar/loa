@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T04:18:39Z",
+  "generated": "2026-09-23T04:26:35Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -914,7 +914,7 @@
     ".claude/hooks/pre-compact-marker.sh": "1169d5733087df3df22110cbcbba040d78f5e31cde3cac782da0f071b2c08988",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "6ec8c971f8ed8c9470049ac9fd537eae6a4e8ac81cebed08877ace547d018c36",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "2b3e6dca19b322f1dd66502d5041ef6218cec5a2cdc27bf8b5d35b4a27828b63",
+    ".claude/hooks/safety/block-destructive-bash.sh": "7c0076c5c53f95b1246e880e3e15e435ec1d911a82b310244436c071759fbce8",
     ".claude/hooks/safety/notes-size-guard.sh": "9371ef5a7e802e0aec01e117520ad18720f30022cc57b09d11ba739366f9eda4",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "1c0c7eee272a4f5e7bfdb56a148283391054ce312364371420b8d681ac93fcf6",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
@@ -1274,7 +1274,7 @@
     ".claude/scripts/generated-model-maps.sh": "2be882215a12e4d3f9a4799bac10f1c4da641642b00f06062ceb5ce38a7f1098",
     ".claude/scripts/get-trajectory-summary.sh": "f5eb92093652747583ee2db7bb6630faea7d76e3a945725425d955324df4ade2",
     ".claude/scripts/gh-label-handler.sh": "569a9e02c1cef22111d0d022885c8cb9817e8705c5c93726a216245d27b37a4d",
-    ".claude/scripts/git-branch-prune.sh": "e0430939d6ca7c57b3d756c6cae069b8dde82f0ffbf6351ea2bc79173ba0b8dc",
+    ".claude/scripts/git-branch-prune.sh": "493b870b31349e8d916dd80c38468798bde1146ef5047d8aa7a1c241b770119b",
     ".claude/scripts/git-hooks/pre-commit-beads": "ac7f8c1cd4b0167f72e213edce7f28a2b9ca8b37fb2f23412987b2ab709baba1",
     ".claude/scripts/git-hooks/pre-push-audit": "4f2e999ed96f188c592cd035d71567b5c3b7ee6026092f666f50c9f590626bcb",
     ".claude/scripts/git-safety.sh": "874a4ceefa5affaf6e650d27fb3d5e19fda6af1114e43f1c8f99c996125b3494",

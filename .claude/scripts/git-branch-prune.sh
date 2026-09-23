@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     --base) [[ $# -ge 2 && -n "${2:-}" ]] || { usage; exit 2; }; BASE="$2"; shift 2 ;;
     --base=*) BASE="${1#--base=}"; [[ -n "$BASE" ]] || { usage; exit 2; }; shift ;;
     --json) JSON=1; shift ;;
-    -h|--help) usage; exit 2 ;;
+    -h|--help) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac
 done
@@ -75,11 +75,16 @@ fi
 timeout_cmd=()
 if command -v timeout >/dev/null 2>&1; then timeout_cmd=(timeout 5); fi
 
+# A merged PR counts only when its head commit IS the local head: a branch
+# that received commits after its PR merged still holds unmerged work
+# (audit round 1, MED-001).
 squash_merged() {
-  local name="$1" n
+  local name="$1" oids head_oid
   (( probe_enabled )) || return 1
-  n=$(${timeout_cmd[@]+"${timeout_cmd[@]}"} gh pr list --state merged --head "$name" --json number --jq 'length' 2>/dev/null) || return 1
-  [[ "$n" =~ ^[0-9]+$ && "$n" -gt 0 ]]
+  head_oid=$(git rev-parse -q --verify "refs/heads/$name^{commit}" 2>/dev/null) || return 1
+  oids=$(${timeout_cmd[@]+"${timeout_cmd[@]}"} gh pr list --state merged --head "$name" --json headRefOid --jq '.[].headRefOid' 2>/dev/null) || return 1
+  [[ -n "$oids" ]] || return 1
+  grep -qx -- "$head_oid" <<<"$oids"
 }
 
 emit() {  # branch reason sha deleted

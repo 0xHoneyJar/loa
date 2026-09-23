@@ -35,7 +35,16 @@ export LOA_REPO_ROOT="$work"
 
 bp=0 bt=0 db=0 dt=0 rp=0 rt=0
 mismatches=()
-start_ms=$(( $(date +%s%N) / 1000000 ))
+# Millisecond clock: $EPOCHREALTIME (bash ≥ 5) everywhere; GNU date fallback.
+now_ms() {
+  if [[ -n "${EPOCHREALTIME:-}" ]]; then
+    local s="${EPOCHREALTIME%.*}" us="${EPOCHREALTIME#*.}"
+    echo $(( s * 1000 + 10#${us:0:3} ))
+  else
+    echo $(( $(date +%s%N) / 1000000 ))
+  fi
+}
+start_ms=$(now_ms)
 while IFS= read -r row; do
   [[ -n "$row" ]] || continue
   id=$(jq -r '.id' <<<"$row"); cmd=$(jq -r '.cmd' <<<"$row"); expect=$(jq -r '.expect' <<<"$row")
@@ -55,7 +64,7 @@ while IFS= read -r row; do
     *) mismatches+=("$id:unknown-expect:$expect") ;;
   esac
 done < "$corpus"
-end_ms=$(( $(date +%s%N) / 1000000 ))
+end_ms=$(now_ms)
 runtime=$(( end_ms - start_ms ))
 
 if (( json )); then

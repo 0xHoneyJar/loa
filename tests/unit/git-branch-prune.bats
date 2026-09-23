@@ -15,7 +15,9 @@ setup() {
     export GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
     unset LOA_FENCE_NO_NETWORK
 
-    # Stub gh: reports one merged PR for the branch named in STUB_GH_MERGED.
+    # Stub gh: reports one merged PR for the branch named in STUB_GH_MERGED,
+    # whose head OID is the branch's current head (or STUB_GH_OID when set,
+    # to model a branch that moved on after its PR merged).
     mkdir -p "$WORK/bin"
     cat > "$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -23,7 +25,9 @@ echo "$*" >> "${STUB_GH_LOG:-/dev/null}"
 head=""; prev=""
 for a in "$@"; do [[ "$prev" == "--head" ]] && head="$a"; prev="$a"; done
 if [[ -n "${STUB_GH_FAIL:-}" ]]; then exit 1; fi
-if [[ "$head" == "${STUB_GH_MERGED:-}" ]]; then echo 1; else echo 0; fi
+if [[ "$head" == "${STUB_GH_MERGED:-}" ]]; then
+  if [[ -n "${STUB_GH_OID:-}" ]]; then echo "$STUB_GH_OID"; else git rev-parse "refs/heads/$head"; fi
+fi
 EOF
     chmod +x "$WORK/bin/gh"
     export PATH="$WORK/bin:$PATH"
@@ -116,6 +120,19 @@ branches() { git for-each-ref --format='%(refname:short)' refs/heads/ | sort | t
     [[ "$output" != *"squash-br"* ]]
 }
 
+@test "a merged PR whose head is not the local head keeps the branch (commits after the merge)" {
+    STUB_GH_OID=0000000000000000000000000000000000000000 run bash "$PRUNE" --dry-run
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"squash-br"* ]]
+    grep -q -- "--json headRefOid" "$STUB_GH_LOG"
+}
+
+@test "--help exits 0 with usage" {
+    run bash "$PRUNE" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Usage:" ]]
+}
+
 @test "--json emits one object per branch with reason and sha" {
     run bash "$PRUNE" --dry-run --json
     [ "$status" -eq 0 ]
@@ -147,6 +164,8 @@ branches() { git for-each-ref --format='%(refname:short)' refs/heads/ | sort | t
     run bash "$PRUNE" --bogus
     [ "$status" -eq 2 ]
     run bash "$PRUNE" --base
+    [ "$status" -eq 2 ]
+    run bash "$PRUNE" --base ""
     [ "$status" -eq 2 ]
     run bash "$PRUNE" --base no/such/ref
     [ "$status" -eq 2 ]

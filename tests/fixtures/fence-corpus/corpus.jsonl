@@ -98,3 +98,10 @@
 {"id":"D48","cmd":"rm -rf \"$TMPDIR\"/*","expect":"block","rule":"FR-2","why":"TMPDIR through a glob (dissent DISS-001)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
 {"id":"D49","cmd":"rm -rf $TMPDIR/*","expect":"block","rule":"FR-2","why":"TMPDIR through a glob, unquoted (dissent DISS-001)","cwd":"repo","env":{"TMPDIR":"/tmp/loa-corpus"}}
 {"id":"D50","cmd":"php -r \"mysqli_query($c, 'DROP TABLE t');\"","expect":"block","rule":"FR-1.4","why":"php inline flag is -r (review r1 obs 1)","cwd":"repo"}
+{"id":"R04","cmd":"T=$(mktemp -d); source ./env.sh; cp -r out \"$T\"/; rm -rf \"$T\"","expect":"residual","rule":"FR-2","why":"whole-command rebind denylist (source) voids the mktemp proof — accepted FP class (review r2 obs 1)","cwd":"repo"}
+{"id":"D51","cmd":"T=$(mktemp -d); if T=/; then rm -rf \"$T\"; fi","expect":"block","rule":"FR-2","why":"assignment in if-condition position rebinds (audit r1, dissent payload 2)","cwd":"repo"}
+{"id":"D52","cmd":"T=$(mktemp -d); while T=/; do rm -rf \"$T\"; break; done","expect":"block","rule":"FR-2","why":"assignment in while-condition position rebinds (audit r1)","cwd":"repo"}
+{"id":"D53","cmd":"T=$(mktemp -d); { T=/; }; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"assignment inside a brace group rebinds (audit r1)","cwd":"repo"}
+{"id":"D54","cmd":"T=$(mktemp -d); ! T=/; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"negated assignment command rebinds (audit r1)","cwd":"repo"}
+{"id":"D55","cmd":"grep \"$(rm -rf /)\" file","expect":"block","rule":"FR-2","why":"a $(…) inside a grep carrier value is not scrubbed; the inner rm is judged on its own (audit r1, dissent payload 1 refuted)","cwd":"repo"}
+{"id":"R05","cmd":"T=$(mktemp -d); echo T=/ ; rm -rf \"$T\"","expect":"residual","rule":"FR-2","why":"a second NAME= token in any position voids the proof even as echo text — accepted FP (audit r1)","cwd":"repo"}

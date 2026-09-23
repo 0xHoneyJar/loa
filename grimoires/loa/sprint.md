@@ -38,32 +38,32 @@ Stop the four false-positive classes in `block-destructive-bash.sh` without losi
 > From prd.md FR-1: "Reclassify the four false-positive classes without weakening any genuine catch." · From sdd.md §1.2 D-1.1–D-1.6.
 
 ### Deliverables
-- [ ] `tests/fixtures/fence-corpus/corpus.jsonl` (≥ 40 benign, ≥ 15 dangerous, scrubbed) and the data-driven case in `tests/unit/block-destructive-bash.bats` with the ≥ 80 % / 100 % gates
-- [ ] `rm -rf` allowances (cache vocabulary by last segment, scratch working directory, temp roots with the real `$TMPDIR`, single-assignment mktemp variables) with the catastrophic and exclude lists untouched; no bare project-directory allowance; no remote-payload scrub
-- [ ] Sink-aware precondition for the DROP / TRUNCATE / DELETE rules
-- [ ] Offline ancestor check for `git branch -D` in the hook and the sanctioned `.claude/scripts/git-branch-prune.sh` (merged-PR probe with timeout, `LOA_FENCE_NO_NETWORK` opt-out) for squash-merged branches
-- [ ] Corpus lint (no hostnames, URLs, IPs, credentials, key shapes, bucket names) alongside the data-driven case
-- [ ] Generated-path allowance for `git checkout -- <path>` / `git restore <path>`
-- [ ] REPO-MAP and `.claude/checksums.json` regenerated; hook header documents the residuals
+- [x] `tests/fixtures/fence-corpus/corpus.jsonl` (≥ 40 benign, ≥ 15 dangerous, scrubbed) and the data-driven case in `tests/unit/block-destructive-bash.bats` with the ≥ 80 % / 100 % gates
+- [x] `rm -rf` allowances (cache vocabulary by last segment, scratch working directory, temp roots with the real `$TMPDIR`, single-assignment mktemp variables) with the catastrophic and exclude lists untouched; no bare project-directory allowance; no remote-payload scrub
+- [x] Sink-aware precondition for the DROP / TRUNCATE / DELETE rules
+- [x] Offline ancestor check for `git branch -D` in the hook and the sanctioned `.claude/scripts/git-branch-prune.sh` (merged-PR probe with timeout, `LOA_FENCE_NO_NETWORK` opt-out) for squash-merged branches
+- [x] Corpus lint (no hostnames, URLs, IPs, credentials, key shapes, bucket names) alongside the data-driven case
+- [x] Generated-path allowance for `git checkout -- <path>` / `git restore <path>`
+- [x] REPO-MAP and `.claude/checksums.json` regenerated; hook header documents the residuals
 
 ### Acceptance Criteria
-- [ ] Corpus run: benign pass rate ≥ 80 %, dangerous block rate 100 %; the existing 216 fence cases stay green (prd.md FR-1 AC 1–2)
-- [ ] Every relaxation has its dangerous twin in the corpus (prd.md FR-1 AC 3)
-- [ ] Hook runtime over the corpus within 1.5× of the pre-change measurement (prd.md FR-1 AC 4)
-- [ ] `git-branch-prune.sh` bats: merged, squash-merged (stub `gh`), unmerged, gone-upstream cases
-- [ ] No hook file outside `block-destructive-bash.sh` changed; `hook-wiring.bats` green
+- [x] Corpus run: benign pass rate ≥ 80 %, dangerous block rate 100 %; the existing 216 fence cases stay green (prd.md FR-1 AC 1–2)
+- [x] Every relaxation has its dangerous twin in the corpus (prd.md FR-1 AC 3)
+- [x] Hook runtime over the corpus within 1.5× of the pre-change measurement (prd.md FR-1 AC 4)
+- [x] `git-branch-prune.sh` bats: merged, squash-merged (stub `gh`), unmerged, gone-upstream cases
+- [x] No hook file outside `block-destructive-bash.sh` changed; `hook-wiring.bats` green
 
 ### Technical Tasks
 
 <!-- → **[G-N]** contributing goal(s); ⇐ blockers become --deps -->
 
-- [ ] Task 1.1: Build the fence corpus from the attributed samples (`.run/usage-mining/mine-attrib.json` → neutral paths; dangerous twins per SDD D-1.6) with the corpus lint and the data-driven bats case (cwd and `TMPDIR` per row); run it red against the current hook and record the baseline pass rate and runtime → **[G-1]** ⇐ none
-- [ ] Task 1.2: D-1.1 `rm -rf` allowances: cache vocabulary by last segment, scratch cwd, temp roots with the real `$TMPDIR`, single-assignment mktemp variables (`block-destructive-bash.sh:1070–1087`, `:1221–1240`); named bats per class plus twins (`rm -rf src` and `./.git/` stay blocked) → **[G-1]** ⇐ Task 1.1
-- [ ] Task 1.3: Hook header: document the withdrawn remote-payload scrub and the SQL driver residual; confirm `ssh host 'rm -rf /'` and `python -c` SQL rows behave as today in the corpus → **[G-1]** ⇐ Task 1.1
-- [ ] Task 1.4: D-1.3 sink-aware SQL precondition for P8/P9/P10 (`:690–760`); bats: heredoc-to-file passes, `psql -c` / heredoc-into-psql / `mysql -e` block → **[G-1]** ⇐ Task 1.1
-- [ ] Task 1.5: D-1.4 offline ancestor check in the hook (no network) and `git-branch-prune.sh [--dry-run] [--base]` with the merged-PR probe (`timeout 5 gh`, `LOA_FENCE_NO_NETWORK`); bats with a fixture repo and a stub `gh`; hook recognises the helper's invocation shape → **[G-1]** ⇐ Task 1.1
-- [ ] Task 1.6: D-1.5 generated-path allowance for checkout/restore (`:660–668`) via `git check-attr linguist-generated` and the path classes; bats → **[G-1]** ⇐ Task 1.1
-- [ ] Task 1.7: Corpus gates green, runtime measured, hook header residuals documented, `repo-map-gen.sh` + checksum regen, `lint-invariants.sh`, CHANGELOG `[Unreleased]` line, `reviewer.md` with AC Verification → **[G-1]** ⇐ Task 1.2, Task 1.3, Task 1.4, Task 1.5, Task 1.6
+- [x] Task 1.1: Build the fence corpus from the attributed samples (`.run/usage-mining/mine-attrib.json` → neutral paths; dangerous twins per SDD D-1.6) with the corpus lint and the data-driven bats case (cwd and `TMPDIR` per row); run it red against the current hook and record the baseline pass rate and runtime → **[G-1]** ⇐ none
+- [x] Task 1.2: D-1.1 `rm -rf` allowances: cache vocabulary by last segment, scratch cwd, temp roots with the real `$TMPDIR`, single-assignment mktemp variables (`block-destructive-bash.sh:1070–1087`, `:1221–1240`); named bats per class plus twins (`rm -rf src` and `./.git/` stay blocked) → **[G-1]** ⇐ Task 1.1
+- [x] Task 1.3: Hook header: document the withdrawn remote-payload scrub and the SQL driver residual; confirm `ssh host 'rm -rf /'` and `python -c` SQL rows behave as today in the corpus → **[G-1]** ⇐ Task 1.1
+- [x] Task 1.4: D-1.3 sink-aware SQL precondition for P8/P9/P10 (`:690–760`); bats: heredoc-to-file passes, `psql -c` / heredoc-into-psql / `mysql -e` block → **[G-1]** ⇐ Task 1.1
+- [x] Task 1.5: D-1.4 offline ancestor check in the hook (no network) and `git-branch-prune.sh [--dry-run] [--base]` with the merged-PR probe (`timeout 5 gh`, `LOA_FENCE_NO_NETWORK`); bats with a fixture repo and a stub `gh`; hook recognises the helper's invocation shape → **[G-1]** ⇐ Task 1.1
+- [x] Task 1.6: D-1.5 generated-path allowance for checkout/restore (`:660–668`) via `git check-attr linguist-generated` and the path classes; bats → **[G-1]** ⇐ Task 1.1
+- [x] Task 1.7: Corpus gates green, runtime measured, hook header residuals documented, `repo-map-gen.sh` + checksum regen, `lint-invariants.sh`, CHANGELOG `[Unreleased]` line, `reviewer.md` with AC Verification → **[G-1]** ⇐ Task 1.2, Task 1.3, Task 1.4, Task 1.5, Task 1.6
 
 ### Dependencies
 - None (first sprint). Uses the untracked `.run/usage-mining/mine-attrib.json` as the corpus seed.

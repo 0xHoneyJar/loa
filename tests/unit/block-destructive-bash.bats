@@ -1939,3 +1939,32 @@ fixture_repo() {
     run hook_invoke "python manage.py shell -c \"from django.db import connection; connection.cursor().execute('DELETE FROM users')\""
     [ "$status" -eq 2 ]
 }
+
+# --- Audit round 1: dissent payloads rejected on schema, triaged by hand ----
+
+@test "cycle-125 audit r1 twin: an assignment after if / while / { / ! rebinds the mktemp variable and blocks" {
+    run hook_invoke 'T=$(mktemp -d); if T=/; then rm -rf "$T"; fi'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); while T=/; do rm -rf "$T"; break; done'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); { T=/; }; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'T=$(mktemp -d); ! T=/; rm -rf "$T"'
+    [ "$status" -eq 2 ]
+}
+@test "cycle-125 audit r1: a single mktemp binding followed by ordinary commands is still allowed" {
+    run hook_invoke 'T=$(mktemp -d) && cp -r out "$T"/ && rm -rf "$T"'
+    [ "$status" -eq 0 ]
+    run hook_invoke 'T=$(mktemp -d); tar -C "$T" -xf a.tgz; rm -rf "$T"'
+    [ "$status" -eq 0 ]
+}
+@test "cycle-125 audit r1 refutation: a \$(…) inside a grep pattern is not scrubbed — the inner rm is judged on its own" {
+    run hook_invoke 'grep "$(rm -rf /)" file'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'grep -rn "$(rm -rf /)" .'
+    [ "$status" -eq 2 ]
+    run hook_invoke 'grep -e `rm -rf /` file'
+    [ "$status" -eq 2 ]
+    run hook_invoke "rg -n 'rm -rf dist' docs/"
+    [ "$status" -eq 0 ]
+}
