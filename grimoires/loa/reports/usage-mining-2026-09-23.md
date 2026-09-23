@@ -72,14 +72,16 @@ The 2.0.0-rc.1 `notes-guard` block line (200 KiB) will refuse appends in three f
 | DEGRADED mentions (all sources / direct script emissions) | 3,410 / ~80 |
 | `known-failures.md` present | 4 of 40 mounts |
 
-### F5 — Cost accounting is dead
+### F5 — Cost accounting has gone blind since the ledger moved (corrected)
 
-| Ledger | Rows | Non-zero cost rows |
-|---|---|---|
-| pre-2.0 path `grimoires/loa/a2a/cost-ledger.jsonl` (14 mounts) | ~2,600 | 0 |
-| `.run/cost-ledger.jsonl` (4 mounts) | 677 | 0 |
+An earlier draft of this section read the wrong field (`cost_usd`; the writer records `cost_micro_usd`) and concluded every ledger was zero. Re-read with the real field:
 
-Rows record CLI-hop models (`gpt-5.2-…`, `gemini-2.5-pro`, `codex-headless`, `claude-fable-5-1`) with `cost_usd` null; `cost-budget-enforcer` has never been invoked.
+| Ledger | Rows | Priced (`pricing_source: config`/`cli_reported`) | Unpriced (`unknown`, cost 0) | USD recorded |
+|---|---|---|---|---|
+| pre-2.0 path `grimoires/loa/a2a/cost-ledger.jsonl` (16 mounts) | ~1,960 | ~1,740 | ~220 | ≈ $59 |
+| `.run/cost-ledger.jsonl` (4 mounts, the current default) | 679 | 140 | 539 | ≈ $26 |
+
+The legacy ledgers were priced; the current-path rows are mostly not: 205 of 214 rows in one fleet repo and 309 of 410 in another carry `pricing_source: unknown` because their model ids do not resolve in the catalog pricing — dated OpenAI ids (`gpt-5.2-2025-12-11`, `gpt-5.5-2026-04-23`), `gemini-2.5-pro`, and hop names recorded as the model (`codex-headless`, `claude-fable-5-1` via the CLI hop). `cost-report.sh` reads only the new path by default, so a repository's history before the move is invisible; `cost-budget-enforcer` has never been invoked.
 
 ### F6 — Surface that is never used (see §2)
 
