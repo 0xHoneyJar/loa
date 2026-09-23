@@ -873,11 +873,14 @@ def reset_bucket(
     """
     if not re.match(r"^[a-z][a-z0-9_-]{0,63}$", provider or ""):
         raise ValueError(f"invalid provider name: {provider!r}")
+    existing = sorted(list_buckets(run_dir).get(provider, {}).keys())
     if auth_type is not None:
         _validate_auth_type(auth_type)
-        targets = [auth_type]
+        # Only a bucket that exists is reset — never fabricate healthy state
+        # for a bucket that was never opened (review dissent DISS-001).
+        targets = [auth_type] if auth_type in existing else []
     else:
-        targets = sorted(list_buckets(run_dir).get(provider, {}).keys())
+        targets = existing
     done: List[str] = []
     for at in targets:
         previous = _read_state(provider, at, run_dir)

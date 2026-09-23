@@ -116,6 +116,18 @@ def test_reset_bucket_without_auth_type_resets_every_bucket_of_the_provider(tmp_
     assert json.loads((tmp_path / "circuit-breaker-openai-http_api.json").read_text())["state"] == OPEN
 
 
+def test_reset_bucket_never_fabricates_a_bucket_that_does_not_exist(tmp_path):
+    """Dissent DISS-001: an explicit auth_type with no state file must not create one."""
+    _seed(tmp_path, "google", "headless", OPEN, opened_ago=60, failures=2)
+    assert reset_bucket("google", "http_api", str(tmp_path)) == []
+    assert not (tmp_path / "circuit-breaker-google-http_api.json").exists()
+    assert not (tmp_path / "substrate-health-journal.jsonl").exists()
+    r = _cli("--reset", "google:http_api", "--run-dir", str(tmp_path))
+    assert r.returncode == 1 and "nothing matched" in r.stdout
+    # the existing bucket still resets
+    assert reset_bucket("google", "headless", str(tmp_path)) == ["google/headless"]
+
+
 def test_reset_bucket_rejects_bad_names(tmp_path):
     with pytest.raises(ValueError):
         reset_bucket("Goo gle", "http_api", str(tmp_path))

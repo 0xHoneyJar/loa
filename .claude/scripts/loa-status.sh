@@ -763,13 +763,28 @@ _providers_snapshot() {
   done
   jq -cn --argjson b "$json" --argjson rt "$rt" '{reset_timeout_seconds:$rt, buckets:$b}'
 }
-_provider_key_present() {  # $1 provider → present|absent (presence only; the value is never read)
+_provider_key_present() {  # $1 provider → "present (env)" | "present (.env.local)" | "present (.env)" | absent
+  # Same rule as run-preflight.sh P3 so the two surfaces agree: the process
+  # environment first, then a non-empty KEY= line in .env.local / .env
+  # (cheval's DotenvProvider). Presence only — the value is never read into
+  # a variable here (grep -q with a quote-aware pattern).
+  local -a vars; local v f envdir
   case "$1" in
-    anthropic) [[ -n "${ANTHROPIC_API_KEY+x}" && -n "${ANTHROPIC_API_KEY:-}" ]] && echo present || echo absent ;;
-    openai)    [[ -n "${OPENAI_API_KEY:-}" ]] && echo present || echo absent ;;
-    google)    [[ -n "${GOOGLE_API_KEY:-}${GEMINI_API_KEY:-}" ]] && echo present || echo absent ;;
-    *) echo "n/a" ;;
+    anthropic) vars=(ANTHROPIC_API_KEY) ;;
+    openai)    vars=(OPENAI_API_KEY) ;;
+    google)    vars=(GOOGLE_API_KEY GEMINI_API_KEY) ;;
+    *) echo "n/a"; return 0 ;;
   esac
+  for v in "${vars[@]}"; do [[ -n "${!v:-}" ]] && { echo "present (env)"; return 0; }; done
+  envdir="$PROJECT_ROOT"
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_ENV_DIR:-}" ]]; then envdir="$LOA_STATUS_ENV_DIR"; fi
+  for f in .env.local .env; do
+    [[ -f "$envdir/$f" ]] || continue
+    for v in "${vars[@]}"; do
+      if grep -qE "^[[:space:]]*(export[[:space:]]+)?${v}=[\"']?[^\"'[:space:]#]" "$envdir/$f" 2>/dev/null; then echo "present ($f)"; return 0; fi
+    done
+  done
+  echo absent
 }
 _provider_hop() {  # $1 provider → hop binary name or ""
   local bin=""
@@ -796,7 +811,7 @@ display_providers_section() {
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue
     key=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].credential'); hop=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].cli_hop // "-"')
-    line=$(printf '  %-10s key %-8s hop %-7s' "$p" "$key" "$hop")
+    line=$(printf '  %-10s key %-20s hop %-7s' "$p" "$key" "$hop")
     local buckets; buckets=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].breakers | to_entries[] | "\(.key) \(.value.state) \(.value.age_s // "-") \(.value.probe_due_in_s // "-")"')
     if [[ -z "$buckets" ]]; then line+=" no breaker state"; else
       while read -r auth st age due; do

@@ -18,7 +18,8 @@ setup() {
   printf '{"provider":"openai","auth_type":"http_api","state":"CLOSED","failure_count":0,"opened_at":null,"half_open_probes":0}\n' > "$T/run/circuit-breaker-openai-http_api.json"
   printf '{"state":"CLOSED"}\n' > "$T/run/circuit-breaker.json"   # run-mode ICE breaker: not a provider bucket
   export OPENAI_API_KEY="sk-test-value-must-never-print"
-  unset GOOGLE_API_KEY GEMINI_API_KEY
+  unset GOOGLE_API_KEY GEMINI_API_KEY ANTHROPIC_API_KEY
+  mkdir -p "$T/env"; export LOA_STATUS_ENV_DIR="$T/env"   # bats-gated dotenv dir (no .env files → absent unless env)
 }
 teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/dev/null || true; }
 
@@ -27,10 +28,21 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   [ "$status" -eq 0 ]
   block=$(echo "$output" | sed -n '/^Providers/,/reset: cheval --reset-breaker/p')
   [ -n "$block" ]
-  echo "$block" | grep -qE '^  openai +key present +hop [a-z-]+ +· http_api CLOSED'
+  echo "$block" | grep -qE '^  openai +key present \(env\) +hop [a-z-]+ +· http_api CLOSED'
   echo "$block" | grep -qE '^  google +key absent +hop [a-z-]+ +· http_api OPEN 2h \(probe overdue → HALF_OPEN on next call\)'
-  echo "$block" | grep -qE '^  anthropic +key (present|absent)'
+  echo "$block" | grep -qE '^  anthropic +key absent'
   [[ "$output" != *"sk-test-value-must-never-print"* ]]
+}
+
+@test "LSP-4 a key present only in .env.local counts as present (same rule as the preflight) and its value never prints" {
+  printf 'ANTHROPIC_API_KEY="sk-ant-from-dotenv-never-print"\nGOOGLE_API_KEY=\n' > "$T/env/.env.local"
+  run timeout 120 bash "$STATUS"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE '^  anthropic +key present \(\.env\.local\)'
+  echo "$output" | grep -qE '^  google +key absent'
+  [[ "$output" != *"sk-ant-from-dotenv-never-print"* ]]
+  run timeout 120 bash "$STATUS" --json
+  echo "$output" | jq -e '.providers.providers.anthropic.credential == "present (.env.local)" and .providers.providers.google.credential == "absent"' >/dev/null
 }
 
 @test "LSP-2 --json mirrors the block under .providers and carries no credential value" {
@@ -38,7 +50,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.providers.reset_timeout_seconds | type == "number"' >/dev/null
   echo "$output" | jq -e '.providers.providers.google.credential == "absent" and .providers.providers.google.breakers.http_api.state == "OPEN" and .providers.providers.google.breakers.http_api.probe_due_in_s == 0' >/dev/null
-  echo "$output" | jq -e '.providers.providers.openai.credential == "present" and .providers.providers.openai.breakers.http_api.state == "CLOSED"' >/dev/null
+  echo "$output" | jq -e '.providers.providers.openai.credential == "present (env)" and .providers.providers.openai.breakers.http_api.state == "CLOSED"' >/dev/null
   echo "$output" | jq -e '.providers.providers | has("anthropic")' >/dev/null
   [[ "$output" != *"sk-test-value-must-never-print"* ]]
 }
