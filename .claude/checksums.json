@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T05:44:50Z",
+  "generated": "2026-09-23T05:47:15Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -924,7 +924,7 @@
     ".claude/hooks/pre-compact-marker.sh": "1169d5733087df3df22110cbcbba040d78f5e31cde3cac782da0f071b2c08988",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "6ec8c971f8ed8c9470049ac9fd537eae6a4e8ac81cebed08877ace547d018c36",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "3504e215466cf8cfb443b2a7fbc25efe49e0476729cce0d32f2660d442951824",
+    ".claude/hooks/safety/block-destructive-bash.sh": "5c95e2c705a6a7f9483c51d9dc232e09be715d5a60f5e787b33e180012bd6590",
     ".claude/hooks/safety/notes-size-guard.sh": "9371ef5a7e802e0aec01e117520ad18720f30022cc57b09d11ba739366f9eda4",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "1c0c7eee272a4f5e7bfdb56a148283391054ce312364371420b8d681ac93fcf6",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",

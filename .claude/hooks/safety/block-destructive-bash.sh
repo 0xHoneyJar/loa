@@ -65,6 +65,12 @@
 #     or a temp path stay blocked — bind the path first, then rm.
 #   * The hook never consults its own $PWD: a project checked out under
 #     /tmp still has `rm -rf src` blocked.
+#   * Rebinding builtins void the once-bound-variable proof only in command
+#     position (`read T`, `while read T`, `IFS= read -r T`, `command read`,
+#     `eval "read T"`); `exec read`, `env … read`, `sudo read`, `nice read`
+#     are NOT counted — `read` is a builtin, so those forms fail or run in a
+#     child and cannot rebind the caller's variable. `notes-guard.sh read`
+#     and `echo read` are arguments, never rebinds.
 #
 # Registered in settings.hooks.json as PreToolUse matcher: "Bash"
 # Part of Loa Harness Engineering (cycle-011, issue #297)
