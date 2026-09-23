@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-23T06:03:09Z",
+  "generated": "2026-09-23T06:10:36Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1237,7 +1237,7 @@
     ".claude/scripts/context-benchmark.sh": "4d3dbcda09c1babfe19c90bc107f023a7bb02ca2205e3993e4b9360096a7be0b",
     ".claude/scripts/context-check.sh": "1ae5822f284ff704148064bc2b15c462a4aeaf0e8e422bc331046389ea022ca9",
     ".claude/scripts/context-manager.sh": "d976216bc2b13d28bef671629e1753e21034127d97c9ed3099ea30739a4a596c",
-    ".claude/scripts/cost-report.sh": "da531a11008aecfd3160e0da5b06726b06a3a8537b6584e519bd7244cdf3eaec",
+    ".claude/scripts/cost-report.sh": "63b9b19f23e9e4af4d80497d1a52a805248831077709e56cb0461060f3917f8a",
     ".claude/scripts/cross-repo-query.sh": "cfeefd809c1ed3c11b0f20d2664ac12f71c05e8cbcde66c557960c0f871ab030",
     ".claude/scripts/cycle-workspace.sh": "c134449f41628809fc828c0ecbfeb89f1955c2709ad6cae86fcd7dfc7213d435",
     ".claude/scripts/danger-level-enforcer.sh": "07475373329f05511c96f1d41ea34b736a7f9fa9ed629951b8e581067f7e631c",
@@ -1457,7 +1457,7 @@
     ".claude/scripts/repo-map-gen.sh": "58faf5d5bb995e6036030d1ea9d1346fc25f827334d561ca1cf9c68bf75fd259",
     ".claude/scripts/review-scope.sh": "8d908615cac4c34bc462069ac390af6f7e218db5b446cb848220c284a2bcc24a",
     ".claude/scripts/rlm-benchmark.sh": "c3f916bc3b3b0c5cbef5fe9082e27c098f6259787b086200e295d70d8e337421",
-    ".claude/scripts/run-checkpoint.sh": "657c49be38d97a4997d7f8ee3956e113b05cf31328d2f39188f71d8f997cd95b",
+    ".claude/scripts/run-checkpoint.sh": "e1d8c23018149453c1087a2183c966bd4d6266b3834be171a0e6b3ff0d038bbb",
     ".claude/scripts/run-lib-tests.sh": "1c97b78cb6886969951350f512e5efb22bead92ec1c38c9231f7944dc66a9250",
     ".claude/scripts/run-mode-ice.sh": "cf5088747860c44bff054007d6307611ef94727ecbfc5da8f2cfc9a69819606a",
     ".claude/scripts/run-preflight.sh": "3fda7ddcde421b2b64159b224273e49a40d15aafd08a7d1d144598ce911a4b8f",

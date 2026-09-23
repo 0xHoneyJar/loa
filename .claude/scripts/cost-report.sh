@@ -328,14 +328,20 @@ by_day = defaultdict(int)
 top_invocations = []
 
 unpriced_rows = 0
+unclassified_rows = 0
 estimated_rows = 0
 by_resolution = defaultdict(int)
 for e in entries:
     cost = e.get("cost_micro_usd", 0)
     total_all += cost
-    # cycle-125 FR-5: an unpriced row records cost 0 — count it, never call it a price
-    if e.get("pricing_source", "unknown") == "unknown":
+    # cycle-125 FR-5: an unpriced row records cost 0 — count it, never call it a price.
+    # A pre-metadata row (no pricing_source) that already carries a cost was priced by
+    # its writer: it is "unclassified", not unpriced (Bridgebuilder PR #1269 FIND-004).
+    src = e.get("pricing_source")
+    if src == "unknown" or (src is None and not cost):
         unpriced_rows += 1
+    elif src is None:
+        unclassified_rows += 1
     if e.get("cost_estimated"):
         estimated_rows += 1
     by_resolution[e.get("pricing_resolution") or e.get("pricing_source", "unknown")] += 1
@@ -382,6 +388,7 @@ if output_json:
         "corrupt_lines": corrupt,
         "unpriced_rows": unpriced_rows,
         "unpriced_share": round(unpriced_share, 6),
+        "unclassified_rows": unclassified_rows,
         "estimated_rows": estimated_rows,
         "legacy_rows": legacy_rows,
         "pricing_resolution": dict(by_resolution),
@@ -414,6 +421,7 @@ else:
     print(f"| All time | {fmt_usd(total_all)} |")
     print()
     print(f"Unpriced rows: {unpriced_rows} ({unpriced_share * 100:.1f} %) — recorded as cost 0, not as a price"
+          + (f"; unclassified (pre-metadata, priced by their writer): {unclassified_rows}" if unclassified_rows else "")
           + (f"; estimated rows: {estimated_rows}" if estimated_rows else "")
           + (f"; legacy rows included: {legacy_rows}" if legacy_rows else ""))
     if by_resolution:
