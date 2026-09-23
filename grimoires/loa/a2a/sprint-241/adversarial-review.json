@@ -1,0 +1,58 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/hooks/safety/block-destructive-bash.sh:_fr2_temp_path_re",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The new temp-path allowance accepts glob operands such as `/tmp/*` before the existing catastrophic/glob checks run. `_fr2_temp_path_re='^/(tmp|var/tmp|private/tmp)/[^/]'` matches `/tmp/*`, and the loop immediately `continue`s, so `rm -rf /tmp/*` is allowed despite the fence previously treating glob roots as catastrophic and the new comments promising positively established temp paths, not wildcard wipes.",
+      "failure_mode": "A destructive command can delete every entry under a shared temp root while bypassing FR-2-BLOCK. This is a production-impact safety regression for the destructive-command fence.",
+      "suggested_fix": "Before the temp-root `continue`, reject glob/metacharacter operands (`*`, `?`, `[`, `$`, backticks, backslashes, spaces) or route them through the existing block-list first. Add dangerous corpus rows for `/tmp/*`, `/var/tmp/*`, and `/private/tmp/*`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-241",
+    "timestamp": "2026-09-23T04:14:41Z",
+    "tokens_input": 46973,
+    "tokens_output": 774,
+    "cost_usd": 0,
+    "latency_ms": 22020,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-241/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}

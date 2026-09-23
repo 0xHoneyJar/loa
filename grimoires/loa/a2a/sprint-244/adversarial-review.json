@@ -1,0 +1,58 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/routing/circuit_breaker.py:reset_bucket",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "`reset_bucket(provider, auth_type=...)` treats an explicitly named bucket as a match even when no state file exists. With `auth_type` provided it sets `targets = [auth_type]`, reads the default state, writes a new CLOSED state file, appends the bucket to `done`, and returns success.",
+      "failure_mode": "`cheval --reset-breaker google:http_api` or `python -m loa_cheval.routing.breaker_cli --reset google:http_api` will create a new breaker bucket and exit 0 even when nothing matched, violating the documented contract that the command exits 1 when nothing matched. This can also pollute `.run` with fabricated healthy breaker state for buckets that never existed.",
+      "suggested_fix": "When `auth_type` is provided, verify the bucket exists in `list_buckets(run_dir).get(provider, {})` or by validating the expected state file before journaling/writing. Return `[]` without writing when it does not exist; keep the current behavior for existing CLOSED buckets.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-244",
+    "timestamp": "2026-09-23T05:43:32Z",
+    "tokens_input": 45931,
+    "tokens_output": 789,
+    "cost_usd": 0,
+    "latency_ms": 24651,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-244/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}
