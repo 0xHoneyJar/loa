@@ -667,6 +667,7 @@ main() {
 
       [[ -n "$current_sprint" ]] && echo "  Current Sprint: ${current_sprint}"
       echo "  Sprints: ${completed_sprints}/${total_sprints} complete"
+      display_artefacts_line
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -685,6 +686,28 @@ main() {
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
   fi
+}
+
+# cycle-125 FR-2: planning-artefact sizes with the 100 KiB warn line, so an
+# agent learns to read by section BEFORE a blind Read is rejected. Uses the
+# same `notes-guard.sh check` verdict as the NOTES fences (warn ≥ 100 KiB).
+display_artefacts_line() {
+  local g="${LOA_GRIMOIRE_DIR:-$PROJECT_ROOT/grimoires/loa}" guard="${SCRIPT_DIR}/notes-guard.sh"
+  local f b line="" warn=""
+  for f in prd.md sdd.md sprint.md NOTES.md; do
+    [[ -f "$g/$f" ]] || continue
+    b=$(stat -c%s "$g/$f" 2>/dev/null || echo 0)
+    line+=" ${f%.md} $(( (b + 1023) / 1024 ))K"
+    if [[ -f "$guard" ]] && bash "$guard" check --file "$g/$f" 2>&1 >/dev/null | grep -q 'NOTES-WARN\|NOTES-BLOCK'; then
+      warn+=" $f"
+    fi
+  done
+  [[ -n "$line" ]] || return 0
+  echo "  Artefacts:${line}"
+  if [[ -n "$warn" ]]; then
+    echo "  ⚠ ≥ 100 KiB:${warn} — read by section: notes-guard.sh read --file <F> --section <H> (or --index)"
+  fi
+  return 0
 }
 
 main "$@"

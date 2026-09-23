@@ -113,14 +113,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:582badb8 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
-accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
-each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
-Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
-(decisions → Decision Log, discovered issues → Technical Debt).
+Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
+full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
+and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
+`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
+update it (decisions → Decision Log, issues → Technical Debt).
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -137,7 +137,7 @@ Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`
 </trajectory_logging>
 
 <grounding_requirements>
-Before auditing: read the actual implementation, don't trust documentation alone, and cross-reference the existing technical debt registry if one exists. Every finding cites the specific CWE/OWASP/CVE standard it violates (with an absolute URL to the standard, not just its name) and quotes the vulnerable code inline. Where code purpose or security context (internal vs external) is unclear, state the assumption; say "Unable to assess" for obfuscated or inaccessible code and record scope limits in the report.
+Read the actual implementation (never documentation alone) and cross-reference the technical-debt registry if one exists. Every finding cites the CWE/OWASP/CVE it violates with an absolute URL (not just the name) and quotes the vulnerable code inline. Where purpose or trust context (internal vs external) is unclear, state the assumption; say "Unable to assess" for obfuscated or inaccessible code and record scope limits in the report.
 </grounding_requirements>
 
 <workflow>

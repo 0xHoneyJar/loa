@@ -8,14 +8,22 @@
 #       100 KiB; `NOTES-BLOCK` with the remedy (exit 3) from 200 KiB.
 #       --delta N asks "would a write of N bytes land at or over the block
 #       line?" — a negative or zero delta (compaction) never blocks.
-#   notes-guard.sh read   [--full] [--file PATH]
-#       Heading-based default read: every `## Blockers` block (file order),
-#       the newest `## Session Continuity*` block and the 3 newest
-#       `## Decision Log*` blocks (newest first; recency is the YYYY-MM-DD in
-#       the heading, file position only when no date parses). Hard cap
-#       69,632 bytes (≤ 20k tokens at 3.5 bytes/token) with a footer naming
-#       `read --full`. Template drift (none of the three headings) falls back
-#       loudly to the file head. Never empty. `--full` prints the whole file.
+#   notes-guard.sh read   [--full | --index | --section SPEC] [--file PATH]
+#       NOTES.md default: every `## Blockers` block (file order), the newest
+#       `## Session Continuity*` block and the 3 newest `## Decision Log*`
+#       blocks (newest first; recency is the YYYY-MM-DD in the heading, file
+#       position only when no date parses). Hard cap 69,632 bytes (≤ 20k
+#       tokens at 3.5 bytes/token) with a footer naming `read --full`.
+#       Template drift (none of the three headings) falls back loudly to the
+#       file head. Never empty. `--full` prints the whole file.
+#       --index          one line per `## ` heading: `L<start>-L<end>  <bytes>B  <heading>`
+#                        (the default for any file other than NOTES.md).
+#       --section SPEC   one H2 block, capped like the default read. SPEC is
+#                        `Sprint N` (matches `## Sprint N:`), `N` / `N.` (a
+#                        numbered section `## N. …`), or a case-insensitive
+#                        substring of a heading (first match). No match →
+#                        one loud line naming the headings, then the index.
+#       Works on prd.md / sdd.md / sprint.md / NOTES.md (cycle-125 FR-2).
 #   notes-guard.sh rotate [--file PATH]
 #       Copy the whole file to <dir>/archive/notes/NOTES-<UTC>.md, fsync the
 #       archive, refuse an existing target (exit 4), then rewrite the live
@@ -42,15 +50,19 @@ usage() {
 sub="${1:-}"
 [[ -n "$sub" ]] || usage
 shift
-file="" delta="" full=0
+file="" delta="" full=0 index=0 section=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --file)  [[ $# -ge 2 && -n "$2" ]] || usage; file="$2"; shift 2 ;;
-    --delta) [[ $# -ge 2 && "$2" =~ ^-?[0-9]+$ ]] || usage; delta="$2"; shift 2 ;;
-    --full)  full=1; shift ;;
+    --file)    [[ $# -ge 2 && -n "$2" ]] || usage; file="$2"; shift 2 ;;
+    --delta)   [[ $# -ge 2 && "$2" =~ ^-?[0-9]+$ ]] || usage; delta="$2"; shift 2 ;;
+    --full)    full=1; shift ;;
+    --index)   index=1; shift ;;
+    --section) [[ $# -ge 2 && -n "$2" ]] || usage; section="$2"; shift 2 ;;
     *) usage ;;
   esac
 done
+_modes=$(( index + full )); [[ -z "$section" ]] || _modes=$(( _modes + 1 ))
+(( _modes <= 1 )) || usage   # --full / --index / --section are exclusive
 if [[ -z "$file" ]]; then
   _root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   file="${LOA_GRIMOIRE_DIR:-$_root/grimoires/loa}/NOTES.md"
@@ -78,22 +90,53 @@ cmd_check() {
 }
 
 # --- read --------------------------------------------------------------------
-# One awk pass over `^## ` boundaries: "start<TAB>end<TAB>kind<TAB>date<TAB>heading".
+# One awk pass over `^## ` boundaries:
+# "start<TAB>end<TAB>kind<TAB>date<TAB>heading<TAB>bytes" (bytes: the block
+# including its heading line and newlines; LC_ALL=C so length() counts bytes).
 index_blocks() {
   awk '
-    function flush(end) { if (start) printf "%d\t%d\t%s\t%s\t%s\n", start, end, kind, date, heading }
-    BEGIN { start = 0 }
+    function flush(end) { if (start) printf "%d\t%d\t%s\t%s\t%s\t%d\n", start, end, kind, date, heading, bytes }
+    BEGIN { start = 0; bytes = 0 }
     /^## / {
       flush(NR - 1)
-      start = NR; heading = $0; date = ""; kind = "other"
+      start = NR; heading = $0; date = ""; kind = "other"; bytes = length($0) + 1
       if (heading ~ /^## Blockers/) kind = "blockers"
       else if (heading ~ /^## Session Continuity/) kind = "sc"
       else if (heading ~ /^## Decision Log/) kind = "dl"
       if (match(heading, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) date = substr(heading, RSTART, RLENGTH)
       next
     }
+    { if (start) bytes += length($0) + 1 }
     END { flush(NR) }
   ' "$file"
+}
+
+# --index: one line per H2 in file order. Never empty.
+cmd_index() {
+  local idx
+  idx=$(index_blocks)
+  if [[ -z "$idx" ]]; then
+    echo "NOTES-GUARD: no '## ' headings in $file ($(size_of "$file") bytes) — use read --full --file $file"
+    return 0
+  fi
+  awk -F'\t' '{ printf "L%d-L%d  %dB  %s\n", $1, $2, $6, $5 }' <<<"$idx"
+}
+
+# Resolve a --section SPEC to "start end" (first matching H2), or nothing.
+find_section() {
+  local spec="$1" idx re n
+  idx=$(index_blocks)
+  [[ -n "$idx" ]] || return 0
+  if [[ "$spec" =~ ^[Ss]print[[:space:]]+([0-9]+)$ ]]; then
+    n="${BASH_REMATCH[1]}"
+    awk -F'\t' -v n="$n" '$5 ~ ("^## Sprint " n "([^0-9]|$)") { print $1 " " $2; exit }' <<<"$idx"
+  elif [[ "$spec" =~ ^([0-9]+)\.?$ ]]; then
+    n="${BASH_REMATCH[1]}"
+    awk -F'\t' -v n="$n" '$5 ~ ("^## " n "\\. ") { print $1 " " $2; exit }' <<<"$idx"
+  else
+    awk -F'\t' -v s="$(printf '%s' "$spec" | tr '[:upper:]' '[:lower:]')" \
+      'index(tolower($5), s) > 0 { print $1 " " $2; exit }' <<<"$idx"
+  fi
 }
 
 # Selected line ranges ("start end" per line) in output order: Blockers first
@@ -121,19 +164,11 @@ emit_ranges() {  # stdin: "start end" lines → the blocks, separated by one bla
   done
 }
 
-cmd_read() {
-  if (( full )); then cat -- "$file"; return 0; fi
-  if [[ ! -f "$file" ]]; then echo "NOTES-GUARD: $file does not exist — nothing to read"; return 0; fi
-  local ranges tmp bytes footer budget
-  ranges=$(select_ranges)
-  if [[ -z "$ranges" ]]; then
-    echo "NOTES-GUARD: no known sections (template drift) — showing head; expected ## Blockers / ## Session Continuity / ## Decision Log (see .claude/templates/NOTES.md.template)"
-    head -c "$READ_CAP" -- "$file"
-    [[ -s "$file" ]] || echo "NOTES-GUARD: $file is empty"
-    return 0
-  fi
+# Emit "start end" ranges (stdin) under READ_CAP with the footer.
+emit_capped() {
+  local tmp bytes footer budget
   tmp=$(mktemp)
-  emit_ranges <<<"$ranges" > "$tmp"
+  emit_ranges > "$tmp"
   bytes=$(stat -c%s "$tmp")
   if (( bytes > READ_CAP )); then
     footer=$'\n'"[notes-guard: capped at $READ_CAP of $bytes selected bytes — run notes-guard.sh read --full --file $file for the whole file]"$'\n'
@@ -144,6 +179,34 @@ cmd_read() {
     cat -- "$tmp"
   fi
   rm -f -- "$tmp"
+}
+
+cmd_read() {
+  if (( full )); then cat -- "$file"; return 0; fi
+  if [[ ! -f "$file" ]]; then echo "NOTES-GUARD: $file does not exist — nothing to read"; return 0; fi
+  local ranges
+  if (( index )); then cmd_index; return 0; fi
+  if [[ -n "$section" ]]; then
+    ranges=$(find_section "$section")
+    if [[ -z "$ranges" ]]; then
+      echo "NOTES-GUARD: no section matching '$section' in $file; headings: $(grep '^## ' -- "$file" | sed 's/^## //' | paste -sd'|' - | head -c 400)"
+      cmd_index
+      return 0
+    fi
+    emit_capped <<<"$ranges"
+    return 0
+  fi
+  # No mode flag: NOTES.md keeps its recovery selection; any other artefact
+  # gets the index (a blind full read is what the Read cap rejects).
+  if [[ "$(basename -- "$file")" != "NOTES.md" ]]; then cmd_index; return 0; fi
+  ranges=$(select_ranges)
+  if [[ -z "$ranges" ]]; then
+    echo "NOTES-GUARD: no known sections (template drift) — showing head; expected ## Blockers / ## Session Continuity / ## Decision Log (see .claude/templates/NOTES.md.template)"
+    head -c "$READ_CAP" -- "$file"
+    [[ -s "$file" ]] || echo "NOTES-GUARD: $file is empty"
+    return 0
+  fi
+  emit_capped <<<"$ranges"
 }
 
 # --- rotate ------------------------------------------------------------------

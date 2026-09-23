@@ -79,7 +79,7 @@ Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit (use `.claude
 <cli_tool_permissions>
 ## CLI Tool Usage
 
-Run read-only local commands (`git status/log/diff/branch/show`; `gh issue/pr list/view`, `pr checks`; `npm`/`bun`/`cargo` test/lint/typecheck/build-check) without asking. Ask first for network writes (`git push`, `gh pr/issue create`), deployments, package mutations (`npm install`, `cargo add`), cloud CLIs (`aws`, `gcloud`, `az`), and destructive commands (`rm`, `git reset`, `git checkout -- .`). Use `--json` output and filter fields to avoid printing secrets; never pipe CLI output to files without confirmation; if an authenticated command fails, report the error rather than retrying or prompting for credentials. Full per-tool table: see `resources/CLI-TOOL-POLICY.md`.
+Run read-only local commands (`git status/log/diff/branch/show`, `gh issue/pr list/view`, `pr checks`, `npm`/`bun`/`cargo` test/lint/typecheck/build-check) without asking. Ask first for network writes (`git push`, `gh pr/issue create`), deployments, package mutations (`npm install`, `cargo add`), cloud CLIs (`aws`, `gcloud`, `az`) and destructive commands (`rm`, `git reset`, `git checkout -- .`). Prefer `--json` and filter fields (no secrets in output); never pipe CLI output to files unconfirmed; on an auth failure report it — do not retry or prompt for credentials. Per-tool table: `resources/CLI-TOOL-POLICY.md`.
 </cli_tool_permissions>
 
 <integrity_precheck>
@@ -117,14 +117,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:582badb8 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`. Thresholds: single result >2K tokens /
-accumulated >5K / full file >3K / session total >15K → extract findings (≤10 files, ≤20 words
-each, with file:line) to `grimoires/loa/NOTES.md`, then reason from the synthesis, not raw dumps.
-Session start: read NOTES.md "Session Continuity". Session end / pre-compaction: update it
-(decisions → Decision Log, discovered issues → Technical Debt).
+Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
+full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
+and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
+`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
+update it (decisions → Decision Log, issues → Technical Debt).
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -182,7 +182,7 @@ Before implementing, in order:
 1. `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`, if present: `CHANGES_REQUIRED` means fix every CRITICAL/HIGH issue (MEDIUM/LOW if feasible) and record each issue, fix and verification in a "Security Audit Feedback Addressed" report section; `APPROVED - LET'S FUCKING GO`, or no file, means proceed.
 2. `grimoires/loa/a2a/sprint-N/engineer-feedback.md`, if present: anything other than `All good` means address every item in a "Feedback Addressed" report section.
 3. `grimoires/loa/a2a/integration-context.md`, if present (context links, documentation locations, commit formats, MCP tools).
-4. `grimoires/loa/sprint.md` (acceptance criteria), `grimoires/loa/sdd.md` (architecture), `grimoires/loa/prd.md` (business requirements). Quote requirements when implementing: `> From sprint.md: Task 1.2 requires...`
+4. Your sprint block: `notes-guard.sh read --file grimoires/loa/sprint.md --section 'Sprint N'` (acceptance criteria); `sdd.md` (architecture) and `prd.md` (business requirements) via `--index` then `--section`. Quote requirements when implementing: `> From sprint.md: Task 1.2 requires...`
 5. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`, run it with the task description and target file names (`--scope grimoires --budget 2000 --format text`) as advisory context — the sprint plan's acceptance criteria remain the source of truth. Missing, disabled, or empty output is a graceful no-op: proceed without it.
 </grounding_requirements>
 
@@ -220,7 +220,7 @@ Spec: `.claude/protocols/beads-preflight.md`; command reference: `resources/REFE
 
 ## Phase -1: Context Assessment and Parallel Task Splitting
 
-`wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/*.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–8,000 MEDIUM (parallel when 3+ independent tasks); over 8,000 LARGE (split). MEDIUM/LARGE: see `resources/REFERENCE.md` §Parallel Implementation Guidelines.
+`wc -l grimoires/loa/{prd,sdd,sprint}.md grimoires/loa/a2a/*.md 2>/dev/null`: under 3,000 lines SMALL (sequential); 3,000–8,000 MEDIUM (parallel when 3+ independent tasks); over 8,000 LARGE (split). MEDIUM/LARGE: `resources/REFERENCE.md` §Parallel Implementation Guidelines.
 
 ## Phase 0: Feedback and Context Check
 

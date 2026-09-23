@@ -467,6 +467,28 @@ import_upstream_learnings() {
   return 0
 }
 
+# === NOTES.md rotation on upgrade (cycle-125 FR-2, SDD §1.3) ===
+# A NOTES.md at or over the 200 KiB block line (notes-guard.sh check → exit 3)
+# would refuse every append on the upgraded framework; rotate it here, loudly.
+# The rotate archives the whole file first (grimoires/loa/archive/notes/) and
+# never stashes. Below the line: nothing happens. Never fails the update.
+rotate_oversized_notes() {
+  local guard notes rc=0
+  guard="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/notes-guard.sh"
+  notes="${LOA_GRIMOIRE_DIR:-grimoires/loa}/NOTES.md"
+  [[ -f "$guard" && -f "$notes" ]] || return 0
+  bash "$guard" check --file "$notes" >/dev/null 2>&1 || rc=$?
+  if [[ $rc -eq 3 ]]; then
+    log "NOTES.md is at or over the 200 KiB block line ($(stat -c%s "$notes" 2>/dev/null || echo '?') bytes) — rotating before the first append on the new version"
+    if bash "$guard" rotate --file "$notes"; then
+      log "NOTES.md rotated: full history archived under $(dirname "$notes")/archive/notes/, recovery sections retained"
+    else
+      warn "NOTES.md rotation failed (exit $?) — run: .claude/scripts/notes-guard.sh rotate --file $notes"
+    fi
+  fi
+  return 0
+}
+
 # === Friendly Release Summary (cycle-052) ===
 # After update, show a user-friendly "What's New" summary
 show_friendly_summary() {
@@ -569,6 +591,9 @@ Run: mount-loa.sh"
 
   # === Downstream Learning Import ===
   import_upstream_learnings
+
+  # === NOTES.md rotation on upgrade (cycle-125 FR-2) ===
+  rotate_oversized_notes
 
   # === Friendly Release Summary (cycle-052) ===
   show_friendly_summary
