@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-124-model-generation-floor",
+  "active_cycle": "cycle-125-friction-floor",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2110,10 +2110,10 @@
     {
       "id": "cycle-124-model-generation-floor",
       "label": "Model-generation floor — bring the framework's own use of Claude to the Opus 5 / Sonnet 5 / Fable 5.1 generation (framework-review-2026-09-17 §9 items 1-8 + rec 2/rec 6)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-09-17T01:06:16Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-09-23T03:16:43Z",
+      "archive_path": "grimoires/loa/archive/2026-09-23-cycle-124-model-generation-floor",
       "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
       "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
       "sprints": [
@@ -2194,6 +2194,90 @@
       "source_review": "grimoires/loa/a2a/framework-review-2026-09-17.md#9",
       "epic": "bd-wd1g",
       "sprint_plan": "grimoires/loa/sprint.md"
+    },
+    {
+      "id": "cycle-125-friction-floor",
+      "label": "Friction floor — fence precision, sectioned artefacts, run preflight/resume, provider health, cost accounting (usage-mining 2026-09-23)",
+      "status": "active",
+      "created": "2026-09-23T03:20:52Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 241,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-09-23T03:35:30Z",
+          "completed": "2026-09-23T04:29:24Z",
+          "epic": "bd-c061",
+          "beads": [
+            "bd-stvh",
+            "bd-ic5v",
+            "bd-la6c",
+            "bd-d901",
+            "bd-evsy",
+            "bd-ygzz",
+            "bd-z9jw"
+          ],
+          "theme": "Fence precision"
+        },
+        {
+          "global_id": 242,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-09-23T03:35:31Z",
+          "completed": "2026-09-23T04:48:17Z",
+          "epic": "bd-ybez",
+          "beads": [
+            "bd-jcb3",
+            "bd-am0z",
+            "bd-ezza",
+            "bd-5ld1",
+            "bd-29h8",
+            "bd-gzjo"
+          ],
+          "theme": "Sectioned artefacts"
+        },
+        {
+          "global_id": 243,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-09-23T03:35:31Z",
+          "completed": "2026-09-23T05:09:57Z",
+          "epic": "bd-2yh1",
+          "beads": [
+            "bd-rq4e",
+            "bd-9d4j",
+            "bd-wcu6",
+            "bd-73wx",
+            "bd-enx0",
+            "bd-4slp"
+          ],
+          "theme": "Run preflight and resume"
+        },
+        {
+          "global_id": 244,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-09-23T03:35:32Z",
+          "completed": "2026-09-23T06:02:22Z",
+          "epic": "bd-bhpk",
+          "beads": [
+            "bd-0wsg",
+            "bd-s0wx",
+            "bd-plz8",
+            "bd-mrna",
+            "bd-gxys",
+            "bd-3yke",
+            "bd-j0qz"
+          ],
+          "theme": "Provider health, cost accounting, docs, E2E"
+        }
+      ],
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "source_prompt": "grimoires/loa/a2a/prompts/cycle-125-friction-floor-2026-09-23.md"
     }
   ],
   "global_sprint_counter": 240,
@@ -2564,6 +2648,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 240,
-  "last_updated": "2026-09-22T22:21:43Z"
+  "next_sprint_number": 245,
+  "last_updated": "2026-09-23T06:02:23Z"
 }

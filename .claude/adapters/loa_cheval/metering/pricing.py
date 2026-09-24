@@ -7,8 +7,9 @@ No floating-point anywhere in the cost path.
 from __future__ import annotations
 
 import logging
+import re
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 
@@ -53,6 +54,9 @@ class PricingEntry:
     # carries cache_read_per_mtok explicitly, cache_write derives when absent.
     cache_read_per_mtok: int = 0
     cache_write_per_mtok: int = 0
+    # cycle-125 FR-5 (SDD §1.6): how the id was matched — exact | dated |
+    # alias | hop. Additive; every pre-cycle caller sees "exact".
+    resolution: str = "exact"
 
 
 @dataclass
@@ -216,18 +220,15 @@ def _int_rate(value: Any, derived: int) -> int:
     return derived
 
 
-def find_pricing(
+def _exact_pricing(
     provider: str,
     model: str,
     config: Dict[str, Any],
 ) -> Optional[PricingEntry]:
-    """Look up pricing from config providers section.
-
-    Returns PricingEntry if found, None otherwise.
-    """
+    """`providers.<provider>.models.<model>.pricing` — the only rung that reads rates."""
     providers = config.get("providers", {})
-    provider_config = providers.get(provider, {})
-    model_config = provider_config.get("models", {}).get(model, {})
+    provider_config = providers.get(provider, {}) or {}
+    model_config = (provider_config.get("models", {}) or {}).get(model, {}) or {}
     pricing = model_config.get("pricing")
 
     if not pricing:
@@ -251,3 +252,80 @@ def find_pricing(
         cache_read_per_mtok=_int_rate(pricing.get("cache_read_per_mtok"), input_per_mtok // 10),
         cache_write_per_mtok=_int_rate(pricing.get("cache_write_per_mtok"), input_per_mtok * 5 // 4),
     )
+
+
+# cycle-125 FR-5 (SDD §1.6): the resolution ladder. Fleet ledgers carried
+# 79 % `pricing_source: unknown` on the current path because the ids that
+# actually get invoked are dated releases, aliases and CLI-hop names, none of
+# which is a `providers.<p>.models` key.
+_DATED_SUFFIX_RE = re.compile(r"^(?P<base>.+?)-\d{4}-\d{2}-\d{2}$")
+_HOP_NAMES = frozenset({
+    "codex-headless", "claude-headless", "agy-headless", "cursor-headless",
+    "gemini-headless", "grok-headless",
+})
+_MAX_LADDER_DEPTH = 4
+
+
+def _alias_target(model: str, config: Dict[str, Any]) -> Optional[str]:
+    """`aliases` then `backward_compat_aliases` → "provider:model" (or None)."""
+    for table in ("aliases", "backward_compat_aliases"):
+        aliases = config.get(table) or {}
+        target = aliases.get(model)
+        if isinstance(target, str) and target:
+            return target
+    return None
+
+
+def find_pricing(
+    provider: str,
+    model: str,
+    config: Dict[str, Any],
+    _depth: int = 0,
+) -> Optional[PricingEntry]:
+    """Look up pricing for (provider, model) through the resolution ladder:
+
+    1. exact  — `providers.<p>.models.<m>.pricing`
+    2. dated  — `<m>` with a trailing `-YYYY-MM-DD` stripped, when that base
+                id exists (an exact dated entry always wins — rung 1 ran first)
+    3. alias  — `<m>` through `aliases` / `backward_compat_aliases` to
+                `provider:model` (the alias's provider wins over the caller's)
+    4. hop    — a CLI hop (`kind: cli` or a known `*-headless` name) prices as
+                its configured `extra.cli_model`, itself resolved through the
+                ladder
+
+    Returns a PricingEntry whose `resolution` names the rung, or None (the
+    caller records `pricing_source: unknown` and the row is counted).
+    """
+    if _depth > _MAX_LADDER_DEPTH or not model:
+        return None
+
+    exact = _exact_pricing(provider, model, config)
+    if exact:
+        return exact
+
+    dated = _DATED_SUFFIX_RE.match(model)
+    if dated:
+        base = _exact_pricing(provider, dated.group("base"), config)
+        if base:
+            return replace(base, resolution="dated")
+
+    target = _alias_target(model, config)
+    if target:
+        t_provider, _, t_model = target.partition(":")
+        if not t_model:
+            t_provider, t_model = provider, t_provider
+        if (t_provider, t_model) != (provider, model):
+            via_alias = find_pricing(t_provider, t_model, config, _depth + 1)
+            if via_alias:
+                return replace(via_alias, resolution="alias")
+
+    providers = config.get("providers", {}) or {}
+    model_config = ((providers.get(provider, {}) or {}).get("models", {}) or {}).get(model, {}) or {}
+    if model in _HOP_NAMES or model_config.get("kind") == "cli":
+        underlying = (model_config.get("extra") or {}).get("cli_model")
+        if isinstance(underlying, str) and underlying and underlying != model:
+            via_hop = find_pricing(provider, underlying, config, _depth + 1)
+            if via_hop:
+                return replace(via_hop, resolution="hop")
+
+    return None

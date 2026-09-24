@@ -467,6 +467,28 @@ import_upstream_learnings() {
   return 0
 }
 
+# === NOTES.md rotation on upgrade (cycle-125 FR-2, SDD §1.3) ===
+# A NOTES.md at or over the 200 KiB block line (notes-guard.sh check → exit 3)
+# would refuse every append on the upgraded framework; rotate it here, loudly.
+# The rotate archives the whole file first (grimoires/loa/archive/notes/) and
+# never stashes. Below the line: nothing happens. Never fails the update.
+rotate_oversized_notes() {
+  local guard notes rc=0
+  guard="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/notes-guard.sh"
+  notes="${LOA_GRIMOIRE_DIR:-grimoires/loa}/NOTES.md"
+  [[ -f "$guard" && -f "$notes" ]] || return 0
+  bash "$guard" check --file "$notes" >/dev/null 2>&1 || rc=$?
+  if [[ $rc -eq 3 ]]; then
+    log "NOTES.md is at or over the 200 KiB block line ($(stat -c%s "$notes" 2>/dev/null || echo '?') bytes) — rotating before the first append on the new version"
+    if bash "$guard" rotate --file "$notes"; then
+      log "NOTES.md rotated: full history archived under $(dirname "$notes")/archive/notes/, recovery sections retained"
+    else
+      warn "NOTES.md rotation failed (exit $?) — run: .claude/scripts/notes-guard.sh rotate --file $notes"
+    fi
+  fi
+  return 0
+}
+
 # === Friendly Release Summary (cycle-052) ===
 # After update, show a user-friendly "What's New" summary
 show_friendly_summary() {
@@ -554,9 +576,20 @@ Install in submodule mode: mount-loa.sh (default)"
       # Delegate to existing update.sh for vendored mode
       local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
       local update_script="${script_dir}/update.sh"
+      # Test seam, bats-gated like the other test-mode overrides in this
+      # repository: never honoured in a real update (audit round 1, MED-001).
+      if [[ -n "${BATS_TEST_FILENAME:-}" && -n "${LOA_VENDORED_UPDATE_SCRIPT:-}" ]]; then
+        update_script="$LOA_VENDORED_UPDATE_SCRIPT"
+      fi
       if [[ -x "$update_script" ]]; then
         log "Delegating to update.sh (vendored mode)..."
-        exec "$update_script" "$@"
+        # Not `exec`: the post-refresh NOTES rotation (cycle-125 FR-2, review
+        # round 1 H-1) must run for vendored installs too. The refresh's exit
+        # code is preserved; the remaining submodule-only steps stay skipped.
+        local vendored_rc=0
+        "$update_script" "$@" || vendored_rc=$?
+        if [[ $vendored_rc -eq 0 ]]; then rotate_oversized_notes; fi
+        exit "$vendored_rc"
       else
         err "update.sh not found at: $update_script"
       fi
@@ -569,6 +602,9 @@ Run: mount-loa.sh"
 
   # === Downstream Learning Import ===
   import_upstream_learnings
+
+  # === NOTES.md rotation on upgrade (cycle-125 FR-2) ===
+  rotate_oversized_notes
 
   # === Friendly Release Summary (cycle-052) ===
   show_friendly_summary

@@ -64,6 +64,12 @@
     "billing_observer_used": {
       "type": "boolean",
       "description": "Whether a billing-observer command was invoked (vs counter-only fallback)."
+    },
+    "unpriced_share": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "cycle-125 FR-5: share (0..1) of cost-ledger rows with pricing_source unknown at verdict time, from cost-report.sh --json; null when the report was unavailable. An allow is only issued at or below 0.05."
     }
   }
 }

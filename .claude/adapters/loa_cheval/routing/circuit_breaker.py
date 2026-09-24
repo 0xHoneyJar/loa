@@ -20,8 +20,10 @@ import fcntl
 import json
 import logging
 import os
+import re
+import sys
 import time
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger("loa_cheval.routing.circuit_breaker")
 
@@ -826,6 +828,140 @@ def cleanup_stale_tempfiles(
     return removed
 
 
+# ---------------------------------------------------------------------------
+# Operator surface (cycle-125 FR-4, SDD §1.5): snapshot, reset, CLI.
+# ---------------------------------------------------------------------------
+
+
+def bucket_snapshot(
+    run_dir: str = ".run",
+    reset_timeout: int = DEFAULT_RESET_TIMEOUT,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """`list_buckets` plus operator arithmetic per bucket.
+
+    Adds `age_s` (seconds since `opened_at`, None when not OPEN) and
+    `probe_due_in_s` (seconds until `check_state` would move OPEN → HALF_OPEN;
+    0 when the cooldown has already elapsed — the next dispatch probes).
+    Never reads a credential; never mutates state.
+    """
+    ts = time.time() if now is None else now
+    buckets = list_buckets(run_dir)
+    for prov in buckets.values():
+        for b in prov.values():
+            opened = b.get("opened_at")
+            if b.get("state") == OPEN and isinstance(opened, (int, float)):
+                age = max(0, int(ts - float(opened)))
+                b["age_s"] = age
+                b["probe_due_in_s"] = max(0, int(reset_timeout) - age)
+            else:
+                b["age_s"] = None
+                b["probe_due_in_s"] = None
+    return {"reset_timeout_seconds": int(reset_timeout), "buckets": buckets}
+
+
+def reset_bucket(
+    provider: str,
+    auth_type: Optional[str] = None,
+    run_dir: str = ".run",
+    reason: str = "operator reset",
+) -> List[str]:
+    """Reset one bucket (or every bucket of `provider` when auth_type is None)
+    to the default CLOSED state. The journal marker is written BEFORE the
+    state file so an audit trail exists even if the write fails. Returns the
+    `provider/auth_type` names that were reset (empty when none matched).
+    """
+    if not re.match(r"^[a-z][a-z0-9_-]{0,63}$", provider or ""):
+        raise ValueError(f"invalid provider name: {provider!r}")
+    existing = sorted(list_buckets(run_dir).get(provider, {}).keys())
+    if auth_type is not None:
+        _validate_auth_type(auth_type)
+        # Only a bucket that exists is reset — never fabricate healthy state
+        # for a bucket that was never opened (review dissent DISS-001).
+        targets = [auth_type] if auth_type in existing else []
+    else:
+        targets = existing
+    done: List[str] = []
+    for at in targets:
+        previous = _read_state(provider, at, run_dir)
+        _emit_journal_marker(run_dir, "operator_reset", {
+            "provider": provider,
+            "auth_type": at,
+            "previous_state": previous.get("state"),
+            "previous_failure_count": previous.get("failure_count"),
+            "reason": str(reason)[:200],
+        })
+        _write_state(_default_state(provider, at), run_dir)
+        done.append(f"{provider}/{at}")
+    return done
+
+
+def _fmt_age(seconds: Optional[int]) -> str:
+    if seconds is None:
+        return "-"
+    if seconds >= 86400:
+        return f"{seconds // 86400}d"
+    if seconds >= 3600:
+        return f"{seconds // 3600}h"
+    return f"{seconds // 60}m"
+
+
+def _cli(argv: List[str]) -> int:
+    """`python3 -m loa_cheval.routing.circuit_breaker --list [--json] | --reset P[:A]`."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="loa_cheval.routing.circuit_breaker",
+        description="Provider circuit-breaker buckets: list with ages and probe timing, or reset one.",
+    )
+    parser.add_argument("--list", action="store_true", help="list every (provider, auth_type) bucket")
+    parser.add_argument("--reset", metavar="PROVIDER[:AUTH_TYPE]", help="reset a bucket (or all of a provider's) to CLOSED; journaled first")
+    parser.add_argument("--reason", default="operator reset", help="journal reason for --reset")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("--run-dir", default=".run", help="state directory (default .run)")
+    parser.add_argument("--reset-timeout", type=int, default=DEFAULT_RESET_TIMEOUT,
+                        help="routing.circuit_breaker.reset_timeout_seconds used for probe timing (default %(default)s)")
+    args = parser.parse_args(argv)
+    if bool(args.list) == bool(args.reset):
+        parser.print_usage(sys.stderr)
+        print("error: exactly one of --list or --reset is required", file=sys.stderr)
+        return 2
+    if args.reset:
+        prov, _, at = args.reset.partition(":")
+        try:
+            done = reset_bucket(prov, at or None, args.run_dir, args.reason)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps({"reset": done, "reason": args.reason}))
+        else:
+            print("reset: " + (", ".join(done) if done else "nothing matched"))
+        return 0 if done else 1
+    snap = bucket_snapshot(args.run_dir, args.reset_timeout)
+    if args.json:
+        print(json.dumps(snap, indent=2, sort_keys=True))
+        return 0
+    if not snap["buckets"]:
+        print("no circuit-breaker buckets under " + args.run_dir)
+        return 0
+    for prov in sorted(snap["buckets"]):
+        for at in sorted(snap["buckets"][prov]):
+            b = snap["buckets"][prov][at]
+            line = f"{prov}/{at:<9} {b.get('state', '?'):<9} failures={b.get('failure_count', 0)}"
+            if b.get("state") == OPEN:
+                due = b.get("probe_due_in_s")
+                line += f"  open {_fmt_age(b.get('age_s'))}  " + (
+                    "probe overdue (HALF_OPEN on next dispatch)" if due == 0 else f"probe due in {due}s"
+                )
+            print(line)
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover — exercised by tests/test_circuit_breaker_cli.py via subprocess
+    sys.exit(_cli(sys.argv[1:]))
+
+
 __all__ = [
     "AUTH_TYPES",
     "AUTH_TYPE_HEADLESS",
@@ -835,6 +971,7 @@ __all__ = [
     "HALF_OPEN",
     "OPEN",
     "CircuitBreakerMigrationTimeout",
+    "bucket_snapshot",
     "check_state",
     "cleanup_stale_files",
     "cleanup_stale_tempfiles",
@@ -842,4 +979,5 @@ __all__ = [
     "list_buckets",
     "record_failure",
     "record_success",
+    "reset_bucket",
 ]

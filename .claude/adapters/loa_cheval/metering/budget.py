@@ -66,6 +66,22 @@ def _int_or_zero(value: Any) -> int:
     return value
 
 
+def _str_or_none(value: Any) -> Optional[str]:
+    """Non-empty str passthrough; anything else (None, mocks) → None.
+
+    cycle-125 FR-5: the ledger row's additive `resolved_model` / `transport`
+    fields come from adapter metadata; a stubbed result must never put a
+    non-serialisable object in front of the JSON writer.
+    """
+    return value if isinstance(value, str) and value else None
+
+
+def _metadata_get(result: Any, key: str) -> Any:
+    """`result.metadata[key]` when metadata is a real dict; else None."""
+    metadata = getattr(result, "metadata", None)
+    return metadata.get(key) if isinstance(metadata, dict) else None
+
+
 class BudgetEnforcer:
     """Pre/post call budget enforcement hook.
 
@@ -248,6 +264,12 @@ class BudgetEnforcer:
                     if result.metadata.get("pricing_source") == "cli_reported"
                     else None
                 ),
+                # cycle-125 FR-5: headless adapters record the catalog id the
+                # hop actually ran and the transport (metadata, additive).
+                # Strings only — a provider stub (MagicMock) must not reach
+                # the JSON writer (CI: test_pricing_extended budget stubs).
+                resolved_model=_str_or_none(_metadata_get(result, "resolved_model")),
+                transport=_str_or_none(_metadata_get(result, "transport")),
             )
             record_cost(entry, self._ledger_path)
 

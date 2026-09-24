@@ -208,3 +208,172 @@ PY
   run "$GUARD" check --delta abc --file "$N"
   [ "$status" -eq 2 ]
 }
+
+# --- cycle-125 Sprint 2 (PRD FR-2, SDD §1.3): heading-addressed reader ---------
+
+# A small multi-section artefact shaped like sprint.md / sdd.md / prd.md.
+make_sections() {
+  cat > "$1" <<'EOF'
+# Sprint Plan
+
+Intro before the first heading.
+
+## Sprint 1: Alpha
+
+Alpha body line 1.
+Alpha body line 2.
+
+## Sprint 2: Beta
+
+Beta body.
+
+### Sprint 2 sub-heading (H3 stays inside the block)
+
+More beta.
+
+## Sprint 10: Gamma
+
+Gamma body.
+
+## 3. Database Design
+
+Tables.
+
+## Goals & Success Metrics
+
+Metrics body.
+
+## 4. UI Design
+
+UI body.
+EOF
+}
+
+@test "NG-13 read --index lists one line per H2 as L<start>-L<end>  <bytes>B  <heading>, in file order" {
+  make_sections "$G/sprint.md"
+  run "$GUARD" read --file "$G/sprint.md" --index
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | grep -c '^L[0-9]*-L[0-9]*  [0-9]*B  ## ')" -eq 6 ]
+  echo "$output" | sed -n 1p | grep -qE '^L5-L9  [0-9]+B  ## Sprint 1: Alpha$'
+  echo "$output" | sed -n 2p | grep -qE '^L10-L17  [0-9]+B  ## Sprint 2: Beta$'
+  echo "$output" | tail -n1 | grep -qE '^L30-L32  [0-9]+B  ## 4. UI Design$'
+  # bytes of the first block = bytes of lines 5..9
+  local want; want=$(sed -n 5,9p "$G/sprint.md" | wc -c)
+  echo "$output" | sed -n 1p | grep -q "  ${want}B  "
+}
+
+@test "NG-14 read --section 'Sprint N' returns exactly that block (word boundary: Sprint 1 is not Sprint 10)" {
+  make_sections "$G/sprint.md"
+  run "$GUARD" read --file "$G/sprint.md" --section "Sprint 1"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | head -n1)" = "## Sprint 1: Alpha" ]
+  [[ "$output" == *"Alpha body line 2."* ]]
+  [[ "$output" != *"Sprint 2"* && "$output" != *"Gamma"* ]]
+  run "$GUARD" read --file "$G/sprint.md" --section "Sprint 2"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | head -n1)" = "## Sprint 2: Beta" ]
+  [[ "$output" == *"### Sprint 2 sub-heading"* && "$output" == *"More beta."* ]]
+  [[ "$output" != *"Gamma"* ]]
+  run "$GUARD" read --file "$G/sprint.md" --section "Sprint 10"
+  [ "$(echo "$output" | head -n1)" = "## Sprint 10: Gamma" ]
+  # review r1: a dotted hotfix sprint listed first must not shadow the integer one
+  printf '## Sprint 2.5: hotfix\n\nhot\n\n## Sprint 2: two\n\ntwo\n' > "$G/dotted.md"
+  run "$GUARD" read --file "$G/dotted.md" --section "Sprint 2"
+  [ "$(echo "$output" | head -n1)" = "## Sprint 2: two" ]
+}
+
+@test "NG-22 a TAB inside a heading does not shift the index fields; a backslash in a substring spec is literal; a directory is refused loudly" {
+  printf '## A\tB heading\n\nbody\n\n## Plain\n\nx\n' > "$G/tab.md"
+  run "$GUARD" read --file "$G/tab.md" --index
+  [ "$status" -eq 0 ]
+  echo "$output" | sed -n 1p | grep -qE $'^L1-L4  22B  ## A\tB heading$'
+  run "$GUARD" read --file "$G/tab.md" --section 'A\tB'
+  echo "$output" | head -n1 | grep -q "^NOTES-GUARD: no section matching"
+  run "$GUARD" read --file "$G/tab.md" --section 'b heading'
+  [ "$(echo "$output" | head -n1)" = $'## A\tB heading' ]
+  run "$GUARD" read --file "$G" --index
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"is not a regular file"* ]]
+}
+
+@test "NG-15 read --section N / N. returns the numbered section" {
+  make_sections "$G/sdd.md"
+  run "$GUARD" read --file "$G/sdd.md" --section "3."
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | head -n1)" = "## 3. Database Design" ]
+  [[ "$output" == *"Tables."* && "$output" != *"Metrics body."* ]]
+  run "$GUARD" read --file "$G/sdd.md" --section 4
+  [ "$(echo "$output" | head -n1)" = "## 4. UI Design" ]
+}
+
+@test "NG-16 read --section <substring> is case-insensitive and takes the first matching H2" {
+  make_sections "$G/prd.md"
+  run "$GUARD" read --file "$G/prd.md" --section "success METRICS"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | head -n1)" = "## Goals & Success Metrics" ]
+  run "$GUARD" read --file "$G/prd.md" --section "sprint"
+  [ "$(echo "$output" | head -n1)" = "## Sprint 1: Alpha" ]
+}
+
+@test "NG-17 read --section with no match is loud, exits 0 and falls back to the index (never empty)" {
+  make_sections "$G/prd.md"
+  run "$GUARD" read --file "$G/prd.md" --section "no such heading"
+  [ "$status" -eq 0 ]
+  echo "$output" | head -n1 | grep -q "^NOTES-GUARD: no section matching 'no such heading' in $G/prd.md; headings:"
+  [ "$(echo "$output" | grep -c '^L[0-9]*-L[0-9]*  [0-9]*B  ## ')" -eq 6 ]
+}
+
+@test "NG-18 read --section is budgeted: an oversized block is capped with the footer naming read --full" {
+  { printf '## Big\n'; head -c 200000 /dev/zero | tr '\0' 'x' | fold -w 100; printf '\n## Small\n\nsmall\n'; } > "$G/big.md"
+  run "$GUARD" read --file "$G/big.md" --section Big
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" > "$T/out"
+  [ "$(stat -c%s "$T/out")" -le 69632 ]
+  grep -q 'notes-guard: capped at 69632 of' "$T/out"
+  grep -q 'read --full --file' "$T/out"
+  [ "$(head -n1 "$T/out")" = "## Big" ]
+}
+
+@test "NG-19 defaults: a non-NOTES file with no flags prints the index; NOTES.md keeps the Blockers / Session Continuity / Decision Log selection" {
+  "$GEN" "$N" under
+  cp "$N" "$G/other.md"
+  run "$GUARD" read --file "$G/other.md"
+  [ "$status" -eq 0 ]
+  echo "$output" | head -n1 | grep -qE '^L[0-9]+-L[0-9]+  [0-9]+B  ## '
+  run "$GUARD" read --file "$N"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | head -n1)" = "## Blockers" ]
+  grep -q '^## Session Continuity' <<<"$output"
+}
+
+@test "NG-20 this repository's prd.md, sdd.md and sprint.md read by section stay ≤ 100 KiB per call (FR-2 AC 2)" {
+  local f h n
+  for f in prd.md sdd.md sprint.md; do
+    [ -f "$PROJECT_ROOT/grimoires/loa/$f" ] || skip "no $f in this checkout"
+    run "$GUARD" read --file "$PROJECT_ROOT/grimoires/loa/$f" --index
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" > "$T/idx"
+    [ "$(stat -c%s "$T/idx")" -le 102400 ]
+    n=0
+    while IFS= read -r h; do
+      h="${h#\#\# }"
+      run "$GUARD" read --file "$PROJECT_ROOT/grimoires/loa/$f" --section "$h"
+      [ "$status" -eq 0 ]
+      printf '%s' "$output" > "$T/sec"
+      [ "$(stat -c%s "$T/sec")" -le 102400 ]
+      [ -s "$T/sec" ]
+      n=$((n + 1))
+    done < <(grep '^## ' "$PROJECT_ROOT/grimoires/loa/$f")
+    [ "$n" -ge 3 ]
+  done
+}
+
+@test "NG-21 usage: --section and --index together, or an empty --section, exit 2" {
+  make_sections "$G/prd.md"
+  run "$GUARD" read --file "$G/prd.md" --section Big --index
+  [ "$status" -eq 2 ]
+  run "$GUARD" read --file "$G/prd.md" --section ""
+  [ "$status" -eq 2 ]
+  run "$GUARD" read --file "$G/prd.md" --section
+  [ "$status" -eq 2 ]
+}

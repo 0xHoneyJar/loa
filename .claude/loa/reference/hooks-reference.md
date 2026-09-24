@@ -172,6 +172,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
+| SessionStart | (all) | `hook-guard.sh session-start/loa-run-state-surface.sh` | One `Run: <state> (<age>) → <command>` line when a run is HALTED/INTERRUPTED or RUNNING idle 12h+, plus a session-limit-reset line; silent otherwise (cycle-125 FR-3; also feeds `/loa` and `workflow-state.sh`) |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
 | PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |

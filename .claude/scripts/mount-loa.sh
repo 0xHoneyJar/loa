@@ -995,8 +995,26 @@ sync_root_files() {
 }
 
 # === Initialize Structured Memory ===
+# cycle-125 FR-4 (SDD §1.5): seed grimoires/loa/known-failures.md from the
+# framework template when missing (mirrors mount-submodule.sh). Idempotent.
+seed_known_failures_ledger() {
+  local gdir="${1:-grimoires/loa}" kf template
+  kf="$gdir/known-failures.md"
+  [[ -f "$kf" ]] && return 0
+  template=".claude/templates/known-failures.md.template"
+  if [[ -f "$template" ]]; then
+    mkdir -p "$gdir"
+    cp -- "$template" "$kf"
+    log "Created known-failures.md (seeded from the framework template)"
+  else
+    warn "known-failures.md not seeded: template missing at $template"
+  fi
+  return 0
+}
+
 init_structured_memory() {
   step "Initializing structured agentic memory..."
+  seed_known_failures_ledger "grimoires/loa"
 
   local notes_file="grimoires/loa/NOTES.md"
   if [[ ! -f "$notes_file" ]]; then

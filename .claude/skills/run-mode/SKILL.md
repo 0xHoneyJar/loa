@@ -70,19 +70,11 @@ created (`exit 1` semantics — report the error and stop, do not create `.run/`
 1. **Configuration check**: read `run_mode.enabled` via
    `yq '.run_mode.enabled // false' .loa.config.yaml`. If not `true`: HALT —
    "Run Mode not enabled. Set `run_mode.enabled: true` in `.loa.config.yaml`".
-2. **Beads-first check** (autonomous mode requires beads by default): run
-   `.claude/scripts/beads/beads-health.sh --quick --json` and read `.status`. If `status` is
-   neither `HEALTHY` nor `DEGRADED`, read `yq '.beads.autonomous.requires_beads // true' .loa.config.yaml`.
-   If that resolves `true` (and `LOA_BEADS_AUTONOMOUS_OVERRIDE` is not `true`): HALT with —
-   "Autonomous mode requires beads (status: `$status`). Install: `cargo install beads_rust && br init`.
-   Override (not recommended): set `beads.autonomous.requires_beads: false` or
-   `export LOA_BEADS_AUTONOMOUS_OVERRIDE=true`." Otherwise proceed. Either way, call
-   `.claude/scripts/beads/update-beads-state.sh --health "$status"` to record the observed health.
-3. **Branch safety**: run `.claude/scripts/run-mode-ice.sh validate` to confirm the current branch
-   is not protected. Non-zero exit → HALT and surface the script's message.
-4. **Permission check**: run `.claude/scripts/check-permissions.sh --quiet`. Non-zero exit → HALT.
-5. **State check**: if `.run/state.json` exists, read `.state` via `jq -r '.state' .run/state.json`.
-   If it is `RUNNING`: HALT — "Run already in progress. Use `/run-halt` or `/run-resume`."
+2. **Preflight checklist**: run `.claude/scripts/run-preflight.sh --unattended`. Non-zero exit →
+   HALT and surface its checklist verbatim (it names each failed predicate and the fix: P1
+   defaultMode, P2 allow rules, P3 voices, P4 breakers, P5 NOTES size, P6 run state, P7 beads,
+   P8 branch). Then call `.claude/scripts/beads/update-beads-state.sh --health "$(jq -r .status
+   <(.claude/scripts/beads/beads-health.sh --quick --json))"` to record the observed beads health.
 
 ## Initialization
 
@@ -111,13 +103,13 @@ JSON file in place.
 while circuit_breaker.state == CLOSED:
   1. /implement $target
   2. Commit changes, then track deletions (see "Deleted Files Tracking" below)
-  3. update_state(phase: REVIEW)
+  3. update_state(phase: REVIEW); checkpoint(phase: REVIEW)
   4. /review-sprint $target
   5. If `verdict-derive.sh --gate review` on engineer-feedback.md does not exit 0 with
      `.verdict == APPROVED` (anything else — including an inconsistent trailer — counts as
      findings) → record_cycle(findings), check circuit breaker
      (see "Circuit Breaker" below); on trip, HALT; else continue loop (back to step 1)
-  6. update_state(phase: AUDIT)
+  6. update_state(phase: AUDIT); checkpoint(phase: AUDIT)
   7. /audit-sprint $target
   8. If `verdict-derive.sh --gate audit` on auditor-sprint-feedback.md does not exit 0 with
      `.verdict == APPROVED` → same as step 5 (golden-path's `_gp_sprint_is_audited` additionally
@@ -130,6 +122,9 @@ Update state to READY_FOR_HITL or JACKED_OUT
 ```
 
 Call `check_rate_limit` (see "Rate Limiting" below) before each of steps 1, 4, and 7.
+`checkpoint(...)` = `.claude/scripts/run-checkpoint.sh write --sprint $target --phase <PHASE>`
+(when `.run/sprint-plan-state.json` exists); `/implement` writes the per-task checkpoint on each
+`br close`. Beads stay the recovery truth — the checkpoint is a hint `/run-resume` reports.
 
 ## Circuit Breaker
 
