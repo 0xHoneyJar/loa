@@ -6,27 +6,29 @@ Power user interface: 49 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 2.0.0-rc.1
+Version: 2.0.0-rc.2
 -->
 
-[![Version](https://img.shields.io/badge/version-2.0.0--rc.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0--rc.2-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v2.0.0--rc.1%20Model--generation%20floor-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.1)
+[![Release](https://img.shields.io/badge/release-v2.0.0--rc.2%20Friction%20floor-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.2)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
-## What's new in v2.0.0-rc.1 (release candidate)
+## What's new in v2.0.0-rc.2 (release candidate)
 
-The first cut of the 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
+The 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [rc.1 release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
+
+**rc.2 — friction floor** (cycle-125, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.2.md)): the destructive-command fence stops blocking cache/scratch cleanups it cannot lose data on (corpus-gated, 49 benign / 60 dangerous rows), the big planning artefacts read by section (`notes-guard.sh read --file F --section 'Sprint N'`), `/run` refuses to start a run it cannot finish (`run-preflight.sh`, eight predicates, the fix named) and the next session is told how to resume, `/loa` shows provider health (breakers, credential presence, CLI hops) and artefact sizes, and the ids the fleet actually calls are priced (dated releases, aliases, CLI hops) with the unpriced share always visible. No new configuration key.
+
+**rc.1 — model-generation floor** (cycle-124):
 
 - **Model-generation floor** — the framework's own use of Claude moves to Opus 5 / Sonnet 5 / Fable 5.1: `opus` → `claude-opus-5`, `fable` → `claude-fable-5-1`, per-hop `max_tokens` defaults sized to the model (16K/64K on Anthropic, clamped to the catalog), adaptive thinking on the 4.6+ family, prompt caching with a single persona breakpoint, structured outputs (`--json-schema`) for dissent and Flatline. `LOA_CHEVAL_LEGACY_WIRE=1` restores the pre-2.0 request body.
 - **Mechanical gates, continued** — coverage-first review/audit (every finding with `file:line`), verdict trailers enforced by the golden path, prompt byte budgets on every PR, bounded `NOTES.md` (200 KiB block line with `notes-guard.sh rotate`), ledger isolation for every test harness.
 - **Aleph is opt-in** — `aleph.enabled` (default `false`); Aleph users set it to `true` before upgrading.
 - **Release engineering** — the post-merge pipeline prepares an inspectable candidate and publishes only an approved digest; pre-releases enter and promote through the CHANGELOG heading (`2.0.0-rc.1` → `-rc.2` → `2.0.0`).
 
-**Landing in `2.0.0-rc.2` (cycle-125, "friction floor"):** the destructive-command fence stops blocking cache/scratch cleanups it cannot lose data on (corpus-gated), the big planning artefacts read by section (`notes-guard.sh read --file F --section 'Sprint N'`), `/run` refuses to start a run it cannot finish (`run-preflight.sh`, eight predicates) and tells the next session how to resume, `/loa` shows provider health (breakers, credential presence, CLI hops), and the ids the fleet actually calls are priced (dated releases, aliases, CLI hops) with the unpriced share always visible.
-
-Read the [migration guide](docs/migration/v2.0-model-generation-floor.md) (five recipes, every kill switch) and [ADR-004](docs/architecture/ADR-004-model-generation-floor.md) (why the floor, why Aleph is opt-in, why an rc first). The line-by-line audit is in [`grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md`](grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md). Feedback on the candidate: open an issue labelled `2.0.0-rc`.
+Read the [migration guide](docs/migration/v2.0-model-generation-floor.md) (five recipes, every kill switch) and [ADR-004](docs/architecture/ADR-004-model-generation-floor.md) (why the floor, why Aleph is opt-in, why an rc first). The line-by-line rc.1 audit is in [`grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md`](grimoires/loa/reports/breaking-surface-audit-2.0.0-rc.1.md); rc.2 adds no configuration key and no removal. Feedback on the candidate: open an issue labelled `2.0.0-rc`.
 
 ## What Is This?
 
@@ -45,7 +47,7 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Or pin to a specific version (the release candidate; v1.202.1 is the latest stable tag)
-curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.1
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.2
 
 # Start Claude Code
 claude
