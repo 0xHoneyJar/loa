@@ -75,3 +75,8 @@ bats tests/unit/check-permissions.bats tests/unit/run-preflight.bats
 - **Shape of the `permissions` block (dissent ADVISORY, LOW).** A scalar `permissions` / `allow` / `deny` used to abort the checker under `set -e`; the per-file shape predicate (`:169`) now covers all three and the reads are guarded (`:177`, `:181`) — such a file is skipped with a `WARN`. CP-8 extended with both shapes (two `WARN`s, the user-file rules still pass).
 - **Empty-array guard (LOW).** The consulted-files loop uses `${consulted[@]+"${consulted[@]}"}` (`:263`).
 - Suites after the round: `check-permissions.bats` 10/10 + `run-preflight.bats` 15/15 (`scratchpad/bug246-r1.tap`, 24 ok); REPO-MAP + sidecar + checksums regenerated.
+
+## Post-audit — Bridgebuilder pass on PR #1270
+
+- **FIND-003 LOW (fixed).** `--quiet` still printed the malformed-settings `WARN`; diagnostics now go through `warn()`, which `--quiet` silences (exit code unchanged); CP-8 asserts an empty output under `--quiet` with a malformed file.
+

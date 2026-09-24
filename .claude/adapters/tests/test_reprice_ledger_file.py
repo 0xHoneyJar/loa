@@ -145,3 +145,23 @@ def test_row_supplied_resolved_model_is_not_a_pricing_authority():
     row = {"provider": "openai", "model": "not-in-catalog", "resolved_model": "gpt-5.5", "tokens_in": 5, "tokens_out": 5, "cost_micro_usd": 0, "pricing_source": "unknown"}
     out, stats = reprice_rows([row], CONFIG, NOW)
     assert out[0] is row and stats["rows_still_unpriced"] == 1
+
+
+def test_receipt_name_is_reserved_exclusively_never_overwriting_a_concurrent_receipt(tmp_path):
+    # Bridgebuilder #1270 FIND-002: the final name is acquired O_EXCL before writing, so a
+    # receipt that appears between "name chosen" and "rename" can never be overwritten.
+    from loa_cheval.metering.reprice import write_receipt
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    first = run_dir / "cost-ledger-reprice-X.json"
+    first.write_text("{\"earlier\": true}\n")
+    path = write_receipt(str(run_dir), "cost-ledger-reprice-X", {"later": True})
+    assert path == str(run_dir / "cost-ledger-reprice-X-2.json")
+    assert first.read_text() == "{\"earlier\": true}\n"
+    assert json.loads(Path(path).read_text()) == {"later": True}
+    # a dangling symlink at the final name is not followed either
+    os.symlink(str(tmp_path / "victim.json"), str(run_dir / "cost-ledger-reprice-Y.json"))
+    path2 = write_receipt(str(run_dir), "cost-ledger-reprice-Y", {"ok": 1})
+    assert path2.endswith("cost-ledger-reprice-Y-2.json") and not (tmp_path / "victim.json").exists()
+    assert not list(run_dir.glob("*.tmp.*")), "no temp file left behind"
+

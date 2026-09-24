@@ -165,9 +165,11 @@ def _write_all(fd: int, data: bytes) -> None:
 
 
 def _create_exclusive(path: str, mode: int = 0o644) -> Tuple[int, str]:
-    """Create ``path`` (or ``path-2``, ``path-3``, … when the name is taken by
-    a file OR a symlink of any kind — O_EXCL refuses both, O_NOFOLLOW never
-    follows) and return (fd, actual_path)."""
+    """Create ``path`` (or ``<stem>-2<ext>``, ``<stem>-3<ext>``, … when the
+    name is taken by a file OR a symlink of any kind — O_EXCL refuses both,
+    O_NOFOLLOW never follows) and return (fd, actual_path). The counter goes
+    before a ``.json`` extension so receipts keep their type."""
+    stem, ext = (path[:-5], ".json") if path.endswith(".json") else (path, "")
     candidate, n = path, 1
     while True:
         try:
@@ -175,27 +177,30 @@ def _create_exclusive(path: str, mode: int = 0o644) -> Tuple[int, str]:
             return fd, candidate
         except FileExistsError:
             n += 1
-            candidate = f"{path}-{n}"
+            candidate = f"{stem}-{n}{ext}"
             if n > 1000:
                 raise
 
 
 def write_receipt(receipt_dir: str, basename: str, receipt: Dict[str, Any]) -> str:
-    """Write ``receipt`` as ``<receipt_dir>/<basename>[-N].json`` through an
-    exclusively created temp file renamed into place; returns the path."""
+    """Write ``receipt`` as ``<receipt_dir>/<basename>[-N].json``; returns the path.
+
+    The final name is RESERVED first with ``O_CREAT|O_EXCL|O_NOFOLLOW`` (two
+    passes in the same second cannot both win the same name — Bridgebuilder
+    PR #1270 FIND-002; a name check followed by a rename would let the later
+    writer overwrite the earlier receipt), then the bytes are written to an
+    exclusively created temp file and renamed over the reservation we own, so
+    a reader never sees a partial receipt."""
     os.makedirs(receipt_dir, exist_ok=True)
-    final = os.path.join(receipt_dir, f"{basename}.json")
-    n = 1
-    while os.path.lexists(final):  # two passes in one second never overwrite a receipt
-        n += 1
-        final = os.path.join(receipt_dir, f"{basename}-{n}.json")
+    rfd, final = _create_exclusive(os.path.join(receipt_dir, f"{basename}.json"))
+    os.close(rfd)
     fd, tmp = _create_exclusive(final + f".tmp.{os.getpid()}")
     try:
         _write_all(fd, (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode("utf-8"))
         os.fsync(fd)
     finally:
         os.close(fd)
-    os.replace(tmp, final)  # rename never follows a symlink at `final`
+    os.replace(tmp, final)  # over our own reservation; rename never follows a symlink
     return final
 
 

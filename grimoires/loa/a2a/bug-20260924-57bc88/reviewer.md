@@ -84,3 +84,10 @@ LOA_RUN_DIR=/tmp/rp-run .claude/scripts/cost-report.sh --ledger /tmp/ledger-copy
 - **Idempotence with the new writer**: `::test_second_pass_reprices_nothing_and_makes_no_backup` — second pass: 0 re-priced, `backup null`, sha unchanged, one backup file, a second receipt under `-2`.
 - **Suites after round 2**: pytest `test_reprice_rows` (7) + `test_reprice_ledger_file` (7) + ladder + extended + cli_reported → 90 passed; bats `cost-report` (9) + `cost-budget-enforcer-unpriced` (9) + `-state-machine` + `-remediation` → 70/70; `repo-map-gen.sh --validate` consistent; checksums regenerated.
 - Docs: migration guide and CHANGELOG now say the pass holds the writer's lock, rewrites in place, never follows a planted path, and takes no authority from the row.
+
+## Post-audit — Bridgebuilder pass on PR #1270
+
+- **FIND-001 MEDIUM (fixed).** The executing stub seam `LOA_BUDGET_COST_REPORT_SCRIPT` was enabled by the bats marker alone; it now also requires `LOA_BUDGET_TEST_MODE=1` and an executable regular file (`.claude/scripts/lib/cost-budget-enforcer-lib.sh`, the double gate the L7 primitives use). UP-9 proves the marker alone leaves the stub ignored (report unavailable → allow with null) and that both gates together exercise the argv contract.
+- **FIND-002 LOW (fixed).** `write_receipt` reserved nothing before renaming, so two passes in the same second could both pick the same final name. The final name is now acquired with `O_CREAT|O_EXCL|O_NOFOLLOW` first (`-N` before the `.json` extension on collision), then the temp file is renamed over our own reservation — `test_reprice_ledger_file.py::test_receipt_name_is_reserved_exclusively_never_overwriting_a_concurrent_receipt` (a pre-existing receipt and a planted symlink at the final name are both left alone).
+- **FIND-004 PRAISE** — lock + same-inode + verbatim lines kept under test.
+

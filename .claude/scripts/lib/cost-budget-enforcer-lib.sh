@@ -1269,10 +1269,11 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
 # report's `window` share for that day when the report carries one; a report
 # without a window (older shape) falls back to the all-time share —
 # conservative, never a silent zero. Test seams, bats-gated like every other
-# override in this repository: LOA_BUDGET_COST_REPORT_SCRIPT names a stub
+# override in this repository: LOA_BUDGET_COST_REPORT_JSON names a file whose
+# contents stand in for the report; LOA_BUDGET_COST_REPORT_SCRIPT names a stub
 # script that stands in for cost-report.sh (its argv is the contract under
-# test); LOA_BUDGET_COST_REPORT_JSON names a file whose contents stand in for
-# the report.
+# test) and, because it executes, additionally requires LOA_BUDGET_TEST_MODE=1
+# (double gate, as the L7 primitives).
 # -----------------------------------------------------------------------------
 _l2_unpriced_share_json() {
     local day="${1:-}" out=""
@@ -1282,7 +1283,12 @@ _l2_unpriced_share_json() {
         # Hermetic under bats: only the seams are ever consulted — a test that
         # sets neither sees "report unavailable", never the repository's live
         # ledger (whose unpriced history would flip every allow).
-        if [[ -n "${LOA_BUDGET_COST_REPORT_SCRIPT:-}" && -x "$LOA_BUDGET_COST_REPORT_SCRIPT" ]]; then
+        # The stub-script seam EXECUTES a path from the environment, so it is
+        # double-gated like the L7 seams (Bridgebuilder PR #1270 FIND-001): the
+        # bats marker alone is not enough — LOA_BUDGET_TEST_MODE=1 must also be
+        # set, and the path must be an executable regular file. A production
+        # process never carries both.
+        if [[ "${LOA_BUDGET_TEST_MODE:-}" == "1" && -n "${LOA_BUDGET_COST_REPORT_SCRIPT:-}" && -f "$LOA_BUDGET_COST_REPORT_SCRIPT" && -x "$LOA_BUDGET_COST_REPORT_SCRIPT" ]]; then
             out="$(bash "$LOA_BUDGET_COST_REPORT_SCRIPT" --json ${day_args[@]+"${day_args[@]}"} 2>/dev/null)" || true
         elif [[ -n "${LOA_BUDGET_COST_REPORT_JSON:-}" && -f "$LOA_BUDGET_COST_REPORT_JSON" ]]; then
             out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"

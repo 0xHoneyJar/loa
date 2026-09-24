@@ -141,6 +141,14 @@ log_error() {
   fi
 }
 
+# warn — diagnostics that --quiet must also silence (Bridgebuilder PR #1270
+# FIND-003: --quiet is "exit code only"); JSON mode keeps them on stderr.
+warn() {
+  if [[ "$QUIET" != "true" ]]; then
+    echo "WARN: $*" >&2
+  fi
+}
+
 # base_pattern_of <required> — the base wildcard that also covers a required
 # rule: "Bash(git checkout:*)" → "Bash(git:*)" (pure parameter expansion; the
 # checker runs on every preflight against hundreds of rules, so no forks here).
@@ -167,7 +175,7 @@ main() {
   for f in "${layers[@]}"; do
     [[ -f "$f" ]] || continue
     if ! jq -e 'type == "object" and ((.permissions // {}) | type == "object") and (((.permissions // {}).allow // []) | type == "array") and (((.permissions // {}).deny // []) | type == "array")' "$f" >/dev/null 2>&1; then
-      echo "WARN: skipping malformed settings file (not an object, or permissions.allow/deny not arrays): $f" >&2
+      warn "skipping malformed settings file (not an object, or permissions.allow/deny not arrays): $f"
       continue
     fi
     consulted+=("$f")

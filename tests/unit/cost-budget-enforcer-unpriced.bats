@@ -129,7 +129,7 @@ teardown() { rm -rf "$TEST_DIR"; }
     [[ "$(echo "$last" | jq -r '.diagnostic.window_day')" == "null" ]]
 }
 
-@test "UP-9 the enforcer asks the report for the verdict's day (--json --window-day <utc_day>); the stub-script seam is bats-gated" {
+@test "UP-9 the enforcer asks the report for the verdict's day (--json --window-day <utc_day>); the stub-script seam needs BOTH the bats marker and LOA_BUDGET_TEST_MODE=1" {
     load_lib
     : > "$REPORT"; unset LOA_BUDGET_COST_REPORT_JSON
     cat > "$TEST_DIR/cost-report-stub.sh" <<STUB
@@ -139,13 +139,20 @@ echo '{"unpriced_rows": 0, "unpriced_share": 0, "window": {"day": "2026-05-04", 
 STUB
     chmod +x "$TEST_DIR/cost-report-stub.sh"
     export LOA_BUDGET_COST_REPORT_SCRIPT="$TEST_DIR/cost-report-stub.sh"
+    # the bats marker alone does not enable an EXECUTING seam (BB #1270 FIND-001): no test mode → stub ignored → report unavailable → allow with null
+    unset LOA_BUDGET_TEST_MODE
+    run budget_verdict "5.00"
+    [[ "$status" -eq 0 ]]
+    [[ "$(echo "$output" | tail -1 | jq -r '.unpriced_share')" == "null" ]]
+    [[ ! -e "$TEST_DIR/argv.txt" ]]
+    export LOA_BUDGET_TEST_MODE=1
     run budget_verdict "5.00"
     [[ "$status" -eq 0 ]]
     [[ "$(echo "$output" | tail -1 | jq -r '.unpriced_window')" == "2026-05-04" ]]
     grep -q -- '--json --window-day 2026-05-04' "$TEST_DIR/argv.txt"
     # without the bats marker the stub is ignored and the real cost-report.sh answers (read-only)
     : > "$TEST_DIR/argv.txt"
-    run bash -c "unset BATS_TEST_FILENAME BATS_VERSION; export LOA_BUDGET_COST_REPORT_SCRIPT='$TEST_DIR/cost-report-stub.sh'; source '${BATS_TEST_DIRNAME}/../../.claude/scripts/lib/cost-budget-enforcer-lib.sh'; _l2_unpriced_share_json 2026-05-04"
+    run bash -c "unset BATS_TEST_FILENAME BATS_VERSION; export LOA_BUDGET_TEST_MODE=1 LOA_BUDGET_COST_REPORT_SCRIPT='$TEST_DIR/cost-report-stub.sh'; source '${BATS_TEST_DIRNAME}/../../.claude/scripts/lib/cost-budget-enforcer-lib.sh'; _l2_unpriced_share_json 2026-05-04"
     [[ "$status" -eq 0 ]]
     [[ ! -s "$TEST_DIR/argv.txt" ]]
     echo "$output" | jq -e 'has("unpriced_share") and has("unpriced_share_all_time") and .window_day == "2026-05-04"' >/dev/null

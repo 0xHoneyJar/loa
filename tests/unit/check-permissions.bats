@@ -112,6 +112,7 @@ settings() {  # settings <file> <allow-json-array> <deny-json-array>
   printf 'not json\n' > "$LOCAL"
   run bash "$CP" --root "$R" --quiet
   [ "$status" -eq 1 ]
+  [ -z "$output" ]   # --quiet is exit-code only: no WARN either (BB #1270 FIND-003)
   # a scalar permissions block or a scalar allow/deny is skipped too, never an abort (review dissent)
   printf '{"permissions":"x"}\n' > "$PROJ"
   printf '{"permissions":{"allow":"Bash(git:*)","deny":{"a":1}}}\n' > "$LOCAL"
