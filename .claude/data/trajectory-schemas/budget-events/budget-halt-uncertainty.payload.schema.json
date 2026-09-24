@@ -44,7 +44,7 @@
     "diagnostic": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Mode-specific diagnostic context. counter_inconsistent: {prev, current}; counter_drift: {drift_pct, threshold_pct}; clock_drift: {system_ts, billing_ts, delta_seconds}; provider_lag: {lag_seconds, threshold_seconds}; unpriced_share: {unpriced_share, unpriced_rows, threshold, ledger, remedy}."
+      "description": "Mode-specific diagnostic context. counter_inconsistent: {prev, current}; counter_drift: {drift_pct, threshold_pct}; clock_drift: {system_ts, billing_ts, delta_seconds}; provider_lag: {lag_seconds, threshold_seconds}; unpriced_share: {unpriced_share, unpriced_rows, threshold, ledger, remedy, window_day, unpriced_share_all_time, unpriced_rows_all_time} — the share is measured over the verdict's UTC day when the cost report carries a window (sprint-bug-245); window_day null means the all-time share was used."
     }
   }
 }

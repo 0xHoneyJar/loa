@@ -2,21 +2,38 @@
 set -euo pipefail
 
 # check-permissions.sh - Pre-flight validation for Run Mode
-# Verifies Claude Code has required permissions to execute autonomous operations
+# Verifies Claude Code has the permissions an autonomous run needs, evaluated
+# the way Claude Code evaluates them (sprint-bug-246, bead bd-n7v3):
+#
+#   Layers (all consulted; the union of their allow rules is effective):
+#     $HOME/.claude/settings.json          user-level
+#     <root>/.claude/settings.json         shared project settings
+#     <root>/.claude/settings.local.json   machine-local project settings (gitignored;
+#                                          the file Claude Code writes when you approve a rule)
+#   Deny wins: a deny rule in ANY layer that covers a required rule marks it denied,
+#   whatever the allow lists say. Rules are read as JSON arrays (permissions.allow /
+#   permissions.deny) — never as file text. A malformed file is skipped with a WARN
+#   (it allows nothing and denies nothing). Managed/enterprise policy files are out of
+#   scope (not readable by design).
+#   Matching: exact rule, or the base wildcard  Bash(<cmd>:*)  covering  Bash(<cmd> <sub>:*)
+#   (for allow and for deny alike; a narrower deny such as Bash(rm -rf /:*) does not
+#   deny the generic Bash(rm:*) requirement).
 #
 # Usage:
-#   check-permissions.sh           Check all permissions
-#   check-permissions.sh --json    Output as JSON
-#   check-permissions.sh --quiet   Suppress output, exit code only
+#   check-permissions.sh                 Check all permissions (text report)
+#   check-permissions.sh --json          Output as JSON (adds denied[] and settings_files[])
+#   check-permissions.sh --quiet         Suppress output, exit code only
+#   check-permissions.sh --root <dir>    Project root whose .claude/settings*.json to read
+#                                        (default: the repository this script lives in)
 #
 # Exit codes:
-#   0 - All required permissions configured
-#   1 - Missing required permissions
-#   2 - Settings file not found
+#   0 - Every required permission is effective (allowed in some layer, denied in none)
+#   1 - A required permission is missing or denied
+#   2 - No settings file found in any layer (or usage error)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SETTINGS_FILE="$REPO_ROOT/.claude/settings.json"
+ROOT="$REPO_ROOT"
 
 # ============================================================================
 # REQUIRED PERMISSIONS FOR RUN MODE
@@ -61,6 +78,27 @@ REQUIRED_SHELL_PERMISSIONS=(
 OUTPUT_MODE="text"
 QUIET=false
 
+usage() {
+  cat <<'USAGE'
+check-permissions.sh - Pre-flight validation for Run Mode
+
+Usage:
+  check-permissions.sh                 Check all permissions
+  check-permissions.sh --json          Output as JSON
+  check-permissions.sh --quiet         Suppress output, exit code only
+  check-permissions.sh --root <dir>    Project root whose .claude/settings*.json to read
+
+Settings layers consulted (Claude Code's own): ~/.claude/settings.json,
+<root>/.claude/settings.json, <root>/.claude/settings.local.json. Allow rules
+are the union across the layers; a deny rule in any layer wins.
+
+Exit codes:
+  0 - All required permissions effective
+  1 - Missing or denied required permissions
+  2 - No settings file found in any layer
+USAGE
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --json)
@@ -71,18 +109,13 @@ while [[ $# -gt 0 ]]; do
       QUIET=true
       shift
       ;;
+    --root)
+      if [[ $# -lt 2 || -z "$2" ]]; then echo "ERROR: --root requires a directory" >&2; exit 2; fi
+      ROOT="$2"
+      shift 2
+      ;;
     --help|-h)
-      echo "check-permissions.sh - Pre-flight validation for Run Mode"
-      echo ""
-      echo "Usage:"
-      echo "  check-permissions.sh           Check all permissions"
-      echo "  check-permissions.sh --json    Output as JSON"
-      echo "  check-permissions.sh --quiet   Suppress output, exit code only"
-      echo ""
-      echo "Exit codes:"
-      echo "  0 - All required permissions configured"
-      echo "  1 - Missing required permissions"
-      echo "  2 - Settings file not found"
+      usage
       exit 0
       ;;
     *)
@@ -103,33 +136,26 @@ log() {
 }
 
 log_error() {
-  if [[ "$OUTPUT_MODE" == "text" ]]; then
+  if [[ "$OUTPUT_MODE" == "text" && "$QUIET" != "true" ]]; then
     echo "ERROR: $*" >&2
   fi
 }
 
-# Check if a permission pattern is in the allow list
-# Handles wildcard matching (e.g., "Bash(git:*)" matches "Bash(git checkout:*)")
-check_permission() {
-  local required="$1"
-  local allow_list="$2"
-
-  # Direct match
-  if echo "$allow_list" | grep -qF "\"$required\""; then
-    return 0
+# warn — diagnostics that --quiet must also silence (Bridgebuilder PR #1270
+# FIND-003: --quiet is "exit code only"); JSON mode keeps them on stderr.
+warn() {
+  if [[ "$QUIET" != "true" ]]; then
+    echo "WARN: $*" >&2
   fi
+}
 
-  # Extract command base (e.g., "git checkout" from "Bash(git checkout:*)")
-  local cmd_base
-  cmd_base=$(echo "$required" | sed -E 's/Bash\(([^:]+):.*\)/\1/')
-
-  # Check for broader wildcard (e.g., "Bash(git:*)" covers "git checkout")
-  local base_pattern="Bash(${cmd_base%% *}:*)"
-  if echo "$allow_list" | grep -qF "\"$base_pattern\""; then
-    return 0
-  fi
-
-  return 1
+# base_pattern_of <required> — the base wildcard that also covers a required
+# rule: "Bash(git checkout:*)" → "Bash(git:*)" (pure parameter expansion; the
+# checker runs on every preflight against hundreds of rules, so no forks here).
+base_pattern_of() {
+  local cmd="${1#Bash(}"
+  cmd="${cmd%%:*}"
+  printf 'Bash(%s:*)' "${cmd%% *}"
 }
 
 # ============================================================================
@@ -137,24 +163,50 @@ check_permission() {
 # ============================================================================
 
 main() {
-  # Check settings file exists
-  if [[ ! -f "$SETTINGS_FILE" ]]; then
+  local -a layers=() consulted=()
+  layers=("${HOME:-/nonexistent}/.claude/settings.json" "$ROOT/.claude/settings.json" "$ROOT/.claude/settings.local.json")
+
+  # rule → first file that states it (associative lookups: O(1) per check).
+  # A file that is not a JSON object, or whose permissions / allow / deny are
+  # not the documented shapes, is skipped with a WARN — it allows nothing and
+  # denies nothing (review dissent: a scalar block must not abort the check).
+  local -A allow_by=() deny_by=()
+  local f rule
+  for f in "${layers[@]}"; do
+    [[ -f "$f" ]] || continue
+    if ! jq -e 'type == "object" and ((.permissions // {}) | type == "object") and (((.permissions // {}).allow // []) | type == "array") and (((.permissions // {}).deny // []) | type == "array")' "$f" >/dev/null 2>&1; then
+      warn "skipping malformed settings file (not an object, or permissions.allow/deny not arrays): $f"
+      continue
+    fi
+    consulted+=("$f")
+    while IFS= read -r rule; do
+      [[ -n "$rule" ]] || continue
+      [[ -n "${allow_by[$rule]+x}" ]] || allow_by["$rule"]="$f"
+    done < <(jq -r '(.permissions.allow // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
+    while IFS= read -r rule; do
+      [[ -n "$rule" ]] || continue
+      [[ -n "${deny_by[$rule]+x}" ]] || deny_by["$rule"]="$f"
+    done < <(jq -r '(.permissions.deny // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
+  done
+
+  local settings_files_json="[]"
+  if [[ ${#consulted[@]} -gt 0 ]]; then
+    settings_files_json=$(printf '%s\n' "${consulted[@]}" | jq -R . | jq -s .)
+  fi
+
+  local any_present=false
+  for f in "${layers[@]}"; do [[ -f "$f" ]] && any_present=true; done
+  if [[ "$any_present" != "true" ]]; then
     if [[ "$OUTPUT_MODE" == "json" ]]; then
-      echo '{"success": false, "error": "Settings file not found", "path": "'"$SETTINGS_FILE"'"}'
+      jq -n --arg root "$ROOT" --argjson files "$settings_files_json" \
+        '{success: false, error: "No settings file found in any layer", root: $root, settings_files: $files, settings_path: ($root + "/.claude/settings.json")}'
     else
-      log_error "Settings file not found: $SETTINGS_FILE"
-      log_error "Run Mode requires .claude/settings.json with permission configuration"
+      log_error "No settings file found: ~/.claude/settings.json, $ROOT/.claude/settings.json, $ROOT/.claude/settings.local.json"
+      log_error "Run Mode requires the allow rules in one of them (approve them once and Claude Code writes .claude/settings.local.json)"
     fi
     exit 2
   fi
 
-  # Read allow list
-  local allow_list
-  allow_list=$(cat "$SETTINGS_FILE")
-
-  # Track results
-  local missing_permissions=()
-  local found_permissions=()
   local all_required=(
     "${REQUIRED_GIT_PERMISSIONS[@]}"
     "${REQUIRED_GH_PERMISSIONS[@]}"
@@ -162,58 +214,64 @@ main() {
     "${REQUIRED_SHELL_PERMISSIONS[@]}"
   )
 
-  # Check each required permission
+  local -a found_permissions=() missing_permissions=() denied_lines=()
+  local perm base file line
   for perm in "${all_required[@]}"; do
-    if check_permission "$perm" "$allow_list"; then
+    base="$(base_pattern_of "$perm")"
+    # deny wins: the exact rule or its base wildcard, in any layer
+    if [[ -n "${deny_by[$perm]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"$perm"$'\t'"${deny_by[$perm]}")
+      continue
+    elif [[ -n "${deny_by[$base]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"$base"$'\t'"${deny_by[$base]}")
+      continue
+    fi
+    if [[ -n "${allow_by[$perm]+x}" || -n "${allow_by[$base]+x}" ]]; then
       found_permissions+=("$perm")
     else
       missing_permissions+=("$perm")
     fi
   done
 
-  # Output results
   local total_required=${#all_required[@]}
   local total_found=${#found_permissions[@]}
   local total_missing=${#missing_permissions[@]}
+  local total_denied=${#denied_lines[@]}
 
   if [[ "$OUTPUT_MODE" == "json" ]]; then
-    # Build JSON output
-    local missing_json="[]"
-    local found_json="[]"
-
-    if [[ ${#missing_permissions[@]} -gt 0 ]]; then
+    local missing_json="[]" found_json="[]" denied_json="[]"
+    if [[ $total_missing -gt 0 ]]; then
       missing_json=$(printf '%s\n' "${missing_permissions[@]}" | jq -R . | jq -s .)
     fi
-    if [[ ${#found_permissions[@]} -gt 0 ]]; then
+    if [[ $total_found -gt 0 ]]; then
       found_json=$(printf '%s\n' "${found_permissions[@]}" | jq -R . | jq -s .)
     fi
-
-    local success="true"
-    if [[ $total_missing -gt 0 ]]; then
-      success="false"
+    if [[ $total_denied -gt 0 ]]; then
+      denied_json=$(printf '%s\n' "${denied_lines[@]}" | jq -R 'split("\t") | {rule: .[0], by: .[1], file: .[2]}' | jq -s .)
     fi
-
-    cat << EOF
-{
-  "success": $success,
-  "total_required": $total_required,
-  "total_found": $total_found,
-  "total_missing": $total_missing,
-  "found": $found_json,
-  "missing": $missing_json,
-  "settings_path": "$SETTINGS_FILE"
-}
-EOF
+    local success="true"
+    if [[ $total_missing -gt 0 || $total_denied -gt 0 ]]; then success="false"; fi
+    jq -n \
+      --argjson success "$success" \
+      --argjson total_required "$total_required" \
+      --argjson total_found "$total_found" \
+      --argjson total_missing "$total_missing" \
+      --argjson total_denied "$total_denied" \
+      --argjson found "$found_json" \
+      --argjson missing "$missing_json" \
+      --argjson denied "$denied_json" \
+      --argjson settings_files "$settings_files_json" \
+      --arg settings_path "$ROOT/.claude/settings.json" \
+      '{success: $success, total_required: $total_required, total_found: $total_found, total_missing: $total_missing, total_denied: $total_denied, found: $found, missing: $missing, denied: $denied, settings_files: $settings_files, settings_path: $settings_path}'
   else
-    # Text output
     log "Run Mode Permission Check"
     log "========================="
     log ""
-    log "Settings file: $SETTINGS_FILE"
+    log "Settings files consulted (Claude Code's layers; deny wins):"
+    for f in ${consulted[@]+"${consulted[@]}"}; do log "  - $f"; done
     log ""
-
-    if [[ $total_missing -eq 0 ]]; then
-      log "✓ All $total_required required permissions are configured"
+    if [[ $total_missing -eq 0 && $total_denied -eq 0 ]]; then
+      log "✓ All $total_required required permissions are effective"
       log ""
       log "Categories verified:"
       log "  - Git operations: ${#REQUIRED_GIT_PERMISSIONS[@]} permissions"
@@ -223,22 +281,30 @@ EOF
       log ""
       log "Run Mode pre-flight check: PASSED"
     else
-      log "✗ Missing $total_missing of $total_required required permissions"
+      log "✗ $total_found of $total_required required permissions effective ($total_missing missing, $total_denied denied)"
+      if [[ $total_missing -gt 0 ]]; then
+        log ""
+        log "Missing permissions (allowed in no layer):"
+        for perm in "${missing_permissions[@]}"; do log "  - $perm"; done
+      fi
+      if [[ $total_denied -gt 0 ]]; then
+        log ""
+        log "Denied permissions (a deny rule covers them — deny wins in any layer):"
+        for line in "${denied_lines[@]}"; do
+          IFS=$'\t' read -r perm rule file <<< "$line"
+          log "  - $perm  denied by $rule  in $file"
+        done
+      fi
       log ""
-      log "Missing permissions:"
-      for perm in "${missing_permissions[@]}"; do
-        log "  - $perm"
-      done
-      log ""
-      log "To fix, add the missing permissions to .claude/settings.json under"
-      log "\"permissions\".\"allow\""
+      log "To fix: add the missing rules under \"permissions\".\"allow\" in .claude/settings.local.json"
+      log "(machine-local) or .claude/settings.json (shared), and remove any deny rule that covers"
+      log "them from the file named above. Unattended runs cannot answer a permission prompt."
       log ""
       log "Run Mode pre-flight check: FAILED"
     fi
   fi
 
-  # Exit with appropriate code
-  if [[ $total_missing -gt 0 ]]; then
+  if [[ $total_missing -gt 0 || $total_denied -gt 0 ]]; then
     exit 1
   fi
   exit 0

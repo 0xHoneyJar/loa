@@ -6,6 +6,7 @@
 #
 # Usage:
 #   cost-report.sh [--ledger <path>] [--days N] [--json] [--include-legacy] [--migrate-legacy]
+#                  [--window-day YYYY-MM-DD] [--reprice [--dry-run]]
 #
 # Options:
 #   --ledger <path>    Path to cost ledger JSONL (default: the writer's own resolution —
@@ -23,6 +24,22 @@
 #                      .run/cost-ledger-migration-<UTC>.json (paths, counts, sha256s —
 #                      never row contents). Idempotent: a second run migrates 0.
 #   --legacy-ledger <path>  Override the legacy path (default above)
+#   --window-day YYYY-MM-DD  Also report that UTC day's rows and unpriced share as a
+#                      `window` object next to the all-time fields (sprint-bug-245:
+#                      the budget enforcer measures the day it certifies)
+#   --reprice          Explicit, opt-in re-pricing of the historical unpriced rows the
+#                      pricing ladder can now resolve (pricing_source unknown, or absent
+#                      at cost 0): each changed row is priced as a fresh row with the same
+#                      tokens and marked repriced_at / repriced_from / cost_estimated;
+#                      priced and unresolvable rows and corrupt lines are kept byte-for-byte;
+#                      a symlinked ledger is refused; the pass holds the writer's own lock
+#                      (flock on the ledger inode) from read to last byte and rewrites the
+#                      SAME inode in place, so a live append blocks and then lands after it;
+#                      the bytes read are first copied to <ledger>.pre-reprice-<UTC>
+#                      (O_EXCL|O_NOFOLLOW, fsynced) — the crash-recovery point;
+#                      receipt .run/cost-ledger-reprice-<UTC>.json (counts, sha256s —
+#                      never row contents). Idempotent: a second run re-prices 0.
+#   --dry-run          With --reprice: report what would change, write nothing
 #
 # Every report prints "Unpriced rows: N (S %)" — rows whose pricing_source is
 # `unknown` (cost recorded as 0, NOT as a price); JSON: unpriced_rows,
@@ -70,6 +87,9 @@ TOP_N=5
 INCLUDE_LEGACY=false
 MIGRATE_LEGACY=false
 LEGACY_LEDGER="${PROJECT_ROOT}/grimoires/loa/a2a/cost-ledger.jsonl"
+WINDOW_DAY=""
+REPRICE=false
+REPRICE_DRY_RUN=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -91,6 +111,18 @@ while [[ $# -gt 0 ]]; do
             LEGACY_LEDGER="$2"
             shift 2
             ;;
+        --window-day)
+            WINDOW_DAY="${2:-}"
+            shift 2
+            ;;
+        --reprice)
+            REPRICE=true
+            shift
+            ;;
+        --dry-run)
+            REPRICE_DRY_RUN=true
+            shift
+            ;;
         --days)
             REPORT_DAYS="$2"
             shift 2
@@ -104,7 +136,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: cost-report.sh [--ledger <path>] [--days N] [--json] [--top N] [--include-legacy] [--migrate-legacy] [--legacy-ledger <path>]"
+            echo "Usage: cost-report.sh [--ledger <path>] [--days N] [--json] [--top N] [--include-legacy] [--migrate-legacy] [--legacy-ledger <path>] [--window-day YYYY-MM-DD] [--reprice [--dry-run]]"
             exit 0
             ;;
         *)
@@ -113,6 +145,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ -n "$WINDOW_DAY" && ! "$WINDOW_DAY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: --window-day expects a UTC day as YYYY-MM-DD (got: ${WINDOW_DAY})" >&2
+    exit 2
+fi
 
 if [[ -z "$LEDGER_PATH" ]]; then
     if LEDGER_PATH="$(_resolve_default_ledger)"; then
@@ -210,22 +247,62 @@ receipt = {
     "sha256_source": sha256(legacy_path), "sha256_target_before": sha_before, "sha256_target_after": sha256(target_path),
     "writer": "loa_cheval.metering.ledger.append_ledger",
 }
-receipt_path = os.path.join(receipt_dir, f"cost-ledger-migration-{ts}.json")
-n = 1
-while os.path.exists(receipt_path):  # two migrations in one second never overwrite a receipt
-    n += 1
-    receipt_path = os.path.join(receipt_dir, f"cost-ledger-migration-{ts}-{n}.json")
-tmp = receipt_path + f".tmp.{os.getpid()}"
-with open(tmp, "w", encoding="utf-8") as fh:
-    json.dump(receipt, fh, indent=2, sort_keys=True)
-    fh.write("\n")
-os.replace(tmp, receipt_path)
+from loa_cheval.metering.reprice import write_receipt  # O_EXCL|O_NOFOLLOW temp, renamed into place (audit F-4)
+receipt_path = write_receipt(receipt_dir, f"cost-ledger-migration-{ts}", receipt)
 print(f"cost-report: migrated {migrated} legacy row(s) ({skipped} already present) → {target_path}; receipt {receipt_path}", file=sys.stderr)
 PYMIG
     _mig_rc=$?
     if [[ $_mig_rc -ne 0 ]]; then
         echo "ERROR: --migrate-legacy failed (exit $_mig_rc); the current ledger was only ever appended through the writer" >&2
         exit "$_mig_rc"
+    fi
+fi
+
+# --- sprint-bug-245 (bead bd-ypbg): explicit re-pricing of historical unpriced rows
+# Prices every unpriced row the ladder can now resolve exactly as a fresh row
+# with the same tokens (loa_cheval.metering.reprice.reprice_ledger_file): holds
+# the writer's flock on the ledger inode, copies the bytes read to a backup
+# (O_EXCL|O_NOFOLLOW), rewrites the same inode in place with every other line
+# byte-for-byte, and writes a receipt. Opt-in; --dry-run writes nothing.
+if [[ "$REPRICE" == "true" ]]; then
+    [[ -n "$_PYTHON_BIN" ]] || { echo "ERROR: --reprice needs the cheval Python substrate (python3)" >&2; exit 2; }
+    if [[ -L "$LEDGER_PATH" ]]; then
+        echo "ERROR: --reprice refuses a symlinked ledger (${LEDGER_PATH}); point --ledger at the real file" >&2
+        exit 3
+    fi
+    if [[ ! -f "$LEDGER_PATH" ]]; then
+        echo "ERROR: --reprice: no ledger at ${LEDGER_PATH}" >&2
+        exit 2
+    fi
+    _receipt_dir="${LOA_RUN_DIR:-${PROJECT_ROOT}/.run}"
+    [[ "$REPRICE_DRY_RUN" == "true" ]] || mkdir -p "$_receipt_dir"
+    _rp_rc=0
+    PYTHONPATH="${PROJECT_ROOT}/.claude/adapters${PYTHONPATH:+:$PYTHONPATH}" "$_PYTHON_BIN" - "$LEDGER_PATH" "$_receipt_dir" "$REPRICE_DRY_RUN" "$PROJECT_ROOT" <<'PYREP' || _rp_rc=$?
+import sys
+ledger, receipt_dir, dry_run, project_root = sys.argv[1], sys.argv[2], sys.argv[3] == "true", sys.argv[4]
+from loa_cheval.config.loader import load_config
+from loa_cheval.metering.reprice import RepriceRefused, reprice_ledger_file
+config, _sources = load_config(project_root)
+try:
+    r = reprice_ledger_file(
+        ledger, receipt_dir, config, dry_run=dry_run,
+        catalog_note={"project_root": project_root, "loader": "loa_cheval.config.loader.load_config"},
+    )
+except RepriceRefused as exc:
+    print(f"cost-report: --reprice {exc}", file=sys.stderr)
+    sys.exit(3)
+total = r["rows_repriced"] + r["rows_still_unpriced"]
+if dry_run:
+    print(f"cost-report: --reprice --dry-run: {r['rows_repriced']} of {total} unpriced row(s) would be re-priced "
+          f"({r['rows_still_unpriced']} still unresolvable); nothing written", file=sys.stderr)
+else:
+    print(f"cost-report: --reprice: re-priced {r['rows_repriced']} of {total} unpriced row(s) "
+          f"({r['rows_still_unpriced']} still unpriced) → {ledger}; backup {r['backup'] or 'none (nothing changed)'}; "
+          f"receipt {r['receipt_path']}", file=sys.stderr)
+PYREP
+    if [[ $_rp_rc -ne 0 ]]; then
+        echo "ERROR: --reprice failed (exit $_rp_rc); the ledger is rewritten only after its backup is durable (see the receipt / <ledger>.pre-reprice-* for recovery)" >&2
+        exit "$_rp_rc"
     fi
 fi
 
@@ -236,7 +313,11 @@ fi
 
 if [[ ! -f "$LEDGER_PATH" && -z "$_legacy_arg" ]]; then
     if [[ "$OUTPUT_JSON" == "true" ]]; then
-        echo '{"total_micro_usd":0,"entry_count":0,"agents":{},"models":{},"providers":{},"daily":[],"unpriced_rows":0,"unpriced_share":0}'
+        # The empty envelope answers the same questions as a populated one: a
+        # --window-day caller (the budget enforcer) gets an empty window, not a
+        # missing field (a fresh mount has no ledger yet — CI, first run).
+        jq -nc --arg d "$WINDOW_DAY" '{total_micro_usd:0, entry_count:0, agents:{}, models:{}, providers:{}, daily:[], unpriced_rows:0, unpriced_share:0, unclassified_rows:0, estimated_rows:0, legacy_rows:0, repriced_rows:0, pricing_resolution:{}}
+            + (if $d == "" then {} else {window: {day: $d, entry_count: 0, unpriced_rows: 0, unpriced_share: 0}} end)'
     else
         echo "# Cost Report"
         echo ""
@@ -248,7 +329,7 @@ if [[ ! -f "$LEDGER_PATH" && -z "$_legacy_arg" ]]; then
 fi
 
 # Use Python for JSONL parsing and aggregation (jq can't handle complex aggregation well)
-python3 - "$LEDGER_PATH" "$REPORT_DAYS" "$TOP_N" "$OUTPUT_JSON" "$_legacy_arg" <<'PYEOF'
+python3 - "$LEDGER_PATH" "$REPORT_DAYS" "$TOP_N" "$OUTPUT_JSON" "$_legacy_arg" "$WINDOW_DAY" <<'PYEOF'
 import json
 import os
 import sys
@@ -260,6 +341,7 @@ report_days = int(sys.argv[2])
 top_n = int(sys.argv[3])
 output_json = sys.argv[4] == "true"
 legacy_path = sys.argv[5] if len(sys.argv) > 5 else ""
+window_day = sys.argv[6] if len(sys.argv) > 6 else ""  # sprint-bug-245: per-day window
 
 # Read ledger (+ the legacy ledger when asked; its rows are tagged and
 # de-duplicated against the current ledger by request_id so a migrated
@@ -330,6 +412,9 @@ top_invocations = []
 unpriced_rows = 0
 unclassified_rows = 0
 estimated_rows = 0
+repriced_rows = 0
+window_entries = 0
+window_unpriced = 0
 by_resolution = defaultdict(int)
 for e in entries:
     cost = e.get("cost_micro_usd", 0)
@@ -338,18 +423,25 @@ for e in entries:
     # A pre-metadata row (no pricing_source) that already carries a cost was priced by
     # its writer: it is "unclassified", not unpriced (Bridgebuilder PR #1269 FIND-004).
     src = e.get("pricing_source")
-    if src == "unknown" or (src is None and not cost):
+    row_unpriced = src == "unknown" or (src is None and not cost)
+    if row_unpriced:
         unpriced_rows += 1
     elif src is None:
         unclassified_rows += 1
     if e.get("cost_estimated"):
         estimated_rows += 1
+    if e.get("repriced_at"):
+        repriced_rows += 1
     by_resolution[e.get("pricing_resolution") or e.get("pricing_source", "unknown")] += 1
 
     ts = parse_ts(e.get("ts"))
     if ts:
         day_key = ts.strftime("%Y-%m-%d")
         by_day[day_key] += cost
+        if window_day and day_key == window_day:
+            window_entries += 1
+            if row_unpriced:
+                window_unpriced += 1
 
         if ts >= cutoff_1d:
             total_1d += cost
@@ -391,6 +483,7 @@ if output_json:
         "unclassified_rows": unclassified_rows,
         "estimated_rows": estimated_rows,
         "legacy_rows": legacy_rows,
+        "repriced_rows": repriced_rows,
         "pricing_resolution": dict(by_resolution),
         "summary": {
             "today_micro_usd": total_1d,
@@ -402,6 +495,13 @@ if output_json:
         "providers": dict(by_provider),
         "top_invocations": top_invocations,
     }
+    if window_day:
+        result["window"] = {
+            "day": window_day,
+            "entry_count": window_entries,
+            "unpriced_rows": window_unpriced,
+            "unpriced_share": round((window_unpriced / window_entries) if window_entries else 0.0, 6),
+        }
     print(json.dumps(result, indent=2))
 else:
     print("# Cost Report")
@@ -423,9 +523,13 @@ else:
     print(f"Unpriced rows: {unpriced_rows} ({unpriced_share * 100:.1f} %) — recorded as cost 0, not as a price"
           + (f"; unclassified (pre-metadata, priced by their writer): {unclassified_rows}" if unclassified_rows else "")
           + (f"; estimated rows: {estimated_rows}" if estimated_rows else "")
-          + (f"; legacy rows included: {legacy_rows}" if legacy_rows else ""))
+          + (f"; legacy rows included: {legacy_rows}" if legacy_rows else "")
+          + (f"; repriced rows: {repriced_rows}" if repriced_rows else ""))
     if by_resolution:
         print("Pricing resolution: " + ", ".join(f"{k} {v}" for k, v in sorted(by_resolution.items())))
+    if window_day:
+        _wshare = (window_unpriced / window_entries * 100) if window_entries else 0.0
+        print(f"Window {window_day}: {window_entries} row(s), {window_unpriced} unpriced ({_wshare:.1f} %)")
     print()
 
     if by_agent:
