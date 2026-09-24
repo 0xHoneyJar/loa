@@ -56,11 +56,12 @@ For later Core-required stops, persist the exact request and open it through:
 node .claude/aleph/bin/loa-aleph.mjs --json --open-gate <request.json> RUN-id
 ```
 
-The adapter accepts only the implemented Core combinations: S8
-external-referent resolution, S13 Precis acceptance, P1 projection commission,
-P3 projection acceptance, and budget-exhaustion or suspected-contamination at
-the current Core stage. Present the resulting persisted gate artifact to the
-human, then submit the exact file-driven decision with
+The adapter accepts only the implemented Core combinations: S4 internal-
+ambiguity procedural decisions, S8 external-referent resolution, S13 Precis
+acceptance, P1 projection commission, P3 projection acceptance, and budget-
+exhaustion or suspected-contamination at the current Core stage. Present the
+resulting persisted gate artifact to the human, then submit the exact file-
+driven decision with
 `--authority-response <response.json> RUN-id`. Do not synthesize, reinterpret,
 or fill missing authority fields. Gate records bind directly to the retained
 bundle's canonical stage section, and prepared gate transactions are recovered
@@ -70,8 +71,54 @@ Precis or projection acceptance.
 For `resume`, use the run-local verified bundle reported by the adapter. Load
 the canonical Core orchestrator prompt, agent runbook, stage contract, role
 prompt, templates, and output contract directly from that bundle. Do not make
-host-local copies or summaries. Ask the runtime to build each blind worker
-bundle, then prepare the native handoff:
+host-local copies or summaries.
+
+For run-format 1.5 S4, obey the `slice5` next-work object returned by
+`resume`. When it names the four bounded roles, dispatch the pinned
+`ambiguity-producer`, fresh `ambiguity-reviewer`,
+`material-impact-producer`, and fresh `material-impact-reviewer` through the
+same prepare/dispatch/accept path below, in the order required by the first
+unmet DoD. Give accepted structured returns only to the orchestrator's
+canonical writer. Repeated `resume` applies a persisted human response to
+T5.3 exactly once, creates a legal Q+1 when required, and otherwise advances
+C2/C3 under the same retained bundle. A successor-run halt is terminal for
+the current run, not resumable current-run work.
+
+For S5 or later work with retained procedural restrictions, provide the
+worker-bundle assembler the exact typed downstream operation tuples. The
+assembler derives the restriction set from exact retained Core
+request/response/T5.3 bindings, refuses a prohibited tuple before dispatch,
+and seals permitted neighboring operations plus the read-only restriction
+set into the worker request. Never infer these tuples from task prose, and
+never translate a restriction into an S5 disposition or S6 evidence role.
+
+For each exact next-work item, retain one canonical assembly input at
+`<run>/control/worker-assembly-inputs/<CALL-id>.json`:
+
+```json
+{"format":"aleph-loa-worker-assembly-input/v1","call_id":"CALL-…","run_id":"RUN-…","stage":"S4","role":"ambiguity-producer","kind":"producer","allowlist":[],"withheld":[],"task_line":"One exact Core-authorized task sentence.","producer_context_id":null,"downstream_operations":[]}
+```
+
+Populate `allowlist`, `withheld`, `task_line`, reviewer
+`producer_context_id`, and any S5-or-later `downstream_operations` only from
+the exact resumed Core work item and retained run state. Then invoke the
+manifest-declared internal `loa-aleph-worker-handoff` tool:
+
+```text
+node <run-local-bundle>/runtime-js/adapters/loa/src/worker-dispatch.js assemble \
+  --bundle <run-local-bundle> \
+  --run <run> \
+  --input <run>/control/worker-assembly-inputs/<CALL-id>.json \
+  --json
+```
+
+`assemble` verifies the retained bundle and run pins, selects the exact pinned
+model for the named role, delegates sealed-bundle construction to the
+canonical assembler, derives retained restrictions, validates typed downstream
+operations, and writes only
+`<run>/control/worker-bundles/<CALL-id>`. Reviewer roles require `kind =
+refuter` and a nonempty producer context. Use the returned
+`worker_bundle_root` as `<sealed-worker-bundle>` below.
 
 Write every stage output only to the exact Core path named by its stage
 contract and template. In particular, S1 finalizes `corpus/manifest.md` and
@@ -144,3 +191,23 @@ execution.
 `validate` invokes the checker from the run's retained original bundle. Report
 its exact exit status and artifact paths without upgrading a deterministic pass
 into semantic judgment or authority acceptance.
+
+## Supplied representations in run format 1.6
+
+Keep `/loa-aleph start <inputs...>` unchanged. A reserved
+`.aleph-representation.json` input selects the Core supplied-representation
+grammar; ordinary JSON remains source text. Supply only explicit local source
+and asset paths. Do not convert, render, OCR, fetch, or infer missing structure.
+
+Present `control/representation-prepared.md` with the S0 request before freeze.
+After freeze, retain the immutable inventory and assets. Reserve a canonical
+material-use subject through the Core planner before fresh `verifier-l2f`
+review. Its bundle contains only the reserved Core review view and withholds
+the actual producer context. Commit the identical subject and receipt through
+the single writer. Retain failed material findings as OBJ USE receipts.
+
+Unavailable required features produce CANNOT_DETERMINE. Opaque source capture
+may freeze honestly, but resume cannot enter supported extraction. Respect
+the C1 use seal and retained runtime pins; a better representation requires a
+successor run. Structural PASS and simulated transport do not sanction agent
+mode or prove production reachability.

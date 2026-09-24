@@ -63,7 +63,11 @@ locally.
 
 | spec | check groups | motivating fixture | roadmap slice |
 |------|--------------|--------------------|---------------|
-| [`K1-K2-fixtures-and-runs.md`](K1-K2-fixtures-and-runs.md) | K1 discovered-fixtures; K2 run-directory | golden run `docs/fixtures/run-slice-2/` | 9 (K2), 12 (K1) |
+| [`K1-K2-fixtures-and-runs.md`](K1-K2-fixtures-and-runs.md) | K1 discovered-fixtures; K2 run-directory, including K2.16 relations and K2.17 internal-ambiguity retained state | golden run `docs/fixtures/run-slice-2/` + exact-evidence/source-walk/lineage/typed-relations/internal-ambiguity fixtures | 9 (K2), 12 (K1), calibration Slices 1–5 |
 | [`K3-evidence-roles.md`](K3-evidence-roles.md) | K3 | evidence-role fixture | 10 |
 | [`K4-K5-route-cards-and-gate.md`](K4-K5-route-cards-and-gate.md) | K4 cards; K5 taint gate | routed-corpus fixture | 11 |
 | [`K6-projection-trace.md`](K6-projection-trace.md) | K6 | first projection fixture | 16 |
+
+## K2.18 — source representation bindings
+
+K2.18 applies only through the cumulative `formal-layout-bindings` capability. It verifies T2.3/T3.6 canonical grammar, identifiers, byte hashes, input closure, provenance, coordinates, association existence, declared availability, exact use subjects/review targets, seals and section 17 limitations. Its stable reason tokens are FORMAT, IDENTITY, INVENTORY, CAPTURE_HASH, BINDING, COORDINATE, ASSOCIATION, PROVENANCE, STATE, UNDECLARED_FEATURE, FIDELITY, USE_CLOSURE, UNSUPPORTED_EXTRACTION_SURFACE and FROZEN_WRITE. The read-only Core module calls no model, network, renderer or semantic subprocess. Coherent shifted-cell meaning can remain structural PASS.

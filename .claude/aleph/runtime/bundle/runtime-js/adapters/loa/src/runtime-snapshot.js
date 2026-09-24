@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, realpathSync, rmSync, } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { LOA_ADAPTER_ID, LOA_HOST_FORMAT, LOA_MODEL_SLOTS, LOA_PROFILE_FORMAT, LOA_REQUIRED_HOST_CAPABILITIES, LOA_ROLE_IDS, LOA_RUNTIME_SNAPSHOT_FORMAT, } from './types.js';
+import { CURRENT_RUN_FORMAT_VERSION, SUPPORTED_RUN_FORMAT_VERSIONS, usesFormalLayoutBindings, hasRunCapability } from '../../../scripts/lib/run-model.js';
 import { assertSafeRelativePath, digestFile, digestTreeRecords, makeTreeReadOnly, readJsonFile, readStableRegularFile, sha256Digest, stableJsonBytes, utf8Compare, writeFileAtomic, writeJsonAtomic, } from './fs.js';
 import { readLockedFile, readVerifiedBundleLock, verifyAndLoadLoaBundle, } from './core-loader.js';
 import { isProviderPinnedClaudeModelId, validateClaudeCodeHostCapabilities, } from './claude-code-host.js';
@@ -68,7 +69,7 @@ function parseRoleMapping(value, role) {
     }
     return record;
 }
-export function parseLoaProfile(value) {
+export function parseLoaProfile(value, runFormatVersion = CURRENT_RUN_FORMAT_VERSION) {
     if (!isRecord(value) || !exactKeys(value, [
         'profile_format',
         'id',
@@ -106,14 +107,26 @@ export function parseLoaProfile(value) {
             throw new Error(`Loa profile path ${key} is empty`);
         assertSafeRelativePath(path, `Loa profile path ${key}`);
     }
+    const legacyMaterialRole = SUPPORTED_RUN_FORMAT_VERSIONS.includes(runFormatVersion)
+        && !usesFormalLayoutBindings(runFormatVersion) && isRecord(profile.role_mappings)
+        && !('verifier-l2f' in profile.role_mappings);
+    const legacySemanticRole = SUPPORTED_RUN_FORMAT_VERSIONS.includes(runFormatVersion)
+        && !hasRunCapability(runFormatVersion, 'semantic-unit-review') && isRecord(profile.role_mappings)
+        && !('verifier-l2s' in profile.role_mappings);
+    const expectedRoles = LOA_ROLE_IDS.filter((role) => !(legacyMaterialRole && role === 'verifier-l2f')
+        && !(legacySemanticRole && role === 'verifier-l2s'));
     if (!isRecord(profile.role_mappings)
-        || !exactStrings(Object.keys(profile.role_mappings), LOA_ROLE_IDS)) {
+        || !exactStrings(Object.keys(profile.role_mappings), expectedRoles)) {
         throw new Error('Loa profile does not map every Core role exactly once');
     }
     const roleMappingRecord = profile.role_mappings;
-    const roleMappings = Object.fromEntries(LOA_ROLE_IDS.map((role) => ([role, parseRoleMapping(roleMappingRecord[role], role)])));
+    const roleMappings = Object.fromEntries(expectedRoles.map((role) => ([role, parseRoleMapping(roleMappingRecord[role], role)])));
+    if (!legacyMaterialRole && (roleMappings['verifier-l2f'].model_slot !== roleMappings['verifier-l2'].model_slot
+        || roleMappings['verifier-l2f'].context_policy !== roleMappings['verifier-l2'].context_policy)) {
+        throw new Error('verifier-l2f must retain the verifier-l2 model slot and fresh context class');
+    }
     const mechanicsBySlot = new Map();
-    for (const role of LOA_ROLE_IDS) {
+    for (const role of expectedRoles) {
         const mapping = roleMappings[role];
         const signature = stableJsonBytes({
             effort: mapping.effort,
@@ -163,7 +176,7 @@ export function parseLoaProfile(value) {
         model_slots: modelSlots,
     };
 }
-export function loadLoaProfile(path) {
+export function loadLoaProfile(path, runFormatVersion = CURRENT_RUN_FORMAT_VERSION) {
     const absolute = resolve(path);
     const bytes = readStableRegularFile(absolute).bytes;
     let value;
@@ -175,7 +188,7 @@ export function loadLoaProfile(path) {
     }
     return {
         path: absolute,
-        value: parseLoaProfile(value),
+        value: parseLoaProfile(value, runFormatVersion),
         digest: sha256Digest(bytes),
     };
 }
@@ -273,8 +286,7 @@ export function validateResolvedHost(value, profile, options = {}) {
         ['cache_policy', 'cache'],
         ['batch_policy', 'batch'],
     ];
-    for (const role of LOA_ROLE_IDS) {
-        const mapping = profile.role_mappings[role];
+    for (const [role, mapping] of Object.entries(profile.role_mappings)) {
         const model = models[mapping.model_slot];
         for (const [profileField, hostField] of mechanicFields) {
             if (mapping[profileField] !== model[hostField]) {
@@ -452,12 +464,12 @@ export function verifyRuntimeSnapshot(snapshotPath, options = {}) {
     if (resolve(snapshot.profile.path) !== join(runtimeRoot, 'bundle', 'adapters', 'loa', 'profiles', 'loa-default.json')) {
         throw new Error('runtime snapshot profile path is not the run-local bundled profile');
     }
-    const profile = loadLoaProfile(snapshot.profile.path);
+    const bundle = verifyAndLoadLoaBundle(snapshot.bundle.root);
+    const profile = loadLoaProfile(snapshot.profile.path, bundle.lock.run_format_version);
     if (profile.value.id !== snapshot.profile.id || profile.digest !== snapshot.profile.digest) {
         throw new Error('runtime profile changed since the run was created');
     }
     verifyPinnedHostCapabilities(snapshotPath, snapshot, profile.value, options);
-    const bundle = verifyAndLoadLoaBundle(snapshot.bundle.root);
     if (bundle.lock.bundle.id !== snapshot.bundle.id
         || bundle.lock.bundle.digest !== snapshot.bundle.digest
         || bundle.lock.lock_digest !== snapshot.bundle.lock_digest) {

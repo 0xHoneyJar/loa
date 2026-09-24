@@ -1,4 +1,5 @@
 import { TextDecoder } from 'node:util';
+import { isSemanticOutputContract, semanticReturnJsonSchema, validateSemanticOutputContract, validateSemanticReturn } from './semantic-review.js';
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -43,9 +44,11 @@ function validateUnicode(value, path, errors) {
 class JsonMemberScanner {
     index = 0;
     text;
+    integerNumbers;
     duplicates = [];
-    constructor(text) {
+    constructor(text, integerNumbers = false) {
         this.text = text;
+        this.integerNumbers = integerNumbers;
     }
     scan() {
         this.scanValue('$');
@@ -83,9 +86,15 @@ class JsonMemberScanner {
             this.scanString();
         }
         else {
+            const start = this.index;
             while (this.index < this.text.length
                 && !/[\s,\]}]/u.test(this.text[this.index])) {
                 this.index += 1;
+            }
+            const token = this.text.slice(start, this.index);
+            if (this.integerNumbers && /^[-0-9]/u.test(token)
+                && (!/^(?:0|[1-9]\d*)$/u.test(token) || !Number.isSafeInteger(Number(token)))) {
+                throw new Error(`noncanonical integer at ${path}`);
             }
         }
     }
@@ -134,6 +143,16 @@ class JsonMemberScanner {
         }
     }
 }
+export function parseStrictJson(raw, integerNumbers = false) {
+    const text = typeof raw === 'string' ? raw
+        : new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
+    const value = JSON.parse(text);
+    const errors = new JsonMemberScanner(text, integerNumbers).scan().map((path) => `duplicate key ${path}`);
+    validateUnicode(value, '$', errors);
+    if (errors.length)
+        throw new Error(errors.join('; '));
+    return value;
+}
 function validateRequiredString(value, path, errors) {
     if (typeof value !== 'string') {
         errors.push(`${path} must be a string`);
@@ -172,6 +191,8 @@ function nonemptyStringSchema() {
  * shape that a host-native constrained-output mechanism may enforce.
  */
 export function contractExemplarToJsonSchema(example) {
+    if (isSemanticOutputContract(example))
+        return semanticReturnJsonSchema(validateSemanticOutputContract(example), '1.7.0-provisional');
     if (example === null) {
         return {
             anyOf: [
@@ -251,7 +272,7 @@ function rationaleSentenceCount(value) {
     }
     return count;
 }
-function validateJudgmentRationale(value, path, errors) {
+export function validateJudgmentRationale(value, path, errors) {
     if (typeof value !== 'string' || !hasText(value))
         return;
     const trimmed = value.trim();
@@ -341,6 +362,15 @@ function validateAgainstContractExemplar(value, example, path, errors) {
  * network access.
  */
 export function validateWorkerReturnContract(raw, contractExemplar) {
+    if (isSemanticOutputContract(contractExemplar)) {
+        try {
+            const role = validateSemanticOutputContract(contractExemplar);
+            return validateSemanticReturn(role, '1.7.0-provisional', parseStrictJson(raw, true));
+        }
+        catch (error) {
+            return { result: 'FAIL', errors: [error instanceof Error ? error.message : String(error)], canonicalValue: null, binding: 'not-checked' };
+        }
+    }
     const errors = [];
     if (!isRecord(contractExemplar)) {
         errors.push('Core output contract root must be an object');

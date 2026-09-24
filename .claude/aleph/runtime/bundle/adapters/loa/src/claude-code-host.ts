@@ -833,6 +833,16 @@ export function buildClaudeCodeWorkerPrompt(
     );
   }
   chunks.push(
+    `BEGIN CORE PROCEDURAL RESTRICTIONS bytes=${String(Buffer.byteLength(stableJson(request.procedural_restrictions)))}`,
+    stableJson(request.procedural_restrictions),
+    'END CORE PROCEDURAL RESTRICTIONS',
+    '',
+    `BEGIN TYPED DOWNSTREAM OPERATIONS bytes=${String(Buffer.byteLength(stableJson(request.downstream_operations)))}`,
+    stableJson(request.downstream_operations),
+    'END TYPED DOWNSTREAM OPERATIONS',
+    '',
+  );
+  chunks.push(
     `BEGIN TASK bytes=${String(Buffer.byteLength(request.task_line))}`,
     request.task_line,
     'END TASK',
