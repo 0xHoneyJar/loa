@@ -137,3 +137,19 @@ def test_tokens_default_to_zero_when_absent_and_cache_tokens_are_priced():
         del no_tokens[k]
     out2, stats2 = reprice_rows([no_tokens], CONFIG, NOW)
     assert stats2["rows_repriced"] == 1 and out2[0]["cost_micro_usd"] == 0 and out2[0]["pricing_source"] == "config"
+
+
+def test_negative_or_overflowing_token_counts_stay_unpriced_and_never_price_negative():
+    # audit round 2 (dissent payload, schema-rejected, hand-confirmed): a crafted row must
+    # not be converted into a negative priced cost, and one bad row never aborts the pass.
+    negative = unknown_row(request_id="neg", tokens_in=-47947)
+    negative_cache = unknown_row(request_id="negc", model="gpt-5.5", tokens_cache_read=-5)
+    huge = unknown_row(request_id="huge", tokens_in=10**30)
+    good = unknown_row(request_id="ok")
+    out, stats = reprice_rows([negative, negative_cache, huge, good], CONFIG, NOW)
+    assert out[0] is negative and out[1] is negative_cache and out[2] is huge
+    assert out[3]["pricing_source"] == "config" and out[3]["cost_micro_usd"] > 0
+    assert stats == {"rows_scanned": 4, "rows_repriced": 1, "rows_still_unpriced": 3, "rows_skipped_priced": 0, "micro_usd_added": out[3]["cost_micro_usd"]}
+    for r in out[:3]:
+        assert r["cost_micro_usd"] == 0 and r["pricing_source"] == "unknown" and "repriced_at" not in r
+

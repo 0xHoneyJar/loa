@@ -21,8 +21,9 @@ itself carries (``resolved_model``) is never a pricing authority here — it was
 written by an adapter for rows that are already priced, and a repaired row
 must not be able to nominate its own catalog entry.
 
-Rows that are already priced, rows the ladder still cannot resolve, and rows
-that already carry ``repriced_at`` come back unchanged — the same object, so
+Rows that are already priced, rows the ladder still cannot resolve, rows with
+a negative or overflowing token count (never a computed negative cost), and
+rows that already carry ``repriced_at`` come back unchanged — the same object, so
 the file writer can tell by identity which lines to rewrite. The input list
 is never mutated.
 
@@ -92,14 +93,20 @@ def reprice_row(row: Row, config: Dict[str, Any], now_iso: str) -> Optional[Row]
     pricing = find_pricing(provider, model, config)
     if pricing is None:
         return None
-    breakdown = calculate_total_cost(
-        _int(row.get("tokens_in")),
-        _int(row.get("tokens_out")),
-        _int(row.get("tokens_reasoning")),
-        pricing,
-        cache_read_tokens=_int(row.get("tokens_cache_read")),
-        cache_creation_tokens=_int(row.get("tokens_cache_creation")),
-    )
+    tokens = [_int(row.get(k)) for k in ("tokens_in", "tokens_out", "tokens_reasoning", "tokens_cache_read", "tokens_cache_creation")]
+    if any(t < 0 for t in tokens):
+        # audit r2 (dissent payload, hand-confirmed): a row with a negative token
+        # count must never become a computed negative cost — it stays unpriced.
+        return None
+    try:
+        breakdown = calculate_total_cost(
+            tokens[0], tokens[1], tokens[2], pricing,
+            cache_read_tokens=tokens[3], cache_creation_tokens=tokens[4],
+        )
+    except Exception:  # BUDGET_OVERFLOW and friends: one bad row never aborts the pass
+        return None
+    if breakdown.total_cost_micro < 0:
+        return None
     new = dict(row)
     new["repriced_from"] = {
         "pricing_source": row.get("pricing_source"),
