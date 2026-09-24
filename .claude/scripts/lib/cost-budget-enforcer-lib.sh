@@ -1228,17 +1228,20 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
     # not zero. The cost ledger's unpriced share (rows with pricing_source
     # `unknown`, recorded at cost 0) caps what "under budget" can mean; above
     # 5 % the enforcer refuses to certify allow and halts on uncertainty
-    # with the share in the payload. An unavailable cost-report is reported
-    # as such (unpriced_share null) and does not block — availability is
-    # not a budget signal.
-    local unpriced_json unpriced_share unpriced_rows
-    unpriced_json="$(_l2_unpriced_share_json)"
+    # with the share in the payload. sprint-bug-245: the share is the one for
+    # the UTC day this verdict certifies (a report without a window falls back
+    # to the all-time share). An unavailable cost-report is reported as such
+    # (unpriced_share null) and does not block — availability is not a budget
+    # signal.
+    local unpriced_json unpriced_share unpriced_rows unpriced_window_json
+    unpriced_json="$(_l2_unpriced_share_json "$utc_day")"
+    unpriced_window_json="$(printf '%s' "$unpriced_json" | jq -c '{window_day: (.window_day // null), unpriced_share_all_time: (.unpriced_share_all_time // null), unpriced_rows_all_time: (.unpriced_rows_all_time // null)}' 2>/dev/null || echo '{"window_day":null,"unpriced_share_all_time":null,"unpriced_rows_all_time":null}')"
     unpriced_share="$(printf '%s' "$unpriced_json" | jq -r '.unpriced_share // "null"' 2>/dev/null || echo null)"
     unpriced_rows="$(printf '%s' "$unpriced_json" | jq -r '.unpriced_rows // "null"' 2>/dev/null || echo null)"
     if [[ "$unpriced_share" != "null" ]] && python3 -c "import sys; sys.exit(0 if float('$unpriced_share') > 0.05 else 1)"; then
         local diag_up
-        diag_up="$(jq -nc --argjson s "$unpriced_share" --argjson r "$unpriced_rows" --arg l "$(printf '%s' "$unpriced_json" | jq -r '.ledger // ""')" \
-            '{unpriced_share: $s, unpriced_rows: $r, threshold: 0.05, ledger: $l, remedy: "cost-report.sh --json shows pricing_resolution; add catalog pricing for the unpriced ids or fix the adapter id"}')"
+        diag_up="$(jq -nc --argjson s "$unpriced_share" --argjson r "$unpriced_rows" --argjson w "$unpriced_window_json" --arg l "$(printf '%s' "$unpriced_json" | jq -r '.ledger // ""')" \
+            '{unpriced_share: $s, unpriced_rows: $r, threshold: 0.05, ledger: $l, remedy: "the share is measured over the UTC day of this verdict (cost-report.sh --json --window-day <day> shows it next to the all-time share and pricing_resolution); add catalog pricing for the unpriced ids or fix the adapter id; historical rows: cost-report.sh --reprice --dry-run, then --reprice"} + $w')"
         local payload
         payload="$(_l2_render_verdict "halt-uncertainty" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id" "unpriced_share" "$diag_up")"
         _l2_emit_and_return "budget.halt_uncertainty" "$payload"
@@ -1250,37 +1253,64 @@ print(0 if cap == 0 else round(100 * (used + est) / cap, 6))
     # because zero-usage is unambiguous.
     local payload
     payload="$(_l2_render_verdict "allow" "$usd_used" "$cap" "$estimated_usd" "$provider" "$utc_day" "$billing_age" "$counter_age" "$observer_used" "$cycle_id")"
-    payload="$(printf '%s' "$payload" | jq -c --argjson s "$( [[ "$unpriced_share" == "null" ]] && echo null || echo "$unpriced_share" )" '. + {unpriced_share: $s}')"
+    payload="$(printf '%s' "$payload" | jq -c --argjson s "$( [[ "$unpriced_share" == "null" ]] && echo null || echo "$unpriced_share" )" --argjson w "$(printf '%s' "$unpriced_window_json" | jq -c '.window_day // null')" '. + {unpriced_share: $s, unpriced_window: $w}')"
     _l2_emit_and_return "budget.allow" "$payload"
 }
 
 # -----------------------------------------------------------------------------
-# _l2_unpriced_share_json
+# _l2_unpriced_share_json [<utc_day>]
 #
-# {"unpriced_share": 0..1|null, "unpriced_rows": N|null, "ledger": "<path>"}
-# from `cost-report.sh --json` (capture-then-parse; the script's exit code is
-# not the contract, its JSON is). Test seam, bats-gated like every other
+# {"unpriced_share": 0..1|null, "unpriced_rows": N|null,
+#  "unpriced_share_all_time": 0..1|null, "unpriced_rows_all_time": N|null,
+#  "window_day": "YYYY-MM-DD"|null, "ledger": "<path>"}
+# from `cost-report.sh --json --window-day <utc_day>` (capture-then-parse; the
+# script's exit code is not the contract, its JSON is). sprint-bug-245 (bead
+# bd-ypbg): the verdict certifies one UTC day, so `unpriced_share` is the
+# report's `window` share for that day when the report carries one; a report
+# without a window (older shape) falls back to the all-time share —
+# conservative, never a silent zero. Test seams, bats-gated like every other
 # override in this repository: LOA_BUDGET_COST_REPORT_JSON names a file whose
-# contents stand in for the report.
+# contents stand in for the report; LOA_BUDGET_COST_REPORT_SCRIPT names a stub
+# script that stands in for cost-report.sh (its argv is the contract under
+# test) and, because it executes, additionally requires LOA_BUDGET_TEST_MODE=1
+# (double gate, as the L7 primitives).
 # -----------------------------------------------------------------------------
 _l2_unpriced_share_json() {
-    local out=""
+    local day="${1:-}" out=""
+    local -a day_args=()
+    [[ -n "$day" ]] && day_args=(--window-day "$day")
     if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" ]]; then
-        # Hermetic under bats: only the seam file is ever read — a test that
-        # does not set it sees "report unavailable", never the repository's
-        # live ledger (whose unpriced history would flip every allow).
-        [[ -n "${LOA_BUDGET_COST_REPORT_JSON:-}" && -f "$LOA_BUDGET_COST_REPORT_JSON" ]] && out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"
+        # Hermetic under bats: only the seams are ever consulted — a test that
+        # sets neither sees "report unavailable", never the repository's live
+        # ledger (whose unpriced history would flip every allow).
+        # The stub-script seam EXECUTES a path from the environment, so it is
+        # double-gated like the L7 seams (Bridgebuilder PR #1270 FIND-001): the
+        # bats marker alone is not enough — LOA_BUDGET_TEST_MODE=1 must also be
+        # set, and the path must be an executable regular file. A production
+        # process never carries both.
+        if [[ "${LOA_BUDGET_TEST_MODE:-}" == "1" && -n "${LOA_BUDGET_COST_REPORT_SCRIPT:-}" && -f "$LOA_BUDGET_COST_REPORT_SCRIPT" && -x "$LOA_BUDGET_COST_REPORT_SCRIPT" ]]; then
+            out="$(bash "$LOA_BUDGET_COST_REPORT_SCRIPT" --json ${day_args[@]+"${day_args[@]}"} 2>/dev/null)" || true
+        elif [[ -n "${LOA_BUDGET_COST_REPORT_JSON:-}" && -f "$LOA_BUDGET_COST_REPORT_JSON" ]]; then
+            out="$(cat "$LOA_BUDGET_COST_REPORT_JSON")"
+        fi
     else
         local report
         report="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/cost-report.sh"
         if [[ -f "$report" ]]; then
-            out="$(timeout 60 bash "$report" --json 2>/dev/null)" || true
+            out="$(timeout 60 bash "$report" --json ${day_args[@]+"${day_args[@]}"} 2>/dev/null)" || true
         fi
     fi
     if printf '%s' "$out" | jq -e 'type == "object" and has("unpriced_share")' >/dev/null 2>&1; then
-        printf '%s' "$out" | jq -c '{unpriced_share: .unpriced_share, unpriced_rows: .unpriced_rows, ledger: (.ledger // "")}'
+        printf '%s' "$out" | jq -c --arg d "$day" '
+            ((.window|type) == "object" and ((.window.unpriced_share|type) == "number")) as $windowed
+            | {unpriced_share: (if $windowed then .window.unpriced_share else .unpriced_share end),
+               unpriced_rows: (if $windowed then .window.unpriced_rows else .unpriced_rows end),
+               unpriced_share_all_time: .unpriced_share,
+               unpriced_rows_all_time: .unpriced_rows,
+               window_day: (if $windowed then (.window.day // (if $d == "" then null else $d end)) else null end),
+               ledger: (.ledger // "")}'
     else
-        printf '{"unpriced_share":null,"unpriced_rows":null,"ledger":""}\n'
+        printf '{"unpriced_share":null,"unpriced_rows":null,"unpriced_share_all_time":null,"unpriced_rows_all_time":null,"window_day":null,"ledger":""}\n'
     fi
 }
 

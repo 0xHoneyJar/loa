@@ -70,6 +70,11 @@
       "minimum": 0,
       "maximum": 1,
       "description": "cycle-125 FR-5: share (0..1) of cost-ledger rows with pricing_source unknown at verdict time, from cost-report.sh --json; null when the report was unavailable. An allow is only issued at or below 0.05."
+    },
+    "unpriced_window": {
+      "type": ["string", "null"],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "sprint-bug-245: the UTC day whose unpriced share `unpriced_share` reports (the verdict's utc_day when the cost report carried a window for it); null when the report had no window (all-time share) or was unavailable."
     }
   }
 }
