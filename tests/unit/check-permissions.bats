@@ -112,6 +112,25 @@ settings() {  # settings <file> <allow-json-array> <deny-json-array>
   printf 'not json\n' > "$LOCAL"
   run bash "$CP" --root "$R" --quiet
   [ "$status" -eq 1 ]
+  # a scalar permissions block or a scalar allow/deny is skipped too, never an abort (review dissent)
+  printf '{"permissions":"x"}\n' > "$PROJ"
+  printf '{"permissions":{"allow":"Bash(git:*)","deny":{"a":1}}}\n' > "$LOCAL"
+  settings "$USERF" "$REQ" '[]'
+  run bash "$CP" --root "$R" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -v '^WARN' | jq -e '.success == true and (.settings_files | length) == 1' >/dev/null
+  [ "$(echo "$output" | grep -c '^WARN')" -eq 2 ]
+}
+
+@test "CP-10 the check stays fast against hundreds of rules (no fork per comparison): 500 allow + 100 deny rules in under two seconds" {
+  big_allow=$(jq -nc '[range(500) | "Bash(tool\(.):*)"] + ["Bash(git:*)","Bash(gh:*)","Bash(mkdir:*)","Bash(rm:*)","Bash(cp:*)","Bash(mv:*)","Bash(bash:*)"]')
+  big_deny=$(jq -nc '[range(100) | "Bash(danger\(.) -rf /:*)"]')
+  settings "$PROJ" "$big_allow" "$big_deny"
+  start=$(date +%s%N)
+  run bash "$CP" --root "$R" --quiet
+  end=$(date +%s%N)
+  [ "$status" -eq 0 ]
+  [ $(( (end - start) / 1000000 )) -lt 2000 ]
 }
 
 @test "CP-9 --help exits 0 and names the three layers; an unknown option exits 2" {

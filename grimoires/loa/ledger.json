@@ -2651,7 +2651,7 @@
       "id": "cycle-bug-20260924-1f9d91",
       "label": "Bug Fix — check-permissions.sh (preflight P2) reads only .claude/settings.json and treats deny entries as allowed",
       "type": "bugfix",
-      "status": "active",
+      "status": "completed",
       "source_issue": null,
       "created_at": "2026-09-24T01:22:04Z",
       "sprints": [
@@ -2659,7 +2659,8 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260924-1f9d91/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260924-1f9d91/sprint.md",
-      "bead": "bd-n7v3"
+      "bead": "bd-n7v3",
+      "completed_at": "2026-09-24T01:57:49Z"
     }
   ],
   "bugfixes": [
@@ -2678,5 +2679,5 @@
     }
   ],
   "next_sprint_number": 247,
-  "last_updated": "2026-09-24T01:50:51Z"
+  "last_updated": "2026-09-24T01:57:49Z"
 }

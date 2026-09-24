@@ -68,3 +68,10 @@ bats tests/unit/check-permissions.bats tests/unit/run-preflight.bats
 ## Files Changed
 
 `.claude/scripts/check-permissions.sh`, `.claude/scripts/run-preflight.sh`, `tests/unit/check-permissions.bats` (new), `CHANGELOG.md`, `grimoires/loa/REPO-MAP.md` + `.checksum`, `.claude/checksums.json`, `grimoires/loa/ledger.json` (bugfix cycle registration).
+
+## Round 1 — review fixes
+
+- **Runtime (lead, MEDIUM).** The first submission forked a `sed` per (rule × required) comparison — 10.8 s on this machine's ~480 rules. Rules are now loaded once into associative maps (`.claude/scripts/check-permissions.sh:165`, `:174-181`), the base pattern comes from parameter expansion (`base_pattern_of`, `:147-151`) and each decision is an O(1) lookup (`:213-228`): 0.06 s on the same machine. CP-10 (`tests/unit/check-permissions.bats:127`) guards it: 500 allow + 100 deny rules in under two seconds.
+- **Shape of the `permissions` block (dissent ADVISORY, LOW).** A scalar `permissions` / `allow` / `deny` used to abort the checker under `set -e`; the per-file shape predicate (`:169`) now covers all three and the reads are guarded (`:177`, `:181`) — such a file is skipped with a `WARN`. CP-8 extended with both shapes (two `WARN`s, the user-file rules still pass).
+- **Empty-array guard (LOW).** The consulted-files loop uses `${consulted[@]+"${consulted[@]}"}` (`:263`).
+- Suites after the round: `check-permissions.bats` 10/10 + `run-preflight.bats` 15/15 (`scratchpad/bug246-r1.tap`, 24 ok); REPO-MAP + sidecar + checksums regenerated.

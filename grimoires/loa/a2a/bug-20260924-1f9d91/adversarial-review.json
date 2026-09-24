@@ -1,0 +1,58 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/check-permissions.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The script only validates that each settings file is a top-level JSON object before running jq over `.permissions.allow[]?` and `.permissions.deny[]?`. If either key exists with a non-array scalar value, jq exits nonzero under `set -e`, so the checker aborts instead of skipping the malformed settings file as documented.",
+      "failure_mode": "A user or project settings file like `{\"permissions\":{\"allow\":\"Bash(git:*)\"}}` causes `check-permissions.sh` to terminate with a jq error, producing an implementation-dependent non-2/non-1 failure rather than a WARN plus normal evaluation of the remaining layers. That violates the new documented behavior that malformed files are skipped and can break run preflight P2 unexpectedly.",
+      "suggested_fix": "Validate the full expected shape before extracting rules, e.g. require `(.permissions.allow? // []) | type == \"array\"` and the same for deny, or make the extraction robust with `if (.permissions.allow? | type) == \"array\" then ... else empty end`; treat failures as WARN-and-skip for that file.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-246",
+    "timestamp": "2026-09-24T01:53:28Z",
+    "tokens_input": 35724,
+    "tokens_output": 795,
+    "cost_usd": 0,
+    "latency_ms": 21861,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-bug-246/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}

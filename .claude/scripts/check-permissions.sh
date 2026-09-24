@@ -141,15 +141,13 @@ log_error() {
   fi
 }
 
-# rule_covers <rule> <required> — exact match, or the base wildcard of the
-# required command (e.g. "Bash(git:*)" covers "Bash(git checkout:*)").
-rule_covers() {
-  local rule="$1" required="$2"
-  [[ "$rule" == "$required" ]] && return 0
-  local cmd_base base_pattern
-  cmd_base=$(printf '%s' "$required" | sed -E 's/^Bash\(([^:]+):.*\)$/\1/')
-  base_pattern="Bash(${cmd_base%% *}:*)"
-  [[ "$rule" == "$base_pattern" ]]
+# base_pattern_of <required> — the base wildcard that also covers a required
+# rule: "Bash(git checkout:*)" → "Bash(git:*)" (pure parameter expansion; the
+# checker runs on every preflight against hundreds of rules, so no forks here).
+base_pattern_of() {
+  local cmd="${1#Bash(}"
+  cmd="${cmd%%:*}"
+  printf 'Bash(%s:*)' "${cmd%% *}"
 }
 
 # ============================================================================
@@ -160,17 +158,27 @@ main() {
   local -a layers=() consulted=()
   layers=("${HOME:-/nonexistent}/.claude/settings.json" "$ROOT/.claude/settings.json" "$ROOT/.claude/settings.local.json")
 
-  # rules as "rule<TAB>file" lines (tab-safe: rules never contain tabs)
-  local allow_rules="" deny_rules="" f
+  # rule → first file that states it (associative lookups: O(1) per check).
+  # A file that is not a JSON object, or whose permissions / allow / deny are
+  # not the documented shapes, is skipped with a WARN — it allows nothing and
+  # denies nothing (review dissent: a scalar block must not abort the check).
+  local -A allow_by=() deny_by=()
+  local f rule
   for f in "${layers[@]}"; do
     [[ -f "$f" ]] || continue
-    if ! jq -e 'type == "object"' "$f" >/dev/null 2>&1; then
-      echo "WARN: skipping malformed settings file: $f" >&2
+    if ! jq -e 'type == "object" and ((.permissions // {}) | type == "object") and (((.permissions // {}).allow // []) | type == "array") and (((.permissions // {}).deny // []) | type == "array")' "$f" >/dev/null 2>&1; then
+      echo "WARN: skipping malformed settings file (not an object, or permissions.allow/deny not arrays): $f" >&2
       continue
     fi
     consulted+=("$f")
-    allow_rules+="$(jq -r --arg f "$f" '(.permissions.allow // [])[]? | select(type == "string") | "\(.)\t\($f)"' "$f")"$'\n'
-    deny_rules+="$(jq -r --arg f "$f" '(.permissions.deny // [])[]? | select(type == "string") | "\(.)\t\($f)"' "$f")"$'\n'
+    while IFS= read -r rule; do
+      [[ -n "$rule" ]] || continue
+      [[ -n "${allow_by[$rule]+x}" ]] || allow_by["$rule"]="$f"
+    done < <(jq -r '(.permissions.allow // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
+    while IFS= read -r rule; do
+      [[ -n "$rule" ]] || continue
+      [[ -n "${deny_by[$rule]+x}" ]] || deny_by["$rule"]="$f"
+    done < <(jq -r '(.permissions.deny // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
   done
 
   local settings_files_json="[]"
@@ -199,23 +207,22 @@ main() {
   )
 
   local -a found_permissions=() missing_permissions=() denied_lines=()
-  local perm rule file line
+  local perm base file line
   for perm in "${all_required[@]}"; do
-    local denied_by="" denied_file=""
-    while IFS=$'\t' read -r rule file; do
-      [[ -n "$rule" ]] || continue
-      if rule_covers "$rule" "$perm"; then denied_by="$rule"; denied_file="$file"; break; fi
-    done <<< "$deny_rules"
-    if [[ -n "$denied_by" ]]; then
-      denied_lines+=("$perm"$'\t'"$denied_by"$'\t'"$denied_file")
+    base="$(base_pattern_of "$perm")"
+    # deny wins: the exact rule or its base wildcard, in any layer
+    if [[ -n "${deny_by[$perm]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"$perm"$'\t'"${deny_by[$perm]}")
+      continue
+    elif [[ -n "${deny_by[$base]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"$base"$'\t'"${deny_by[$base]}")
       continue
     fi
-    local allowed=false
-    while IFS=$'\t' read -r rule file; do
-      [[ -n "$rule" ]] || continue
-      if rule_covers "$rule" "$perm"; then allowed=true; break; fi
-    done <<< "$allow_rules"
-    if [[ "$allowed" == "true" ]]; then found_permissions+=("$perm"); else missing_permissions+=("$perm"); fi
+    if [[ -n "${allow_by[$perm]+x}" || -n "${allow_by[$base]+x}" ]]; then
+      found_permissions+=("$perm")
+    else
+      missing_permissions+=("$perm")
+    fi
   done
 
   local total_required=${#all_required[@]}
@@ -253,7 +260,7 @@ main() {
     log "========================="
     log ""
     log "Settings files consulted (Claude Code's layers; deny wins):"
-    for f in "${consulted[@]}"; do log "  - $f"; done
+    for f in ${consulted[@]+"${consulted[@]}"}; do log "  - $f"; done
     log ""
     if [[ $total_missing -eq 0 && $total_denied -eq 0 ]]; then
       log "✓ All $total_required required permissions are effective"
