@@ -115,7 +115,11 @@ teardown() {
   echo "$output" | jq -e '.entry_count == 2 and .legacy_rows == 2' >/dev/null
   run bash "$CR" --ledger "$T/none.jsonl" --json
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.entry_count == 0 and .unpriced_rows == 0 and .unpriced_share == 0' >/dev/null
+  echo "$output" | jq -e '.entry_count == 0 and .unpriced_rows == 0 and .unpriced_share == 0 and .repriced_rows == 0 and (has("window") | not)' >/dev/null
+  # a missing ledger still answers a --window-day question with an empty window (the enforcer on a fresh mount / CI)
+  run bash "$CR" --ledger "$T/none.jsonl" --json --window-day 2026-09-24
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.window == {"day":"2026-09-24","entry_count":0,"unpriced_rows":0,"unpriced_share":0}' >/dev/null
 }
 
 # =============================================================================

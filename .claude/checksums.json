@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-24T02:11:18Z",
+  "generated": "2026-09-24T02:49:18Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1243,7 +1243,7 @@
     ".claude/scripts/context-benchmark.sh": "4d3dbcda09c1babfe19c90bc107f023a7bb02ca2205e3993e4b9360096a7be0b",
     ".claude/scripts/context-check.sh": "1ae5822f284ff704148064bc2b15c462a4aeaf0e8e422bc331046389ea022ca9",
     ".claude/scripts/context-manager.sh": "d976216bc2b13d28bef671629e1753e21034127d97c9ed3099ea30739a4a596c",
-    ".claude/scripts/cost-report.sh": "c0e55f3185d73b01ccb2e45079370fa2dd231fb16d712d00c25c29f07e87c1a7",
+    ".claude/scripts/cost-report.sh": "fc0141af5e6b22a26eb9b6fb92da6221f17fd9cdc437a905ed61eb78bf707977",
     ".claude/scripts/cross-repo-query.sh": "cfeefd809c1ed3c11b0f20d2664ac12f71c05e8cbcde66c557960c0f871ab030",
     ".claude/scripts/cycle-workspace.sh": "c134449f41628809fc828c0ecbfeb89f1955c2709ad6cae86fcd7dfc7213d435",
     ".claude/scripts/danger-level-enforcer.sh": "07475373329f05511c96f1d41ea34b736a7f9fa9ed629951b8e581067f7e631c",

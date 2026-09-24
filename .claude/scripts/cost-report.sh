@@ -313,7 +313,11 @@ fi
 
 if [[ ! -f "$LEDGER_PATH" && -z "$_legacy_arg" ]]; then
     if [[ "$OUTPUT_JSON" == "true" ]]; then
-        echo '{"total_micro_usd":0,"entry_count":0,"agents":{},"models":{},"providers":{},"daily":[],"unpriced_rows":0,"unpriced_share":0}'
+        # The empty envelope answers the same questions as a populated one: a
+        # --window-day caller (the budget enforcer) gets an empty window, not a
+        # missing field (a fresh mount has no ledger yet — CI, first run).
+        jq -nc --arg d "$WINDOW_DAY" '{total_micro_usd:0, entry_count:0, agents:{}, models:{}, providers:{}, daily:[], unpriced_rows:0, unpriced_share:0, unclassified_rows:0, estimated_rows:0, legacy_rows:0, repriced_rows:0, pricing_resolution:{}}
+            + (if $d == "" then {} else {window: {day: $d, entry_count: 0, unpriced_rows: 0, unpriced_share: 0}} end)'
     else
         echo "# Cost Report"
         echo ""

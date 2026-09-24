@@ -7,7 +7,7 @@
 > **Reference-weighted, NOT semantic.** Symbols are ranked by a fixed-iteration damped PageRank over a graph built from lexical word-boundary occurrences of symbol names across files (bash `name() {` defs + python `def`/`class` via `ast`). This is NOT a call graph or an import graph: a name inside a comment, a string, or an unrelated same-named local counts the same as a real call. Symbols sharing a name across files **collapse into one node** whose score aggregates every definition site (marked `collision`). Treat this as a navigation hint, not verified truth. Test/fixture directories (`tests`, `__tests__`, `fixtures`) are excluded from the scan, and definitions named after bash builtins / python keywords (test mocks like `exit()`) are skipped as unrankable noise.
 
 - **Generator:** `repo-map-gen.sh` v1.0.0
-- **Input content hash (sha256):** `aff8a1dd8573b83f87216ee9da1f52a5a0df63f5c5dc52f9dbc76cbf4f34c4fa`
+- **Input content hash (sha256):** `9eb70f92d6bd5364be5779f9a9c6a63985cbcd90085c67c1e14b8de80fc9f404`
 - **Method:** damped PageRank, damping=0.85, 50 fixed iterations, ties lexicographic.
 
 ## Top 50 Overall
@@ -15,7 +15,7 @@
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
 | 1 | `EncryptedFileProvider` | class | 0.075481 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
-| 2 | `CredentialProvider` | class | 0.056830 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
+| 2 | `CredentialProvider` | class | 0.056829 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
 | 3 | `available` | function | 0.053692 | 420 | .claude/adapters/loa_cheval/jcs.py:25 |
 | 4 | `name` | function | 0.052354 | 1336 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
 | 5 | `providers` | function | 0.052015 | 358 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
@@ -28,7 +28,7 @@
 | 12 | `Usage` | class | 0.023730 | 732 | .claude/adapters/loa_cheval/types.py:55 |
 | 13 | `log` | function | 0.022222 | 421 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:117, .claude/scripts/beads-flatline-loop.sh:114 (+57 more) |
 | 14 | `wrapper` | function | 0.016517 | 97 | .claude/scripts/lib/model-resolver.py:240 |
-| 15 | `canonical` | function | 0.011039 | 360 | .claude/adapters/loa_cheval/routing/types.py:86 |
+| 15 | `canonical` | function | 0.011040 | 360 | .claude/adapters/loa_cheval/routing/types.py:86 |
 | 16 | `defaults` | function | 0.010174 | 211 | .claude/scripts/lib/model-overlay-hook.py:1252 |
 | 17 | `raw` | function | 0.010028 | 394 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
 | 18 | `report` | function | 0.009793 | 347 | .claude/scripts/check-installer-safety.sh:43, .claude/scripts/lint-invariants.sh:76 |
@@ -72,14 +72,14 @@ Top-15 slice of the global ranking with a definition under this directory.
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
 | 1 | `EncryptedFileProvider` | class | 0.075481 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
-| 2 | `CredentialProvider` | class | 0.056830 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
+| 2 | `CredentialProvider` | class | 0.056829 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
 | 3 | `available` | function | 0.053692 | 420 | .claude/adapters/loa_cheval/jcs.py:25 |
 | 4 | `name` | function | 0.052354 | 1336 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
 | 5 | `providers` | function | 0.052015 | 358 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
 | 6 | `get` | function | 0.046240 | 1567 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
 | 7 | `check` | function | 0.026960 | 923 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
 | 8 | `Usage` | class | 0.023730 | 732 | .claude/adapters/loa_cheval/types.py:55 |
-| 9 | `canonical` | function | 0.011039 | 360 | .claude/adapters/loa_cheval/routing/types.py:86 |
+| 9 | `canonical` | function | 0.011040 | 360 | .claude/adapters/loa_cheval/routing/types.py:86 |
 | 10 | `raw` | function | 0.010028 | 394 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
 | 11 | `resolve` | function | 0.008384 | 192 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+1 more) |
 | 12 | `clear` | function | 0.006089 | 99 | .claude/adapters/loa_cheval/metering/pricing.py:199 |
