@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-125-friction-floor",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2198,7 +2198,7 @@
     {
       "id": "cycle-125-friction-floor",
       "label": "Friction floor — fence precision, sectioned artefacts, run preflight/resume, provider health, cost accounting (usage-mining 2026-09-23)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-09-23T03:20:52Z",
       "archived": null,
       "archive_path": null,
@@ -2277,7 +2277,9 @@
         }
       ],
       "sprint_plan": "grimoires/loa/sprint.md",
-      "source_prompt": "grimoires/loa/a2a/prompts/cycle-125-friction-floor-2026-09-23.md"
+      "source_prompt": "grimoires/loa/a2a/prompts/cycle-125-friction-floor-2026-09-23.md",
+      "archived_at": "2026-09-24T03:57:54Z",
+      "archive_note": "archived on main at cycle-126 kickoff; the pipeline archive commit lives only on tag v2.0.0-rc.2 (bd-b4ji)"
     }
   ],
   "global_sprint_counter": 246,
@@ -2679,5 +2681,5 @@
     }
   ],
   "next_sprint_number": 247,
-  "last_updated": "2026-09-24T01:57:49Z"
+  "last_updated": "2026-09-24T03:57:54Z"
 }
