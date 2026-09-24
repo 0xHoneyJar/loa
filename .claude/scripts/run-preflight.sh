@@ -12,7 +12,9 @@
 #      run's allow rules (an unattended run cannot answer prompts — the fences
 #      are the guard); plan fails; auto fails ("prompts unavailable → auto-denied").
 #      Interactive mode downgrades P1 failures to WARN.
-#   P2 tool allow rules — check-permissions.sh --quiet (pass-through).
+#   P2 tool allow rules — check-permissions.sh --quiet (pass-through; it reads
+#      ~/.claude/settings.json, .claude/settings.json and .claude/settings.local.json
+#      and lets a deny rule in any layer win — sprint-bug-246).
 #   P3 voices — for flatline_protocol.{code_review,security_audit}: model +
 #      fallback_chain → provider (catalog alias in .claude/defaults/model-config.yaml,
 #      else by name) → a credential is PRESENT in the environment / .env.local /
@@ -100,7 +102,7 @@ status_of() { local i; for i in "${!IDS[@]}"; do [[ "${IDS[$i]}" == "$1" ]] && {
 p2_status="FAIL"; p2_detail=""
 cp="$(helper check-permissions.sh)"
 if [[ -x "$cp" ]]; then
-  if "$cp" --quiet >/dev/null 2>&1; then p2_status="PASS"; p2_detail="run-mode allow rules present ($(basename "$(dirname "$cp")" 2>/dev/null | grep -q helpers && echo stub || echo check-permissions.sh))"
+  if "$cp" --quiet >/dev/null 2>&1; then p2_status="PASS"; p2_detail="run-mode allow rules effective across ~/.claude/settings.json, .claude/settings.json, .claude/settings.local.json (deny wins) ($(basename "$(dirname "$cp")" 2>/dev/null | grep -q helpers && echo stub || echo check-permissions.sh))"
   else p2_detail="run-mode allow rules missing"; fi
 else
   p2_detail="check-permissions.sh not found"
@@ -125,7 +127,7 @@ case "$p1_val" in
     else record P1 permissions WARN "defaultMode = $label ($src); allow rules missing (P2)" "$p1_fix"; fi ;;
   *) record P1 permissions WARN "defaultMode = $p1_val ($p1_src): unknown value" "$p1_fix" ;;
 esac
-record P2 allow-rules "$p2_status" "$p2_detail" "run .claude/scripts/check-permissions.sh and add the listed Bash(...) allow rules to .claude/settings.json"
+record P2 allow-rules "$p2_status" "$p2_detail" "run .claude/scripts/check-permissions.sh; add the listed Bash(...) allow rules to .claude/settings.local.json (machine-local) or .claude/settings.json (shared), and remove any deny rule that covers them (~/.claude/settings.json, .claude/settings*.json — deny wins)"
 
 # --- P3 voices ------------------------------------------------------------------
 cred_present() {  # $1 = provider → 0 if a credential is present (env / .env.local / .env) — value never read out
