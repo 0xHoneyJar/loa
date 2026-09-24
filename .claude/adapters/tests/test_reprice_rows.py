@@ -113,12 +113,11 @@ def test_repricing_is_idempotent():
     assert s2 == {"rows_scanned": 1, "rows_repriced": 0, "rows_still_unpriced": 0, "rows_skipped_priced": 1, "micro_usd_added": 0}
 
 
-def test_resolved_model_hint_is_used_when_the_model_itself_does_not_resolve():
+def test_resolved_model_hint_on_the_row_is_never_a_pricing_authority():
+    # audit F-3: only (provider, model) through the config-owned ladder decides the price
     row = unknown_row(model="some-other-cli", resolved_model="gpt-5.5")
     out, stats = reprice_rows([row], CONFIG, NOW)
-    r = out[0]
-    assert stats["rows_repriced"] == 1
-    assert r["pricing_resolution"] == "exact" and r["resolved_model"] == "gpt-5.5" and r["cost_micro_usd"] > 0
+    assert out[0] is row and stats["rows_still_unpriced"] == 1 and stats["rows_repriced"] == 0
 
 
 def test_tokens_default_to_zero_when_absent_and_cache_tokens_are_priced():

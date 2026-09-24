@@ -32,8 +32,11 @@
 #                      at cost 0): each changed row is priced as a fresh row with the same
 #                      tokens and marked repriced_at / repriced_from / cost_estimated;
 #                      priced and unresolvable rows and corrupt lines are kept byte-for-byte;
-#                      a symlinked ledger is refused; the previous file is copied to
-#                      <ledger>.pre-reprice-<UTC> first; the file is replaced atomically;
+#                      a symlinked ledger is refused; the pass holds the writer's own lock
+#                      (flock on the ledger inode) from read to last byte and rewrites the
+#                      SAME inode in place, so a live append blocks and then lands after it;
+#                      the bytes read are first copied to <ledger>.pre-reprice-<UTC>
+#                      (O_EXCL|O_NOFOLLOW, fsynced) — the crash-recovery point;
 #                      receipt .run/cost-ledger-reprice-<UTC>.json (counts, sha256s —
 #                      never row contents). Idempotent: a second run re-prices 0.
 #   --dry-run          With --reprice: report what would change, write nothing
@@ -244,16 +247,8 @@ receipt = {
     "sha256_source": sha256(legacy_path), "sha256_target_before": sha_before, "sha256_target_after": sha256(target_path),
     "writer": "loa_cheval.metering.ledger.append_ledger",
 }
-receipt_path = os.path.join(receipt_dir, f"cost-ledger-migration-{ts}.json")
-n = 1
-while os.path.exists(receipt_path):  # two migrations in one second never overwrite a receipt
-    n += 1
-    receipt_path = os.path.join(receipt_dir, f"cost-ledger-migration-{ts}-{n}.json")
-tmp = receipt_path + f".tmp.{os.getpid()}"
-with open(tmp, "w", encoding="utf-8") as fh:
-    json.dump(receipt, fh, indent=2, sort_keys=True)
-    fh.write("\n")
-os.replace(tmp, receipt_path)
+from loa_cheval.metering.reprice import write_receipt  # O_EXCL|O_NOFOLLOW temp, renamed into place (audit F-4)
+receipt_path = write_receipt(receipt_dir, f"cost-ledger-migration-{ts}", receipt)
 print(f"cost-report: migrated {migrated} legacy row(s) ({skipped} already present) → {target_path}; receipt {receipt_path}", file=sys.stderr)
 PYMIG
     _mig_rc=$?
@@ -265,9 +260,10 @@ fi
 
 # --- sprint-bug-245 (bead bd-ypbg): explicit re-pricing of historical unpriced rows
 # Prices every unpriced row the ladder can now resolve exactly as a fresh row
-# with the same tokens (loa_cheval.metering.reprice), marks it, keeps every
-# other line byte-for-byte, copies the previous file first, replaces the file
-# atomically and writes a receipt. Opt-in; --dry-run writes nothing.
+# with the same tokens (loa_cheval.metering.reprice.reprice_ledger_file): holds
+# the writer's flock on the ledger inode, copies the bytes read to a backup
+# (O_EXCL|O_NOFOLLOW), rewrites the same inode in place with every other line
+# byte-for-byte, and writes a receipt. Opt-in; --dry-run writes nothing.
 if [[ "$REPRICE" == "true" ]]; then
     [[ -n "$_PYTHON_BIN" ]] || { echo "ERROR: --reprice needs the cheval Python substrate (python3)" >&2; exit 2; }
     if [[ -L "$LEDGER_PATH" ]]; then
@@ -280,95 +276,32 @@ if [[ "$REPRICE" == "true" ]]; then
     fi
     _receipt_dir="${LOA_RUN_DIR:-${PROJECT_ROOT}/.run}"
     [[ "$REPRICE_DRY_RUN" == "true" ]] || mkdir -p "$_receipt_dir"
-    PYTHONPATH="${PROJECT_ROOT}/.claude/adapters${PYTHONPATH:+:$PYTHONPATH}" "$_PYTHON_BIN" - "$LEDGER_PATH" "$_receipt_dir" "$REPRICE_DRY_RUN" "$PROJECT_ROOT" <<'PYREP'
-import hashlib, json, os, shutil, sys, tempfile, time
+    _rp_rc=0
+    PYTHONPATH="${PROJECT_ROOT}/.claude/adapters${PYTHONPATH:+:$PYTHONPATH}" "$_PYTHON_BIN" - "$LEDGER_PATH" "$_receipt_dir" "$REPRICE_DRY_RUN" "$PROJECT_ROOT" <<'PYREP' || _rp_rc=$?
+import sys
 ledger, receipt_dir, dry_run, project_root = sys.argv[1], sys.argv[2], sys.argv[3] == "true", sys.argv[4]
-if os.path.islink(ledger):
-    print(f"cost-report: --reprice refuses a symlinked ledger ({ledger})", file=sys.stderr)
-    sys.exit(3)
 from loa_cheval.config.loader import load_config
-from loa_cheval.metering.reprice import reprice_rows
+from loa_cheval.metering.reprice import RepriceRefused, reprice_ledger_file
 config, _sources = load_config(project_root)
-
-def sha256(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-with open(ledger, "r", encoding="utf-8", newline="") as fh:
-    lines = fh.read().splitlines(keepends=True)
-parsed = []  # (line index, row) — only parseable lines are ever rewritten
-corrupt = 0
-for i, line in enumerate(lines):
-    body = line.rstrip("\r\n")
-    if not body.strip():
-        continue
-    try:
-        parsed.append((i, json.loads(body)))
-    except json.JSONDecodeError:
-        corrupt += 1
-now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-out, stats = reprice_rows([row for _, row in parsed], config, now_iso)
-unpriced_total = stats["rows_repriced"] + stats["rows_still_unpriced"]
+try:
+    r = reprice_ledger_file(
+        ledger, receipt_dir, config, dry_run=dry_run,
+        catalog_note={"project_root": project_root, "loader": "loa_cheval.config.loader.load_config"},
+    )
+except RepriceRefused as exc:
+    print(f"cost-report: --reprice {exc}", file=sys.stderr)
+    sys.exit(3)
+total = r["rows_repriced"] + r["rows_still_unpriced"]
 if dry_run:
-    print(f"cost-report: --reprice --dry-run: {stats['rows_repriced']} of {unpriced_total} unpriced row(s) would be re-priced "
-          f"({stats['rows_still_unpriced']} still unresolvable); nothing written", file=sys.stderr)
-    sys.exit(0)
-sha_before = sha256(ledger)
-backup = None
-if stats["rows_repriced"]:
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    backup = f"{ledger}.pre-reprice-{stamp}"
-    n = 1
-    while os.path.exists(backup):
-        n += 1
-        backup = f"{ledger}.pre-reprice-{stamp}-{n}"
-    shutil.copy2(ledger, backup)
-    for (i, old), new in zip(parsed, out):
-        if new is not old:
-            ending = "\r\n" if lines[i].endswith("\r\n") else ("\n" if lines[i].endswith("\n") else "")
-            lines[i] = json.dumps(new, separators=(",", ":")) + ending
-    mode = os.stat(ledger).st_mode & 0o7777
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(ledger)), prefix=os.path.basename(ledger) + ".reprice.")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
-            fh.write("".join(lines))
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.chmod(tmp, mode)
-        os.replace(tmp, ledger)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-receipt = {
-    "ts": now_iso, "ledger": ledger, "backup": backup, "dry_run": False,
-    **stats, "corrupt_lines_preserved": corrupt,
-    "sha256_before": sha_before, "sha256_after": sha256(ledger),
-    "catalog": {"project_root": project_root, "loader": "loa_cheval.config.loader.load_config"},
-    "writer": "loa_cheval.metering.reprice.reprice_rows",
-}
-stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-receipt_path = os.path.join(receipt_dir, f"cost-ledger-reprice-{stamp}.json")
-n = 1
-while os.path.exists(receipt_path):  # two passes in one second never overwrite a receipt
-    n += 1
-    receipt_path = os.path.join(receipt_dir, f"cost-ledger-reprice-{stamp}-{n}.json")
-tmp = receipt_path + f".tmp.{os.getpid()}"
-with open(tmp, "w", encoding="utf-8") as fh:
-    json.dump(receipt, fh, indent=2, sort_keys=True)
-    fh.write("\n")
-os.replace(tmp, receipt_path)
-print(f"cost-report: --reprice: re-priced {stats['rows_repriced']} of {unpriced_total} unpriced row(s) "
-      f"({stats['rows_still_unpriced']} still unpriced) → {ledger}; backup {backup or 'none (nothing changed)'}; receipt {receipt_path}", file=sys.stderr)
+    print(f"cost-report: --reprice --dry-run: {r['rows_repriced']} of {total} unpriced row(s) would be re-priced "
+          f"({r['rows_still_unpriced']} still unresolvable); nothing written", file=sys.stderr)
+else:
+    print(f"cost-report: --reprice: re-priced {r['rows_repriced']} of {total} unpriced row(s) "
+          f"({r['rows_still_unpriced']} still unpriced) → {ledger}; backup {r['backup'] or 'none (nothing changed)'}; "
+          f"receipt {r['receipt_path']}", file=sys.stderr)
 PYREP
-    _rp_rc=$?
     if [[ $_rp_rc -ne 0 ]]; then
-        echo "ERROR: --reprice failed (exit $_rp_rc); a failed pass never replaces the ledger (temp file discarded)" >&2
+        echo "ERROR: --reprice failed (exit $_rp_rc); the ledger is rewritten only after its backup is durable (see the receipt / <ledger>.pre-reprice-* for recovery)" >&2
         exit "$_rp_rc"
     fi
 fi
