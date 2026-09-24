@@ -129,6 +129,42 @@ _resolve_cycle_artifact_root() {
   echo "$GRIMOIRE_DIR"
 }
 
+# #1263: create_archive() copies ledger.json into the archive dir but never
+# mutates the LIVE ledger, contradicting the documented "Ledger Changes"
+# contract (.claude/commands/archive-cycle.md) -- every archived cycle
+# stayed status:"active" with active_cycle still pointing at it. Called
+# only from the non-dry-run path, after archive files are written, so a
+# copy failure can't leave the ledger falsely marked archived.
+_update_ledger_status() {
+  local cycle_id="$1" archive_path="$2"
+  local ledger="${GRIMOIRE_DIR}/ledger.json"
+
+  # No-op (not an error) for legacy cycles with no ledger entry, or a
+  # missing ledger -- matches _resolve_cycle_id's existing empty-string
+  # contract for "not tracked in this ledger".
+  [[ -n "$cycle_id" ]] || return 0
+  [[ -f "$ledger" ]] || return 0
+
+  local archive_path_rel="$archive_path"
+  if [[ "$archive_path_rel" == "${PROJECT_ROOT:-}"/* ]]; then
+    archive_path_rel="${archive_path_rel#"${PROJECT_ROOT}"/}"
+  fi
+
+  local tmp
+  tmp=$(mktemp "${ledger}.XXXXXX") || return 0
+  if jq --arg id "$cycle_id" \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg path "$archive_path_rel" '
+    (if .active_cycle == $id then .active_cycle = null else . end) |
+    (.cycles[]? | select(.id == $id)) |= (.status = "archived" | .archived = $ts | .archive_path = $path)
+  ' "$ledger" > "$tmp" 2>/dev/null; then
+    mv "$tmp" "$ledger"
+  else
+    rm -f "$tmp"
+    echo "[WARN] Could not update ledger status for cycle: $cycle_id (non-blocking)" >&2
+  fi
+}
+
 get_current_cycle() {
   local ledger="${GRIMOIRE_DIR}/ledger.json"
   if [[ -f "$ledger" ]]; then
@@ -202,7 +238,11 @@ create_archive() {
       cp -r "${GRIMOIRE_DIR}/a2a/compound" "$archive_path/"
     fi
   fi
-  
+
+  # #1263: mark the cycle archived + clear active_cycle in the LIVE ledger,
+  # now that every file above has been copied successfully.
+  _update_ledger_status "$cycle_id" "$archive_path"
+
   # Generate changelog
   "$SCRIPT_DIR/generate-changelog.sh" --cycle "$cycle" --file "${archive_path}/CHANGELOG.md" 2>/dev/null || true
 
