@@ -2280,7 +2280,7 @@
       "source_prompt": "grimoires/loa/a2a/prompts/cycle-125-friction-floor-2026-09-23.md"
     }
   ],
-  "global_sprint_counter": 240,
+  "global_sprint_counter": 246,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -2631,6 +2631,34 @@
       "triage": "grimoires/loa/a2a/bug-20260923-27d899/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260923-27d899/sprint.md",
       "completed_at": "2026-09-22T22:21:43Z"
+    },
+    {
+      "id": "cycle-bug-20260924-57bc88",
+      "label": "Bug Fix — cost-budget enforcer halts permanently on historical unpriced ledger rows (all-time share, no sanctioned re-pricing pass)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "created_at": "2026-09-24T01:19:11Z",
+      "sprints": [
+        "sprint-bug-245"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260924-57bc88/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260924-57bc88/sprint.md",
+      "bead": "bd-ypbg"
+    },
+    {
+      "id": "cycle-bug-20260924-1f9d91",
+      "label": "Bug Fix — check-permissions.sh (preflight P2) reads only .claude/settings.json and treats deny entries as allowed",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "created_at": "2026-09-24T01:22:04Z",
+      "sprints": [
+        "sprint-bug-246"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260924-1f9d91/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260924-1f9d91/sprint.md",
+      "bead": "bd-n7v3"
     }
   ],
   "bugfixes": [
@@ -2648,6 +2676,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 245,
-  "last_updated": "2026-09-23T06:02:23Z"
+  "next_sprint_number": 247,
+  "last_updated": "2026-09-24T01:22:04Z"
 }

@@ -84,3 +84,69 @@ teardown() { rm -rf "$TEST_DIR"; }
     [[ "$status" -eq 0 ]]
     echo "$output" | jq -e 'has("unpriced_share") and has("unpriced_rows")' >/dev/null
 }
+
+# =============================================================================
+# sprint-bug-245 (bead bd-ypbg): the guard measures the day it certifies. The
+# report carries a `window` object for the verdict's utc_day; the enforcer
+# compares that share (an unpriced row inside the window still halts) and
+# falls back to the all-time share when the report has no window.
+# =============================================================================
+
+@test "UP-6 all-time share 0.685 but a clean window for utc_day → allow; the payload carries the window share and day (sprint-bug-245)" {
+    load_lib
+    echo '{"total_micro_usd": 1000, "entry_count": 54, "unpriced_rows": 37, "unpriced_share": 0.685185, "window": {"day": "2026-05-04", "entry_count": 3, "unpriced_rows": 0, "unpriced_share": 0}}' > "$REPORT"
+    run budget_verdict "5.00"
+    [[ "$status" -eq 0 ]]
+    last="$(echo "$output" | tail -1)"
+    [[ "$(echo "$last" | jq -r '.verdict')" == "allow" ]]
+    [[ "$(echo "$last" | jq -r '.unpriced_share')" == "0" ]]
+    [[ "$(echo "$last" | jq -r '.unpriced_window')" == "2026-05-04" ]]
+    [[ "$(tail -1 "$LOG_FILE" | jq -r '.event_type')" == "budget.allow" ]]
+}
+
+@test "UP-7 an unpriced row inside the window still halts: window share 0.2 → halt-uncertainty naming the window day and the all-time share" {
+    load_lib
+    echo '{"total_micro_usd": 1000, "entry_count": 100, "unpriced_rows": 2, "unpriced_share": 0.02, "window": {"day": "2026-05-04", "entry_count": 5, "unpriced_rows": 1, "unpriced_share": 0.2}}' > "$REPORT"
+    run budget_verdict "5.00"
+    [[ "$status" -eq 1 ]]
+    last="$(echo "$output" | tail -1)"
+    [[ "$(echo "$last" | jq -r '.verdict')" == "halt-uncertainty" ]]
+    [[ "$(echo "$last" | jq -r '.uncertainty_reason')" == "unpriced_share" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.unpriced_share')" == "0.2" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.unpriced_rows')" == "1" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.window_day')" == "2026-05-04" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.unpriced_share_all_time')" == "0.02" ]]
+}
+
+@test "UP-8 a report without a window object (older shape) keeps the all-time share — conservative fallback, window_day null" {
+    load_lib
+    echo '{"total_micro_usd": 1000, "entry_count": 10, "unpriced_rows": 2, "unpriced_share": 0.2}' > "$REPORT"
+    run budget_verdict "5.00"
+    [[ "$status" -eq 1 ]]
+    last="$(echo "$output" | tail -1)"
+    [[ "$(echo "$last" | jq -r '.verdict')" == "halt-uncertainty" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.unpriced_share')" == "0.2" ]]
+    [[ "$(echo "$last" | jq -r '.diagnostic.window_day')" == "null" ]]
+}
+
+@test "UP-9 the enforcer asks the report for the verdict's day (--json --window-day <utc_day>); the stub-script seam is bats-gated" {
+    load_lib
+    : > "$REPORT"; unset LOA_BUDGET_COST_REPORT_JSON
+    cat > "$TEST_DIR/cost-report-stub.sh" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$*" > "$TEST_DIR/argv.txt"
+echo '{"unpriced_rows": 0, "unpriced_share": 0, "window": {"day": "2026-05-04", "entry_count": 1, "unpriced_rows": 0, "unpriced_share": 0}}'
+STUB
+    chmod +x "$TEST_DIR/cost-report-stub.sh"
+    export LOA_BUDGET_COST_REPORT_SCRIPT="$TEST_DIR/cost-report-stub.sh"
+    run budget_verdict "5.00"
+    [[ "$status" -eq 0 ]]
+    [[ "$(echo "$output" | tail -1 | jq -r '.unpriced_window')" == "2026-05-04" ]]
+    grep -q -- '--json --window-day 2026-05-04' "$TEST_DIR/argv.txt"
+    # without the bats marker the stub is ignored and the real cost-report.sh answers (read-only)
+    : > "$TEST_DIR/argv.txt"
+    run bash -c "unset BATS_TEST_FILENAME BATS_VERSION; export LOA_BUDGET_COST_REPORT_SCRIPT='$TEST_DIR/cost-report-stub.sh'; source '${BATS_TEST_DIRNAME}/../../.claude/scripts/lib/cost-budget-enforcer-lib.sh'; _l2_unpriced_share_json 2026-05-04"
+    [[ "$status" -eq 0 ]]
+    [[ ! -s "$TEST_DIR/argv.txt" ]]
+    echo "$output" | jq -e 'has("unpriced_share") and has("unpriced_share_all_time") and .window_day == "2026-05-04"' >/dev/null
+}

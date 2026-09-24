@@ -117,3 +117,66 @@ teardown() {
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.entry_count == 0 and .unpriced_rows == 0 and .unpriced_share == 0' >/dev/null
 }
+
+# =============================================================================
+# sprint-bug-245 (bead bd-ypbg): a per-day window next to the all-time share,
+# and an explicit, receipted re-pricing pass for historical unpriced rows.
+# =============================================================================
+
+@test "CR-6 --window-day D adds a window object for that UTC day next to the unchanged all-time fields (sprint-bug-245)" {
+  run bash "$CR" --ledger "$CUR" --json --window-day 2026-09-21
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.entry_count == 3 and .unpriced_rows == 1 and .window.day == "2026-09-21" and .window.entry_count == 1 and .window.unpriced_rows == 1 and .window.unpriced_share == 1' >/dev/null
+  run bash "$CR" --ledger "$CUR" --json --window-day 2026-09-20
+  echo "$output" | jq -e '.window.entry_count == 1 and .window.unpriced_rows == 0 and .window.unpriced_share == 0' >/dev/null
+  run bash "$CR" --ledger "$CUR" --json --window-day 2026-09-25
+  echo "$output" | jq -e '.window.entry_count == 0 and .window.unpriced_rows == 0 and .window.unpriced_share == 0' >/dev/null
+  run bash "$CR" --ledger "$CUR" --window-day 2026-09-21
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -q '^Window 2026-09-21: 1 row(s), 1 unpriced (100.0 %)$'
+  run bash "$CR" --ledger "$CUR" --json --window-day yesterday
+  [ "$status" -eq 2 ]
+}
+
+@test "CR-7 --reprice: --dry-run changes nothing; the pass re-prices only the resolvable unknown rows with marks, keeps every other line byte-identical, backs the file up, writes a receipt, is idempotent and refuses a symlink" {
+  RP="$T/rp.jsonl"
+  cat > "$RP" <<'ROWS'
+{"ts":"2026-09-22T09:00:00.000Z","request_id":"u1","agent":"codex-headless","provider":"openai","model":"codex-headless","tokens_in":1000,"tokens_out":100,"tokens_reasoning":0,"cost_micro_usd":0,"pricing_source":"unknown","pricing_mode":"token"}
+{"ts":"2026-09-22T09:01:00.000Z","request_id":"u2","agent":"codex-headless","provider":"openai","model":"codex-headless","tokens_in":2000,"tokens_out":200,"tokens_reasoning":0,"cost_micro_usd":0,"pricing_source":"unknown","pricing_mode":"token"}
+{"ts":"2026-09-22T09:02:00.000Z","request_id":"u3","agent":"x","provider":"acme","model":"nope-9000","tokens_in":5,"tokens_out":5,"cost_micro_usd":0,"pricing_source":"unknown"}
+{"ts":"2026-09-22T09:03:00.000Z","request_id":"p1","agent":"a","provider":"openai","model":"gpt-5.5","tokens_in":10,"tokens_out":1,"cost_micro_usd":900,"pricing_source":"config","pricing_resolution":"exact"}
+not json at all
+ROWS
+  before=$(sha256sum "$RP" | cut -d' ' -f1); l3=$(sed -n '3p' "$RP"); l4=$(sed -n '4p' "$RP"); l5=$(sed -n '5p' "$RP")
+  run bash "$CR" --ledger "$RP" --reprice --dry-run --json
+  [ "$status" -eq 0 ]
+  [ "$(sha256sum "$RP" | cut -d' ' -f1)" = "$before" ]
+  [ "$(ls "$T/run"/cost-ledger-reprice-*.json 2>/dev/null | wc -l)" -eq 0 ]
+  echo "$output" | grep -q 'cost-report: --reprice --dry-run: 2 of 3 unpriced row(s) would be re-priced'
+  echo "$output" | grep -v '^cost-report:' | jq -e '.unpriced_rows == 3 and .repriced_rows == 0' >/dev/null
+  run bash "$CR" --ledger "$RP" --reprice --json
+  [ "$status" -eq 0 ]
+  [ "$(wc -l < "$RP")" -eq 5 ]
+  grep '"u1"' "$RP" | jq -e '.pricing_source == "config" and .pricing_resolution == "hop" and .resolved_model == "gpt-5.5" and .cost_estimated == true and .cost_micro_usd > 0 and .repriced_from == {"pricing_source":"unknown","cost_micro_usd":0} and (.repriced_at|test("^2026")) and .request_id == "u1" and .tokens_in == 1000' >/dev/null
+  grep '"u2"' "$RP" | jq -e '.pricing_source == "config" and .cost_micro_usd > 0' >/dev/null
+  [ "$(sed -n '3p' "$RP")" = "$l3" ]; [ "$(sed -n '4p' "$RP")" = "$l4" ]; [ "$(sed -n '5p' "$RP")" = "$l5" ]
+  backup=$(ls "$RP.pre-reprice-"* | head -1); [ -n "$backup" ]
+  [ "$(sha256sum "$backup" | cut -d' ' -f1)" = "$before" ]
+  receipt=$(ls -t "$T/run"/cost-ledger-reprice-*.json | head -1); [ -n "$receipt" ]
+  jq -e --arg b "$before" '.rows_scanned == 4 and .rows_repriced == 2 and .rows_still_unpriced == 1 and .rows_skipped_priced == 1 and .corrupt_lines_preserved == 1 and .sha256_before == $b and (.sha256_after|length) == 64 and .sha256_before != .sha256_after and (.backup|length) > 0 and .micro_usd_added > 0 and .writer == "loa_cheval.metering.reprice.reprice_rows"' "$receipt" >/dev/null
+  ! grep -q '"tokens_in"' "$receipt"
+  echo "$output" | grep -v '^cost-report:' | jq -e '.entry_count == 4 and .unpriced_rows == 1 and .repriced_rows == 2 and .estimated_rows == 2' >/dev/null
+  # idempotent: a second pass re-prices 0, rewrites nothing, makes no second backup, still leaves a receipt
+  after=$(sha256sum "$RP" | cut -d' ' -f1)
+  run bash "$CR" --ledger "$RP" --reprice --json
+  [ "$status" -eq 0 ]
+  [ "$(sha256sum "$RP" | cut -d' ' -f1)" = "$after" ]
+  [ "$(ls "$RP.pre-reprice-"* | wc -l)" -eq 1 ]
+  [ "$(ls "$T/run"/cost-ledger-reprice-*.json | wc -l)" -eq 2 ]
+  jq -e '.rows_repriced == 0 and .rows_skipped_priced == 3 and .backup == null' "$(ls -t "$T/run"/cost-ledger-reprice-*.json | head -1)" >/dev/null
+  # a symlinked ledger is refused before anything is written
+  ln -s "$RP" "$T/rp-link.jsonl"
+  run bash "$CR" --ledger "$T/rp-link.jsonl" --reprice --json
+  [ "$status" -ne 0 ]
+  [ "$(sha256sum "$RP" | cut -d' ' -f1)" = "$after" ]
+}
