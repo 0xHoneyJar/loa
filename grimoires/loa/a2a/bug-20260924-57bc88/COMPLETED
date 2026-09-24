@@ -1,0 +1,4 @@
+sprint-bug-245 — bug 20260924-57bc88: the cost-budget enforcer measures the UTC day it certifies (cost-report.sh --window-day, all-time fallback) and history is re-priced only through the explicit, locked, receipted cost-report.sh --reprice pass (cycle-bug-20260924-57bc88, bead bd-ypbg, branch fix/cycle-125-followups)
+completed_at: 2026-09-24T01:56:00Z
+review: APPROVED round 1 (engineer-feedback.md; 0/0/0/3, excluded 0; dissent gpt-5.5-pro clean)
+audit: round 1 CHANGES_REQUIRED (auditor-sprint-feedback-r1.md; 0/1/2/1 — F-1 lock/inode, F-2 symlink writes, F-3 row authority, F-4 migration receipt) → fixed in e577f66f → round 2 APPROVED (auditor-sprint-feedback.md; 0/0/1/0 medium resolved in-round, excluded_confirmed 0; dissents r1/r2 each one schema-rejected payload hand-confirmed and fixed, r3 clean)

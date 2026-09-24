@@ -2636,7 +2636,7 @@
       "id": "cycle-bug-20260924-57bc88",
       "label": "Bug Fix — cost-budget enforcer halts permanently on historical unpriced ledger rows (all-time share, no sanctioned re-pricing pass)",
       "type": "bugfix",
-      "status": "active",
+      "status": "completed",
       "source_issue": null,
       "created_at": "2026-09-24T01:19:11Z",
       "sprints": [
@@ -2644,7 +2644,8 @@
       ],
       "triage": "grimoires/loa/a2a/bug-20260924-57bc88/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20260924-57bc88/sprint.md",
-      "bead": "bd-ypbg"
+      "bead": "bd-ypbg",
+      "completed_at": "2026-09-24T01:50:51Z"
     },
     {
       "id": "cycle-bug-20260924-1f9d91",
@@ -2677,5 +2678,5 @@
     }
   ],
   "next_sprint_number": 247,
-  "last_updated": "2026-09-24T01:22:04Z"
+  "last_updated": "2026-09-24T01:50:51Z"
 }
