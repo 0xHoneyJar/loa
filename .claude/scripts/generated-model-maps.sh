@@ -239,6 +239,28 @@ declare -A MODEL_DISPATCH_GROUP=(
     ["composer-2.5-fast"]="cursor-composer"
 )
 
+# MODEL_MAX_OUTPUT — cycle-126 FR-1.6 (SDD D-1.6): canonical model id →
+# catalog max_output_tokens, for callers that size an explicit --max-tokens
+# (flatline-orchestrator.sh call_model: min(64000, MODEL_MAX_OUTPUT[id])).
+# Only entries that declare the field appear; a missing key means "let cheval
+# apply its own per-model default".
+declare -A MODEL_MAX_OUTPUT=(
+    ["gpt-5.2"]="16000"
+    ["gpt-5.3-codex"]="32000"
+    ["gpt-5.5"]="32000"
+    ["gpt-5.5-pro"]="32000"
+    ["gemini-2.5-pro"]="16000"
+    ["gemini-3.1-pro-preview"]="32000"
+    ["claude-fable-5-1"]="128000"
+    ["claude-fable-5"]="128000"
+    ["claude-opus-5"]="128000"
+    ["claude-opus-4-8"]="128000"
+    ["claude-opus-4-7"]="128000"
+    ["claude-opus-4-6"]="128000"
+    ["claude-sonnet-5"]="128000"
+    ["claude-sonnet-4-6"]="128000"
+)
+
 # VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
 # Hand-maintained array in flatline-orchestrator.sh historically drifted from
 # the YAML during model migrations (cycle-082, cycle-093). Now derived from

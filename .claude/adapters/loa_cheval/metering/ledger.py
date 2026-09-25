@@ -153,6 +153,7 @@ def create_ledger_entry(
     if pricing is None and resolved_model and resolved_model != model:
         pricing = find_pricing(provider, resolved_model, config)
 
+    long_context_applied = False  # cycle-126 FR-1.9: the premium tier was billed
     if reported_cost_micro_usd is not None:
         cost_micro_usd = reported_cost_micro_usd
         pricing_source = "cli_reported"
@@ -166,6 +167,7 @@ def create_ledger_entry(
         cost_micro_usd = breakdown.total_cost_micro
         pricing_source = "config"
         pricing_mode = pricing.pricing_mode
+        long_context_applied = bool(getattr(breakdown, "long_context_applied", False))
     else:
         cost_micro_usd = 0
         pricing_source = "unknown"
@@ -197,6 +199,8 @@ def create_ledger_entry(
         entry["pricing_resolution"] = pricing.resolution
         if usage_source != "actual":
             entry["cost_estimated"] = True
+        if long_context_applied:
+            entry["long_context"] = True  # cost-report.sh counts long_context_rows
     if resolved_model and resolved_model != model:
         entry["resolved_model"] = resolved_model
     if transport:

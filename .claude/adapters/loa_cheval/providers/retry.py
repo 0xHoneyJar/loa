@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import random
+from dataclasses import replace
 import time
 from typing import Any, Callable, Dict, Optional, Protocol
 
@@ -21,6 +22,7 @@ from loa_cheval.types import (
     ConnectionLostError,
     ModelNotFoundError,
     ProviderUnavailableError,
+    ProviderContextLimitError,
     RateLimitError,
     RetriesExhaustedError,
 )
@@ -295,6 +297,9 @@ def _record_success(
 # --- Main retry function ---
 
 
+_CONTEXT_FLOOR_MAX_TOKENS = 4_096  # == routing.ceiling.FLOOR_MAX_TOKENS (kept literal: no routing import here)
+
+
 def invoke_with_retry(
     adapter: ProviderAdapter,
     request: CompletionRequest,
@@ -343,6 +348,8 @@ def invoke_with_retry(
     # final RetriesExhaustedError can carry structured failure metadata
     # (used by cheval.py to emit `failure_class: PROVIDER_DISCONNECT`).
     last_typed_error: Optional[ChevalError] = None
+    _context_shrink_done = False  # cycle-126 D-1.1b: at most one output-budget shrink per call
+    _context_shrink: Optional[Dict[str, Any]] = None
 
     for attempt in range(max_retries + 1):
         # Global attempt budget check
@@ -389,6 +396,13 @@ def invoke_with_retry(
             metrics_hook.record_attempt(adapter.provider, True, latency_ms)
             _record_success(adapter.provider, auth_type, config)
 
+            if _context_shrink is not None:
+                # cycle-126 D-1.1b: the answer came from the shrunk budget —
+                # say so on the result (the envelope records it).
+                try:
+                    result.metadata = dict(result.metadata or {}, max_tokens_shrunk=_context_shrink)
+                except Exception:  # noqa: BLE001 — telemetry must not fail the call
+                    pass
             return result
 
         except RateLimitError as e:
@@ -454,6 +468,32 @@ def invoke_with_retry(
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
                 time.sleep(delay)
+
+        except ProviderContextLimitError as e:
+            # cycle-126 D-1.1b (CEILING_UNVERIFIED_LIMIT): the provider says the
+            # payload is too large. ONE retry, and only for the shape a smaller
+            # output budget can satisfy (`input + max_tokens > limit` with room
+            # for the 4,096 floor); the input-only shape cannot be helped by a
+            # retry, so it propagates at once. Either way the error never walks
+            # the chain from here — cheval records the observed bound and
+            # exits typed.
+            room = (e.limit - e.input_tokens) if (e.limit and e.input_tokens) else None
+            if (
+                not _context_shrink_done
+                and e.max_tokens is not None
+                and room is not None
+                and room >= _CONTEXT_FLOOR_MAX_TOKENS
+                and room < request.max_tokens
+            ):
+                _context_shrink_done = True
+                _context_shrink = {"from": request.max_tokens, "to": room, "by": "provider_limit"}
+                logger.warning(
+                    "%s: provider context limit %s at input %s with max_tokens %s — one retry at max_tokens %s",
+                    adapter.provider, e.limit, e.input_tokens, request.max_tokens, room,
+                )
+                request = replace(request, max_tokens=room)
+                continue
+            raise
 
         except ChevalError:
             # Non-retryable errors propagate immediately

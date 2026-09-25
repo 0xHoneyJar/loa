@@ -374,18 +374,42 @@ providers:
         # Anthropic entry. `kf_derived` + calibrated_at null ⇒ non-stale;
         # tools/ceiling-probe-live.py (Sprint 1 Task 1.8) sets calibrated_at.
         effective_input_ceiling: 180000
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
           reprobe_trigger: "first KF entry referencing model OR 90d elapsed OR operator-forced"
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         params:
           temperature_supported: false
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
         pricing:
           # Unit: micro-USD per million tokens. ($10/$50 per MTok; cache read $0.25.)
           input_per_mtok: 10000000
           output_per_mtok: 50000000
           cache_read_per_mtok: 250000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
       claude-fable-5:
         # 2026-06-10 (intel-routing review): the top intelligence tier — a class
         # ABOVE Opus. Same API surface as Opus 4.7/4.8 (adaptive thinking only;
@@ -408,17 +432,41 @@ providers:
           - anthropic:claude-headless
         max_output_tokens: 128000
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         params:
           temperature_supported: false
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
         pricing:
           # Unit: micro-USD per million tokens. ($10/$50 per MTok; cache read 0.1×.)
           input_per_mtok: 10000000
           output_per_mtok: 50000000
           cache_read_per_mtok: 1000000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
       claude-opus-5:
         # cycle-124 FR-3 (SDD §2.1): Opus 5 — the `opus` alias target
         # (retargeted 4-8 → 5). Adaptive thinking is DEFAULT-ON server-side;
@@ -440,18 +488,42 @@ providers:
           - anthropic:claude-headless
         max_output_tokens: 128000
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         params:
           temperature_supported: false
           thinking_adaptive: true
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
         pricing:
           # Unit: micro-USD per million tokens.
           input_per_mtok: 5000000    # $5.00 per million tokens (== 4.8)
           output_per_mtok: 25000000  # $25.00 per million tokens (== 4.8)
           cache_read_per_mtok: 500000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
       claude-opus-4-8:
         # cycle-114 (harness-modernization-opus-4.8): newest Opus class.
         # Released 2026-05-28 (Claude Code 2.1.154). Pricing == 4.7
@@ -475,10 +547,21 @@ providers:
           - anthropic:claude-headless
         max_output_tokens: 128000
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         # Anthropic deprecated `temperature` for Opus 4 (#641); omit it.
         params:
           temperature_supported: false
@@ -523,10 +606,21 @@ providers:
         # cycle-124 FR-3: the v2 split fields are replaced by the v3 ceiling;
         # the 36K legacy wall is now cheval's _LEGACY_TRANSPORT_INPUT_WALL.
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
         # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
         # adapter consults `params.temperature_supported` per request and
@@ -561,10 +655,21 @@ providers:
         # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
         # cycle-124 FR-3: v2 split fields → v3 ceiling (see claude-opus-4-7).
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         # cycle-124 FR-1: adaptive thinking must be requested explicitly on
         # 4.6, and thinking models reject sampling params (HTTP 400).
         params:
@@ -590,13 +695,28 @@ providers:
           - anthropic:claude-haiku-4-5-20251001
           - anthropic:claude-headless
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         params:
           temperature_supported: false
           thinking_adaptive: true
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
         pricing:
           # cycle-124 FR-3: claude-api reference (cached 2026-06-24) lists
           # Sonnet 5 at $2/$10 (cache read $0.20). The cycle-120 entry carried
@@ -605,6 +725,15 @@ providers:
           input_per_mtok: 2000000    # $2.00 per million tokens
           output_per_mtok: 10000000  # $10.00 per million tokens
           cache_read_per_mtok: 200000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
       claude-sonnet-4-6:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
         # cycle-124 FR-3: actual 1M / 128K envelope; adaptive thinking must be
@@ -621,10 +750,21 @@ providers:
           - anthropic:claude-haiku-4-5-20251001
           - anthropic:claude-headless
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         params:
           temperature_supported: false
           thinking_adaptive: true
@@ -651,10 +791,21 @@ providers:
           - anthropic:claude-headless
         # cycle-124 FR-3: 200K − 4096 default > 180K ⇒ the 180K cap applies.
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         pricing:
           input_per_mtok: 3000000    # $3.00 per million tokens (same tier as sonnet-4-6)
           output_per_mtok: 15000000  # $15.00 per million tokens
@@ -674,10 +825,21 @@ providers:
         fallback_chain:
           - anthropic:claude-headless
         effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
         ceiling_calibration:
           source: kf_derived
           calibrated_at: null
           stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
         pricing:
           input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
           output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)

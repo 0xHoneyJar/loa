@@ -123,9 +123,10 @@ DEFAULT_MODEL_TIMEOUT=120
 # knob is a no-op against `failure_class=PROVIDER_DISCONNECT` — the flag is
 # preserved for back-compat only.
 PER_CALL_MAX_TOKENS=""
-# cycle-124 FR-2: bounded output budgets per call kind (see call_model).
-FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
-FLATLINE_SCORE_MAX_TOKENS=16000    # cross-scoring JSON arrays (adaptive thinking on opus-5 shares this budget)
+# cycle-126 FR-1.6 (SDD D-1.6): no per-call-kind literal any more — the voice's
+# output budget is its catalog `max_output_tokens` capped at the streaming
+# default (flatline_voice_max_tokens, below call_model's helpers).
+FLATLINE_VOICE_MAX_TOKENS_CAP=64000
 # cycle-124 FR-7: wire schemas per call kind, passed as call_model's 7th arg by
 # the review / skeptic / score sites (run_inquiry passes none — its prompts
 # ask for a free-form perspective object, regression-locked).
@@ -927,6 +928,22 @@ qualify_and_aggregate_reviews() {
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
 # Usage: call_model <model> <mode> <input> <phase> [context] [timeout]
+# cycle-126 FR-1.6 (SDD D-1.6): the per-voice output budget — the catalog's
+# max_output_tokens for the resolved entry (MODEL_MAX_OUTPUT from
+# generated-model-maps.sh; an alias goes through MODEL_IDS first) capped at
+# FLATLINE_VOICE_MAX_TOKENS_CAP. Empty when the entry declares no budget or
+# the maps are not loaded: cheval then applies its own per-model default.
+flatline_voice_max_tokens() {  # <provider:model | alias> → N | ""
+    local key="${1#*:}" declared=""
+    declare -p MODEL_MAX_OUTPUT >/dev/null 2>&1 || { echo ""; return 0; }
+    if declare -p MODEL_IDS >/dev/null 2>&1 && [[ -n "${MODEL_IDS[$key]:-}" ]]; then
+        key="${MODEL_IDS[$key]}"; key="${key#*:}"
+    fi
+    declared="${MODEL_MAX_OUTPUT[$key]:-}"
+    [[ "$declared" =~ ^[0-9]+$ ]] || { echo ""; return 0; }
+    if (( declared < ${FLATLINE_VOICE_MAX_TOKENS_CAP:-64000} )); then echo "$declared"; else echo "${FLATLINE_VOICE_MAX_TOKENS_CAP:-64000}"; fi
+}
+
 call_model() {
     local model="$1"
     local mode="$2"
@@ -1000,22 +1017,18 @@ call_model() {
         )
 
         # Issue #675 (sub-issue 4): plumb operator-supplied max_tokens override
-        # to model-invoke (cheval --max-tokens).
-        # cycle-124 FR-2 (SDD §3.2): cheval's default is now per model
-        # (Anthropic 64K streaming / 16K non-streaming, others 4096), sized
-        # for open-ended calls. Flatline's outputs are bounded — review /
-        # skeptic emit a findings document, score a small JSON array — so
-        # every call passes an explicit budget and the 600 s per-call timeout
-        # never meets a 64K-output generation. --per-call-max-tokens still
-        # overrides both.
+        # to model-invoke (cheval --max-tokens) — --per-call-max-tokens wins.
+        # cycle-126 FR-1.6 (SDD D-1.6): otherwise the voice's budget is the
+        # catalog's max_output_tokens capped at 64000 (flatline_voice_max_tokens)
+        # — no 16000 literal per call kind; an entry without a declared budget
+        # passes no --max-tokens and cheval applies its per-model default.
         local per_call_max_tokens="${PER_CALL_MAX_TOKENS:-}"
         if [[ -z "$per_call_max_tokens" ]]; then
-            case "$mode" in
-                score) per_call_max_tokens="$FLATLINE_SCORE_MAX_TOKENS" ;;
-                *)     per_call_max_tokens="$FLATLINE_REVIEW_MAX_TOKENS" ;;
-            esac
+            per_call_max_tokens="$(flatline_voice_max_tokens "$model_override")"
         fi
-        args+=(--max-tokens "$per_call_max_tokens")
+        if [[ -n "$per_call_max_tokens" ]]; then
+            args+=(--max-tokens "$per_call_max_tokens")
+        fi
         # cycle-124 FR-9 (SDD §3.6): effort per mode — a pure function of the
         # mode (never per attempt), so the cached prefix survives retries.
         # review / skeptic reason deeply; the scorer emits a small JSON array.

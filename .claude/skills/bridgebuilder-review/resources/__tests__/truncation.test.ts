@@ -107,14 +107,14 @@ describe("getTokenBudget", () => {
   it("returns the generated (ceiling − 20K) budget for claude-sonnet-4-6", () => {
     const budget = getTokenBudget("claude-sonnet-4-6");
     assert.equal(budget.maxInput, 160_000);
-    assert.equal(budget.maxOutput, 8_192);
+    assert.equal(budget.maxOutput, 32_000); // cycle-126 FR-1.5: min(yaml 128K, BB_OUTPUT_CAP)
     assert.equal(budget.coefficient, 0.25);
   });
 
   it("returns the generated budget for claude-sonnet-4-5-20250929 (backward compat id)", () => {
     const budget = getTokenBudget("claude-sonnet-4-5-20250929");
     assert.equal(budget.maxInput, 160_000);
-    assert.equal(budget.maxOutput, 8_192);
+    assert.equal(budget.maxOutput, 8_192); // no max_output_tokens declared → the provider default stays
   });
 
   it("returns the generated budget for the new generation (claude-opus-5 / claude-fable-5-1)", () => {

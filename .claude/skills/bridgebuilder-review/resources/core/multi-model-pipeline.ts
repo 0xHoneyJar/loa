@@ -24,6 +24,7 @@ import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
+import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
 
 /**
@@ -40,16 +41,24 @@ import type { LoreEntry, PRReviewTemplate } from "./template.js";
  *     BB prompts (KF-010, recurrence ≥20× by 2026-05-16). Direct provider
  *     API health was fine; the predicate scope was the bug.
  *
- * Detection by model_id pattern is intentionally narrow — we want the longer
- * budget ONLY where it's needed, not as a blanket increase. To add a new
- * reasoning-class model: extend the relevant provider's branch. Non-reasoning
- * variants on the same provider (e.g. claude-sonnet-4-6, gemini-3.1-flash,
- * gpt-5.3-codex) MUST remain on the tier-based ladder.
+ * Detection is intentionally narrow — we want the longer budget ONLY where
+ * it's needed, not as a blanket increase. cycle-126 FR-1.5: the catalog's own
+ * flag (GENERATED_REASONING — `params.thinking_adaptive` or a
+ * `thinking_traces` capability in model-config.yaml) is consulted first, so a
+ * new reasoning-class model is declared in the yaml, not by extending a regex
+ * here; the regexes remain as a union for ids the yaml does not flag (the
+ * headless hops). Non-reasoning variants (e.g. claude-sonnet-4-5-20250929,
+ * gemini-3.1-flash, gpt-5.3-codex) MUST remain on the tier-based ladder.
  *
  * 1_800_000ms = 30min, comfortably above observed 900-1100s end-to-end on
  * large reviews while keeping operator-visible latency bounded.
  */
 function isReasoningClass(provider: string, modelId: string): boolean {
+  // cycle-126 FR-1.5 (SDD D-1.5): the catalog's own flag first (thinking_adaptive
+  // / thinking_traces — the 5-family, the 4.6–4.8 adaptive entries); the legacy
+  // regexes stay as a union so every id they granted the budget to keeps it
+  // (a headless hop carries no thinking flag in the yaml).
+  if (GENERATED_REASONING[modelId] === true && GENERATED_MODEL_REGISTRY[modelId]?.provider === provider) return true;
   if (/-headless$/i.test(modelId)) return true;
   if (provider === "openai" && /^gpt-\d+(\.\d+)?-pro$/i.test(modelId)) return true;
   if (provider === "anthropic" && /opus/i.test(modelId)) return true;

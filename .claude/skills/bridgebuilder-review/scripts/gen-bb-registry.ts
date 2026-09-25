@@ -88,6 +88,12 @@ const FALLBACK_DEFAULT: ProviderDefaults & { maxInput: number } = {
 // keep `context_window`.
 const CEILING_HEADROOM_TOKENS = 20000;
 
+// cycle-126 FR-1.5 (SDD D-1.5): the yaml's `max_output_tokens` drives maxOutput,
+// capped here — BB's reviews are bounded documents; 32K covers the largest
+// observed pass with headroom, while the 128K the 5-family accepts would only
+// lengthen a runaway generation.
+const BB_OUTPUT_CAP = 32_000;
+
 function providerDefaults(provider: string): ProviderDefaults {
   return PROVIDER_DEFAULTS[provider] ?? { maxOutput: 4096, coefficient: 0.25 };
 }
@@ -104,9 +110,11 @@ interface YamlPricing {
 interface YamlModelEntry {
   context_window?: number;
   effective_input_ceiling?: number;
+  max_output_tokens?: number;
   capabilities?: string[];
   endpoint_family?: string;
   pricing?: YamlPricing;
+  params?: { thinking_adaptive?: boolean };
 }
 
 interface YamlProvider {
@@ -157,6 +165,9 @@ interface FlatModelEntry {
   provider: string;
   contextWindow: number;
   inputCeiling?: number;
+  maxOutputTokens?: number;
+  /** cycle-126 FR-1.5: thinking_adaptive === true || capabilities has thinking_traces */
+  reasoning: boolean;
   capabilities?: string[];
   endpointFamily?: string;
   pricing?: YamlPricing;
@@ -209,11 +220,22 @@ function flattenModels(providers: Record<string, YamlProvider>): FlatModelEntry[
           );
         }
       }
+      const maxOutputTokens =
+        typeof m.max_output_tokens === "number" &&
+        Number.isInteger(m.max_output_tokens) &&
+        m.max_output_tokens > 0
+          ? m.max_output_tokens
+          : undefined;
+      const reasoning =
+        m.params?.thinking_adaptive === true ||
+        (Array.isArray(m.capabilities) && m.capabilities.includes("thinking_traces"));
       entries.push({
         modelId,
         provider,
         contextWindow: m.context_window,
         inputCeiling: m.effective_input_ceiling,
+        maxOutputTokens,
+        reasoning,
         capabilities: m.capabilities,
         endpointFamily: m.endpoint_family,
         pricing: m.pricing,
@@ -262,8 +284,10 @@ function renderTruncation(entries: FlatModelEntry[]): string {
     const pd = providerDefaults(e.provider);
     const maxInput =
       e.inputCeiling !== undefined ? e.inputCeiling - CEILING_HEADROOM_TOKENS : e.contextWindow;
+    // cycle-126 FR-1.5: the yaml's declared output, capped; provider default otherwise.
+    const maxOutput = Math.min(e.maxOutputTokens ?? pd.maxOutput, BB_OUTPUT_CAP);
     lines.push(
-      `  ${jsonKey(e.modelId)}: { maxInput: ${maxInput}, maxOutput: ${pd.maxOutput}, coefficient: ${formatCoefficient(pd.coefficient)} },`,
+      `  ${jsonKey(e.modelId)}: { maxInput: ${maxInput}, maxOutput: ${maxOutput}, coefficient: ${formatCoefficient(pd.coefficient)} },`,
     );
   }
   // Fallback default entry — preserves the existing TOKEN_BUDGETS["default"] semantic.
@@ -286,6 +310,8 @@ function renderConfig(entries: FlatModelEntry[]): string {
   lines.push(`  endpointFamily?: string;`);
   lines.push(`  capabilities?: readonly string[];`);
   lines.push(`  pricing?: { inputPerMtok: number; outputPerMtok: number };`);
+  lines.push(`  /** cycle-126 FR-1.5: thinking_adaptive or thinking_traces in the yaml */`);
+  lines.push(`  reasoning: boolean;`);
   lines.push(`}`);
   lines.push("");
   lines.push(`export const GENERATED_MODEL_REGISTRY: Record<string, GeneratedModelEntry> = {`);
@@ -294,6 +320,7 @@ function renderConfig(entries: FlatModelEntry[]): string {
     lines.push(`    provider: ${jsonString(e.provider)},`);
     lines.push(`    modelId: ${jsonString(e.modelId)},`);
     lines.push(`    contextWindow: ${e.contextWindow},`);
+    lines.push(`    reasoning: ${e.reasoning ? "true" : "false"},`);
     if (e.endpointFamily) {
       lines.push(`    endpointFamily: ${jsonString(e.endpointFamily)},`);
     }
@@ -312,6 +339,14 @@ function renderConfig(entries: FlatModelEntry[]): string {
       );
     }
     lines.push(`  },`);
+  }
+  lines.push(`};`);
+  lines.push("");
+  // cycle-126 FR-1.5: the reasoning class per model id, consumed by
+  // multi-model-pipeline.ts isReasoningClass (union with the legacy regexes).
+  lines.push(`export const GENERATED_REASONING: Record<string, boolean> = {`);
+  for (const e of entries) {
+    lines.push(`  ${jsonKey(e.modelId)}: ${e.reasoning ? "true" : "false"},`);
   }
   lines.push(`};`);
   lines.push("");

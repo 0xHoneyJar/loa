@@ -57,6 +57,13 @@ class PricingEntry:
     # cycle-125 FR-5 (SDD §1.6): how the id was matched — exact | dated |
     # alias | hop. Additive; every pre-cycle caller sees "exact".
     resolution: str = "exact"
+    # cycle-126 FR-1.9 (SDD D-1.9): the long-context premium. When the request's
+    # input exceeds `long_context_threshold`, the multipliers apply to the whole
+    # request (the provider's published rule for 1M-window models). None ⇒ the
+    # entry has no premium tier; multipliers default to 1.0.
+    long_context_threshold: Optional[int] = None
+    long_context_input_multiplier: float = 1.0
+    long_context_output_multiplier: float = 1.0
 
 
 @dataclass
@@ -76,6 +83,8 @@ class CostBreakdown:
     cache_write_cost_micro: int = 0
     remainder_cache_read: int = 0
     remainder_cache_write: int = 0
+    # cycle-126 FR-1.9: True when the long-context multipliers were applied.
+    long_context_applied: bool = False
 
 
 def calculate_cost_micro(tokens: int, price_micro_per_million: int) -> tuple:
@@ -151,6 +160,20 @@ def calculate_total_cost(
     else:
         cw_cost, cw_rem = 0, 0
 
+    # cycle-126 FR-1.9: long-context premium — above the threshold the whole
+    # request is billed at the multiplied rates (input-side: input + cache
+    # traffic; output-side: output + reasoning).
+    long_context_applied = False
+    threshold = pricing.long_context_threshold
+    if threshold is not None and input_tokens > threshold:
+        long_context_applied = True
+        im, om = pricing.long_context_input_multiplier, pricing.long_context_output_multiplier
+        inp_cost = int(inp_cost * im)
+        cr_cost = int(cr_cost * im)
+        cw_cost = int(cw_cost * im)
+        out_cost = int(out_cost * om)
+        reas_cost = int(reas_cost * om)
+
     token_total = inp_cost + out_cost + reas_cost + cr_cost + cw_cost
 
     # Hybrid: add flat per-task cost on top of token cost
@@ -169,6 +192,7 @@ def calculate_total_cost(
         cache_write_cost_micro=cw_cost,
         remainder_cache_read=cr_rem,
         remainder_cache_write=cw_rem,
+        long_context_applied=long_context_applied,
     )
 
 
@@ -251,7 +275,29 @@ def _exact_pricing(
         # slice B) — only a real integer overrides the derived rate.
         cache_read_per_mtok=_int_rate(pricing.get("cache_read_per_mtok"), input_per_mtok // 10),
         cache_write_per_mtok=_int_rate(pricing.get("cache_write_per_mtok"), input_per_mtok * 5 // 4),
+        **_long_context_fields(pricing.get("long_context")),
     )
+
+
+def _long_context_fields(block: Any) -> Dict[str, Any]:
+    """cycle-126 FR-1.9: parse `pricing.long_context` (threshold + multipliers);
+    a malformed or absent block means no premium tier."""
+    if not isinstance(block, dict):
+        return {}
+    threshold = block.get("threshold_tokens")
+    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold <= 0:
+        return {}
+    def _mult(value: Any) -> float:
+        try:
+            m = float(value)
+        except (TypeError, ValueError):
+            return 1.0
+        return m if m > 0 else 1.0
+    return {
+        "long_context_threshold": threshold,
+        "long_context_input_multiplier": _mult(block.get("input_multiplier", 1.0)),
+        "long_context_output_multiplier": _mult(block.get("output_multiplier", 1.0)),
+    }
 
 
 # cycle-125 FR-5 (SDD §1.6): the resolution ladder. Fleet ledgers carried

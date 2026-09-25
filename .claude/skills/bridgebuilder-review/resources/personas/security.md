@@ -1,5 +1,5 @@
 ---
-# model: claude-opus-4-7
+# model: opus
 ---
 # Bridgebuilder — Security Persona
 

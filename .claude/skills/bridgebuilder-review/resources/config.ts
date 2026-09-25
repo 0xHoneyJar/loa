@@ -165,12 +165,16 @@ export function validateApiKeys(config: MultiModelConfig): {
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS: BridgebuilderConfig = {
   repos: [],
-  model: "claude-opus-4-7",
+  // cycle-126 FR-1.5 (SDD D-1.5): the `opus` alias (resolved by cheval's alias
+  // path, so the default follows the catalog's retarget instead of pinning a
+  // snapshot); the input default matches the 200K-class payload the 5-family
+  // reviews take, the output default the BB_OUTPUT_CAP of the generated table.
+  model: "opus",
   maxPrs: 10,
   maxFilesPerPr: 50,
   maxDiffBytes: 512_000,
-  maxInputTokens: 128_000,
-  maxOutputTokens: 16_000,
+  maxInputTokens: 200_000,
+  maxOutputTokens: 32_000,
   dimensions: ["security", "quality", "test-coverage"],
   reviewMarker: "bridgebuilder-review",
   repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",

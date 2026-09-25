@@ -60,6 +60,33 @@ provider-safe subset is pinned by `tests/unit/wire-schemas-api-safe.bats`. Ratio
 one-liner over the log:
 `jq -r 'select(.payload.schema_enforced != null) | [.payload.final_model_id, .payload.schema_enforced] | @tsv' .run/model-invoke.jsonl | sort | uniq -c`.
 
+cycle-126 (FR-1) sizes every request from the catalog entry it resolves to.
+The input bound is a **policy**, not a literal (`loa_cheval/routing/ceiling.py`):
+I1 `estimate + max_tokens ≤ context_window` (the output budget shrinks to a
+4,096 floor before anything is refused; the envelope records
+`max_tokens_shrunk`), then I2 — the calibrated value when
+`ceiling_calibration.calibrated_at` is set, else the `probed_ceiling`
+(180,000) by default. `LOA_CHEVAL_UNCALIBRATED_CEILING=derived` opts into the
+catalog-derived bound (`context_window − max_tokens`) for an uncalibrated
+entry: above the probed bound the call proceeds with `preflight_decision:
+warn` when the count endpoint confirmed the size or the estimate is
+`low`-uncertainty, and preempts with the calibration command for a `high`
+one (CJK/emoji-dense text, tool payloads). A provider's own size verdict (HTTP
+400 prompt-too-long / 413) is **never walked** to the next voice: after one
+output-budget shrink it exits `CONTEXT_TOO_LARGE`, records
+`.run/ceiling-observed.json` (the bound for that entry until calibration; `/loa`
+prints it) and names `tools/ceiling-probe-live.py --model <id> --write-catalog`,
+which folds a measured ceiling, `calibrated_at` and `account_limits` into the
+catalog. `LOA_CHEVAL_MAX_INPUT_TOKENS=N` lowers any bound;
+`LOA_CHEVAL_LEGACY_CEILING=1` restores the pre-cycle literal + preempt (no I1,
+no count). Output defaults: `min(cap, max_output_tokens)` for every provider
+(64K/16K Anthropic streaming/legacy, 16K elsewhere; 4,096 only without a
+declaration); `temperature` is absent from the wire unless set;
+`params.beta_headers` (allowlisted dated flags) join into one `anthropic-beta`
+header; the health probe asks `/v1/models` first. Envelope fields:
+`capability_evaluation.{input_ceiling, estimator, max_tokens_shrunk,
+ceiling_policy, ceiling_unverified, calibration_needed}`.
+
 cycle-124 adds one **backstop** (not a rollback): `LOA_CHEVAL_LEGACY_WIRE=1`
 makes the Anthropic adapter emit the pre-cycle-124 request body (no adaptive
 `thinking`, no `cache_control` blocks, 4096 default `max_tokens`) so a wire

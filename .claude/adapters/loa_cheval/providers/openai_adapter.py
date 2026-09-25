@@ -23,6 +23,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
     http_post_stream,
+    wire_temperature,
 )
 from loa_cheval.providers.openai_streaming import (
     parse_openai_chat_stream,
@@ -324,9 +325,12 @@ class OpenAIAdapter(ProviderAdapter):
         body: Dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
-            "temperature": request.temperature,
             token_key: request.max_tokens,
         }
+        # cycle-126 FR-1.3 (SDD D-1.3): sampling params only when the caller set one
+        temperature = wire_temperature(request.temperature)
+        if temperature is not None:
+            body["temperature"] = temperature
 
         if request.tools:
             body["tools"] = request.tools
@@ -445,8 +449,9 @@ class OpenAIAdapter(ProviderAdapter):
         # Defaults to True if absent (preserves existing behavior). Mirrors the
         # anthropic_adapter pattern from #641.
         params = model_config.params if isinstance(model_config.params, dict) else {}
-        if request.temperature is not None and params.get("temperature_supported", True):
-            body["temperature"] = request.temperature
+        temperature = wire_temperature(request.temperature)
+        if temperature is not None and params.get("temperature_supported", True):
+            body["temperature"] = temperature
 
         if request.tools:
             body["tools"] = request.tools  # Same shape as /v1/chat/completions

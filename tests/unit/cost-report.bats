@@ -186,3 +186,20 @@ ROWS
   [ "$status" -ne 0 ]
   [ "$(sha256sum "$RP" | cut -d' ' -f1)" = "$after" ]
 }
+
+@test "CR-8 long_context_rows counts rows billed at the long-context premium, in JSON, markdown and the empty envelope (cycle-126 FR-1.9)" {
+  LC="$T/lc.jsonl"
+  cat > "$LC" <<'LCEOF'
+{"ts":"2026-09-25T10:00:00.000Z","request_id":"x1","agent":"a","provider":"anthropic","model":"claude-opus-5","tokens_in":600000,"tokens_out":1000,"cost_micro_usd":6050000,"pricing_source":"config","pricing_resolution":"exact","long_context":true}
+{"ts":"2026-09-25T11:00:00.000Z","request_id":"x2","agent":"a","provider":"anthropic","model":"claude-opus-5","tokens_in":1000,"tokens_out":10,"cost_micro_usd":5250,"pricing_source":"config","pricing_resolution":"exact"}
+LCEOF
+  run bash "$CR" --ledger "$LC" --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.long_context_rows == 1 and .entry_count == 2' >/dev/null
+  run bash "$CR" --ledger "$LC"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"long-context rows: 1"* ]]
+  run bash "$CR" --ledger "$T/does-not-exist.jsonl" --json --window-day 2026-09-25
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.long_context_rows == 0 and .window.day == "2026-09-25"' >/dev/null
+}

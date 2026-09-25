@@ -41,6 +41,10 @@ _call_model() {
         declare -A MODE_TO_AGENT=([review]=flatline-reviewer [skeptic]=flatline-skeptic [score]=flatline-scorer)
         DEFAULT_MODEL_TIMEOUT=30
         PER_CALL_MAX_TOKENS=""
+        # cycle-126 FR-1.6: the per-voice budget comes from the generated maps
+        source "$SCRIPT_DIR/generated-model-maps.sh"
+        eval "$(grep -E "^FLATLINE_VOICE_MAX_TOKENS_CAP=" "$ORCHESTRATOR_PATH")"
+        eval "$(awk "/^flatline_voice_max_tokens\(\)/,/^}/" "$ORCHESTRATOR_PATH")"
         eval "$(grep -E "^(FLATLINE_(REVIEW|SCORE)_MAX_TOKENS|WIRE_SCHEMA_DIR|WIRE_REVIEWER|WIRE_SKEPTIC|WIRE_SCORER)=" "$ORCHESTRATOR_PATH")"
         log() { :; }; log_invoke_failure() { :; }; cleanup_invoke_log() { :; }
         redact_secrets() { cat; }

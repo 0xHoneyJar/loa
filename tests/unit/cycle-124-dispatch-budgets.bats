@@ -6,8 +6,8 @@
 # shape is bounded passes an explicit `--max-tokens` to cheval, so the new
 # per-model default (Anthropic 64K) is reserved for open-ended calls and the
 # 600 s Flatline / 120 s BB / dissent timeouts never meet a 64K generation.
-#   - flatline-orchestrator.sh call_model: review/skeptic 16000, score 4000,
-#     --per-call-max-tokens still overrides
+#   - flatline-orchestrator.sh call_model: cycle-126 FR-1.6 — min(64000, catalog
+#     max_output_tokens) per voice, --per-call-max-tokens still overrides
 #   - model-adapter.sh forwards --max-tokens to MODEL_INVOKE argv
 #   - adversarial-review.sh: dissent passes 16000 end-to-end through
 #     model-adapter; the primary INPUT budget follows the dissenter's company
@@ -51,7 +51,10 @@ _call_model() {  # <mode> [PER_CALL_MAX_TOKENS]
         DEFAULT_MODEL_TIMEOUT=30
         PER_CALL_MAX_TOKENS="$OVERRIDE_ARG"
         # The budgets are top-level constants in the orchestrator; source just those lines.
-        eval "$(grep -E "^FLATLINE_(REVIEW|SCORE)_MAX_TOKENS=" "$ORCHESTRATOR_PATH")"
+        # cycle-126 FR-1.6: the per-voice budget comes from the generated maps
+        source "$SCRIPT_DIR/generated-model-maps.sh"
+        eval "$(grep -E "^FLATLINE_VOICE_MAX_TOKENS_CAP=" "$ORCHESTRATOR_PATH")"
+        eval "$(awk "/^flatline_voice_max_tokens\(\)/,/^}/" "$ORCHESTRATOR_PATH")"
         log() { :; }; log_invoke_failure() { :; }; cleanup_invoke_log() { :; }
         redact_secrets() { cat; }
         setup_invoke_log() { echo "$TEMP_DIR/invoke-$$.log"; }
@@ -68,20 +71,20 @@ _argv_value() {  # <flag>  — prints the token following <flag> in the recorded
     awk -v flag="$1" '$0 == flag {getline; print; exit}' "$ARGV"
 }
 
-@test "c124-1.4-B1: flatline review call passes --max-tokens 16000 by default" {
+@test "c124-1.4-B1: flatline review call passes --max-tokens 64000 by default (cycle-126: the 128K entry capped at the streaming default)" {
     _call_model review >/dev/null
     [ -s "$ARGV" ]
-    [ "$(_argv_value --max-tokens)" = "16000" ]
+    [ "$(_argv_value --max-tokens)" = "64000" ]
 }
 
-@test "c124-1.4-B2: flatline skeptic call passes --max-tokens 16000 by default" {
+@test "c124-1.4-B2: flatline skeptic call passes --max-tokens 64000 by default (cycle-126)" {
     _call_model skeptic >/dev/null
-    [ "$(_argv_value --max-tokens)" = "16000" ]
+    [ "$(_argv_value --max-tokens)" = "64000" ]
 }
 
-@test "c124-1.4-B3: flatline score call passes --max-tokens 16000 by default (thinking shares the budget)" {
+@test "c124-1.4-B3: flatline score call passes --max-tokens 64000 by default (cycle-126: one rule per voice, thinking shares it)" {
     _call_model score >/dev/null
-    [ "$(_argv_value --max-tokens)" = "16000" ]
+    [ "$(_argv_value --max-tokens)" = "64000" ]
 }
 
 @test "c124-1.4-B4: --per-call-max-tokens still overrides the bounded default" {

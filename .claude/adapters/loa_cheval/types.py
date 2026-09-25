@@ -15,7 +15,11 @@ class CompletionRequest:
 
     messages: List[Dict[str, Any]]  # [{"role": "system"|"user"|"assistant"|"tool", "content": str}]
     model: str  # Provider-specific model ID (e.g., "gpt-5.2")
-    temperature: float = 0.7
+    # cycle-126 FR-1.3 (SDD D-1.3): unset by default — the wire carries no
+    # sampling parameter unless a caller sets one (thinking models reject it,
+    # the rest use the provider default). LOA_CHEVAL_LEGACY_WIRE restores the
+    # pre-cycle 0.7 in the adapters.
+    temperature: Optional[float] = None
     max_tokens: int = 4096
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[str] = None  # "auto" | "none"; "required" raises on Anthropic (a 400 on Fable 5.1), Bedrock still maps it to "any"
@@ -242,6 +246,43 @@ class ContextTooLargeError(ChevalError):
             retryable=False,
             context={"estimated_tokens": estimated_tokens, "available": available, "context_window": context_window},
         )
+
+
+class ProviderContextLimitError(ChevalError):
+    """The provider refused the request as too large for the model (an HTTP
+    400 of the prompt-too-long class, or 413) — cycle-126 D-1.1b.
+
+    Distinct from `ContextTooLargeError` (cheval's own estimate against the
+    catalog window, walkable to an entry with a larger window): this is the
+    provider's verdict on the payload, so it is NOT walked — the next voice
+    would receive the same payload. `input_tokens` / `limit` / `max_tokens`
+    are filled when the provider's message states them, which lets the
+    retry layer shrink the output budget once (input + max_tokens shape) and
+    the self-correction record the observed bound.
+    """
+
+    def __init__(
+        self,
+        provider: str,
+        message: str,
+        *,
+        status: Optional[int] = None,
+        input_tokens: Optional[int] = None,
+        limit: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+    ):
+        super().__init__(
+            "CONTEXT_TOO_LARGE",
+            message,
+            retryable=False,
+            context={"provider": provider, "status": status, "input_tokens": input_tokens,
+                     "limit": limit, "max_tokens": max_tokens},
+        )
+        self.provider = provider
+        self.status = status
+        self.input_tokens = input_tokens
+        self.limit = limit
+        self.max_tokens = max_tokens
 
 
 class RetriesExhaustedError(ChevalError):

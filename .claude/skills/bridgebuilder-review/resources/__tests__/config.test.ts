@@ -158,7 +158,7 @@ describe("resolveConfig precedence", () => {
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.equal(config.model, "claude-opus-4-7");
+    assert.equal(config.model, "opus"); // cycle-126 FR-1.5: the alias, resolved by cheval
     assert.equal(provenance.model, "default");
   });
 
@@ -236,8 +236,8 @@ describe("resolveConfig precedence", () => {
       {},
       { enabled: true, repos: ["test/repo"] },
     );
-    assert.equal(config.maxInputTokens, 128_000);
-    assert.equal(config.maxOutputTokens, 16_000);
+    assert.equal(config.maxInputTokens, 200_000); // cycle-126 FR-1.5 defaults
+    assert.equal(config.maxOutputTokens, 32_000);
     assert.equal(config.maxDiffBytes, 512_000);
     assert.equal(provenance.maxInputTokens, "default");
     assert.equal(provenance.maxOutputTokens, "default");

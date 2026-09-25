@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 import logging
 import os
 import signal
@@ -163,24 +164,47 @@ def _legacy_wire() -> bool:
 _LEGACY_DEFAULT_MAX_TOKENS = 4096
 _ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS = 64_000
 _ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS = 16_000
+# cycle-126 FR-1.3 (SDD D-1.3): every provider whose catalog entry declares
+# `max_output_tokens` gets a real default. Non-Anthropic hops are capped at
+# 16K (their reasoning models accept more, but the golden request bodies for
+# the gpt-*/gemini-* fixtures must move deliberately, not by accident).
+_NON_ANTHROPIC_DEFAULT_OUTPUT_CAP = 16_000
+
+
+_LEGACY_DEFAULT_TEMPERATURE = 0.7
+
+
+def wire_temperature(request_temperature: Optional[float]) -> Optional[float]:
+    """The temperature an adapter may put on the wire (cycle-126 FR-1.3,
+    SDD D-1.3): the caller's value when set, otherwise nothing — except under
+    LOA_CHEVAL_LEGACY_WIRE, where the pre-cycle 0.7 default is restored so the
+    golden request bodies of the kill-switch path are unchanged."""
+    if request_temperature is not None:
+        return request_temperature
+    return _LEGACY_DEFAULT_TEMPERATURE if _legacy_wire() else None
 
 
 def default_max_tokens(*, provider: str, model_max_output: Optional[int]) -> int:
     """Default `max_tokens` for a hop when the caller passed none.
 
-    Anthropic: min(64K streaming | 16K non-streaming, catalog max_output_tokens);
-    an Anthropic entry without a declared `max_output_tokens` (the 200K
-    snapshots, claude-headless) keeps 4096 — the clamp source is missing, so
-    the conservative legacy value applies. Non-Anthropic providers and the
-    LOA_CHEVAL_LEGACY_WIRE kill switch: 4096.
+    Any provider: min(transport cap, catalog max_output_tokens) — the cap is
+    64K streaming / 16K non-streaming for Anthropic and 16K elsewhere
+    (cycle-126 FR-1.3; before this cycle only Anthropic entries had a
+    catalog-driven default). An entry without a declared `max_output_tokens`
+    (the 200K snapshots, the CLI hops) keeps 4096 — the clamp source is
+    missing, so the conservative legacy value applies. LOA_CHEVAL_LEGACY_WIRE
+    restores 4096 everywhere.
     """
-    if provider != "anthropic" or _legacy_wire():
+    if _legacy_wire():
         return _LEGACY_DEFAULT_MAX_TOKENS
-    base = (
-        _ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS
-        if _streaming_disabled()
-        else _ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS
-    )
+    if provider == "anthropic":
+        base = (
+            _ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS
+            if _streaming_disabled()
+            else _ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS
+        )
+    else:
+        base = _NON_ANTHROPIC_DEFAULT_OUTPUT_CAP
     if isinstance(model_max_output, int) and not isinstance(model_max_output, bool) and model_max_output > 0:
         return min(base, model_max_output)
     return _LEGACY_DEFAULT_MAX_TOKENS
@@ -280,6 +304,57 @@ def http_post(
             return 503, {"error": {"message": "URLError: %s" % e.reason}}
         except socket.timeout:
             return 504, {"error": {"message": "Request timed out"}}
+
+
+def http_get(
+    url: str,
+    headers: Dict[str, str],
+    connect_timeout: float = 5.0,
+    read_timeout: float = 10.0,
+) -> Tuple[int, Dict[str, Any]]:
+    """Send HTTP GET and return (status_code, response_json).
+
+    cycle-126 FR-1.7 (SDD D-1.7): the health probes ask a provider's models
+    endpoint before spending a message. Same client detection as `http_post`;
+    transport failures come back as a 503/504 envelope rather than an
+    exception because a probe is answered, never retried.
+    """
+    client = _detect_http_client()
+    if client == "httpx":
+        import httpx
+
+        timeout = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=10.0, pool=10.0)
+        try:
+            resp = httpx.get(url, headers=headers, timeout=timeout)
+        except httpx.TimeoutException:
+            return 504, {"error": {"message": "Request timed out"}}
+        except httpx.HTTPError as exc:
+            return 503, {"error": {"message": f"{type(exc).__name__}"}}
+        try:
+            return resp.status_code, resp.json()
+        except ValueError:
+            return resp.status_code, {}
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=connect_timeout + read_timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            try:
+                return resp.status, json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                return resp.status, {}
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8") if e.fp else "{}"
+        try:
+            return e.code, json.loads(raw)
+        except json.JSONDecodeError:
+            return e.code, {"error": {"message": raw}}
+    except urllib.error.URLError as e:
+        return 503, {"error": {"message": "URLError: %s" % e.reason}}
+    except socket.timeout:
+        return 504, {"error": {"message": "Request timed out"}}
 
 
 # --- Streaming HTTP transport (Sprint 4A, AC-4.5e structural fix for KF-002 layer 3) ---
@@ -860,6 +935,73 @@ def estimate_tokens(messages: List[Dict[str, Any]]) -> int:
 
     # Heuristic: ~3.5 chars per token (conservative for English)
     return int(len(text) / 3.5)
+
+
+# cycle-126 FR-1.4 (SDD D-1.4): the estimate carries its own uncertainty.
+# `chars / 3.5` (and cl100k, an OpenAI encoding) undercount two content
+# classes on Claude: non-ASCII-dense text (CJK, emoji) and tool payloads
+# (JSON structure tokenizes densely). Above 20 % non-ASCII bytes or with any
+# tool payload the estimate is `high` uncertainty; the gate treats a `high`
+# estimate above the probed bound as a preempt, never a warn.
+NON_ASCII_HIGH_SHARE = 0.20
+
+
+@dataclass(frozen=True)
+class InputEstimate:
+    tokens: int
+    method: str            # tiktoken | heuristic
+    chars: int
+    non_ascii_share: float
+    tool_payload: bool
+
+    @property
+    def uncertainty(self) -> str:
+        return "high" if (self.tool_payload or self.non_ascii_share > NON_ASCII_HIGH_SHARE) else "low"
+
+    def as_envelope(self) -> Dict[str, Any]:
+        return {"method": self.method, "chars": self.chars, "tokens": self.tokens, "uncertainty": self.uncertainty,
+                "non_ascii_share": round(self.non_ascii_share, 4), "tool_payload": self.tool_payload}
+
+
+def _messages_text_and_tools(messages: List[Dict[str, Any]]) -> Tuple[str, bool]:
+    text = ""
+    tool_payload = False
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        if msg.get("role") == "tool" or msg.get("tool_calls") or msg.get("tool_call_id"):
+            tool_payload = True
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            text += content
+        elif isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") in ("tool_use", "tool_result"):
+                    tool_payload = True
+                if "text" in block:
+                    text += str(block["text"])
+    return text, tool_payload
+
+
+def estimate_input(messages: List[Dict[str, Any]], *, tools: Optional[List[Any]] = None) -> InputEstimate:
+    """`estimate_tokens` with its provenance (method, chars, non-ASCII share,
+    tool payload) so the gate can say how much to trust it."""
+    text, tool_payload = _messages_text_and_tools(messages)
+    if tools:
+        tool_payload = True
+    raw = text.encode("utf-8", errors="replace")
+    non_ascii = sum(1 for b in raw if b > 0x7F)
+    share = (non_ascii / len(raw)) if raw else 0.0
+    method = "heuristic"
+    try:
+        import tiktoken  # noqa: F401
+        method = "tiktoken"
+    except Exception:  # noqa: BLE001 — optional dependency
+        method = "heuristic"
+    return InputEstimate(tokens=estimate_tokens(messages), method=method, chars=len(text),
+                         non_ascii_share=share, tool_payload=tool_payload)
 
 
 def enforce_context_window(

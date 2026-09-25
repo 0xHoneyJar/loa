@@ -42,7 +42,7 @@ from loa_cheval.types import (  # noqa: E402
 
 CEILING = 180_000
 LEGACY_WALL = 36_000
-SIZES = [120_000, 160_000, 180_000, 200_000, 900_000]
+SIZES = [120_000, 160_000, 180_000, 200_000, 600_000, 900_000]  # cycle-126: + the 600K row (PRD FR-1.1 AC)
 
 
 def _prompt_of_tokens(n: int) -> str:

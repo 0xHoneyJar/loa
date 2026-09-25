@@ -90,9 +90,22 @@ _MP_PREFIX="${CI_JOB_ID:-$$}"
 # If tiktoken is available, use it for better accuracy.
 # Args: text
 # Outputs: token count to stdout
+# cycle-126 FR-1.4 (SDD D-1.4): the model the current 3-pass run addresses
+# (set by run_multipass). For an Anthropic pass the estimator is the same
+# `chars / 3.5` bound cheval applies — `tiktoken.encoding_for_model('gpt-4')`
+# is an OpenAI encoding and says nothing about Claude's tokenizer.
+_MULTIPASS_MODEL=""
+_multipass_is_anthropic() { [[ "${1:-}" =~ ^(anthropic:|claude|opus|sonnet|haiku|fable|tiny$|cheap$) ]]; }
+
 estimate_token_count() {
   local text="$1"
+  local model="${2:-$_MULTIPASS_MODEL}"
   local char_count=${#text}
+
+  if _multipass_is_anthropic "$model"; then
+    echo $(( (char_count * 2 + 6) / 7 ))   # ceil(chars / 3.5)
+    return 0
+  fi
 
   # Try tiktoken if available (within 5% accuracy)
   # Pipe text via stdin to avoid command injection from content
@@ -322,6 +335,7 @@ run_multipass() {
   local output_file="$6"
   local review_type="${7:-code}"
   local tool_access="${8:-false}"
+  _MULTIPASS_MODEL="$model"  # cycle-126 FR-1.4: the estimator keys on the pass's model
 
   local output_dir="grimoires/loa/a2a/gpt-review"
   mkdir -p "$output_dir"

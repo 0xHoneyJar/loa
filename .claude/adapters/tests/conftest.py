@@ -16,6 +16,8 @@ import pytest
 _LEDGER_ENV = {
     "LOA_COST_LEDGER_PATH": "cost-ledger.jsonl",
     "LOA_MODELINV_LOG_PATH": "model-invoke.jsonl",
+    # cycle-126 D-1.1b: the observed-ceiling store is state too.
+    "LOA_CHEVAL_CEILING_OBSERVED_PATH": "ceiling-observed.json",
 }
 
 

@@ -39,6 +39,7 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     enforce_context_window,
     http_post,
+    wire_temperature,
 )
 from loa_cheval.providers.bedrock_token_age import record_token_use
 from loa_cheval.config.redaction import register_value_redaction
@@ -223,8 +224,9 @@ class BedrockAdapter(ProviderAdapter):
 
         # Temperature gate per ModelConfig.params (mirrors anthropic_adapter).
         params = model_config.params if isinstance(model_config.params, dict) else {}
-        if params.get("temperature_supported", True):
-            body["inferenceConfig"]["temperature"] = request.temperature
+        temperature = wire_temperature(request.temperature)  # cycle-126 FR-1.3: only when set
+        if temperature is not None and params.get("temperature_supported", True):
+            body["inferenceConfig"]["temperature"] = temperature
 
         if system_blocks:
             body["system"] = system_blocks

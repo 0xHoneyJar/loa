@@ -21,6 +21,7 @@ from loa_cheval.providers.base import (
     enforce_context_window,
     http_post,
     http_post_stream,
+    wire_temperature,
 )
 from loa_cheval.providers.google_streaming import parse_google_stream
 from loa_cheval.streaming import StreamingRecoveryAbort
@@ -302,10 +303,13 @@ class GoogleAdapter(ProviderAdapter):
         body = {
             "contents": contents,
             "generationConfig": {
-                "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
             },
         }  # type: Dict[str, Any]
+        # cycle-126 FR-1.3 (SDD D-1.3): sampling params only when the caller set one
+        temperature = wire_temperature(request.temperature)
+        if temperature is not None:
+            body["generationConfig"]["temperature"] = temperature
 
         if system_instruction:
             body["systemInstruction"] = {
