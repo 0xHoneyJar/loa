@@ -166,6 +166,10 @@ _sidecar_path() {
 # =============================================================================
 
 @test "C14: repair succeeds — mock model fixes only the violated field, finding is accepted" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser now derives an empty failure_mode from the
+    # description before validation, so this case bypasses the derivation (as NRM-7 does) to keep
+    # exercising the repair round-trip itself
+    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
     _REPAIR_TEST_SPRINT="sprint-c14-repair-ok-$$"
 
     # Mock: given the offending finding + violated clause, return the
@@ -203,6 +207,10 @@ _sidecar_path() {
 }
 
 @test "C14: repair mutates a non-violated field — rejected with repair-mutated-nonviolated-field" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser now derives an empty failure_mode from the
+    # description before validation, so this case bypasses the derivation (as NRM-7 does) to keep
+    # exercising the repair round-trip itself
+    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
     _REPAIR_TEST_SPRINT="sprint-c14-repair-mutate-$$"
 
     # Mock: "fixes" failure_mode but ALSO rewrites description — violates
@@ -238,6 +246,10 @@ _sidecar_path() {
 }
 
 @test "C14: repair unavailable (model call fails) — rejected, original reject_reason preserved, sidecar unchanged semantics" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser now derives an empty failure_mode from the
+    # description before validation, so this case bypasses the derivation (as NRM-7 does) to keep
+    # exercising the repair round-trip itself
+    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
     _REPAIR_TEST_SPRINT="sprint-c14-repair-fail-$$"
 
     # Mock: repair round-trip fails outright (e.g. timeout / API error twice).

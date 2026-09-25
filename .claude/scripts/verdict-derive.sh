@@ -52,6 +52,10 @@ Options:
   --json              Emit a JSON result object to stdout
   --require-trailer   Treat a missing trailer as a violation (exit 1) instead
                        of the default legacy-file pass (exit 2)
+  --envelope <path>   The dissent envelope to check the rejected-payload contract against
+                      (default: the sibling adversarial-<gate>.json; a non-empty
+                      metadata.rejected_summary needs one triage line per entry under
+                      '## Rejected dissent payloads'; a missing explicit file is a usage error)
   --review-file PATH  Audit gate only: cross-check the audit trailer's
                        excluded_confirmed against the review trailer's excluded
   -h, --help          Show this help message
@@ -118,6 +122,12 @@ if [[ -n "$REVIEW_FILE" ]]; then
         exit 2
     fi
 fi
+if [[ -n "${ENVELOPE_FILE:-}" && ! -f "$ENVELOPE_FILE" ]]; then
+    # sprint-248 review (chunk b C-002): an explicit envelope that is not a regular file is a
+    # usage error, like --review-file — never a warning that --json consumers ignore
+    echo "Error: envelope file not found: $ENVELOPE_FILE" >&2
+    exit 2
+fi
 
 # cycle-126 FR-2.3 (SDD D-2.3): the dissent envelope beside the feedback file
 # (adversarial-<gate>.json, or --envelope) — when its metadata.rejected_summary
@@ -129,13 +139,25 @@ else
     ENVELOPE_EXPLICIT=true
 fi
 rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
-    [[ -f "$ENVELOPE_FILE" ]] || { [[ "$ENVELOPE_EXPLICIT" == "true" ]] && warnings+=("WARN: --envelope $ENVELOPE_FILE not found; rejected-payload contract not checked"); return 0; }
+    # sprint-248 review (chunk b): fail closed — an explicit envelope that is missing, or an envelope
+    # that is not JSON, is a violation, not a warning; the section must carry one triage line per entry.
+    [[ -f "$ENVELOPE_FILE" ]] || return 0   # no sibling envelope: nothing to check (an explicit one was validated at parse time)
     local n
     n=$(jq -r '(.metadata.rejected_summary // []) | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=""
-    [[ "$n" =~ ^[0-9]+$ ]] || { warnings+=("WARN: envelope $ENVELOPE_FILE is not parseable JSON; rejected-payload contract not checked"); return 0; }
+    if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+        violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
+        return 0
+    fi
     (( n > 0 )) || return 0
     if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
         violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $n schema-rejected payload(s) in metadata.rejected_summary but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
+        return 0
+    fi
+    local lines
+    # (stdin, not `-- "$FILE"`: mawk treats `--` as a file name)
+    lines=$(awk '/^## /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
+    if (( lines < n )); then
+        violations+=("'## Rejected dissent payloads' holds $lines triage line(s) but the dissent envelope carries $n rejected payload(s) — one bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
     fi
 }
 violations=()

@@ -1398,6 +1398,12 @@ flatline_protocol:
     # aggregate (voices_planned 2). Credential presence only decides where
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     companion_voice: true
+    # Optional: replace the default companion chains (used as given; the CLI hop
+    # is planned only when its binary is on PATH; a hop already in this block's
+    # fallback_chain is dropped so the two voices stay independent).
+    # companion_chain:
+    #   anthropic: [opus, claude-headless]
+    #   openai: [gpt-5.5, codex-headless]
     # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
     # A dissenter finding from an UNENFORCED hop that fails validate_finding
     # gets ONE bounded repair round-trip (cycle-126 FR-2.4: to `tiny` when an

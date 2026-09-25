@@ -128,3 +128,11 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
 }
+
+@test "NRM-8 credential presence never materialises the value: an xtrace'd check echoes no secret (review C-008)" {
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-x"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    printf 'ANTHROPIC_API_KEY="dotenv-secret-value-xyz-987"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
+}

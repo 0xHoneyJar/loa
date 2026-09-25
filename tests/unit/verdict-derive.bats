@@ -326,3 +326,51 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations | length) >= 1' >/dev/null
 }
+
+@test "verdict-derive: the section must carry one triage line per rejected payload — an empty or short section is INCONSISTENT (sprint-248 review, chunk b BLOCKING)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s4"; mkdir -p "$d"
+    two='[{"severity":"MEDIUM","title":"a","anchor":"x.sh:1","reason":"missing-severity","description_head":"A."},{"severity":"LOW","title":"b","anchor":"y.sh:2","reason":"missing-category","description_head":"B."}]'
+    _vd_envelope "$d/adversarial-review.json" "$two"
+    # heading only, no entries
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+        echo "## Rejected dissent payloads"; echo; echo "## Observations"; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"0 triage line(s)"* ]]
+    # one line for two entries
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+        echo "## Rejected dissent payloads"; echo; echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"1 triage line(s)"*"2 rejected payload(s)"* ]]
+    # two lines for two entries → consistent
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+        echo "## Rejected dissent payloads"; echo
+        echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."
+        echo "- b (LOW, y.sh:2) — missing-category: real; counted under Observations as LOW."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":1},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+}
+
+@test "verdict-derive: the contract fails closed — an explicit --envelope that is missing is a usage error (2); an envelope that is not JSON is a violation (1) (sprint-248 review, chunk b)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s5"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope "$d/nope.json"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"envelope file not found"* ]]
+    printf 'not json' > "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"not parseable"* ]]
+}

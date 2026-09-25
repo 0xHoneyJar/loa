@@ -68,6 +68,29 @@ and marks the trailer INCONSISTENT (exit 1) when the section is missing. Reading
 `payload` is the model's finding as normalised, `reject_reason` the clause it failed, and
 `repair_attempted` / `repair_succeeded` whether the bounded repair round-trip ran.
 
+**Round-1 hardening (sprint-248 review, companion voice DISS-C-001 … C-011).** The companion
+runs in its own sub-workdir with a log; a failed companion carries `last_error` (last diagnostic
+line, redacted) beside `failure_class`. The envelope's `cost_usd` / tokens are BOTH voices; the
+per-voice spend stays under `companion_voice.cost_cents` and `budget_cents` is a per-voice cap.
+A hop the primary chain already holds is removed from the companion chain (`planned: false,
+reason: no_disjoint_route` when nothing remains); a family with neither a credential nor its CLI
+on PATH is `reason: no_route`; `companion_voice.independent` says whether the two voices that
+answered belong to different families. A primary chain that exhausts while the companion
+completes is promoted (`status: reviewed`, `degraded: true`, `primary_voice: {status: failed}`) so
+the completed voice is never buried. The companion's rejected rows are named on the envelope
+(`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the
+primary's. The second voice is reaped on INT/TERM/EXIT and by a wait cap (chain length × per-call
+timeout + 30 s; `LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it; `failure_class: timeout`). An
+operator may set `flatline_protocol.<block>.companion_chain: {anthropic: [...], openai: [...]}`
+to replace the default chains (used as given). A fold that fails keeps the primary envelope
+(`companion_voice.status: fold_failed`). `failure_class` follows cheval's exit codes — 4
+(`MISSING_API_KEY`) `auth`, 6 (`BUDGET_EXCEEDED`) `quota`, 3 / 124 `timeout`, 5
+(`INVALID_RESPONSE`) or a `malformed_response` status `malformed`, anything else (1: API error,
+rate-limited, provider unavailable, token revoked) `model_unavailable`. `last_error` also masks
+bare provider-key shapes (`sk-…`, `xai-…`, `gsk_…`, `AIza…`) the shared redactor does not cover;
+the reap takes the companion's whole process tree; `companion_voice.rejected_sidecar` is `null`
+(and the file removed) when nothing was rejected.
+
 **Repair loop (D-2.4).** The one bounded repair round-trip goes to `tiny` when an Anthropic
 credential is present, else to `claude-headless` (`LOA_ADVERSARIAL_REPAIR_MODEL` pins it) — no
 longer to the voice that produced the malformed finding. KF-004 evidence: the three real rejected
