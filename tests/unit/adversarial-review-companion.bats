@@ -13,11 +13,15 @@
 # =============================================================================
 
 setup() {
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
+    # the sprint id and its directory come FIRST: teardown runs on any setup failure, and a delete
+    # target derived from an unset id would be the a2a root (fourth run, chunk c C-001)
+    SPRINT="sprint-comp-$$"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
+    OUT_DIR="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
+    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     T="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
     local saved_root="$PROJECT_ROOT"
@@ -26,8 +30,6 @@ setup() {
     eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
-    SPRINT="sprint-comp-$$"
-    OUT_DIR="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
     # keyless host: no env keys, an empty dotenv dir (bats-gated seam)
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
     export LOA_ADVERSARIAL_ENV_DIR="$T/env"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
@@ -99,6 +101,9 @@ YAML
                 bash -c 'exec -a "$0" sleep 4' "loa-cmp14-hung-$$"
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
+            errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger
+                echo "[model-adapter:shim] Model: $model → anthropic:$model, Phase: review" >&2
+                echo "ERROR: model-invoke failed with exit code 1" >&2; return 1 ;;
             clitimeout)  # cheval's CLI-hop timeout as the live run reported it, followed by the shim's generic wrapper
                 echo "[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p timed out after 610s" >&2
                 echo "ERROR: model-invoke failed with exit code 1" >&2; return 1 ;;
@@ -112,7 +117,9 @@ YAML
 }
 teardown() {
     local d
+    [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || return 0
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
+        [[ "$d" == */a2a/sprint-comp-* ]] || continue
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
     done
 }
@@ -336,9 +343,11 @@ PY
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "model_unavailable" ]
-    le=$(jq -r '.metadata.companion_voice.last_error' <<<"$result")
-    [[ "$le" == *"provider said no"* ]]
-    [[ "$le" != *"SECRETSECRETSECRETSECRET1234"* ]]
+    # the envelope carries only an allowlisted summary (nothing here qualifies → no last_error at all);
+    # the redacted raw line is operator-facing on stderr (fourth run, chunk c C-004)
+    [ "$(jq -r '.metadata.companion_voice.last_error // "none"' <<<"$result")" = "none" ]
+    grep -q "Companion voice diagnostic (claude-headless): boom: provider said no" "$T/stderr.log"
+    ! grep -q "SECRETSECRETSECRETSECRET1234" "$T/stderr.log"
     [[ "$result" != *"SECRETSECRETSECRETSECRET1234"* ]]
     # c C-004: the raw line lives only in the /tmp workdir, which the EXIT trap removed — never in the a2a directory
     [ -d "$OUT_DIR" ]   # a missing directory would make the recursive grep pass vacuously
@@ -399,8 +408,7 @@ PY
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     le=$(jq -r '.metadata.companion_voice.last_error' <<<"$result")
-    [[ "$le" == *"claude -p timed out after 610s"* ]]
-    [[ "$le" != *"model-invoke failed with exit code"* ]]
+    [ "$le" = "RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 610s" ]   # the allowlisted summary, nothing else
     [ "$(jq -r '.verdict_quality.voices_dropped[0].reason' <<<"$result")" = "Other" ]
     # the classifier alone: the diagnostic decides only when the exit code does not
     [ "$(_companion_failure_class api_failure 1 "claude -p timed out after 610s")" = "timeout" ]
@@ -445,16 +453,20 @@ PY
     [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
 }
 
-@test "CMP-22 the wait cap is sized per hop — a *-headless hop by cheval's CLI timeout (610 s), an HTTP hop by timeout_seconds — plus 30 s slack (third run C-003)" {
-    [ "$(_companion_wait_cap 30 claude-headless)" = "640" ]
-    [ "$(_companion_wait_cap 30 opus claude-headless)" = "670" ]
+@test "CMP-22 the wait cap is sized per hop — a *-headless hop by the CLI adapter's bound (connect 10 s + max(600 s, the catalog's headless_timeout_seconds)), an HTTP hop by timeout_seconds — plus 30 s slack (third + fourth run)" {
+    # claude-headless carries headless_timeout_seconds: 900 in the catalog → 910; codex-headless does not → 610
+    [ "$(_adv_cli_hop_bound claude-headless)" = "910" ]
+    [ "$(_adv_cli_hop_bound codex-headless)" = "610" ]
+    [ "$(_companion_wait_cap 30 claude-headless)" = "940" ]
+    [ "$(_companion_wait_cap 30 opus claude-headless)" = "970" ]
     [ "$(_companion_wait_cap 900 codex-headless)" = "930" ]
     [ "$(_companion_wait_cap 60 gpt-5.5)" = "90" ]
     [ "$(_companion_wait_cap 600 gpt-5.5 codex-headless)" = "1240" ]
-    [ "$( _ADV_CLI_HOP_TIMEOUT=100; _companion_wait_cap 30 claude-headless )" = "130" ]   # the CLI bound is overridable
+    [ "$( _ADV_CLI_HOP_TIMEOUT=100; _companion_wait_cap 30 foo-headless )" = "130" ]   # a hop the catalog does not size
+    [ "$( LOA_MODEL_CONFIG=/nonexistent.yaml _adv_cli_hop_bound claude-headless )" = "610" ]
     # the live line names the cap
     result=$(_run_main review)
-    grep -q "wait cap 640s" "$T/stderr.log"
+    grep -q "wait cap 940s" "$T/stderr.log"
 }
 
 @test "CMP-23 each writer truncates its own rejected sidecar at run start — a second run into the same sprint directory does not accumulate rows (third run, chunk c C-001)" {
@@ -464,7 +476,58 @@ PY
     result=$(_run_main review)
     [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
-    # and the verdict-derive floor counts JSON rows, not bytes: a trailing blank line changes nothing
+    # the envelope names the sidecars this run produced; verdict-derive counts JSON rows, not bytes —
+    # one triage bullet clears the contract, and a trailing blank line changes nothing (c C-007)
+    [ "$(jq -c '.metadata.rejected_sidecars' <<<"$result")" = "[\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review.jsonl\",\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion.jsonl\"]" ]
     printf '\n' >> "$OUT_DIR/adversarial-rejected-review-companion.jsonl"
-    [ "$(grep -c . "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
+        echo "## Rejected dissent payloads"; echo; echo "- no severity — repair-mutated-nonviolated-field: not a defect."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$OUT_DIR/engineer-feedback.md"
+    run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true' >/dev/null
+    # a stale sidecar from a writer that did not run this time is not this run's (chunk b C-003 / c C-002)
+    printf '{"reject_reason":"stale"}\n%.0s' 1 2 3 4 5 > "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
+    run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+}
+
+@test "CMP-24 when the shim swallowed cheval's stderr, the failed companion's class and last_error come from the MODELINV ledger row for that call (fourth run)" {
+    BEHAVIOUR[claude-headless]=errquiet
+    # the row cheval would have written for this call (the harness points LOA_MODELINV_LOG_PATH at a temp file)
+    jq -nc '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:"2099-01-01T00:00:00Z",
+             payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
+                      models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED",
+                                      message_redacted:"[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider \u0027anthropic\u0027 unavailable: claude -p timed out after 910s"}]}}' >> "$LOA_MODELINV_LOG_PATH"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
+    le=$(jq -r '.metadata.companion_voice.last_error' <<<"$result")
+    [ "$le" = "MODELINV RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s" ] || [ "$le" = "RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s" ]
+    [[ "$le" != *"shim"* ]]
+    # a row older than the companion's start is not this call's
+    : > "$LOA_MODELINV_LOG_PATH"
+    jq -nc '{event_type:"model.invoke.complete", ts_utc:"2000-01-01T00:00:00Z", payload:{models_requested:["anthropic:claude-headless"], models_failed:[{message_redacted:"stale: timed out"}]}}' >> "$LOA_MODELINV_LOG_PATH"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "model_unavailable" ]
+    [[ "$(jq -r '.metadata.companion_voice.last_error' <<<"$result")" != *"stale"* ]]
+}
+
+@test "CMP-25 *-headless hops are serialised per CLI binary across the two walks (fourth run, chunk c C-003)" {
+    invoke_dissenter() { date +%s%N >> "$T/lock-trace"; sleep 1; date +%s%N >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    export TMPDIR="$T"
+    _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
+    _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
+    wait
+    mapfile -t ts < "$T/lock-trace"
+    [ "${#ts[@]}" = "4" ]
+    sorted=($(printf '%s\n' "${ts[@]}" | sort -n))
+    # the second invocation started after the first one ended: intervals do not overlap
+    [ "${sorted[1]}" = "$(printf '%s\n' "${ts[1]}" "${ts[3]}" | sort -n | head -1)" ]
+    [ -f "$T/loa-headless-locks/claude.lock" ]
+    # an HTTP hop takes no lock
+    : > "$T/lock-trace"; _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
+    [ ! -f "$T/loa-headless-locks/gpt-5.5.lock" ]
 }

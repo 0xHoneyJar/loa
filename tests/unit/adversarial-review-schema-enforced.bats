@@ -148,7 +148,9 @@ SHIM
 }
 
 @test "FR7-9: the fallback-chain caller selects dissent-\${type}.wire.json (grep-lock)" {
-    grep -q 'invoke_dissenter "\$_ADVERSARIAL_WORKDIR/system-prompt.txt" "\$_ADVERSARIAL_WORKDIR/user-prompt.txt" "\$try_model" "\$timeout" "\$vq_sidecar" "\$type" "\$SCRIPT_DIR/../schemas/wire/dissent-\${type}.wire.json"' "$ADVERSARIAL_REVIEW"
+    # cycle-126 sprint-248: the call goes through _adv_invoke_hop (per-binary lock for *-headless hops), same arguments
+    grep -q '_adv_invoke_hop "\$try_model" "\$_ADVERSARIAL_WORKDIR/system-prompt.txt" "\$_ADVERSARIAL_WORKDIR/user-prompt.txt" "\$try_model" "\$timeout" "\$vq_sidecar" "\$type" "\$SCRIPT_DIR/../schemas/wire/dissent-\${type}.wire.json"' "$ADVERSARIAL_REVIEW"
+    grep -q '\*) invoke_dissenter "\$@" ;;' "$ADVERSARIAL_REVIEW"   # …and _adv_invoke_hop hands them to invoke_dissenter unchanged
 }
 
 @test "FR7-10: the KF-004 corpus + the truncated payload — every fixture lands where _expect says on both parse paths; enforced-valid ones reject nothing" {

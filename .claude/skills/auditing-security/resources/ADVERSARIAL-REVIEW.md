@@ -33,7 +33,7 @@ findings from a run that completed are a normal pass, not a degraded review.
 **Companion voice (D-2.1).** Every dissent plans a second chain from the *other* provider
 family — the primary configured on the block decides: an OpenAI-family primary gets the
 Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets the OpenAI chain
-(`gpt-5.5-pro` → `gpt-5.5` → `codex-headless`). Credential *presence* (env → `.env.local` →
+(`gpt-5.5` → `codex-headless`; KF-002 keeps `gpt-5.5-pro` out of the default). Credential *presence* (env → `.env.local` →
 `.env`; the value is never read) decides only where the companion chain starts — with no key it
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
 (`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). The
@@ -73,12 +73,17 @@ one model is never reported as cross-family consensus. A primary chain that exha
 completes is promoted (`status: reviewed`, `degraded: true`, `primary_voice: {status: failed}`) so
 the completed voice is never buried. The companion's rejected rows are named on the envelope
 (`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the primary's:
-`verdict-derive.sh` counts the rows of every `adversarial-rejected-<gate>*.jsonl` beside the envelope
-(with or without the envelope; each writer truncates its own file at run start; rows whose repair
-succeeded never count) and wants one top-level bullet per payload. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
+`verdict-derive.sh` counts the rows of the sidecars the envelope names (`metadata.rejected_sidecars`
+— the run removes both canonical sidecars at start and lists the ones it produced, so a stale file
+from a writer that did not run is never this run's); without an envelope, or without that field,
+every `adversarial-rejected-<gate>*.jsonl` beside the feedback file counts; rows whose repair
+succeeded never count; a trailer-less file is held to the contract too; the same section with one
+top-level bullet per payload clears it in every case. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
 `LOA_ADVERSARIAL_KEEP_WORKDIR=1` retains the `/tmp` workdir) and by a wait cap measured from its
-start: each `*-headless` hop counts cheval's CLI timeout (610 s, `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT`),
-each HTTP hop `timeout_seconds`, plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it;
+start: each `*-headless` hop counts the CLI adapter's bound — connect 10 s + max(600 s, the catalog's
+per-model `headless_timeout_seconds`; `claude-headless` carries 900 s because a dissent on `claude -p`
+takes 6–10 minutes; `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT` is the fallback for an unsized hop) — each HTTP
+hop `timeout_seconds`, plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it;
 `failure_class: timeout`). The default OpenAI-family companion chain is `gpt-5.5` → `codex-headless`
 (KF-002: `gpt-5.5-pro` returns empty content on review prompts); `companion_chain.openai` can still
 name it. The companion reads its own copies of the prompt files. A failed companion whose id is one
@@ -91,8 +96,13 @@ to replace the default chains (used as given). A fold that fails keeps the prima
 (`MISSING_API_KEY`) `auth`, 6 (`BUDGET_EXCEEDED`) `quota`, 3 / 124 `timeout`, 5
 (`INVALID_RESPONSE`) or a `malformed_response` status `malformed`, anything else (1: API error, rate-limited, provider unavailable, token revoked)
 `model_unavailable` — except that a diagnostic saying "timed out" (cheval reports its own CLI-hop
-timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is the provider's own last line when there is one, the model-adapter shim's generic
-wrapper only as the fallback. Findings carry `voice` (the outer hop, matching `final_model`) and
+timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is an allowlisted summary of the provider's own line — cheval's error tokens, "timed out
+after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the
+model-adapter shim discards cheval's stderr), else from the last non-banner line of the companion's
+log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops
+are serialised per CLI binary across the two walks (a flock under `$TMPDIR/loa-headless-locks/`), so
+one dissent never runs two `claude -p` against the same login. A derived finding id never collides
+with one the model supplied. The repair round-trip walks `tiny` → `claude-headless` with a credential. Findings carry `voice` (the outer hop, matching `final_model`) and
 `answered_by` (the model that actually produced them). A duplicate companion leaves `verdict_quality`
 untouched (the aggregator counts distinct voices; its INV-5 forbids one id both succeeded and dropped)
 — `companion_voice.counted_as` is the record. The companion's raw stderr lives only in the run's

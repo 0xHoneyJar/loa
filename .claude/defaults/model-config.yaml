@@ -855,6 +855,10 @@ providers:
         dispatch_group: anthropic-claude
         kind: cli
         capabilities: [chat]            # No tool_use, no thinking
+        # cycle-126 sprint-248 (review round 1): a dissent on `claude -p` takes 6–10 min for a
+        # ~30 KB chunk; the adapter's 600 s read floor timed the companion voice out twice. This
+        # raises that hop's bound (connect 10 s + 900 s); adversarial-review.sh sizes its wait cap from it.
+        headless_timeout_seconds: 900
         # #881 close: claude CLI dispatches whatever cli_model names below;
         # context_window mirrors that model's http_api sibling (bug-881-1b
         # invariant). cycle-124 FR-3: fable → claude-fable-5-1 = 1M.

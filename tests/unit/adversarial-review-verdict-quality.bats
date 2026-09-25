@@ -236,7 +236,7 @@ _source_adv_review_helpers() {
     # Function body references vq_sidecar parameter
     grep -q "vq_sidecar=" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     # Main loop calls invoke_dissenter with the 5th arg
-    grep -qE 'invoke_dissenter[^)]*"\$vq_sidecar"' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+    grep -qE '(invoke_dissenter|_adv_invoke_hop "\$try_model")[^)]*"\$vq_sidecar"' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
 }
 
 # =============================================================================

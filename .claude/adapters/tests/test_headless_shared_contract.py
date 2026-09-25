@@ -53,6 +53,12 @@ def test_prompt_and_timeout_contract(adapter_case):
     adapter.config.connect_timeout = 20
     adapter.config.read_timeout = 700
     assert adapter._compute_timeout() == 720.0
+    # cycle-126 sprint-248: a per-model headless_timeout_seconds raises the read bound, never lowers it
+    from loa_cheval.types import ModelConfig
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
+    assert adapter._compute_timeout(ModelConfig()) == 720.0
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
 
 
 def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):

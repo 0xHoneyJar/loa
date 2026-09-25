@@ -46,7 +46,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
         model_config = self._get_model_config(request.model)
         enforce_context_window(request, model_config)
         prompt = self._build_prompt(request.messages)
-        timeout_s = self._compute_timeout()
+        timeout_s = self._compute_timeout(model_config)
         n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
         self._logger.debug(
             "%s invoking: model=%s timeout=%.0fs prompt_chars=%d slots=%d",
@@ -149,9 +149,18 @@ class HeadlessCLIAdapter(ProviderAdapter):
         except (subprocess.TimeoutExpired, OSError):
             return False
 
-    def _compute_timeout(self) -> float:
-        """Keep the existing 10s connect and 600s read floors."""
-        return max(self.config.connect_timeout, 10.0) + max(self.config.read_timeout, 600.0)
+    def _compute_timeout(self, model_config: Any = None) -> float:
+        """Keep the existing 10s connect and 600s read floors; a per-model
+        `headless_timeout_seconds` (catalog) raises the read bound above them
+        (cycle-126 sprint-248: a long dissent on `claude -p` takes 6-10 min)."""
+        read = max(self.config.read_timeout, 600.0)
+        per_model = getattr(model_config, "headless_timeout_seconds", None)
+        try:
+            if per_model is not None and float(per_model) > read:
+                read = float(per_model)
+        except (TypeError, ValueError):
+            pass
+        return max(self.config.connect_timeout, 10.0) + read
 
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
         """Flatten messages into role-prefixed sections for single-shot inference."""

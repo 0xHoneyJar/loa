@@ -174,6 +174,10 @@ class ModelConfig:
     # from FR-8.6 stress test results; defaults to 50 if absent. Operator
     # tunes per model in `.claude/defaults/model-config.yaml`.
     headless_concurrency_limit: Optional[int] = None
+    # cycle-126 sprint-248 (review round 1, fourth live run): per-model read bound for a CLI hop.
+    # The headless adapter's timeout is max(connect, 10) + max(read_timeout, 600); a long dissent on
+    # claude -p takes 6–10 minutes, so the catalog can raise the floor per model. None → 600 s floor.
+    headless_timeout_seconds: Optional[float] = None
 
 
 # --- Error Types ---

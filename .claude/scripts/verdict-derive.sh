@@ -100,14 +100,17 @@ usage_error() {  # <message>
 
 # a usage error anywhere in argv must still speak JSON when --json is present (third run, chunk b C-004)
 for _a in "$@"; do [[ "$_a" == "--json" ]] && JSON_OUTPUT=true; done
+_need_value() {  # <flag> <argc> <value> — a value flag with no value is a usage error, not a failed `shift` (fourth run, chunk b DISS-001)
+    [[ "$2" -ge 2 && -n "${3:-}" ]] || usage_error "$1 requires a value"
+}
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --file) FILE="${2:-}"; shift 2 ;;
-        --gate) GATE="${2:-}"; shift 2 ;;
+        --file) _need_value "$1" $# "${2:-}"; FILE="$2"; shift 2 ;;
+        --gate) _need_value "$1" $# "${2:-}"; GATE="$2"; shift 2 ;;
         --json) JSON_OUTPUT=true; shift ;;
         --require-trailer) REQUIRE_TRAILER=true; shift ;;
-        --review-file) REVIEW_FILE="${2:-}"; shift 2 ;;
-        --envelope) ENVELOPE_FILE="${2:-}"; shift 2 ;;
+        --review-file) _need_value "$1" $# "${2:-}"; REVIEW_FILE="$2"; shift 2 ;;
+        --envelope) _need_value "$1" $# "${2:-}"; ENVELOPE_FILE="$2"; shift 2 ;;
         -h|--help) show_help; exit 0 ;;
         *) show_help >&2; usage_error "Unknown option: $1" ;;
     esac
@@ -136,48 +139,60 @@ if [[ -z "${ENVELOPE_FILE:-}" ]]; then
 else
     ENVELOPE_EXPLICIT=true
 fi
+_rejected_rows_of() {  # <file> — adds the file's rejected rows to $rows; an unreadable file is a violation
+    local f="$1" t r c
+    [[ -e "$f" ]] || return 0
+    if [[ ! -r "$f" ]]; then
+        violations+=("rejected-payload sidecar $(basename -- "$f") is not readable — fix its permissions or re-run the dissent; its rows cannot be triaged")
+        return 0
+    fi
+    # rows whose repair succeeded were accepted upstream (the writer only records rejections; defensive)
+    t=$(grep -c . -- "$f" 2>/dev/null || true); r=$(grep -c '"repair_succeeded": *true' -- "$f" 2>/dev/null || true)
+    c=$(( ${t:-0} - ${r:-0} )); (( c > 0 )) && rows=$(( rows + c ))
+    return 0
+}
 rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
-    # sprint-248 review (chunk b): fail closed — an explicit envelope that is missing, or an envelope
-    # that is not JSON, is a violation, not a warning; the section must carry one triage line per entry.
-    # third run, chunk b C-002 / C-005 / C-001: the sidecar rows beside the envelope are counted whether or
-    # not the envelope exists (a run that died after writing rows leaves work to triage); an unreadable
-    # sidecar is a violation, never an arithmetic abort; rows whose repair succeeded never count
-    local rows=0 f envdir c t r
+    # cycle-126 FR-2.3 (SDD D-2.3), hardened over sprint-248's live review runs:
+    #   * the envelope's metadata.rejected_summary and the rejected-payload sidecar rows both count
+    #     (need = max); one top-level bullet per payload under `## Rejected dissent payloads`;
+    #   * when the envelope names the sidecars this run produced (metadata.rejected_sidecars[]) only
+    #     those are counted — a stale file from a writer that did not run this time is not this run's;
+    #     without an envelope, or without that field, every adversarial-rejected-<gate>*.jsonl beside
+    #     the feedback file counts (a run that died after writing rows still leaves work to triage);
+    #   * an unparseable envelope or a non-array summary is a violation; an unreadable sidecar too;
+    #   * the same section and bullet count clear the violation whether or not the envelope exists.
+    local rows=0 f envdir kind n=0 need source listed=""
     envdir=$(dirname -- "$ENVELOPE_FILE")
-    for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
-        [[ -e "$f" ]] || continue
-        if [[ ! -r "$f" ]]; then
-            violations+=("rejected-payload sidecar $(basename -- "$f") is not readable — fix its permissions or re-run the dissent; its rows cannot be triaged")
-            continue
+    if [[ -f "$ENVELOPE_FILE" ]]; then
+        kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
+        if [[ -z "$kind" ]]; then
+            violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
+            return 0
         fi
-        t=$(grep -c . -- "$f" 2>/dev/null || true); r=$(grep -c '"repair_succeeded": *true' -- "$f" 2>/dev/null || true)
-        c=$(( ${t:-0} - ${r:-0} )); (( c > 0 )) && rows=$(( rows + c ))
-    done
-    if [[ ! -f "$ENVELOPE_FILE" ]]; then
-        (( rows > 0 )) && violations+=("no dissent envelope $(basename -- "$ENVELOPE_FILE") beside this file, but the adversarial-rejected-${GATE}*.jsonl sidecar(s) hold $rows rejected payload row(s) — triage them under '## Rejected dissent payloads' or re-run the dissent")
-        return 0
+        if [[ "$kind" != "array" ]]; then
+            violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")
+            return 0
+        fi
+        n=$(jq -r '.metadata.rejected_summary | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
+        listed=$(jq -r '(.metadata.rejected_sidecars // empty) | if type == "array" then .[] else empty end' -- "$ENVELOPE_FILE" 2>/dev/null || true)
     fi
-    local kind n
-    kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
-    if [[ -z "$kind" ]]; then
-        violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
-        return 0
+    if [[ -n "$listed" ]]; then
+        while IFS= read -r f; do
+            [[ -n "$f" ]] || continue
+            if [[ -e "$envdir/$(basename -- "$f")" ]]; then _rejected_rows_of "$envdir/$(basename -- "$f")"
+            elif [[ -e "$f" ]]; then _rejected_rows_of "$f"; fi
+        done <<<"$listed"
+    else
+        for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do _rejected_rows_of "$f"; done
     fi
-    # chunk b C-003 (round 2): the producer writes an array — anything else is the envelope's defect, not a count
-    if [[ "$kind" != "array" ]]; then
-        violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")
-        return 0
-    fi
-    n=$(jq -r '.metadata.rejected_summary | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
-    # chunk b C-004 (round 2): the envelope names only the LAST run's summary for this sprint-id — a
-    # chunked dissent overwrites it, a companion whose fold failed never reaches it. Every
-    # adversarial-rejected-<gate>*.jsonl beside the envelope (per-chunk suffixes, the -companion file)
-    # is a row that still demands triage (the writer truncates its own file at run start).
-    local need="$n" source="metadata.rejected_summary"
+    need="$n"; source="metadata.rejected_summary"
     if (( rows > n )); then need="$rows"; source="the adversarial-rejected-${GATE}*.jsonl sidecar rows beside it"; fi
     (( need > 0 )) || return 0
     if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
-        violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $need schema-rejected payload(s) ($source) but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
+        local where
+        if [[ -f "$ENVELOPE_FILE" ]]; then where="the dissent envelope $(basename -- "$ENVELOPE_FILE") carries"
+        else where="no dissent envelope $(basename -- "$ENVELOPE_FILE") beside this file, but its sidecar(s) hold"; fi
+        violations+=("$where $need schema-rejected payload(s) ($source) but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
         return 0
     fi
     local lines
@@ -188,6 +203,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         violations+=("'## Rejected dissent payloads' holds $lines top-level triage line(s) but $source carries $need rejected payload(s) — one top-level bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
     fi
 }
+
 violations=()
 warnings=()
 t_verdict=""
@@ -280,6 +296,14 @@ trailer_count=$(grep -ciE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
 if [[ "$trailer_count" -eq 0 ]]; then
     if [[ "$REQUIRE_TRAILER" == "true" ]]; then
         violations+=("no LOA-VERDICT trailer found but --require-trailer was set — add one as the last line: <!-- LOA-VERDICT {\"gate\":\"$GATE\",\"verdict\":\"APPROVED\",\"counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0},\"sprint_id\":\"sprint-N\",\"ts\":\"<ISO8601>\"} -->")
+        for v in "${violations[@]}"; do echo "$v" >&2; done
+        [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
+        exit 1
+    fi
+    # fourth run, chunk b C-002: the rejected-payload contract applies to a trailer-less file too —
+    # untriaged rejected payloads never ride the legacy pass
+    rejected_summary_check
+    if (( ${#violations[@]} > 0 )); then
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
         exit 1

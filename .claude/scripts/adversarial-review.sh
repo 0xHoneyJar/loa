@@ -511,9 +511,13 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
   return 1
 }
 
-_repair_model() {  # <primary model> → the model the repair round-trip uses
+_repair_model() {  # <primary model> → the model the repair round-trip uses first
   if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
   if _adv_cred_present anthropic; then echo "tiny"; else echo "claude-headless"; fi
+}
+_repair_model_chain() {  # <primary model> → the repair chain: tiny then claude-headless (a false presence read degrades, never fails)
+  local first; first=$(_repair_model "$1")
+  if [[ "$first" == "tiny" && -z "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "tiny claude-headless"; else echo "$first"; fi
 }
 
 # _repair_violated_field <reject_reason>
@@ -1250,6 +1254,13 @@ while i < len(text):
   # calls per review. At most ADV_REPAIR_MAX_PER_RUN repairs per run; the rest
   # are rejected unrepaired and counted in repair_budget_exhausted.
   local repairs_used=0 repair_budget_exhausted=0
+  # fourth run, chunk c C-005: a positional id may not collide with an id the model supplied (or one
+  # already used) — a colliding derived id becomes max(explicit numeric id) + 1
+  local explicit_ids used_ids="" max_id_num
+  explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string")] | join(" ")' 2>/dev/null || true)
+  max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$")?.n | tonumber] | max // 0' 2>/dev/null || echo 0)
+  [[ "$max_id_num" =~ ^[0-9]+$ ]] || max_id_num=0
+  (( max_id_num < finding_count )) && max_id_num=$finding_count
   while [[ $i -lt $finding_count ]]; do
     local finding
     finding=$(echo "$parsed" | jq ".findings[$i]")
@@ -1261,6 +1272,15 @@ while i < len(text):
     local candidate="$finding"
     if [[ "$schema_enforced" != "true" ]]; then
       candidate=$(_normalize_finding_for_validation "$finding" "$i")
+      local _cid
+      _cid=$(echo "$candidate" | jq -r '.id // ""' 2>/dev/null || true)
+      if [[ "$(echo "$candidate" | jq -r '.id_derived // false' 2>/dev/null)" == "true" && -n "$_cid" ]] \
+         && { [[ " $explicit_ids " == *" $_cid "* ]] || [[ " $used_ids " == *" $_cid "* ]]; }; then
+        max_id_num=$((max_id_num + 1))
+        _cid=$(printf 'DISS-%03d' "$max_id_num")
+        candidate=$(echo "$candidate" | jq --arg id "$_cid" '.id = $id')
+      fi
+      used_ids="$used_ids $_cid"
     fi
 
     if validate_finding "$candidate" "$type"; then
@@ -1283,10 +1303,15 @@ while i < len(text):
         repairs_used=$((repairs_used + 1))
         local violated_field
         violated_field=$(_repair_violated_field "$reject_reason")
-        local repaired
-        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$(_repair_model "$model")" "${CONF_TIMEOUT:-60}") \
-           && [[ -n "$repaired" ]] \
-           && echo "$repaired" | jq empty >/dev/null 2>&1; then
+        local repaired="" _rm _repair_ok="false"
+        # fourth run, chunk c C-008: tiny first when a credential is present, claude-headless when it is not
+        # or when tiny fails — one attempt per hop, the round-trip stays bounded
+        for _rm in $(_repair_model_chain "$model"); do
+          if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
+             && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _repair_ok="true"; break; fi
+          repaired=""
+        done
+        if [[ "$_repair_ok" == "true" ]]; then
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
             # Constraint 3: repaired finding re-enters the FULL pipeline —
             # validate_finding + validate_anchor here; the hallucination
@@ -1869,18 +1894,72 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
   echo "$chain"
 }
 
-# round 1 (third run, C-003): a *-headless hop is bounded by cheval's CLI-adapter timeout (610 s),
-# not by the block's HTTP timeout_seconds — the wait cap sums each hop's own bound, plus slack.
-_ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"
+# round 1 (third run, C-003; fourth run): a *-headless hop is bounded by cheval's CLI adapter —
+# connect 10 s + max(600 s, the catalog's per-model headless_timeout_seconds) — not by the block's
+# timeout_seconds. The wait cap sums each hop's own bound, plus slack.
+_ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"   # the fallback for a hop the catalog does not size
+_adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop
+  local hop="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v=""
+  if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
+    v=$(yq eval "[.providers[].models.\"$hop\".headless_timeout_seconds | select(. != null)] | .[0]" "$cat" 2>/dev/null)
+  fi
+  if [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    local r=${v%.*}; (( r < 600 )) && r=600
+    echo $(( 10 + r ))
+  else
+    echo "$_ADV_CLI_HOP_TIMEOUT"
+  fi
+}
 _companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
-  local t="$1" cap=0 h; shift
+  local t="$1" cap=0 h b; shift
   for h in "$@"; do
     case "$h" in
-      *-headless) cap=$(( cap + (t > _ADV_CLI_HOP_TIMEOUT ? t : _ADV_CLI_HOP_TIMEOUT) )) ;;
+      *-headless) b=$(_adv_cli_hop_bound "$h"); cap=$(( cap + (t > b ? t : b) )) ;;
       *)          cap=$(( cap + t )) ;;
     esac
   done
   echo $(( cap + 30 ))
+}
+
+# fourth run, chunk c C-003: two *-headless hops must not overlap — the primary walking onto
+# claude-headless while the companion's claude -p is still running is the KF-037 contention shape,
+# now reachable from one dissent. A per-binary flock serialises CLI invocations across the walks
+# (and across concurrent dissents on the host); a lock that cannot be had within the hop's own
+# bound is not waited for any longer than that.
+_adv_invoke_hop() {  # <model> <invoke_dissenter args…> — invoke_dissenter, serialised per CLI binary for *-headless hops
+  local model="$1"; shift
+  case "$model" in
+    *-headless)
+      local lockdir="${TMPDIR:-/tmp}/loa-headless-locks" lock bin="${model%-headless}" wait_s
+      mkdir -p "$lockdir" 2>/dev/null || { invoke_dissenter "$@"; return $?; }
+      lock="$lockdir/${bin//[^A-Za-z0-9_-]/_}.lock"
+      wait_s=$(_adv_cli_hop_bound "$model")
+      ( if command -v flock >/dev/null 2>&1; then flock -w "$wait_s" 9 || true; fi; invoke_dissenter "$@" ) 9>>"$lock"
+      ;;
+    *) invoke_dissenter "$@" ;;
+  esac
+}
+
+# The model-adapter shim runs cheval with its stderr discarded, so the provider's own failure line
+# ("claude -p timed out after 610s") reaches only the MODELINV ledger row cheval writes for the call.
+# fourth run, chunk c C-004: what travels into the tracked envelope as last_error is an allowlisted
+# summary of the diagnostic — cheval's error tokens, "timed out after Ns", HTTP / exit codes —
+# never the provider's raw line (request ids, account ids, echoed headers). The raw line, redacted,
+# goes to stderr and stays in the /tmp workdir.
+_adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (may be empty)
+  local line="$1" out=""
+  out=$(printf '%s\n' "$line" | grep -oE '\b[A-Z][A-Z_]{4,}\b|timed out after [0-9]+s|HTTP [0-9]{3}|status [0-9]{3}|exit code [0-9]+' \
+        | grep -vE '^REDACTED' | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ *$//' | cut -c1-200)
+  printf '%s' "$out"
+}
+
+_companion_ledger_message() {  # <model> <since iso-8601> → the last message_redacted for that model since then, or ""
+  local m="$1" since="$2" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
+  [[ -s "$ledger" ]] || { echo ""; return 0; }
+  tail -n 400 -- "$ledger" 2>/dev/null | jq -r --arg m "$m" --arg since "$since" '
+      select(type == "object" and (.event_type // "") == "model.invoke.complete" and ((.ts_utc // "") >= $since)
+             and (((.payload.models_requested // []) | map(. == $m or endswith(":" + $m)) | any)))
+      | (.payload.models_failed // [])[]? | .message_redacted // empty' 2>/dev/null | tail -1 | cut -c1-300
 }
 
 _companion_failure_class() {  # <last status> <last exit code> [diagnostic text] → auth|model_unavailable|quota|timeout|malformed
@@ -1920,7 +1999,7 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
   for m in "$@"; do
     rc=0
     local vq="$workdir/vq-companion-${m//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
-    raw=$(invoke_dissenter "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
+    raw=$(_adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
     [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
     res=$(process_findings "$raw" "$type" "$m" "$sprint_id" "$rc" "$diff_files")
     status=$(_extract_result_status "$res")
@@ -1999,9 +2078,13 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     # review sprint-248 C-003: the last diagnostic line of the companion's log travels with the class —
     # the provider's own message when there is one, the model-adapter shim's generic wrapper
     # ("ERROR: model-invoke failed with exit code N") only as the fallback
-    local _diag=""
-    if [[ -s "$workdir/companion.log" ]]; then
-      _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -v 'model-invoke failed with exit code' | tail -1 | cut -c1-300)
+    local _diag="" _since
+    # 1) the provider's own line from the MODELINV row cheval wrote for this call (the shim discards stderr)
+    _since=$(cat "$workdir/companion.started_iso" 2>/dev/null || echo "1970-01-01T00:00:00Z")
+    [[ -n "$final" ]] && _diag=$(_companion_ledger_message "$final" "$_since")
+    # 2) else the last line of the companion's log that is not a shim banner or the generic wrapper
+    if [[ -z "$_diag" && -s "$workdir/companion.log" ]]; then
+      _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -v 'model-invoke failed with exit code\|^\[model-adapter:shim\]' | tail -1 | cut -c1-300)
       [[ -n "$_diag" ]] || _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | tail -1 | cut -c1-300)
     fi
     cls=$(_companion_failure_class "$status" "$rc" "$_diag")
@@ -2028,6 +2111,9 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
       # provider API-key shapes the shared redactor (URL / AKIA / Bearer / PEM) does not cover:
       # sk-… (Anthropic, OpenAI), xai-…, gsk_… and AIza… — masked whole, boundary-anchored
       last_error=$(printf '%s\n' "$last_error" | sed -E 's/(^|[^A-Za-z0-9])(sk|xai|gsk)[-_][A-Za-z0-9_-]{12,}/\1[REDACTED-KEY]/g; s/AIza[0-9A-Za-z_-]{20,}/[REDACTED-KEY]/g' | head -1)
+      # the redacted raw line is operator-facing (stderr); the envelope gets the allowlisted summary
+      log "Companion voice diagnostic ($final): $last_error"
+      last_error=$(_adv_error_summary "$last_error")
     fi
   fi
   # review sprint-248 C-005 / chunk c C-003: independence is a fact about the voices that actually
@@ -2294,6 +2380,14 @@ main() {
   # family and start it now, in parallel with the primary walk.
   local companion_planned="false" companion_family="" companion_chain_csv="" companion_pid="" companion_skip_reason="" companion_shared_hops=""
   local companion_workdir="${_ADVERSARIAL_WORKDIR:-}/companion" companion_wait_cap=0 companion_started=0
+  # fourth run (chunk b C-003 / chunk c C-002): one run owns the sprint directory's rejected set — both
+  # canonical sidecars go before any writer starts, so a writer that does not run this time (companion
+  # off, no_route) cannot leave last run's rows to be demanded as triage; the envelope lists what this
+  # run produced (metadata.rejected_sidecars) and verdict-derive counts only those
+  if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
+    command rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}.jsonl" \
+                     "$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}-companion.jsonl" 2>/dev/null || true
+  fi
   if [[ "${CONF_COMPANION_VOICE:-true}" == "true" && ( -z "${_ADVERSARIAL_WORKDIR:-}" || ! -d "${_ADVERSARIAL_WORKDIR:-}" ) ]]; then
     # round 1 (third run, C-006): the companion needs the run's workdir; without one it is not planned
     companion_skip_reason="no_workdir"; companion_family=$(_companion_family "$(_adv_family_of "$model")")
@@ -2329,6 +2423,7 @@ main() {
         ( _walk_companion_chain "$companion_workdir" "$companion_workdir" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
         companion_pid=$!
         companion_started=$(date +%s)
+        date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.started_iso" 2>/dev/null || true
         _ADV_COMPANION_PID="$companion_pid"
       }
     fi
@@ -2340,7 +2435,7 @@ main() {
     # parallel adversarial-review invocations don't collide.
     local vq_sidecar
     vq_sidecar="$_vq_tmpdir/vq-${type}-${try_model//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
-    raw_response=$(invoke_dissenter "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || api_exit=$?
+    raw_response=$(_adv_invoke_hop "$try_model" "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || api_exit=$?
     # Collect the per-attempt envelope (if cheval wrote one).
     if [[ -s "$vq_sidecar" ]]; then
       vq_attempt_files+=("$vq_sidecar")
@@ -2425,6 +2520,12 @@ main() {
   else
     result=$(echo "$result" | jq '.metadata.companion_voice = {planned: false}')
   fi
+  # the rejected sidecars THIS run produced (paths relative to the project root)
+  local _sc _sidecars_json="[]"
+  for _sc in "grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}.jsonl" "grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}-companion.jsonl"; do
+    [[ -f "$PROJECT_ROOT/$_sc" ]] && _sidecars_json=$(echo "$_sidecars_json" | jq --arg p "$_sc" '. + [$p]')
+  done
+  result=$(echo "$result" | jq --argjson sc "$_sidecars_json" '.metadata.rejected_sidecars = $sc')
 
   # cycle-109 Sprint 2 T2.5 — aggregate per-attempt verdict_quality
   # envelopes via the canonical Python aggregator (SDD §5.2.1). The

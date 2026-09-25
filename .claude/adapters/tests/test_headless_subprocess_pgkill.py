@@ -374,7 +374,7 @@ class TestAdapterTimeoutReapsTree:
         # The fake CLI reads the pidfile path from env; adapters build the
         # subprocess env from os.environ (auth vars stripped, rest passes).
         monkeypatch.setenv("PGKILL_TEST_PIDFILE", str(pidfile))
-        monkeypatch.setattr(adapter_cls, "_compute_timeout", lambda self: 1.5)
+        monkeypatch.setattr(adapter_cls, "_compute_timeout", lambda self, *a, **k: 1.5)  # (model_config since cycle-126)
 
         adapter = adapter_cls(_provider_config(ptype, ptype, model))
 

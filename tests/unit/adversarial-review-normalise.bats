@@ -11,11 +11,14 @@
 # =============================================================================
 
 setup() {
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
+    # the sprint id comes FIRST: teardown runs on any setup failure, and a delete target derived from
+    # an unset id would be the a2a root (fourth run, chunk c C-001)
+    SPRINT="sprint-norm-$$"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
+    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
     TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
@@ -29,7 +32,6 @@ setup() {
     CONF_ESCALATION_ENABLED="true"; CONF_SECONDARY_BUDGET=12000; CONF_MAX_FILE_LINES=500
     CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
-    SPRINT="sprint-norm-$$"
     REPAIR_CANARY="$TEST_DIR/repair-called-$$"
     # the normaliser must make the repair unnecessary: a stub that records the call and fails
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
@@ -37,7 +39,9 @@ setup() {
 }
 teardown() {
     local d
+    [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
+        [[ "$d" == */a2a/sprint-norm-* ]] || continue
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
     done
 }
@@ -115,6 +119,23 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
     export LOA_ADVERSARIAL_REPAIR_MODEL="codex-headless"
     [ "$(_repair_model "gpt-5.5-pro")" = "codex-headless" ]
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "codex-headless" ]   # an operator pin is the whole chain
+    unset LOA_ADVERSARIAL_REPAIR_MODEL
+    # the negatives that decide routing in practice (fourth run, chunk c C-008): an empty value, a
+    # quoted empty value, a commented line, an exported-but-empty variable → not present
+    for line in 'ANTHROPIC_API_KEY=' 'ANTHROPIC_API_KEY=""' "ANTHROPIC_API_KEY=''" '# ANTHROPIC_API_KEY=abc' '  #ANTHROPIC_API_KEY=abc'; do
+        printf '%s\n' "$line" > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+        [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
+    done
+    rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    ANTHROPIC_API_KEY="" bash -c 'true'; export ANTHROPIC_API_KEY=""
+    [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
+    unset ANTHROPIC_API_KEY
+    # with a credential the repair chain is tiny → claude-headless (a false presence read degrades)
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless" ]
+    unset ANTHROPIC_API_KEY
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "claude-headless" ]
 }
 
 @test "NRM-7 with the normaliser bypassed, the repair loop still recovers the fixtures through a stubbed model and records repaired_count" {
@@ -135,4 +156,29 @@ _fixture_content() {  # all three fixtures as one findings document
     run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
+}
+
+@test "NRM-9 a derived id never collides with an id the model supplied — the collision takes max(explicit id) + 1 (fourth run, chunk c C-005)" {
+    doc='{"findings":[{"id":"DISS-002","severity":"MEDIUM","category":"config","description":"Explicit id here.","failure_mode":"stated"},{"severity":"LOW","category":"other","description":"No id here."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-002,DISS-003" ]
+    [ "$(jq -r '.findings[1].id_derived' <<<"$result")" = "true" ]
+    [ "$(jq -r '.findings[0] | has("id_derived")' <<<"$result")" = "false" ]
+}
+
+@test "NRM-10 the repair round-trip walks tiny then claude-headless when a credential is present: a failing tiny degrades to the CLI hop instead of rejecting (fourth run, chunk c C-008)" {
+    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    _repair_finding_via_model() {  # <finding> <type> <clause> <model> [timeout]
+        echo "$4" >> "$TEST_DIR/repair-models"
+        [[ "$4" == "tiny" ]] && return 1
+        printf '%s' "$1" | jq -c '. + {failure_mode: "stubbed repair"}'
+    }
+    doc='{"findings":[{"id":"DISS-001","severity":"MEDIUM","category":"config","description":"Needs a repair."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-models")" = "tiny claude-headless " ]
+    [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
 }
