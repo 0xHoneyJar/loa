@@ -35,6 +35,12 @@ setup() {
     export LOA_ADVERSARIAL_ENV_DIR="$T/env"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI hops "installed" unless a case says otherwise (C-007 seam)
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+    # seventh run (chunk c1 C-002 / C-005): every test gets its own lock directory and none of the operator's
+    # knobs — the suite runs in the same session that drives live dissents
+    export XDG_RUNTIME_DIR="$T"
+    unset LOA_ADVERSARIAL_KEEP_WORKDIR LOA_ADVERSARIAL_RUN_TAG LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE \
+          LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REAP_GRACE_SECONDS LOA_MODEL_CONFIG LOA_ADVERSARIAL_CLI_HOP_TIMEOUT \
+          LOA_ADVERSARIAL_NO_FM_DERIVATION
     # temp config: review enabled, primary gpt-5.5-pro with the OpenAI chain
     CONFIG_FILE="$T/loa.config.yaml"
     cat > "$CONFIG_FILE" <<'YAML'
@@ -127,6 +133,8 @@ YAML
 }
 teardown() {
     local d
+    # a PID-scoped stub the reaper under test failed to end never outlives the test (seventh run, c1 C-007)
+    pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$" 2>/dev/null || true
     [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || return 0
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
         [[ "$d" == */a2a/sprint-comp-* ]] || continue
@@ -363,7 +371,7 @@ PY
     # c C-004: the raw line lives only in the /tmp workdir, which the EXIT trap removed — never in the a2a directory
     [ -d "$OUT_DIR" ]   # a missing directory would make the recursive grep pass vacuously
     ! grep -rq "SECRETSECRETSECRETSECRET1234" "$OUT_DIR"
-    [ -z "$(ls -d /tmp/adversarial-"$SPRINT"-* 2>/dev/null)" ]
+    [ -z "$(ls -d "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-* 2>/dev/null)" ]   # the script's workdir honours TMPDIR
 }
 
 @test "CMP-17 the failure class follows cheval's EXIT_CODES (4 MISSING_API_KEY auth, 6 BUDGET_EXCEEDED quota, 3/124 timeout, 5 INVALID_RESPONSE malformed, 1/other model_unavailable) and the wait-cap / malformed statuses" {
@@ -384,6 +392,7 @@ PY
     [ "$(_companion_drop_reason timeout)" = "Other" ]
     # a diagnostic decides when the exit code does not: rate limits are quota (fifth run)
     [ "$(_companion_failure_class api_failure 1 "[cheval] RETRIES_EXHAUSTED: Failed after 4 attempts: [cheval] RATE_LIMITED: Rate limited by anthropic")" = "quota" ]
+    [ "$(_companion_failure_class api_failure 1 "claude -p timed out after 910s")" = "timeout" ]   # the live bound, not a literal 610 (d C-003)
 }
 
 @test "CMP-18 a primary whose inner chain lands on the companion's family: independent false, the companion's findings kept and tagged, no second voice in verdict quality (chunk c C-003)" {
@@ -522,24 +531,25 @@ PY
     [[ "$le" != *"shim"* ]]
     # a row older than the companion's start is not this call's
     : > "$LOA_MODELINV_LOG_PATH"
-    jq -nc '{event_type:"model.invoke.complete", ts_utc:"2000-01-01T00:00:00Z", payload:{models_requested:["anthropic:claude-headless"], models_failed:[{message_redacted:"stale: timed out"}]}}' >> "$LOA_MODELINV_LOG_PATH"
+    # the same full shape as above, differing only in ts_utc — so only the timestamp filter rejects it (c1 C-004)
+    jq -nc '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:"2000-01-01T00:00:00Z",
+             payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
+                      models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:"stale: claude -p timed out after 1s"}]}}' >> "$LOA_MODELINV_LOG_PATH"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "model_unavailable" ]
     [[ "$(jq -r '.metadata.companion_voice.last_error' <<<"$result")" != *"stale"* ]]
 }
 
-@test "CMP-25 *-headless hops are serialised per CLI binary across the two walks; a lock not acquired within the hop's bound fails the hop as a timeout instead of running unserialised (fourth + fifth run)" {
-    invoke_dissenter() { date +%s%N >> "$T/lock-trace"; sleep 1; date +%s%N >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
-    export XDG_RUNTIME_DIR="$T"
+@test "CMP-25 *-headless hops are serialised per CLI binary across the two walks (phase-tagged trace, time-bounded); a lock not acquired within the hop's bound fails the hop as a timeout; the repair round-trip takes the same lock (fourth–seventh run)" {
+    # phase-tagged trace: serialised hops read start,end,start,end by timestamp; overlapping ones start,start,… (c1 C-001)
+    invoke_dissenter() { echo "$(date +%s%N) start $BASHPID" >> "$T/lock-trace"; sleep 1; echo "$(date +%s%N) end $BASHPID" >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    t0=$(date +%s%N)
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     wait
-    mapfile -t ts < "$T/lock-trace"
-    [ "${#ts[@]}" = "4" ]
-    sorted=($(printf '%s
-' "${ts[@]}" | sort -n))
-    [ "${sorted[1]}" = "$(printf '%s
-' "${ts[1]}" "${ts[3]}" | sort -n | head -1)" ]   # intervals do not overlap
+    t1=$(date +%s%N)
+    [ "$(sort -n "$T/lock-trace" | awk '{printf "%s,", $2}')" = "start,end,start,end," ]
+    (( (t1 - t0) / 1000000 >= 2000 ))   # two one-second hops, one after the other
     [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
     # a held lock: the hop is not run, rc 124 (a timeout), the chain can walk on
     : > "$T/lock-trace"
@@ -553,17 +563,20 @@ PY
     : > "$T/lock-trace"; _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
     [ ! -f "$T/loa-headless-locks-$(id -u)/gpt-5.5.lock" ]
     # the repair round-trip goes through the same lock
-    _repair_finding_via_model() { date +%s%N >> "$T/lock-trace"; echo '{}'; }
+    _repair_finding_via_model() { echo "$(date +%s%N) repair $BASHPID" >> "$T/lock-trace"; echo '{}'; }
     : > "$T/lock-trace"
     _adv_with_cli_lock claude-headless _repair_finding_via_model x y z claude-headless 60 >/dev/null
-    [ "$(grep -c . "$T/lock-trace")" = "1" ]
+    [ "$(grep -c repair "$T/lock-trace")" = "1" ]
 }
 
 @test "CMP-26 the companion's post-hop work has its own budget: a model that answered is not reaped mid-process_findings when the hop cap has passed (fifth run C-001)" {
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=1          # the hop phase's cap
     eval "$(declare -f process_findings | sed '1s/^process_findings/_orig_process_findings/')"
-    process_findings() { [[ "$3" == "claude-headless" ]] && sleep 3; _orig_process_findings "$@"; }   # slow post-hop work for the companion only
+    process_findings() { if [[ "$3" == "claude-headless" ]]; then : > "$T/slow-post-hop"; sleep 3; fi; _orig_process_findings "$@"; }   # slow post-hop work for the companion only
+    t0=$(date +%s)
     result=$(_run_main review)
+    [ -f "$T/slow-post-hop" ]                       # the slow branch ran (c1 C-003)
+    (( $(date +%s) - t0 >= 3 ))
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     [ "$(_companion_post_budget gpt-5.5-pro 30)" = "4610" ]      # keyless: claude-headless 910 × 5 + 60
@@ -609,13 +622,17 @@ PY
     # hold the claude lock for 2 s from outside; the companion's hop needs 2 s of its own; the hop cap is 3 s
     mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
     ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 2 ) &
-    sleep 0.3
+    # wait until the lock is observably held (c1 C-006)
+    for _ in $(seq 1 40); do flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null || break; sleep 0.05; done
+    ! flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null
     BEHAVIOUR[claude-headless]=slow2
-    invoke_dissenter_slow2() { :; }
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    t0=$(date +%s%N)
     result=$(_run_main review)
+    t1=$(date +%s%N)
     wait
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    (( (t1 - t0) / 1000000 >= 3000 ))   # queued behind the holder then its own 2 s hop: past the 3 s hop cap, not reaped
     # a foreign or symlinked lock directory is never used — the hop runs unserialised instead
     rm -f "$T/loa-headless-locks-$(id -u)/claude.lock"; rmdir "$T/loa-headless-locks-$(id -u)"
     ln -s "$T" "$T/loa-headless-locks-$(id -u)"

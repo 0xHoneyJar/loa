@@ -59,6 +59,11 @@ def test_prompt_and_timeout_contract(adapter_case):
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
     assert adapter._compute_timeout(ModelConfig()) == 720.0
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
+    # the catalog value is clamped to an hour and a boolean is not a number (seventh run, c2 C-008 / d C-001)
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
+    # no headless subclass overrides the base timeout (d C-004)
+    assert "_compute_timeout" not in type(adapter).__dict__
 
 
 def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):

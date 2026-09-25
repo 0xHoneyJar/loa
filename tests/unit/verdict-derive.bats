@@ -543,3 +543,56 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
 }
+
+@test "verdict-derive: a listed sidecar that is not a regular file, or is missing beside the envelope, is a violation; listed names resolve beside the envelope only (seventh run, chunk b C-001 / c2 C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s14"; mkdir -p "$d" "$d/adversarial-rejected-review-dir.jsonl"
+    _vd_approved_review "$d/engineer-feedback.md"
+    printf '{"reject_reason":"elsewhere"}\n' > "${TEST_TMPDIR}/elsewhere.jsonl"
+    jq -n --arg e "${TEST_TMPDIR}/elsewhere.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review-dir.jsonl", $e, "grimoires/loa/a2a/x/adversarial-rejected-review-gone.jsonl"]}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1 and (.violations | map(select(test("gone.*missing beside it"))) | length) == 1 and (.violations | map(select(test("elsewhere.jsonl.*missing"))) | length) == 1' >/dev/null
+    # the positive half is not vacuous: one listed row and no section → the violation names one payload (c2 C-001)
+    printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review.jsonl"]}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations[0] | test("carries 1 schema-rejected payload")' >/dev/null
+}
+
+@test "verdict-derive: the production shape — N summary entries and the same N sidecar rows — needs exactly N bullets (seventh run, chunk c2 C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s16"; mkdir -p "$d"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n{"reject_reason":"missing-category","payload":{"title":"b"}}\n' > "$d/adversarial-rejected-review.jsonl"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review.jsonl"], rejected_summary: [{"severity":null,"title":"a","anchor":null,"reason":"missing-severity","description_head":"A."},{"severity":null,"title":"b","anchor":null,"reason":"missing-category","description_head":"B."}]}}' > "$d/adversarial-review.json"
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
+        echo "## Rejected dissent payloads"; echo; echo "- a — missing-severity: not a defect."; echo "- b — missing-category: not a defect."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
+        echo "## Rejected dissent payloads"; echo; echo "- a — missing-severity: not a defect."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"carries 2 rejected payload(s)"* ]]
+}
+
+@test "verdict-derive: the rejected-payload contract is reported in the same pass as a trailer defect (seventh run, chunk b C-003)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s15"; mkdir -p "$d"
+    _vd_envelope "$d/adversarial-review.json" '[{"severity":"MEDIUM","title":"t","anchor":"x.sh:12","reason":"missing-severity","description_head":"Something fails."}]'
+    { echo "All good"; echo; echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; echo; echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("multiple LOA-VERDICT trailers"))) | length) == 1 and (.violations | map(select(test("Rejected dissent payloads"))) | length) == 1' >/dev/null
+    printf 'All good\n' > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --require-trailer --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("require-trailer"))) | length) == 1 and (.violations | map(select(test("Rejected dissent payloads"))) | length) == 1' >/dev/null
+}

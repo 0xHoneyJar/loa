@@ -55,9 +55,11 @@ Options:
   --require-trailer   Treat a missing trailer as a violation (exit 1) instead
                        of the default legacy-file pass (exit 2)
   --envelope <path>   The dissent envelope for the rejected-payload contract (default: adversarial-<gate>.json
-                      beside --file). The rows of every adversarial-rejected-<gate>*.jsonl beside it count
-                      too, with or without the envelope; one top-level bullet per rejected payload under
-                      '## Rejected dissent payloads'; a missing explicit path is a usage error (exit 1).
+                      beside --file). Rejected sidecar rows count too: the files the envelope lists in
+                      metadata.rejected_sidecars (an empty list = none this run), else every
+                      adversarial-rejected-<gate>*.jsonl beside the feedback file; one top-level bullet per
+                      rejected payload under '## Rejected dissent payloads'; a missing explicit path is a
+                      usage error (exit 1).
   --review-file PATH  Audit gate only: cross-check the audit trailer's
                        excluded_confirmed against the review trailer's excluded
   -h, --help          Show this help message
@@ -139,9 +141,18 @@ if [[ -z "${ENVELOPE_FILE:-}" ]]; then
 else
     ENVELOPE_EXPLICIT=true
 fi
-_rejected_rows_of() {  # <file> — adds the file's rejected rows to $rows; an unreadable file is a violation
+_rejected_rows_of() {  # <file> [listed] — adds the file's rejected rows to $rows; an unreadable, non-regular or (when listed) missing file is a violation
     local f="$1" t r c
-    [[ -e "$f" ]] || return 0
+    if [[ ! -e "$f" && ! -L "$f" ]]; then
+        # seventh run, chunk c2 C-001: a sidecar the envelope names must be there — fail closed, never a silent zero
+        [[ "${2:-}" == "listed" ]] && violations+=("rejected-payload sidecar $(basename -- "$f") is listed in the envelope's metadata.rejected_sidecars but is missing beside it — re-run the dissent or repair the envelope")
+        return 0
+    fi
+    # seventh run, chunk b C-001: a directory, FIFO or device named as a sidecar would count 0 or hang grep
+    if [[ ! -f "$f" ]]; then
+        violations+=("rejected-payload sidecar $(basename -- "$f") is not a regular file — remove it or re-run the dissent; its rows cannot be triaged")
+        return 0
+    fi
     if [[ ! -r "$f" ]]; then
         violations+=("rejected-payload sidecar $(basename -- "$f") is not readable — fix its permissions or re-run the dissent; its rows cannot be triaged")
         return 0
@@ -179,10 +190,10 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         [[ "$(jq -r '(.metadata.rejected_sidecars // null) | type' -- "$ENVELOPE_FILE" 2>/dev/null)" == "array" ]] && has_list="true"
     fi
     if [[ "$has_list" == "true" ]]; then
+        # a listed sidecar is resolved beside the envelope only (never an arbitrary path from the envelope)
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
-            if [[ -e "$envdir/$(basename -- "$f")" ]]; then _rejected_rows_of "$envdir/$(basename -- "$f")"
-            elif [[ -e "$f" ]]; then _rejected_rows_of "$f"; fi
+            _rejected_rows_of "$envdir/$(basename -- "$f")" listed
         done <<<"$listed"
     else
         for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do _rejected_rows_of "$f"; done
@@ -294,6 +305,11 @@ emit_plain() {
 trailer_count=$(grep -ciE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
 [[ -z "$trailer_count" ]] && trailer_count=0
 
+# seventh run, chunk b C-003: the rejected-payload contract depends only on the file, the gate and the
+# envelope — checked once, before the trailer dispatch, so every path (legacy, --require-trailer, a
+# duplicated or malformed trailer, a valid one) reports it in the same pass
+rejected_summary_check
+
 # --- No trailer at all: legacy file ---
 if [[ "$trailer_count" -eq 0 ]]; then
     if [[ "$REQUIRE_TRAILER" == "true" ]]; then
@@ -304,7 +320,6 @@ if [[ "$trailer_count" -eq 0 ]]; then
     fi
     # fourth run, chunk b C-002: the rejected-payload contract applies to a trailer-less file too —
     # untriaged rejected payloads never ride the legacy pass
-    rejected_summary_check
     if (( ${#violations[@]} > 0 )); then
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
@@ -376,7 +391,6 @@ else
         else
             t_excluded_confirmed=$exc_val
         fi
-        rejected_summary_check
         read -r obs_crit obs_ok obs_bad < <(observations_scan "$FILE")
         if (( obs_crit > 0 )); then
             violations+=("$obs_crit critical finding(s) under ## Observations — critical is never excludable; move them under ## Changes Required and count them")

@@ -38,6 +38,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
     _cli_type: str
     _cli_name: str
     _command_label: str
+    _HEADLESS_TIMEOUT_CEILING: float = 3600.0   # a catalog value never buys more than an hour per hop
     _install_hint: str
     _spawn_install_hint: str = ""
     _logger = logging.getLogger("loa_cheval.providers.headless")
@@ -155,11 +156,22 @@ class HeadlessCLIAdapter(ProviderAdapter):
         (cycle-126 sprint-248: a long dissent on `claude -p` takes 6-10 min)."""
         read = max(self.config.read_timeout, 600.0)
         per_model = getattr(model_config, "headless_timeout_seconds", None)
-        try:
-            if per_model is not None and float(per_model) > read:
-                read = float(per_model)
-        except (TypeError, ValueError):
-            pass
+        if per_model is not None:
+            value = None
+            if not isinstance(per_model, bool):
+                try:
+                    value = float(per_model)
+                except (TypeError, ValueError):
+                    value = None
+            if value is None or value != value or value <= 0:
+                self._logger.warning("headless_timeout_seconds %r ignored: not a positive number", per_model)
+            elif value > self._HEADLESS_TIMEOUT_CEILING:
+                self._logger.warning("headless_timeout_seconds %r clamped to %.0fs", per_model, self._HEADLESS_TIMEOUT_CEILING)
+                read = self._HEADLESS_TIMEOUT_CEILING
+            elif value <= read:
+                self._logger.warning("headless_timeout_seconds %r ignored: it does not exceed the %.0fs read floor", per_model, read)
+            else:
+                read = value
         return max(self.config.connect_timeout, 10.0) + read
 
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:

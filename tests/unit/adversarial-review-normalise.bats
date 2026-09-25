@@ -36,6 +36,7 @@ setup() {
     # the normaliser must make the repair unnecessary: a stub that records the call and fails
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
+    unset LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG LOA_ADVERSARIAL_ENV_DIR LOA_ADVERSARIAL_NO_FM_DERIVATION   # (seventh run, c2 C-005)
 }
 teardown() {
     local d
@@ -131,6 +132,15 @@ _fixture_content() {  # all three fixtures as one findings document
     ANTHROPIC_API_KEY="" bash -c 'true'; export ANTHROPIC_API_KEY=""
     [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
     unset ANTHROPIC_API_KEY
+    # the dotenv positives beyond the bare line (c2 C-007): the export form, .env alone, and .env.local
+    # falling through to .env when its own value is empty
+    printf 'export ANTHROPIC_API_KEY="abc"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
+    rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'ANTHROPIC_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
+    [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
+    printf 'ANTHROPIC_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
+    rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env" "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
     # with a credential the repair chain is tiny → claude-headless (a false presence read degrades)
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless" ]
@@ -140,7 +150,7 @@ _fixture_content() {  # all three fixtures as one findings document
 
 @test "NRM-7 with the normaliser bypassed, the repair loop still recovers the fixtures through a stubbed model and records repaired_count" {
     # bypass the failure_mode derivation (keep the positional id) so the repair path is exercised
-    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
+    export LOA_ADVERSARIAL_NO_FM_DERIVATION=1   # bats-gated seam: production id derivation, no failure_mode derivation (c2 C-004)
     _repair_finding_via_model() {  # <finding> <type> <clause> <model> [timeout] → fixed finding (stubbed model)
         printf '%s' "$1" | jq -c '. + {failure_mode: "stubbed repair"}'
     }
@@ -156,6 +166,11 @@ _fixture_content() {  # all three fixtures as one findings document
     run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
+    # the exported-variable path too (seventh run, c2 C-003): the probe never expands the value
+    # (the value enters through the environment, not the traced script — an `export` line would trace itself)
+    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present anthropic"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"env-secret-value-123"* ]]
 }
 
 @test "NRM-9 a derived id never collides with an id the model supplied — the collision takes max(explicit id) + 1 (fourth run, chunk c C-005)" {
@@ -168,7 +183,7 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-10 the repair round-trip walks tiny then claude-headless when a credential is present: a failing tiny degrades to the CLI hop instead of rejecting (fourth run, chunk c C-008)" {
-    _derive_failure_mode() { local idx="${1:-0}"; jq --arg idx "$idx" '.id //= ("DISS-" + (($idx | tonumber) + 1 | tostring))'; }
+    export LOA_ADVERSARIAL_NO_FM_DERIVATION=1   # bats-gated seam: production id derivation, no failure_mode derivation (c2 C-004)
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     _repair_finding_via_model() {  # <finding> <type> <clause> <model> [timeout]
         echo "$4" >> "$TEST_DIR/repair-models"
@@ -191,4 +206,13 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" = '"just a string"' ]
     [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
+}
+
+@test "NRM-12 a finding with no description at all (or an empty one) cannot derive a failure_mode: it is rejected with a named reason, never crashes the run (seventh run, c2 C-006)" {
+    doc='{"findings":[{"severity":"HIGH","category":"config"},{"severity":"HIGH","category":"config","description":""},{"severity":"HIGH","category":"config","description":null}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
+    [ "$(jq -r '[.metadata.rejected_summary[].reason] | unique | join(",")' <<<"$result")" = "missing-or-empty-description" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" != "null" ]
 }

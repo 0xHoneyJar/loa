@@ -468,6 +468,15 @@ _normalize_finding_for_validation() {
 # site skips normalisation for schema-enforced payloads). stdin → stdout.
 _derive_failure_mode() {
   local index="${1:-}"
+  # bats-gated seam (seventh run, chunk c2 C-004): the repair-path suites skip ONLY the failure_mode
+  # derivation and keep the production id derivation — one switch, no private re-implementation
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && "${LOA_ADVERSARIAL_NO_FM_DERIVATION:-}" == "1" ]]; then
+    jq --arg idx "$index" '
+      if ((.id // "") | tostring | length) == 0 and ($idx | length) > 0
+      then .id = ("DISS-" + (($idx | tonumber) + 1 | tostring | if length < 3 then ("000" + .)[-3:] else . end)) | .id_derived = true
+      else . end' 2>/dev/null
+    return
+  fi
   jq --arg idx "$index" '
     (if ((.id // "") | tostring | length) == 0 and ($idx | length) > 0
      then .id = ("DISS-" + (($idx | tonumber) + 1 | tostring | if length < 3 then ("000" + .)[-3:] else . end))
@@ -497,7 +506,9 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
     *) return 1 ;;
   esac
   local v f root="$PROJECT_ROOT"
-  for v in "${vars[@]}"; do [[ -n "${!v:-}" ]] && return 0; done
+  # seventh run, chunk c2 C-003: no expansion of the value — an xtrace'd `[[ -n "${!v}" ]]` prints it;
+  # printenv shows only the name and grep -q only the verdict (an exported empty value is not present)
+  for v in "${vars[@]}"; do printenv "$v" 2>/dev/null | grep -q . && return 0; done
   # bats-gated seam: point the dotenv lookup at a fixture directory
   if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
   for f in "$root/.env.local" "$root/.env"; do
@@ -1904,14 +1915,21 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
 # connect 10 s + max(600 s, the catalog's per-model headless_timeout_seconds) — not by the block's
 # timeout_seconds. The wait cap sums each hop's own bound, plus slack.
 _ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"   # the fallback for a hop the catalog does not size
-_adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop
-  local hop="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v=""
+_adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max(connect,10) + max(read,600,headless_timeout_seconds)
+  local hop="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v="" ct="" rt=""
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
     v=$(yq eval "[.providers[].models.\"$hop\".headless_timeout_seconds | select(. != null)] | .[0]" "$cat" 2>/dev/null)
+    # seventh run, chunk d C-002: the provider block's own timeouts are part of cheval's formula too
+    ct=$(yq eval "[.providers | to_entries[] | select(.value.models.\"$hop\" != null) | (.value.connect_timeout // 10)] | .[0]" "$cat" 2>/dev/null)
+    rt=$(yq eval "[.providers | to_entries[] | select(.value.models.\"$hop\" != null) | (.value.read_timeout // 120)] | .[0]" "$cat" 2>/dev/null)
   fi
+  [[ "$ct" =~ ^[0-9]+(\.[0-9]+)?$ ]] || ct=10; ct=${ct%.*}; (( ct < 10 )) && ct=10
+  [[ "$rt" =~ ^[0-9]+(\.[0-9]+)?$ ]] || rt=120; rt=${rt%.*}; (( rt < 600 )) && rt=600
   if [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-    local r=${v%.*}; (( r < 600 )) && r=600
-    echo $(( 10 + r ))
+    local r=${v%.*}; (( r > 3600 )) && r=3600; (( r > rt )) && rt=$r
+    echo $(( ct + rt ))
+  elif [[ -n "$ct$rt" && "$rt" -gt 600 ]]; then
+    echo $(( ct + rt ))
   else
     echo "$_ADV_CLI_HOP_TIMEOUT"
   fi
@@ -2312,7 +2330,7 @@ main() {
   # Create per-run workdir (concurrency safety)
   # NOTE: workdir must NOT be local — the EXIT trap runs in global scope
   # where local variables are out of scope, causing "unbound variable" with set -u.
-  _ADVERSARIAL_WORKDIR="/tmp/adversarial-${sprint_id}-$$"
+  _ADVERSARIAL_WORKDIR="${TMPDIR:-/tmp}/adversarial-${sprint_id}-$$"   # honours TMPDIR (seventh run, c1 C-005)
   mkdir -p "$_ADVERSARIAL_WORKDIR"
   chmod 700 "$_ADVERSARIAL_WORKDIR"
   # one cleanup trap for every exit path (round 1, third run, C-004): reaps a companion, removes the
