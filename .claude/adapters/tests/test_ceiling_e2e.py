@@ -265,3 +265,29 @@ def test_170k_on_a_200k_entry_shrinks_the_output_budget_instead_of_failing(capsy
     shrunk = _cap(cap)["max_tokens_shrunk"]
     assert shrunk["from"] == 64_000 and shrunk["to"] == dispatched[0].max_tokens
     assert "[preflight] max_tokens shrunk 64000" in err
+
+
+def test_unverified_status_is_per_hop_not_inherited_from_the_head(monkeypatch):
+    """Review DISS-001: the head runs above its probed bound under the opt-in; it fails for a
+    walkable reason; the fallback is CALIBRATED at 900K (so the same payload is verified there).
+    An ordinary 429 on the fallback must walk / end as PROVIDER_OUTAGE — never as
+    RATE_LIMIT_UNVERIFIED, and never write a calibration record."""
+    monkeypatch.setenv("LOA_CHEVAL_UNCALIBRATED_CEILING", "derived")
+    cal = {"source": "empirical_probe", "calibrated_at": "2026-09-25T00:00:00Z", "stale_after_days": 90}
+    cfg = _config(head=_entry(chain=["anthropic:claude-opus-4-8"]))
+    cfg["providers"]["anthropic"]["models"]["claude-opus-4-8"] = _entry(ceiling=900_000, cal=cal)
+    from loa_cheval.types import ProviderUnavailableError
+    code, dispatched, cap = _run(SIX, config=cfg, errors=[ProviderUnavailableError("anthropic", "503"), RateLimitError("anthropic")])
+    assert len(dispatched) == 2, "the fallback hop is tried"
+    classes = _classes(cap)
+    assert "RATE_LIMIT_UNVERIFIED" not in classes and classes.count("PROVIDER_OUTAGE") == 2, classes
+    assert "calibration_needed" not in _cap(cap)
+    assert code == cheval.EXIT_CODES["CHAIN_EXHAUSTED"]
+    assert len(load_observed(observed_store_path())["entries"]) == 0
+    # the head's own envelope flag still says the head ran unverified
+    assert _cap(cap)["ceiling_unverified"] is True
+    # and a provider verdict on the CALIBRATED fallback is classed as the catalog's error, not unverified
+    limit = ProviderContextLimitError("anthropic", "HTTP 400 context-limit: prompt is too long: 612000 tokens > 600000 maximum",
+                                      status=400, input_tokens=612_000, limit=600_000)
+    code, dispatched, cap = _run(SIX, config=cfg, errors=[ProviderUnavailableError("anthropic", "503"), limit])
+    assert _classes(cap) == ["PROVIDER_OUTAGE", "PROVIDER_CONTEXT_LIMIT"] and len(dispatched) == 2

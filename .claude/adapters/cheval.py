@@ -1990,6 +1990,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     _last_walk_exit_code: int = EXIT_CODES["CHAIN_EXHAUSTED"]
     _last_walk_exception: Optional[Exception] = None
     _last_walk_extra: Dict[str, Any] = {}
+    _hop_unverified = False  # cycle-126 D-1.1b: THIS hop runs above its own probed bound (set per hop below)
 
     def _calibration_needed_exit(
         _entry: Any, _entry_target: str, _exc: ChevalError, *, error_class: str,
@@ -2107,6 +2108,24 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                         _modelinv_state["capability_evaluation"]["max_tokens_shrunk"] = {
                             "from": _fit.shrunk_from, "to": _fit.max_tokens, "hop": _entry_target,
                         }
+
+            # cycle-126 D-1.1b (review sprint-247 DISS-001): "above the probed
+            # bound" is a property of THIS hop's entry and budget, never
+            # inherited from the head — a fallback whose bound is calibrated
+            # (or larger) runs the same payload verified, so its 429 walks and
+            # its provider verdict is the catalog's error, not an unverified one.
+            _hop_unverified = False
+            if (
+                _ceiling_policy == "derived"
+                and any(k in _hop_entry for k in ("effective_input_ceiling", "probed_ceiling"))
+                and not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE")
+            ):
+                _hop_decision = _ceiling_input_bound(
+                    _hop_entry, max_tokens=_hop_budget,
+                    observed=_observed_for(_entry.provider, _entry.model_id), policy=_ceiling_policy,
+                )
+                if _hop_decision is not None and not _hop_decision.calibrated and _hop_decision.probed:
+                    _hop_unverified = (_walk_estimate or 0) > _hop_decision.probed
 
             if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE"):
                 _input_threshold = _lookup_max_input_tokens(
@@ -2253,7 +2272,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 # bound for this entry until calibration.
                 return _calibration_needed_exit(
                     _entry, _entry_target, _e,
-                    error_class=("CEILING_UNVERIFIED_LIMIT" if _ceiling_unverified else "PROVIDER_CONTEXT_LIMIT"),
+                    error_class=("CEILING_UNVERIFIED_LIMIT" if _hop_unverified else "PROVIDER_CONTEXT_LIMIT"),
                     observed=_e.input_tokens, provider_limit=_e.limit,
                     exit_code=EXIT_CODES["CONTEXT_TOO_LARGE"],
                 )
@@ -2294,7 +2313,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     )
                 continue
             except RateLimitError as _e:
-                if _ceiling_unverified:
+                if _hop_unverified:
                     # cycle-126 D-1.1b: a 429 on a request that proceeded above
                     # the probed bound (the token-limit class) is not walked and
                     # is recorded for calibration; the bound is NOT lowered from
