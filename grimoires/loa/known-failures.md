@@ -82,6 +82,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 1 |
+| [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing-model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
+| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 1 |
 
 ---
 
@@ -814,7 +816,7 @@ When a BB sweep shows uniform `cheval-delegate: process exceeded timeout=300000m
 **Feature**: `.claude/scripts/adversarial-review.sh --type review` (Phase 2.5 of `/review-sprint`)
 **Symptom**: 3-of-3 fallback chain (`gpt-5.5-pro` → `gpt-5.5` → `gemini-3.1-pro-preview`) returns `malformed_response: missing 'findings' key` on a review-type prompt. **Crucially distinct from KF-002**: HTTP responses are received with non-empty content (not the empty-content failure KF-002 documented), but the content does not parse as the expected `{findings: [...]}` envelope shape. The script writes `status: malformed_response` to the output JSON with `model_attempts` showing all 3 chain members returned the same failure class within a 30-second window. cycle-109 Sprint 4 T4.10's structural closure of KF-002 (chunking + streaming-recovery) addresses empty-content; it does NOT address malformed-content.
 **First observed**: 2026-05-17 (cycle-112 sprint-166 review pass; same operator machine that ran 3/3-clean dissenter calls on the cycle-112 bug fix earlier in the same session — see sprint-166 session-handoff note "defer-and-watch" caveat that explicitly anticipated this recurrence shape)
-**Recurrence count**: 2 (initial 2026-05-17T07:31Z sprint-166 review; reproduced 2026-05-17T08:28Z on the parser-fix branch with the same input diff)
+**Recurrence count**: 3 (initial 2026-05-17T07:31Z sprint-166 review; reproduced 2026-05-17T08:28Z on the parser-fix branch with the same input diff)
 **Resolution**: Parser extended via Python `json.JSONDecoder.raw_decode` to extract first balanced JSON object containing `"findings"` from anywhere in the content. Handles the discovered shape (prose preamble + JSON envelope) without changing behavior for the literal-JSON or markdown-fence paths. Captured-content evidence at `grimoires/loa/a2a/sprint-kf011-repro-large/adversarial-debug-{gpt-5.5-pro,gpt-5.5,gemini-3.1-pro}-*.txt` from the 2026-05-17 reproduction shows: OpenAI emits prose-then-JSON (covered by fix); Gemini emits empty content (KF-002 territory). 11 bats tests pin the parser behavior across all 3 sub-modes.
 **Workaround prior to resolution**: Single-model floor-assessment per the `/review-sprint` and `/audit-sprint` skill fallback policy. Cycle-112 sprint-166 + sprint-167 shipped under this DEGRADED state; audit-trail evidence at `grimoires/loa/a2a/sprint-166/adversarial-review.json` (before-fix) and `grimoires/loa/a2a/sprint-kf011-repro-large-fix/adversarial-review.json` (post-fix, `gpt-5.5-pro:reviewed` first try).
 **Upstream issue**: #930 (diagnostic that captured the content; closed by PR #932) + this entry's resolution PR
@@ -848,6 +850,7 @@ The three-provider correlation in a 30-second window is the strongest signal tha
 | not tried | Sub-mode (c) STRUCTURAL — investigate why cycle-109 T4.10's streaming-recovery (`loa_cheval.streaming.recovery` with `first_token_deadline` / `empty_content_window` / `cot_budget` thresholds) doesn't catch Gemini empty-content. Three candidate sub-sub-modes: (i) Gemini adapter not wired to streaming-recovery, (ii) recovery firing but abort silenced, (iii) thresholds tuned for OpenAI/Anthropic empty-content shape but Gemini emits whitespace/punctuation that satisfies first_token_deadline. | TRACKED — issue #935 | proposes diagnostic-first approach mirroring sub-mode (b) resolution: ship streaming-recovery debug-trail capture, reproduce, inspect, fix |
 | 2026-05-17 | Bridgebuilder-review parser parity check — investigated whether BB's parser shares the prose-preamble bug class. | NOT NEEDED — BB uses HTML-comment markers (`<!-- bridge-findings-start --> \`\`\`json ... \`\`\` <!-- bridge-findings-end -->`) as envelope contract. Regex at `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:442-444` only matches the explicit-marker form, so prose preamble is structurally handled by the marker contract. **BB's marker-based design is the stronger pattern** — worth considering as convergent design if future KF-011-class sub-modes emerge in adversarial-review.sh. | inspection of `.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:442-457` |
 | 2026-05-17 (cycle-113 sprint-170 T3.8/T3.9 closure) | **Sub-mode (c) STRUCTURAL — RESOLVED via cycle-113.** Cycle-113 shipped streaming-recovery integration across all 4 streaming parsers (Anthropic + OpenAI Chat + OpenAI Responses + Google) wired to the cycle-109 `loa_cheval.streaming.recovery` library. Recovery integration empirically active end-to-end via 114-test streaming-adjacent suite + 7-case cross-provider parity test (NFR-Parity-1) + 2 AST-uniformity tests (R-SDD-1). MODELINV envelope plumbs `streaming_recovery.config_applied` on every streaming invocation (FR-C-1). **Two caveats**: (1) Google true no-byte stalls do NOT trigger first_token_deadline at the PARSER layer because the deadline-shim's `check_deadline()` only fires before `next(byte_iter)` — production safety for true Google stalls comes from cycle-102 Sprint 4A transport-layer httpx ReadTimeout (ACCEPTED-DEFERRED per cycle-113 sprint-169 review iter-2; see Decision Log entry); (2) per-model `streaming_recovery` config overrides deferred to cycle-114 as operator-driven enhancement — sprint-170 ships library defaults active end-to-end. Reproduction harness re-run subsumed by integration test corpus (cycle-113 sprint-170 T3.8 closure). | cycle-113 PR (commits `0b1b6860` → `2cd18aea`); 114/114 streaming-adjacent tests; sprint-169 reviewer.md + sprint-170 reviewer.md (local); KF-011 → RESOLVED across all sub-modes |
+| 2026-09-25 | cycle-126 sprint-247 review: the whole-diff dissent (77665 est. tokens, primary_budget 24000 for gpt-5.5-pro via codex-headless) returned status clean with status_note 'not an approval of unreviewed surface' after skipping routing/ceiling.py; re-ran adversarial-review.sh per focused file group (six chunks, each under the 24K budget), keeping adversarial-review-<chunk>.json and every rejected sidecar | WORKED — three real BLOCKING findings (per-hop unverified flag, lost-write race in the observed store, premium rounding order) that the truncated whole-diff pass had missed; all fixed test-first; round-2 re-run clean | grimoires/loa/a2a/sprint-247/adversarial-review-{a-ceiling-core,b-cheval-gate,c-adapters-metering,d-scripts-tools,e-bb-catalog,f-tests}.json; commits 91838f70 58a0c2fc |
 
 ### Reading guide
 
@@ -1493,3 +1496,45 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 ### Reading guide
 
 If the whole publication suite is red with `no tag message?`, it is the host git config (tag.forceSignAnnotated / tag.gpgSign), not the orchestrator. Re-run with GIT_CONFIG_GLOBAL=/dev/null before triaging anything in post-merge-orchestrator.sh; do not weaken the clean-tree or read-back guards to make it pass.
+
+## KF-035: MODELINV audit emit fails soft when the cryptography module is missing — model-invoke.jsonl is silently not written
+
+**Status**: OPEN
+**Feature**: loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default)
+**Symptom**: A cheval call succeeds (exit 0) and prints only a stderr line: WARNING: [AUDIT-EMIT-FAILED] MODELINV emit raised ModuleNotFoundError: No module named 'cryptography'. User-facing call NOT failed. .run/model-invoke.jsonl gains no row for that call; tests/test_ledger_isolation.py::test_mock_run_leaves_repo_ledgers_byte_identical fails on modelinv.exists().
+**First observed**: 2026-09-25 (cycle-126 sprint-247, this repository's own .venv without cryptography; reproduced on main)
+**Recurrence count**: 1
+**Current workaround**: Install the dependency in the interpreter cheval runs under (pip install cryptography); LOA_MODELINV_FAIL_LOUD=1 turns the soft failure into an error while diagnosing.
+**Upstream issue**: cycle-126 residue: the audit substrate's hard dependency should be declared (requirements / doctor check) and a missing module should fail loud by default — silent audit loss is the exact failure class the emitter exists to prevent
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-25 | pip install cryptography into .venv (also httpx, rfc8785 for the streaming and JCS suites) | WORKED — test_ledger_isolation 15/15, whole adapters suite 2412 passed | grimoires/loa/a2a/sprint-247/reviewer.md test-first record; NOTES.md 2026-09-25 Decision Log |
+
+### Reading guide
+
+If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer MODELINV rows than calls, grep the run's stderr for AUDIT-EMIT-FAILED before suspecting the ledger path; the fix is the interpreter's dependencies, not the test.
+
+## KF-036: Bridgebuilder persona.test.ts exits at the API-key precondition in a shell without ANTHROPIC_API_KEY presence
+
+**Status**: OPEN
+**Feature**: .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition)
+**Symptom**: npm test in .claude/skills/bridgebuilder-review reports 1 failing file: not ok - __tests__/persona.test.ts with location persona.test.ts:1:1 and the log line Fatal: ANTHROPIC_API_KEY required. Set it in your environment ... (or set BRIDGEBUILDER_MODEL=<provider>-headless ...). Every subtest inside the file passes; the file-level failure is the process exit.
+**First observed**: 2026-09-25 (cycle-126 sprint-247; identical on main in a throwaway worktree at HEAD)
+**Recurrence count**: 1
+**Current workaround**: Run the BB suite in a shell where the key is present (never a fake value in tracked state), or set BRIDGEBUILDER_MODEL=claude-headless for the test run; treat the failure as environmental when the other 754 tests pass.
+**Upstream issue**: cycle-126 residue: the test should be hermetic — the precondition belongs behind the config resolution the test does not exercise, or the test should stub the API-key check
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-25 | worktree at main HEAD with the same node_modules, npx tsx --test __tests__/persona.test.ts | REPRODUCED on main — pre-existing, not the cycle-126 diff | grimoires/loa/a2a/sprint-247/reviewer.md test-first record; NOTES.md 2026-09-25 Decision Log |
+
+### Reading guide
+
+A single BB test-file failure at :1:1 with a Fatal credential line is this entry, not a persona regression; check key presence (never the value) before reading the persona code.
