@@ -529,3 +529,17 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.violations[0] | test("4 rejected payload")' >/dev/null
 }
+
+@test "verdict-derive: an empty rejected_sidecars list means the run produced no sidecar — a tagged file left by an earlier chunk run is not counted (sixth run, chunk b C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s13"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-old-chunk.jsonl"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "clean", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    # the field absent → the glob still counts the file
+    jq '.metadata |= del(.rejected_sidecars)' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+}

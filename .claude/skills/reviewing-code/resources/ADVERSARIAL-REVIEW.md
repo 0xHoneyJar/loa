@@ -109,12 +109,14 @@ to replace the default chains (used as given). A fold that fails keeps the prima
 (`INVALID_RESPONSE`) or a `malformed_response` status `malformed`, anything else (1: API error, rate-limited, provider unavailable, token revoked)
 `model_unavailable` — except that a diagnostic saying "timed out" (cheval reports its own CLI-hop
 timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is an allowlisted summary of the provider's own line — cheval's error tokens, "timed out
-after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the
-model-adapter shim discards cheval's stderr), else from the last non-banner line of the companion's
+after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the model-adapter shim discards cheval's
+stderr; the row is matched by model, primitive and time window, so concurrent dissents on one host
+could supply each other's line — another reason drivers run sequentially), else from the last non-banner line of the companion's
 log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops — the dissent hops and the repair round-trips — are serialised per CLI binary
-across the two walks (a per-user flock under `$XDG_RUNTIME_DIR`/`$TMPDIR`); a lock not acquired
-within the hop's bound fails that hop as a `timeout` (the chain walks on) rather than running
-unserialised. The companion's post-hop work (validation, repair round-trips) has its own budget, so
+across the two walks (a per-user flock under `$XDG_RUNTIME_DIR`/`$TMPDIR`); a lock not acquired within the hop's bound fails that hop as a `timeout` (the chain walks on) rather
+than running unserialised; queueing for the lock is not charged to the hop's cap; the lock directory
+is per user (0700, ours, never a symlink — otherwise the hop runs unserialised). The queue is one hop
+deep by design: a chunk driver runs dissents sequentially when any chain holds a `*-headless` hop. The companion's post-hop work (validation, repair round-trips) has its own budget, so
 a model that answered is never reaped mid-processing. A primary that never answered leaves the
 companion `counted_as: sole_voice` (`independent: null`), and a primary attempt that dropped the
 companion's own hop is excluded from verdict quality (`primary_attempts_excluded`). A derived finding id never collides

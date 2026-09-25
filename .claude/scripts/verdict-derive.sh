@@ -161,7 +161,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     #     the feedback file counts (a run that died after writing rows still leaves work to triage);
     #   * an unparseable envelope or a non-array summary is a violation; an unreadable sidecar too;
     #   * the same section and bullet count clear the violation whether or not the envelope exists.
-    local rows=0 f envdir kind n=0 need source listed=""
+    local rows=0 f envdir kind n=0 need source listed="" has_list="false"
     envdir=$(dirname -- "$ENVELOPE_FILE")
     if [[ -f "$ENVELOPE_FILE" ]]; then
         kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
@@ -175,8 +175,10 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         fi
         n=$(jq -r '.metadata.rejected_summary | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
         listed=$(jq -r '(.metadata.rejected_sidecars // empty) | if type == "array" then .[] else empty end' -- "$ENVELOPE_FILE" 2>/dev/null || true)
+        # sixth run, chunk b C-001: an EMPTY list means "this run produced no sidecar" — never the glob
+        [[ "$(jq -r '(.metadata.rejected_sidecars // null) | type' -- "$ENVELOPE_FILE" 2>/dev/null)" == "array" ]] && has_list="true"
     fi
-    if [[ -n "$listed" ]]; then
+    if [[ "$has_list" == "true" ]]; then
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
             if [[ -e "$envdir/$(basename -- "$f")" ]]; then _rejected_rows_of "$envdir/$(basename -- "$f")"

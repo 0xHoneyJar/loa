@@ -97,6 +97,9 @@ YAML
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
                 jq -nc '{content: "{\"findings\":[{\"title\":\"no severity\",\"category\":\"other\",\"description\":\"Something fails.\"}]}", tokens_input: 5, tokens_output: 5, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
                 return 0 ;;
+            stubborn) # a hop that ignores TERM (a CLI stuck under a usage limit): only KILL ends it
+                bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
+            slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 bash -c 'exec -a "$0" sleep 4' "loa-cmp14-hung-$$"
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
@@ -333,6 +336,7 @@ PY
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]   # the hop in flight, not a guess (sixth run C-001)
     command -v pgrep >/dev/null || skip "pgrep not installed: the orphan probe cannot run here"
     ! pgrep -f "loa-cmp14-hung-$$" >/dev/null
 }
@@ -593,4 +597,43 @@ PY
     [ "$(jq -c '.metadata.rejected_sidecars' <<<"$result")" = "[\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-chunk-x.jsonl\",\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion-chunk-x.jsonl\"]" ]
     [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion-chunk-x.jsonl")" = "1" ]
     [ -f "$OUT_DIR/adversarial-rejected-review-companion.jsonl" ]   # untouched: not this run's name
+    # sixth run, C-004: with the sidecar disabled nothing of ours is listed (another run's files stay out)
+    unset LOA_ADVERSARIAL_RUN_TAG; export LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1
+    result=$(_run_main review)
+    [ "$(jq -c '.metadata.rejected_sidecars' <<<"$result")" = "[]" ]
+    unset LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE
+}
+
+@test "CMP-29 lock-wait time is not charged to the hop's cap: a companion that queued behind another claude -p still gets its full cap once it holds the lock (sixth run C-002); the lock directory must be ours (C-003)" {
+    export XDG_RUNTIME_DIR="$T"
+    # hold the claude lock for 2 s from outside; the companion's hop needs 2 s of its own; the hop cap is 3 s
+    mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
+    ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 2 ) &
+    sleep 0.3
+    BEHAVIOUR[claude-headless]=slow2
+    invoke_dissenter_slow2() { :; }
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    result=$(_run_main review)
+    wait
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    # a foreign or symlinked lock directory is never used — the hop runs unserialised instead
+    rm -f "$T/loa-headless-locks-$(id -u)/claude.lock"; rmdir "$T/loa-headless-locks-$(id -u)"
+    ln -s "$T" "$T/loa-headless-locks-$(id -u)"
+    invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null
+    [ "$(grep -c ran "$T/lock-trace")" = "1" ]
+    [ ! -e "$T/claude.lock" ]
+}
+
+@test "CMP-30 a companion whose CLI ignores TERM is killed after the grace period and the review completes (sixth run: an 8 h hang under the account's usage limit)" {
+    BEHAVIOUR[claude-headless]=stubborn
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=1 LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1
+    start=$(date +%s)
+    result=$(_run_main review)
+    (( $(date +%s) - start < 30 ))
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
+    grep -q "after TERM — KILL" "$T/stderr.log"
+    command -v pgrep >/dev/null || skip "pgrep not installed"
+    ! pgrep -f "loa-cmp30-stubborn-$$" >/dev/null
 }
