@@ -296,3 +296,15 @@ def _append_many(path, worker, n):
     for i in range(n):
         record_observed(provider="anthropic", model="claude-opus-5", observed_input_tokens=1000 * worker + i,
                         error_class="PROVIDER_CONTEXT_LIMIT", path=path)
+
+
+def test_record_observed_never_follows_a_planted_symlink_at_the_lock_path(tmp_path, monkeypatch):
+    """Audit hardening (atomic-write symlink defenses): the lock file is opened O_NOFOLLOW, so a
+    symlink planted at `<store>.lock` is refused (OSError) instead of being followed."""
+    path = tmp_path / "ceiling-observed.json"
+    target = tmp_path / "elsewhere.txt"
+    target.write_text("keep")
+    (tmp_path / "ceiling-observed.json.lock").symlink_to(target)
+    with pytest.raises(OSError):
+        record_observed(provider="anthropic", model="m", observed_input_tokens=1, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
+    assert target.read_text() == "keep" and not path.exists()

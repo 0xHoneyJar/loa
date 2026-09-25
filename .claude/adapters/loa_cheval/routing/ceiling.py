@@ -285,7 +285,9 @@ def record_observed(
     # have the later replace discard the earlier row. The temp + os.replace
     # still makes every write atomic for readers, which take no lock.
     lock_path = path + ".lock"
-    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+    # O_NOFOLLOW: a symlink planted at the lock path is refused, never followed
+    # (the repo's atomic-write symlink defence; the caller fails soft).
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o644)
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         return _record_observed_locked(path, directory, provider, model, observed_input_tokens,
