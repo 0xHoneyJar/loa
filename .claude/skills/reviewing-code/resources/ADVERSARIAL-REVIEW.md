@@ -72,10 +72,14 @@ and marks the trailer INCONSISTENT (exit 1) when the section is missing. Reading
 runs in its own sub-workdir with a log; a failed companion carries `last_error` (last diagnostic
 line, redacted) beside `failure_class`. The envelope's `cost_usd` / tokens are BOTH voices; the
 per-voice spend stays under `companion_voice.cost_cents` and `budget_cents` is a per-voice cap.
-A hop the primary chain already holds is removed from the companion chain (`planned: false,
-reason: no_disjoint_route` when nothing remains); a family with neither a credential nor its CLI
-on PATH is `reason: no_route`; `companion_voice.independent` says whether the two voices that
-answered belong to different families. A primary chain that exhausts while the companion
+A hop the primary chain also holds (typically the other family's CLI as the primary's last
+resort) stays in the companion chain and is listed under `companion_voice.shared_hops` — a keyless
+primary usually answers earlier, and the second voice is worth having; a family with neither a
+credential nor its CLI on PATH is `reason: no_route`. `companion_voice.independent` says whether
+the two voices that answered belong to different families (the primary's succeeded id, not its
+configured hop); when they do not, the companion's findings are kept (tagged) but its envelope contributes no
+voice to verdict quality (`counted_as: duplicate_voice`; the aggregator counts distinct voices) so
+one model is never reported as cross-family consensus. A primary chain that exhausts while the companion
 completes is promoted (`status: reviewed`, `degraded: true`, `primary_voice: {status: failed}`) so
 the completed voice is never buried. The companion's rejected rows are named on the envelope
 (`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the

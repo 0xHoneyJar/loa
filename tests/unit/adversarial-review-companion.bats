@@ -215,12 +215,28 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "null" ]
 }
 
-@test "CMP-9 a companion hop the primary chain already holds is dropped; nothing left → planned false, reason no_disjoint_route (C-005)" {
-    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
+@test "CMP-9 a companion hop the primary chain also holds stays planned (shared_hops); the primary answering from its own family keeps the companion independent (C-005, live re-run)" {
+    _cfg_edit $'      - codex-headless
+  security_audit:' $'      - codex-headless
+      - claude-headless
+  security_audit:'
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     result=$(_run_main review)
-    [ "$(jq -c '.metadata.companion_voice' <<<"$result")" = '{"planned":false,"reason":"no_disjoint_route","family":"anthropic"}' ]
-    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
-    ! grep -qx "claude-headless" "$CALLS"
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.shared_hops | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "independent_voice" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq '.verdict_quality.voices_succeeded' <<<"$result")" = "2" ]
+    grep -qx "claude-headless" "$CALLS"
+    # no overlap at all: shared_hops is empty
+    _cfg_edit $'      - codex-headless
+      - claude-headless
+  security_audit:' $'      - codex-headless
+  security_audit:'
+    result=$(_run_main review)
+    [ "$(jq -c '.metadata.companion_voice.shared_hops' <<<"$result")" = "[]" ]
 }
 
 @test "CMP-10 a primary chain that exhausts does not bury the companion: reviewed + degraded, primary_voice failed, the companion's findings stand (C-006)" {
@@ -322,17 +338,30 @@ PY
     [ "$(_companion_drop_reason timeout)" = "Other" ]
 }
 
-@test "CMP-18 independence follows the voice that answered: a primary whose inner chain lands on the companion's family is independent: false, with the succeeded id recorded and a warning (chunk c C-003)" {
+@test "CMP-18 a primary whose inner chain lands on the companion's family: independent false, the companion's findings kept and tagged, no second voice in verdict quality (chunk c C-003)" {
     BEHAVIOUR[gpt-5.5-pro]=walked:claude-headless   # cheval's inner chain crossed families
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "false" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "duplicate_voice" ]
     [ "$(jq -r '.metadata.companion_voice.primary_succeeded_model' <<<"$result")" = "claude-headless" ]
     [ "$(jq -r '.metadata.final_model' <<<"$result")" = "gpt-5.5-pro" ]
     grep -q "NOT independent" "$T/stderr.log"
+    # findings: both kept, tagged
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq -r '[.findings[].voice] | sort | join(",")' <<<"$result")" = "claude-headless,gpt-5.5-pro" ]
+    # verdict quality counts distinct voices: the duplicate contributes no envelope (the aggregator's
+    # INV-5 forbids one id both succeeded and dropped) — one voice, nothing dropped, still aggregated
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
+    [ "$(jq '.verdict_quality.voices_succeeded' <<<"$result")" = "1" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq '.verdict_quality.voices_dropped | length' <<<"$result")" = "0" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
     # and the honest case: the primary answered from its own family
     BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "independent_voice" ]
     [ "$(jq -r '.metadata.companion_voice.primary_succeeded_model' <<<"$result")" = "codex-headless" ]
+    [ "$(jq '.verdict_quality.voices_succeeded' <<<"$result")" = "2" ]
 }
