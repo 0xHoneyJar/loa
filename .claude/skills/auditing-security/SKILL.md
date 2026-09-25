@@ -165,7 +165,7 @@ Trace each flagged source forward to a sink or sanitizer (is the data validated/
 
 Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh` enforces this at `PreToolUse:Write`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes.
 
-Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`, so the dissenter never sees your Phase 1A/1B findings. Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. Merge rules and the failed-run record: see `resources/ADVERSARIAL-REVIEW.md`.
+Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; when its `metadata.rejected_summary` is non-empty, triage every entry under `## Rejected dissent payloads` — `verdict-derive.sh` fails the trailer otherwise. Merge rules, failed-run record: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 1: Systematic Audit
 

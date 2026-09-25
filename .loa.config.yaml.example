@@ -1391,10 +1391,17 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /review-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
-    budget_cents: 150            # Max cost per dissent call
+    budget_cents: 150            # Max cost per dissent call (each voice ≤ this)
+    # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
+    # family (Anthropic primary → gpt-5.5-pro → … → codex-headless; OpenAI
+    # primary → opus → claude-headless) runs in parallel and both envelopes
+    # aggregate (voices_planned 2). Credential presence only decides where
+    # the companion chain starts (no key → the CLI hop). Set false to run one voice.
+    companion_voice: true
     # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
     # A dissenter finding from an UNENFORCED hop that fails validate_finding
-    # gets ONE bounded repair round-trip to the SAME model before rejection
+    # gets ONE bounded repair round-trip (cycle-126 FR-2.4: to `tiny` when an
+    # Anthropic key is present, else to `claude-headless`) before rejection
     # (schema-enforced payloads never enter the loop):
     # a normalization pre-pass (case-fold severity/category + whitespace
     # trim only, no synonym mapping) runs first; if the finding still
@@ -1413,6 +1420,7 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
     budget_cents: 150
+    companion_voice: true        # cycle-126 FR-2.1: see code_review
   stable_anchors:
     required: true               # Demote anchorless high-severity findings
     preferred_format: "symbol"   # symbol | hunk_header | line_number

@@ -129,6 +129,7 @@ load_adversarial_config() {
   CONF_MODEL="gpt-5.3-codex"
   CONF_TIMEOUT=60
   CONF_BUDGET_CENTS=150
+  CONF_COMPANION_VOICE="true"   # cycle-126 FR-2.1: the second, other-family chain (opt-out per block)
   CONF_ESCALATION_ENABLED="true"
   CONF_SECONDARY_BUDGET=$DEFAULT_SECONDARY_TOKEN_BUDGET
   CONF_MAX_FILE_LINES=500
@@ -159,6 +160,10 @@ load_adversarial_config() {
   CONF_MODEL=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.3-codex")
   CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")
   CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
+  # `false // true` is true in jq/yq semantics — read the raw value and default only when absent
+  local _cv
+  _cv=$(yq eval ".flatline_protocol.${config_key}.companion_voice" "$CONFIG_FILE" 2>/dev/null || echo "null")
+  case "$_cv" in false|no|off|0) CONF_COMPANION_VOICE="false" ;; *) CONF_COMPANION_VOICE="true" ;; esac
   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
   CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
@@ -438,6 +443,7 @@ _write_rejected_sidecar() {
 # Absent keys stay absent (no null keys introduced).
 _normalize_finding_for_validation() {
   local finding="$1"
+  local index="${2:-}"
   echo "$finding" | jq '
     (if has("severity") and (.severity | type) == "string"
      then .severity |= (gsub("^\\s+|\\s+$"; "") | ascii_upcase)
@@ -445,7 +451,64 @@ _normalize_finding_for_validation() {
     | (if has("category") and (.category | type) == "string"
        then .category |= (gsub("^\\s+|\\s+$"; "") | ascii_downcase)
        else . end)
+  ' 2>/dev/null | _derive_failure_mode "$index"
+}
+
+# cycle-126 FR-2.2 (SDD D-2.2, KF-004): `failure_mode` is derivable, not
+# required. A finding that carries everything but it gets the first sentence
+# of its `description` (≤ 200 chars) as `failure_mode` and is marked
+# `failure_mode_derived: true`; a missing `id` (the models emit `title`, not
+# `id`) is filled from the position (`DISS-NNN`, `id_derived: true`). Severity,
+# category and description are never touched, so a derived finding is gated
+# exactly like a stated one. Only the unenforced path reaches this (the call
+# site skips normalisation for schema-enforced payloads). stdin → stdout.
+_derive_failure_mode() {
+  local index="${1:-}"
+  jq --arg idx "$index" '
+    (if ((.id // "") | tostring | length) == 0 and ($idx | length) > 0
+     then .id = ("DISS-" + (($idx | tonumber) + 1 | tostring | if length < 3 then ("000" + .)[-3:] else . end))
+          | .id_derived = true
+     else . end)
+    | if ((.failure_mode // "") | tostring | length) == 0
+         and (.description | type) == "string" and (.description | length) > 0
+      then
+        (.description
+          | gsub("\\s+"; " ")
+          | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)
+          | .[0:200]) as $fm
+        | .failure_mode = $fm | .failure_mode_derived = true
+      else . end
   ' 2>/dev/null
+}
+
+# cycle-126 FR-2.4 (SDD D-2.4): the repair model — `tiny` when an Anthropic
+# credential is PRESENT (env → .env.local → .env; the value is never read
+# out), else the `claude-headless` hop; LOA_ADVERSARIAL_REPAIR_MODEL pins it.
+_adv_cred_present() {  # <provider> → 0 when a credential is present (presence only)
+  local -a vars
+  case "$1" in
+    openai) vars=(OPENAI_API_KEY) ;;
+    anthropic) vars=(ANTHROPIC_API_KEY) ;;
+    google) vars=(GOOGLE_API_KEY GEMINI_API_KEY) ;;
+    *) return 1 ;;
+  esac
+  local v f val root="$PROJECT_ROOT"
+  for v in "${vars[@]}"; do [[ -n "${!v:-}" ]] && return 0; done
+  # bats-gated seam: point the dotenv lookup at a fixture directory
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
+  for f in "$root/.env.local" "$root/.env"; do
+    [[ -f "$f" ]] || continue
+    for v in "${vars[@]}"; do
+      val=$(grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | sed -e 's/^[^=]*=//' -e "s/^[\"']//" -e "s/[\"'][[:space:]]*$//" -e 's/[[:space:]]*#.*$//')
+      [[ -n "$val" ]] && return 0
+    done
+  done
+  return 1
+}
+
+_repair_model() {  # <primary model> → the model the repair round-trip uses
+  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
+  if _adv_cred_present anthropic; then echo "tiny"; else echo "claude-headless"; fi
 }
 
 # _repair_violated_field <reject_reason>
@@ -1167,11 +1230,12 @@ while i < len(text):
   if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
     local rej_dir="$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}"
     mkdir -p "$rej_dir" 2>/dev/null || true
-    rejected_sidecar="$rej_dir/adversarial-rejected-${type}.jsonl"
+    rejected_sidecar="$rej_dir/adversarial-rejected-${type}${_ADV_SIDECAR_TAG:+-$_ADV_SIDECAR_TAG}.jsonl"
     : > "$rejected_sidecar" 2>/dev/null || rejected_sidecar=""
   fi
 
   local validated_findings="[]"
+  local rejected_summary="[]"  # cycle-126 FR-2.2: every payload that still fails, summarised in the envelope
   local i=0
   local rejected_count=0
   # cycle-119 C14 (KF-004 repair loop); always reported since cycle-124.
@@ -1191,7 +1255,7 @@ while i < len(text):
     # one would hide a wire-schema/prompt drift.
     local candidate="$finding"
     if [[ "$schema_enforced" != "true" ]]; then
-      candidate=$(_normalize_finding_for_validation "$finding")
+      candidate=$(_normalize_finding_for_validation "$finding" "$i")
     fi
 
     if validate_finding "$candidate" "$type"; then
@@ -1215,7 +1279,7 @@ while i < len(text):
         local violated_field
         violated_field=$(_repair_violated_field "$reject_reason")
         local repaired
-        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$model" "${CONF_TIMEOUT:-60}") \
+        if repaired=$(_repair_finding_via_model "$candidate" "$type" "$reject_reason" "$(_repair_model "$model")" "${CONF_TIMEOUT:-60}") \
            && [[ -n "$repaired" ]] \
            && echo "$repaired" | jq empty >/dev/null 2>&1; then
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
@@ -1247,6 +1311,16 @@ while i < len(text):
         _write_rejected_sidecar "$rejected_sidecar" "$finding" "$sidecar_reject_reason" "$i" "$sprint_id" "$type" "$model" \
           "$repair_attempted" "$repair_succeeded" "$schema_enforced" "$parse_path" "$resp_stop_reason"
         rejected_count=$((rejected_count + 1))
+        rejected_summary=$(echo "$rejected_summary" | jq --argjson f "$candidate" --arg r "${sidecar_reject_reason:-unknown-reason}" '. + [{
+          severity: ($f.severity // null),
+          title: ($f.title // $f.id // null),
+          anchor: (if ($f.anchor // null) != null then $f.anchor
+                   elif ($f.location | type) == "object" then "\($f.location.file // "")#\($f.location.anchor // "")"
+                   elif ($f.location // null) != null then $f.location
+                   else ($f.stable_anchor // null) end),
+          reason: $r,
+          description_head: (($f.description // "") | tostring | .[0:160])
+        }]' 2>/dev/null || echo "$rejected_summary")
       fi
     fi
     i=$((i + 1))
@@ -1287,11 +1361,13 @@ while i < len(text):
     --argjson cost "$cost" --argjson lat "$latency" \
     --argjson rejc "$rejected_count" \
     --arg rejs "$rejected_sidecar_rel" \
+    --argjson rejsum "$rejected_summary" \
     --argjson repairmeta "$repair_metadata_json" \
     '{findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
       timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
       latency_ms: $lat, status: "reviewed", degraded: false,
       rejected_count: $rejc,
+      rejected_summary: $rejsum,
       rejected_sidecar: (if $rejs == "" then null else $rejs end)} + $repairmeta)}'
 }
 
@@ -1719,6 +1795,138 @@ _extract_result_status() {
   printf '%s' "$status"
 }
 
+# =============================================================================
+# cycle-126 FR-2.1 (SDD D-2.1): the companion voice. A second, independent
+# chain from the OTHER provider family runs in parallel with the primary chain
+# and the two completed envelopes are aggregated (`voices_planned` 2). The
+# family is decided from the configured primary model; credential PRESENCE
+# (env → .env.local → .env, value never read) decides only where the
+# companion chain STARTS (an HTTP voice with no key is skipped straight to the
+# CLI hop); the companion's outcome is its actual completion. A companion whose
+# whole chain fails is a dropped voice (degraded, never blocking a review;
+# audit keeps its degraded rules) with a named failure class. Its rejected
+# payloads land in their own sidecar (`-companion` suffix), never the primary's.
+# =============================================================================
+_adv_family_of() {  # <model alias or id> → anthropic | openai | google | unknown
+  local m="$1" prov=""
+  if ! declare -p MODEL_PROVIDERS >/dev/null 2>&1; then
+    # shellcheck source=generated-model-maps.sh
+    [[ -f "$SCRIPT_DIR/generated-model-maps.sh" ]] && source "$SCRIPT_DIR/generated-model-maps.sh" 2>/dev/null || true
+  fi
+  if declare -p MODEL_PROVIDERS >/dev/null 2>&1; then prov="${MODEL_PROVIDERS[$m]:-}"; fi
+  if [[ -z "$prov" ]]; then
+    case "$m" in
+      anthropic:*|claude*|opus*|sonnet*|haiku*|fable*|tiny|cheap) prov="anthropic" ;;
+      openai:*|gpt-*|codex*|o[0-9]*) prov="openai" ;;
+      google:*|gemini*|agy*) prov="google" ;;
+      *) prov="unknown" ;;
+    esac
+  fi
+  echo "$prov"
+}
+
+_companion_family() {  # <primary family> → the other family (google/unknown primaries get the Anthropic chain)
+  case "$1" in
+    anthropic) echo "openai" ;;
+    *) echo "anthropic" ;;
+  esac
+}
+
+_companion_chain() {  # <family> → space-separated chain, credential presence deciding the start
+  case "$1" in
+    anthropic) if _adv_cred_present anthropic; then echo "opus claude-headless"; else echo "claude-headless"; fi ;;
+    openai)    if _adv_cred_present openai; then echo "gpt-5.5-pro gpt-5.5 codex-headless"; else echo "codex-headless"; fi ;;
+    *) echo "" ;;
+  esac
+}
+
+_companion_failure_class() {  # <last status> <last exit code> → auth|model_unavailable|quota|timeout|malformed
+  local status="$1" rc="$2"
+  case "$status" in malformed_response) echo "malformed"; return 0 ;; esac
+  case "$rc" in
+    4) echo "auth" ;;
+    6) echo "quota" ;;
+    3|124) echo "timeout" ;;
+    5) echo "malformed" ;;
+    *) echo "model_unavailable" ;;
+  esac
+}
+
+_companion_drop_reason() {  # <failure class> → verdict-quality drop-reason enum
+  case "$1" in
+    quota) echo "RateLimited" ;;
+    auth|model_unavailable) echo "ProviderUnavailable" ;;
+    malformed) echo "EmptyContent" ;;
+    *) echo "Other" ;;
+  esac
+}
+
+# Walk the companion chain (runs in a background subshell). Writes into
+# $workdir: companion.result.json, companion.final, companion.rc,
+# companion.status, companion.attempts (one per line), companion.vq (paths of
+# the attempts' verdict-quality sidecars).
+_walk_companion_chain() {  # <workdir> <type> <sprint_id> <timeout> <diff_files> <model>...
+  local workdir="$1" type="$2" sprint_id="$3" timeout="$4" diff_files="$5"; shift 5
+  local m raw rc res status final="" last_status="" last_rc=0
+  : > "$workdir/companion.attempts"; : > "$workdir/companion.vq"
+  export _ADV_SIDECAR_TAG="companion"
+  for m in "$@"; do
+    rc=0
+    local vq="$workdir/vq-companion-${m//[^A-Za-z0-9_-]/_}-$$-$RANDOM.json"
+    raw=$(invoke_dissenter "$workdir/system-prompt.txt" "$workdir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
+    [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
+    res=$(process_findings "$raw" "$type" "$m" "$sprint_id" "$rc" "$diff_files")
+    status=$(_extract_result_status "$res")
+    echo "${m}:${status}" >> "$workdir/companion.attempts"
+    last_status="$status"; last_rc="$rc"
+    if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then
+      final="$m"
+      printf '%s' "$res" > "$workdir/companion.result.json"
+      break
+    fi
+  done
+  printf '%s' "${final:-${m:-}}" > "$workdir/companion.final"
+  printf '%s' "$last_rc" > "$workdir/companion.rc"
+  printf '%s' "$last_status" > "$workdir/companion.status"
+  [[ -n "$final" ]]
+}
+
+# Fold the finished companion into the primary result: findings (re-numbered
+# DISS-C-NNN, tagged with their voice), rejected_summary, verdict-quality
+# inputs (a synthetic FAILED single-voice envelope when the companion did not
+# complete), and metadata.companion_voice.
+_fold_companion() {  # <result json> <workdir> <family> <chain csv> <primary final model> → result json; sets COMPANION_VQ_FILES
+  local result="$1" workdir="$2" family="$3" chain="$4" primary_final="$5"
+  local final status rc cls="" comp_status="failed" cost_cents="null" attempts_json="[]"
+  final=$(cat "$workdir/companion.final" 2>/dev/null || true)
+  status=$(cat "$workdir/companion.status" 2>/dev/null || true)
+  rc=$(cat "$workdir/companion.rc" 2>/dev/null || echo 1)
+  [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
+  [[ -s "$workdir/companion.attempts" ]] && attempts_json=$(jq -R . < "$workdir/companion.attempts" | jq -s .)
+  rm -f "$workdir/vq-companion-synthetic.json"
+  if [[ -s "$workdir/companion.result.json" ]] && jq empty < "$workdir/companion.result.json" 2>/dev/null; then
+    comp_status="succeeded"
+    local cres; cres=$(cat "$workdir/companion.result.json")
+    cost_cents=$(echo "$cres" | jq -r '((.metadata.cost_usd // 0) * 10000 | round) / 100')
+    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" '
+      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv})) as $cf
+      | $p
+      | .findings = (($p.findings // []) | map(. + {voice: $pv})) + $cf
+      | .metadata.rejected_summary = (($p.metadata.rejected_summary // []) + (($c.metadata.rejected_summary // []) | map(. + {voice: $cv})))
+      | .metadata.rejected_count = (($p.metadata.rejected_count // 0) + ($c.metadata.rejected_count // 0))')
+  else
+    cls=$(_companion_failure_class "$status" "$rc")
+    local synth="$workdir/vq-companion-synthetic.json"
+    jq -nc --arg v "${final:-companion}" --arg r "$(_companion_drop_reason "$cls")" --argjson e "$(( rc <= 255 ? rc : 1 ))"       '{status: "FAILED", consensus_outcome: "consensus", truncation_waiver_applied: false, voices_planned: 1, voices_succeeded: 0,
+        voices_succeeded_ids: [], voices_dropped: [{voice: $v, reason: $r, exit_code: $e, blocker_risk: "unknown"}],
+        chain_health: "exhausted", confidence_floor: "low", rationale: "companion chain did not complete", single_voice_call: true}' > "$synth"
+    result=$(echo "$result" | jq --arg pv "$primary_final" '.findings = ((.findings // []) | map(. + {voice: $pv}))')
+  fi
+  echo "$result" | jq --arg fam "$family" --arg chain "$chain" --arg model "$final" --arg st "$comp_status"       --arg cls "$cls" --argjson cost "$cost_cents" --argjson att "$attempts_json"       '.metadata.companion_voice = {planned: true, family: $fam, family_basis: "configured_primary",
+        chain: ($chain | split(",")), model: (if $model == "" then null else $model end), status: $st,
+        failure_class: (if $cls == "" then null else $cls end), cost_cents: $cost, attempts: $att}'
+}
+
 main() {
   local type="" sprint_id="" diff_file="" context_file="" model="" budget="" timeout=""
   local dry_run="false" json_output="true"
@@ -1917,6 +2125,22 @@ main() {
   local try_model status
   local _vq_tmpdir="${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}"
 
+  # cycle-126 FR-2.1: plan the companion voice from the configured primary's
+  # family and start it now, in parallel with the primary walk.
+  local companion_planned="false" companion_family="" companion_chain_csv="" companion_pid=""
+  if [[ "${CONF_COMPANION_VOICE:-true}" == "true" ]]; then
+    companion_family=$(_companion_family "$(_adv_family_of "$model")")
+    local companion_chain_str
+    companion_chain_str=$(_companion_chain "$companion_family")
+    if [[ -n "$companion_chain_str" ]]; then
+      companion_planned="true"
+      companion_chain_csv="${companion_chain_str// /,}"
+      log "Companion voice ($companion_family family): $companion_chain_str"
+      # shellcheck disable=SC2086
+      ( _walk_companion_chain "$_ADVERSARIAL_WORKDIR" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >/dev/null 2>&1 ) &
+      companion_pid=$!
+    fi
+  fi
   for try_model in "${fallback_chain[@]}"; do
     api_exit=0
     # Allocate per-attempt sidecar path under the adversarial workdir so
@@ -1953,6 +2177,22 @@ main() {
     --argjson attempts "$(printf '%s\n' "${model_attempts[@]}" | jq -R . | jq -s .)" \
     --arg fm "$final_model" \
     '.metadata.model_attempts = $attempts | .metadata.final_model = $fm')
+  local -a COMPANION_VQ_FILES=()
+  if [[ "$companion_planned" == "true" ]]; then
+    if [[ -n "$companion_pid" ]]; then wait "$companion_pid" 2>/dev/null || true; fi
+    result=$(_fold_companion "$result" "$_ADVERSARIAL_WORKDIR" "$companion_family" "$companion_chain_csv" "$final_model")
+    # the companion's verdict-quality inputs: its attempts' sidecars when it completed,
+    # else the synthetic FAILED envelope the fold wrote (a subshell cannot set this array)
+    if [[ -s "$_ADVERSARIAL_WORKDIR/companion.result.json" ]]; then
+      local _cvf
+      while IFS= read -r _cvf; do [[ -s "$_cvf" ]] && COMPANION_VQ_FILES+=("$_cvf"); done < "$_ADVERSARIAL_WORKDIR/companion.vq"
+    elif [[ -s "$_ADVERSARIAL_WORKDIR/vq-companion-synthetic.json" ]]; then
+      COMPANION_VQ_FILES+=("$_ADVERSARIAL_WORKDIR/vq-companion-synthetic.json")
+    fi
+    log "Companion voice: $(echo "$result" | jq -r '.metadata.companion_voice | "\(.model // "-") \(.status)\(if .failure_class then " (" + .failure_class + ")" else "" end)"')"
+  else
+    result=$(echo "$result" | jq '.metadata.companion_voice = {planned: false}')
+  fi
 
   # cycle-109 Sprint 2 T2.5 — aggregate per-attempt verdict_quality
   # envelopes via the canonical Python aggregator (SDD §5.2.1). The
@@ -1961,9 +2201,9 @@ main() {
   # class regressions explicitly. Fail-soft: legacy / pre-T2.3 cheval emits
   # produce empty vq_attempt_files; in that case result.verdict_quality
   # stays absent (downstream consumers handle).
-  if [[ ${#vq_attempt_files[@]} -gt 0 ]]; then
+  if [[ ${#vq_attempt_files[@]} -gt 0 || ${#COMPANION_VQ_FILES[@]} -gt 0 ]]; then
     local _vq_agg
-    if _vq_agg=$(_adv_aggregate_envelopes "${vq_attempt_files[@]}" 2>/dev/null); then
+    if _vq_agg=$(_adv_aggregate_envelopes ${vq_attempt_files[@]+"${vq_attempt_files[@]}"} ${COMPANION_VQ_FILES[@]+"${COMPANION_VQ_FILES[@]}"} 2>/dev/null); then
       if [[ -n "$_vq_agg" ]]; then
         result=$(echo "$result" | jq --argjson vq "$_vq_agg" \
           '.verdict_quality = $vq')

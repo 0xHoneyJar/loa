@@ -263,3 +263,66 @@ EOF
     [[ "$output" == *'"consistent": false'* ]]
     [[ "$output" == *"non-numeric"* ]]
 }
+
+# --- cycle-126 Sprint 2 (PRD FR-2.3, SDD D-2.3): the rejected-payload contract ---------------
+
+_vd_approved_review() {  # <file> [with_section]
+    {
+        echo "All good"; echo
+        echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+        if [[ "${2:-}" == "yes" ]]; then
+            echo "## Rejected dissent payloads"; echo
+            echo "- DISS-x (MEDIUM, x.sh:12) — triaged: not a defect (the guard exists two lines up)."; echo
+        fi
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$1"
+}
+_vd_envelope() {  # <file> <rejected_summary json array>
+    jq -n --argjson rs "$2" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: $rs}}' > "$1"
+}
+
+@test "verdict-derive: a non-empty rejected_summary in the sibling envelope without a '## Rejected dissent payloads' section is INCONSISTENT (exit 1) with the repair text" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s1"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    _vd_envelope "$d/adversarial-review.json" '[{"severity":"MEDIUM","title":"t","anchor":"x.sh:12","reason":"missing-severity","description_head":"Something fails."}]'
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Rejected dissent payloads"* ]]
+    [[ "$output" == *"rejected_summary"* ]]
+}
+
+@test "verdict-derive: the section present, or an empty summary, or no envelope at all → CONSISTENT (exit 0)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s2"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    _vd_envelope "$d/adversarial-review.json" '[{"severity":"MEDIUM","title":"t","anchor":"x.sh:12","reason":"missing-severity","description_head":"Something fails."}]'
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    _vd_approved_review "$d/engineer-feedback.md"
+    _vd_envelope "$d/adversarial-review.json" '[]'
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    rm "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+}
+
+@test "verdict-derive: --envelope names the envelope explicitly; the audit gate reads adversarial-audit.json by default" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s3"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    _vd_envelope "$d/elsewhere.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope "$d/elsewhere.json"
+    [ "$status" -eq 1 ]
+    {
+        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
+        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/auditor-sprint-feedback.md"
+    _vd_envelope "$d/adversarial-audit.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
+    run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit
+    [ "$status" -eq 1 ]
+    run bash -c "'$SCRIPT' --file '$d/auditor-sprint-feedback.md' --gate audit --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | length) >= 1' >/dev/null
+}

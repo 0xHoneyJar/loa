@@ -1,0 +1,20 @@
+{
+  "_fixture": {
+    "source": "sprint-237 audit dissent (gpt-5.5-pro via codex-headless), chunk 4, 2026-09-22",
+    "reject_reason": "missing-or-empty-failure_mode",
+    "type": "audit",
+    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
+  },
+  "payload": {
+    "severity": "MEDIUM",
+    "category": "config",
+    "title": "Workspace cleanup continues after unexpected failures",
+    "location": {
+      "file": ".claude/skills/autonomous-agent/resources/phase-mechanics.md",
+      "anchor": "Phase 0.0 case `*) # Other error - log and continue`"
+    },
+    "description": "Phase 0 only halts cleanup on exit code 3 or detected partial archive state, but any other cleanup failure is logged and the workflow continues. Cleanup is part of the security-critical preflight that archives prior-cycle artifacts and detects partial state; unexpected failures may leave stale artifacts, unsafe state, or prior context in place before subsequent autonomous phases execute.",
+    "impact": "This weakens isolation between runs and can lead to information disclosure or contaminated execution context if cleanup fails for reasons other than the single security-validation exit code.",
+    "recommendation": "Treat unexpected cleanup failures as blocking unless the failure mode is explicitly classified as safe. If continuity is required, require a structured cleanup result proving no partial or unsafe state remains before continuing."
+  }
+}

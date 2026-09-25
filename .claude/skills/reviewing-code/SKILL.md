@@ -206,10 +206,11 @@ Review the implementation, not the report: read every modified file; validate ag
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
-Runs when `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`; skipping it then
-blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh`, override
-only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes). Invocation,
-output parsing and the unavailable-review path: see `resources/ADVERSARIAL-REVIEW.md`.
+Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the `COMPLETED` write
+(`adversarial-review-gate.sh`; override `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes).
+Two voices by default (`companion_voice`). When the envelope's `metadata.rejected_summary` is
+non-empty, triage every entry under `## Rejected dissent payloads` — `verdict-derive.sh` fails the
+trailer otherwise. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 3: Previous Feedback Verification
 

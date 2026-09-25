@@ -40,7 +40,7 @@ REVIEW_FILE=""
 
 show_help() {
     cat <<EOF
-Usage: $SCRIPT_NAME --file <feedback.md> --gate review|audit [--json] [--require-trailer]
+Usage: $SCRIPT_NAME --file <feedback.md> --gate review|audit [--json] [--require-trailer] [--envelope <adversarial-<gate>.json>]
        [--review-file <engineer-feedback.md>]
 
 Derive and validate the LOA-VERDICT machine trailer (C6) on a review/audit
@@ -86,6 +86,7 @@ while [[ $# -gt 0 ]]; do
         --json) JSON_OUTPUT=true; shift ;;
         --require-trailer) REQUIRE_TRAILER=true; shift ;;
         --review-file) REVIEW_FILE="${2:-}"; shift 2 ;;
+        --envelope) ENVELOPE_FILE="${2:-}"; shift 2 ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown option: $1" >&2; show_help >&2; exit 2 ;;
     esac
@@ -118,6 +119,25 @@ if [[ -n "$REVIEW_FILE" ]]; then
     fi
 fi
 
+# cycle-126 FR-2.3 (SDD D-2.3): the dissent envelope beside the feedback file
+# (adversarial-<gate>.json, or --envelope) — when its metadata.rejected_summary
+# is non-empty the feedback MUST triage it under "## Rejected dissent payloads".
+if [[ -z "${ENVELOPE_FILE:-}" ]]; then
+    ENVELOPE_FILE="$(dirname -- "$FILE")/adversarial-${GATE}.json"
+    ENVELOPE_EXPLICIT=false
+else
+    ENVELOPE_EXPLICIT=true
+fi
+rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
+    [[ -f "$ENVELOPE_FILE" ]] || { [[ "$ENVELOPE_EXPLICIT" == "true" ]] && warnings+=("WARN: --envelope $ENVELOPE_FILE not found; rejected-payload contract not checked"); return 0; }
+    local n
+    n=$(jq -r '(.metadata.rejected_summary // []) | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=""
+    [[ "$n" =~ ^[0-9]+$ ]] || { warnings+=("WARN: envelope $ENVELOPE_FILE is not parseable JSON; rejected-payload contract not checked"); return 0; }
+    (( n > 0 )) || return 0
+    if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
+        violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $n schema-rejected payload(s) in metadata.rejected_summary but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
+    fi
+}
 violations=()
 warnings=()
 t_verdict=""
@@ -277,6 +297,7 @@ else
         else
             t_excluded_confirmed=$exc_val
         fi
+        rejected_summary_check
         read -r obs_crit obs_ok obs_bad < <(observations_scan "$FILE")
         if (( obs_crit > 0 )); then
             violations+=("$obs_crit critical finding(s) under ## Observations — critical is never excludable; move them under ## Changes Required and count them")
