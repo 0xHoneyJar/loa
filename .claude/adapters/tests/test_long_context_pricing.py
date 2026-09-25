@@ -81,3 +81,17 @@ def test_premium_is_applied_before_flooring_not_to_rounded_categories():
     e2 = PricingEntry(provider="p", model="m", input_per_mtok=1_000_000, output_per_mtok=1_000_000,
                       long_context_threshold=1, long_context_input_multiplier=1.1, long_context_output_multiplier=1.0)
     assert calculate_total_cost(10, 0, 0, e2).input_cost_micro == 11
+
+
+def test_non_finite_or_absurd_multipliers_are_ignored_not_fatal():
+    """Review sprint-247 round 2 (chunk c): a catalog typo (`.inf`, `nan`, `1e309`, a negative
+    or zero value) must fall back to 1.0 per the parser's contract — never raise inside cost
+    calculation, never zero or explode a bill."""
+    for bad in (float("inf"), float("nan"), "1e309", "-2", 0, "abc", None):
+        cfg = {"providers": {"anthropic": {"models": {"m": {"pricing": {
+            "input_per_mtok": 1_000_000, "output_per_mtok": 1_000_000,
+            "long_context": {"threshold_tokens": 1, "input_multiplier": bad, "output_multiplier": bad}}}}}}}
+        entry = find_pricing("anthropic", "m", cfg)
+        assert entry.long_context_input_multiplier == 1.0 and entry.long_context_output_multiplier == 1.0, bad
+        c = calculate_total_cost(10, 10, 0, entry)
+        assert c.long_context_applied is True and c.total_cost_micro == 20, bad

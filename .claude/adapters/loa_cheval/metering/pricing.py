@@ -315,11 +315,17 @@ def _long_context_fields(block: Any) -> Dict[str, Any]:
     if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold <= 0:
         return {}
     def _mult(value: Any) -> float:
+        # review sprint-247 round 2: a non-finite value (`.inf`, `nan`, `1e309`)
+        # passed `> 0` and later crashed `Fraction(str(m))` in the cost path —
+        # finite and positive, or the multiplier is 1.0 (the contract).
+        import math
+        if isinstance(value, bool):
+            return 1.0
         try:
             m = float(value)
         except (TypeError, ValueError):
             return 1.0
-        return m if m > 0 else 1.0
+        return m if (math.isfinite(m) and m > 0) else 1.0
     return {
         "long_context_threshold": threshold,
         "long_context_input_multiplier": _mult(block.get("input_multiplier", 1.0)),
