@@ -91,7 +91,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
     [[ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" == "Something fails when the file is missing."* ]]
     sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-audit.jsonl"
-    [ "$(wc -l < "$sidecar")" = "1" ]
+    [ "$(grep -c '' "$sidecar")" = "1" ]   # not wc -l: BSD wc pads its count
     [ "$(jq -r '.reject_reason' "$sidecar")" = "missing-severity" ]
 }
 

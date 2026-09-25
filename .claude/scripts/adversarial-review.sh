@@ -1856,7 +1856,9 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
   local http="" hop=""
   case "$fam" in
     anthropic) http="opus"; hop="claude-headless" ;;
-    openai)    http="gpt-5.5-pro gpt-5.5"; hop="codex-headless" ;;
+    # round 1 (third run, C-007): gpt-5.5-pro returns empty content on review prompts (KF-002,
+    # recurrence 5) — the default starts at gpt-5.5; companion_chain.openai can still name it
+    openai)    http="gpt-5.5"; hop="codex-headless" ;;
     *) echo ""; return 0 ;;
   esac
   local chain=""
@@ -1865,6 +1867,20 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
   # host must not see every dissent plan a companion that cannot succeed
   _adv_cli_present "$fam" && chain="${chain:+$chain }$hop"
   echo "$chain"
+}
+
+# round 1 (third run, C-003): a *-headless hop is bounded by cheval's CLI-adapter timeout (610 s),
+# not by the block's HTTP timeout_seconds — the wait cap sums each hop's own bound, plus slack.
+_ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"
+_companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
+  local t="$1" cap=0 h; shift
+  for h in "$@"; do
+    case "$h" in
+      *-headless) cap=$(( cap + (t > _ADV_CLI_HOP_TIMEOUT ? t : _ADV_CLI_HOP_TIMEOUT) )) ;;
+      *)          cap=$(( cap + t )) ;;
+    esac
+  done
+  echo $(( cap + 30 ))
 }
 
 _companion_failure_class() {  # <last status> <last exit code> [diagnostic text] → auth|model_unavailable|quota|timeout|malformed
@@ -1926,10 +1942,19 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
 # DISS-C-NNN, tagged with their voice), rejected_summary, verdict-quality
 # inputs (a synthetic FAILED single-voice envelope when the companion did not
 # complete), and metadata.companion_voice.
-_fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <primary final model> [primary succeeded id] [shared hops csv] → result json
-  local result="$1" workdir="$2" family="$3" chain="$4" primary_final="$5" primary_succeeded="${6:-$5}" shared_hops="${7:-}"
+_fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <primary final model> [primary succeeded id] [shared hops csv] [primary succeeded ids csv] → result json
+  local result="$1" workdir="$2" family="$3" chain="$4" primary_final="$5" primary_succeeded="${6:-$5}" shared_hops="${7:-}" primary_ids="${8:-}"
   local final status rc cls="" comp_status="failed" cost_cents="null" attempts_json="[]" last_error="" sidecar="null"
   final=$(cat "$workdir/companion.final" 2>/dev/null || true)
+  # third run, C-002: the companion's own succeeded id (cheval's inner chain may have answered from
+  # another model) — its last sidecar's voices_succeeded_ids, else the outer hop
+  local companion_answered="$final" _lastvq=""
+  [[ -s "$workdir/companion.vq" ]] && _lastvq=$(tail -1 "$workdir/companion.vq")
+  if [[ -n "$_lastvq" && -s "$_lastvq" ]]; then
+    local _cid
+    _cid=$(jq -r '(.voices_succeeded_ids // []) | if length > 0 then .[-1] else empty end' "$_lastvq" 2>/dev/null || true)
+    [[ -n "$_cid" ]] && companion_answered="$_cid"
+  fi
   status=$(cat "$workdir/companion.status" 2>/dev/null || true)
   rc=$(cat "$workdir/companion.rc" 2>/dev/null || echo 1)
   [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
@@ -1955,8 +1980,8 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     # the envelope is promoted to reviewed + degraded and the primary is recorded as failed).
     # chunk c C-003 (round 2): `voice` is the outer hop (it matches final_model / model_attempts);
     # `answered_by` is the model that actually produced the finding (cheval's inner chain may differ)
-    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" --arg pa "$primary_succeeded" '
-      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv, answered_by: $cv})) as $cf
+    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" --arg pa "$primary_succeeded" --arg ca "$companion_answered" '
+      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv, answered_by: $ca})) as $cf
       | (($p.metadata.status // "") | IN("api_failure", "malformed_response")) as $primary_failed
       | $p
       | .findings = (($p.findings // []) | map(. + {voice: $pv, answered_by: $pa})) + $cf
@@ -1981,9 +2006,19 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     fi
     cls=$(_companion_failure_class "$status" "$rc" "$_diag")
     local synth="$workdir/vq-companion-synthetic.json"
-    jq -nc --arg v "${final:-companion}" --arg r "$(_companion_drop_reason "$cls")" --argjson e "$(( rc <= 255 ? rc : 1 ))"       '{status: "FAILED", consensus_outcome: "consensus", truncation_waiver_applied: false, voices_planned: 1, voices_succeeded: 0,
-        voices_succeeded_ids: [], voices_dropped: [{voice: $v, reason: $r, exit_code: $e, blocker_risk: "unknown"}],
-        chain_health: "exhausted", confidence_floor: "low", rationale: "companion chain did not complete", single_voice_call: true}' > "$synth"
+    # third run, C-001 (BLOCKING): a failed companion whose id is one of the primary's succeeded voices
+    # (this host: a primary that fell through to claude-headless, a claude-headless companion that timed
+    # out) must not become a dropped-voice envelope — INV-5 would fail the whole aggregation
+    local _dup="false" _pid_
+    for _pid_ in ${primary_ids//,/ } "$primary_succeeded"; do [[ -n "$_pid_" && "$_pid_" == "${final:-}" ]] && _dup="true"; done
+    if [[ "$_dup" == "true" ]]; then
+      : > "$workdir/companion.duplicate"
+      log "Companion voice: failed as $final, which is also a primary voice that answered — no dropped-voice envelope (INV-5); counted_as duplicate_voice"
+    else
+      jq -nc --arg v "${final:-companion}" --arg r "$(_companion_drop_reason "$cls")" --argjson e "$(( rc <= 255 ? rc : 1 ))"       '{status: "FAILED", consensus_outcome: "consensus", truncation_waiver_applied: false, voices_planned: 1, voices_succeeded: 0,
+          voices_succeeded_ids: [], voices_dropped: [{voice: $v, reason: $r, exit_code: $e, blocker_risk: "unknown"}],
+          chain_health: "exhausted", confidence_floor: "low", rationale: "companion chain did not complete", single_voice_call: true}' > "$synth"
+    fi
     result=$(echo "$result" | jq --arg pv "$primary_final" --arg pa "$primary_succeeded" '.findings = ((.findings // []) | map(. + {voice: $pv, answered_by: $pa}))')
     if [[ -n "$_diag" ]]; then
       last_error="$_diag"
@@ -1999,8 +2034,9 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
   # answered — the primary's succeeded id (cheval's inner chain may have landed on another family),
   # not its configured hop
   local indep="null" counted_as="null"
-  if [[ -n "$final" && -n "$primary_succeeded" ]]; then
-    if [[ "$(_adv_family_of "$final")" != "$(_adv_family_of "$primary_succeeded")" ]]; then indep="true"; else indep="false"; fi
+  [[ "$comp_status" == "failed" && -e "$workdir/companion.duplicate" ]] && counted_as='"duplicate_voice"'
+  if [[ -n "$companion_answered" && -n "$primary_succeeded" ]]; then
+    if [[ "$(_adv_family_of "$companion_answered")" != "$(_adv_family_of "$primary_succeeded")" ]]; then indep="true"; else indep="false"; fi
     if [[ "$comp_status" == "succeeded" ]]; then
       if [[ "$indep" == "true" ]]; then
         counted_as='"independent_voice"'
@@ -2009,17 +2045,17 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
         # contribute NO envelope to verdict quality — the aggregator counts distinct voices (its INV-5
         # forbids one id both succeeded and dropped), and one family is never cross-family consensus
         counted_as='"duplicate_voice"'
-        log "Companion voice: NOT independent — the primary answered as $primary_succeeded and the companion as $final (same family); the companion is not counted as a second voice in verdict quality"
+        log "Companion voice: NOT independent — the primary answered as $primary_succeeded and the companion as $companion_answered (same family); the companion is not counted as a second voice in verdict quality"
         : > "$workdir/companion.duplicate"
       fi
     fi
   fi
   echo "$result" | jq --arg fam "$family" --arg chain "$chain" --arg model "$final" --arg st "$comp_status" \
       --arg cls "$cls" --argjson cost "$cost_cents" --argjson att "$attempts_json" --arg le "$last_error" \
-      --argjson sc "$sidecar" --argjson indep "$indep" --arg psm "$primary_succeeded" --argjson ca "$counted_as" --arg sh "$shared_hops" \
+      --argjson sc "$sidecar" --argjson indep "$indep" --arg psm "$primary_succeeded" --argjson ca "$counted_as" --arg sh "$shared_hops" --arg ab "$companion_answered" \
       '.metadata.companion_voice = {planned: true, family: $fam, family_basis: "configured_primary",
         chain: ($chain | split(",")), shared_hops: (if $sh == "" then [] else ($sh | split(",")) end),
-        model: (if $model == "" then null else $model end), status: $st,
+        model: (if $model == "" then null else $model end), answered_by: (if $ab == "" or $st != "succeeded" then null else $ab end), status: $st,
         failure_class: (if $cls == "" then null else $cls end), cost_cents: $cost, attempts: $att,
         independent: $indep, counted_as: $ca, primary_succeeded_model: (if $psm == "" then null else $psm end), rejected_sidecar: $sc}
        + (if $le == "" then {} else {last_error: $le} end)'
@@ -2044,6 +2080,10 @@ _adv_reap_companion() {
 }
 _adv_cleanup_on_exit() {
   _adv_reap_companion
+  if [[ "${LOA_ADVERSARIAL_KEEP_WORKDIR:-0}" == "1" ]]; then
+    [[ -n "${_ADVERSARIAL_WORKDIR:-}" ]] && log "Workdir kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1): $_ADVERSARIAL_WORKDIR"
+    return 0
+  fi
   [[ -n "${_ADVERSARIAL_WORKDIR:-}" && -d "${_ADVERSARIAL_WORKDIR:-}" ]] && command rm -rf -- "$_ADVERSARIAL_WORKDIR"
   return 0
 }
@@ -2119,7 +2159,11 @@ main() {
   _ADVERSARIAL_WORKDIR="/tmp/adversarial-${sprint_id}-$$"
   mkdir -p "$_ADVERSARIAL_WORKDIR"
   chmod 700 "$_ADVERSARIAL_WORKDIR"
-  trap 'rm -rf "$_ADVERSARIAL_WORKDIR"' EXIT
+  # one cleanup trap for every exit path (round 1, third run, C-004): reaps a companion, removes the
+  # workdir unless LOA_ADVERSARIAL_KEEP_WORKDIR=1 — registered here, not only when a companion is planned
+  trap '_adv_cleanup_on_exit' EXIT
+  trap '_adv_reap_companion; exit 130' INT
+  trap '_adv_reap_companion; exit 143' TERM
 
   # Extract diff file list
   local diff_files
@@ -2249,8 +2293,12 @@ main() {
   # cycle-126 FR-2.1: plan the companion voice from the configured primary's
   # family and start it now, in parallel with the primary walk.
   local companion_planned="false" companion_family="" companion_chain_csv="" companion_pid="" companion_skip_reason="" companion_shared_hops=""
-  local companion_workdir="$_ADVERSARIAL_WORKDIR/companion" companion_wait_cap=0
-  if [[ "${CONF_COMPANION_VOICE:-true}" == "true" ]]; then
+  local companion_workdir="${_ADVERSARIAL_WORKDIR:-}/companion" companion_wait_cap=0 companion_started=0
+  if [[ "${CONF_COMPANION_VOICE:-true}" == "true" && ( -z "${_ADVERSARIAL_WORKDIR:-}" || ! -d "${_ADVERSARIAL_WORKDIR:-}" ) ]]; then
+    # round 1 (third run, C-006): the companion needs the run's workdir; without one it is not planned
+    companion_skip_reason="no_workdir"; companion_family=$(_companion_family "$(_adv_family_of "$model")")
+    log "Companion voice not planned ($companion_family family): no_workdir"
+  elif [[ "${CONF_COMPANION_VOICE:-true}" == "true" ]]; then
     companion_family=$(_companion_family "$(_adv_family_of "$model")")
     local companion_chain_str
     companion_chain_str=$(_companion_chain "$companion_family")
@@ -2270,16 +2318,17 @@ main() {
       {
         companion_planned="true"
         companion_chain_csv="${companion_chain_str// /,}"
-        local _n_hops; _n_hops=$(wc -w <<<"$companion_chain_str")
-        companion_wait_cap="${LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS:-$(( timeout * _n_hops + 30 ))}"
+        # shellcheck disable=SC2086
+        companion_wait_cap="${LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS:-$(_companion_wait_cap "$timeout" $companion_chain_str)}"
         log "Companion voice ($companion_family family): $companion_chain_str (wait cap ${companion_wait_cap}s)"
         mkdir -p "$companion_workdir"
-        trap '_adv_cleanup_on_exit' EXIT
-        trap '_adv_reap_companion; exit 130' INT
-        trap '_adv_reap_companion; exit 143' TERM
+        # round 1 (third run, C-005): the companion reads its own copies of the prompt files — the two
+        # walks share nothing mutable (the KF-011 debug capture is already keyed by model + timestamp)
+        cp -f "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$companion_workdir/" 2>/dev/null || true
         # shellcheck disable=SC2086
-        ( _walk_companion_chain "$companion_workdir" "$_ADVERSARIAL_WORKDIR" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
+        ( _walk_companion_chain "$companion_workdir" "$companion_workdir" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
         companion_pid=$!
+        companion_started=$(date +%s)
         _ADV_COMPANION_PID="$companion_pid"
       }
     fi
@@ -2324,8 +2373,8 @@ main() {
   local -a COMPANION_VQ_FILES=()
   if [[ "$companion_planned" == "true" ]]; then
     if [[ -n "$companion_pid" ]]; then
-      local _waited=0
-      while kill -0 "$companion_pid" 2>/dev/null && (( _waited < companion_wait_cap )); do sleep 1; _waited=$((_waited + 1)); done
+      # the cap runs from the companion's START (it was forked before the primary walk), not from here
+      while kill -0 "$companion_pid" 2>/dev/null && (( $(date +%s) - companion_started < companion_wait_cap )); do sleep 1; done
       if kill -0 "$companion_pid" 2>/dev/null; then
         log "Companion voice: wait cap ${companion_wait_cap}s reached — reaping the second voice"
         _adv_reap_companion
@@ -2346,8 +2395,14 @@ main() {
     fi
     # review sprint-248 C-002: a fold that fails must never blank the paid-for primary envelope
     local _folded=""
-    _folded=$(_fold_companion "$result" "$companion_workdir" "$companion_family" "$companion_chain_csv" "$final_model" "$primary_succeeded" "$companion_shared_hops" 2>>"${_ADVERSARIAL_WORKDIR:-/dev/null}/fold.log") || _folded=""
-    [[ -s "${_ADVERSARIAL_WORKDIR:-}/fold.log" ]] && cat "$_ADVERSARIAL_WORKDIR/fold.log" >&2
+    # every primary voice that answered (union of the attempts' succeeded ids) — a failed companion whose
+    # dropped id is one of them may not feed a dropped-voice envelope (INV-5) (third run, C-001)
+    local primary_succeeded_ids=""
+    if (( ${#vq_attempt_files[@]} > 0 )); then
+      primary_succeeded_ids=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(",")' "${vq_attempt_files[@]}" 2>/dev/null || true)
+    fi
+    _folded=$(_fold_companion "$result" "$companion_workdir" "$companion_family" "$companion_chain_csv" "$final_model" "$primary_succeeded" "$companion_shared_hops" "$primary_succeeded_ids" 2>>"$companion_workdir/fold.log") || _folded=""
+    [[ -s "$companion_workdir/fold.log" ]] && cat "$companion_workdir/fold.log" >&2
     if [[ -n "$_folded" ]] && printf '%s' "$_folded" | jq -e '.metadata | type == "object"' >/dev/null 2>&1; then
       result="$_folded"
     else

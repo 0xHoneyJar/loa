@@ -72,9 +72,19 @@ voice to verdict quality (`counted_as: duplicate_voice`; the aggregator counts d
 one model is never reported as cross-family consensus. A primary chain that exhausts while the companion
 completes is promoted (`status: reviewed`, `degraded: true`, `primary_voice: {status: failed}`) so
 the completed voice is never buried. The companion's rejected rows are named on the envelope
-(`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the
-primary's. The second voice is reaped on INT/TERM/EXIT and by a wait cap (chain length × per-call
-timeout + 30 s; `LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it; `failure_class: timeout`). An
+(`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the primary's:
+`verdict-derive.sh` counts the rows of every `adversarial-rejected-<gate>*.jsonl` beside the envelope
+(with or without the envelope; each writer truncates its own file at run start; rows whose repair
+succeeded never count) and wants one top-level bullet per payload. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
+`LOA_ADVERSARIAL_KEEP_WORKDIR=1` retains the `/tmp` workdir) and by a wait cap measured from its
+start: each `*-headless` hop counts cheval's CLI timeout (610 s, `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT`),
+each HTTP hop `timeout_seconds`, plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it;
+`failure_class: timeout`). The default OpenAI-family companion chain is `gpt-5.5` → `codex-headless`
+(KF-002: `gpt-5.5-pro` returns empty content on review prompts); `companion_chain.openai` can still
+name it. The companion reads its own copies of the prompt files. A failed companion whose id is one
+of the primary's succeeded voices feeds no dropped-voice envelope (INV-5) — `counted_as:
+duplicate_voice`. `companion_voice.answered_by` is the companion's own succeeded id (its inner chain
+may differ from `model`); independence compares the two `answered_by` families. An
 operator may set `flatline_protocol.<block>.companion_chain: {anthropic: [...], openai: [...]}`
 to replace the default chains (used as given). A fold that fails keeps the primary envelope
 (`companion_voice.status: fold_failed`). `failure_class` follows cheval's exit codes — 4

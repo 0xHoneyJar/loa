@@ -175,6 +175,13 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "codex-headless" ]
     ! grep -qx "gpt-5.5-pro" "$CALLS"
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    # with an OpenAI credential the default companion chain starts at gpt-5.5 — never gpt-5.5-pro (KF-002; third run C-007)
+    export OPENAI_API_KEY="sk-presence-only-never-printed"
+    : > "$CALLS"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "gpt-5.5,codex-headless" ]
+    ! grep -qx "gpt-5.5-pro" "$CALLS"
+    [[ "$result" != *"sk-presence-only-never-printed"* ]]
 }
 
 @test "CMP-5 companion_voice: false on the block disables the second chain (voices_planned 1, planned false)" {
@@ -254,6 +261,13 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.findings[0].voice' <<<"$result")" = "claude-headless" ]
     [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    # c C-002 (third run): the promotion is visible in verdict quality too — never a clean consensus
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "APPROVED" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq '[.verdict_quality.voices_dropped[].voice] | index("gpt-5.5-pro") != null' <<<"$result")" = "true" ]
+    [ "$(jq '.verdict_quality.voices_succeeded' <<<"$result")" = "1" ]
+    [ -n "$(jq -r '.metadata.primary_voice.error // empty' <<<"$result")" ]
+    [ "$(jq -r '.metadata.status_note' <<<"$result")" != "null" ]
 }
 
 @test "CMP-11 no credential and no CLI for the other family → planned false, reason no_route; the CLI alone is a route (C-007)" {
@@ -271,7 +285,7 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     BEHAVIOUR[claude-headless]=reject
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion.jsonl" ]
-    [ "$(wc -l < "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]   # not wc -l: BSD wc pads
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.rejected_summary[0].voice' <<<"$result")" = "claude-headless" ]
     # the terminal reason after the repair round-trip (the stub's repair answer mutates a
@@ -327,6 +341,7 @@ PY
     [[ "$le" != *"SECRETSECRETSECRETSECRET1234"* ]]
     [[ "$result" != *"SECRETSECRETSECRETSECRET1234"* ]]
     # c C-004: the raw line lives only in the /tmp workdir, which the EXIT trap removed — never in the a2a directory
+    [ -d "$OUT_DIR" ]   # a missing directory would make the recursive grep pass vacuously
     ! grep -rq "SECRETSECRETSECRETSECRET1234" "$OUT_DIR"
     [ -z "$(ls -d /tmp/adversarial-"$SPRINT"-* 2>/dev/null)" ]
 }
@@ -391,4 +406,65 @@ PY
     [ "$(_companion_failure_class api_failure 1 "claude -p timed out after 610s")" = "timeout" ]
     [ "$(_companion_failure_class api_failure 1 "connection refused")" = "model_unavailable" ]
     [ "$(_companion_failure_class api_failure 4 "timed out")" = "auth" ]
+}
+
+@test "CMP-20 a FAILED companion whose id is one of the primary's succeeded voices feeds no dropped-voice envelope (INV-5): verdict quality still aggregates, counted_as duplicate_voice (third run C-001 BLOCKING)" {
+    BEHAVIOUR[gpt-5.5-pro]=walked:claude-headless     # the primary fell through to claude-headless (this host's last resort)
+    BEHAVIOUR[claude-headless]=timeout                # …and the claude-headless companion timed out
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "duplicate_voice" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq '.verdict_quality.voices_dropped | length' <<<"$result")" = "0" ]
+    grep -q "no dropped-voice envelope" "$T/stderr.log"
+    # the ordinary failed companion (a different id) is still a dropped voice
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    result=$(_run_main review)
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq -r '.verdict_quality.voices_dropped[0].voice' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "null" ]
+}
+
+@test "CMP-21 the companion's answered_by and independence follow ITS succeeded id, not its outer hop (third run C-002)" {
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    BEHAVIOUR[claude-headless]=walked:codex-headless   # cheval's inner chain under the companion hop landed on the primary's family
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.answered_by' <<<"$result")" = "codex-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "false" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "duplicate_voice" ]
+    [ "$(jq -r '[.findings[] | select(.voice == "claude-headless") | .answered_by] | unique | join(",")' <<<"$result")" = "codex-headless" ]
+    # and when the companion answers from its own family it is independent
+    BEHAVIOUR[claude-headless]=ok
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.answered_by' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
+}
+
+@test "CMP-22 the wait cap is sized per hop — a *-headless hop by cheval's CLI timeout (610 s), an HTTP hop by timeout_seconds — plus 30 s slack (third run C-003)" {
+    [ "$(_companion_wait_cap 30 claude-headless)" = "640" ]
+    [ "$(_companion_wait_cap 30 opus claude-headless)" = "670" ]
+    [ "$(_companion_wait_cap 900 codex-headless)" = "930" ]
+    [ "$(_companion_wait_cap 60 gpt-5.5)" = "90" ]
+    [ "$(_companion_wait_cap 600 gpt-5.5 codex-headless)" = "1240" ]
+    [ "$( _ADV_CLI_HOP_TIMEOUT=100; _companion_wait_cap 30 claude-headless )" = "130" ]   # the CLI bound is overridable
+    # the live line names the cap
+    result=$(_run_main review)
+    grep -q "wait cap 640s" "$T/stderr.log"
+}
+
+@test "CMP-23 each writer truncates its own rejected sidecar at run start — a second run into the same sprint directory does not accumulate rows (third run, chunk c C-001)" {
+    BEHAVIOUR[claude-headless]=reject
+    result=$(_run_main review)
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
+    result=$(_run_main review)
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
+    # and the verdict-derive floor counts JSON rows, not bytes: a trailing blank line changes nothing
+    printf '\n' >> "$OUT_DIR/adversarial-rejected-review-companion.jsonl"
+    [ "$(grep -c . "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
 }

@@ -54,12 +54,10 @@ Options:
   --json              Emit a JSON result object to stdout
   --require-trailer   Treat a missing trailer as a violation (exit 1) instead
                        of the default legacy-file pass (exit 2)
-  --envelope <path>   The dissent envelope to check the rejected-payload contract against
-                      (default: adversarial-<gate>.json beside --file; the adversarial-rejected-<gate>*.jsonl
-                      sidecar rows beside it count too; a missing explicit path is a usage error)
-                      (default: the sibling adversarial-<gate>.json; a non-empty
-                      metadata.rejected_summary needs one triage line per entry under
-                      '## Rejected dissent payloads'; a missing explicit file is a usage error)
+  --envelope <path>   The dissent envelope for the rejected-payload contract (default: adversarial-<gate>.json
+                      beside --file). The rows of every adversarial-rejected-<gate>*.jsonl beside it count
+                      too, with or without the envelope; one top-level bullet per rejected payload under
+                      '## Rejected dissent payloads'; a missing explicit path is a usage error (exit 1).
   --review-file PATH  Audit gate only: cross-check the audit trailer's
                        excluded_confirmed against the review trailer's excluded
   -h, --help          Show this help message
@@ -100,6 +98,8 @@ usage_error() {  # <message>
     exit 1
 }
 
+# a usage error anywhere in argv must still speak JSON when --json is present (third run, chunk b C-004)
+for _a in "$@"; do [[ "$_a" == "--json" ]] && JSON_OUTPUT=true; done
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --file) FILE="${2:-}"; shift 2 ;;
@@ -139,7 +139,24 @@ fi
 rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
     # sprint-248 review (chunk b): fail closed — an explicit envelope that is missing, or an envelope
     # that is not JSON, is a violation, not a warning; the section must carry one triage line per entry.
-    [[ -f "$ENVELOPE_FILE" ]] || return 0   # no sibling envelope: nothing to check (an explicit one was validated at parse time)
+    # third run, chunk b C-002 / C-005 / C-001: the sidecar rows beside the envelope are counted whether or
+    # not the envelope exists (a run that died after writing rows leaves work to triage); an unreadable
+    # sidecar is a violation, never an arithmetic abort; rows whose repair succeeded never count
+    local rows=0 f envdir c t r
+    envdir=$(dirname -- "$ENVELOPE_FILE")
+    for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
+        [[ -e "$f" ]] || continue
+        if [[ ! -r "$f" ]]; then
+            violations+=("rejected-payload sidecar $(basename -- "$f") is not readable — fix its permissions or re-run the dissent; its rows cannot be triaged")
+            continue
+        fi
+        t=$(grep -c . -- "$f" 2>/dev/null || true); r=$(grep -c '"repair_succeeded": *true' -- "$f" 2>/dev/null || true)
+        c=$(( ${t:-0} - ${r:-0} )); (( c > 0 )) && rows=$(( rows + c ))
+    done
+    if [[ ! -f "$ENVELOPE_FILE" ]]; then
+        (( rows > 0 )) && violations+=("no dissent envelope $(basename -- "$ENVELOPE_FILE") beside this file, but the adversarial-rejected-${GATE}*.jsonl sidecar(s) hold $rows rejected payload row(s) — triage them under '## Rejected dissent payloads' or re-run the dissent")
+        return 0
+    fi
     local kind n
     kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
     if [[ -z "$kind" ]]; then
@@ -155,13 +172,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     # chunk b C-004 (round 2): the envelope names only the LAST run's summary for this sprint-id — a
     # chunked dissent overwrites it, a companion whose fold failed never reaches it. Every
     # adversarial-rejected-<gate>*.jsonl beside the envelope (per-chunk suffixes, the -companion file)
-    # is a row that still demands triage.
-    local rows=0 f envdir
-    envdir=$(dirname -- "$ENVELOPE_FILE")
-    for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
-        [[ -f "$f" ]] || continue
-        rows=$(( rows + $(grep -c . -- "$f" 2>/dev/null || true) ))
-    done
+    # is a row that still demands triage (the writer truncates its own file at run start).
     local need="$n" source="metadata.rejected_summary"
     if (( rows > n )); then need="$rows"; source="the adversarial-rejected-${GATE}*.jsonl sidecar rows beside it"; fi
     (( need > 0 )) || return 0

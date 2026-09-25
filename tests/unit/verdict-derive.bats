@@ -457,3 +457,26 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 0 ]
 }
+
+@test "verdict-derive: sidecar rows with no envelope beside them are a violation, an unreadable sidecar is a violation, repaired rows never count (third run, chunk b C-002 / C-005 / C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s10"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n{"reject_reason":"missing-severity","repair_attempted":true,"repair_succeeded":true,"payload":{"title":"b"}}\n' > "$d/adversarial-rejected-review.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations[0] | test("no dissent envelope") and test("1 rejected payload row"))' >/dev/null
+    chmod 000 "$d/adversarial-rejected-review.jsonl"
+    if [[ -r "$d/adversarial-rejected-review.jsonl" ]]; then chmod 644 "$d/adversarial-rejected-review.jsonl"; skip "running as a user that can read mode-000 files"; fi
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    chmod 644 "$d/adversarial-rejected-review.jsonl"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("not readable"))) | length == 1)' >/dev/null
+}
+
+@test "verdict-derive: --json anywhere in argv makes a usage error speak JSON (third run, chunk b C-004)" {
+    skip_if_no_jq
+    run bash -c "\"$SCRIPT\" --bogus --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.usage_error == true and (.violations[0] | test("Unknown option"))' >/dev/null
+}

@@ -208,9 +208,9 @@ Review the implementation, not the report: read every modified file; validate ag
 
 Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the `COMPLETED` write
 (`adversarial-review-gate.sh`; override `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes).
-Two voices by default (`companion_voice`). When the envelope's `metadata.rejected_summary` is
-non-empty, triage every entry under `## Rejected dissent payloads` — `verdict-derive.sh` fails the
-trailer otherwise. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Two voices by default (`companion_voice`). One top-level bullet per rejected payload (`rejected_summary`
++ `adversarial-rejected-review*.jsonl` rows) under `## Rejected dissent payloads`, else
+`verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 3: Previous Feedback Verification
 

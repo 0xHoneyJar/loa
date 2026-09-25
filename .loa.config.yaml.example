@@ -1393,8 +1393,8 @@ flatline_protocol:
     timeout_seconds: 60          # Per-call timeout
     budget_cents: 150            # Max cost per dissent call (each voice ≤ this)
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
-    # family (Anthropic primary → gpt-5.5-pro → … → codex-headless; OpenAI
-    # primary → opus → claude-headless) runs in parallel and both envelopes
+    # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
+    # companion_chain.openai, see KF-002; OpenAI primary → opus → claude-headless) runs in parallel and both envelopes
     # aggregate (voices_planned 2). Credential presence only decides where
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     companion_voice: true
