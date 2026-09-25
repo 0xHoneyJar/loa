@@ -2003,6 +2003,11 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         without lowering it), the envelope carries `calibration_needed`, and
         the operator sees the probe command."""
         nonlocal _last_walk_exit_code
+        # audit sprint-247: the provider's text is sanitised at the adapter already; pass it
+        # through the redaction helper again here (defence in depth) before it is recorded
+        # under `message_redacted` or printed.
+        from loa_cheval.redaction import sanitize_provider_error_message as _sanitize
+        _msg = _sanitize(str(_exc))
         _obs = int(observed) if isinstance(observed, int) and observed > 0 else int(_walk_estimate or 0)
         try:
             _ceiling_record_observed(
@@ -2020,7 +2025,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             _modelinv_state["capability_evaluation"]["calibration_needed"] = _calib
         _modelinv_state["models_failed"].append({
             "model": _entry_target, "provider": _entry.provider, "error_class": error_class,
-            "message_redacted": str(_exc), "observed_input_tokens": _obs, "provider_limit": provider_limit,
+            "message_redacted": _msg, "observed_input_tokens": _obs, "provider_limit": provider_limit,
         })
         _modelinv_state["operator_visible_warn"] = True
         print(
@@ -2030,7 +2035,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         )
         print(_error_json(
             _exc.code,
-            f"{_exc} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
+            f"{_msg} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
             retryable=False, calibration_needed=True, error_class=error_class,
             observed_input_tokens=_obs, provider_limit=provider_limit,
         ), file=sys.stderr)

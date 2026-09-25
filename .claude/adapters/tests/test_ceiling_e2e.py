@@ -291,3 +291,18 @@ def test_unverified_status_is_per_hop_not_inherited_from_the_head(monkeypatch):
                                       status=400, input_tokens=612_000, limit=600_000)
     code, dispatched, cap = _run(SIX, config=cfg, errors=[ProviderUnavailableError("anthropic", "503"), limit])
     assert _classes(cap) == ["PROVIDER_OUTAGE", "PROVIDER_CONTEXT_LIMIT"] and len(dispatched) == 2
+
+
+def test_calibration_exit_redacts_secret_shapes_in_the_recorded_message(capsys):
+    """Audit sprint-247 (rejected payload, chunk b): the provider verdict's text is passed through the
+    redaction helper before it lands in models_failed / stderr JSON — a secret-shaped fragment in a
+    provider error body never reaches the envelope or the operator log."""
+    leak = ProviderContextLimitError("anthropic", "HTTP 400 context-limit: prompt is too long (key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop echoed)",
+                                     status=400, input_tokens=150_000, limit=120_000)
+    code, dispatched, cap = _run(_prompt_of_tokens(150_000), errors=[leak])
+    err = capsys.readouterr().err
+    assert code == cheval.EXIT_CODES["CONTEXT_TOO_LARGE"]
+    recorded = [f for f in cap.get("models_failed", []) if f.get("error_class") == "PROVIDER_CONTEXT_LIMIT"][0]
+    assert "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop" not in recorded["message_redacted"]
+    assert "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop" not in err
+    assert "context-limit" in recorded["message_redacted"], "the useful part of the message survives"
