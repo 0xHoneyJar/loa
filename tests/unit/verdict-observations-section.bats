@@ -108,9 +108,9 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
     run "$SCRIPT" --file "$T/a.md" --gate audit --review-file "$T/r.md"
     [ "$status" -eq 1 ]
     [[ "$output" == *"excluded_confirmed"* ]]
-    # --review-file only makes sense for the audit gate
+    # --review-file only makes sense for the audit gate (a usage error: exit 1 since sprint-248 review r2)
     run "$SCRIPT" --file "$T/r.md" --gate review --review-file "$T/r.md"
-    [ "$status" -eq 2 ]
+    [ "$status" -eq 1 ]
 }
 
 @test "VO-9 excluded must be a non-negative integer of at most six digits" {

@@ -1399,8 +1399,10 @@ flatline_protocol:
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     companion_voice: true
     # Optional: replace the default companion chains (used as given; the CLI hop
-    # is planned only when its binary is on PATH; a hop already in this block's
-    # fallback_chain is dropped so the two voices stay independent).
+    # is planned only when its binary is on PATH; a hop this block's fallback_chain
+    # also holds stays in the chain and is listed under companion_voice.shared_hops —
+    # independence is judged from the voices that actually answered:
+    # companion_voice.independent, a same-family companion is not a second voice).
     # companion_chain:
     #   anthropic: [opus, claude-headless]
     #   openai: [gpt-5.5, codex-headless]

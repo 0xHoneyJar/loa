@@ -84,6 +84,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 1 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing-model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 1 |
+| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable-exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 1 |
 
 ---
 
@@ -1539,3 +1540,24 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 ### Reading guide
 
 A single BB test-file failure at :1:1 with a Fatal credential line is this entry, not a persona regression; check key presence (never the value) before reading the persona code.
+
+## KF-037: A claude-headless dissent hop exceeds cheval's 610 s claude -p timeout when another claude CLI workload shares the host; cheval reports it as PROVIDER_UNAVAILABLE / exit 1
+
+**Status**: OPEN
+**Feature**: .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout
+**Symptom**: adversarial-review.json: companion_voice.status failed with last_error 'claude -p timed out after 610s' (failure_class timeout since sprint-248 round 1f; model_unavailable on older envelopes); the MODELINV row's models_failed[].message_redacted reads RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE … timed out. The same hop answers in ~384 s when the CLI is otherwise idle (sprint-247/248 round 0).
+**First observed**: 2026-09-25 (cycle-126 sprint-248 review re-run while the Sprint 3 baseline eval ran claude -p at concurrency 2)
+**Recurrence count**: 1
+**Current workaround**: Run dissents and other claude CLI workloads (eval harness, Bridgebuilder claude-headless) serially — pause the eval before a review/audit; or raise flatline_protocol.<block>.timeout_seconds (the companion wait cap follows it: timeout × hops + 30 s). The dissent still completes on the primary (voices_planned 2, voices_succeeded 1).
+**Upstream issue**: cycle-126 residue: cheval could report a CLI-hop timeout as TIMEOUT (exit 3) rather than PROVIDER_UNAVAILABLE (exit 1); a host-level claude CLI concurrency budget would make the contention visible before the call
+**Related visions / lore**: KF-010 (google CLI hops under a concurrent BB sweep), KF-035
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-25 | stopped the concurrent eval (TaskStop) mid-run; the next chunk's companion answered in 238 s; classifier + last_error fixed so the envelope says timeout with the provider's line | RESOLVED by serialising the CLI workloads; the class is structural whenever two claude -p consumers overlap | grimoires/loa/a2a/sprint-248 (run 2: adversarial-review-a-dissent-script.json failed at 612 s vs -b-contracts.json 238 s); commits d48328a2 + round-1f; .run/model-invoke.jsonl row 2026-09-25T08:33:06Z |
+
+### Reading guide
+
+A companion (or any claude-headless) timeout while an eval or BB sweep is running is CLI contention, not a model outage: check ps for other claude -p processes before retrying, and re-run the dissent only once the CLI is idle. Verdict quality already records the primary alone; the companion's failure_class names the class.

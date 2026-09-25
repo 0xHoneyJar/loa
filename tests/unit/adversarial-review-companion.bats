@@ -95,8 +95,13 @@ YAML
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
                 jq -nc '{content: "{\"findings\":[{\"title\":\"no severity\",\"category\":\"other\",\"description\":\"Something fails.\"}]}", tokens_input: 5, tokens_output: 5, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
                 return 0 ;;
-            slow)     sleep 4; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
+            slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
+                bash -c 'exec -a "$0" sleep 4' "loa-cmp14-hung-$$"
+                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
+            clitimeout)  # cheval's CLI-hop timeout as the live run reported it, followed by the shim's generic wrapper
+                echo "[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p timed out after 610s" >&2
+                echo "ERROR: model-invoke failed with exit code 1" >&2; return 1 ;;
             auth)        [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 4 > "$sidecar"; return 4 ;;
             quota)       [[ -n "$sidecar" ]] && _vq "$model" fail RateLimited 6 > "$sidecar"; return 6 ;;
             timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
@@ -276,6 +281,8 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.reject_reason' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "$reason" ]
     [ "$(jq -r '.model' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "claude-headless" ]
     [ ! -s "$OUT_DIR/adversarial-rejected-review.jsonl" ]
+    # c C-005: the repair round-trip went through the stubbed dissenter (dissent + repair), never a live CLI
+    [ "$(grep -cx claude-headless "$CALLS")" = "2" ]
 }
 
 @test "CMP-13 an operator companion_chain on the block is used as given, before presence or defaults (C-011)" {
@@ -298,7 +305,8 @@ PY
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
-    ! pgrep -f "sleep 4" >/dev/null
+    command -v pgrep >/dev/null || skip "pgrep not installed: the orphan probe cannot run here"
+    ! pgrep -f "loa-cmp14-hung-$$" >/dev/null
 }
 
 @test "CMP-15 a fold that fails keeps the primary envelope (companion_voice.status fold_failed) instead of blanking it (C-002)" {
@@ -318,6 +326,9 @@ PY
     [[ "$le" == *"provider said no"* ]]
     [[ "$le" != *"SECRETSECRETSECRETSECRET1234"* ]]
     [[ "$result" != *"SECRETSECRETSECRETSECRET1234"* ]]
+    # c C-004: the raw line lives only in the /tmp workdir, which the EXIT trap removed — never in the a2a directory
+    ! grep -rq "SECRETSECRETSECRETSECRET1234" "$OUT_DIR"
+    [ -z "$(ls -d /tmp/adversarial-"$SPRINT"-* 2>/dev/null)" ]
 }
 
 @test "CMP-17 the failure class follows cheval's EXIT_CODES (4 MISSING_API_KEY auth, 6 BUDGET_EXCEEDED quota, 3/124 timeout, 5 INVALID_RESPONSE malformed, 1/other model_unavailable) and the wait-cap / malformed statuses" {
@@ -347,9 +358,10 @@ PY
     [ "$(jq -r '.metadata.companion_voice.primary_succeeded_model' <<<"$result")" = "claude-headless" ]
     [ "$(jq -r '.metadata.final_model' <<<"$result")" = "gpt-5.5-pro" ]
     grep -q "NOT independent" "$T/stderr.log"
-    # findings: both kept, tagged
+    # findings: both kept, tagged — voice is the outer hop, answered_by the model that actually answered (c C-003)
     [ "$(jq '.findings | length' <<<"$result")" = "2" ]
     [ "$(jq -r '[.findings[].voice] | sort | join(",")' <<<"$result")" = "claude-headless,gpt-5.5-pro" ]
+    [ "$(jq -r '[.findings[].answered_by] | unique | join(",")' <<<"$result")" = "claude-headless" ]
     # verdict quality counts distinct voices: the duplicate contributes no envelope (the aggregator's
     # INV-5 forbids one id both succeeded and dropped) — one voice, nothing dropped, still aggregated
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
@@ -364,4 +376,19 @@ PY
     [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "independent_voice" ]
     [ "$(jq -r '.metadata.companion_voice.primary_succeeded_model' <<<"$result")" = "codex-headless" ]
     [ "$(jq '.verdict_quality.voices_succeeded' <<<"$result")" = "2" ]
+}
+
+@test "CMP-19 cheval's CLI-hop timeout (PROVIDER_UNAVAILABLE / exit 1, 'timed out') classes as timeout, and last_error carries the provider's line, not the shim wrapper (live re-run)" {
+    BEHAVIOUR[claude-headless]=clitimeout
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
+    le=$(jq -r '.metadata.companion_voice.last_error' <<<"$result")
+    [[ "$le" == *"claude -p timed out after 610s"* ]]
+    [[ "$le" != *"model-invoke failed with exit code"* ]]
+    [ "$(jq -r '.verdict_quality.voices_dropped[0].reason' <<<"$result")" = "Other" ]
+    # the classifier alone: the diagnostic decides only when the exit code does not
+    [ "$(_companion_failure_class api_failure 1 "claude -p timed out after 610s")" = "timeout" ]
+    [ "$(_companion_failure_class api_failure 1 "connection refused")" = "model_unavailable" ]
+    [ "$(_companion_failure_class api_failure 4 "timed out")" = "auth" ]
 }

@@ -37,6 +37,8 @@ REQUIRE_TRAILER=false
 FILE=""
 GATE=""
 REVIEW_FILE=""
+ENVELOPE_FILE=""      # sprint-248 review (chunk b C-005): initialised like the others — an exported variable is not an option
+ENVELOPE_EXPLICIT=false
 
 show_help() {
     cat <<EOF
@@ -53,6 +55,8 @@ Options:
   --require-trailer   Treat a missing trailer as a violation (exit 1) instead
                        of the default legacy-file pass (exit 2)
   --envelope <path>   The dissent envelope to check the rejected-payload contract against
+                      (default: adversarial-<gate>.json beside --file; the adversarial-rejected-<gate>*.jsonl
+                      sidecar rows beside it count too; a missing explicit path is a usage error)
                       (default: the sibling adversarial-<gate>.json; a non-empty
                       metadata.rejected_summary needs one triage line per entry under
                       '## Rejected dissent payloads'; a missing explicit file is a usage error)
@@ -83,6 +87,19 @@ is_num() { [[ "$1" =~ ^[0-9]{1,6}$ ]]; }
 TRAILER_DETECT='<!--[^A-Za-z0-9]{0,4}LOA[^A-Za-z0-9]{0,4}VERDICT'
 TRAILER_CANON='^<!-- LOA-VERDICT \{.*\} -->$'
 
+# sprint-248 review (chunk b C-002): a usage error is a failure (exit 1, as the header says) — never
+# exit 2, which every consumer reads as the legacy no-trailer pass — and with --json it is a result
+# object (consistent:false, usage_error:true) instead of an empty stdout.
+usage_error() {  # <message>
+    echo "Error: $1" >&2
+    if [[ "${JSON_OUTPUT:-false}" == "true" ]]; then
+        jq -n --arg e "$1" --arg f "${FILE:-}" --arg g "${GATE:-}" \
+          '{file: $f, gate: $g, trailer_found: false, verdict: null, counts: null, consistent: false,
+            usage_error: true, violations: [$e], warnings: [], exit_code: 1}'
+    fi
+    exit 1
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --file) FILE="${2:-}"; shift 2 ;;
@@ -92,42 +109,23 @@ while [[ $# -gt 0 ]]; do
         --review-file) REVIEW_FILE="${2:-}"; shift 2 ;;
         --envelope) ENVELOPE_FILE="${2:-}"; shift 2 ;;
         -h|--help) show_help; exit 0 ;;
-        *) echo "Unknown option: $1" >&2; show_help >&2; exit 2 ;;
+        *) show_help >&2; usage_error "Unknown option: $1" ;;
     esac
 done
 
 if [[ -z "$FILE" || -z "$GATE" ]]; then
-    echo "Error: --file and --gate are required" >&2
     show_help >&2
-    exit 2
+    usage_error "--file and --gate are required"
 fi
-
-if [[ "$GATE" != "review" && "$GATE" != "audit" ]]; then
-    echo "Error: --gate must be 'review' or 'audit' (got: $GATE)" >&2
-    exit 2
-fi
-
-if [[ ! -f "$FILE" ]]; then
-    echo "Error: file not found: $FILE" >&2
-    exit 2
-fi
-
+[[ "$GATE" == "review" || "$GATE" == "audit" ]] || usage_error "--gate must be 'review' or 'audit' (got: $GATE)"
+[[ -f "$FILE" ]] || usage_error "file not found: $FILE"
 if [[ -n "$REVIEW_FILE" ]]; then
-    if [[ "$GATE" != "audit" ]]; then
-        echo "Error: --review-file applies to --gate audit only" >&2
-        exit 2
-    fi
-    if [[ ! -f "$REVIEW_FILE" ]]; then
-        echo "Error: review file not found: $REVIEW_FILE" >&2
-        exit 2
-    fi
+    [[ "$GATE" == "audit" ]] || usage_error "--review-file applies to --gate audit only"
+    [[ -f "$REVIEW_FILE" ]] || usage_error "review file not found: $REVIEW_FILE"
 fi
-if [[ -n "${ENVELOPE_FILE:-}" && ! -f "$ENVELOPE_FILE" ]]; then
-    # sprint-248 review (chunk b C-002): an explicit envelope that is not a regular file is a
-    # usage error, like --review-file — never a warning that --json consumers ignore
-    echo "Error: envelope file not found: $ENVELOPE_FILE" >&2
-    exit 2
-fi
+# sprint-248 review (chunk b C-002): an explicit envelope that is not a regular file is a usage
+# error, like --review-file — never a warning that --json consumers ignore
+[[ -z "$ENVELOPE_FILE" || -f "$ENVELOPE_FILE" ]] || usage_error "envelope file not found: $ENVELOPE_FILE"
 
 # cycle-126 FR-2.3 (SDD D-2.3): the dissent envelope beside the feedback file
 # (adversarial-<gate>.json, or --envelope) — when its metadata.rejected_summary
@@ -142,22 +140,41 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     # sprint-248 review (chunk b): fail closed — an explicit envelope that is missing, or an envelope
     # that is not JSON, is a violation, not a warning; the section must carry one triage line per entry.
     [[ -f "$ENVELOPE_FILE" ]] || return 0   # no sibling envelope: nothing to check (an explicit one was validated at parse time)
-    local n
-    n=$(jq -r '(.metadata.rejected_summary // []) | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=""
-    if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+    local kind n
+    kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
+    if [[ -z "$kind" ]]; then
         violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
         return 0
     fi
-    (( n > 0 )) || return 0
+    # chunk b C-003 (round 2): the producer writes an array — anything else is the envelope's defect, not a count
+    if [[ "$kind" != "array" ]]; then
+        violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")
+        return 0
+    fi
+    n=$(jq -r '.metadata.rejected_summary | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
+    # chunk b C-004 (round 2): the envelope names only the LAST run's summary for this sprint-id — a
+    # chunked dissent overwrites it, a companion whose fold failed never reaches it. Every
+    # adversarial-rejected-<gate>*.jsonl beside the envelope (per-chunk suffixes, the -companion file)
+    # is a row that still demands triage.
+    local rows=0 f envdir
+    envdir=$(dirname -- "$ENVELOPE_FILE")
+    for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
+        [[ -f "$f" ]] || continue
+        rows=$(( rows + $(grep -c . -- "$f" 2>/dev/null || true) ))
+    done
+    local need="$n" source="metadata.rejected_summary"
+    if (( rows > n )); then need="$rows"; source="the adversarial-rejected-${GATE}*.jsonl sidecar rows beside it"; fi
+    (( need > 0 )) || return 0
     if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
-        violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $n schema-rejected payload(s) in metadata.rejected_summary but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
+        violations+=("the dissent envelope $(basename -- "$ENVELOPE_FILE") carries $need schema-rejected payload(s) ($source) but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
         return 0
     fi
     local lines
+    # top-level bullets only (column 0): a sub-bullet under one entry is not a second triage line
     # (stdin, not `-- "$FILE"`: mawk treats `--` as a file name)
-    lines=$(awk '/^## /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
-    if (( lines < n )); then
-        violations+=("'## Rejected dissent payloads' holds $lines triage line(s) but the dissent envelope carries $n rejected payload(s) — one bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
+    lines=$(awk '/^## /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
+    if (( lines < need )); then
+        violations+=("'## Rejected dissent payloads' holds $lines top-level triage line(s) but $source carries $need rejected payload(s) — one top-level bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
     fi
 }
 violations=()
@@ -222,10 +239,13 @@ emit_json() {
         --argjson violations "$viol_json" \
         --argjson warnings "$warn_json" \
         --argjson exit_code "$exit_code" \
+        --arg envelope "${ENVELOPE_FILE:-}" \
+        --argjson envelope_explicit "${ENVELOPE_EXPLICIT:-false}" \
         '{file: $file, gate: $gate, trailer_found: $trailer_found,
           verdict: (if $verdict == "" then null else $verdict end),
           counts: $counts, excluded: $excluded, excluded_confirmed: $excluded_confirmed,
           consistent: $consistent, violations: $violations, warnings: $warnings,
+          envelope: (if $envelope == "" then null else $envelope end), envelope_explicit: $envelope_explicit,
           exit_code: $exit_code}'
 }
 

@@ -89,8 +89,16 @@ operator may set `flatline_protocol.<block>.companion_chain: {anthropic: [...], 
 to replace the default chains (used as given). A fold that fails keeps the primary envelope
 (`companion_voice.status: fold_failed`). `failure_class` follows cheval's exit codes — 4
 (`MISSING_API_KEY`) `auth`, 6 (`BUDGET_EXCEEDED`) `quota`, 3 / 124 `timeout`, 5
-(`INVALID_RESPONSE`) or a `malformed_response` status `malformed`, anything else (1: API error,
-rate-limited, provider unavailable, token revoked) `model_unavailable`. `last_error` also masks
+(`INVALID_RESPONSE`) or a `malformed_response` status `malformed`, anything else (1: API error, rate-limited, provider unavailable, token revoked)
+`model_unavailable` — except that a diagnostic saying "timed out" (cheval reports its own CLI-hop
+timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is the provider's own last line when there is one, the model-adapter shim's generic
+wrapper only as the fallback. Findings carry `voice` (the outer hop, matching `final_model`) and
+`answered_by` (the model that actually produced them). A duplicate companion leaves `verdict_quality`
+untouched (the aggregator counts distinct voices; its INV-5 forbids one id both succeeded and dropped)
+— `companion_voice.counted_as` is the record. The companion's raw stderr lives only in the run's
+`/tmp` workdir, removed on exit; the a2a directory receives the envelope and the sidecars. Both
+cheval invocations append to `.run/cost-ledger.jsonl` and `.run/model-invoke.jsonl` under the
+writers' flock (issue #689), so the hash chain stays linear. `last_error` also masks
 bare provider-key shapes (`sk-…`, `xai-…`, `gsk_…`, `AIza…`) the shared redactor does not cover;
 the reap takes the companion's whole process tree; `companion_voice.rejected_sidecar` is `null`
 (and the file removed) when nothing was rejected.

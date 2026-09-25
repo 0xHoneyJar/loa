@@ -1867,15 +1867,18 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
   echo "$chain"
 }
 
-_companion_failure_class() {  # <last status> <last exit code> → auth|model_unavailable|quota|timeout|malformed
-  local status="$1" rc="$2"
+_companion_failure_class() {  # <last status> <last exit code> [diagnostic text] → auth|model_unavailable|quota|timeout|malformed
+  local status="$1" rc="$2" diag="${3:-}"
   case "$status" in malformed_response) echo "malformed"; return 0 ;; wait_timeout) echo "timeout"; return 0 ;; esac
   case "$rc" in
     4) echo "auth" ;;
     6) echo "quota" ;;
     3|124) echo "timeout" ;;
     5) echo "malformed" ;;
-    *) echo "model_unavailable" ;;
+    *)
+      # round 1 (live re-run): cheval reports its own CLI-hop timeout ("claude -p timed out after
+      # 610s") as PROVIDER_UNAVAILABLE / exit 1 — the diagnostic decides between the two classes
+      if printf '%s' "$diag" | grep -qiE 'timed out|timeout'; then echo "timeout"; else echo "model_unavailable"; fi ;;
   esac
 }
 
@@ -1950,11 +1953,13 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     # review sprint-248 C-004 (spend summed into the envelope, per-voice kept under companion_voice),
     # C-006 (a primary chain that exhausted does not bury the companion's completed voice:
     # the envelope is promoted to reviewed + degraded and the primary is recorded as failed).
-    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" '
-      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv})) as $cf
+    # chunk c C-003 (round 2): `voice` is the outer hop (it matches final_model / model_attempts);
+    # `answered_by` is the model that actually produced the finding (cheval's inner chain may differ)
+    result=$(jq -n --argjson p "$result" --argjson c "$cres" --arg pv "$primary_final" --arg cv "$final" --arg pa "$primary_succeeded" '
+      ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv, answered_by: $cv})) as $cf
       | (($p.metadata.status // "") | IN("api_failure", "malformed_response")) as $primary_failed
       | $p
-      | .findings = (($p.findings // []) | map(. + {voice: $pv})) + $cf
+      | .findings = (($p.findings // []) | map(. + {voice: $pv, answered_by: $pa})) + $cf
       | .metadata.rejected_summary = (($p.metadata.rejected_summary // []) + (($c.metadata.rejected_summary // []) | map(. + {voice: $cv})))
       | .metadata.rejected_count = (($p.metadata.rejected_count // 0) + ($c.metadata.rejected_count // 0))
       | .metadata.cost_usd = (($p.metadata.cost_usd // 0) + ($c.metadata.cost_usd // 0))
@@ -1966,15 +1971,22 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
           | .metadata.status_note = "primary chain exhausted; findings are the companion voice\u0027s alone"
         else . end')
   else
-    cls=$(_companion_failure_class "$status" "$rc")
+    # review sprint-248 C-003: the last diagnostic line of the companion's log travels with the class —
+    # the provider's own message when there is one, the model-adapter shim's generic wrapper
+    # ("ERROR: model-invoke failed with exit code N") only as the fallback
+    local _diag=""
+    if [[ -s "$workdir/companion.log" ]]; then
+      _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -v 'model-invoke failed with exit code' | tail -1 | cut -c1-300)
+      [[ -n "$_diag" ]] || _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | tail -1 | cut -c1-300)
+    fi
+    cls=$(_companion_failure_class "$status" "$rc" "$_diag")
     local synth="$workdir/vq-companion-synthetic.json"
     jq -nc --arg v "${final:-companion}" --arg r "$(_companion_drop_reason "$cls")" --argjson e "$(( rc <= 255 ? rc : 1 ))"       '{status: "FAILED", consensus_outcome: "consensus", truncation_waiver_applied: false, voices_planned: 1, voices_succeeded: 0,
         voices_succeeded_ids: [], voices_dropped: [{voice: $v, reason: $r, exit_code: $e, blocker_risk: "unknown"}],
         chain_health: "exhausted", confidence_floor: "low", rationale: "companion chain did not complete", single_voice_call: true}' > "$synth"
-    result=$(echo "$result" | jq --arg pv "$primary_final" '.findings = ((.findings // []) | map(. + {voice: $pv}))')
-    # review sprint-248 C-003: the last diagnostic line of the companion's log, redacted, travels with the class
-    if [[ -s "$workdir/companion.log" ]]; then
-      last_error=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | tail -1 | cut -c1-300)
+    result=$(echo "$result" | jq --arg pv "$primary_final" --arg pa "$primary_succeeded" '.findings = ((.findings // []) | map(. + {voice: $pv, answered_by: $pa}))')
+    if [[ -n "$_diag" ]]; then
+      last_error="$_diag"
       if [[ -x "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" ]]; then
         last_error=$(printf '%s\n' "$last_error" | "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" 2>/dev/null | head -1)
       fi
