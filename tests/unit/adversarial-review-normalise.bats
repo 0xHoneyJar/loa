@@ -182,3 +182,13 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-models")" = "tiny claude-headless " ]
     [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
 }
+
+@test "NRM-11 a non-object element in findings[] still lands in rejected_summary (raw value as description_head) and in the sidecar (fifth run C-006)" {
+    doc='{"findings":["just a string",{"id":"DISS-002","severity":"MEDIUM","category":"config","description":"Fine.","failure_mode":"stated"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "1" ]
+    [ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" = '"just a string"' ]
+    [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
+}

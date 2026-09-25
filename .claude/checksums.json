@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-25T09:55:27Z",
+  "generated": "2026-09-25T13:14:44Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1177,7 +1177,7 @@
     ".claude/schemas/wire/flatline-skeptic.wire.json": "8251f74444f32c158297f7cc63997e2e08b4a90504be09fd06c83b37b7b12c9e",
     ".claude/scripts/README.md": "280e64d05e8eda11ee8b960da4ef1e060ea422cce06599704bc174be704e9aab",
     ".claude/scripts/__pycache__/loa-migrate-model-config.cpython-313.pyc": "9db5f62f73cb75a24cad707d0500d19fd0a4858e27e74f005db46341d67c4be7",
-    ".claude/scripts/adversarial-review.sh": "efe45937b2d7c2b41442a4f29468808b180029b028ebbaae6df2bda62a08ff7f",
+    ".claude/scripts/adversarial-review.sh": "8d4194c6714183ce46809d17c9b52d3e4a6d427f39fa0541dae0eaf3e46b5f9d",
     ".claude/scripts/agents-md-gen.sh": "393b3f3a9557a887bf233a527bc5eb750508c0f8a85dc3ca8da2c3f5e2666f2a",
     ".claude/scripts/analytics.sh": "e9dc4bcaa0b3b08efe32edf52e3c37915e7342189a25cb3d1bc4fa67187da428",
     ".claude/scripts/anonymize-proposal.sh": "62fff7fed9942e861a48cb468d6751baa9ed210e0d5f04557e16f3ef4c94913a",
@@ -1693,7 +1693,7 @@
     ".claude/settings.local.json": "c6f7d998d043e75622cc6eb2c8f45f9f3750649beaa4856df4ff867329475d9d",
     ".claude/skills/auditing-security/SKILL.md": "a0fc3a1dd9dfcdfb076a956e394244eb16723ca4a4c2d0929164ef10f7f1cddb",
     ".claude/skills/auditing-security/index.yaml": "2f35e75f185aeef3d506f2e40ccf25c1b47fe554972ba26c0b3200e3730afb8c",
-    ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md": "36daa117790343ccac426c2b7af905a851cc2d28e9eeb69617028c4639aa5e3a",
+    ".claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md": "f5a8630da71237a53d7c00bf8d08d0a240a597bb11cd722c1cf9f68cf2234439",
     ".claude/skills/auditing-security/resources/BIBLIOGRAPHY.md": "6e487b7772f4b47fc20af011dfcf32dd4493c4666f2babda6e36710b59f8cff7",
     ".claude/skills/auditing-security/resources/OUTPUT-SCHEMA.md": "d1137efff5fb4aa27c2bf838bb790b3c65696d0e3d8890d073154c0eada096ce",
     ".claude/skills/auditing-security/resources/PARALLEL-SPLIT.md": "cb227594d6d9b902f7a92765340774ca42ab733c22035d75606afb7b80ead9c1",
@@ -3173,7 +3173,7 @@
     ".claude/skills/reviewing-code/SKILL.md": "23c17578d7ffd3270228095f9d352133e63a5689314ef5d3b9ec101adcfe94a7",
     ".claude/skills/reviewing-code/impact-analysis.md": "10da69f4a5139d8a352e648956528ca032920c62a5320889ccdd2996bf70b887",
     ".claude/skills/reviewing-code/index.yaml": "50ddd1c453b0f68c0330af43853a93b1e6516275044bc9ba6d833de0ce614a42",
-    ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md": "f47c7461b54d2a6fe670abc9f386c55af9bfc7edf070dc0cbc6448bb81bf8608",
+    ".claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md": "cd7beacb4ed3f7257ef326943a2ba5aecad02ef58a9c16558c226b03741a5c00",
     ".claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md": "86e7021a31949e30efeb530a144b4a72798858f656dd9ce683664c950e1f051e",
     ".claude/skills/reviewing-code/resources/BIBLIOGRAPHY.md": "72e11e100010e028d96750480a0ad20baedc0a9e96adbcf6d159799f3130ab01",
     ".claude/skills/reviewing-code/resources/PARALLEL-REVIEW.md": "d7e449678dad7509b7539f0eac19315c434d166534e5a55ad1b3ebb27cb3ff91",

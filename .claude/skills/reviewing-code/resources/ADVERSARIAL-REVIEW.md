@@ -84,8 +84,10 @@ completes is promoted (`status: reviewed`, `degraded: true`, `primary_voice: {st
 the completed voice is never buried. The companion's rejected rows are named on the envelope
 (`companion_voice.rejected_sidecar`, the `-companion.jsonl` file) — triage them like the primary's:
 `verdict-derive.sh` counts the rows of the sidecars the envelope names (`metadata.rejected_sidecars`
-— the run removes both canonical sidecars at start and lists the ones it produced, so a stale file
-from a writer that did not run is never this run's); without an envelope, or without that field,
+— the run removes its own two sidecars at start and lists the ones it produced — `LOA_ADVERSARIAL_RUN_TAG`
+scopes the names, `adversarial-rejected-<gate>[-companion][-<tag>].jsonl`, so a chunk driver passes
+its chunk key and nothing is renamed afterwards; a stale file from a writer that did not run is never
+this run's); without an envelope, or without that field,
 every `adversarial-rejected-<gate>*.jsonl` beside the feedback file counts; rows whose repair
 succeeded never count; a trailer-less file is held to the contract too; the same section with one
 top-level bullet per payload clears it in every case. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
@@ -109,9 +111,13 @@ to replace the default chains (used as given). A fold that fails keeps the prima
 timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is an allowlisted summary of the provider's own line — cheval's error tokens, "timed out
 after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the
 model-adapter shim discards cheval's stderr), else from the last non-banner line of the companion's
-log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops
-are serialised per CLI binary across the two walks (a flock under `$TMPDIR/loa-headless-locks/`), so
-one dissent never runs two `claude -p` against the same login. A derived finding id never collides
+log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops — the dissent hops and the repair round-trips — are serialised per CLI binary
+across the two walks (a per-user flock under `$XDG_RUNTIME_DIR`/`$TMPDIR`); a lock not acquired
+within the hop's bound fails that hop as a `timeout` (the chain walks on) rather than running
+unserialised. The companion's post-hop work (validation, repair round-trips) has its own budget, so
+a model that answered is never reaped mid-processing. A primary that never answered leaves the
+companion `counted_as: sole_voice` (`independent: null`), and a primary attempt that dropped the
+companion's own hop is excluded from verdict quality (`primary_attempts_excluded`). A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` → `claude-headless` with a credential. Findings carry `voice` (the outer hop, matching `final_model`) and
 `answered_by` (the model that actually produced them). A duplicate companion leaves `verdict_quality`
 untouched (the aggregator counts distinct voices; its INV-5 forbids one id both succeeded and dropped)

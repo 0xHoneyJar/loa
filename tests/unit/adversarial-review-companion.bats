@@ -111,6 +111,13 @@ YAML
             quota)       [[ -n "$sidecar" ]] && _vq "$model" fail RateLimited 6 > "$sidecar"; return 6 ;;
             timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
             unavailable) [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            unavailable-primary-only)  # the PRIMARY's call to this model fails; the companion's (vq-companion sidecar) answers
+                if [[ "$sidecar" == *vq-companion-* ]]; then
+                    [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
+                    jq -nc --arg m "$model" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
+                    return 0
+                fi
+                [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
         esac
     }
     export PYTHONPATH="$PROJECT_ROOT/.claude/adapters"
@@ -371,6 +378,8 @@ PY
     [ "$(_companion_drop_reason model_unavailable)" = "ProviderUnavailable" ]
     [ "$(_companion_drop_reason malformed)" = "EmptyContent" ]
     [ "$(_companion_drop_reason timeout)" = "Other" ]
+    # a diagnostic decides when the exit code does not: rate limits are quota (fifth run)
+    [ "$(_companion_failure_class api_failure 1 "[cheval] RETRIES_EXHAUSTED: Failed after 4 attempts: [cheval] RATE_LIMITED: Rate limited by anthropic")" = "quota" ]
 }
 
 @test "CMP-18 a primary whose inner chain lands on the companion's family: independent false, the companion's findings kept and tagged, no second voice in verdict quality (chunk c C-003)" {
@@ -515,19 +524,73 @@ PY
     [[ "$(jq -r '.metadata.companion_voice.last_error' <<<"$result")" != *"stale"* ]]
 }
 
-@test "CMP-25 *-headless hops are serialised per CLI binary across the two walks (fourth run, chunk c C-003)" {
+@test "CMP-25 *-headless hops are serialised per CLI binary across the two walks; a lock not acquired within the hop's bound fails the hop as a timeout instead of running unserialised (fourth + fifth run)" {
     invoke_dissenter() { date +%s%N >> "$T/lock-trace"; sleep 1; date +%s%N >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
-    export TMPDIR="$T"
+    export XDG_RUNTIME_DIR="$T"
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     wait
     mapfile -t ts < "$T/lock-trace"
     [ "${#ts[@]}" = "4" ]
-    sorted=($(printf '%s\n' "${ts[@]}" | sort -n))
-    # the second invocation started after the first one ended: intervals do not overlap
-    [ "${sorted[1]}" = "$(printf '%s\n' "${ts[1]}" "${ts[3]}" | sort -n | head -1)" ]
-    [ -f "$T/loa-headless-locks/claude.lock" ]
+    sorted=($(printf '%s
+' "${ts[@]}" | sort -n))
+    [ "${sorted[1]}" = "$(printf '%s
+' "${ts[1]}" "${ts[3]}" | sort -n | head -1)" ]   # intervals do not overlap
+    [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
+    # a held lock: the hop is not run, rc 124 (a timeout), the chain can walk on
+    : > "$T/lock-trace"
+    exec 8>>"$T/loa-headless-locks-$(id -u)/foo.lock"; flock 8
+    rc=0; ( _ADV_CLI_HOP_TIMEOUT=1; _adv_invoke_hop foo-headless a b foo-headless 30 "" review 2>"$T/lock-err" ) || rc=$?
+    flock -u 8; exec 8>&-
+    [ "$rc" = "124" ]
+    [ ! -s "$T/lock-trace" ]
+    grep -q "not acquired within 1s" "$T/lock-err"
     # an HTTP hop takes no lock
     : > "$T/lock-trace"; _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
-    [ ! -f "$T/loa-headless-locks/gpt-5.5.lock" ]
+    [ ! -f "$T/loa-headless-locks-$(id -u)/gpt-5.5.lock" ]
+    # the repair round-trip goes through the same lock
+    _repair_finding_via_model() { date +%s%N >> "$T/lock-trace"; echo '{}'; }
+    : > "$T/lock-trace"
+    _adv_with_cli_lock claude-headless _repair_finding_via_model x y z claude-headless 60 >/dev/null
+    [ "$(grep -c . "$T/lock-trace")" = "1" ]
+}
+
+@test "CMP-26 the companion's post-hop work has its own budget: a model that answered is not reaped mid-process_findings when the hop cap has passed (fifth run C-001)" {
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=1          # the hop phase's cap
+    eval "$(declare -f process_findings | sed '1s/^process_findings/_orig_process_findings/')"
+    process_findings() { [[ "$3" == "claude-headless" ]] && sleep 3; _orig_process_findings "$@"; }   # slow post-hop work for the companion only
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(_companion_post_budget gpt-5.5-pro 30)" = "4610" ]      # keyless: claude-headless 910 × 5 + 60
+    [ "$( export ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "4760" ]   # tiny (30) + claude-headless (910), × 5 + 60
+}
+
+@test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null, and the primary attempt that dropped the companion's own hop is excluded from verdict quality (fifth run C-003)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # this host's shape: the primary chain ends on claude-headless
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=unavailable-primary-only
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "null" ]
+    [ "$(jq '.metadata.companion_voice.primary_attempts_excluded' <<<"$result")" = "1" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "4" ]
+    [ "$(jq '.verdict_quality.voices_dropped | length' <<<"$result")" = "3" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+}
+
+@test "CMP-28 LOA_ADVERSARIAL_RUN_TAG scopes the sidecar names to the run: only this run's files are removed at start and listed on the envelope (fifth run C-004)" {
+    mkdir -p "$OUT_DIR"; printf '{"reject_reason":"earlier"}\n' > "$OUT_DIR/adversarial-rejected-review-companion.jsonl"   # another run's file
+    export LOA_ADVERSARIAL_RUN_TAG="chunk-x"
+    BEHAVIOUR[claude-headless]=reject
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion-chunk-x.jsonl" ]
+    [ "$(jq -c '.metadata.rejected_sidecars' <<<"$result")" = "[\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-chunk-x.jsonl\",\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion-chunk-x.jsonl\"]" ]
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion-chunk-x.jsonl")" = "1" ]
+    [ -f "$OUT_DIR/adversarial-rejected-review-companion.jsonl" ]   # untouched: not this run's name
 }
