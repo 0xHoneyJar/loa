@@ -1,328 +1,284 @@
-# Sprint Plan: Loa Friction Floor (cycle-125)
+# Sprint Plan: Loa Full Size (cycle-126)
 
 **Version:** 1.0
-**Date:** 2026-09-23
-**Author:** Sprint Planner Agent (unattended run)
-**PRD:** `grimoires/loa/prd.md` · **SDD:** `grimoires/loa/sdd.md`
-**Branch:** `feature/cycle-125-friction-floor` → draft PR to `main` (prepared as `2.0.0-rc.2`)
+**Date:** 2026-09-24
+**Status:** Draft — autonomous run (operator instruction: *"proceed"*)
+**PRD:** `grimoires/loa/prd.md` · **SDD:** `grimoires/loa/sdd.md` · **Evidence:** `grimoires/loa/reports/model-era-audit-2026-09-24.md`
+**Branch:** `feature/cycle-126-full-size` · **Ledger:** cycle `cycle-126-full-size`, sprints 247–250 (= sprint-1 … sprint-4)
 
 ---
 
 ## Executive Summary
 
-Four sprints remove the five friction sources the usage mining ranked highest: fence false positives (FR-1), oversized planning artefacts (FR-2), unattended runs that stall (FR-3), invisible provider health (FR-4) and blind cost accounting (FR-5). Every sprint is test-first, keeps the prompt byte budgets green, regenerates REPO-MAP and checksums after `.claude/` changes, and closes through `/review-sprint` and `/audit-sprint` with cross-model dissent. The a2a record goes to `record/cycle-125-a2a`.
-
-> From prd.md §Goals: G-1 fence precision without losing a genuine catch; G-2 artefacts readable by section within tool limits; G-3 runs fail loud before the first task or resume at the last task; G-4 provider health visible and self-healing; G-5 the ids the fleet actually calls are priced.
-
----
+Four sprints, one lead agent, unattended. Sprint 1 removes the direct caps on the current models (cheval ceiling policy, output defaults, estimator, health probe, Bridgebuilder registry/model/timeout, Flatline caps). Sprint 2 gives every dissent a companion voice and stops findings from disappearing on schema. Sprint 3 sizes the context discipline for the 5-family and regains instruction headroom under the replay A/B gate. Sprint 4 clears the routing and governance residue, repairs the platform probe, teaches the permission checker the second grammar, writes the docs and validates the five goals end to end. Every sprint is test-first and closes through `/review-sprint` and `/audit-sprint` with cross-model dissent; every schema-rejected dissent payload is hand-triaged.
 
 ## Sprint Overview
 
-| Sprint | Theme | Key Deliverables | Dependencies |
-|--------|-------|------------------|--------------|
-| 1 | Fence precision | `block-destructive-bash.sh` D-1.1…D-1.5, `git-branch-prune.sh`, fence corpus + data-driven bats | None |
-| 2 | Sectioned artefacts | `notes-guard.sh --section/--index`, skill routing within budgets, `/loa` artefact sizes, `update-loa.sh` NOTES rotation, migration addendum | None (parallel-safe with 1) |
-| 3 | Run preflight and resume | `run-preflight.sh`, run-mode pre-flight collapse, `checkpoint` field, resume surfacing in `workflow-state.sh`/`loa-status.sh`/SessionStart, re-entry proof | Sprint 2 (`notes-guard.sh check` reuse) |
-| 4 | Provider health, cost, docs, E2E | breaker `--list`/`--reset-breaker`, status block, chain-walk test, KF template + seeding, pricing ladder, resolved-id rows, `cost-report.sh` legacy/unpriced, CHANGELOG, E2E validation | Sprints 1–3 |
+| Sprint | Global | Theme | FR | Exit gate |
+|---|---|---|---|---|
+| 1 | 247 | Full-size adapters, Bridgebuilder, Flatline | FR-1 | 600K fixture passes pre-flight with `warn`; BB registry/timeout/default correct for the 5-family; all adapter + BB suites green |
+| 2 | 248 | Two voices, nothing dropped | FR-2 | three fixtures → findings; two-voice run on this host; feedback section enforced |
+| 3 | 249 | Context discipline and instruction diet | FR-3 | budgets green with headroom; replay A/B not worse; includes regenerated |
+| 4 (Final) | 250 | Residue, registry, probes, docs, E2E | FR-4 | no 4.x id as default/current in live code; G-1..G-5 evidenced |
 
 ---
 
-## Sprint 1: Fence precision
+## Sprint 1: Full-size adapters, Bridgebuilder and Flatline
 
-**Duration:** 2.5 days
-**Dates:** 2026-09-23 – 2026-09-25
+**Global id:** 247 · **FR:** FR-1 · **SDD:** §1.2 (D-1.1 … D-1.7)
 
 ### Sprint Goal
-Stop the four false-positive classes in `block-destructive-bash.sh` without losing a single genuine catch, proven by a committed corpus.
-
-> From prd.md FR-1: "Reclassify the four false-positive classes without weakening any genuine catch." · From sdd.md §1.2 D-1.1–D-1.6.
+Every size decision for a request derives from the catalog entry actually resolved: two pre-flight invariants (I1 `estimate + max_tokens ≤ context_window` with auto-shrink; I2 the input bound — probed by default, derived after calibration or explicit opt-in with self-correction), output defaults and timeouts follow the resolved entry, Bridgebuilder's generated table, default model and reasoning class match the 5-family, and Flatline's per-voice cap is catalog-bounded — with kill switches that restore today's behaviour.
 
 ### Deliverables
-- [x] `tests/fixtures/fence-corpus/corpus.jsonl` (≥ 40 benign, ≥ 15 dangerous, scrubbed) and the data-driven case in `tests/unit/block-destructive-bash.bats` with the ≥ 80 % / 100 % gates
-- [x] `rm -rf` allowances (cache vocabulary by last segment, scratch working directory, temp roots with the real `$TMPDIR`, single-assignment mktemp variables) with the catastrophic and exclude lists untouched; no bare project-directory allowance; no remote-payload scrub
-- [x] Sink-aware precondition for the DROP / TRUNCATE / DELETE rules
-- [x] Offline ancestor check for `git branch -D` in the hook and the sanctioned `.claude/scripts/git-branch-prune.sh` (merged-PR probe with timeout, `LOA_FENCE_NO_NETWORK` opt-out) for squash-merged branches
-- [x] Corpus lint (no hostnames, URLs, IPs, credentials, key shapes, bucket names) alongside the data-driven case
-- [x] Generated-path allowance for `git checkout -- <path>` / `git restore <path>`
-- [x] REPO-MAP and `.claude/checksums.json` regenerated; hook header documents the residuals
+- Catalog: additive `probed_ceiling`, `account_limits`, `params.beta_headers` (allowlisted), `pricing.long_context`; `loa_cheval/routing/ceiling.py` (`input_bound`); `tools/ceiling-probe-live.py --write-catalog`.
+- cheval gate: I1 auto-shrink + I2 policy (probed default, `LOA_CHEVAL_UNCALIBRATED_CEILING=derived` opt-in, `LOA_CHEVAL_LEGACY_CEILING=1`, `LOA_CHEVAL_MAX_INPUT_TOKENS`), `input_ceiling` / `estimator` / `max_tokens_shrunk` envelope fields, `CEILING_UNVERIFIED_LIMIT` single retry, non-walkable context errors, `.run/ceiling-observed.json`, `calibration_needed` record, `/loa` ceiling line.
+- Pricing: long-context tier in `PricingEntry` / `calculate_total_cost`; `cost-report.sh long_context_rows`.
+- `base.py` / `types.py` / `anthropic_adapter.py`: output defaults for every provider, unset temperature default, read-timeout keyed on the resolved `max_tokens`, `beta_headers`, `count_tokens` near the ceiling, health probe without a literal id.
+- Bridgebuilder: registry with catalog `maxOutput` and `reasoning` flag, `isReasoningClass` from the registry, default model `opus`, persona aliases, rebuilt `dist/` + manifest.
+- Flatline: per-voice cap from the catalog; dead `PER_CALL_MAX_TOKENS` removed.
+- `lib-multipass.sh` estimator without the OpenAI encoding for Anthropic passes.
+- Tests (below), CHANGELOG `[Unreleased]` FR-1 entry, `reviewer.md` with AC Verification.
 
 ### Acceptance Criteria
-- [x] Corpus run: benign pass rate ≥ 80 %, dangerous block rate 100 %; the existing 216 fence cases stay green (prd.md FR-1 AC 1–2)
-- [x] Every relaxation has its dangerous twin in the corpus (prd.md FR-1 AC 3)
-- [x] Hook runtime over the corpus within 1.5× of the pre-change measurement (prd.md FR-1 AC 4)
-- [x] `git-branch-prune.sh` bats: merged, squash-merged (stub `gh`), unmerged, gone-upstream cases
-- [x] No hook file outside `block-destructive-bash.sh` changed; `hook-wiring.bats` green
+- [ ] `test_anthropic_catalog_floor.py` asserts, per Anthropic entry, I1 (`estimate + max_tokens ≤ context_window`, auto-shrink to the 4,096 floor) and I2 (probed bound by default; calibrated value when `calibrated_at` is set; derived bound `context_window − max_tokens` only under the opt-in or calibration) — never `max()` with the probed value.
+- [ ] A 600,000-token fixture request to `claude-fable-5-1`: `preempt` at the probed bound by default; `action: warn` under `LOA_CHEVAL_UNCALIBRATED_CEILING=derived` with a `low` estimate or a count-endpoint result, `preempt` with a calibration message for a `high` estimate; `preempt` at 36K in legacy transport; today's behaviour under `LOA_CHEVAL_LEGACY_CEILING=1`; a calibrated entry uses its calibrated value; a simulated provider limit above the probed bound yields one retry, `CEILING_UNVERIFIED_LIMIT`, no chain walk, an observed-bound file and `preempt` on the next call; a 170K input on a 200K entry under the 64K default shrinks `max_tokens` (recorded) instead of failing.
+- [ ] `calculate_total_cost` applies the long-context multipliers above the threshold; `beta_headers` values failing the allowlist regex are a config error; `LOA_CHEVAL_MAX_INPUT_TOKENS` lowers the bound.
+- [ ] `test_transport_matrix.py` agrees across cheval, the BB registry and the Flatline cap resolver for every (provider, transport) row.
+- [ ] `default_max_tokens` returns `min(cap, max_output_tokens)` for every provider with a declaration and 4,096 only without one; `temperature` is absent from the wire unless set (present at 0.7 under `LOA_CHEVAL_LEGACY_WIRE=1`).
+- [ ] Generated BB table: `maxOutput 32000` and `reasoning: true` for `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5-1`; `deriveTimeoutMs` → 1,800,000 for the three; `DEFAULTS.model === "opus"`; `tools/check-bb-dist-fresh.sh` clean.
+- [ ] Flatline `call_model` passes `--max-tokens 64000` for a 128K entry and the catalog value for a smaller one.
+- [ ] Health probe test: models endpoint path and the `tiny`-alias fallback; no `claude-3-` literal in the adapter.
+- [ ] All existing adapter suites, BB `tsx --test`, fence corpus, `repo-map-gen.sh --validate`, checksums `--check` green.
 
 ### Technical Tasks
-
-<!-- → **[G-N]** contributing goal(s); ⇐ blockers become --deps -->
-
-- [x] Task 1.1: Build the fence corpus from the attributed samples (`.run/usage-mining/mine-attrib.json` → neutral paths; dangerous twins per SDD D-1.6) with the corpus lint and the data-driven bats case (cwd and `TMPDIR` per row); run it red against the current hook and record the baseline pass rate and runtime → **[G-1]** ⇐ none
-- [x] Task 1.2: D-1.1 `rm -rf` allowances: cache vocabulary by last segment, scratch cwd, temp roots with the real `$TMPDIR`, single-assignment mktemp variables (`block-destructive-bash.sh:1070–1087`, `:1221–1240`); named bats per class plus twins (`rm -rf src` and `./.git/` stay blocked) → **[G-1]** ⇐ Task 1.1
-- [x] Task 1.3: Hook header: document the withdrawn remote-payload scrub and the SQL driver residual; confirm `ssh host 'rm -rf /'` and `python -c` SQL rows behave as today in the corpus → **[G-1]** ⇐ Task 1.1
-- [x] Task 1.4: D-1.3 sink-aware SQL precondition for P8/P9/P10 (`:690–760`); bats: heredoc-to-file passes, `psql -c` / heredoc-into-psql / `mysql -e` block → **[G-1]** ⇐ Task 1.1
-- [x] Task 1.5: D-1.4 offline ancestor check in the hook (no network) and `git-branch-prune.sh [--dry-run] [--base]` with the merged-PR probe (`timeout 5 gh`, `LOA_FENCE_NO_NETWORK`); bats with a fixture repo and a stub `gh`; hook recognises the helper's invocation shape → **[G-1]** ⇐ Task 1.1
-- [x] Task 1.6: D-1.5 generated-path allowance for checkout/restore (`:660–668`) via `git check-attr linguist-generated` and the path classes; bats → **[G-1]** ⇐ Task 1.1
-- [x] Task 1.7: Corpus gates green, runtime measured, hook header residuals documented, `repo-map-gen.sh` + checksum regen, `lint-invariants.sh`, CHANGELOG `[Unreleased]` line, `reviewer.md` with AC Verification → **[G-1]** ⇐ Task 1.2, Task 1.3, Task 1.4, Task 1.5, Task 1.6
+- **Task 1.1 — Failing tests first.** Catalog formula per entry; `test_input_size_consumers.py` SIZES + 600,000 / 900,000 with expected actions; `test_ceiling_policy.py` (warn / preempt / kill switch / calibrated / observed-bound downgrade / single retry + `CEILING_UNVERIFIED_LIMIT`); `test_estimator_uncertainty.py` (ASCII, CJK, emoji, tool payloads); `test_transport_matrix.py`; `test_max_tokens_defaults.py` for openai/google/xai entries; `test_temperature_default.py`; `test_count_tokens_fallback.py` (mocked endpoint); `test_health_probe.py`; BB `__tests__/truncation-registry.test.ts`, `__tests__/timeout.test.ts`, `config.test.ts` default; `tests/unit/flatline-max-tokens.bats`.
+- **Task 1.2 — Ceiling policy.** `routing/ceiling.py` (`input_bound`, observed-aware); catalog fields (`probed_ceiling`, `account_limits`, `beta_headers`, `pricing.long_context`); `cheval.py` I1 auto-shrink + I2 policy + envs + envelope fields; `retry.py` `CEILING_UNVERIFIED_LIMIT` single retry and non-walkable context errors; `.run/ceiling-observed.json` writer + `calibration_needed` record; `tools/ceiling-probe-live.py --write-catalog`; `loa-status` ceiling line; `gen-adapter-maps.sh` regen.
+- **Task 1.7 — Cost visibility.** `PricingEntry` long-context fields, `calculate_total_cost` multipliers, `cost-report.sh long_context_rows`, per-voice `budget_cents` plumbing hook for Sprint 2, cost table in the SDD kept current.
+- **Task 1.3 — Adapter defaults and probes.** `base.py` `default_max_tokens` for all providers (`_NON_ANTHROPIC_DEFAULT_OUTPUT_CAP`), `types.py` optional temperature, adapters emit only when set, read-timeout keyed on resolved `max_tokens`, `anthropic-beta` allowlist + join + diagnostics, `count_tokens` near the bound, health probe.
+- **Task 1.4 — Bridgebuilder.** `gen-bb-registry.ts` fields + `GENERATED_REASONING`; `multi-model-pipeline.ts`; `config.ts` default + `maxInputTokens 200000` + `maxOutputTokens 32000`; persona headers; `SKILL.md:98`; `npm run build`; manifest.
+- **Task 1.5 — Flatline caps.** `call_model` per-voice cap from `generated-model-maps.sh`; remove the literals and the dead knob; bats.
+- **Task 1.6 — Estimator, docs, record.** `lib-multipass.sh` bound; CHANGELOG entry; REPO-MAP + sidecar + checksums; `reviewer.md` with red/green record and AC Verification.
 
 ### Dependencies
-- None (first sprint). Uses the untracked `.run/usage-mining/mine-attrib.json` as the corpus seed.
+None external. Task 1.1 before 1.2–1.5 and 1.7; 1.6 last.
 
 ### Security Considerations
-- **Trust boundaries**: the hook reads the raw command text an agent produced; every relaxation applies only on a positively established predicate, and any evaluation error falls back to the current block (sdd.md §6).
-- **External dependencies**: `gh` is optional and bounded by `timeout 5`; `LOA_FENCE_NO_NETWORK=1` disables the network probe. No new packages.
-- **Sensitive data**: the corpus is scrubbed of hostnames, users, DB URLs, bucket and key names before commit; `emit_block` keeps redacting via `log-redactor.sh`.
+Kill switches are env-only and default off; the count endpoint sends the same prompt the request would send (no new data path); `beta_headers` is operator-set catalog data, never derived from a request; no credential value is read.
 
 ### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| A bare-name allowance admits a destructive operand | Low | High | catastrophic list first; no `/ ~ . $` leading chars; dangerous twins; audit dissent |
-| SQL runner list misses a project tool | Med | Low | conservative list + `-c/--command`; residual documented; corpus row for `-f file.sql` |
-| `gh` probe latency | Low | Low | only on `branch -D`; 5 s cap; failure = block |
+| Risk | Mitigation |
+|---|---|
+| OpenAI golden bodies move with the output-cap change | cap constant tested; fixtures updated deliberately, diff shown in `reviewer.md` |
+| BB `dist/` drift | build + manifest in the same commit |
+| Warn branch masks a real oversize | the envelope records it; `preempt` above the derived ceiling is unchanged |
 
 ### Success Metrics
-- Benign corpus pass rate ≥ 80 %; dangerous block rate 100 %
-- Fence suite 216 + new cases green; runtime ≤ 1.5× baseline
+KPI rows 1–5 of the PRD met; zero new red across `.claude/adapters/tests`, BB tests, fence corpus.
 
 ---
 
-## Sprint 2: Sectioned artefacts
+## Sprint 2: Two voices, nothing dropped
 
-**Duration:** 2 days
-**Dates:** 2026-09-25 – 2026-09-27
+**Global id:** 248 · **FR:** FR-2 · **SDD:** §1.3 (D-2.1 … D-2.4)
 
 ### Sprint Goal
-Make `prd.md`, `sdd.md`, `sprint.md` and `NOTES.md` readable by section under a budget, route the skills through it without breaking byte budgets, and rotate an oversized NOTES.md on upgrade.
-
-> From prd.md FR-2: "Generalise `notes-guard.sh read` into one heading-addressed, budgeted artefact reader … `update-loa` rotates NOTES.md when it is at or over the block line." · From sdd.md §1.3.
+A dissent on a subscription-only host plans and succeeds with two voices from different provider families, a finding missing only `failure_mode` reaches the reviewer marked as derived, every payload that still fails is summarised in the envelope, and the reviewer and auditor contracts make triaging that list mandatory.
 
 ### Deliverables
-- [ ] `notes-guard.sh read --file F --section <Sprint N | N. | substring>` and `--index`; non-NOTES default is `--index`; never empty
-- [ ] `context_discipline` skill-include line (≤ 100 B) regenerated into every skill, with compensating trims in `implementing-tasks`, `reviewing-code`, `auditing-security`; `implementing-tasks` reads its sprint block by section
-- [ ] `loa-status.sh` "Artefacts" line with the 100 KiB warn
-- [ ] `update-loa.sh` post-refresh NOTES rotation (check exit 3 → rotate, logged)
-- [ ] `docs/migration/v2.0-model-generation-floor.md` rc.2 addendum (NOTES rotation on upgrade)
+- Fixtures `tests/fixtures/dissent-rejected/` (the three real rejected payloads, scrubbed).
+- `adversarial-review.sh`: normaliser (`failure_mode` derivation, `failure_mode_derived`), `metadata.rejected_summary[]`, companion-voice planning (credential presence → `claude-headless`), parallel walk + aggregate, `metadata.companion_voice`, repair-loop model selection.
+- Envelope schema additive fields; `verdict-derive.sh --envelope` check; `reviewing-code` / `auditing-security` contract text (budget-neutral).
+- Tests, CHANGELOG entry, KF-004 closing evidence row, `reviewer.md`.
 
 ### Acceptance Criteria
-- [ ] `notes-guard.bats`: exact heading, `Sprint N`, numbered SDD section, substring, no-match → index + one-line reason, budget footer, `--full`, NOTES default unchanged (prd.md FR-2 AC 1)
-- [ ] This repository's `prd.md` and `sdd.md` read by section stay ≤ 100 KiB per call (byte proxy for 25k tokens) (prd.md FR-2 AC 2)
-- [ ] `tools/check-prompt-budget.sh` ok; `prompt-audit-keeplist.bats` green; the four skills remain ≤ 16,384 B (prd.md FR-2 AC 3)
-- [ ] `update-loa` rotation bats with a generated ≥ 200 KiB fixture; migration addendum present (prd.md FR-2 AC 4)
+- [ ] The three fixtures produce findings with `failure_mode_derived: true` and no sidecar rows; a payload without a severity still goes to the sidecar **and** appears in `rejected_summary`.
+- [ ] With a stubbed cheval on a keyless host, a review dissent records `voices_planned: 2`, `voices_succeeded_ids` containing `codex-headless` and `claude-headless`, and `companion_voice.status: succeeded` with its cost; with the companion chain failing (`auth`, `quota`, `timeout` stubs), `companion_voice.failure_class` names it, `voices_dropped` records it and a `review` still completes.
+- [ ] `verdict-derive.sh` exits 1 for a feedback file that lacks `## Rejected dissent payloads` when the sibling envelope has a non-empty `rejected_summary`, and 0 when the section exists or the summary is empty.
+- [ ] `_repair_finding_via_model` picks `tiny` with a key present and `claude-headless` without; the repair test measures success on the fixtures.
+- [ ] `companion_voice: false` on the block disables the second chain; existing adversarial suites green; skill budgets unchanged or smaller.
 
 ### Technical Tasks
-
-- [ ] Task 2.1: Failing bats for `--section`/`--index`/no-match/non-NOTES default in `tests/unit/notes-guard.bats` → **[G-2]** ⇐ none
-- [ ] Task 2.2: Implement `--section` and `--index` in `notes-guard.sh` (`index_blocks` reuse, `select_ranges` by spec, `emit_ranges` budget); usage text → **[G-2]** ⇐ Task 2.1
-- [ ] Task 2.3: Skill routing within budgets: include line in `.claude/data/skill-includes/context_discipline.md`, regenerate includes, compensating trims, `implementing-tasks` sprint-block read; keeplist and budget checks green → **[G-2]** ⇐ Task 2.2
-- [ ] Task 2.4: `loa-status.sh` Artefacts line (`notes-guard.sh check --file` ×4) + bats snapshot → **[G-2]** ⇐ Task 2.2
-- [ ] Task 2.5: `update-loa.sh` rotation step + bats with generated fixture (`tests/fixtures/notes/make-large-notes.sh`); migration addendum → **[G-2]** ⇐ Task 2.2
-- [ ] Task 2.6: REPO-MAP + checksum regen, CHANGELOG line, `reviewer.md` AC Verification → **[G-2]** ⇐ Task 2.3, Task 2.4, Task 2.5
+- **Task 2.1 — Fixtures and failing bats.** `adversarial-review-normalise.bats`, `adversarial-review-companion.bats` (stub cheval via the existing test seam), `verdict-derive.bats` section cases.
+- **Task 2.2 — Normaliser and summary.** Pre-validation step, `rejected_summary`, envelope schema.
+- **Task 2.3 — Companion voice.** Family detection of the primary's first success, credential presence (env → `.env.local` → `.env`) to choose the chain, companion chain in a background subshell with the same `budget_cents`, completion-based status with failure classes (`auth`, `model_unavailable`, `quota`, `timeout`, `malformed`), aggregate both, `voices_planned`, opt-out key, `.loa.config.yaml.example` note.
+- **Task 2.4 — Contracts.** `verdict-derive.sh --envelope` default path + check; skill text; `docs`/reference row.
+- **Task 2.5 — Repair loop and KF-004.** Model selection; `kf-write-lib.sh` evidence row; runbook line.
+- **Task 2.6 — Record.** CHANGELOG, REPO-MAP + sidecar + checksums, `reviewer.md`.
 
 ### Dependencies
-- Independent of Sprint 1 (different files); runs after it in the plan order.
+Sprint 1 merged into the branch (catalog helpers). Task 2.1 first.
 
 ### Security Considerations
-- **Trust boundaries**: the reader only reads files under the grimoire; `--file` is validated as a regular file (no symlink following in `rotate`, unchanged).
-- **External dependencies**: none.
-- **Sensitive data**: none; rotation archives under `grimoires/loa/archive/notes/` (gitignored path in this repo).
+The companion voice is a hop already in every fallback chain; credential presence only; derived `failure_mode` never raises a severity; the reviewer still decides every finding.
 
 ### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Byte budgets overflow after the include grows | Med | Med | trims in the same commit; budget check gates |
-| Section addressing misses a heading grammar | Low | Low | substring fallback + index listing |
+| Risk | Mitigation |
+|---|---|
+| Doubled dissent wall time | parallel chains, existing per-voice timeout |
+| Stricter `verdict-derive` breaks old files | check applies only when an envelope with `rejected_summary` sits beside the file |
+| Noise from derived findings | marked; same severity gates |
 
 ### Success Metrics
-- Zero Read-cap rejections on the four artefacts in this repository's own next sprints (observed in Sprint 3/4 transcripts)
-- Skills ≤ 16,384 B; kernel ≤ 10,240 B
+KPI rows 6–7 of the PRD met; KF-004 evidence row recorded.
 
 ---
 
-## Sprint 3: Run preflight and resume
+## Sprint 3: Context discipline and instruction diet
 
-**Duration:** 2.5 days
-**Dates:** 2026-09-27 – 2026-09-29
+**Global id:** 249 · **FR:** FR-3 · **SDD:** §1.4 (D-3.1 … D-3.3)
 
 ### Sprint Goal
-An unattended run refuses to start unless it can finish, checkpoints after every task, and the next session is told exactly how to resume.
-
-> From prd.md FR-3: "`run-preflight.sh` runs at the entry of `/run`, `/run-sprint-plan` and `run-mode`, and fails loud with a checklist … The run state is checkpointed after every task … a stale `RUNNING` / `INTERRUPTED` state is surfaced with the exact resume command." · From sdd.md §1.4 D-3.1–D-3.3.
+One context-class table drives the context discipline (long by default, standard by detection or override), the reference-grade protocols load on demand, `CLAUDE.loa.md` and the protocol budget regain headroom, and the three skills stop choreographing parallelism — all without a recall regression on the replay gold sets.
 
 ### Deliverables
-- [ ] `.claude/scripts/run-preflight.sh` with predicates P1–P8, `--unattended`, `--json`, checklist output
-- [ ] run-mode SKILL pre-flight collapsed onto the script (net negative bytes); `run-sprint-plan`, `run-bridge` reference it
-- [ ] `checkpoint` field in `sprint-plan-state.json` (schema doc + write points in the run-mode resources)
-- [ ] `workflow-state.sh` resume suggestion; `loa-status.sh` `Run:` line; `loa-run-state-surface.sh` SessionStart line wired in `settings.json` and `hooks/settings.hooks.json` behind `hook-guard.sh`
-- [ ] Re-entry proof: `/implement sprint-N` skips closed beads (fixture), or the fix that makes it so
+- `tool-result-clearing.md` two-class table + selection rule; `context_discipline` include rewritten; ten skills regenerated; `.run/context-class` written at SessionStart; `/loa` line.
+- Protocol moves to `.claude/protocols/reference/` with pointers; `tools/check-prompt-budget.sh` set updated; `CLAUDE.loa.md` trimmed.
+- Three skills' parallelism blocks replaced by one sentence.
+- Replay A/B report (before on `main`, after on the branch) under the sprint's a2a directory.
+- Tests, CHANGELOG entry, `reviewer.md`.
 
 ### Acceptance Criteria
-- [ ] `run-preflight.bats`: one passing and one failing fixture per predicate; checklist names predicate and fix; `--json` shape (prd.md FR-3 AC 1)
-- [ ] Checkpoint written after each task and phase; resume restarts at the recorded task in the integration fixture (prd.md FR-3 AC 2)
-- [ ] `loa-status.sh` prints the resume line for a stale state and nothing for a clean one; `hook-wiring.bats` covers the new SessionStart line (prd.md FR-3 AC 3)
-- [ ] No new config key; inputs are settings files, env and existing state (prd.md FR-3 AC 4)
+- [ ] `generate-skill-includes.sh --check` clean; `tools/check-prompt-budget.sh`: `CLAUDE.loa.md` ≤ 9,216 B, protocols ≤ 160,000 B, every skill ≤ 16,384 B.
+- [ ] `tool-result-clearing.md` shows both classes; the include cites the rule; `LOA_CONTEXT_CLASS=standard` and a 200K session model select `standard`; default `long`.
+- [ ] Replay A/B: no gold case loses recall; report attached.
+- [ ] The three skills are smaller than before and contain no `wc -l` parallelism gate.
 
 ### Technical Tasks
-
-- [ ] Task 3.1: Failing bats for P1–P8 with settings/state/breaker/NOTES fixtures in `tests/unit/run-preflight.bats` → **[G-3]** ⇐ none
-- [ ] Task 3.2: Implement `run-preflight.sh` (compose `check-permissions.sh`, `beads-health.sh`, `run-mode-ice.sh validate`, `notes-guard.sh check`, breaker listing, voice/credential/hop checks, state age) with `--unattended`/`--json` → **[G-3]** ⇐ Task 3.1
-- [ ] Task 3.3: run-mode SKILL/resources: pre-flight collapse, `checkpoint` schema and write points, `run-resume` reports checkpoint; `run-sprint-plan`/`run-bridge` references; budgets green → **[G-3]** ⇐ Task 3.2
-- [ ] Task 3.4: Resume surfacing: `workflow-state.sh get_suggested_command`, `loa-status.sh` `Run:` line, `loa-run-state-surface.sh` + hook wiring in both settings files; bats → **[G-3]** ⇐ Task 3.2
-- [ ] Task 3.5: Re-entry proof fixture (closed beads skipped by `/implement`), fix if needed; session-limit reset feeds the surface line → **[G-3]** ⇐ Task 3.4
-- [ ] Task 3.6: REPO-MAP + checksum regen, CHANGELOG line, `reviewer.md` AC Verification → **[G-3]** ⇐ Task 3.3, Task 3.5
+- **Task 3.1 — Baseline.** Run the replay gold sets on `main` and record.
+- **Task 3.2 — Context class.** Protocol table, include, regen, SessionStart hook line + `.run/context-class`, `/loa` line, bats.
+- **Task 3.3 — Diet.** Move the five protocols, pointers, budget tool set, `CLAUDE.loa.md` trim, hooks-reference row.
+- **Task 3.4 — Skills.** Parallelism sentence in `auditing-security`, `implementing-tasks`, `reviewing-code`.
+- **Task 3.5 — Gate and record.** Replay A/B after; budgets; REPO-MAP + sidecar + checksums; CHANGELOG; `reviewer.md`.
 
 ### Dependencies
-- Sprint 2 (`notes-guard.sh check` unchanged interface; `loa-status.sh` section layout).
+Sprints 1–2 (no code dependency; ordering for budgets). Task 3.1 before 3.3.
 
 ### Security Considerations
-- **Trust boundaries**: the preflight reads settings files and state files; it never prints credential values (presence only) and never modifies settings.
-- **External dependencies**: none new; `gh`/`codex`/`claude`/`agy` presence is probed with `command -v` only.
-- **Sensitive data**: `.run/session-limit-state.json` and breaker files contain no secrets; the SessionStart line prints state and age only.
+No enforcement text is removed — only reference material moves and choreography shrinks; fence and gate rules stay where they are.
 
 ### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Preflight blocks a wanted run | Low | Low | checklist names the fix; interactive mode unchanged |
-| Re-entry does not skip closed beads in some path | Med | Med | Task 3.5 proves or fixes before relying on it |
-| Hook wiring drift between the two settings files | Low | Med | `hook-wiring.bats` W4 covers both |
+| Risk | Mitigation |
+|---|---|
+| Recall regression | A/B gate; revert the specific move |
+| A moved protocol is loaded by a skill path | grep every reference before moving; pointers keep the path readable |
 
 ### Success Metrics
-- Every predicate has fixtures; the loa repo's own Sprint 4 run passes preflight
-- Resume line appears on the next session start after a halt
+KPI row 8 of the PRD met; A/B not worse.
 
 ---
 
-## Sprint 4 (Final): Provider health, cost accounting, docs and E2E
+## Sprint 4 (Final): Residue, registry, probes, docs and E2E
 
-**Duration:** 3 days
-**Dates:** 2026-09-29 – 2026-10-02
+**Global id:** 250 · **FR:** FR-4 (+ docs, E2E for G-1 … G-5) · **SDD:** §1.5 (D-4.1 … D-4.5)
 
 ### Sprint Goal
-Provider health is one glance in `/loa` and self-heals through the chain; the ids the fleet actually calls are priced; the cycle's documentation lands; every PRD goal is validated end-to-end.
-
-> From prd.md FR-4, FR-5 and §Success Criteria · From sdd.md §1.5, §1.6, §8.
+No routing alias, fallback map, regex, trust entry, example pin or probe names the previous generation as current; the implement gate's authoritative mode is reachable; the permission checker reads both rule grammars; the migration guide and CHANGELOG describe the cycle; and the five goals are validated end to end on this repository.
 
 ### Deliverables
-- [ ] `python3 -m loa_cheval.routing.circuit_breaker --list [--json]`, `cheval --reset-breaker`, expiry surfaced; `loa-status.sh` Providers block; chain-walk-on-OPEN test
-- [ ] `.claude/templates/known-failures.md.template`; seeding in `mount-submodule.sh` and `mount-loa.sh`; `check-loa.sh` warning
-- [ ] `find_pricing` resolution ladder (exact → dated → alias → hop); headless adapters record the resolved id and `transport`; `cost_estimated` rows; `cost-report.sh --include-legacy` / `--migrate-legacy` with receipt and unpriced share; enforcer field names
-- [ ] CHANGELOG `[Unreleased]` entries for FR-1…FR-5; README one-liner; migration addendum (legacy ledger)
-- [ ] Task 4.E2E goal validation with evidence
+- `cheap` → `claude-sonnet-5`; bash maps and `--help`; Flatline regexes + stub; `gen-adapter-maps.sh` regen.
+- `model-permissions.yaml` 5-family entries; `test_trust_scopes.py` coverage assertion.
+- Example pins and defaults updated; Gemini pins to served ids.
+- `implement-gate.sh` probe recorder; `detect-platform-features.sh` truthful; `.claude/data/agent-types.yaml`; `validate-skill-capabilities.sh` reads it.
+- `check-permissions.sh` second grammar (CP-11/12).
+- Docs: migration guide addendum (ceiling policy, temperature default, BB default model, companion voice, context class), CHANGELOG `[Unreleased]` per FR, README line.
+- Full `tests/unit/` run with ledger hashes; REPO-MAP + sidecar + checksums; `reviewer.md` with E2E table.
 
 ### Acceptance Criteria
-- [ ] Breaker bats/pytest: `--list` shape, reset journals, OPEN → HALF_OPEN after cooldown; status snapshot prints state/age/credential presence/hop and never a value (prd.md FR-4 AC 1–2)
-- [ ] Chain-walk test: OPEN `anthropic/http_api` fixture → the alias resolves to the CLI hop in a dry-run trace (prd.md FR-4 AC 3)
-- [ ] Mount tests assert the seeded `known-failures.md` (prd.md FR-4 AC 4)
-- [ ] Pricing pytest over the fleet ids: each resolves; unknown ids stay `unknown` and are counted; per-hop adapter test pins the resolved id (prd.md FR-5 AC 1–2)
-- [ ] `cost-report.bats`: totals match a hand computation; legacy include/migrate/receipt; unpriced share printed (prd.md FR-5 AC 3); ledger isolation preserved (prd.md FR-5 AC 4)
-- [ ] All PRD goals validated in Task 4.E2E with documented evidence
+- [ ] `grep` for `claude-opus-4-`/`claude-sonnet-4-`/`gpt-4o` used as a default or described as current in live scripts, skills and data returns nothing (catalog fallback chains and tests excepted).
+- [ ] Every Anthropic catalog entry has a `model-permissions.yaml` row (pytest).
+- [ ] `implement-gate.bats`: a payload carrying `tool_input.active_skill` records `active_skill_seen_at` (lead session only; a teammate role writes nothing); the gate stays heuristic without `implement_gate.mode: authoritative`; with the opt-in, the authoritative branch passes the payload fixture corpus.
+- [ ] CP-11/12: `Bash(git push *)` in allow satisfies `Bash(git push:*)`, in deny denies it; CP-13: mixed forms across layers, whitespace and escaping cases, and the dangerous-shape fuzz set behave per the grammar (narrower denies never cover the generic requirement).
+- [ ] Docs present; budgets green; full unit run: no new red beyond the recorded pre-existing classes; ledger hashes unchanged.
 
 ### Technical Tasks
-
-- [ ] Task 4.1: Failing tests for breaker `--list`/reset/expiry, provider status snapshot, chain walk on OPEN, KF seeding → **[G-4]** ⇐ none
-- [ ] Task 4.2: Implement breaker CLI listing + `cheval --reset-breaker`, `loa-status.sh` Providers block (credential presence, hops), KF template + mount seeding + `check-loa.sh` warning → **[G-4]** ⇐ Task 4.1
-- [ ] Task 4.3: Failing pytest/bats for the pricing ladder over the fleet ids, adapter resolved-id recording, `cost-report.sh` legacy/unpriced/receipt → **[G-5]** ⇐ none
-- [ ] Task 4.4: Implement `find_pricing` ladder + `pricing_resolution`, adapter `resolved_model`/`transport`, `cost_estimated`, `cost-report.sh --include-legacy`/`--migrate-legacy`/unpriced share, enforcer field names → **[G-5]** ⇐ Task 4.3
-- [ ] Task 4.5: Docs: CHANGELOG `[Unreleased]` entries for FR-1…FR-5, README line, migration addendum (legacy ledger, NOTES rotation), hook header residuals cross-checked → **[G-1, G-2, G-3, G-4, G-5]** ⇐ Task 4.2, Task 4.4
-- [ ] Task 4.6: REPO-MAP + checksum regen, full `tests/unit/` run with ledger hashes before/after, `reviewer.md` AC Verification → **[G-4, G-5]** ⇐ Task 4.5
-- [ ] Task 4.E2E: End-to-End Goal Validation (table below) → **[G-1, G-2, G-3, G-4, G-5]** ⇐ Task 4.6
+- **Task 4.1 — Failing tests.** `model-adapter.bats` (map), `flatline-model-validation.bats` (regexes admit the 5-family), `test_trust_scopes.py` coverage, `implement-gate.bats` probe, `check-permissions.bats` CP-11/12.
+- **Task 4.2 — Aliases, maps, regexes.** Catalog `cheap`, `gen-adapter-maps.sh`, `model-adapter.sh`, `flatline-orchestrator.sh`.
+- **Task 4.3 — Registry and pins.** `model-permissions.yaml`, `flatline-proposal-review.sh`, `alternative-model.md`, `hitl-jury-panel`, `loa-aleph`, Gemini agent pins.
+- **Task 4.4 — Probes and agent types (SKP-008 / SKP-001 shape).** Research first: does the Claude Code hooks contract provide a harness-set skill signal a model-authored `tool_input` cannot forge? Then: evidence-only recorder (lead-only, once, records the field's source), truthful detect script, a forged-`active_skill` Write payload test that must not flip the gate, `implement_gate.mode` opt-in (default heuristic) documented only if the signal is harness-provided, `tests/fixtures/pretooluse-payloads/` corpus, `/loa` evidence line, `agent-types.yaml`, validator.
+- **Task 4.5 — Permission grammar (SKP-010).** Formal normalisation (`Bash(<body>)` → key, trailing `:*`/` *` removed, trimmed, exact stays exact), deny precedence unchanged; CP-11/12 both forms, CP-13 table-driven mixed layers / whitespace / escaping / dangerous-shape fuzz.
+- **Task 4.6 — Docs.** Migration addendum, CHANGELOG, README.
+- **Task 4.7 — Regen and full run.** REPO-MAP + sidecar + checksums; full `tests/unit/` with ledger hashes before/after.
 
 ### Task 4.E2E: End-to-End Goal Validation
-**Priority:** P0 (Must Complete)
-**Goal Contribution:** All goals (G-1, G-2, G-3, G-4, G-5)
-
-**Validation Steps:**
-| Goal ID | Goal | Validation Action | Expected Result |
-|---------|------|-------------------|-----------------|
-| G-1 | Fence precision without losing a catch | run the corpus case; run the full fence suite | ≥ 80 % benign pass, 100 % dangerous block, suite green |
-| G-2 | Artefacts readable by section | `notes-guard.sh read --file grimoires/loa/prd.md --section 'Functional Requirements'`; `--index` on sdd.md; budget check | block ≤ 100 KiB; index lists every H2; budgets ok |
-| G-3 | Runs fail loud / resume | `run-preflight.sh --unattended --json` on this repo; simulate a HALTED state → `loa-status.sh` | checklist with all predicates; `Run: HALTED … → /run-resume` |
-| G-4 | Provider health visible | `loa-status.sh` with fixture buckets; chain-walk dry-run trace | per-provider lines; walk to CLI hop on OPEN |
-| G-5 | Fleet ids priced | pytest ladder fixture; `cost-report.sh --json --include-legacy` on a fixture ledger | unpriced share < 5 %; totals match |
-
-**Acceptance Criteria:**
-- [ ] Each goal validated with documented evidence in `reviewer.md`
-- [ ] Integration points verified (preflight reads notes-guard and breakers; status reads all three)
-- [ ] No goal marked "not achieved" without explicit justification
+| Goal | Evidence to produce |
+|---|---|
+| G-1 | cheval dry-run envelope for a 600K fixture to `claude-fable-5-1` (`input_ceiling.action: warn`); **one real ≈250K-token streaming call above the probed ceiling through this host's path (`claude-headless` subscription hop, or the API if a key exists) — success, or the observed limit recorded by the self-correction; an unclassified failure is a stop condition**; BB registry excerpt; `deriveTimeoutMs` output; Flatline cap log line |
+| G-2 | a real two-voice dissent envelope from this host (`voices_planned 2`); the three fixtures' findings; a `verdict-derive` failure/success pair |
+| G-3 | budget tool output before/after; A/B report; include diff |
+| G-4 | the grep evidence; registry test output |
+| G-5 | fence corpus run (60/60 dangerous, ≥ 80 % benign); kill-switch tests; full unit run summary |
 
 ### Dependencies
-- Sprints 1–3 (status layout from 2, preflight from 3).
+Sprints 1–3.
 
 ### Security Considerations
-- **Trust boundaries**: `--reset-breaker` is an operator action journaled before the write; `--migrate-legacy` writes through the resolver-validated ledger writer (`O_NOFOLLOW`, refusals intact).
-- **External dependencies**: none new.
-- **Sensitive data**: status prints credential presence only; the KF template carries no secrets; the migration receipt records paths and hashes, not row contents.
+The probe recorder writes one word to `.run/` atomically and reads nothing else from the payload; agent-type list is data, not code; permission grammar change is symmetric for allow and deny (no widening without the matching deny).
 
 ### Risks & Mitigation
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Dated-id stripping maps to a wrong price | Low | Low | strip only when the base id exists; `pricing_resolution` recorded; unpriced share visible |
-| Chain walk on OPEN not reproducible offline | Med | Med | dry-run trace with breaker fixture; if the resolver needs a live call, assert on the resolver's decision log |
-| Only one dissent voice | Med | Low | failed-run envelope per skill guidance |
+| Risk | Mitigation |
+|---|---|
+| A pin change routes a flow to a model the host cannot reach | aliases resolve through the catalog with fallback chains; E2E on this host |
+| Full unit run turns up load-induced flakes | classify against the cycle-125 baseline; fix or record |
 
 ### Success Metrics
-- Unpriced share on the fleet-id fixture < 5 %
-- Providers block present in `/loa`; reset and expiry tested
-- E2E table complete with evidence
+KPI row 9 of the PRD met; G-1 … G-5 evidenced; PR opened with `cycle-126` in the title.
 
 ---
 
 ## Risk Register
 
-| # | Risk | Sprint | Owner | Status |
-|---|------|--------|-------|--------|
-| R1 | Fence relaxation admits a destructive command | 1 | implementer + auditor | mitigated by twins + corpus |
-| R2 | Byte budgets overflow | 2 | implementer | trims in-commit; CI gate |
-| R3 | Re-entry semantics unproven | 3 | implementer | Task 3.5 |
-| R4 | Pricing ladder mis-maps | 4 | implementer | resolution field + share |
-| R5 | Single dissent voice | all | reviewer/auditor | envelopes recorded |
-
----
+| # | Risk | Sprint | Owner | Mitigation |
+|---|---|---|---|---|
+| R1 | Uncalibrated ceiling meets a provider limit at runtime | 1 | lead | warn recorded; kill switch; probe stays operator's |
+| R2 | Companion voice cost/time | 2 | lead | parallel; subscription-billed hop |
+| R3 | Instruction diet regression | 3 | lead | replay A/B gate |
+| R4 | Dist/registry drift | 1, 4 | lead | build + manifest per commit |
+| R5 | Unattended run spends quota / mutates defaults (sprint dissent SKP-001) | all | operator authorization | recorded constraints: per-dissent `budget_cents`, no publication, no merge before CI + Bridgebuilder triage; stop conditions: unclassified provider failure on the live call, eval A/B regression, any fence weakening, operator-only credential need |
 
 ## Success Metrics Summary
 
-| Goal | Metric | Target |
-|------|--------|--------|
-| G-1 | corpus benign pass / dangerous block | ≥ 80 % / 100 % |
-| G-2 | section reads of prd/sdd ≤ 100 KiB; budgets | pass |
-| G-3 | preflight predicates with fixtures; resume line | ≥ 8; present |
-| G-4 | providers reported; chain-walk test | all; pass |
-| G-5 | unpriced share on fleet-id fixture | < 5 % |
-
----
+All nine KPI rows of the PRD; every sprint closed with review + audit approvals and dissent envelopes; budgets green with headroom; PR CI green; Bridgebuilder pass triaged; merge without publication.
 
 ## Dependencies Map
 
-```
-Sprint 1 (fences) ──────────────┐
-Sprint 2 (artefacts) ──► Sprint 3 (preflight/resume) ──► Sprint 4 (health, cost, docs, E2E)
-```
-
----
+Sprint 1 → Sprint 2 (ceiling helper, catalog) → Sprint 3 (budgets after text changes) → Sprint 4 (docs and E2E over everything).
 
 ## Appendix
 
 ### A. PRD Feature Mapping
-| PRD Requirement | Sprint | Tasks |
-|-----------------|--------|-------|
-| FR-1 Fence precision | 1 | 1.1–1.7 |
-| FR-2 Sectioned artefacts | 2 | 2.1–2.6 |
-| FR-3 Run preflight and resume | 3 | 3.1–3.6 |
-| FR-4 Provider health | 4 | 4.1, 4.2, 4.5, 4.6, 4.E2E |
-| FR-5 Cost accounting | 4 | 4.3, 4.4, 4.5, 4.6, 4.E2E |
 
-### B. SDD Component Mapping
-| SDD Section | Sprint |
-|-------------|--------|
-| §1.2 D-1.1–D-1.6 fence | 1 |
-| §1.3 artefact reader, skill routing, rotation | 2 |
-| §1.4 D-3.1–D-3.3 preflight, checkpoints, surfacing | 3 |
-| §1.5 provider health · §1.6 cost | 4 |
+| PRD requirement | Sprint | Tasks |
+|---|---|---|
+| FR-1.1 ceiling policy | 1 | 1.1, 1.2 |
+| FR-1.2 beta headers | 1 | 1.3 |
+| FR-1.3 output defaults / temperature / read timeout | 1 | 1.1, 1.3 |
+| FR-1.4 token estimation | 1 | 1.3, 1.6 |
+| FR-1.5 Bridgebuilder | 1 | 1.1, 1.4 |
+| FR-1.6 Flatline caps | 1 | 1.5 |
+| FR-1.7 health probe | 1 | 1.3 |
+| FR-1.8 transport matrix | 1 | 1.1 |
+| FR-1.9 cost visibility | 1 | 1.7 |
+| FR-2.1 companion voice | 2 | 2.1, 2.3 |
+| FR-2.2 tolerant schema | 2 | 2.1, 2.2 |
+| FR-2.3 reviewer contract | 2 | 2.4 |
+| FR-2.4 repair loop | 2 | 2.5 |
+| FR-3.1 context-class table | 3 | 3.2 |
+| FR-3.2 instruction diet | 3 | 3.3, 3.4 |
+| FR-3.3 eval gate | 3 | 3.1, 3.5 |
+| FR-4.1 aliases and maps | 4 | 4.1, 4.2 |
+| FR-4.2 governance registry | 4 | 4.1, 4.3 |
+| FR-4.3 example pins | 4 | 4.3 |
+| FR-4.4 probes | 4 | 4.1, 4.4 |
+| FR-4.5 permission grammar | 4 | 4.1, 4.5 |
+| G-1 … G-5 | 4 | 4.E2E |
 
-### C. PRD Goal Mapping
-| Goal ID | Goal | Sprints | Validation |
-|---------|------|---------|------------|
-| G-1 | Fences stop blocking harmless commands without losing a genuine catch | 1, 4 | corpus gates |
-| G-2 | Planning artefacts readable and editable by section within tool limits | 2, 4 | reader bats + budgets |
-| G-3 | Unattended runs fail loud before the first task or resume at the last task | 3, 4 | preflight fixtures + resume line |
-| G-4 | Provider health visible and self-healing | 4 | status snapshot + chain-walk test |
-| G-5 | The ids the fleet actually calls are priced | 4 | pricing ladder fixture + report |
+### B. Goal Mapping
+
+| Goal | Delivered by | Validated in |
+|---|---|---|
+| G-1 Full size on the wire | Sprint 1 (Tasks 1.2–1.5) | Task 4.E2E |
+| G-2 Two voices, nothing dropped | Sprint 2 (Tasks 2.2–2.4) | Task 4.E2E |
+| G-3 Context discipline that fits the model | Sprint 3 (Tasks 3.2–3.4) | Task 4.E2E |
+| G-4 Current generation everywhere | Sprint 4 (Tasks 4.2–4.5) | Task 4.E2E |
+| G-5 No safety regression | every sprint (fence corpus, kill-switch tests) | Task 4.E2E, Task 4.7 |

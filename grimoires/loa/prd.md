@@ -1,11 +1,10 @@
-# Product Requirements Document: Loa Friction Floor (cycle-125)
+# Product Requirements Document: Loa Full Size (cycle-126)
 
 **Version:** 1.0
-**Date:** 2026-09-23
-**Author:** PRD Architect Agent (unattended run; operator authorisation "proceed as you suggest with all the most impactful things to work on", 2026-09-23)
-**Status:** Draft
-
----
+**Date:** 2026-09-24
+**Status:** Draft — autonomous run (operator instruction: *"proceed"*, after the model-era assessment)
+**Author:** Loa lead agent (Fable 5.1) for Jani (maintainer)
+**Branch:** `feature/cycle-126-full-size` from `main` `2079e719` (`v2.0.0-rc.2` + cycle-125 follow-ups)
 
 ## Table of Contents
 
@@ -23,378 +22,265 @@
 12. [Timeline & Milestones](#timeline--milestones)
 13. [Appendix](#appendix)
 
-> Sources: .claude/skills/discovering-requirements/resources/templates/prd-template.md (section order)
-
----
+> Sources: document structure per `discovering-requirements` Phase 8 template (`prd-template.md`).
 
 ## Executive Summary
 
-Six months of real sessions show that Loa's biggest remaining cost is not missing features but friction inside sessions: safety fences that block harmless commands about once every two sessions, planning artefacts too large for the Read and Edit tools, unattended runs that stop and wait for a human, cross-model review degraded to a single voice, and a cost meter that reads zero in every repository. This cycle removes those five sources of friction with the same discipline as the mechanical floor (ADR-003) and the model-generation floor (ADR-004): mechanical, tested, fail-loud, no new configuration surface unless strictly required.
+Loa's own floor is the Claude 5 generation (Opus 5, Sonnet 5, Fable 5.1: 1M-token context, 128K output, adaptive thinking), yet the framework still runs those models through constants and code paths sized for the 200K-context / 4K-output / non-thinking generation. The model-era audit of 2026-09-24 found nine direct caps (a 180K input ceiling on 1M-context entries, an 8K Bridgebuilder output table on 128K models, a reasoning-class test that excludes Fable 5.1 and Sonnet 5, 16K Flatline caps shared with thinking, a 4K default for non-Anthropic hops, an OpenAI-encoding token estimator that gates Anthropic requests, a retired probe id), a cross-model review that plans one voice and silently drops schema-rejected findings (three of five were real defects this week), a skills-wide context discipline that tells a 1M-context model to stop at 15K tokens, instruction budgets at their ceilings, and routing/governance tables that still name the previous generation as current. This cycle removes those limits, test-first, without weakening any safety property, and lands as the next release candidate without publishing it.
 
-The work is grounded in a usage-mining pass over 4.9 GB of local Claude Code transcripts (about 2,150 human and 7,800 subagent sessions) and the state of 40 Loa mounts. Each requirement below carries the number that justifies it and the acceptance test that proves it. The cycle ships on `feature/cycle-125-friction-floor` as a draft PR to `main`; under the pre-release mechanism shipped in 2.0.0-rc.1 the merge is prepared as `2.0.0-rc.2`.
-
-> Sources: grimoires/loa/reports/usage-mining-2026-09-23.md §1–§3; grimoires/loa/context/cycle-125-brief.md §1–§2; docs/architecture/ADR-003-mechanical-floor.md; docs/architecture/ADR-004-model-generation-floor.md
-
----
+> Sources: `grimoires/loa/reports/model-era-audit-2026-09-24.md` §1–§7 (verified `file:line` findings and measurements); `grimoires/loa/context/cycle-126-brief.md` (operator prompt); maintainer instruction "proceed" 2026-09-24.
 
 ## Problem Statement
 
 ### The Problem
 
-The framework's guards, artefacts and orchestration were each added for a real reason, but in aggregate they now interrupt the agent more often than they protect the operator, and several signals the operator relies on (verdict quality, spend, run state) are silently wrong.
+The framework caps the current models below their size, reviews them with one voice while dropping findings, and instructs them with 200K-era context rules.
 
 ### User Pain Points
 
-- **Fences block routine work.** About 1,180 hook blocks in ~2,150 sessions; the `rm -rf` ambiguity rule alone fired ~370 times, overwhelmingly on `rm -rf dist`, `coverage`, `/tmp/<name>`; the SQL rules fired ~220 times, mostly on heredocs that *write* test files or feedback markdown containing the keyword; `git branch -D` on squash-merged branches and `git checkout --` on generated files add ~130 more. The block rate per 1,000 tool results rose from 1.4 in March to 12.7 in September. (`block-destructive-bash.sh:1271`, `:698`, `:715`, `:747`, `:593`, `:668`)
-- **Artefacts exceed the tools.** `sdd.md`, `prd.md`, `sprint.md` and `NOTES.md` are the files most often rejected by the Read tool for size (35 / 24 / 18 / 20 times) and the files where Edit anchors most often fail; three fleet repositories carry a NOTES.md over the 200 KiB block line that 2.0.0-rc.1 introduced.
-- **Unattended runs stop.** `/run-resume` is the most used Loa command after the harness ones (142); ~1,570 permission denials cluster in headless populations ("auto-denied, prompts unavailable"); session-limit hits recur (57 hard hits); thirteen worktrees of one repository sit `interrupted` at implementation.
-- **The second opinion is missing.** The Anthropic HTTP circuit breaker is OPEN or HALF_OPEN in seven mounts and the headless one in three; `adversarial-review.sh` emitted `malformed_response` 170 times and `api_failure` 122 times; only four of forty mounts have a `known-failures.md` to record any of it.
-- **Cost has gone blind since the ledger moved.** Legacy ledgers were priced (≈ $59 across 16 repositories), but 539 of 679 rows at the current path carry `pricing_source: unknown` with cost 0 because dated OpenAI ids, `gemini-2.5-pro` and CLI hop names recorded as the model do not resolve in catalog pricing; `cost-report.sh` reads only the new path, so pre-move history is invisible; `cost-budget-enforcer` has never been invoked.
+1. **cheval refuses inputs above 180K tokens** to models declared at 1,000,000 (`effective_input_ceiling: 180000`, exit 7), so `/ride`, red-team and jam flows cannot use the context the models have; the ceiling was probed on the previous generation and never re-probed (`calibrated_at: null`).
+2. **Bridgebuilder reviews run on `claude-opus-4-7` by default, truncated to 8,192 output tokens, and on the 120–300 s timeout ladder for Fable 5.1 and Sonnet 5** because the truncation table is a codegen literal and `isReasoningClass` matches only `/opus/`.
+3. **Flatline voices are capped at 16K tokens including thinking**, on models with 128K output.
+4. **Every non-Anthropic hop defaults to 4,096 output tokens**, the dataclass default temperature is dropped with a warning on every thinking model, and Anthropic requests can be rejected pre-flight on an OpenAI-encoding token estimate.
+5. **Cross-model review plans one voice** (12 of 12 dissents in the last 24 h: `voices_planned: 1`, `codex-headless` only) because the configured Anthropic voice needs an API key this host does not have, and **five dissent findings were rejected on a missing `failure_mode` and written to a sidecar the reviewer never sees** — three were real defects, caught only by hand.
+6. **The context discipline baked into ten skills** (2K/5K/3K tokens, "session total 15,000 → STOP and synthesize to NOTES.md") forces lossy round-trips through NOTES for work that fits in a 1M context; the protocol and `CLAUDE.loa.md` budgets sit at 99.8 % and 99.9 %, so nothing can be added without deleting.
+7. **Routing and governance residue**: `cheap` → Sonnet 4.6 feeds three roles; the bash fallback map sends `opus` to 4.7; Flatline's forward-compat regexes reject every 5-family id; `model-permissions.yaml` has no 5-family entries and calls 4.7 "current default"; the platform-feature probe always reports `active_skill_available: false`, so the implement gate's authoritative mode is dead code.
 
 ### Current State
 
-Operators reword blocked commands, page through oversized files with offset/limit, restart runs by hand, discover degraded reviews after the fact, and cannot budget model spend at all.
+Adapters emit adaptive thinking, effort, structured outputs and one cache breakpoint correctly (cycle-124), fences are precise (cycle-125), and the enforcer measures the day it certifies (sprint-bug-245). The remaining gap is *size*: ceilings, caps, defaults, tables and thresholds that predate the 5-family, plus a review pipeline that does not use the second voice it could have.
 
 ### Desired State
 
-Fences fire only on genuinely destructive commands; the four planning artefacts are read and edited by section under a budget; a run refuses to start unless it can finish unattended and resumes itself from the last task; provider health is one glance in `/loa`; every model call has a price.
+A request to a 1M-context model is limited by the catalog, not by a probed 4.x constant; Bridgebuilder, Flatline and cheval defaults derive from the catalog entry actually resolved; every dissent on a subscription-only host has two voices and no finding disappears without the reviewer seeing it; skills' context guidance scales with the session model's context class; budgets have headroom again; every routing and governance table names the current generation.
 
-> Sources: grimoires/loa/reports/usage-mining-2026-09-23.md §3 F1–F5, §4; .claude/hooks/safety/block-destructive-bash.sh:593,668,698,715,747,1271; .claude/scripts/notes-guard.sh:35,124-140
-
----
+> Sources: audit §1 table C1–C9 (`.claude/defaults/model-config.yaml:376`, `cheval.py` ceiling gate, `truncation.generated.ts:20-34`, `config.ts:168`, `multi-model-pipeline.ts:52-71`, `flatline-orchestrator.sh:127-128`, `base.py:163-186`, `base.py:837-861`, `anthropic_adapter.py:562`); audit §2 (12 dissent envelopes, `adversarial-rejected-*.jsonl`, KF-004 rec 31); audit §3 (`tool-result-clearing.md:9-12`, budgets); audit §4–§5.
 
 ## Goals & Success Metrics
 
 ### Primary Goals
 
-| ID | Goal | Measurement | Validation Method |
-|----|------|-------------|-------------------|
-| G-1 | Fences stop blocking harmless commands without losing a single genuine catch | Replay of an attributed fixture corpus: benign pass rate, dangerous block rate | `tests/unit/block-destructive-bash.bats` over `tests/fixtures/fence-corpus/` |
-| G-2 | Planning artefacts are readable and editable by section within tool limits | Section reads of this repo's `prd.md` and `sdd.md` stay under the Read cap; skills consume sections | bats for the reader; `tools/check-prompt-budget.sh` green |
-| G-3 | Unattended runs fail loud before the first task or resume themselves at the last task | Preflight predicates covered by fixtures; a simulated interruption resumes at the recorded task | bats; run-mode integration test |
-| G-4 | Provider health is visible and self-healing | `/loa` shows breaker/credential/hop per provider; open HTTP breaker re-routes to the CLI hop; breakers expire | bats with breaker fixtures; status snapshot |
-| G-5 | The ids the fleet actually calls are priced | Unpriced share on the fixture reproducing the fleet's ids; legacy ledgers readable and migratable | bats over fixture rows; `cost-report.sh` totals and unpriced share |
+- **G-1 Full size on the wire.** A streaming request of 600K input tokens to `claude-fable-5-1` passes cheval's pre-flight; Bridgebuilder's generated table carries the catalog output for the 5-family; Fable 5.1 and Sonnet 5 receive the reasoning timeout budget; Flatline per-voice caps derive from the catalog. **Live evidence (Flatline SKP-001):** the final sprint makes one real large call (≈ 250K tokens) through the path this host has — the `claude-headless` subscription hop (which carries no HTTP ceiling gate) or the API when a key exists — and its result is the G-1 evidence for that path; the HTTP-path ceiling stays at the probed bound until the operator's probe calibrates it (the safe default chosen after the dissent); a failure that the self-correction does not classify is a stop condition.
+- **G-2 Two voices, nothing dropped.** On this host (no Anthropic API key) a dissent plans and succeeds with two voices; the three real rejected payloads of this week become findings; every remaining rejected payload is summarised in the envelope and triaged in the feedback file.
+- **G-3 Context discipline that fits the model.** One threshold table keyed by context class; the 1M class is the default for the framework's floor; the instruction surface regains headroom under the eval gate.
+- **G-4 Current generation everywhere.** No routing alias, fallback map, regex, trust entry, example pin or probe names the previous generation as current.
+- **G-5 No safety regression.** Every fence, gate and refusal that exists today still fires; kill switches restore the previous behaviour; the live ceiling probe remains the operator's evidence step.
 
 ### Key Performance Indicators (KPIs)
 
-| Metric | Current Baseline | Target | Timeline | Goal ID |
-|--------|------------------|--------|----------|---------|
-| Benign fence-corpus commands that pass | 0 % (all were blocked) | ≥ 80 % | Sprint 1 | G-1 |
-| Dangerous fence-corpus commands blocked | 100 % | 100 % | Sprint 1 | G-1 |
-| Read-cap rejections on prd/sdd/sprint/NOTES per session (fleet) | ~0.05 | measurable only post-release; proxy: section reads of the two largest artefacts ≤ 25k tokens | Sprint 2 | G-2 |
-| Fleet NOTES.md over the block line after upgrade | 3 | 0 (rotated by `update-loa`) | Sprint 2 | G-2 |
-| Preflight predicates with fixtures | 0 | ≥ 5 (permission mode, credentials, breaker, NOTES size, state consistency) | Sprint 3 | G-3 |
-| Resume granularity | per sprint | per task | Sprint 3 | G-3 |
-| Providers reported in `/loa` | 0 | every configured provider | Sprint 4 | G-4 |
-| Mounts seeded with `known-failures.md` | 4 of 40 (fleet) | every new mount | Sprint 4 | G-4 |
-| Unpriced rows (`pricing_source: unknown`) at the current ledger path | 539 of 679 (79 %) in the fleet sample | < 5 % on the fixture reproducing those ids | Sprint 4 | G-5 |
+| KPI | Baseline (2026-09-24) | Target |
+|-----|---|---|
+| Effective input ceiling, `claude-fable-5-1`, streaming | 180,000 (preempt), no path to more | probed bound by default; derived (≥ 800,000) unlocked by calibration or explicit opt-in with self-correction; I1 shrink instead of blind preempt |
+| Bridgebuilder `maxOutput`, 5-family | 8,192 | catalog `max_output_tokens` bounded by BB config (≥ 32,000) |
+| Bridgebuilder default model | `claude-opus-4-7` | `opus` alias (→ `claude-opus-5`) |
+| Reasoning budget for `claude-fable-5-1` / `claude-sonnet-5` | 120–300 s | 1,800 s |
+| Flatline per-voice cap on a 128K model | 16,000 | ≥ 64,000 (catalog-bounded) |
+| Dissent `voices_planned` on this host | 1 | 2 |
+| Real findings lost to schema rejection (this week's three fixtures) | 3 of 3 dropped | 0 dropped |
+| `CLAUDE.loa.md` / protocols headroom | 15 B / 407 B | ≥ 1,024 B / ≥ 20 % |
+| Routing/governance references to a 4.x model as "current" | 9 files | 0 |
 
 ### Constraints
 
-- Prompt byte budgets: protocols at 199,593 B of 200,000 (any protocol prose change net-zero or negative); skills ≤ 16,384 B including unconditionally-read resources.
-- No new `.loa.config.yaml` keys unless strictly required; prefer conventions (gitattributes, path shapes, existing env vars).
-- Never weaken a fence's genuine catches; Aleph stays opt-in and untouched.
-- Every change test-first; review and audit with cross-model dissent per sprint.
+Unattended run; no publication; no credential use beyond the configured dissent voice; `.claude/` edits under the framework marker with REPO-MAP + sidecar + checksums regenerated together; push only via `run-mode-ice.sh`; a2a records to `record/cycle-126-a2a`; budgets net-negative; test-first; review + audit with dissent per sprint, rejected payloads hand-triaged; Aleph untouched; the live probe is not run here.
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §2 acceptance lines, §3; grimoires/loa/reports/usage-mining-2026-09-23.md §3 (baselines); tools/check-prompt-budget.sh
-
----
+> Sources: brief §3 constraints; audit §7 ranking; KPI baselines from audit §1–§5 measurements.
 
 ## User Personas & Use Cases
 
 ### Primary Persona: The maintainer-operator
 
-**Demographics:**
-- Role: creator and sole maintainer of Loa; runs a fleet of ~30 mounted repositories from one workstation
-- Technical Proficiency: expert; drives the truename cycle (`/implement`, `/review-sprint`, `/audit-sprint`, `/bug`) and unattended runs (`/run`, `/simstim`) rather than the golden-path aliases
-- Goals: ship through the gates without babysitting; trust the signals the framework prints
-
-**Behaviors:**
-- Long sessions (p90 of 13–47 hours in the heaviest repositories) with compactions and resumes
-- Upgrades mounts in bursts (three moved to 2.0.0-rc.1 within hours of publication)
-
-**Pain Points:**
-- Rewording blocked commands; paging through oversized artefacts; restarting runs; discovering degraded reviews late; no spend visibility
+Runs Loa on the current models with a subscription (Claude Code) and an OpenAI key, sometimes without an Anthropic API key. Wants the framework to get out of the way of the model and to be told the truth by its reviewers.
 
 ### Secondary Persona: The unattended run agent
 
-**Demographics:**
-- Role: Claude executing `/run sprint-plan`, `/run-sprint-plan` or a scheduled loop with nobody watching
-- Technical Proficiency: bound by the harness permission mode and the fences; cannot answer prompts
-- Goals: finish the sprint plan or stop with a precise, resumable state
+Executes `/run sprint-plan`; needs the second voice to exist without a key, needs rejected findings surfaced, and needs context guidance that does not make it dump a 1M context into NOTES at 15K tokens.
 
 ### Tertiary Persona: A downstream fleet operator
 
-**Demographics:**
-- Role: developer on a repository that mounts Loa as a submodule with the copied `.claude/` set
-- Goals: upgrade without a surprise (NOTES rotation, legacy ledger), see why a review was degraded
+Mounts Loa in another repository; upgrades in place; expects `opus`/`cheap` to mean the current generation and Bridgebuilder to run on it.
 
 ### Use Cases
 
-#### UC-1: Clean a build directory during implementation
-**Actor:** unattended run agent
-**Preconditions:** `dist/` exists from a previous build
-**Flow:**
-1. Agent runs `rm -rf dist && npm run build`.
-2. Fence classifies `dist` as a bare, visible, relative directory and allows it.
-3. Build proceeds.
-**Postconditions:** no block, no rewording
-**Acceptance Criteria:**
-- [ ] `rm -rf dist`, `rm -rf coverage`, `rm -rf /tmp/<name>` and `rm -rf "$(mktemp -d)"` pass
-- [ ] `rm -rf /`, `rm -rf ~`, `rm -rf *`, `rm -rf .`, `rm -rf .git` still block
+- **UC-1** A `/ride` over a large codebase sends 400K tokens to Fable 5.1 through cheval and gets a reply instead of exit 7.
+- **UC-2** A Bridgebuilder pass on a 60-file PR runs on Opus 5 with a 32K output budget and the 30-minute reasoning budget.
+- **UC-3** `/review-sprint` on a keyless host records two voices; a dissent finding without `failure_mode` reaches the reviewer with `failure_mode_derived: true`; a payload that is still unparseable appears under `## Rejected dissent payloads` in the feedback file.
+- **UC-4** A skill working in a 1M-context session reads three 20K-token files without being told to stop and synthesize.
+- **UC-5** An operator sets `flatline_protocol.models.primary: claude-sonnet-5` in a mount whose generated map is stale and is not rejected by a regex.
+- **UC-6** `implement-gate.sh` sees `active_skill` in a real hook payload and switches to its authoritative mode.
 
-#### UC-2: Write a test file that mentions TRUNCATE
-**Actor:** unattended run agent
-**Preconditions:** none
-**Flow:**
-1. Agent writes `cat > tests/lease.test.ts <<'EOF' … TRUNCATE … EOF`.
-2. Fence sees the keyword only inside a heredoc whose sink is a file, not a SQL runner, and allows it.
-**Postconditions:** file written
-**Acceptance Criteria:**
-- [ ] heredoc into a file, `echo`, `git commit -m` bodies containing DROP/TRUNCATE/DELETE pass
-- [ ] `psql … -c 'DROP TABLE x'`, `psql <<SQL TRUNCATE … SQL`, `mysql -e 'DELETE FROM t'` still block
-
-#### UC-3: Implement sprint 3 of a five-sprint plan
-**Actor:** unattended run agent
-**Preconditions:** `grimoires/loa/sprint.md` is 60 KB
-**Flow:**
-1. `/implement sprint-3` reads only the `## Sprint 3` block through the artefact reader.
-2. Review and audit read the same block plus its acceptance criteria.
-**Postconditions:** no Read-cap rejection; edits anchor within the block
-**Acceptance Criteria:**
-- [ ] the reader returns exactly the requested heading block, budgeted, never empty
-- [ ] `--full` returns the whole file on explicit request
-
-#### UC-4: Start an overnight run on a laptop with a restrictive permission mode
-**Actor:** maintainer-operator
-**Preconditions:** `.claude/settings.local.json` lacks the allow rules the run needs
-**Flow:**
-1. `/run sprint-plan` invokes the preflight.
-2. Preflight reports the unmet predicate (permission mode) and stops before the first task.
-3. Operator fixes the mode; the run starts; state is checkpointed after each task.
-4. The session hits its limit at task 2.3; the next session's `/loa` names `/run-resume` as the single next step and resumes at task 2.3.
-**Postconditions:** no silent stall, no lost work
-**Acceptance Criteria:**
-- [ ] each preflight predicate has a passing and a failing fixture
-- [ ] resume restarts at the recorded task, not the sprint
-
-#### UC-5: Read the spend for last week
-**Actor:** maintainer-operator
-**Preconditions:** ledger rows written by HTTP and CLI hops
-**Flow:**
-1. `cost-report.sh --days 7` prices every row from the catalog snapshot (CLI rows estimated and flagged).
-2. `--include-legacy` folds in the pre-2.0 ledger.
-**Postconditions:** a non-zero total with an estimate share
-**Acceptance Criteria:**
-- [ ] zero null-cost rows for known models
-- [ ] `cost_estimated: true` on estimated rows
-
-> Sources: grimoires/loa/reports/usage-mining-2026-09-23.md §2, §3 F1–F5; grimoires/loa/context/cycle-125-brief.md §2
-
----
+> Sources: audit §1–§5; cycle-125 PRD personas (`grimoires/loa/cycles/cycle-125-friction-floor/prd.md`), reused unchanged.
 
 ## Functional Requirements
 
-### FR-1: Fence precision in `block-destructive-bash.sh`
-**Priority:** Must Have
-**Description:** Reclassify the four false-positive classes without weakening any genuine catch. (a) `rm -rf` passes for: a build-artefact or cache directory named by its last path segment at any relative depth (`dist`, `build`, `out`, `coverage`, `target`, `node_modules`, `tmp`, `__pycache__`, `.next`, `.turbo`, `.terraform`, `.venv`, `.tox`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `*.egg-info`); any bare relative name when the hook's working directory is itself under a temp root; `/tmp/<name>`, `/var/tmp/<name>`, `/private/tmp/<name>`; `$TMPDIR/<name>` only when the hook's own `$TMPDIR` resolves under a temp root; a variable operand only when the same command assigns it once from `mktemp -d`. Arbitrary bare project directories (`rm -rf src`) stay blocked and keep the explicit `./name/` spelling as the escape; hidden directories outside the cache vocabulary stay blocked; quoted payloads of `ssh`/`docker exec`/`kubectl exec` keep today's scanning (no scrub — a Flatline skeptic showed the scrub would remove protection that exists today). (b) The DROP/TRUNCATE/DELETE rules apply only when the command contains a SQL runner (`psql`, `mysql`, `sqlite3`, `prisma db execute`, `-c`/`--command` on one of them, a heredoc piped into one), never to text written by `cat > file <<EOF`, `echo`, or a commit body; execution through a language driver remains the documented residual it is today. (c) `git branch -D` passes when the branch is an ancestor of `origin/main`/`main` (offline check only — the hook makes no network call); squash-merged branches are deleted through the sanctioned `git-branch-prune.sh`, which may consult `gh` with a timeout, and the block message names it. (d) `git checkout -- <path>` / `git restore <path>` passes only when every path operand is generated (`git check-attr linguist-generated`, or under `dist/`, `build/`, `coverage/`, `**/_generated/`, or a lockfile).
-**Acceptance Criteria:**
-- [ ] `tests/fixtures/fence-corpus/` holds ≥ 40 previously-blocked benign commands and ≥ 15 dangerous ones, derived from the attributed samples; a corpus lint (bats) rejects hostnames, URLs, IPs, `@`-credentials, key shapes and bucket names, so the sanitisation is reproducible
-- [ ] ≥ 80 % of the benign set passes; 100 % of the dangerous set blocks; the existing `block-destructive-bash.bats` stays green
-- [ ] each relaxation has a negative test (the dangerous twin of the benign command), including `rm -rf src`, `rm -rf ./.git/`, `rm -rf "$TMPDIR"` with an unsafe `TMPDIR`, a re-assigned mktemp variable, and `ssh host 'rm -rf /'`
-- [ ] the hook adds no network call; its runtime over the corpus stays within 1.5× of the pre-change measurement (the hook runs under the fail-open `hook-guard.sh`, so latency is a safety property)
-**Dependencies:** `.run/usage-mining/mine-attrib.json` (sample seed, untracked)
+### FR-1: Full-size adapters, Bridgebuilder and Flatline (audit C1–C9)
 
-### FR-2: Sectioned planning artefacts
-**Priority:** Must Have
-**Description:** Generalise `notes-guard.sh read` into one heading-addressed, budgeted artefact reader for `prd.md`, `sdd.md`, `sprint.md` and `NOTES.md` (`--file`, `--section <heading or Sprint N>`, `--full`), and route the skills through it: `/implement sprint-N` reads its own sprint block; `/review-sprint` and `/audit-sprint` read the sprint block and acceptance criteria; `/architect` reads the PRD by section. `/loa` surfaces size warnings at 100 KiB for the four artefacts. `update-loa` rotates NOTES.md when it is at or over the block line, so the 2.0.0 upgrade cannot strand a repository.
-**Acceptance Criteria:**
-- [ ] reader bats: heading selection (exact and `Sprint N`), budget cap with footer, loud fallback when the template drifts, never empty
-- [ ] this repository's `prd.md` (101 KB) and `sdd.md` (69 KB) read by section under 25k tokens
-- [ ] `implementing-tasks`, `reviewing-code`, `auditing-security`, `designing-architecture` SKILL.md files reference the reader and remain ≤ 16,384 B each
-- [ ] `update-loa.sh` rotates a NOTES.md at/over 200 KiB (bats with a generated fixture); migration guide gains an rc.2 addendum
-**Dependencies:** `notes-guard.sh` (cycle-124 FR-10)
+- **FR-1.1 Ceiling policy (amended per Flatline SDD SKP-001/SKP-002, sprint SKP-002).** Two pre-flight invariants replace the single literal: **I1** `estimate + max_tokens_on_wire ≤ context_window` — when it fails, cheval first shrinks `max_tokens` down to a floor of 4,096 (recorded in the envelope as `max_tokens_shrunk`), and only then `preempt`s (`CONTEXT_TOO_LARGE`); **I2** the input bound: a **calibrated** entry uses its calibrated value; an **uncalibrated** entry uses `probed_ceiling` (180,000, the last measured value) — the safe default, so nothing changes on the wire until the account is measured; the catalog-derived value (`context_window − max_tokens_on_wire`) is unlocked either by calibration (`tools/ceiling-probe-live.py --write-catalog` writes `calibrated_at`, so the operator's one run flips the policy without a code change) or by the explicit env opt-in `LOA_CHEVAL_UNCALIBRATED_CEILING=derived`, under which a request above the probed bound proceeds with `action: warn` **only if** the count endpoint confirmed the size (a key exists) or the estimator uncertainty is `low`, never above the derived bound, and with the self-correction below. `LOA_CHEVAL_LEGACY_CEILING=1` keeps today's exact behaviour. The non-streaming transport keeps the 36K wall. **Self-correction:** a request that proceeded above the probed bound and fails with a provider context/size error (400 prompt-too-long class, 413) or a token-limit 429 is classified `CEILING_UNVERIFIED_LIMIT`, retried at most once, **never walked to the next voice with the same payload** (context-length errors are non-walkable across the fallback chain), recorded as an observed bound in `.run/ceiling-observed.json` that pre-flight uses for that entry until calibration, and emitted as a `calibration_needed` trajectory record naming the probe command. The catalog test asserts I1 and I2 per entry.
+- **FR-1.2 Long-context headers (amended per sprint SKP-014).** A per-entry catalog field `params.beta_headers` (list) is emitted as `anthropic-beta`; default empty; each value must match a provider-specific allowlist regex (`^[a-z0-9]+(-[a-z0-9]+)*-\d{4}-\d{2}-\d{2}$`), is never derived from a request, and active headers are logged in the non-secret diagnostics.
+- **FR-1.3 Output defaults.** `default_max_tokens()` returns the catalog `max_output_tokens` bounded by the transport cap (64K streaming / 16K non-streaming) for any provider whose entry declares it; the 4,096 literal applies only to entries with no declaration. The request dataclass default temperature becomes "unset" (omitted on the wire unless a caller sets it; `LOA_CHEVAL_LEGACY_WIRE=1` restores 0.7). The non-streaming read-timeout heuristic keys on the resolved `max_tokens`.
+- **FR-1.4 Token estimation.** An Anthropic request within 10 % of its ceiling is counted with the provider's count endpoint when a key is present. Otherwise the existing heuristic (`chars / 3.5`, which overestimates ASCII prose and underestimates CJK/emoji-dense text) is used, and (Flatline SKP-004) the envelope records `estimator: {method: count_endpoint | heuristic, chars, tokens, uncertainty: low | high}` — `high` whenever more than 20 % of the bytes are outside ASCII or the request carries tool payloads; a `high`-uncertainty estimate above the probed bound `preempt`s with a calibration message (SDD SKP-003: the derived bound is never exceeded on an estimate; a count-endpoint result is authoritative). Adversarial fixtures (Unicode-dense, tool-payload-heavy, ASCII prose) pin the direction of error per content type.
+- **FR-1.5 Bridgebuilder.** `gen-bb-registry.ts` derives `maxOutput` from the catalog `max_output_tokens` (bounded by `config.maxOutputTokens`, whose default rises to 32,000), `maxInput` from the derived ceiling minus 20,000, and a `reasoning` flag from the entry (`params.thinking_adaptive` or `thinking_traces` capability); `isReasoningClass` consults the generated flag; the built-in default model is the `opus` alias; persona model lines resolve through aliases; `dist/` is rebuilt and the freshness manifest updated.
+- **FR-1.6 Flatline caps.** `FLATLINE_REVIEW_MAX_TOKENS` / `FLATLINE_SCORE_MAX_TOKENS` become per-voice values from the resolved entry's `max_output_tokens` bounded by 64,000; the dead `PER_CALL_MAX_TOKENS` knob is removed with a CHANGELOG line.
+- **FR-1.7 Health probe.** The Anthropic health check calls the models endpoint when available and otherwise a one-token message on the `tiny` alias; no retired snapshot id remains in the adapter.
+- **FR-1.9 Cost visibility (Flatline SDD SKP-003).** The pricing ladder learns the long-context premium: a per-entry `pricing.long_context: {threshold_tokens, input_multiplier, output_multiplier}` applied by `calculate_total_cost` when input exceeds the threshold (5-family entries carry the provider's published tier as reference values; `null` where none), so `cost-report.sh` and the budget enforcer price large calls correctly; the companion dissent voice is bounded by the same per-dissent `budget_cents` as the primary (each voice ≤ budget); a per-request billable-input guard `LOA_CHEVAL_MAX_INPUT_TOKENS` (env; default = the entry's input bound) exists independent of catalog size; the SDD carries a before/after cost table per gate; `cheap` is decided per role (the Flatline scorer moves to `tiny`, the writing roles to `claude-sonnet-5`).
+- **FR-1.8 Transport matrix (Flatline SKP-003).** One table test asserts, per (provider, transport ∈ {http-stream, http-legacy, cli-hop}), the effective input ceiling, output default, read timeout, beta headers and token-count method that the actual invocation path applies, so cheval, Bridgebuilder and Flatline cannot disagree about the same entry; the catalog entry records `account_limits: unverified` until the operator's probe fills it (tier, input-tokens-per-minute).
+- **Acceptance:** unit tests for each item (catalog ceiling formula per entry; 600K fixture request to `claude-fable-5-1` passes pre-flight in streaming mode with `action: warn`, is refused at 36K in legacy transport, and is refused at 180K with `LOA_CHEVAL_LEGACY_CEILING=1`; a simulated provider limit above the probed ceiling produces one retry, `CEILING_UNVERIFIED_LIMIT`, an observed-bound file and a `preempt` on the next call; the transport matrix test; generated table carries 128,000-derived values and `reasoning: true` for the 5-family; `deriveTimeoutMs` returns 1,800,000 for `claude-fable-5-1`, `claude-sonnet-5`, `claude-opus-5`; Flatline cap test; health-probe test with a mocked endpoint); existing adapter suites green.
 
-### FR-3: Run preflight, task checkpoints and resume surfacing
-**Priority:** Must Have
-**Description:** `run-preflight.sh` runs at the entry of `/run`, `/run-sprint-plan` and `run-mode`, and fails loud with a checklist when: the harness permission mode cannot grant the run's tool set unattended (settings files + `LOA_RUN_MODE`), a required model credential or CLI hop is absent (reusing the cheval preflight), a provider breaker is OPEN for a required voice, NOTES.md is at the block line, or the run/ledger state files are inconsistent. The run state is checkpointed after every task. On session start, a stale `RUNNING` / `INTERRUPTED` state is surfaced with the exact resume command by `loa-status.sh` and the SessionStart line; in autonomous mode `/loa` offers resume as the single next step.
-**Acceptance Criteria:**
-- [ ] each predicate has a passing and a failing fixture in bats; the checklist names the predicate and the fix
-- [ ] state is written after each task; `run-resume` restarts at the recorded task (integration fixture)
-- [ ] `loa-status.sh` prints the resume line for a stale state and nothing for a clean one
-- [ ] no new config key; `LOA_RUN_MODE` and existing settings are the inputs
-**Dependencies:** `session-limit-capture.sh`, run-mode skill, `cheval-preflight-gate`
+> Sources: audit §1 C1–C9; `.claude/defaults/model-config.yaml:366-380` (ceiling rationale, `tools/ceiling-probe-live.py` as the calibration step); `truncation.generated.ts:1-16` (codegen contract); `multi-model-pipeline.ts:45-72`; `flatline-orchestrator.sh:112-132`; `base.py:163-186`.
 
-### FR-4: Provider health as a first-class signal
-**Priority:** Must Have
-**Description:** `loa-status.sh` prints one line per configured provider: breaker state and age, credential present (never the value), CLI hop available. `cheval` re-routes to the same company's CLI hop when the HTTP breaker is OPEN (if the chain resolver already does, prove it with a test and surface it in the status line); breakers expire to HALF_OPEN after a documented cooldown; `cheval --reset-breaker <provider>` exists. `mount-submodule.sh` and `mount-loa.sh` seed `grimoires/loa/known-failures.md` from the template so the KF surface hook has a ledger downstream.
-**Acceptance Criteria:**
-- [ ] bats with breaker-file fixtures for OPEN / HALF_OPEN / CLOSED and expiry
-- [ ] status snapshot test; no credential value ever printed
-- [ ] re-route proven by a test on the chain resolver
-- [ ] mount tests assert the seeded ledger
-**Dependencies:** `.run/circuit-breaker-*.json` writers in `loa_cheval`
+### FR-2: Two voices and no dropped findings (audit §2)
 
-### FR-5: Cost accounting that prices what the fleet actually calls
-**Priority:** Must Have
-**Description:** Pricing lookup resolves the model ids the CLI hops record — dated OpenAI ids (`gpt-5.2-2025-12-11`, `gpt-5.5-2026-04-23`), Google ids such as `gemini-2.5-pro`, and rows whose `model` is a hop name (`codex-headless`, `claude-headless` — the hop must record the resolved model id, or the pricing layer must normalise the hop name to it) — so `pricing_source: unknown` becomes the exception; when the CLI reports no usage, the row is priced from cheval's own token counts and marked `cost_estimated: true`. `cost-report.sh` prints the unpriced share, reads the current path and, with `--include-legacy`, the pre-2.0 path `grimoires/loa/a2a/cost-ledger.jsonl`, and offers `--migrate-legacy` (append-only move with a receipt). `cost-budget-enforcer` reads the same totals, or is retired with the decision recorded if it cannot be made truthful.
-**Acceptance Criteria:**
-- [ ] bats over fixture rows reproducing the fleet's unpriced ids: each resolves to a price; truly unknown ids stay `unknown` with cost 0 and are counted in the report's unpriced share
-- [ ] the CLI hops record the resolved model id (or the normaliser maps the hop name) — pinned by a test per hop
-- [ ] report totals match a hand computation on the fixture; legacy include and migrate covered by tests; the migrate leaves a receipt
-- [ ] test harness ledger isolation preserved (KF-033)
-**Dependencies:** `loa_cheval/metering/ledger.py:135-149` (`find_pricing`, cli_reported path), `loa_cheval/metering/pricing.py`, the four `*_headless_adapter.py`, `tools/check-ledger-hygiene.sh`
+- **FR-2.1 Second voice without a key (amended per sprint SKP-004).** When the primary Anthropic voice resolves to an HTTP entry and no Anthropic credential is present (env or `.env*`, presence only), `adversarial-review.sh` plans `claude-headless` as a voice in its own right (multi-voice mode, `voices_planned = 2` alongside the OpenAI voice), not merely as a failure fallback. Presence only decides which chain to start; **two-voice success is recorded from actual completions** (`voices_succeeded_ids`), and a companion that fails is recorded with a failure class (`auth`, `model_unavailable`, `quota`, `timeout`, `malformed`) in `metadata.companion_voice`, never as a planned-and-assumed success.
+- **FR-2.2 Tolerant finding schema.** A finding with a missing or empty `failure_mode` but a valid id, severity, category and description is accepted with `failure_mode` derived from the first sentence of `description` and `failure_mode_derived: true`; findings that are still invalid go to the sidecar **and** to `metadata.rejected_summary[]` (severity, title, anchor, reason, ≤ 300 chars of description).
+- **FR-2.3 Reviewer contract.** `reviewing-code` and `auditing-security` require a `## Rejected dissent payloads` section in the feedback file whenever the envelope's `rejected_summary` is non-empty (each row: accepted → finding recorded, or refuted → one sentence); `verdict-derive.sh` fails the trailer check when the section is missing in that case.
+- **FR-2.4 Repair loop.** `_repair_finding_via_model` uses the `tiny` alias when a key exists, else the `claude-headless` hop; `repair_succeeded` is measured on the KF-004 fixtures.
+- **Acceptance:** the three real rejected payloads of 2026-09-23/24 (fence bypass, row-supplied pricing authority, negative token counts) are fixtures and produce findings; a two-voice run on this host; a bats case where a rejected row forces the feedback section; KF-004 gets its closing evidence row.
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §2 FR-1–FR-5; grimoires/loa/reports/usage-mining-2026-09-23.md §3; .claude/hooks/safety/block-destructive-bash.sh:302,378,498; .claude/scripts/notes-guard.sh:82-140; .claude/adapters/loa_cheval/metering/ledger.py:135-149; .claude/scripts/mount-submodule.sh:1128-1154
+> Sources: audit §2; `adversarial-review.sh:296-352` (`validate_finding`, `_validate_finding_reason`), `:1850-1905` (chain building), `:406-530` (repair loop); `grimoires/loa/a2a/sprint-bug-245/adversarial-rejected-audit.jsonl`; `grimoires/loa/known-failures.md` KF-004.
 
----
+### FR-3: Context discipline and instruction surface sized for the current generation (audit §3)
+
+- **FR-3.1 Context-class table.** `.claude/protocols/tool-result-clearing.md` carries one table with two classes: `standard` (≤ 200K contexts: today's 2K/5K/3K/15K) and `long` (≥ 1M contexts: 20K/50K/30K/150K); the class is `long` by default (the framework's model floor is the 5-family) and `standard` when the session model is a 200K entry or `LOA_CONTEXT_CLASS=standard`. The `context_discipline` include is regenerated from that table; the "never load a >1,000-line file" edge case becomes class-scoped.
+- **FR-3.2 Instruction diet.** Reference-grade protocols (`helper-scripts`, `constructs-integration`, `trajectory-evaluation`, `recommended-hooks`, the reference half of `session-continuity`) move to on-demand loading behind one-line pointers; `CLAUDE.loa.md` regains ≥ 1 KB; the protocol budget regains ≥ 20 %; the `wc -l`-gated parallelism choreography in `auditing-security`, `implementing-tasks` and `reviewing-code` becomes one sentence.
+- **FR-3.3 Eval gate.** The existing eval harness A/B (review and audit gold sets) runs before and after; no recall regression is accepted.
+- **Acceptance:** `tools/check-prompt-budget.sh` green with the stated headroom; include regenerated (`generate-skill-includes.sh --check`); A/B report attached to the sprint; the three skills shrink.
+
+> Sources: audit §3; `.claude/protocols/tool-result-clearing.md:5-34`; `.claude/data/skill-includes/context_discipline.md`; `tools/check-prompt-budget.sh` output 2026-09-24; cycle-124 sprint-3 parity harness (`grimoires/loa/cycles/…` and `tests/replay/`).
+
+### FR-4: Routing residue, governance registry, probes (audit §4–§5)
+
+- **FR-4.1 Aliases and maps.** `cheap` → `anthropic:claude-sonnet-5` (roles that want the smallest model use `tiny`, decided per role in the SDD); `model-adapter.sh` fallback map and `--help` learn the 5-family and stop naming 4.7; Flatline's `VALID_MODEL_PATTERNS` and stub allowlist admit `claude-<family>-N`, `claude-fable-N-N`, `fable`, `gpt-N.N-pro`.
+- **FR-4.2 Governance registry.** `model-permissions.yaml` gains entries for `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5-1` (and Bedrock forms where present) mirroring the 4.7 trust scopes, and its comments stop calling 4.7 current.
+- **FR-4.3 Example pins and defaults.** `flatline-proposal-review.sh` default, `alternative-model.md`, `hitl-jury-panel/SKILL.md`, `loa-aleph/SKILL.md` examples, and the two Gemini agent pins move to ids the catalog serves.
+- **FR-4.4 Probes (amended per Flatline SKP-008).** `detect-platform-features.sh` records **evidence only** (`active_skill_seen_at`) the first time a real PreToolUse payload carries `tool_input.active_skill`; the recorder runs only in the lead session (skipped when an agent-teams teammate role is set) and writes one atomic file. Authoritative mode of `implement-gate.sh` is **never flipped by a probe**: it requires an explicit opt-in (`implement_gate.mode: authoritative`, default `heuristic`) and a fixture corpus of real PreToolUse payloads (with and without `active_skill`, nested `/run` dispatch) that the authoritative branch is tested against before the opt-in is documented; `/loa` shows the evidence so the operator can decide. `validate-skill-capabilities.sh` reads write-capable agent types from one documented list that includes the agent types the harness ships today. **Spoofability (sprint SKP-001):** the recorder stores the field's *source* (`tool_input` vs a harness-provided context field); authoritative mode is documented only if Task 4.4's research against the Claude Code hooks contract shows a harness-provided skill signal that a model-authored `tool_input` cannot forge, and a test proves a forged `active_skill` in a Write payload does not flip the gate; otherwise the gate stays heuristic and the evidence line says why.
+- **FR-4.5 Permission grammar (amended per sprint SKP-010).** `check-permissions.sh` normalises `Bash(<cmd>:*)` and `Bash(<cmd> *)` to one key (`<cmd>`, whitespace-trimmed, no other transformation; an exact `Bash(<cmd>)` rule stays exact) for allow and deny alike; deny keeps precedence at every layer; tests cover both forms, mixed forms across layers, whitespace and escaping cases, and a fuzz set of dangerous shapes (narrower denies for specific dangerous forms never cover the generic requirement; generic denies cover every subcommand).
+- **Acceptance:** tests per item; `grep` for a 4.x id used as a default or "current" in live scripts returns nothing; preflight and `/loa` unchanged for operators.
+
+> Sources: audit §4–§5; `model-config.yaml:894`; `model-adapter.sh:111-121,344`; `flatline-orchestrator.sh:555,565-577`; `model-permissions.yaml:145-201`; `detect-platform-features.sh:53-74`; `implement-gate.sh:98-190`; `validate-skill-capabilities.sh:108`.
 
 ## Non-Functional Requirements
 
 ### Performance
-- The fence hook's added classification must not raise its per-command latency past the existing hook-guard budget; measure with the corpus.
-- Section reads complete without loading more than the selected block plus an index pass.
+No new per-call latency in hooks; the count endpoint is consulted only near the ceiling; Bridgebuilder budgets rise without new truncation passes.
 
 ### Scalability
-- The fence corpus and the artefact reader work on the largest fleet artefacts observed (NOTES.md 349 KiB, sprint.md 42 KB, prd.md 101 KB).
+Ceilings and caps track the catalog so the next generation needs a catalog edit, not code.
 
 ### Security
-- No relaxation may admit a command that deletes outside the repository or a temp directory, executes SQL against a runner, force-pushes, or writes the System Zone; each relaxation ships with its dangerous twin as a negative test.
-- Provider status never prints a credential value; preflight never logs secrets.
-- Cost ledger writes keep `O_NOFOLLOW` and the resolver's refusals.
+No fence weakened; the executing dissent voice is a hop the framework already trusts; kill switches (`LOA_CHEVAL_LEGACY_CEILING`, `LOA_CHEVAL_LEGACY_WIRE`) are env-only; no credential values ever read (presence only).
 
 ### Reliability
-- Preflight is fail-loud; a predicate that cannot be evaluated is reported as unknown, not as pass.
-- Resume is idempotent from any checkpoint.
+Warn-and-proceed above the probed ceiling is visible in the envelope and in cost/trajectory records; a provider refusal still surfaces as today's error class.
 
 ### Compliance
-- Prompt byte budgets hold (`tools/check-prompt-budget.sh`); REPO-MAP and checksums regenerated after every `.claude/` change; the a2a record lives on `record/cycle-125-a2a`.
+Prompt budgets end green with headroom; REPO-MAP, sidecar and checksums regenerated together; CHANGELOG `[Unreleased]` entries per FR; migration guide addendum for behaviour changes (temperature default, ceiling policy, Bridgebuilder model default).
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §3; grimoires/loa/reports/usage-mining-2026-09-23.md §3 F2 (artefact sizes); .claude/hooks/hook-guard.sh
-
----
+> Sources: brief §3; audit §5 (hook timings 45 ms / ≈ 2 s); cycle-124 kill-switch conventions (`docs/migration/v2.0-model-generation-floor.md`).
 
 ## User Experience
 
 ### Key User Flows
-
-#### Flow 1: A blocked command that should not be
-```
-agent runs rm -rf dist → fence classifies (bare visible relative dir) → allowed → build continues
-```
-
-#### Flow 2: Starting an unattended run
-```
-/run sprint-plan → run-preflight.sh → checklist (all green) → tasks with per-task checkpoints → session limit → next session: /loa → "resume: /run-resume" → resumes at task
-```
-
-#### Flow 3: Reading provider health
-```
-/loa → "anthropic: http OPEN 3d (re-routing to claude-headless) · credential: present · hop: available" → operator acts or ignores
-```
+1. Operator runs a large `/ride`; cheval logs `input_ceiling: catalog_derived, action: warn` and proceeds.
+2. Operator runs Bridgebuilder with no model set; the log names `claude-opus-5`.
+3. Reviewer opens `engineer-feedback.md`; a `## Rejected dissent payloads` section lists what the dissenter said that the schema refused, each accepted or refuted.
+4. A skill in a 1M session reads big files; the context-discipline line says the `long` numbers.
 
 ### Interaction Patterns
-- Every refusal names the predicate and the fix in one line (the fence message, the preflight checklist, the status line).
-- Reads are budgeted and end with a footer that names how to get the rest.
+No new commands; two new envelope fields; one new feedback section; kill switches documented next to the existing ones.
 
 ### Accessibility Requirements
-- Plain-text, single-line diagnostics; no colour-only signals.
-- Status lines under 120 characters.
+Text-only outputs; no colour-only signals; existing `--json` shapes stay backward compatible (additive fields only).
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §2 FR-3, FR-4; .claude/scripts/notes-guard.sh:139 (footer pattern)
-
----
+> Sources: audit §6 (feature inventory); cycle-125 PRD UX section conventions.
 
 ## Technical Considerations
 
-- **Fence architecture.** The hook already scrubs complete quoted `cat` heredocs (`block-destructive-bash.sh:296-378`); FR-1 extends the classification to sink-aware SQL matching and path-shape classes for `rm -rf`, with the corpus as the regression floor.
-- **Artefact reader.** `notes-guard.sh` already indexes heading blocks and emits budgeted ranges (`:82-140`); FR-2 parameterises the file and heading family rather than adding a second reader.
-- **Preflight inputs.** Permission mode comes from `.claude/settings.json`, `.claude/settings.local.json` and `LOA_RUN_MODE`; credentials from the cheval preflight; breakers from `.run/circuit-breaker-*.json`; NOTES size from `notes-guard.sh check --delta`.
-- **Breaker semantics.** Files under `.run/` per provider and transport (`http_api`, `headless`); FR-4 documents cooldown and adds a reset entry point.
-- **Pricing.** `ledger.py` already prefers a CLI-reported amount and falls back to `find_pricing` (`:135-149`); FR-5 makes the fallback cover CLI hops with cheval-counted tokens and flags estimates.
-- **Records.** The a2a sprint record goes to `record/cycle-125-a2a`; CHANGELOG entries under `[Unreleased]` are finalised by the pipeline as `2.0.0-rc.2`.
+- The ceiling policy is deliberately two-tier (calibrated → preempt; catalog-derived → warn) because the live probe needs a key this host lacks; the operator's `ceiling-probe-live.py` run later sets `calibrated_at` and flips the action without a code change.
+- Bridgebuilder's registry is TypeScript generated from the catalog; `dist/` is tracked and guarded by `tools/check-bb-dist-fresh.sh`, so every registry change rebuilds `dist/`.
+- The second voice reuses the multi-voice aggregate that already exists in `adversarial-review.sh` (`verdict_quality.voices_*`); the change is in planning, not aggregation.
+- Context class detection prefers the session model when the harness exposes it; the default is the framework floor.
+- All catalog edits go through `gen-adapter-maps.sh` so the generated bash maps and the BB registry stay in lock-step.
 
-> Sources: .claude/hooks/safety/block-destructive-bash.sh:296-378; .claude/scripts/notes-guard.sh:82-140; .claude/adapters/loa_cheval/metering/ledger.py:135-149; grimoires/loa/runbooks/post-merge-candidates.md §Pre-release candidates
-
----
+> Sources: `tools/ceiling-probe-live.py` header; `truncation.generated.ts` header; `adversarial-review.sh` multi-voice metadata (`verdict_quality`); `gen-adapter-maps.sh`.
 
 ## Scope & Prioritization
 
 ### In scope (this cycle)
-FR-1 through FR-5, each Must Have, in four sprints.
+FR-1 … FR-4 as specified; docs (migration addendum, CHANGELOG, skill/protocol text touched by FR-3); an end-to-end goal validation in the final sprint.
 
 ### Out of scope (deferred, evidence recorded)
-- **F6 surface diet:** 27 of 54 commands and 22 of 36 skills never invoked; trajectory logs write-only.
-- **F7 fleet upgrade tooling:** version spread 1.101 → 2.0.0-rc.1; copy-set drift in three mounts; inconsistent `framework_version` formats.
-- **F8 abandoned-cycle sweep:** roughly half of fleet sprint directories lack a COMPLETED marker.
-- GitHub infrastructure (branch protection, environments) and Aleph.
+Running the live ceiling probe (needs a key); Batch API, `strict` tools, extra cache breakpoints (audit §6, cost levers); shrinking the shared allow list (operator policy); publishing a release candidate; any Aleph change.
 
 ### MVP definition
-A merge that lands as `2.0.0-rc.2` with all five FRs' acceptance tests green and the fence corpus committed.
+FR-1.1, FR-1.5, FR-2.1, FR-2.2, FR-3.1 — the five changes that stop the current models being capped, reviewed on one voice, or told to stop at 15K tokens.
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §2 (Non-goals), §4; grimoires/loa/reports/usage-mining-2026-09-23.md §3 F6–F8
-
----
+> Sources: audit §6–§7; brief §2 and §5.
 
 ## Success Criteria
 
-- Fence corpus: ≥ 80 % benign pass, 100 % dangerous block, existing suite green.
-- Artefact reader in use by four skills; NOTES rotation on upgrade tested; budgets green.
-- Preflight with ≥ 5 fixture-backed predicates; per-task checkpoints; resume surfaced by `/loa`.
-- Provider lines in `/loa`; re-route proven; breaker reset and expiry tested; known-failures seeded on mount.
-- The fleet's unpriced ids resolve to prices on the fixture; unpriced share printed; legacy include/migrate tested.
-- Every sprint COMPLETED with consistent LOA-VERDICT trailers; draft PR with CI green and one Bridgebuilder pass triaged.
+- G-1: the 600K fixture passes pre-flight; BB table and reasoning flag correct for the 5-family; Flatline caps catalog-derived.
+- G-2: two voices on this host; the three fixtures produce findings; the feedback section is enforced.
+- G-3: budgets green with headroom; A/B not worse; include regenerated.
+- G-4: no 4.x id as default or "current" in live code; registry has the 5-family.
+- G-5: fence corpus 100 % dangerous / ≥ 80 % benign unchanged; every existing suite green; kill switches tested.
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §2 acceptance lines, §5
-
----
+> Sources: KPI table above; `tests/fixtures/fence-corpus/baseline.json`.
 
 ## Risks & Mitigation
 
 | Risk | Impact | Mitigation |
-|------|--------|------------|
-| A relaxation admits a destructive command | High | every relaxation ships its dangerous twin; corpus is a regression floor; audit dissent on each sprint |
-| Sink-aware SQL matching misses an execution form (e.g. `node -e` with a driver) | Medium | keep the keyword match for known runners and document the residual; the fence was never a complete SQL guard |
-| Section reader changes what skills see and shifts review quality | Medium | `--full` remains; skills read the sprint block plus ACs; A/B harness from cycle-124 available for a spot check |
-| Preflight blocks a run the operator wanted anyway | Low | checklist names the fix; `LOA_RUN_MODE=interactive` path unchanged |
-| Cost estimates mislead | Low | estimates flagged per row; report shows the estimated share |
-| Prompt budgets overflow when skills gain reader references | Medium | net-zero edits; `tools/check-prompt-budget.sh` gates every commit |
-| Only one dissent voice available on this host | Medium | record the failed-run envelope per skill guidance; the OpenAI voice is functional |
+|---|---|---|
+| Raising the ceiling without a probe surfaces a provider limit at runtime | a large call fails late | warn-and-proceed is visible in the envelope; one bounded retry, `CEILING_UNVERIFIED_LIMIT`, observed-bound downgrade and a `calibration_needed` event (no blind loops); kill switch restores 180K; the E2E live call and the probe tool are the evidence steps |
+| Bridgebuilder `dist/` drift | CI freshness check red | rebuild in the same commit; the manifest tool runs in the sprint |
+| A second voice doubles dissent cost and time | slower sprints | the headless hop is subscription-billed; time bounded by existing timeouts |
+| Deriving `failure_mode` admits weaker findings | reviewer noise | derived findings are marked and go to the same severity gates; the reviewer still decides |
+| Instruction diet regresses review recall | quality loss | A/B gate is mandatory; revert per protocol if red |
+| Temperature default change alters non-thinking outputs | behaviour change | documented; `LOA_CHEVAL_LEGACY_WIRE=1` restores 0.7 |
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §3; grimoires/loa/known-failures.md KF-004, KF-017, KF-033, KF-034
-
----
+> Sources: audit §1 (KF-002 history), cycle-124 risk register conventions, brief §5 stop conditions.
 
 ## Timeline & Milestones
 
-| Sprint | Scope | Exit |
-|--------|-------|------|
-| 1 | FR-1 fence precision + fixture corpus | corpus committed, ≥ 80 % / 100 %, suite green |
-| 2 | FR-2 sectioned artefacts + NOTES rotation on upgrade | reader in four skills, budgets green, migration addendum |
-| 3 | FR-3 preflight, per-task checkpoints, resume surfacing | fixtures per predicate, integration resume test |
-| 4 | FR-4 provider health + FR-5 cost accounting + docs | status lines, re-route test, seeded KF, priced ledgers, CHANGELOG under `[Unreleased]` |
+Four sprints, unattended: Sprint 1 FR-1 · Sprint 2 FR-2 · Sprint 3 FR-3 · Sprint 4 FR-4 + docs + E2E. Then draft PR (`cycle-126` in the title), CI green, one Bridgebuilder pass triaged, merge (the pipeline prepares the next rc; no publication).
 
-> Sources: grimoires/loa/context/cycle-125-brief.md §4
-
----
+> Sources: brief §4.
 
 ## Appendix
 
 ### Assumptions recorded (autonomous run)
-- `[ASSUMPTION]` Cached `/ride` reality (2026-05-04) is used without a re-run; the PRD is grounded in the usage report and direct code citations instead.
-- `[ASSUMPTION]` The operator's "proceed" authorises this cycle's scope as the five items ranked most impactful in the review; F6–F8 are deferred, not dropped.
-- `[ASSUMPTION]` withdrawn after the Flatline PRD review (skeptic SKP-001): quoted payloads of `ssh`/`docker exec`/`kubectl exec` keep today's scanning; the residual false positives from remote payloads are accepted.
-- Flatline PRD review (2026-09-23, two voices, scoring degraded): nine skeptic concerns were integrated into FR-1 (no bare project-directory allowance, real `$TMPDIR` check, single mktemp assignment, no network in the hook, corpus lint) and into the SDD (atomic checkpoint writes with schema version and beads as the recovery source; pricing-snapshot governance recorded as an open question).
-- `[ASSUMPTION]` The merge of this cycle is prepared as `2.0.0-rc.2` (a merge on the rc tag increments); no CHANGELOG heading is authored.
+- The 5-family's 1M context is available to this account's transport without a beta header; the per-entry `beta_headers` field exists so an operator can add one without a code change.
+- `claude-headless` is an acceptable second dissent voice on subscription hosts (it is already a trusted hop in every fallback chain).
+- The framework's model floor (5-family) justifies `long` as the default context class.
 
 ### Evidence pointers
-- `grimoires/loa/reports/usage-mining-2026-09-23.md` (tracked summary)
-- `.run/usage-mining/` (raw aggregates and scripts, untracked; fence sample seed under `mine-attrib.json` → `blocks_by_rule[*].samples`)
-- `grimoires/loa/context/cycle-125-brief.md` (operator brief)
+`grimoires/loa/reports/model-era-audit-2026-09-24.md`; the 12 dissent envelopes under `grimoires/loa/a2a/sprint-24{1,2,3,4}/` and `sprint-bug-24{5,6}/`; `tools/check-prompt-budget.sh` 2026-09-24; hook-chain timing in the audit §5.
+
+### Flatline dissent on this PRD (2026-09-24, voices codex-headless + claude-headless; cross-scoring degraded, blockers integrated)
+| Item | Disposition |
+|---|---|
+| SKP-001 CRITICAL/HIGH — 1M capability unverified; late failures; 600K retries | integrated: self-correcting ceiling (bounded single retry, `CEILING_UNVERIFIED_LIMIT`, observed-bound downgrade, `calibration_needed` event), E2E live ≈250K call as G-1 evidence and stop condition, `account_limits: unverified` in the catalog |
+| SKP-002 HIGH — no deterministic recovery for provider limits | integrated into FR-1.1 (same mechanism) |
+| SKP-003 HIGH — no per-provider/transport validation | integrated as FR-1.8 transport matrix test |
+| SKP-004 HIGH — bytes-based bound under-specified | integrated into FR-1.4 (`estimator` envelope object, uncertainty rule, adversarial fixtures) |
+| SKP-008 HIGH — probe flip activates a dead fence mode; teammate writes to `.run/` | integrated into FR-4.4 (evidence-only recorder, lead-only, explicit opt-in, payload fixture corpus) |
+| 41 medium-value Phase-1 items | cross-scoring degraded (`scoring_degraded: true`); the raw reviews were not exported with titles — not integrated, recorded here |
+
+### Flatline dissent on the SDD and sprint plan (2026-09-24/25, same voices; both degraded on cross-scoring)
+| Item | Disposition |
+|---|---|
+| SDD SKP-001 CRITICAL — `max(probed, cw − mot)` breaks I1 for 200K entries once the output default is 64K | **accepted, formula replaced**: I1 `estimate + max_tokens ≤ context_window` with auto-shrink to a 4,096 floor; no `max()` with the probed value |
+| SDD SKP-002 HIGH / sprint SKP-002 HIGH / PRD SKP-001 — 4.8× default-on without measurement; `warn` is not a mitigation unattended; context errors walked across the chain | **accepted, default inverted**: uncalibrated entries keep the probed bound; derived unlocks by calibration or explicit env opt-in with count-token confirmation; context-length errors non-walkable; probe `--write-catalog` in Sprint 1 |
+| SDD SKP-003 HIGH — no cost analysis; long-context premium; `cheap` cost; breaker | **accepted** as FR-1.9 (pricing tier, cost table, per-voice budget, billable-input guard, `cheap` per role) |
+| SDD SKP-003 HIGH — 105 % slack on estimates | **accepted**: derived bound never exceeded on an estimate |
+| sprint SKP-004 HIGH — credential presence ≠ callable | **accepted** in FR-2.1 (status from completions, failure classes) |
+| sprint SKP-001 HIGH — `active_skill` spoofable | **accepted** in FR-4.4 (source recorded; authoritative only with a harness-provided signal proven by research + forged-payload test) |
+| sprint SKP-010 CRITICAL — permission grammar ambiguity | **accepted** in FR-4.5 (formal normalisation, precedence, whitespace/escaping, fuzz) |
+| sprint SKP-014 HIGH — `beta_headers` injection | **accepted** in FR-1.2 (allowlist regex, never request-derived, logged) |
+| sprint SKP-001 CRITICAL — unattended run lacks approval gates | **refuted as process**: the maintainer's standing instruction authorises the unattended cycle under the recorded constraints (no publication, no merge before CI + Bridgebuilder triage, per-dissent budgets, stop conditions in the brief); recorded, not changed |
+| sprint SKP-002 HIGH — `model-permissions.yaml` is signed | **refuted with evidence**: the file is consumed only by `context_filter.py` and the migration scripts; no signature, digest or trust-store reference covers it; edit stays in Sprint 4 with the coverage test |
+| 27 + 26 medium-value items | not exported with titles; recorded |
 
 ### Glossary
-- **Fence** — a PreToolUse hook rule in `block-destructive-bash.sh` that refuses a Bash command.
-- **Breaker** — a per-provider, per-transport circuit-breaker file under `.run/`.
-- **Checkpoint** — the run-mode state written after a unit of work so `run-resume` can restart there.
+**Ceiling** — the largest input cheval will send; **calibrated** — measured by `ceiling-probe-live.py` on a real account; **voice** — one model's independent dissent; **context class** — `standard` (≤ 200K) or `long` (≥ 1M).
 
-> Sources: grimoires/loa/reports/usage-mining-2026-09-23.md §1, §5; grimoires/loa/context/cycle-125-brief.md §1
+> Sources: this document.
