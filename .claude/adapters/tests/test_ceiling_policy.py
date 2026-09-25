@@ -270,3 +270,29 @@ def test_gate_cli_override_observed_and_legacy(monkeypatch):
     out = gate(TWO_HUNDRED, estimate=GateEstimate(tokens=170_000), requested_max_tokens=64_000, counter=lambda: 1)
     assert out.action == "dispatch" and out.shrunk_from is None and out.policy == "legacy" and out.estimate.method == "heuristic", \
         "legacy: no I1, no count, the literal"
+
+
+def test_record_observed_is_serialised_across_processes(tmp_path, monkeypatch):
+    """Review sprint-247 DISS-001 (chunk a): concurrent writers must not lose rows —
+    the read/append/replace cycle is held under an interprocess lock."""
+    import multiprocessing as mp
+    path = tmp_path / "ceiling-observed.json"
+    monkeypatch.setenv(OBSERVED_PATH_ENV, str(path))
+
+    ctx = mp.get_context("fork")
+    procs = [ctx.Process(target=_append_many, args=(str(path), w, 25)) for w in range(4)]
+    for pr in procs:
+        pr.start()
+    for pr in procs:
+        pr.join(60)
+    assert all(pr.exitcode == 0 for pr in procs), [pr.exitcode for pr in procs]
+    data = load_observed(str(path))
+    assert len(data["entries"]) == 100, len(data["entries"])
+    assert sorted(row["observed_input_tokens"] for row in data["entries"]) == sorted(1000 * w + i for w in range(4) for i in range(25))
+    assert not [p for p in tmp_path.iterdir() if p.suffix == ".tmp"], "no temp file left behind"
+
+
+def _append_many(path, worker, n):
+    for i in range(n):
+        record_observed(provider="anthropic", model="claude-opus-5", observed_input_tokens=1000 * worker + i,
+                        error_class="PROVIDER_CONTEXT_LIMIT", path=path)

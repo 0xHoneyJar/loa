@@ -64,3 +64,20 @@ def test_missing_multipliers_default_to_one():
                          long_context_threshold=100)
     c = calculate_total_cost(1_000, 1_000, 0, entry)
     assert c.long_context_applied is True and c.total_cost_micro == 2_000
+
+
+def test_premium_is_applied_before_flooring_not_to_rounded_categories():
+    """Review sprint-247 DISS-001 (chunk c): floor(tokens × rate × multiplier / 1e6), never
+    floor(floor(tokens × rate / 1e6) × multiplier)."""
+    entry = PricingEntry(provider="p", model="m", input_per_mtok=1_250_000, output_per_mtok=1_250_000,
+                         long_context_threshold=1, long_context_input_multiplier=1.5, long_context_output_multiplier=1.5)
+    c = calculate_total_cost(3, 3, 0, entry)
+    assert c.long_context_applied is True
+    assert c.output_cost_micro == 5, "3 × 1.25 × 1.5 = 5.625 → 5 (the rounded-first path gives floor(3 × 1.5) = 4)"
+    assert c.input_cost_micro == 5 and c.total_cost_micro == 10
+    # remainders are kept for the premium path too (no silent loss)
+    assert c.remainder_input > 0 and c.remainder_output > 0
+    # multipliers are exact decimals, not binary floats: 0.1 × 10 tokens × 1e6 rate → 1 exactly
+    e2 = PricingEntry(provider="p", model="m", input_per_mtok=1_000_000, output_per_mtok=1_000_000,
+                      long_context_threshold=1, long_context_input_multiplier=1.1, long_context_output_multiplier=1.0)
+    assert calculate_total_cost(10, 0, 0, e2).input_cost_micro == 11

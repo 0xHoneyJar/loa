@@ -109,6 +109,28 @@ def calculate_cost_micro(tokens: int, price_micro_per_million: int) -> tuple:
     return cost_micro, remainder_micro
 
 
+def _premium_cost_micro(tokens: int, price_micro_per_million: int, multiplier: float) -> tuple:
+    """cycle-126 FR-1.9 (review sprint-247): the long-context premium is applied
+    to the product BEFORE flooring — floor(tokens × rate × multiplier / 1e6) —
+    with the multiplier as an exact decimal (`Fraction(str(m))`), never to an
+    already-floored per-category cost. Returns (cost_micro, remainder_micro)
+    with the remainder scaled to the same 0..999,999 range as
+    `calculate_cost_micro`; the overflow guard is the same product check."""
+    from fractions import Fraction
+    product = tokens * price_micro_per_million
+    if product > MAX_SAFE_PRODUCT:
+        raise ValueError(
+            f"BUDGET_OVERFLOW: tokens({tokens}) * price({price_micro_per_million}) "
+            f"= {product} exceeds MAX_SAFE_PRODUCT"
+        )
+    frac = Fraction(str(multiplier))
+    num = product * frac.numerator
+    den = 1_000_000 * frac.denominator
+    cost_micro = num // den
+    remainder_micro = (num % den) * 1_000_000 // den
+    return cost_micro, remainder_micro
+
+
 def calculate_total_cost(
     input_tokens: int,
     output_tokens: int,
@@ -162,17 +184,22 @@ def calculate_total_cost(
 
     # cycle-126 FR-1.9: long-context premium — above the threshold the whole
     # request is billed at the multiplied rates (input-side: input + cache
-    # traffic; output-side: output + reasoning).
+    # traffic; output-side: output + reasoning), each category recomputed from
+    # tokens × rate × multiplier before flooring (review sprint-247 DISS-001:
+    # multiplying the floored costs underbilled by the discarded remainders).
     long_context_applied = False
     threshold = pricing.long_context_threshold
     if threshold is not None and input_tokens > threshold:
         long_context_applied = True
         im, om = pricing.long_context_input_multiplier, pricing.long_context_output_multiplier
-        inp_cost = int(inp_cost * im)
-        cr_cost = int(cr_cost * im)
-        cw_cost = int(cw_cost * im)
-        out_cost = int(out_cost * om)
-        reas_cost = int(reas_cost * om)
+        inp_cost, inp_rem = _premium_cost_micro(input_tokens, pricing.input_per_mtok, im)
+        out_cost, out_rem = _premium_cost_micro(output_tokens, pricing.output_per_mtok, om)
+        if pricing.reasoning_per_mtok and reasoning_tokens:
+            reas_cost, reas_rem = _premium_cost_micro(reasoning_tokens, pricing.reasoning_per_mtok, om)
+        if pricing.cache_read_per_mtok and cache_read_tokens:
+            cr_cost, cr_rem = _premium_cost_micro(cache_read_tokens, pricing.cache_read_per_mtok, im)
+        if pricing.cache_write_per_mtok and cache_creation_tokens:
+            cw_cost, cw_rem = _premium_cost_micro(cache_creation_tokens, pricing.cache_write_per_mtok, im)
 
     token_total = inp_cost + out_cost + reas_cost + cr_cost + cw_cost
 

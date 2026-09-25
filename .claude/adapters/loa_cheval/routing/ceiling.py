@@ -28,6 +28,7 @@ ceiling field (v2 shapes, CLI hops) have no bound here (``None``).
 from __future__ import annotations
 
 import datetime as _dt
+import fcntl
 import json
 import os
 import re
@@ -276,6 +277,28 @@ def record_observed(
     reduces it. The parent directory is created (``.run/`` may not exist on a
     fresh mount)."""
     path = path or observed_store_path()
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(directory, exist_ok=True)
+    # Review sprint-247 DISS-001: the read → append → replace cycle is held
+    # under an interprocess lock on a sibling lock file, so two chevals that
+    # hit a provider limit at once cannot each load the same old store and
+    # have the later replace discard the earlier row. The temp + os.replace
+    # still makes every write atomic for readers, which take no lock.
+    lock_path = path + ".lock"
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return _record_observed_locked(path, directory, provider, model, observed_input_tokens,
+                                       error_class, estimated_input_tokens, provider_limit)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+
+def _record_observed_locked(path, directory, provider, model, observed_input_tokens,
+                            error_class, estimated_input_tokens, provider_limit) -> Dict[str, Any]:
     data = load_observed(path)
     row = {
         "provider": provider,
@@ -289,8 +312,6 @@ def record_observed(
     }
     data.setdefault("entries", []).append(row)
     data["version"] = 1
-    directory = os.path.dirname(os.path.abspath(path)) or "."
-    os.makedirs(directory, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix=".ceiling-observed.", suffix=".tmp", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
