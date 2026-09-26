@@ -485,10 +485,10 @@ _derive_failure_mode() {
     | if ((.failure_mode // "") | tostring | length) == 0
          and (.description | type) == "string" and (.description | length) > 0
       then
-        (.description
-          | gsub("\\s+"; " ")
-          | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)
-          | .[0:200]) as $fm
+        (.description | gsub("\\s+"; " ")) as $d
+        | ($d | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)) as $s
+        # eighth run, a1 C-003: "e.g." / "1." / "Approx." are not sentences — below 20 characters use the head
+        | (if ($s | length) < 20 then $d else $s end | .[0:200]) as $fm
         | .failure_mode = $fm | .failure_mode_derived = true
       else . end
   ' 2>/dev/null
@@ -508,15 +508,23 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
   local v f root="$PROJECT_ROOT"
   # seventh run, chunk c2 C-003: no expansion of the value — an xtrace'd `[[ -n "${!v}" ]]` prints it;
   # printenv shows only the name and grep -q only the verdict (an exported empty value is not present)
-  for v in "${vars[@]}"; do printenv "$v" 2>/dev/null | grep -q . && return 0; done
+  # eighth run, chunk c2 C-002: standard override precedence — the first place (env → .env.local → .env)
+  # that ASSIGNS the variable decides; an empty assignment disables the key, it does not fall through
+  for v in "${vars[@]}"; do
+    if printenv "$v" >/dev/null 2>&1; then printenv "$v" | grep -q . && return 0; return 1; fi
+  done
   # bats-gated seam: point the dotenv lookup at a fixture directory
   if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
   for f in "$root/.env.local" "$root/.env"; do
     [[ -f "$f" ]] || continue
     for v in "${vars[@]}"; do
-      # review sprint-248 C-008: presence is a grep -q on the shape — no variable ever holds
-      # the value, so an xtrace'd run cannot echo it (same rule as loa-status / run-preflight P3)
-      grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=[\"']?[^\"'[:space:]#]" "$f" 2>/dev/null && return 0
+      # review sprint-248 C-008: presence is a grep on the shape through a pipe — no variable ever holds
+      # the value, so an xtrace'd run cannot echo it (same rule as loa-status / run-preflight P3);
+      # the LAST assignment in the file wins, as a dotenv loader would read it
+      if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null; then
+        grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | grep -Eq "=[\"']?[^\"'[:space:]#]" && return 0
+        return 1
+      fi
     done
   done
   return 1
@@ -526,9 +534,17 @@ _repair_model() {  # <primary model> → the model the repair round-trip uses fi
   if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
   if _adv_cred_present anthropic; then echo "tiny"; else echo "claude-headless"; fi
 }
-_repair_model_chain() {  # <primary model> → the repair chain: tiny then claude-headless (a false presence read degrades, never fails)
-  local first; first=$(_repair_model "$1")
-  if [[ "$first" == "tiny" && -z "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "tiny claude-headless"; else echo "$first"; fi
+_repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop
+  # eighth run, a1 C-001: tiny only with an Anthropic credential, claude-headless only with the binary on
+  # PATH, and the voice that answered ALWAYS last — an OpenAI-only host without `claude` repairs through
+  # its own primary (the cycle-119 C14 behaviour) instead of failing every KF-004 payload deterministically.
+  # An operator pin (LOA_ADVERSARIAL_REPAIR_MODEL) is the whole chain.
+  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
+  local chain=""
+  _adv_cred_present anthropic && chain="tiny"
+  _adv_cli_present anthropic && chain="${chain:+$chain }claude-headless"
+  [[ -n "$1" && " $chain " != *" $1 "* ]] && chain="${chain:+$chain }$1"
+  echo "${chain:-$1}"
 }
 
 # _repair_violated_field <reject_reason>
@@ -558,8 +574,10 @@ _repair_diff_ok() {
   local repaired="$2"
   local allowed_field="$3"
 
+  # eighth run, a1 C-002: the derivation markers are the normaliser's, not the model's — a reply that
+  # omits them (or a repair schema that forbids them) is still a repair of the violated field only
   jq -e -n --argjson orig "$original" --argjson rep "$repaired" --arg af "$allowed_field" '
-    ($orig | del(.[$af])) == ($rep | del(.[$af]))
+    ($orig | del(.[$af], .id_derived, .failure_mode_derived)) == ($rep | del(.[$af], .id_derived, .failure_mode_derived))
   ' >/dev/null 2>&1
 }
 
@@ -1951,13 +1969,25 @@ _companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
 # (and across concurrent dissents on the host); a lock that cannot be had within the hop's own
 # bound is not waited for any longer than that.
 _adv_cli_lock_dir() { echo "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/loa-headless-locks-$(id -u 2>/dev/null || echo 0)"; }
+_adv_cli_bin_for() {  # <model> → the CLI binary this hop can end up exec'ing ("" when none): the hop itself, or the first
+                      # *-headless entry of its catalog fallback_chain (eighth run, a2 C-002 — cheval walks that chain inside one call)
+  local m="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" target hop=""
+  case "$m" in *-headless) echo "${m%-headless}"; return 0 ;; esac
+  command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]] || { echo ""; return 0; }
+  m="${m#anthropic:}"; m="${m#openai:}"; m="${m#google:}"
+  target=$(yq eval ".aliases.\"$m\"" "$cat" 2>/dev/null); [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
+  hop=$(yq eval "[.providers[].models.\"$m\".fallback_chain // [] | .[] | select(test(\"-headless$\"))] | .[0]" "$cat" 2>/dev/null)
+  [[ -n "$hop" && "$hop" != "null" ]] || { echo ""; return 0; }
+  hop="${hop#*:}"; echo "${hop%-headless}"
+}
 _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs under its binary's lock (fifth run: a lock
                         # not acquired within the hop's bound FAILS the hop as a timeout, rc 124 — never unserialised)
   local model="$1"; shift
-  case "$model" in
-    *-headless)
-      local lockdir lock bin="${model%-headless}" wait_s
-      lockdir=$(_adv_cli_lock_dir); wait_s=$(_adv_cli_hop_bound "$model")
+  local bin; bin=$(_adv_cli_bin_for "$model")
+  case "${bin:+cli}" in
+    cli)
+      local lockdir lock wait_s
+      lockdir=$(_adv_cli_lock_dir); wait_s=$(_adv_cli_hop_bound "${bin}-headless")
       # sixth run, C-003: the directory is ours (0700, not a symlink) or we do not lock on it at all
       command -v flock >/dev/null 2>&1 || { "$@"; return $?; }
       [[ -d "$lockdir" ]] || mkdir -m 700 "$lockdir" 2>/dev/null || true
@@ -2254,6 +2284,9 @@ _adv_reap_companion() {
 }
 _adv_cleanup_on_exit() {
   _adv_reap_companion
+  # LOA_ADVERSARIAL_KEEP_WORKDIR keeps FILES for debugging, never processes: the companion tree is reaped on
+  # every exit path (a background tree that outlived the run was round 1's first finding) — its partial
+  # results stay in the kept workdir
   if [[ "${LOA_ADVERSARIAL_KEEP_WORKDIR:-0}" == "1" ]]; then
     [[ -n "${_ADVERSARIAL_WORKDIR:-}" ]] && log "Workdir kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1): $_ADVERSARIAL_WORKDIR"
     return 0
@@ -2563,14 +2596,17 @@ main() {
       # the deadline follows the companion's phase: a hop gets the chain's cap from the phase's start
       # (the fork, or the next hop), the post-hop work (validation, repair round-trips) its own budget —
       # a model that answered is never reaped mid-process_findings (fifth run, C-001)
-      local _phase _pstart _budget
+      local _phase _pstart _budget _q_hop="" _q_budget=0 _cur
       while kill -0 "$companion_pid" 2>/dev/null; do
         _phase=$(cat "$companion_workdir/companion.phase" 2>/dev/null || echo hop)
         if [[ -f "$companion_workdir/companion.phase" ]]; then _pstart=$(_adv_mtime "$companion_workdir/companion.phase"); else _pstart=$companion_started; fi
         (( _pstart < companion_started )) && _pstart=$companion_started
         case "$_phase" in
           post|done) _budget=$companion_post_budget ;;
-          queue)     _budget=$(( $(_adv_cli_hop_bound "$(cat "$companion_workdir/companion.current" 2>/dev/null || echo x-headless)") + 30 )) ;;  # the lock's own wait bound
+          queue)  # the lock's own wait bound, computed once per hop (eighth run, a2 C-003: not three yq calls a second)
+            _cur=$(cat "$companion_workdir/companion.current" 2>/dev/null || echo x-headless)
+            if [[ "$_cur" != "$_q_hop" ]]; then _q_hop="$_cur"; _q_budget=$(( $(_adv_cli_hop_bound "$_cur") + 30 )); fi
+            _budget=$_q_budget ;;
           *)         _budget=$companion_wait_cap ;;
         esac
         (( $(date +%s) - _pstart < _budget )) || break
@@ -2590,7 +2626,7 @@ main() {
       # bounded: a reaped tree that will not die must not hold the review (sixth run)
       local _w=0
       while kill -0 "$companion_pid" 2>/dev/null && (( _w < 40 )); do sleep 0.25; _w=$((_w + 1)); done
-      kill -0 "$companion_pid" 2>/dev/null && _adv_kill_tree "$companion_pid" KILL
+      kill -0 "$companion_pid" 2>/dev/null && _adv_kill_tree "$companion_pid" KILL >/dev/null   # (stdout is the envelope)
       wait "$companion_pid" 2>/dev/null || true
       _ADV_COMPANION_PID=""
     fi
@@ -2672,16 +2708,35 @@ main() {
       result=$(echo "$result" | jq --arg n "${#_excluded_vq[@]}" '.metadata.companion_voice.primary_attempts_excluded = ($n | tonumber)')
       vq_attempt_files=("${_kept_vq[@]}")
     fi
+    # …and the mirror (eighth run, a2 C-004): a companion attempt that DROPPED a voice the primary answered with
+    local _pid_x _kept_cvq=() _excluded_cvq=()
+    _pid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${vq_attempt_files[@]}" 2>/dev/null || true)
+    for _cx in "${COMPANION_VQ_FILES[@]}"; do
+      if [[ -n "$_pid_x" ]] && jq -e --arg ids "$_pid_x" '[(.voices_dropped // [])[].voice] | any(. as $v | ($ids | split(" ")) | index($v) != null)' "$_cx" >/dev/null 2>&1; then
+        _excluded_cvq+=("$(jq -r '[(.voices_dropped // [])[].voice] | join(",")' "$_cx" 2>/dev/null)")
+      else
+        _kept_cvq+=("$_cx")
+      fi
+    done
+    if (( ${#_excluded_cvq[@]} > 0 )); then
+      log "Companion voice: ${#_excluded_cvq[@]} companion attempt envelope(s) dropping a voice the primary answered with (${_excluded_cvq[*]}) excluded from verdict quality (INV-5)"
+      result=$(echo "$result" | jq --arg n "${#_excluded_cvq[@]}" '.metadata.companion_voice.companion_attempts_excluded = ($n | tonumber)')
+      COMPANION_VQ_FILES=("${_kept_cvq[@]}")
+    fi
   fi
   if [[ ${#vq_attempt_files[@]} -gt 0 || ${#COMPANION_VQ_FILES[@]} -gt 0 ]]; then
     local _vq_agg
-    if _vq_agg=$(_adv_aggregate_envelopes ${vq_attempt_files[@]+"${vq_attempt_files[@]}"} ${COMPANION_VQ_FILES[@]+"${COMPANION_VQ_FILES[@]}"} 2>/dev/null); then
+    local _vq_err_file="${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/vq-aggregate-$$.err"
+    if _vq_agg=$(_adv_aggregate_envelopes ${vq_attempt_files[@]+"${vq_attempt_files[@]}"} ${COMPANION_VQ_FILES[@]+"${COMPANION_VQ_FILES[@]}"} 2>"$_vq_err_file"); then
       if [[ -n "$_vq_agg" ]]; then
         result=$(echo "$result" | jq --argjson vq "$_vq_agg" \
           '.verdict_quality = $vq')
       fi
     else
-      log "[vq-aggregate] aggregator unavailable or returned no output; result emitted without verdict_quality"
+      # eighth run, a2 C-004: the aggregator's own reason is named on the envelope, never discarded
+      local _vq_err; _vq_err=$(grep -v '^[[:space:]]*$' "$_vq_err_file" 2>/dev/null | tail -1 | cut -c1-240)
+      log "[vq-aggregate] aggregator unavailable or returned no output; result emitted without verdict_quality${_vq_err:+ — $_vq_err}"
+      result=$(echo "$result" | jq --arg e "${_vq_err:-aggregator returned no output}" '.metadata.verdict_quality_error = $e')
     fi
   fi
   # Clean up per-attempt sidecar tmp files

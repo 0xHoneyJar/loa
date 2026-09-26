@@ -1,5 +1,6 @@
 """#1027: shared contracts across every headless CLI, using local executables."""
 
+import logging
 import json
 import sys
 from pathlib import Path
@@ -42,7 +43,7 @@ def adapter_case(request):
     return cls(config), name, output
 
 
-def test_prompt_and_timeout_contract(adapter_case):
+def test_prompt_and_timeout_contract(adapter_case, caplog):
     adapter, _, _ = adapter_case
     assert adapter._build_prompt([
         {"role": "system", "content": "rules"},
@@ -59,9 +60,37 @@ def test_prompt_and_timeout_contract(adapter_case):
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
     assert adapter._compute_timeout(ModelConfig()) == 720.0
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
-    # the catalog value is clamped to an hour and a boolean is not a number (seventh run, c2 C-008 / d C-001)
+    # the catalog value is clamped to an hour (seventh run, c2 C-008 / d C-001)
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
-    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
+    # …and never lowers a provider read_timeout already above the ceiling (eighth run, d DISS-001 / C-001)
+    adapter.config.read_timeout = 4000
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 4020.0
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 4020.0
+    adapter.config.read_timeout = 700
+    # an unusable value is pinned by its WARNING, not by a return value that cannot change (eighth run, c2 C-001)
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.headless"):
+        caplog.clear()
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
+        assert "ignored" in caplog.text
+        caplog.clear()
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
+        assert "ignored" in caplog.text
+        caplog.clear()
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
+        assert caplog.text == ""
+    # the catalog loader coerces once (d C-002): typed float or None, one warning each
+    from loa_cheval.types import coerce_headless_timeout_seconds
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        caplog.clear()
+        assert coerce_headless_timeout_seconds(900) == 900.0
+        assert coerce_headless_timeout_seconds("900") == 900.0
+        assert coerce_headless_timeout_seconds(None) is None
+        assert caplog.text == ""
+        assert coerce_headless_timeout_seconds(True, where="p/m: ") is None
+        assert coerce_headless_timeout_seconds("15m", where="p/m: ") is None
+        assert coerce_headless_timeout_seconds(-5, where="p/m: ") is None
+        assert coerce_headless_timeout_seconds(float("inf"), where="p/m: ") is None
+        assert caplog.text.count("p/m: headless_timeout_seconds") == 4
     # no headless subclass overrides the base timeout (d C-004)
     assert "_compute_timeout" not in type(adapter).__dict__
 

@@ -596,3 +596,38 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | map(select(test("require-trailer"))) | length) == 1 and (.violations | map(select(test("Rejected dissent payloads"))) | length) == 1' >/dev/null
 }
+
+@test "verdict-derive: a non-empty sidecar a listing envelope does not name is a violation when newer than the envelope and a warning when older (eighth run, chunk b C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s17"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    printf '{"reject_reason":"old"}\n' > "$d/adversarial-rejected-review-old.jsonl"
+    touch -d '2020-01-01 00:00:00' "$d/adversarial-rejected-review-old.jsonl"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "clean", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | map(select(test("old.jsonl.*not listed"))) | length) == 1' >/dev/null
+    sleep 1; printf '{"reject_reason":"new"}\n' > "$d/adversarial-rejected-review-new.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations | map(select(test("new.jsonl is newer than the dissent envelope"))) | length == 1' >/dev/null
+}
+
+@test "verdict-derive: a rejected_summary of false is a non-array violation, a metadata that is not an object is named as such, and a substring \"repair_succeeded\": true inside a payload does not exclude the row (eighth run, chunk b C-003 / C-004)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s18"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: false}}' > "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"of type boolean"* ]]
+    jq -n '{findings: [], metadata: ["not", "an", "object"]}' > "$d/adversarial-review.json"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"metadata of type array"* ]]
+    rm -f "$d/adversarial-review.json"
+    printf '{"reject_reason":"missing-severity","payload":{"description":"the model wrote \\"repair_succeeded\\": true in its text"}}\nnot json at all\n{"reject_reason":"x","repair_succeeded":true}\n' > "$d/adversarial-rejected-review.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations[0] | test("hold 2 schema-rejected payload")' >/dev/null   # the payload-text row and the non-JSON line count; the repaired row does not
+}

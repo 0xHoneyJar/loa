@@ -180,6 +180,30 @@ class ModelConfig:
     headless_timeout_seconds: Optional[float] = None
 
 
+def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
+    """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
+    a positive finite number is returned as a float; None stays None; anything else (a boolean, a
+    string such as "15m", zero, a negative or non-finite value) is reported ONCE and dropped, so the
+    adapter's arithmetic sees a typed field and the 600 s floor applies without per-hop log noise."""
+    import logging
+    import math
+    if raw is None:
+        return None
+    log = logging.getLogger("loa_cheval.config")
+    if isinstance(raw, bool):
+        log.warning("%sheadless_timeout_seconds %r ignored: a boolean is not a number of seconds", where, raw)
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        log.warning("%sheadless_timeout_seconds %r ignored: not a number of seconds", where, raw)
+        return None
+    if math.isnan(value) or math.isinf(value) or value <= 0:
+        log.warning("%sheadless_timeout_seconds %r ignored: not a positive finite number of seconds", where, raw)
+        return None
+    return value
+
+
 # --- Error Types ---
 
 

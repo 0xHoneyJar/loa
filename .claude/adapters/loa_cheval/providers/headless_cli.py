@@ -165,13 +165,15 @@ class HeadlessCLIAdapter(ProviderAdapter):
                     value = None
             if value is None or value != value or value <= 0:
                 self._logger.warning("headless_timeout_seconds %r ignored: not a positive number", per_model)
-            elif value > self._HEADLESS_TIMEOUT_CEILING:
-                self._logger.warning("headless_timeout_seconds %r clamped to %.0fs", per_model, self._HEADLESS_TIMEOUT_CEILING)
-                read = self._HEADLESS_TIMEOUT_CEILING
             elif value <= read:
                 self._logger.warning("headless_timeout_seconds %r ignored: it does not exceed the %.0fs read floor", per_model, read)
             else:
-                read = value
+                # the catalog key only ever RAISES the bound, by at most the ceiling — a provider read_timeout
+                # already above the ceiling is never lowered (eighth run, d DISS-001 / C-001)
+                if value > self._HEADLESS_TIMEOUT_CEILING:
+                    self._logger.warning("headless_timeout_seconds %r clamped to %.0fs", per_model, self._HEADLESS_TIMEOUT_CEILING)
+                    value = self._HEADLESS_TIMEOUT_CEILING
+                read = max(read, value)
         return max(self.config.connect_timeout, 10.0) + read
 
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:

@@ -77,8 +77,9 @@ the completed voice is never buried. The companion's rejected rows are named on 
 — the run removes its own two sidecars at start and lists the ones it produced — `LOA_ADVERSARIAL_RUN_TAG`
 scopes the names, `adversarial-rejected-<gate>[-companion][-<tag>].jsonl`, so a chunk driver passes
 its chunk key and nothing is renamed afterwards; a stale file from a writer that did not run is never
-this run's); without an envelope, or without that field,
-every `adversarial-rejected-<gate>*.jsonl` beside the feedback file counts; rows whose repair
+this run's); without an envelope, or without that field, every `adversarial-rejected-<gate>*.jsonl` beside the
+envelope's place counts; a non-empty sidecar a listing envelope does not name is a violation when it
+is newer than the envelope (a stale-envelope signal) and a warning otherwise; rows whose repair
 succeeded never count; a trailer-less file is held to the contract too; the same section with one
 top-level bullet per payload clears it in every case. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
 `LOA_ADVERSARIAL_KEEP_WORKDIR=1` retains the `/tmp` workdir) and by a wait cap measured from its
@@ -102,15 +103,23 @@ timeout as `PROVIDER_UNAVAILABLE`) is `timeout`. `last_error` is an allowlisted 
 after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the model-adapter shim discards cheval's
 stderr; the row is matched by model, primitive and time window, so concurrent dissents on one host
 could supply each other's line — another reason drivers run sequentially), else from the last non-banner line of the companion's
-log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops — the dissent hops and the repair round-trips — are serialised per CLI binary
-across the two walks (a per-user flock under `$XDG_RUNTIME_DIR`/`$TMPDIR`); a lock not acquired within the hop's bound fails that hop as a `timeout` (the chain walks on) rather
+log; the redacted raw line is printed to stderr and stays in the `/tmp` workdir. `*-headless` hops — the dissent hops, the repair round-trips, and an HTTP alias whose catalog chain
+falls through to a CLI hop — are serialised per CLI binary across the two walks (a per-user flock under `$XDG_RUNTIME_DIR`/`$TMPDIR`); a lock not acquired within the hop's bound fails that hop as a `timeout` (the chain walks on) rather
 than running unserialised; queueing for the lock is not charged to the hop's cap; the lock directory
 is per user (0700, ours, never a symlink — otherwise the hop runs unserialised). The queue is one hop
 deep by design: a chunk driver runs dissents sequentially when any chain holds a `*-headless` hop. The companion's post-hop work (validation, repair round-trips) has its own budget, so
 a model that answered is never reaped mid-processing. A primary that never answered leaves the
-companion `counted_as: sole_voice` (`independent: null`), and a primary attempt that dropped the
-companion's own hop is excluded from verdict quality (`primary_attempts_excluded`). A derived finding id never collides
-with one the model supplied. The repair round-trip walks `tiny` → `claude-headless` with a credential. Findings carry `voice` (the outer hop, matching `final_model`) and
+companion `counted_as: sole_voice` (`independent: null`), and an attempt on either side that dropped a voice the other side answered with is excluded from
+verdict quality (`primary_attempts_excluded` / `companion_attempts_excluded`); an aggregator failure
+is named on the envelope (`verdict_quality_error`). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps files, never
+a process. A derived finding id never collides
+with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
+binary on PATH) → the voice that answered, always last, one bounded attempt each; credential
+presence follows override precedence (env → `.env.local` → `.env`: the first place that assigns the
+variable decides, an empty assignment disables); the normaliser's
+`id_derived` / `failure_mode_derived` markers are not part of the repair's byte-diff; a derived
+`failure_mode` shorter than 20 characters (an enumerator, an abbreviation) gives way to the
+description's 200-character head. Findings carry `voice` (the outer hop, matching `final_model`) and
 `answered_by` (the model that actually produced them). A duplicate companion leaves `verdict_quality`
 untouched (the aggregator counts distinct voices; its INV-5 forbids one id both succeeded and dropped)
 — `companion_voice.counted_as` is the record. The companion's raw stderr lives only in the run's

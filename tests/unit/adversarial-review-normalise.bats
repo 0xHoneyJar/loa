@@ -37,6 +37,7 @@ setup() {
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
     unset LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG LOA_ADVERSARIAL_ENV_DIR LOA_ADVERSARIAL_NO_FM_DERIVATION   # (seventh run, c2 C-005)
+    export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI binaries "installed" unless a case says otherwise (the repair chain gates on it)
 }
 teardown() {
     local d
@@ -138,14 +139,27 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
     rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'ANTHROPIC_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
     [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
+    # override precedence (eighth run, c2 C-002): an empty .env.local assignment DISABLES the key even when .env
+    # carries a value; a non-empty .env.local wins over an empty .env; the last assignment in a file wins
     printf 'ANTHROPIC_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
+    printf 'ANTHROPIC_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'ANTHROPIC_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
     [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
+    printf 'ANTHROPIC_API_KEY=abc\nANTHROPIC_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
     rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env" "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
-    # with a credential the repair chain is tiny → claude-headless (a false presence read degrades)
+    # the repair chain (eighth run, a1 C-001): tiny only with a credential, claude-headless only with the
+    # binary, and the voice that answered always last — never a chain that cannot run on this host
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
-    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless" ]
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
     unset ANTHROPIC_API_KEY
-    [ "$(_repair_model_chain "gpt-5.5-pro")" = "claude-headless" ]
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "claude-headless gpt-5.5-pro" ]
+    export LOA_ADVERSARIAL_CLI_PROBE=none
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "gpt-5.5-pro" ]                 # an OpenAI-only host repairs through its primary
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny gpt-5.5-pro" ]
+    [ "$(_repair_model_chain "claude-headless")" = "tiny claude-headless" ]   # the answering voice is not repeated
+    unset ANTHROPIC_API_KEY; export LOA_ADVERSARIAL_CLI_PROBE=both
 }
 
 @test "NRM-7 with the normaliser bypassed, the repair loop still recovers the fixtures through a stubbed model and records repaired_count" {
@@ -194,7 +208,7 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
-    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-models")" = "tiny claude-headless " ]
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-models")" = "tiny claude-headless " ]   # the answering voice (m) would be third; never reached
     [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
 }
 
@@ -215,4 +229,25 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq -r '[.metadata.rejected_summary[].reason] | unique | join(",")' <<<"$result")" = "missing-or-empty-description" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" != "null" ]
+}
+
+@test "NRM-13 the derivation markers are not part of the repair's byte-diff: a model that omits id_derived / failure_mode_derived still repairs the violated field only (eighth run, a1 C-002)" {
+    _repair_finding_via_model() {  # returns the candidate WITHOUT the markers, the violated field filled
+        printf '%s' "$1" | jq -c 'del(.id_derived, .failure_mode_derived) + {category: "config"}'
+    }
+    doc='{"findings":[{"severity":"HIGH","description":"Needs a category. More words here."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
+    [ "$(jq -r '.findings[0].id' <<<"$result")" = "DISS-001" ]
+    [ "$(jq -r '.findings[0].category' <<<"$result")" = "config" ]
+}
+
+@test "NRM-14 a degenerate first sentence (an enumerator, an abbreviation) is not a failure_mode — below 20 characters the description's head is used (eighth run, a1 C-003)" {
+    doc='{"findings":[{"severity":"HIGH","category":"config","description":"e.g. the sidecar is written before the lock is held, so rows interleave."},{"severity":"LOW","category":"other","description":"1. Missing null check on the cursor before the walk begins."},{"severity":"LOW","category":"other","description":"A real first sentence that is long enough. And a second one."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
+    [ "$(jq -r '.findings[0].failure_mode' <<<"$result")" = "e.g. the sidecar is written before the lock is held, so rows interleave." ]
+    [ "$(jq -r '.findings[1].failure_mode' <<<"$result")" = "1. Missing null check on the cursor before the walk begins." ]
+    [ "$(jq -r '.findings[2].failure_mode' <<<"$result")" = "A real first sentence that is long enough." ]
 }

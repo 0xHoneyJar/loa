@@ -57,7 +57,7 @@ Options:
   --envelope <path>   The dissent envelope for the rejected-payload contract (default: adversarial-<gate>.json
                       beside --file). Rejected sidecar rows count too: the files the envelope lists in
                       metadata.rejected_sidecars (an empty list = none this run), else every
-                      adversarial-rejected-<gate>*.jsonl beside the feedback file; one top-level bullet per
+                      adversarial-rejected-<gate>*.jsonl beside the envelope; one top-level bullet per
                       rejected payload under '## Rejected dissent payloads'; a missing explicit path is a
                       usage error (exit 1).
   --review-file PATH  Audit gate only: cross-check the audit trailer's
@@ -157,9 +157,12 @@ _rejected_rows_of() {  # <file> [listed] — adds the file's rejected rows to $r
         violations+=("rejected-payload sidecar $(basename -- "$f") is not readable — fix its permissions or re-run the dissent; its rows cannot be triaged")
         return 0
     fi
-    # rows whose repair succeeded were accepted upstream (the writer only records rejections; defensive)
-    t=$(grep -c . -- "$f" 2>/dev/null || true); r=$(grep -c '"repair_succeeded": *true' -- "$f" 2>/dev/null || true)
-    c=$(( ${t:-0} - ${r:-0} )); (( c > 0 )) && rows=$(( rows + c ))
+    # rows whose repair succeeded were accepted upstream (the writer only records rejections; defensive) —
+    # judged per row on the top-level key by jq, never by a substring over the payload (eighth run, b C-004);
+    # a line that is not JSON still counts as a row to triage
+    c=$(jq -Rn '[inputs | select(length > 0) | (fromjson? // {}) | select(.repair_succeeded != true)] | length' -- "$f" 2>/dev/null || true)
+    [[ "$c" =~ ^[0-9]+$ ]] || c=$(grep -c . -- "$f" 2>/dev/null || true)
+    (( ${c:-0} > 0 )) && rows=$(( rows + c ))
     return 0
 }
 rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
@@ -175,26 +178,48 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     local rows=0 f envdir kind n=0 need source listed="" has_list="false"
     envdir=$(dirname -- "$ENVELOPE_FILE")
     if [[ -f "$ENVELOPE_FILE" ]]; then
-        kind=$(jq -r '(.metadata.rejected_summary // []) | type' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
+        # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean),
+        # and a metadata that is not an object gets its own message
+        kind=$(jq -r 'if (.metadata | type) != "object" then "metadata:" + (.metadata | type)
+                      elif .metadata.rejected_summary == null then "array" else (.metadata.rejected_summary | type) end' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
         if [[ -z "$kind" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
+            return 0
+        fi
+        if [[ "$kind" == metadata:* ]]; then
+            violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata of type ${kind#metadata:} (an object is the contract) — repair the envelope or re-run the dissent")
             return 0
         fi
         if [[ "$kind" != "array" ]]; then
             violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")
             return 0
         fi
-        n=$(jq -r '.metadata.rejected_summary | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
+        n=$(jq -r '(.metadata.rejected_summary // []) | length' -- "$ENVELOPE_FILE" 2>/dev/null) || n=0
         listed=$(jq -r '(.metadata.rejected_sidecars // empty) | if type == "array" then .[] else empty end' -- "$ENVELOPE_FILE" 2>/dev/null || true)
         # sixth run, chunk b C-001: an EMPTY list means "this run produced no sidecar" — never the glob
         [[ "$(jq -r '(.metadata.rejected_sidecars // null) | type' -- "$ENVELOPE_FILE" 2>/dev/null)" == "array" ]] && has_list="true"
     fi
     if [[ "$has_list" == "true" ]]; then
         # a listed sidecar is resolved beside the envelope only (never an arbitrary path from the envelope)
+        local listed_names=" "
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
+            listed_names+="$(basename -- "$f") "
             _rejected_rows_of "$envdir/$(basename -- "$f")" listed
         done <<<"$listed"
+        # eighth run, chunk b C-001: a non-empty sidecar the envelope does not list is never silent — newer
+        # than the envelope it is a stale-envelope signal (a run reaped after writing rows) and a violation;
+        # older, a warning that names it
+        local u
+        for u in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
+            [[ -f "$u" && -s "$u" ]] || continue
+            [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
+            if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then
+                violations+=("rejected-payload sidecar $(basename -- "$u") is newer than the dissent envelope and not listed in its metadata.rejected_sidecars — the envelope is stale (a run ended after writing rows); re-run the dissent or triage the file's rows")
+            else
+                warnings+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an older run's file) — not counted")
+            fi
+        done
     else
         for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do _rejected_rows_of "$f"; done
     fi

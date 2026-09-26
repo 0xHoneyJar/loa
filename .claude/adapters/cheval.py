@@ -30,6 +30,7 @@ if _ADAPTERS_DIR not in sys.path:
     sys.path.insert(0, _ADAPTERS_DIR)
 
 from loa_cheval.types import (
+    coerce_headless_timeout_seconds,
     BudgetExceededError,
     ChevalError,
     CompletionRequest,
@@ -439,7 +440,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # headless_concurrency_limit if declared (default None → adapter
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
-            headless_timeout_seconds=model_data.get("headless_timeout_seconds"),
+            headless_timeout_seconds=coerce_headless_timeout_seconds(
+                model_data.get("headless_timeout_seconds"), where=f"{provider_name}/{model_id}: "),
         )
 
     return ProviderConfig(

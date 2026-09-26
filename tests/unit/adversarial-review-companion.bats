@@ -107,7 +107,7 @@ YAML
                 bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
             slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
-                bash -c 'exec -a "$0" sleep 4' "loa-cmp14-hung-$$"
+                bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
             errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger
@@ -120,6 +120,11 @@ YAML
             quota)       [[ -n "$sidecar" ]] && _vq "$model" fail RateLimited 6 > "$sidecar"; return 6 ;;
             timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
             unavailable) [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            unavailable-companion-only)  # the COMPANION's call to this model fails; the primary's answers
+                if [[ "$sidecar" == *vq-companion-* ]]; then [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1; fi
+                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
+                jq -nc --arg m "$model" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
+                return 0 ;;
             unavailable-primary-only)  # the PRIMARY's call to this model fails; the companion's (vq-companion sidecar) answers
                 if [[ "$sidecar" == *vq-companion-* ]]; then
                     [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
@@ -158,7 +163,7 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.metadata.companion_voice.family' <<<"$result")" = "anthropic" ]
     [ "$(jq '.metadata.companion_voice.cost_cents' <<<"$result")" != "null" ]
     # keyless: the HTTP Anthropic voice (opus) was never tried
-    ! grep -qx "opus" "$CALLS"
+    [ "$(grep -cx "opus" "$CALLS")" = "0" ]
     grep -qx "claude-headless" "$CALLS"
     # both voices' findings are present, the companion's re-numbered and tagged
     [ "$(jq '.findings | length' <<<"$result")" = "2" ]
@@ -198,14 +203,14 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.family' <<<"$result")" = "openai" ]
     [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "codex-headless" ]
-    ! grep -qx "gpt-5.5-pro" "$CALLS"
+    [ "$(grep -cx "gpt-5.5-pro" "$CALLS")" = "0" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     # with an OpenAI credential the default companion chain starts at gpt-5.5 — never gpt-5.5-pro (KF-002; third run C-007)
     export OPENAI_API_KEY="sk-presence-only-never-printed"
     : > "$CALLS"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "gpt-5.5,codex-headless" ]
-    ! grep -qx "gpt-5.5-pro" "$CALLS"
+    [ "$(grep -cx "gpt-5.5-pro" "$CALLS")" = "0" ]
     [[ "$result" != *"sk-presence-only-never-printed"* ]]
 }
 
@@ -214,7 +219,7 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     result=$(_run_main review)
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "false" ]
-    ! grep -qx "claude-headless" "$CALLS"
+    [ "$(grep -cx "claude-headless" "$CALLS")" = "0" ]
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
 }
 
@@ -332,7 +337,7 @@ s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled:
 PY
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "claude-headless" ]
-    ! grep -qx "opus" "$CALLS"
+    [ "$(grep -cx "opus" "$CALLS")" = "0" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
 }
 
@@ -346,7 +351,7 @@ PY
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]   # the hop in flight, not a guess (sixth run C-001)
     command -v pgrep >/dev/null || skip "pgrep not installed: the orphan probe cannot run here"
-    ! pgrep -f "loa-cmp14-hung-$$" >/dev/null
+    [ -z "$(pgrep -f "loa-cmp14-hung-$$")" ]   # the reaper ended a 300 s hop
 }
 
 @test "CMP-15 a fold that fails keeps the primary envelope (companion_voice.status fold_failed) instead of blanking it (C-002)" {
@@ -366,11 +371,11 @@ PY
     # the redacted raw line is operator-facing on stderr (fourth run, chunk c C-004)
     [ "$(jq -r '.metadata.companion_voice.last_error // "none"' <<<"$result")" = "none" ]
     grep -q "Companion voice diagnostic (claude-headless): boom: provider said no" "$T/stderr.log"
-    ! grep -q "SECRETSECRETSECRETSECRET1234" "$T/stderr.log"
+    [ "$(grep -c "SECRETSECRETSECRETSECRET1234" "$T/stderr.log")" = "0" ]
     [[ "$result" != *"SECRETSECRETSECRETSECRET1234"* ]]
     # c C-004: the raw line lives only in the /tmp workdir, which the EXIT trap removed — never in the a2a directory
     [ -d "$OUT_DIR" ]   # a missing directory would make the recursive grep pass vacuously
-    ! grep -rq "SECRETSECRETSECRETSECRET1234" "$OUT_DIR"
+    [ -z "$(grep -rl "SECRETSECRETSECRETSECRET1234" "$OUT_DIR")" ]
     [ -z "$(ls -d "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-* 2>/dev/null)" ]   # the script's workdir honours TMPDIR
 }
 
@@ -510,8 +515,10 @@ PY
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true' >/dev/null
-    # a stale sidecar from a writer that did not run this time is not this run's (chunk b C-003 / c C-002)
+    # a stale sidecar from a writer that did not run this time is not this run's (chunk b C-003 / c C-002) —
+    # older than the envelope it is a warning; newer, a stale-envelope violation (eighth run b C-001)
     printf '{"reject_reason":"stale"}\n%.0s' 1 2 3 4 5 > "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
+    touch -d '2020-01-01 00:00:00' "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
 }
@@ -579,8 +586,8 @@ PY
     (( $(date +%s) - t0 >= 3 ))
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
-    [ "$(_companion_post_budget gpt-5.5-pro 30)" = "4610" ]      # keyless: claude-headless 910 × 5 + 60
-    [ "$( export ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "4760" ]   # tiny (30) + claude-headless (910), × 5 + 60
+    [ "$(_companion_post_budget gpt-5.5-pro 30)" = "4760" ]      # keyless: claude-headless (910) + the answering voice (30), × 5 + 60
+    [ "$( export ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "4910" ]   # tiny (30) + claude-headless (910) + gpt-5.5-pro (30), × 5 + 60
 }
 
 @test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null, and the primary attempt that dropped the companion's own hop is excluded from verdict quality (fifth run C-003)" {
@@ -621,10 +628,10 @@ PY
     export XDG_RUNTIME_DIR="$T"
     # hold the claude lock for 2 s from outside; the companion's hop needs 2 s of its own; the hop cap is 3 s
     mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
-    ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 2 ) &
+    ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 5 ) &   # held longer than the 3 s cap: queueing alone would reap (eighth run, c1 C-002)
     # wait until the lock is observably held (c1 C-006)
     for _ in $(seq 1 40); do flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null || break; sleep 0.05; done
-    ! flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null
+    if flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null; then echo "lock not held" >&2; false; fi
     BEHAVIOUR[claude-headless]=slow2
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
     t0=$(date +%s%N)
@@ -632,9 +639,9 @@ PY
     t1=$(date +%s%N)
     wait
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
-    (( (t1 - t0) / 1000000 >= 3000 ))   # queued behind the holder then its own 2 s hop: past the 3 s hop cap, not reaped
+    (( (t1 - t0) / 1000000 >= 5000 ))   # queued ~5 s behind the holder, then its own 2 s hop: far past the 3 s hop cap, not reaped
     # a foreign or symlinked lock directory is never used — the hop runs unserialised instead
-    rm -f "$T/loa-headless-locks-$(id -u)/claude.lock"; rmdir "$T/loa-headless-locks-$(id -u)"
+    rm -f "$T/loa-headless-locks-$(id -u)"/*.lock; rmdir "$T/loa-headless-locks-$(id -u)"   # (the primary's alias chain took codex.lock too)
     ln -s "$T" "$T/loa-headless-locks-$(id -u)"
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null
@@ -652,5 +659,59 @@ PY
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     grep -q "after TERM — KILL" "$T/stderr.log"
     command -v pgrep >/dev/null || skip "pgrep not installed"
-    ! pgrep -f "loa-cmp30-stubborn-$$" >/dev/null
+    [ -z "$(pgrep -f "loa-cmp30-stubborn-$$")" ]
+}
+
+@test "CMP-31 the per-binary lock follows the alias's resolved chain: an HTTP alias whose catalog fallback_chain falls through to a CLI hop takes that binary's lock (eighth run, a2 C-002)" {
+    cat > "$T/catalog.yaml" <<'YAML'
+providers:
+  openai:
+    models:
+      gpt-5.5:
+        context_window: 400000
+        fallback_chain: ["openai:gpt-5.3-codex", "openai:codex-headless"]
+      gpt-5.3-codex:
+        context_window: 400000
+      codex-headless:
+        context_window: 400000
+  anthropic:
+    models:
+      opus-plain:
+        context_window: 1000000
+aliases:
+  fast: "openai:gpt-5.5"
+YAML
+    export LOA_MODEL_CONFIG="$T/catalog.yaml"
+    [ "$(_adv_cli_bin_for gpt-5.5)" = "codex" ]
+    [ "$(_adv_cli_bin_for fast)" = "codex" ]
+    [ "$(_adv_cli_bin_for claude-headless)" = "claude" ]
+    [ "$(_adv_cli_bin_for opus-plain)" = "" ]
+    invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
+    [ -f "$T/loa-headless-locks-$(id -u)/codex.lock" ]
+    _adv_invoke_hop opus-plain a b opus-plain 30 "" review >/dev/null
+    [ ! -f "$T/loa-headless-locks-$(id -u)/opus-plain.lock" ]
+    [ "$(grep -c ran "$T/lock-trace")" = "2" ]
+}
+
+@test "CMP-32 the INV-5 exclusion is symmetric: a companion attempt that dropped a voice the primary answered with is excluded, verdict quality still aggregates, and an aggregator failure would be named on the envelope (eighth run, a2 C-004)" {
+    # an operator chain whose first hop is the primary's own CLI: the companion's codex-headless attempt fails, then claude-headless answers
+    python3 - "$CONFIG_FILE" <<'PY'
+import sys; p=sys.argv[1]; s=open(p).read()
+s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [codex-headless, claude-headless]\n", 1); open(p,"w").write(s)
+PY
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    BEHAVIOUR[codex-headless]=unavailable-companion-only
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]
+    [ "$(jq '.metadata.companion_voice.companion_attempts_excluded' <<<"$result")" = "1" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | sort | join(",")' <<<"$result")" = "claude-headless,codex-headless" ]
+    [ "$(jq -r '.metadata | has("verdict_quality_error")' <<<"$result")" = "false" ]
+    # an aggregator failure is named, not discarded
+    _adv_aggregate_envelopes() { echo "[verdict-aggregate] invariant violation: INV-5: stub" >&2; return 2; }
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.verdict_quality_error' <<<"$result")" = "[verdict-aggregate] invariant violation: INV-5: stub" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
 }
