@@ -106,7 +106,16 @@ YAML
             stubborn) # a hop that ignores TERM (a CLI stuck under a usage limit): only KILL ends it
                 bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
             slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
-            slow2-unavailable) sleep 2; [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;   # a slow failure: the walk reaches its next hop later
+            unavailable-after-companion)   # a failure the primary sees only once the companion is GONE (bounded barrier: CMP-27)
+                local _i=0; while [[ -n "${_ADV_COMPANION_PID:-}" ]] && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null && (( _i++ < 300 )); do sleep 0.1; done
+                [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            unavailable-marker)            # a failure that leaves a marker the companion's stub waits for (CMP-33)
+                : > "$T/marker-$model-failed"
+                [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            await-primary-marker)          # answers only once the primary has failed its codex hop (bounded barrier: CMP-33)
+                local _j=0; while [[ ! -e "$T/marker-codex-headless-failed" ]] && (( _j++ < 300 )); do sleep 0.1; done
+                sleep 0.5
+                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
@@ -151,6 +160,12 @@ teardown() {
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
         [[ "$d" == */a2a/sprint-comp-* ]] || continue
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    done
+    # a workdir a failing CMP-16 kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1) holds the raw diagnostic line — it never
+    # outlives the test (eleventh run, c1 C-003)
+    for d in "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-*; do
+        [[ "$d" == */adversarial-sprint-comp-* && -d "$d" ]] || continue
+        find "$d" -mindepth 1 -delete; rmdir "$d"
     done
 }
 _now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (macOS date has no %N)
@@ -223,13 +238,27 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [[ "$result" != *"sk-presence-only-never-printed"* ]]
 }
 
-@test "CMP-5 companion_voice: false on the block disables the second chain (voices_planned 1, planned false)" {
+@test "CMP-5 companion_voice: false on the block disables the second chain (voices_planned 1, planned false); the YAML boolean spellings match in any case and a non-boolean is said and ignored (eleventh run, a1 C-001)" {
     _cfg_edit $'enabled: true\n' $'enabled: true\n    companion_voice: false\n'
     result=$(_run_main review)
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "false" ]
     [ "$(grep -cx "claude-headless" "$CALLS")" = "0" ]
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    prev=false
+    for spelling in False NO Off; do
+        _cfg_edit "companion_voice: $prev" "companion_voice: $spelling"; prev=$spelling
+        result=$(_run_main review)
+        [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "false" ]
+    done
+    _cfg_edit "companion_voice: $prev" "companion_voice: nope"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    grep -q "companion_voice='nope' is not a boolean" "$T/stderr.log"
+    _cfg_edit "companion_voice: nope" "companion_voice: TRUE"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(grep -c "is not a boolean" "$T/stderr.log")" = "0" ]
 }
 
 @test "CMP-6 with a credential present the companion chain starts at the HTTP voice (opus) before the hop" {
@@ -266,6 +295,7 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "null" ]
     # the common production case (tenth run, c1 C-002): every listed sidecar exists, and a feedback file with no
     # rejected-payload section is CONSISTENT against this clean two-voice envelope
+    [ "$(jq '.metadata.rejected_sidecars | length' <<<"$result")" = "1" ]   # the primary's (empty) file; a companion that rejected nothing writes none — the loop below is not a no-op
     for f in $(jq -r '.metadata.rejected_sidecars[]' <<<"$result"); do [ -f "$PROJECT_ROOT/$f" ]; done
     { echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
       echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$OUT_DIR/engineer-feedback.md"
@@ -338,7 +368,8 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     # the terminal reason after the repair round-trip (the stub's repair answer mutates a
     # non-violated field): the summary and the sidecar row name the same reason
     reason=$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")
-    [ -n "$reason" ] && [ "$reason" != "null" ]
+    [ -n "$reason" ]
+    [ "$reason" != "null" ]
     [ "$(jq -r '.reject_reason' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "$reason" ]
     [ "$(jq -r '.model' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "claude-headless" ]
     [ ! -s "$OUT_DIR/adversarial-rejected-review.jsonl" ]
@@ -555,8 +586,8 @@ PY
     printf '{"reject_reason":"stale"}\n%.0s' 1 2 3 4 5 > "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
     touch -t 202001010000 "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"   # (BSD touch has no -d 'Y-m-d H:M:S')
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
-    [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("a-old-chunk.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
+    [ "$status" -eq 1 ]   # its five rows count (eleventh run, b DISS-C-001): 6 rows against 1 bullet, the warning names the file
+    echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("holds 1 top-level triage line.*6 rejected payload")) and (.warnings | map(select(test("a-old-chunk.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
     rm -f "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
@@ -615,7 +646,8 @@ PY
     before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
     : > "$T/lock-trace"; LOA_MODEL_CONFIG="$T/plain-catalog.yaml" _adv_invoke_hop gpt-5.5-plain a b gpt-5.5-plain 30 "" review >/dev/null
     after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
-    [ -n "$before" ] && [ "$before" = "$after" ]
+    [ -n "$before" ]
+    [ "$before" = "$after" ]
     [ "$(grep -c . "$T/lock-trace")" = "2" ]
     # the repair round-trip goes through the same lock
     _repair_finding_via_model() { echo "$(_now_ms) repair $BASHPID" >> "$T/lock-trace"; echo '{}'; }
@@ -640,10 +672,10 @@ PY
 
 @test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null, and the primary attempt that dropped the companion's own hop is excluded from verdict quality (fifth run C-003)" {
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # this host's shape: the primary chain ends on claude-headless
-    # the primary's first hop fails SLOWLY, so the companion (instant here) has finished by the time the primary
-    # reaches the shared hop: the primary then tries it itself and fails — the skip rule (CMP-33) applies only
-    # while the companion is alive
-    BEHAVIOUR[gpt-5.5-pro]=slow2-unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    # the primary's first hop fails only once the companion is GONE (a bounded barrier on its pid, not a sleep —
+    # eleventh run, c1 C-001), so the primary reaches the shared hop after the companion finished, tries it itself
+    # and fails — the skip rule (CMP-33) applies only while the companion is alive
+    BEHAVIOUR[gpt-5.5-pro]=unavailable-after-companion; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
     BEHAVIOUR[claude-headless]=unavailable-primary-only
     result=$(_run_main review)
     [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:api_failure" ]
@@ -746,7 +778,8 @@ YAML
     before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
     _adv_invoke_hop opus-plain a b opus-plain 30 "" review >/dev/null
     after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
-    [ -n "$before" ] && [ "$before" = "$after" ]   # a model with no CLI in its chain touched no lock (snapshot, not a filename guess)
+    [ -n "$before" ]
+    [ "$before" = "$after" ]   # a model with no CLI in its chain touched no lock (snapshot, not a filename guess)
     [ "$(grep -c ran "$T/lock-trace")" = "2" ]
 }
 
@@ -775,8 +808,10 @@ PY
 @test "CMP-33 the primary skips a hop the live companion shares instead of queueing behind its claude -p: model_attempts records it, the companion is the sole voice (tenth run, a2 C-003)" {
     _need_flock
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # the primary chain ends on the companion's hop
-    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
-    BEHAVIOUR[claude-headless]=slow2     # the companion is still running when the primary reaches the shared hop
+    # the companion answers only after the primary has failed its codex hop (a bounded barrier on a marker, not a
+    # sleep — eleventh run, c1 C-001): it is alive when the primary reaches the shared hop
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable-marker
+    BEHAVIOUR[claude-headless]=await-primary-marker
     result=$(_run_main review)
     [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:skipped_shared_with_companion" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
@@ -792,4 +827,24 @@ PY
     flock -u 8; exec 8>&-
     (( $(date +%s) - t0 < 10 ))
     [ "$rc" = "124" ]
+}
+
+@test "CMP-34 the envelope and sidecars are single-writer per (sprint, gate, tag): a second live run with the same key is refused before it removes anything, a distinct tag runs alongside, a dead run's lock is taken over (eleventh run, a2 DISS-001)" {
+    _adv_take_run_lock "$OUT_DIR" review ""; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
+    sleep 30 & holder=$!; printf '%s' "$holder" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # held by another live process
+    BEHAVIOUR[claude-headless]=reject
+    rc=0; result=$(_run_main review) || rc=$?
+    [ "$rc" = "2" ]; [ -z "$result" ]
+    grep -q "another adversarial-review run for $SPRINT/review is in progress (pid $holder)" "$T/stderr.log"
+    [ ! -e "$OUT_DIR/adversarial-review.json" ]
+    # a distinct tag is a different key: it runs beside the holder, and its own lock is gone when it exits
+    ( export LOA_ADVERSARIAL_RUN_TAG=other; _run_main review >/dev/null )
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion-other.jsonl")" = "1" ]
+    [ -d "$lockd" ]
+    [ "$(ls -d "$(_adv_cli_lock_dir)"/run-*.lock.d | grep -c .)" = "1" ]
+    # the holder died without releasing: the next run with that key takes the lock over, runs, and releases it
+    kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ ! -d "$lockd" ]
 }

@@ -51,7 +51,8 @@ companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the p
 `voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
 status: succeeded|failed, failure_class: auth|model_unavailable|quota|timeout|malformed|null,
 cost_cents, attempts}`; a companion whose chain fails is a dropped voice (degraded for an audit,
-never blocking a review). Opt-out per block: `flatline_protocol.{code_review,security_audit}.companion_voice: false`.
+never blocking a review). Opt-out per block: `flatline_protocol.{code_review,security_audit}.companion_voice: false`
+(the YAML boolean spellings in any case; a value that is none of them is reported and the voice stays on).
 
 **Tolerant schema (D-2.2).** A finding missing only `failure_mode` is no longer dropped: the
 first sentence of its `description` (≤ 200 chars) becomes `failure_mode` and the finding is
@@ -86,11 +87,15 @@ the completed voice is never buried. The companion's rejected rows are named on 
 `verdict-derive.sh` counts the rows of the sidecars the envelope names (`metadata.rejected_sidecars`
 — the run removes its own two sidecars at start and lists the ones it produced — `LOA_ADVERSARIAL_RUN_TAG`
 scopes the names, `adversarial-rejected-<gate>[-companion][-<tag>].jsonl`, so a chunk driver passes
-its chunk key and nothing is renamed afterwards; a stale file from a writer that did not run is never
+its chunk key and nothing is renamed afterwards — a tag outside `[A-Za-z0-9_-]{1,64}` is replaced by a
+short hash of its raw value, with a warning, so distinct tags never share a file; the envelope and the two
+sidecars are single-writer per (sprint, gate, tag) — a second live run with the same key is refused before it
+removes anything, a dead run's lock is taken over; a stale file from a writer that did not run is never
 this run's); without an envelope, or without that field, every `adversarial-rejected-<gate>*.jsonl` beside the
-envelope's place counts; a non-empty sidecar a listing envelope does not name is a violation whatever its age (newer: a
-stale-envelope signal; older: an earlier run's rows that were never folded — triage them or remove the
-file; a chunk driver clears the directory's rejected set at the start of a round); an envelope without
+envelope's place counts; a non-empty sidecar a listing envelope does not name is never silent whatever its age: its
+rows count toward the section and a warning names the file (newer than the envelope: the envelope may be stale — re-run;
+older: an earlier run's rows that were never folded — triage them or remove the file; a chunk driver clears the
+directory's rejected set at the start of a round); an envelope without
 a metadata object is the legacy shape and counts nothing; rows whose repair
 succeeded never count; a trailer-less file is held to the contract too; the same section with one
 top-level bullet per payload clears it in every case. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
@@ -129,7 +134,8 @@ is excluded from verdict quality (`primary_attempts_excluded` / `companion_attem
 is named on the envelope (`verdict_quality_error`). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps files, never
 a process. A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
-binary on PATH) → the voice that answered, always last, one bounded attempt each; credential
+binary on PATH) → the voice that answered, always last, one bounded attempt each — a hop that failed with
+an auth / quota / unavailable class is retired for the run's remaining repairs, the answering voice never; credential
 presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place
 that assigns a variable decides it, an empty assignment disables that alias; a provider with several
 aliases — `GOOGLE_API_KEY` / `GEMINI_API_KEY` — is present when any alias resolves non-empty); the normaliser's

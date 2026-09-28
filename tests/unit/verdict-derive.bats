@@ -512,32 +512,42 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 0 ]
 }
 
-@test "verdict-derive: an envelope that names its sidecars (metadata.rejected_sidecars) scopes the count to them — a stale, unlisted file beside it is not counted but is a violation until it is triaged or removed (fourth run b C-003 / c C-002; tenth run b C-001)" {
+@test "verdict-derive: an envelope that names its sidecars (metadata.rejected_sidecars) counts them — an unlisted non-empty file beside it is never silent: its rows count too and a warning names it; one bullet per row clears it (fourth run b C-003 / c C-002; tenth run b C-001; eleventh run b DISS-C-001)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s12"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md" yes
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-companion.jsonl"
     jq -n --arg p "grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: [$p]}}' > "$d/adversarial-review.json"
-    # the three stale rows are not counted against the one bullet — but the file is named as never folded, so the
-    # gate does not pass over it (tenth run, chunk b C-001: an unlisted non-empty sidecar is a violation at any age)
+    # one listed row + three unlisted rows against one bullet: the count violation names 4, the warning names the file
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("companion.jsonl.*not listed.*never folded"))' >/dev/null
-    # removed (or triaged), the listed row alone is counted: one listed row → one bullet → consistent
+    echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("holds 1 top-level triage line.*4 rejected payload"))' >/dev/null
+    echo "$output" | jq -e '.warnings | length == 1 and (.[0] | test("companion.jsonl.*not listed.*never folded.*rows are counted"))' >/dev/null
+    # the printed repair is real (eleventh run, b DISS-C-001): a bullet per row clears it — consistent, the warning stays
+    { echo "All good"; echo; echo "## Rejected dissent payloads"; echo
+      echo "- DISS-x (MEDIUM, x.sh:12) — triaged: not a defect (the guard exists two lines up)."
+      for i in 1 2 3; do echo "- stale $i — not a defect."; done; echo
+      echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$d/engineer-feedback.md"
+    [ "$(grep -c '^- ' "$d/engineer-feedback.md")" = "4" ]
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 1' >/dev/null
+    # removed instead: the listed row alone is counted and the warning is gone
     rm -f "$d/adversarial-rejected-review-companion.jsonl"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
-    echo "$output" | jq -e '.consistent == true' >/dev/null
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 0' >/dev/null
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-companion.jsonl"
-    # without the field the glob counts every file (4 rows > 1 bullet)
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    # without the field the glob counts every file (4 rows > 1 bullet) — and no file is "unlisted"
     jq '.metadata |= del(.rejected_sidecars)' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.violations[0] | test("4 rejected payload")' >/dev/null
+    echo "$output" | jq -e '(.violations[0] | test("4 rejected payload")) and (.warnings | length) == 0' >/dev/null
 }
 
-@test "verdict-derive: an empty rejected_sidecars list means the run produced no sidecar — a tagged file left by an earlier chunk run is not counted, but it is a violation until removed (sixth run b C-001; tenth run b C-001)" {
+@test "verdict-derive: an empty rejected_sidecars list means the run produced no sidecar — a tagged file left by an earlier chunk run is still counted and named until it is triaged or removed (sixth run b C-001; tenth run b C-001; eleventh run b DISS-C-001)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s13"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
@@ -545,12 +555,12 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "clean", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.violations | length == 1 and (.[0] | test("old-chunk.jsonl.*not listed.*never folded"))' >/dev/null   # not "2 rejected payloads": the rows are not counted
+    echo "$output" | jq -e '(.violations | length == 1 and (.[0] | test("2 schema-rejected payload"))) and (.warnings | length == 1 and (.[0] | test("old-chunk.jsonl.*not listed.*never folded")))' >/dev/null
     rm -f "$d/adversarial-rejected-review-old-chunk.jsonl"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 0 ]
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-old-chunk.jsonl"
-    # the field absent → the glob still counts the file
+    # the field absent → the glob counts the file the same way
     jq '.metadata |= del(.rejected_sidecars)' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
@@ -609,7 +619,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     echo "$output" | jq -e '(.violations | map(select(test("require-trailer"))) | length) == 1 and (.violations | map(select(test("Rejected dissent payloads"))) | length) == 1' >/dev/null
 }
 
-@test "verdict-derive: a non-empty sidecar a listing envelope does not name is a violation, newer or older than the envelope (eighth run b C-001; tenth run b C-001)" {
+@test "verdict-derive: a non-empty sidecar a listing envelope does not name counts, newer or older than the envelope — the warning says which (eighth run b C-001; tenth run b C-001; eleventh run b DISS-C-001)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s17"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
@@ -617,13 +627,13 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     touch -t 202001010000 "$d/adversarial-rejected-review-old.jsonl"   # (BSD touch has no -d 'Y-m-d H:M:S'; tenth run, c2 C-003)
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "clean", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
-    [ "$status" -eq 1 ]   # tenth run, chunk b C-001: an older unlisted file is a violation too — never exempt by age
-    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("old.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
+    [ "$status" -eq 1 ]   # one row, no section
+    echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("1 schema-rejected payload")) and (.warnings | map(select(test("old.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
     rm -f "$d/adversarial-rejected-review-old.jsonl"
     sleep 1; printf '{"reject_reason":"new"}\n' > "$d/adversarial-rejected-review-new.jsonl"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.violations | map(select(test("new.jsonl is newer than the dissent envelope"))) | length == 1' >/dev/null
+    echo "$output" | jq -e '(.violations | length) == 1 and (.warnings | map(select(test("new.jsonl is newer than the dissent envelope.*may be stale"))) | length) == 1' >/dev/null
 }
 
 @test "verdict-derive: a rejected_summary of false is a non-array violation, a metadata that is not an object is named as such, and a substring \"repair_succeeded\": true inside a payload does not exclude the row (eighth run, chunk b C-003 / C-004)" {
@@ -658,10 +668,35 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.violations[0] | test("hold 1 schema-rejected payload")' >/dev/null
-    # a trailer-less file, an envelope listing nothing, an older unlisted sidecar → the violation is printed in plain mode too
+    # a trailer-less file, an envelope listing nothing, an older unlisted sidecar → the warning and the violation are
+    # printed in plain mode too, and stdout carries a status line (eleventh run, b DISS-C-003)
     printf 'All good\n' > "$d/engineer-feedback.md"
     jq -n '{findings: [], metadata: {rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
-    [[ "$output" == *"not listed in its metadata.rejected_sidecars"* ]]
+    [[ "$output" == *"WARN: rejected-payload sidecar"*"not listed in its metadata.rejected_sidecars"* ]]
+    [[ "$output" == *"1 schema-rejected payload"* ]]
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review 2>/dev/null"
+    [ "$output" = "INCONSISTENT: gate=review verdict=none (no trailer)" ]
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --require-trailer 2>/dev/null"
+    [ "$status" -eq 1 ]
+    [ "$output" = "INCONSISTENT: gate=review verdict=none (no trailer)" ]
+}
+
+@test "verdict-derive: an empty value for an optional flag reads as not given; only a flag as the last token is a usage error (eleventh run, b DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s20"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope ""
+    [ "$status" -eq 0 ]
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --envelope '' --json 2>/dev/null"
+    echo "$output" | jq -e '.envelope_explicit == false' >/dev/null
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --review-file ""
+    [ "$status" -eq 0 ]   # (an empty --review-file on a review gate is "not given", not "applies to audit only")
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--envelope requires a value"* ]]
+    run "$SCRIPT" --file "" --gate review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--file and --gate are required"* ]]
 }

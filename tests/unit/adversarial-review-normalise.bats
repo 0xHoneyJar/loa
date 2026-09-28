@@ -296,3 +296,53 @@ _fixture_content() {  # all three fixtures as one findings document
     printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 120\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 7200\n' > "$TEST_DIR/over.yaml"
     [ "$(LOA_MODEL_CONFIG="$TEST_DIR/over.yaml" _adv_cli_hop_bound claude-headless)" = "$(( 10 + ceiling ))" ]
 }
+
+@test "NRM-19 LOA_ADVERSARIAL_RUN_TAG is validated, not stripped: a tag outside [A-Za-z0-9_-]{1,64} becomes a short hash of its raw value, said once, so c.1 and c1 never share a sidecar (eleventh run, a1 C-002)" {
+    [ "$(LOA_ADVERSARIAL_RUN_TAG="" _adv_run_tag)" = "" ]
+    [ "$(LOA_ADVERSARIAL_RUN_TAG="c1-dissent_script" _adv_run_tag 2>/dev/null)" = "c1-dissent_script" ]
+    a=$(LOA_ADVERSARIAL_RUN_TAG="c.1" _adv_run_tag 2>"$TEST_DIR/tag-err"); b=$(LOA_ADVERSARIAL_RUN_TAG="c1" _adv_run_tag 2>/dev/null)
+    c=$(LOA_ADVERSARIAL_RUN_TAG="a/1" _adv_run_tag 2>/dev/null); d=$(LOA_ADVERSARIAL_RUN_TAG="x y" _adv_run_tag 2>/dev/null)
+    [[ "$a" =~ ^h[0-9a-f]{12}$ ]]; [ "$b" = "c1" ]; [[ "$c" =~ ^h[0-9a-f]{12}$ ]]; [[ "$d" =~ ^h[0-9a-f]{12}$ ]]
+    [ "$a" != "$c" ]; [ "$a" != "$d" ]; [ "$c" != "$d" ]
+    grep -q "LOA_ADVERSARIAL_RUN_TAG is not \[A-Za-z0-9_-\]{1,64}" "$TEST_DIR/tag-err"
+    [ "$(grep -c "c.1" "$TEST_DIR/tag-err")" = "0" ]   # the raw value is not echoed (it may be anything the driver passed)
+    long=$(printf 'a%.0s' $(seq 1 65)); [[ "$(LOA_ADVERSARIAL_RUN_TAG="$long" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{12}$ ]]
+    # the same warning once per process: the second call is silent
+    ( LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag >/dev/null; _adv_run_tag >/dev/null ) 2>"$TEST_DIR/tag-err2"
+    [ "$(grep -c "is not" "$TEST_DIR/tag-err2")" = "1" ]
+    # end to end: the sidecar a rejecting run writes carries the hashed tag, never the stripped one
+    doc='{"findings":[{"title":"no severity","category":"other","description":"Something fails."}]}'
+    LOA_ADVERSARIAL_RUN_TAG="c.1" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" >/dev/null 2>&1 || true
+    [ -f "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit-$a.jsonl" ]
+    [ ! -e "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit-c1.jsonl" ]
+}
+
+@test "NRM-20 a repair hop that failed with an auth / quota / unavailable class is retired for the run's remaining repairs; the answering voice never is; a lock timeout or an unusable reply retires nothing (eleventh run, a1 C-003)" {
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
+    [ "$(_ADV_REPAIR_DEAD_HOPS="tiny" _repair_model_chain "gpt-5.5-pro")" = "claude-headless gpt-5.5-pro" ]
+    [ "$(_ADV_REPAIR_DEAD_HOPS="tiny claude-headless" _repair_model_chain "gpt-5.5-pro")" = "gpt-5.5-pro" ]
+    [ "$(_ADV_REPAIR_DEAD_HOPS="gpt-5.5-pro" _repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]   # the answering voice stays
+    [ "$(_ADV_REPAIR_DEAD_HOPS="claude-headless" _repair_model_chain "claude-headless")" = "tiny claude-headless" ]
+    _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop foo 6 2>/dev/null
+    [ "$_ADV_REPAIR_DEAD_HOPS" = "tiny foo" ]
+    unset _ADV_REPAIR_DEAD_HOPS
+    # through the loop: two payloads the normaliser cannot save; tiny answers the first with an auth failure (rc 4),
+    # claude-headless with an unusable reply (rc 0, no JSON) — only tiny is retired for the second payload
+    _repair_finding_via_model() {
+        echo "$4" >> "$TEST_DIR/repair-calls"
+        case "$4" in
+            tiny) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 4 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
+            claude-headless) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 0 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
+            *) return 1 ;;
+        esac
+    }
+    doc='{"findings":[{"title":"no severity one","category":"other","description":"Something fails."},{"title":"no severity two","category":"other","description":"Something else fails."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m claude-headless m " ]
+    grep -q "Repair hop tiny failed (rc 4) — retired" "$TEST_DIR/repair-err"
+    [ "$(grep -c "retired" "$TEST_DIR/repair-err")" = "1" ]
+    unset ANTHROPIC_API_KEY
+}

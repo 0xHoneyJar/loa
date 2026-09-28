@@ -102,8 +102,10 @@ usage_error() {  # <message>
 
 # a usage error anywhere in argv must still speak JSON when --json is present (third run, chunk b C-004)
 for _a in "$@"; do [[ "$_a" == "--json" ]] && JSON_OUTPUT=true; done
-_need_value() {  # <flag> <argc> <value> — a value flag with no value is a usage error, not a failed `shift` (fourth run, chunk b DISS-001)
-    [[ "$2" -ge 2 && -n "${3:-}" ]] || usage_error "$1 requires a value"
+_need_value() {  # <flag> <argc> <value> — a value flag as the LAST token is a usage error, not a failed `shift` (fourth run, chunk b
+                 # DISS-001); an EMPTY value is accepted and reads as "not given" (a caller assembling argv from an optional
+                 # variable — `--review-file "$review_path"` — must not start failing; eleventh run, chunk b DISS-C-002)
+    [[ "$2" -ge 2 ]] || usage_error "$1 requires a value"
 }
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -210,19 +212,20 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             listed_names+="$(basename -- "$f") "
             _rejected_rows_of "$envdir/$(basename -- "$f")" listed
         done <<<"$listed"
-        # eighth run, chunk b C-001: a non-empty sidecar the envelope does not list is never silent — newer
-        # than the envelope it is a stale-envelope signal (a run reaped after writing rows) and a violation;
-        # older, a warning that names it
+        # eighth / tenth run, chunk b C-001: a non-empty sidecar the envelope does not list is never silent and never
+        # exempt by age (a failed companion's tagged rows from an earlier chunk are older than the final envelope).
+        # eleventh run, chunk b DISS-C-001: its rows COUNT — they raise `need`, so the section must cover them and the
+        # printed repair is real — and a warning names the file; a hard violation that only deleting the evidence
+        # could clear contradicted the contract both resources state
         local u
         for u in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
             [[ -f "$u" && -s "$u" ]] || continue
             [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
-            # tenth run, chunk b C-001: never silent and never exempt by age — a failed companion's tagged rows
-            # from an earlier chunk are older than the final envelope and would otherwise escape
+            _rejected_rows_of "$u"
             if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then
-                violations+=("rejected-payload sidecar $(basename -- "$u") is newer than the dissent envelope and not listed in its metadata.rejected_sidecars — the envelope is stale (a run ended after writing rows); re-run the dissent or triage the file's rows")
+                warnings+=("rejected-payload sidecar $(basename -- "$u") is newer than the dissent envelope and not listed in its metadata.rejected_sidecars — the envelope may be stale (a run ended after writing rows); its rows are counted: triage them under '## Rejected dissent payloads' or re-run the dissent")
             else
-                violations+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an earlier run's file that was never folded) — triage its rows under '## Rejected dissent payloads' or remove the file before re-running")
+                warnings+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an earlier run's file that was never folded) — its rows are counted: triage them under '## Rejected dissent payloads' or remove the file before re-running")
             fi
         done
     else
@@ -347,6 +350,7 @@ if [[ "$trailer_count" -eq 0 ]]; then
         violations+=("no LOA-VERDICT trailer found but --require-trailer was set — add one as the last line: <!-- LOA-VERDICT {\"gate\":\"$GATE\",\"verdict\":\"APPROVED\",\"counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0},\"sprint_id\":\"sprint-N\",\"ts\":\"<ISO8601>\"} -->")
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
+        [[ "$JSON_OUTPUT" == "false" ]] && echo "INCONSISTENT: gate=$GATE verdict=none (no trailer)"   # (eleventh run, b DISS-C-003: a status line on every exit)
         exit 1
     fi
     # fourth run, chunk b C-002: the rejected-payload contract applies to a trailer-less file too —
@@ -356,6 +360,7 @@ if [[ "$trailer_count" -eq 0 ]]; then
     if (( ${#violations[@]} > 0 )); then
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
+        [[ "$JSON_OUTPUT" == "false" ]] && echo "INCONSISTENT: gate=$GATE verdict=none (no trailer)"   # (eleventh run, b DISS-C-003)
         exit 1
     fi
     [[ "$JSON_OUTPUT" == "true" ]] && emit_json 2 false true

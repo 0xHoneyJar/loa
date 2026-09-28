@@ -163,9 +163,17 @@ load_adversarial_config() {
   CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")
   CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
   # `false // true` is true in jq/yq semantics — read the raw value and default only when absent
-  local _cv
+  local _cv _cvl
   _cv=$(yq eval ".flatline_protocol.${config_key}.companion_voice" "$CONFIG_FILE" 2>/dev/null || echo "null")
-  case "$_cv" in false|no|off|0) CONF_COMPANION_VOICE="false" ;; *) CONF_COMPANION_VOICE="true" ;; esac
+  # eleventh run, a1 C-001: yq echoes the scalar's source spelling — the YAML boolean spellings match in any
+  # case, and a value that is none of them is SAID, not silently read as "on"
+  _cvl=$(printf '%s' "$_cv" | tr '[:upper:]' '[:lower:]')
+  case "$_cvl" in
+    false|no|off|0) CONF_COMPANION_VOICE="false" ;;
+    true|yes|on|1|null|"") CONF_COMPANION_VOICE="true" ;;
+    *) log "WARN: flatline_protocol.${config_key}.companion_voice='${_cv}' is not a boolean — the companion voice stays on (write false / no / off / 0 to opt out)"
+       CONF_COMPANION_VOICE="true" ;;
+  esac
   # (|| true: a yq failure yields an empty chain and the default applies — the siblings' `|| echo` convention)
   CONF_COMPANION_CHAIN_ANTHROPIC=$(yq eval ".flatline_protocol.${config_key}.companion_chain.anthropic[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
   CONF_COMPANION_CHAIN_OPENAI=$(yq eval ".flatline_protocol.${config_key}.companion_chain.openai[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
@@ -547,7 +555,24 @@ _repair_model_chain() {  # <voice that answered> → the repair chain, one bound
   _adv_cred_present anthropic && chain="tiny"
   _adv_cli_present anthropic && chain="${chain:+$chain }claude-headless"
   [[ -n "$1" && " $chain " != *" $1 "* ]] && chain="${chain:+$chain }$1"
+  # eleventh run, a1 C-003: a hop that failed this run with an auth / quota / unavailable class is not paid for
+  # again by the next repair (_adv_repair_retire_hop); the voice that answered stays terminal whatever happened
+  if [[ -n "${_ADV_REPAIR_DEAD_HOPS:-}" ]]; then
+    local _h _kept=""
+    for _h in $chain; do
+      [[ "$_h" != "$1" && " $_ADV_REPAIR_DEAD_HOPS " == *" $_h "* ]] && continue
+      _kept="${_kept:+$_kept }$_h"
+    done
+    chain="$_kept"
+  fi
   echo "${chain:-$1}"
+}
+_adv_repair_retire_hop() {  # <hop> <exit code> — remember a repair hop this run must not try again
+  case " ${_ADV_REPAIR_DEAD_HOPS:-} " in
+    *" $1 "*) ;;
+    *) _ADV_REPAIR_DEAD_HOPS="${_ADV_REPAIR_DEAD_HOPS:+$_ADV_REPAIR_DEAD_HOPS }$1"
+       log "Repair hop $1 failed (rc $2) — retired for this run's remaining repairs" ;;
+  esac
 }
 
 # _repair_violated_field <reject_reason>
@@ -629,6 +654,9 @@ EOF
   local raw rc=0
   raw=$(invoke_dissenter "$sys_file" "$user_file" "$model" "$timeout" "" "$type" 2>/dev/null) || rc=$?
   rm -rf "$workdir" 2>/dev/null || true
+  # the hop's own exit code for the repair loop's retirement decision (the lock wrapper runs a CLI hop in a
+  # subshell, so a variable would not carry it out) — eleventh run, a1 C-003
+  [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf '%s' "$rc" > "$_ADV_REPAIR_RC_FILE" 2>/dev/null
   [[ $rc -eq 0 ]] || return 1
   [[ -n "$raw" ]] || return 1
 
@@ -1273,8 +1301,7 @@ while i < len(text):
     mkdir -p "$rej_dir" 2>/dev/null || true
     # fifth run, C-004: LOA_ADVERSARIAL_RUN_TAG scopes the sidecar names to this run (a chunk driver passes
     # its chunk key instead of renaming files afterwards): adversarial-rejected-<type>[-companion][-<tag>].jsonl
-    local _rt="${LOA_ADVERSARIAL_RUN_TAG:-}" _run_tag
-    _run_tag="${_rt//[^A-Za-z0-9_-]/}"
+    local _run_tag; _run_tag=$(_adv_run_tag)
     rejected_sidecar="$rej_dir/adversarial-rejected-${type}${_ADV_SIDECAR_TAG:+-$_ADV_SIDECAR_TAG}${_run_tag:+-$_run_tag}.jsonl"
     : > "$rejected_sidecar" 2>/dev/null || rejected_sidecar=""
   fi
@@ -1347,14 +1374,23 @@ while i < len(text):
         repairs_used=$((repairs_used + 1))
         local violated_field
         violated_field=$(_repair_violated_field "$reject_reason")
-        local repaired="" _rm _repair_ok="false"
+        local repaired="" _rm _repair_ok="false" _rcf="" _hrc=""
         # fourth run, chunk c C-008: tiny first when a credential is present, claude-headless when it is not
         # or when tiny fails — one attempt per hop, the round-trip stays bounded
+        _rcf=$(mktemp "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair-rc.XXXXXX" 2>/dev/null) || _rcf=""
         for _rm in $(_repair_model_chain "$model"); do
-          if repaired=$(_ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
+          [[ -n "$_rcf" ]] && : > "$_rcf"
+          if repaired=$(_ADV_REPAIR_RC_FILE="$_rcf" _ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
              && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _repair_ok="true"; break; fi
           repaired=""
+          # eleventh run, a1 C-003: the hop's own exit code (empty when the lock timed out or the reply was unusable
+          # — neither retires a hop); an auth / quota / unavailable failure does, for this run's remaining repairs
+          _hrc=$(cat "$_rcf" 2>/dev/null || true)
+          if [[ "$_hrc" =~ ^[0-9]+$ ]] && (( _hrc != 0 )); then
+            case "$(_companion_failure_class "" "$_hrc")" in auth|quota|model_unavailable) _adv_repair_retire_hop "$_rm" "$_hrc" ;; esac
+          fi
         done
+        [[ -n "$_rcf" ]] && command rm -f -- "$_rcf" 2>/dev/null
         if [[ "$_repair_ok" == "true" ]]; then
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
             # ninth run, a1 C-003: the derivation markers are provenance — an accepted repair carries the
@@ -1947,6 +1983,51 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
 # round 1 (third run, C-003; fourth run): a *-headless hop is bounded by cheval's CLI adapter —
 # connect 10 s + max(600 s, the catalog's per-model headless_timeout_seconds) — not by the block's
 # timeout_seconds. The wait cap sums each hop's own bound, plus slack.
+_adv_run_tag() {  # → the sidecar-name suffix for LOA_ADVERSARIAL_RUN_TAG: the tag itself when it is [A-Za-z0-9_-]{1,64}, a short
+                  # hash of the raw value otherwise (said once), "" when unset. Eleventh run, a1 C-002: stripping the odd
+                  # characters collapsed distinct tags (`c.1`, `c1`) onto one file — which the next statement truncated.
+  local _rt="${LOA_ADVERSARIAL_RUN_TAG:-}" _h=""
+  [[ -n "$_rt" ]] || { echo ""; return 0; }
+  if [[ "$_rt" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then echo "$_rt"; return 0; fi
+  _h=$(printf '%s' "$_rt" | sha256sum 2>/dev/null | cut -c1-12) || _h=""
+  [[ -n "$_h" ]] || _h=$(printf '%s' "$_rt" | shasum -a 256 2>/dev/null | cut -c1-12)   # (macOS: no sha256sum, KF-012)
+  [[ -n "$_h" ]] || _h="invalid"
+  if [[ -z "${_ADV_RUN_TAG_WARNED:-}" ]]; then
+    log "WARN: LOA_ADVERSARIAL_RUN_TAG is not [A-Za-z0-9_-]{1,64} — this run's sidecars carry the tag h${_h} instead (distinct raw tags never share a file)"
+    _ADV_RUN_TAG_WARNED=1
+  fi
+  echo "h${_h}"
+}
+_ADV_RUN_LOCK_DIR=""
+_adv_take_run_lock() {  # <sprint dir> <gate> <tag> → 0 with this run's key locked (the EXIT trap releases it); 1 when a LIVE run holds it
+  # eleventh run, a2 DISS-001: the envelope and the two sidecars are single-writer per (sprint, gate, tag). A second
+  # live run with the same key would interleave with the first and the startup cleanup would drop its rows — it is
+  # refused before anything is removed; a distinct LOA_ADVERSARIAL_RUN_TAG is the parallel path. A dead holder
+  # (killed before its EXIT trap) is taken over. mkdir + pid, not flock: no fd for a child to inherit.
+  local key="" dir pidf other _try lockdir
+  key=$(printf '%s|%s|%s' "$1" "$2" "$3" | sha256sum 2>/dev/null | cut -c1-16) || key=""
+  [[ -n "$key" ]] || key=$(printf '%s|%s|%s' "$1" "$2" "$3" | shasum -a 256 2>/dev/null | cut -c1-16)
+  [[ -n "$key" ]] || return 0   # (no hash tool: no guard — never a refusal for want of one)
+  lockdir=$(_adv_cli_lock_dir)
+  [[ -d "$lockdir" ]] || mkdir -m 700 "$lockdir" 2>/dev/null || return 0
+  [[ -L "$lockdir" || ! -O "$lockdir" ]] && return 0   # (not ours: the CLI lock declines it too)
+  dir="$lockdir/run-${key}.lock.d"; pidf="$dir/pid"
+  for _try in 1 2; do
+    if mkdir "$dir" 2>/dev/null; then printf '%s' "$$" > "$pidf"; _ADV_RUN_LOCK_DIR="$dir"; return 0; fi
+    other=$(cat "$pidf" 2>/dev/null || true)
+    if [[ "$other" =~ ^[0-9]+$ ]] && kill -0 "$other" 2>/dev/null; then
+      error "another adversarial-review run for ${1##*/}/$2${3:+/$3} is in progress (pid $other) — its envelope and sidecars are single-writer; wait for it, or give this run a distinct LOA_ADVERSARIAL_RUN_TAG"
+      return 1
+    fi
+    command rm -f -- "$pidf" 2>/dev/null; rmdir "$dir" 2>/dev/null || true   # a dead run's lock: take it over
+  done
+  return 0   # (a take-over race that would not settle: run unguarded rather than refuse)
+}
+_adv_release_run_lock() {
+  [[ -n "${_ADV_RUN_LOCK_DIR:-}" && -d "$_ADV_RUN_LOCK_DIR" ]] || { _ADV_RUN_LOCK_DIR=""; return 0; }
+  command rm -f -- "$_ADV_RUN_LOCK_DIR/pid" 2>/dev/null; rmdir "$_ADV_RUN_LOCK_DIR" 2>/dev/null || true
+  _ADV_RUN_LOCK_DIR=""
+}
 _ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"   # the fallback for a hop the catalog does not size
 _ADV_CLI_HOP_CEILING=3600   # mirrors HEADLESS_TIMEOUT_CEILING_SECONDS (loa_cheval/types.py): cheval clamps the catalog value there at load; NRM-18 pins the two equal
 _adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max(connect,10) + max(read,600,headless_timeout_seconds)
@@ -2305,6 +2386,7 @@ _adv_reap_companion() {
 }
 _adv_cleanup_on_exit() {
   _adv_reap_companion
+  _adv_release_run_lock
   # LOA_ADVERSARIAL_KEEP_WORKDIR keeps FILES for debugging, never processes: the companion tree is reaped on
   # every exit path (a background tree that outlived the run was round 1's first finding) — its partial
   # results stay in the kept workdir
@@ -2526,8 +2608,9 @@ main() {
   # canonical sidecars go before any writer starts, so a writer that does not run this time (companion
   # off, no_route) cannot leave last run's rows to be demanded as triage; the envelope lists what this
   # run produced (metadata.rejected_sidecars) and verdict-derive counts only those
-  local _rt="${LOA_ADVERSARIAL_RUN_TAG:-}" _run_tag
-  _run_tag="${_rt//[^A-Za-z0-9_-]/}"
+  local _run_tag; _run_tag=$(_adv_run_tag)
+  # a second live run with this (sprint, gate, tag) key is refused HERE, before the cleanup below removes anything
+  _adv_take_run_lock "$PROJECT_ROOT/grimoires/loa/a2a/${sprint_id}" "$type" "$_run_tag" || exit 2
   local -a _run_sidecars=("grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}${_run_tag:+-$_run_tag}.jsonl"
                           "grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}-companion${_run_tag:+-$_run_tag}.jsonl")
   if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
