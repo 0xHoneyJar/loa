@@ -160,7 +160,8 @@ _rejected_rows_of() {  # <file> [listed] — adds the file's rejected rows to $r
     # rows whose repair succeeded were accepted upstream (the writer only records rejections; defensive) —
     # judged per row on the top-level key by jq, never by a substring over the payload (eighth run, b C-004);
     # a line that is not JSON still counts as a row to triage
-    c=$(jq -Rn '[inputs | select(length > 0) | (fromjson? // {}) | select(.repair_succeeded != true)] | length' -- "$f" 2>/dev/null || true)
+    # type-safe (tenth run, chunk b C-003): a scalar row counts as one row; only an object with repair_succeeded true is excluded
+    c=$(jq -Rn '[inputs | select(length > 0) | (fromjson? // {}) | select((type == "object" and .repair_succeeded == true) | not)] | length' -- "$f" 2>/dev/null || true)
     [[ "$c" =~ ^[0-9]+$ ]] || c=$(grep -c . -- "$f" 2>/dev/null || true)
     (( ${c:-0} > 0 )) && rows=$(( rows + c ))
     return 0
@@ -180,7 +181,9 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean),
         # and a metadata that is not an object gets its own message
-        kind=$(jq -r 'if (.metadata | type) != "object" then "metadata:" + (.metadata | type)
+        # (an envelope with no metadata at all is the legacy shape — zero entries; a present non-object is the defect)
+        kind=$(jq -r 'if .metadata == null then "array"
+                      elif (.metadata | type) != "object" then "metadata:" + (.metadata | type)
                       elif .metadata.rejected_summary == null then "array" else (.metadata.rejected_summary | type) end' -- "$ENVELOPE_FILE" 2>/dev/null) || kind=""
         if [[ -z "$kind" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
@@ -214,10 +217,12 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         for u in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
             [[ -f "$u" && -s "$u" ]] || continue
             [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
+            # tenth run, chunk b C-001: never silent and never exempt by age — a failed companion's tagged rows
+            # from an earlier chunk are older than the final envelope and would otherwise escape
             if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then
                 violations+=("rejected-payload sidecar $(basename -- "$u") is newer than the dissent envelope and not listed in its metadata.rejected_sidecars — the envelope is stale (a run ended after writing rows); re-run the dissent or triage the file's rows")
             else
-                warnings+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an older run's file) — not counted")
+                violations+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an earlier run's file that was never folded) — triage its rows under '## Rejected dissent payloads' or remove the file before re-running")
             fi
         done
     else
@@ -338,6 +343,7 @@ rejected_summary_check
 # --- No trailer at all: legacy file ---
 if [[ "$trailer_count" -eq 0 ]]; then
     if [[ "$REQUIRE_TRAILER" == "true" ]]; then
+        for v in ${warnings[@]+"${warnings[@]}"}; do echo "WARN: $v" >&2; done
         violations+=("no LOA-VERDICT trailer found but --require-trailer was set — add one as the last line: <!-- LOA-VERDICT {\"gate\":\"$GATE\",\"verdict\":\"APPROVED\",\"counts\":{\"critical\":0,\"high\":0,\"medium\":0,\"low\":0},\"sprint_id\":\"sprint-N\",\"ts\":\"<ISO8601>\"} -->")
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false
@@ -345,6 +351,8 @@ if [[ "$trailer_count" -eq 0 ]]; then
     fi
     # fourth run, chunk b C-002: the rejected-payload contract applies to a trailer-less file too —
     # untriaged rejected payloads never ride the legacy pass
+    # (tenth run, chunk b C-002: warnings reach stderr on the trailer-less paths too)
+    for v in ${warnings[@]+"${warnings[@]}"}; do echo "WARN: $v" >&2; done
     if (( ${#violations[@]} > 0 )); then
         for v in "${violations[@]}"; do echo "$v" >&2; done
         [[ "$JSON_OUTPUT" == "true" ]] && emit_json 1 false false

@@ -106,11 +106,18 @@ YAML
             stubborn) # a hop that ignores TERM (a CLI stuck under a usage limit): only KILL ends it
                 bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
             slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
+            slow2-unavailable) sleep 2; [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;   # a slow failure: the walk reaches its next hop later
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
-            errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger
+            errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger —
+                      # the row is written NOW (inside the companion's window), as cheval would (tenth run, c1 C-005)
+                if [[ -n "${ERRQUIET_LEDGER_MESSAGE:-}" ]]; then
+                    jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg msg "$ERRQUIET_LEDGER_MESSAGE" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
+                        payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
+                                 models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:$msg}]}}' >> "$LOA_MODELINV_LOG_PATH"
+                fi
                 echo "[model-adapter:shim] Model: $model → anthropic:$model, Phase: review" >&2
                 echo "ERROR: model-invoke failed with exit code 1" >&2; return 1 ;;
             clitimeout)  # cheval's CLI-hop timeout as the live run reported it, followed by the shim's generic wrapper
@@ -146,6 +153,8 @@ teardown() {
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
     done
 }
+_now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (macOS date has no %N)
+_need_flock() { command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock cases cannot run here"; }
 # portable in-place literal substitution (first occurrence) — no GNU-only `sed -i`
 _cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$CONFIG_FILE" "$1" "$2"; }
 
@@ -255,6 +264,14 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
     [ "$(jq '.metadata.companion_voice.cost_cents' <<<"$result")" = "1.23" ]
     [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
     [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "null" ]
+    # the common production case (tenth run, c1 C-002): every listed sidecar exists, and a feedback file with no
+    # rejected-payload section is CONSISTENT against this clean two-voice envelope
+    for f in $(jq -r '.metadata.rejected_sidecars[]' <<<"$result"); do [ -f "$PROJECT_ROOT/$f" ]; done
+    { echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
+      echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$OUT_DIR/engineer-feedback.md"
+    run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 0' >/dev/null
 }
 
 @test "CMP-9 a companion hop the primary chain also holds stays planned (shared_hops); the primary answering from its own family keeps the companion independent (C-005, live re-run)" {
@@ -354,12 +371,21 @@ PY
     [ -z "$(pgrep -f "loa-cmp14-hung-$$")" ]   # the reaper ended a 300 s hop
 }
 
-@test "CMP-15 a fold that fails keeps the primary envelope (companion_voice.status fold_failed) instead of blanking it (C-002)" {
+@test "CMP-15 a fold that fails keeps the primary envelope (companion_voice.status fold_failed) instead of blanking it (C-002), and the companion's sidecar stays listed so its rows are still counted (tenth run, c2 C-002)" {
     _fold_companion() { echo "not json at all"; }
+    BEHAVIOUR[claude-headless]=reject
     result=$(_run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "fold_failed" ]
+    # the rows the companion rejected do not go with the fold: the file exists, the envelope lists it (the list
+    # is the run's files, not the fold's output), and verdict-derive holds an approval to those rows
+    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = "1" ]
+    jq -e --arg p "grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion.jsonl" '.metadata.rejected_sidecars | index($p) != null' <<<"$result" >/dev/null
+    { echo "All good"; echo; echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$OUT_DIR/engineer-feedback.md"
+    run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("schema-rejected payload"))) | length) == 1' >/dev/null
 }
 
 @test "CMP-16 a failed companion carries its last diagnostic line, redacted (C-003)" {
@@ -377,6 +403,14 @@ PY
     [ -d "$OUT_DIR" ]   # a missing directory would make the recursive grep pass vacuously
     [ -z "$(grep -rl "SECRETSECRETSECRETSECRET1234" "$OUT_DIR")" ]
     [ -z "$(ls -d "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-* 2>/dev/null)" ]   # the script's workdir honours TMPDIR
+    # …and that glob is the real workdir, not a vacuous pattern (tenth run, c1 C-003): kept once, it is exactly one
+    # directory holding the companion's log with the raw line; then removed
+    LOA_ADVERSARIAL_KEEP_WORKDIR=1 _run_main review >/dev/null
+    kept=$(ls -d "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-* 2>/dev/null)
+    [ "$(printf '%s\n' "$kept" | grep -c .)" = "1" ]
+    [ -s "$kept/companion/companion.log" ]
+    grep -q "provider said no" "$kept/companion/companion.log"
+    find "$kept" -mindepth 1 -delete; rmdir "$kept"
 }
 
 @test "CMP-17 the failure class follows cheval's EXIT_CODES (4 MISSING_API_KEY auth, 6 BUDGET_EXCEEDED quota, 3/124 timeout, 5 INVALID_RESPONSE malformed, 1/other model_unavailable) and the wait-cap / malformed statuses" {
@@ -515,48 +549,57 @@ PY
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true' >/dev/null
-    # a stale sidecar from a writer that did not run this time is not this run's (chunk b C-003 / c C-002) —
-    # older than the envelope it is a warning; newer, a stale-envelope violation (eighth run b C-001)
+    # a stale sidecar from a writer that did not run this time is not this run's (chunk b C-003 / c C-002) — and
+    # whatever its age it is a violation, never exempt for being older than the envelope (tenth run b C-001):
+    # its rows were never folded, so they are triaged or the file removed before the gate passes
     printf '{"reject_reason":"stale"}\n%.0s' 1 2 3 4 5 > "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
-    touch -d '2020-01-01 00:00:00' "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
+    touch -t 202001010000 "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"   # (BSD touch has no -d 'Y-m-d H:M:S')
+    run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("a-old-chunk.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
+    rm -f "$OUT_DIR/adversarial-rejected-review-a-old-chunk.jsonl"
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
 }
 
 @test "CMP-24 when the shim swallowed cheval's stderr, the failed companion's class and last_error come from the MODELINV ledger row for that call (fourth run)" {
     BEHAVIOUR[claude-headless]=errquiet
-    # the row cheval would have written for this call (the harness points LOA_MODELINV_LOG_PATH at a temp file)
-    jq -nc '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:"2099-01-01T00:00:00Z",
-             payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
-                      models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED",
-                                      message_redacted:"[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider \u0027anthropic\u0027 unavailable: claude -p timed out after 910s"}]}}' >> "$LOA_MODELINV_LOG_PATH"
+    # the row cheval writes for this call lands inside the companion's window (the stub writes it at call time;
+    # the harness points LOA_MODELINV_LOG_PATH at a temp file)
+    export ERRQUIET_LEDGER_MESSAGE="[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p timed out after 910s"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     le=$(jq -r '.metadata.companion_voice.last_error' <<<"$result")
     [ "$le" = "MODELINV RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s" ] || [ "$le" = "RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s" ]
     [[ "$le" != *"shim"* ]]
-    # a row older than the companion's start is not this call's
+    # a row older than the companion's start is not this call's — nor one after its end (tenth run, c1 C-005)
+    unset ERRQUIET_LEDGER_MESSAGE
     : > "$LOA_MODELINV_LOG_PATH"
+    jq -nc '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:"2099-01-01T00:00:00Z",
+             payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
+                      models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:"later: claude -p timed out after 1s"}]}}' >> "$LOA_MODELINV_LOG_PATH"
     # the same full shape as above, differing only in ts_utc — so only the timestamp filter rejects it (c1 C-004)
     jq -nc '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:"2000-01-01T00:00:00Z",
              payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
                       models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:"stale: claude -p timed out after 1s"}]}}' >> "$LOA_MODELINV_LOG_PATH"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "model_unavailable" ]
-    [[ "$(jq -r '.metadata.companion_voice.last_error' <<<"$result")" != *"stale"* ]]
+    [[ "$(jq -r '.metadata.companion_voice.last_error // ""' <<<"$result")" != *"stale"* ]]
+    [[ "$(jq -r '.metadata.companion_voice.last_error // ""' <<<"$result")" != *"later"* ]]
 }
 
 @test "CMP-25 *-headless hops are serialised per CLI binary across the two walks (phase-tagged trace, time-bounded); a lock not acquired within the hop's bound fails the hop as a timeout; the repair round-trip takes the same lock (fourth–seventh run)" {
+    _need_flock
     # phase-tagged trace: serialised hops read start,end,start,end by timestamp; overlapping ones start,start,… (c1 C-001)
-    invoke_dissenter() { echo "$(date +%s%N) start $BASHPID" >> "$T/lock-trace"; sleep 1; echo "$(date +%s%N) end $BASHPID" >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
-    t0=$(date +%s%N)
+    invoke_dissenter() { echo "$(_now_ms) start $BASHPID" >> "$T/lock-trace"; sleep 1; echo "$(_now_ms) end $BASHPID" >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    t0=$(_now_ms)
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
     wait
-    t1=$(date +%s%N)
+    t1=$(_now_ms)
     [ "$(sort -n "$T/lock-trace" | awk '{printf "%s,", $2}')" = "start,end,start,end," ]
-    (( (t1 - t0) / 1000000 >= 2000 ))   # two one-second hops, one after the other
+    (( t1 - t0 >= 2000 ))   # two one-second hops, one after the other
     [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
     # a held lock: the hop is not run, rc 124 (a timeout), the chain can walk on
     : > "$T/lock-trace"
@@ -566,11 +609,16 @@ PY
     [ "$rc" = "124" ]
     [ ! -s "$T/lock-trace" ]
     grep -q "not acquired within 1s" "$T/lock-err"
-    # an HTTP hop takes no lock
-    : > "$T/lock-trace"; _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
-    [ ! -f "$T/loa-headless-locks-$(id -u)/gpt-5.5.lock" ]
+    # an HTTP hop whose chain holds no CLI hop takes no lock: the lock directory is byte-identical around the call
+    # (lock files are named after the BINARY, so "no gpt-5.5.lock" proves nothing — c1 C-001 of the tenth run)
+    printf 'providers:\n  openai:\n    models:\n      gpt-5.5-plain:\n        context_window: 400000\n' > "$T/plain-catalog.yaml"
+    before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
+    : > "$T/lock-trace"; LOA_MODEL_CONFIG="$T/plain-catalog.yaml" _adv_invoke_hop gpt-5.5-plain a b gpt-5.5-plain 30 "" review >/dev/null
+    after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
+    [ -n "$before" ] && [ "$before" = "$after" ]
+    [ "$(grep -c . "$T/lock-trace")" = "2" ]
     # the repair round-trip goes through the same lock
-    _repair_finding_via_model() { echo "$(date +%s%N) repair $BASHPID" >> "$T/lock-trace"; echo '{}'; }
+    _repair_finding_via_model() { echo "$(_now_ms) repair $BASHPID" >> "$T/lock-trace"; echo '{}'; }
     : > "$T/lock-trace"
     _adv_with_cli_lock claude-headless _repair_finding_via_model x y z claude-headless 60 >/dev/null
     [ "$(grep -c repair "$T/lock-trace")" = "1" ]
@@ -592,9 +640,13 @@ PY
 
 @test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null, and the primary attempt that dropped the companion's own hop is excluded from verdict quality (fifth run C-003)" {
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # this host's shape: the primary chain ends on claude-headless
-    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    # the primary's first hop fails SLOWLY, so the companion (instant here) has finished by the time the primary
+    # reaches the shared hop: the primary then tries it itself and fails — the skip rule (CMP-33) applies only
+    # while the companion is alive
+    BEHAVIOUR[gpt-5.5-pro]=slow2-unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
     BEHAVIOUR[claude-headless]=unavailable-primary-only
     result=$(_run_main review)
+    [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:api_failure" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.degraded' <<<"$result")" = "true" ]
     [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "failed" ]
@@ -625,6 +677,7 @@ PY
 }
 
 @test "CMP-29 lock-wait time is not charged to the hop's cap: a companion that queued behind another claude -p still gets its full cap once it holds the lock (sixth run C-002); the lock directory must be ours (C-003)" {
+    _need_flock
     export XDG_RUNTIME_DIR="$T"
     # hold the claude lock for 2 s from outside; the companion's hop needs 2 s of its own; the hop cap is 3 s
     mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
@@ -634,12 +687,12 @@ PY
     if flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null; then echo "lock not held" >&2; false; fi
     BEHAVIOUR[claude-headless]=slow2
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
-    t0=$(date +%s%N)
+    t0=$(_now_ms)
     result=$(_run_main review)
-    t1=$(date +%s%N)
+    t1=$(_now_ms)
     wait
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
-    (( (t1 - t0) / 1000000 >= 5000 ))   # queued ~5 s behind the holder, then its own 2 s hop: far past the 3 s hop cap, not reaped
+    (( t1 - t0 >= 5000 ))   # queued ~5 s behind the holder, then its own 2 s hop: far past the 3 s hop cap, not reaped
     # a foreign or symlinked lock directory is never used — the hop runs unserialised instead
     rm -f "$T/loa-headless-locks-$(id -u)"/*.lock; rmdir "$T/loa-headless-locks-$(id -u)"   # (the primary's alias chain took codex.lock too)
     ln -s "$T" "$T/loa-headless-locks-$(id -u)"
@@ -663,6 +716,7 @@ PY
 }
 
 @test "CMP-31 the per-binary lock follows the alias's resolved chain: an HTTP alias whose catalog fallback_chain falls through to a CLI hop takes that binary's lock (eighth run, a2 C-002)" {
+    _need_flock
     cat > "$T/catalog.yaml" <<'YAML'
 providers:
   openai:
@@ -689,8 +743,10 @@ YAML
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
     [ -f "$T/loa-headless-locks-$(id -u)/codex.lock" ]
+    before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
     _adv_invoke_hop opus-plain a b opus-plain 30 "" review >/dev/null
-    [ ! -f "$T/loa-headless-locks-$(id -u)/opus-plain.lock" ]
+    after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
+    [ -n "$before" ] && [ "$before" = "$after" ]   # a model with no CLI in its chain touched no lock (snapshot, not a filename guess)
     [ "$(grep -c ran "$T/lock-trace")" = "2" ]
 }
 
@@ -714,4 +770,26 @@ PY
     result=$(_run_main review)
     [ "$(jq -r '.metadata.verdict_quality_error' <<<"$result")" = "[verdict-aggregate] invariant violation: INV-5: stub" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+}
+
+@test "CMP-33 the primary skips a hop the live companion shares instead of queueing behind its claude -p: model_attempts records it, the companion is the sole voice (tenth run, a2 C-003)" {
+    _need_flock
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # the primary chain ends on the companion's hop
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=slow2     # the companion is still running when the primary reaches the shared hop
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:skipped_shared_with_companion" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    grep -q "companion is still running — skipped" "$T/stderr.log"
+    # the repair's HTTP hop waits for the lock only as long as its own timeout (a2 C-001)
+    export ANTHROPIC_API_KEY="sk-presence-only-never-printed" XDG_RUNTIME_DIR="$T"
+    mkdir -p "$T/loa-headless-locks-$(id -u)"; exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8
+    _repair_finding_via_model() { echo '{}'; }
+    t0=$(date +%s); rc=0; ( _ADV_LOCK_WAIT=1; _adv_with_cli_lock tiny _repair_finding_via_model x y z tiny 1 >/dev/null 2>&1 ) || rc=$?
+    flock -u 8; exec 8>&-
+    (( $(date +%s) - t0 < 10 ))
+    [ "$rc" = "124" ]
 }

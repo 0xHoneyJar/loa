@@ -507,37 +507,34 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
     *) return 1 ;;
   esac
   local v f root="$PROJECT_ROOT"
-  # seventh run, chunk c2 C-003: no expansion of the value — an xtrace'd `[[ -n "${!v}" ]]` prints it;
-  # printenv shows only the name and grep -q only the verdict (an exported empty value is not present)
-  # eighth run, chunk c2 C-002: standard override precedence — the first place (env → .env.local → .env)
-  # that ASSIGNS the variable decides; an empty assignment disables the key, it does not fall through
-  # …and per SOURCE across all of a provider's aliases (ninth run, a1 C-005): an empty GOOGLE_API_KEY beside a
-  # set GEMINI_API_KEY is present; only when every assigned alias at a source is empty is the key disabled
-  local decided="false"
-  for v in "${vars[@]}"; do
-    if printenv "$v" >/dev/null 2>&1; then printenv "$v" | grep -q . && return 0; decided="true"; fi
-  done
-  [[ "$decided" == "true" ]] && return 1
   # bats-gated seam: point the dotenv lookup at a fixture directory
   if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
-  for f in "$root/.env.local" "$root/.env"; do
-    [[ -f "$f" ]] || continue
-    decided="false"
-    for v in "${vars[@]}"; do
+  # seventh run, chunk c2 C-003: no expansion of the value — an xtrace'd `[[ -n "${!v}" ]]` prints it;
+  # printenv shows only the name and grep -q only the verdict (an exported empty value is not present)
+  # eighth run, chunk c2 C-002 / tenth run, chunk c2 C-001: resolved PER ALIAS, the way cheval's credential
+  # chain and a dotenv loader read variables — independently, with override precedence (env → .env.local →
+  # .env: the first source that ASSIGNS a variable decides it; an empty assignment disables that alias, it does
+  # not fall through); the provider is present when ANY alias resolves non-empty, so an empty GOOGLE_API_KEY
+  # override never hides a GEMINI_API_KEY assigned lower down
+  for v in "${vars[@]}"; do
+    if printenv "$v" >/dev/null 2>&1; then printenv "$v" | grep -q . && return 0; continue; fi
+    for f in "$root/.env.local" "$root/.env"; do
+      [[ -f "$f" ]] || continue
       # review sprint-248 C-008: presence is a grep on the shape through a pipe — no variable ever holds
       # the value, so an xtrace'd run cannot echo it (same rule as loa-status / run-preflight P3);
-      # the LAST assignment in the file wins, as a dotenv loader would read it
+      # the LAST assignment in the file wins, as a dotenv loader would read it; the value shape is anchored
+      # on the assignment itself (tenth run, a1 C-003): an `=` inside a trailing comment is not a value
       if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null; then
-        grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | grep -Eq "=[\"']?[^\"'[:space:]#]" && return 0
-        decided="true"
+        grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=[\"']?[^\"'[:space:]#]" && return 0
+        break   # assigned empty at its deciding source: this alias is disabled; the next alias may still be present
       fi
     done
-    [[ "$decided" == "true" ]] && return 1
   done
   return 1
 }
 
-_repair_model() {  # <voice that answered> → the first hop of the repair chain (one source of truth: _repair_model_chain)
+_repair_model() {  # <voice that answered> → the FIRST hop of the repair chain — a helper for the tests and for
+                   # operator display only; the repair call site iterates _repair_model_chain, never this
   _repair_model_chain "$1" | cut -d' ' -f1
 }
 _repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop
@@ -1297,8 +1294,12 @@ while i < len(text):
   # already used) — a colliding derived id becomes max(explicit numeric id) + 1
   local explicit_ids used_ids="" max_id_num
   explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string")] | join(" ")' 2>/dev/null || true)
-  # (no `?` after capture — that is a jq syntax error, and it silently zeroed this value until NRM-15 pinned it)
-  max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$").n | tonumber] | max // 0' 2>/dev/null || echo 0)
+  # (no `?` after capture — that is a jq syntax error, and it silently zeroed this value until NRM-15 pinned it;
+  # a jq failure here is LOGGED, never folded into 0 — tenth run, a1 C-002)
+  if ! max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$").n | tonumber] | max // 0' 2>/dev/null); then
+    log "WARN: the explicit-id scan failed (jq) — derived ids are checked against the used set only"
+    max_id_num=0
+  fi
   [[ "$max_id_num" =~ ^[0-9]+$ ]] || max_id_num=0
   (( max_id_num < finding_count )) && max_id_num=$finding_count
   while [[ $i -lt $finding_count ]]; do
@@ -1316,8 +1317,11 @@ while i < len(text):
       _cid=$(echo "$candidate" | jq -r '.id // ""' 2>/dev/null || true)
       if [[ "$(echo "$candidate" | jq -r '.id_derived // false' 2>/dev/null)" == "true" && -n "$_cid" ]] \
          && { [[ " $explicit_ids " == *" $_cid "* ]] || [[ " $used_ids " == *" $_cid "* ]]; }; then
-        max_id_num=$((max_id_num + 1))
-        _cid=$(printf 'DISS-%03d' "$max_id_num")
+        # self-verifying (tenth run, a1 C-002): step until the id is free of BOTH sets, whatever max_id_num holds
+        while [[ " $explicit_ids " == *" $_cid "* || " $used_ids " == *" $_cid "* ]]; do
+          max_id_num=$((max_id_num + 1))
+          _cid=$(printf 'DISS-%03d' "$max_id_num")
+        done
         candidate=$(echo "$candidate" | jq --arg id "$_cid" '.id = $id')
       fi
       used_ids="$used_ids $_cid"
@@ -1347,7 +1351,7 @@ while i < len(text):
         # fourth run, chunk c C-008: tiny first when a credential is present, claude-headless when it is not
         # or when tiny fails — one attempt per hop, the round-trip stays bounded
         for _rm in $(_repair_model_chain "$model"); do
-          if repaired=$(_adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
+          if repaired=$(_ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
              && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _repair_ok="true"; break; fi
           repaired=""
         done
@@ -1944,6 +1948,7 @@ _companion_chain() {  # <family> → space-separated chain, credential presence 
 # connect 10 s + max(600 s, the catalog's per-model headless_timeout_seconds) — not by the block's
 # timeout_seconds. The wait cap sums each hop's own bound, plus slack.
 _ADV_CLI_HOP_TIMEOUT="${LOA_ADVERSARIAL_CLI_HOP_TIMEOUT:-610}"   # the fallback for a hop the catalog does not size
+_ADV_CLI_HOP_CEILING=3600   # mirrors HEADLESS_TIMEOUT_CEILING_SECONDS (loa_cheval/types.py): cheval clamps the catalog value there at load; NRM-18 pins the two equal
 _adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max(connect,10) + max(read,600,headless_timeout_seconds)
   local hop="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v="" ct="" rt=""
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
@@ -1955,7 +1960,7 @@ _adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max
   [[ "$ct" =~ ^[0-9]+(\.[0-9]+)?$ ]] || ct=10; ct=${ct%.*}; (( ct < 10 )) && ct=10
   [[ "$rt" =~ ^[0-9]+(\.[0-9]+)?$ ]] || rt=120; rt=${rt%.*}; (( rt < 600 )) && rt=600
   if [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-    local r=${v%.*}; (( r > 3600 )) && r=3600; (( r > rt )) && rt=$r
+    local r=${v%.*}; (( r > _ADV_CLI_HOP_CEILING )) && r=$_ADV_CLI_HOP_CEILING; (( r > rt )) && rt=$r
     echo $(( ct + rt ))
   elif [[ -n "$ct$rt" && "$rt" -gt 600 ]]; then
     echo $(( ct + rt ))
@@ -1998,7 +2003,10 @@ _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs 
   case "${bin:+cli}" in
     cli)
       local lockdir lock wait_s
-      lockdir=$(_adv_cli_lock_dir); wait_s=$(_adv_cli_hop_bound "${bin}-headless")
+      lockdir=$(_adv_cli_lock_dir)
+      # tenth run, a2 C-001: a *-headless hop waits up to its own CLI bound; a model that merely RESOLVES to a
+      # CLI hop (an HTTP alias, the repair's `tiny`) waits only as long as its own call timeout
+      case "$model" in *-headless) wait_s=$(_adv_cli_hop_bound "$model") ;; *) wait_s="${_ADV_LOCK_WAIT:-${CONF_TIMEOUT:-60}}" ;; esac
       # sixth run, C-003: the directory is ours (0700, not a symlink) or we do not lock on it at all
       command -v flock >/dev/null 2>&1 || { "$@"; return $?; }
       [[ -d "$lockdir" ]] || mkdir -m 700 "$lockdir" 2>/dev/null || true
@@ -2035,11 +2043,12 @@ _adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (ma
   printf '%s' "$out"
 }
 
-_companion_ledger_message() {  # <model> <since iso-8601> → the last message_redacted for that model since then, or ""
-  local m="$1" since="$2" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
+_companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] → the last message_redacted for that model in the window, or ""
+  local m="$1" since="$2" until="${3:-9999-12-31T23:59:59Z}" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
   [[ -s "$ledger" ]] || { echo ""; return 0; }
-  tail -n 400 -- "$ledger" 2>/dev/null | jq -r --arg m "$m" --arg since "$since" '
-      select(type == "object" and (.event_type // "") == "model.invoke.complete" and ((.ts_utc // "") >= $since)
+  # (tenth run, c1 C-005: bounded by the companion's END too — a concurrent dissent's later row is not ours)
+  tail -n 400 -- "$ledger" 2>/dev/null | jq -r --arg m "$m" --arg since "$since" --arg until "$until" '
+      select(type == "object" and (.event_type // "") == "model.invoke.complete" and ((.ts_utc // "") >= $since) and ((.ts_utc // "") <= $until)
              and ((.payload.calling_primitive // "adversarial-review") == "adversarial-review")
              and (((.payload.models_requested // []) | map(. == $m or endswith(":" + $m)) | any)))
       | (.payload.models_failed // [])[]? | .message_redacted // empty' 2>/dev/null | tail -1 | cut -c1-300
@@ -2186,7 +2195,8 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     local _diag="" _since
     # 1) the provider's own line from the MODELINV row cheval wrote for this call (the shim discards stderr)
     _since=$(cat "$workdir/companion.started_iso" 2>/dev/null || echo "1970-01-01T00:00:00Z")
-    [[ -n "$final" ]] && _diag=$(_companion_ledger_message "$final" "$_since")
+    local _until; _until=$(cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")
+    [[ -n "$final" ]] && _diag=$(_companion_ledger_message "$final" "$_since" "$_until")
     # 2) else the last line of the companion's log that is not a shim banner or the generic wrapper
     if [[ -z "$_diag" && -s "$workdir/companion.log" ]]; then
       _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -Ev 'model-invoke failed with exit code|^\[model-adapter:shim\]' | tail -1 | cut -c1-300)   # -E: ugrep reads \| as a literal
@@ -2556,10 +2566,10 @@ main() {
         # walks share nothing mutable (the KF-011 debug capture is already keyed by model + timestamp)
         cp -f "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$companion_workdir/" 2>/dev/null || true
         # shellcheck disable=SC2086
+        date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.started_iso" 2>/dev/null || true   # (before the launch: the window holds the first hop's first second too)
         ( _walk_companion_chain "$companion_workdir" "$companion_workdir" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
         companion_pid=$!
         companion_started=$(date +%s)
-        date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.started_iso" 2>/dev/null || true
         _ADV_COMPANION_PID="$companion_pid"
       }
     fi
@@ -2567,6 +2577,15 @@ main() {
   fi
   for try_model in "${fallback_chain[@]}"; do
     api_exit=0
+    # tenth run, a2 C-003: a hop the live companion is (or will be) running is not run twice — the primary
+    # would only queue up to the hop's bound behind the companion's claude -p and then be a duplicate voice;
+    # the fold's sole_voice / duplicate handling covers the outcome
+    if [[ -n "${companion_shared_hops:-}" && ",$companion_shared_hops," == *",$try_model,"* && -n "${_ADV_COMPANION_PID:-}" ]] \
+       && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null; then
+      log "Model $try_model is the companion's hop and the companion is still running — skipped on the primary chain"
+      model_attempts+=("${try_model}:skipped_shared_with_companion")
+      continue
+    fi
     # Allocate per-attempt sidecar path under the adversarial workdir so
     # parallel adversarial-review invocations don't collide.
     local vq_sidecar
@@ -2640,6 +2659,7 @@ main() {
       kill -0 "$companion_pid" 2>/dev/null && _adv_kill_tree "$companion_pid" KILL >/dev/null   # (stdout is the envelope)
       wait "$companion_pid" 2>/dev/null || true
       _ADV_COMPANION_PID=""
+      date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.ended_iso" 2>/dev/null || true
     fi
     # chunk c C-003: the primary voice that actually answered (its last sidecar's succeeded id)
     local primary_succeeded="$final_model"
@@ -2706,7 +2726,7 @@ main() {
   # not be both succeeded and dropped) — it is excluded from aggregation and named on the envelope
   if (( ${#COMPANION_VQ_FILES[@]} > 0 && ${#vq_attempt_files[@]} > 0 )); then
     local _cx _kept_vq=() _excluded_vq=() _cid_x
-    _cid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${COMPANION_VQ_FILES[@]}" 2>/dev/null || true)
+    _cid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${COMPANION_VQ_FILES[@]}" 2>/dev/null </dev/null || true)
     for _cx in "${vq_attempt_files[@]}"; do
       if [[ -n "$_cid_x" ]] && jq -e --arg ids "$_cid_x" '[(.voices_dropped // [])[].voice] | any(. as $v | ($ids | split(" ")) | index($v) != null)' "$_cx" >/dev/null 2>&1; then
         _excluded_vq+=("$(jq -r '[(.voices_dropped // [])[].voice] | join(",")' "$_cx" 2>/dev/null)")
@@ -2720,8 +2740,12 @@ main() {
       vq_attempt_files=("${_kept_vq[@]}")
     fi
     # …and the mirror (eighth run, a2 C-004): a companion attempt that DROPPED a voice the primary answered with
-    local _pid_x _kept_cvq=() _excluded_cvq=()
-    _pid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${vq_attempt_files[@]}" 2>/dev/null || true)
+    local _pid_x="" _kept_cvq=() _excluded_cvq=()
+    # (tenth run, a2 C-002: the first pass may have emptied the primary set — an empty operand list would make
+    # `jq -rs` read stdin; the pass is skipped and every companion envelope kept)
+    if (( ${#vq_attempt_files[@]} > 0 )); then
+      _pid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${vq_attempt_files[@]}" 2>/dev/null </dev/null || true)
+    fi
     for _cx in "${COMPANION_VQ_FILES[@]}"; do
       if [[ -n "$_pid_x" ]] && jq -e --arg ids "$_pid_x" '[(.voices_dropped // [])[].voice] | any(. as $v | ($ids | split(" ")) | index($v) != null)' "$_cx" >/dev/null 2>&1; then
         _excluded_cvq+=("$(jq -r '[(.voices_dropped // [])[].voice] | join(",")' "$_cx" 2>/dev/null)")

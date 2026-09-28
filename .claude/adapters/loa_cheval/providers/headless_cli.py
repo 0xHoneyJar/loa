@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import subprocess
 import time
@@ -16,7 +17,13 @@ from loa_cheval.providers.base import (
     ProviderAdapter, SubprocessOutputCapExceeded, build_headless_subprocess_env,
     enforce_context_window, run_subprocess_pgkill,
 )
-from loa_cheval.types import CompletionRequest, CompletionResult, ConfigError, ProviderUnavailableError
+from loa_cheval.types import (
+    HEADLESS_TIMEOUT_CEILING_SECONDS,
+    CompletionRequest,
+    CompletionResult,
+    ConfigError,
+    ProviderUnavailableError,
+)
 
 
 @dataclass
@@ -38,7 +45,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
     _cli_type: str
     _cli_name: str
     _command_label: str
-    _HEADLESS_TIMEOUT_CEILING: float = 3600.0   # a catalog value never buys more than an hour per hop
+    _HEADLESS_TIMEOUT_CEILING: float = HEADLESS_TIMEOUT_CEILING_SECONDS   # one constant (types.py); the load-time coercion clamps and warns
     _install_hint: str
     _spawn_install_hint: str = ""
     _logger = logging.getLogger("loa_cheval.providers.headless")
@@ -153,27 +160,23 @@ class HeadlessCLIAdapter(ProviderAdapter):
     def _compute_timeout(self, model_config: Any = None) -> float:
         """Keep the existing 10s connect and 600s read floors; a per-model
         `headless_timeout_seconds` (catalog) raises the read bound above them
-        (cycle-126 sprint-248: a long dissent on `claude -p` takes 6-10 min)."""
+        (cycle-126 sprint-248: a long dissent on `claude -p` takes 6-10 min).
+
+        The catalog value was validated and clamped ONCE at load (types.coerce_headless_timeout_seconds);
+        this only bounds a bare ModelConfig the same way and never warns per hop (tenth run, d C-001).
+        The key only ever RAISES the bound — a provider read_timeout already above the ceiling is never
+        lowered (eighth run, d DISS-001 / C-001)."""
         read = max(self.config.read_timeout, 600.0)
         per_model = getattr(model_config, "headless_timeout_seconds", None)
-        if per_model is not None:
-            value = None
-            if not isinstance(per_model, bool):
-                try:
-                    value = float(per_model)
-                except (TypeError, ValueError):
-                    value = None
-            if value is None or value != value or value <= 0:
-                self._logger.warning("headless_timeout_seconds %r ignored: not a positive number", per_model)
-            elif value <= read:
-                self._logger.warning("headless_timeout_seconds %r ignored: it does not exceed the %.0fs read floor", per_model, read)
+        if isinstance(per_model, (int, float)) and not isinstance(per_model, bool) \
+                and math.isfinite(per_model) and per_model > 0:
+            value = min(float(per_model), self._HEADLESS_TIMEOUT_CEILING)
+            if value > read:
+                read = value
             else:
-                # the catalog key only ever RAISES the bound, by at most the ceiling — a provider read_timeout
-                # already above the ceiling is never lowered (eighth run, d DISS-001 / C-001)
-                if value > self._HEADLESS_TIMEOUT_CEILING:
-                    self._logger.warning("headless_timeout_seconds %r clamped to %.0fs", per_model, self._HEADLESS_TIMEOUT_CEILING)
-                    value = self._HEADLESS_TIMEOUT_CEILING
-                read = max(read, value)
+                self._logger.debug("headless_timeout_seconds %r: the %.0fs read bound already meets it", per_model, read)
+        elif per_model is not None:
+            self._logger.debug("headless_timeout_seconds %r unusable here (the catalog loader reports this at load)", per_model)
         return max(self.config.connect_timeout, 10.0) + read
 
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:

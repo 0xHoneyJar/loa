@@ -402,6 +402,18 @@ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     return get_adapter(provider_config)
 
 
+def _headless_timeout_raw(model_data: Dict[str, Any], where: str) -> Any:
+    """`headless_timeout_seconds` applies to CLI hops only (`kind: cli`): on any other model it is reported
+    once at load and dropped, so the catalog cannot claim a bound no hop will honour (tenth run, d C-002)."""
+    raw = model_data.get("headless_timeout_seconds")
+    if raw is not None and model_data.get("kind") != "cli":
+        logging.getLogger("loa_cheval.config").warning(
+            "%sheadless_timeout_seconds %r applies to kind: cli models only — ignored on this %s model",
+            where, raw, model_data.get("kind") or "http_api")
+        return None
+    return raw
+
+
 def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> ProviderConfig:
     """Build ProviderConfig from merged hounfour config."""
     providers = config.get("providers", {})
@@ -441,7 +453,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
             headless_timeout_seconds=coerce_headless_timeout_seconds(
-                model_data.get("headless_timeout_seconds"), where=f"{provider_name}/{model_id}: "),
+                _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: "), where=f"{provider_name}/{model_id}: "),
         )
 
     return ProviderConfig(

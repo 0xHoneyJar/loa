@@ -67,30 +67,40 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 4020.0
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 4020.0
     adapter.config.read_timeout = 700
-    # an unusable value is pinned by its WARNING, not by a return value that cannot change (eighth run, c2 C-001)
+    # the adapter is silent at WARNING whatever it is handed: validation and its one warning happen at load
+    # (eighth run, c2 C-001 pinned the warnings; tenth run, d C-001 moved them to the loader — a per-hop
+    # 'ignored' for a value the bound already meets misled the operator); NaN is unusable too (c2 C-004)
     with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.headless"):
         caplog.clear()
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
-        assert "ignored" in caplog.text
-        caplog.clear()
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
-        assert "ignored" in caplog.text
-        caplog.clear()
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=float("nan"))) == 720.0
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
         assert caplog.text == ""
-    # the catalog loader coerces once (d C-002): typed float or None, one warning each
-    from loa_cheval.types import coerce_headless_timeout_seconds
+    # the catalog loader coerces once (d C-002): typed float or None, one warning each; the ceiling is applied
+    # THERE, so the stored field is the effective bound (tenth run, d C-001)
+    from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS, coerce_headless_timeout_seconds
+    assert HEADLESS_TIMEOUT_CEILING_SECONDS == 3600.0 == adapter._HEADLESS_TIMEOUT_CEILING
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         caplog.clear()
         assert coerce_headless_timeout_seconds(900) == 900.0
         assert coerce_headless_timeout_seconds("900") == 900.0
+        assert coerce_headless_timeout_seconds(3600) == 3600.0
         assert coerce_headless_timeout_seconds(None) is None
         assert caplog.text == ""
         assert coerce_headless_timeout_seconds(True, where="p/m: ") is None
         assert coerce_headless_timeout_seconds("15m", where="p/m: ") is None
         assert coerce_headless_timeout_seconds(-5, where="p/m: ") is None
         assert coerce_headless_timeout_seconds(float("inf"), where="p/m: ") is None
-        assert caplog.text.count("p/m: headless_timeout_seconds") == 4
+        assert coerce_headless_timeout_seconds(float("nan"), where="p/m: ") is None
+        assert caplog.text.count("p/m: headless_timeout_seconds") == 5
+        assert caplog.text.count("ignored") == 5
+        caplog.clear()
+        assert coerce_headless_timeout_seconds(7200, where="p/m: ") == 3600.0
+        assert "p/m: headless_timeout_seconds 7200 clamped to 3600s" in caplog.text
+        assert caplog.text.count("headless_timeout_seconds") == 1
     # no headless subclass overrides the base timeout (d C-004)
     assert "_compute_timeout" not in type(adapter).__dict__
 
@@ -180,3 +190,25 @@ def test_semaphore_failure_never_spawns(adapter_case, tmp_path, monkeypatch):
         ))
     assert len(calls) == 1
     assert calls[0][1] == 3
+
+
+def test_headless_timeout_seconds_is_cli_only(caplog):
+    """The key applies to `kind: cli` models only; anywhere else the loader reports it once and drops it, so
+    the typed field never claims a bound no hop will honour (tenth run, d C-002)."""
+    import cheval
+    cfg = {"providers": {"p": {"type": "anthropic", "endpoint": "https://example.invalid", "auth": "none", "models": {
+        "h": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 900},
+        "x": {"context_window": 1000, "headless_timeout_seconds": 900},
+        "y": {"kind": "http_api", "context_window": 1000, "headless_timeout_seconds": 900},
+        "z": {"context_window": 1000},
+    }}}}
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        caplog.clear()
+        pc = cheval._build_provider_config("p", cfg)
+    assert pc.models["h"].headless_timeout_seconds == 900.0
+    assert pc.models["x"].headless_timeout_seconds is None
+    assert pc.models["y"].headless_timeout_seconds is None
+    assert pc.models["z"].headless_timeout_seconds is None
+    assert caplog.text.count("applies to kind: cli models only") == 2
+    assert "p/x: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text
+    assert "p/y: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text

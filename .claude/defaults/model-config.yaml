@@ -858,6 +858,7 @@ providers:
         # cycle-126 sprint-248 (review round 1): a dissent on `claude -p` takes 6–10 min for a
         # ~30 KB chunk; the adapter's 600 s read floor timed the companion voice out twice. This
         # raises that hop's bound (connect 10 s + 900 s); adversarial-review.sh sizes its wait cap from it.
+        # CLI hops only (`kind: cli` — ignored with a warning on any other model); capped at 3600 s at load.
         headless_timeout_seconds: 900
         # #881 close: claude CLI dispatches whatever cli_model names below;
         # context_window mirrors that model's http_api sibling (bug-881-1b

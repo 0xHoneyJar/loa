@@ -125,7 +125,7 @@ _fixture_content() {  # all three fixtures as one findings document
     unset LOA_ADVERSARIAL_REPAIR_MODEL
     # the negatives that decide routing in practice (fourth run, chunk c C-008): an empty value, a
     # quoted empty value, a commented line, an exported-but-empty variable → not present
-    for line in 'ANTHROPIC_API_KEY=' 'ANTHROPIC_API_KEY=""' "ANTHROPIC_API_KEY=''" '# ANTHROPIC_API_KEY=abc' '  #ANTHROPIC_API_KEY=abc'; do
+    for line in 'ANTHROPIC_API_KEY=' 'ANTHROPIC_API_KEY=""' "ANTHROPIC_API_KEY=''" '# ANTHROPIC_API_KEY=abc' '  #ANTHROPIC_API_KEY=abc' 'ANTHROPIC_API_KEY=""  # was=sk-old' 'ANTHROPIC_API_KEY=  # key=rotated 2026-09'; do
         printf '%s\n' "$line" > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
         [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
     done
@@ -133,8 +133,8 @@ _fixture_content() {  # all three fixtures as one findings document
     ANTHROPIC_API_KEY="" bash -c 'true'; export ANTHROPIC_API_KEY=""
     [ "$(_repair_model "gpt-5.5-pro")" = "claude-headless" ]
     unset ANTHROPIC_API_KEY
-    # the dotenv positives beyond the bare line (c2 C-007): the export form, .env alone, and .env.local
-    # falling through to .env when its own value is empty
+    # the dotenv positives beyond the bare line (c2 C-007): the export form and .env alone (an empty .env.local
+    # assignment does NOT fall through to .env — the override block below pins that; tenth run, c2 C-001)
     printf 'export ANTHROPIC_API_KEY="abc"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
     [ "$(_repair_model "gpt-5.5-pro")" = "tiny" ]
     rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'ANTHROPIC_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
@@ -262,14 +262,37 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-009,DISS-010,DISS-002" ]
 }
 
-@test "NRM-16 credential presence decides per source across a provider's aliases: an empty GOOGLE_API_KEY beside a set GEMINI_API_KEY is present; all aliases empty at a source disables (ninth run, a1 C-005)" {
+@test "NRM-16 credential presence resolves per alias with override precedence: an empty GOOGLE_API_KEY never hides a GEMINI_API_KEY assigned in the same or a lower source; every alias assigned empty at its deciding source disables (ninth run a1 C-005; tenth run c2 C-001)" {
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-g"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
-    GOOGLE_API_KEY="" GEMINI_API_KEY="present-never-printed" bash -c "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present google"
-    rc=0; GOOGLE_API_KEY="" GEMINI_API_KEY="" bash -c "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present google" || rc=$?
-    [ "$rc" = "1" ]
+    _probe() {  # <env assignments…> — runs the probe in a shell with only the named Google variables (the operator's shell may export one)
+        bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $1; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
+    }
+    _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY="present-never-printed"'                       # env: one alias empty, the other set → present
+    rc=0; _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY=""' || rc=$?; [ "$rc" = "1" ]              # env: both empty → disabled
     printf 'GOOGLE_API_KEY=\nGEMINI_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
-    bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
+    _probe ':'                                                                                    # .env.local: one empty, one set → present
     printf 'GOOGLE_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'GEMINI_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
-    rc=0; bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google" || rc=$?   # (the operator's shell may export a Google key)
-    [ "$rc" = "1" ]   # .env.local assigned the provider's only alias present there as empty: disabled at that source
+    _probe ':'                                                                                    # per alias: GEMINI is unassigned in .env.local and falls to .env → present (the per-source rule said absent)
+    printf 'GOOGLE_API_KEY=\nGEMINI_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    rc=0; _probe ':' || rc=$?; [ "$rc" = "1" ]                                                    # both aliases overridden empty in .env.local: .env's value is never reached
+    rm -f "$LOA_ADVERSARIAL_ENV_DIR/.env"; printf 'GEMINI_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    _probe 'export GOOGLE_API_KEY=""'                                                              # an empty env override of one alias, the other alias from .env.local → present
+    rc=0; _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY=""' || rc=$?; [ "$rc" = "1" ]              # …unless the env overrides both
+}
+
+@test "NRM-17 a derived id steps past every taken id even when the explicit-id scan yielded nothing: [DISS-003, DISS-004, <no id>] never produces a duplicate (tenth run, a1 C-002)" {
+    doc='{"findings":[{"id":"DISS-003","severity":"MEDIUM","category":"config","description":"Three.","failure_mode":"s"},{"id":"DISS-004","severity":"MEDIUM","category":"config","description":"Four.","failure_mode":"s"},{"severity":"LOW","category":"other","description":"No id; positional DISS-003 collides."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
+    [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-003,DISS-004,DISS-005" ]
+    [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "3" ]
+}
+
+@test "NRM-18 the shell's CLI-hop ceiling equals cheval's HEADLESS_TIMEOUT_CEILING_SECONDS, and an over-ceiling catalog value bounds the hop at connect + ceiling (tenth run, d C-001: one clamp, two readers)" {
+    command -v yq >/dev/null 2>&1 || skip "yq not installed: the hop bound cannot read a catalog"
+    py="$PROJECT_ROOT/.venv/bin/python"; [[ -x "$py" ]] || py=python3
+    ceiling=$(cd "$PROJECT_ROOT/.claude/adapters" && "$py" -c 'from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS as c; print(int(c))' 2>/dev/null) || skip "loa_cheval is not importable with $py"
+    [ "$ceiling" = "$_ADV_CLI_HOP_CEILING" ]
+    printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 120\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 7200\n' > "$TEST_DIR/over.yaml"
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/over.yaml" _adv_cli_hop_bound claude-headless)" = "$(( 10 + ceiling ))" ]
 }

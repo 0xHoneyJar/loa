@@ -88,14 +88,17 @@ the completed voice is never buried. The companion's rejected rows are named on 
 scopes the names, `adversarial-rejected-<gate>[-companion][-<tag>].jsonl`, so a chunk driver passes
 its chunk key and nothing is renamed afterwards; a stale file from a writer that did not run is never
 this run's); without an envelope, or without that field, every `adversarial-rejected-<gate>*.jsonl` beside the
-envelope's place counts; a non-empty sidecar a listing envelope does not name is a violation when it
-is newer than the envelope (a stale-envelope signal) and a warning otherwise; rows whose repair
+envelope's place counts; a non-empty sidecar a listing envelope does not name is a violation whatever its age (newer: a
+stale-envelope signal; older: an earlier run's rows that were never folded — triage them or remove the
+file; a chunk driver clears the directory's rejected set at the start of a round); an envelope without
+a metadata object is the legacy shape and counts nothing; rows whose repair
 succeeded never count; a trailer-less file is held to the contract too; the same section with one
 top-level bullet per payload clears it in every case. The second voice is reaped on INT/TERM/EXIT (one cleanup trap for the whole run;
 `LOA_ADVERSARIAL_KEEP_WORKDIR=1` retains the `/tmp` workdir) and by a wait cap measured from its
 start: each `*-headless` hop counts the CLI adapter's bound — connect 10 s + max(600 s, the catalog's
-per-model `headless_timeout_seconds`; `claude-headless` carries 900 s because a dissent on `claude -p`
-takes 6–10 minutes; `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT` is the fallback for an unsized hop) — each HTTP
+per-model `headless_timeout_seconds` — CLI hops only, capped at 3,600 s when the catalog loads; `claude-headless`
+carries 900 s because a dissent on `claude -p` takes 6–10 minutes; `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT` is the
+fallback for an unsized hop) — each HTTP
 hop `timeout_seconds`, plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it;
 `failure_class: timeout`). The default OpenAI-family companion chain is `gpt-5.5` → `codex-headless`
 (KF-002: `gpt-5.5-pro` returns empty content on review prompts); `companion_chain.openai` can still
@@ -119,14 +122,17 @@ than running unserialised; queueing for the lock is not charged to the hop's cap
 is per user (0700, ours, never a symlink — otherwise the hop runs unserialised). The queue is one hop
 deep by design: a chunk driver runs dissents sequentially when any chain holds a `*-headless` hop. The companion's post-hop work (validation, repair round-trips) has its own budget, so
 a model that answered is never reaped mid-processing. A primary that never answered leaves the
-companion `counted_as: sole_voice` (`independent: null`), and an attempt on either side that dropped a voice the other side answered with is excluded from
-verdict quality (`primary_attempts_excluded` / `companion_attempts_excluded`); an aggregator failure
+companion `counted_as: sole_voice` (`independent: null`), the primary skips a hop the live companion shares (`model_attempts` records
+`skipped_shared_with_companion`), a model that merely resolves to a CLI hop waits for the lock only as long
+as its own call timeout, and an attempt on either side that dropped a voice the other side answered with
+is excluded from verdict quality (`primary_attempts_excluded` / `companion_attempts_excluded`); an aggregator failure
 is named on the envelope (`verdict_quality_error`). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps files, never
 a process. A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
 binary on PATH) → the voice that answered, always last, one bounded attempt each; credential
-presence follows override precedence (env → `.env.local` → `.env`: the first place that assigns the
-variable decides, an empty assignment disables); the normaliser's
+presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place
+that assigns a variable decides it, an empty assignment disables that alias; a provider with several
+aliases — `GOOGLE_API_KEY` / `GEMINI_API_KEY` — is present when any alias resolves non-empty); the normaliser's
 `id_derived` / `failure_mode_derived` markers are not part of the repair's byte-diff; a derived
 `failure_mode` shorter than 20 characters (an enumerator, an abbreviation) gives way to the
 description's 200-character head. Findings carry `voice` (the outer hop, matching `final_model`) and

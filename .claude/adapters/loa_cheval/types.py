@@ -177,14 +177,23 @@ class ModelConfig:
     # cycle-126 sprint-248 (review round 1, fourth live run): per-model read bound for a CLI hop.
     # The headless adapter's timeout is max(connect, 10) + max(read_timeout, 600); a long dissent on
     # claude -p takes 6–10 minutes, so the catalog can raise the floor per model. None → 600 s floor.
+    # CLI hops only (`kind: cli`): cheval.py drops it with a warning on any other model. The value stored
+    # here is the EFFECTIVE one — coerce_headless_timeout_seconds clamps it to HEADLESS_TIMEOUT_CEILING_SECONDS
+    # at load, so every reader (the adapter, adversarial-review.sh's wait cap) sees the same bound.
     headless_timeout_seconds: Optional[float] = None
+
+
+# A catalog `headless_timeout_seconds` never buys more than an hour per hop. One constant, clamped at load;
+# adversarial-review.sh mirrors it as `_ADV_CLI_HOP_CEILING` (NRM-18 pins the two equal).
+HEADLESS_TIMEOUT_CEILING_SECONDS: float = 3600.0
 
 
 def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
     """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
-    a positive finite number is returned as a float; None stays None; anything else (a boolean, a
-    string such as "15m", zero, a negative or non-finite value) is reported ONCE and dropped, so the
-    adapter's arithmetic sees a typed field and the 600 s floor applies without per-hop log noise."""
+    a positive finite number is returned as a float, clamped to HEADLESS_TIMEOUT_CEILING_SECONDS (one warning
+    when it was above); None stays None; anything else (a boolean, a string such as "15m", zero, a negative,
+    NaN or infinite value) is reported ONCE and dropped, so the adapter's arithmetic sees a typed, effective
+    field and the 600 s floor applies without per-hop log noise (tenth run, d C-001)."""
     import logging
     import math
     if raw is None:
@@ -198,9 +207,13 @@ def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[fl
     except (TypeError, ValueError):
         log.warning("%sheadless_timeout_seconds %r ignored: not a number of seconds", where, raw)
         return None
-    if math.isnan(value) or math.isinf(value) or value <= 0:
+    if not math.isfinite(value) or value <= 0:
         log.warning("%sheadless_timeout_seconds %r ignored: not a positive finite number of seconds", where, raw)
         return None
+    if value > HEADLESS_TIMEOUT_CEILING_SECONDS:
+        log.warning("%sheadless_timeout_seconds %r clamped to %.0fs: a catalog value never buys more than an hour per hop",
+                    where, raw, HEADLESS_TIMEOUT_CEILING_SECONDS)
+        return HEADLESS_TIMEOUT_CEILING_SECONDS
     return value
 
 
