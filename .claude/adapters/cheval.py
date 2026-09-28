@@ -31,6 +31,7 @@ if _ADAPTERS_DIR not in sys.path:
 
 from loa_cheval.types import (
     coerce_headless_timeout_seconds,
+    report_headless_timeout_once,
     BudgetExceededError,
     ChevalError,
     CompletionRequest,
@@ -407,9 +408,10 @@ def _headless_timeout_raw(model_data: Dict[str, Any], where: str) -> Any:
     once at load and dropped, so the catalog cannot claim a bound no hop will honour (tenth run, d C-002)."""
     raw = model_data.get("headless_timeout_seconds")
     if raw is not None and model_data.get("kind") != "cli":
-        logging.getLogger("loa_cheval.config").warning(
-            "%sheadless_timeout_seconds %r applies to kind: cli models only — ignored on this %s model",
-            where, raw, model_data.get("kind") or "http_api")
+        # (once per process per provider/model and value — the provider config is rebuilt per hop; twelfth run, d C-002)
+        report_headless_timeout_once(("cli-only", where, repr(raw)),
+                                     "%sheadless_timeout_seconds %r applies to kind: cli models only — ignored on this %s model",
+                                     where, raw, model_data.get("kind") or "http_api")
         return None
     return raw
 

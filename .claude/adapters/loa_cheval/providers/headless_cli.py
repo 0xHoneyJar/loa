@@ -168,8 +168,13 @@ class HeadlessCLIAdapter(ProviderAdapter):
         lowered (eighth run, d DISS-001 / C-001)."""
         read = max(self.config.read_timeout, 600.0)
         per_model = getattr(model_config, "headless_timeout_seconds", None)
-        if isinstance(per_model, (int, float)) and not isinstance(per_model, bool) \
-                and math.isfinite(per_model) and per_model > 0:
+        usable = False
+        if isinstance(per_model, (int, float)) and not isinstance(per_model, bool):
+            try:
+                usable = math.isfinite(per_model) and per_model > 0
+            except OverflowError:   # an int too large for a double (twelfth run, d C-001): the floor applies
+                usable = False
+        if usable:
             value = min(float(per_model), self._HEADLESS_TIMEOUT_CEILING)
             if value > read:
                 read = value

@@ -286,6 +286,18 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.findings | length' <<<"$result")" = "3" ]
     [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-003,DISS-004,DISS-005" ]
     [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "3" ]
+    # two colliding positional ids in one document never share a number: each derived id joins the taken set before
+    # the next finding is numbered (twelfth run, c2 C-001)
+    doc='{"findings":[{"id":"DISS-003","severity":"MEDIUM","category":"config","description":"Three.","failure_mode":"s"},{"id":"DISS-004","severity":"MEDIUM","category":"config","description":"Four.","failure_mode":"s"},{"severity":"LOW","category":"other","description":"No id A."},{"severity":"LOW","category":"other","description":"No id B."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-003,DISS-004,DISS-005,DISS-006" ]
+    doc='{"findings":[{"id":"DISS-001","severity":"LOW","category":"other","description":"One.","failure_mode":"s"},{"severity":"LOW","category":"other","description":"No id A."},{"severity":"LOW","category":"other","description":"No id B."},{"id":"DISS-002","severity":"LOW","category":"other","description":"Two.","failure_mode":"s"},{"id":"DISS-003","severity":"LOW","category":"other","description":"Three.","failure_mode":"s"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "5" ]
+    [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "5" ]
+    # derived ids start past BOTH the explicit ids and the positional range (five findings → DISS-005 is a possible
+    # positional id), so the two colliders take 006 and 007 — distinct from each other and from every explicit id
+    [ "$(jq -r '[.findings[] | select(.id_derived == true) | .id] | join(",")' <<<"$result")" = "DISS-006,DISS-007" ]
 }
 
 @test "NRM-18 the shell's CLI-hop ceiling equals cheval's HEADLESS_TIMEOUT_CEILING_SECONDS, and an over-ceiling catalog value bounds the hop at connect + ceiling (tenth run, d C-001: one clamp, two readers)" {
@@ -307,6 +319,11 @@ _fixture_content() {  # all three fixtures as one findings document
     grep -q "LOA_ADVERSARIAL_RUN_TAG is not \[A-Za-z0-9_-\]{1,64}" "$TEST_DIR/tag-err"
     [ "$(grep -c "c.1" "$TEST_DIR/tag-err")" = "0" ]   # the raw value is not echoed (it may be anything the driver passed)
     long=$(printf 'a%.0s' $(seq 1 65)); [[ "$(LOA_ADVERSARIAL_RUN_TAG="$long" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{12}$ ]]
+    # no digest tool at all (twelfth run, c2 C-003): the raw tag is hex-encoded — distinct tags stay distinct, never a shared "invalid"
+    sha256sum() { return 127; }; shasum() { return 127; }
+    [ "$(LOA_ADVERSARIAL_RUN_TAG="c.1" _adv_run_tag 2>/dev/null)" = "h632e31" ]
+    [ "$(LOA_ADVERSARIAL_RUN_TAG="a/1" _adv_run_tag 2>/dev/null)" = "h612f31" ]
+    unset -f sha256sum shasum
     # the same warning once per process: the second call is silent
     ( LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag >/dev/null; _adv_run_tag >/dev/null ) 2>"$TEST_DIR/tag-err2"
     [ "$(grep -c "is not" "$TEST_DIR/tag-err2")" = "1" ]
@@ -328,21 +345,83 @@ _fixture_content() {  # all three fixtures as one findings document
     _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop foo 6 2>/dev/null
     [ "$_ADV_REPAIR_DEAD_HOPS" = "tiny foo" ]
     unset _ADV_REPAIR_DEAD_HOPS
-    # through the loop: two payloads the normaliser cannot save; tiny answers the first with an auth failure (rc 4),
-    # claude-headless with an unusable reply (rc 0, no JSON) — only tiny is retired for the second payload
+    # through the loop: two payloads the normaliser cannot save. tiny answers the first with the exit code in TINY_RC,
+    # claude-headless with an unusable reply (rc 1, no JSON): an explicit auth (4) or quota (6) code retires tiny for
+    # the second payload; exit 1 — a CLI-hop timeout or a transient failure looks the same here — retires nothing
+    # (twelfth run, a1 C-001)
     _repair_finding_via_model() {
         echo "$4" >> "$TEST_DIR/repair-calls"
         case "$4" in
-            tiny) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 4 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
-            claude-headless) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 0 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
+            tiny) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf '%s' "${TINY_RC:-4}" > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
+            claude-headless) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 1 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
             *) return 1 ;;
         esac
     }
     doc='{"findings":[{"title":"no severity one","category":"other","description":"Something fails."},{"title":"no severity two","category":"other","description":"Something else fails."}]}'
-    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    for rc_case in 4 6 1; do
+        : > "$TEST_DIR/repair-calls"; unset _ADV_REPAIR_DEAD_HOPS
+        result=$(TINY_RC="$rc_case" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+        [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
+        if [[ "$rc_case" == "1" ]]; then
+            [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m tiny claude-headless m " ]
+            [ "$(grep -c "retired" "$TEST_DIR/repair-err")" = "0" ]
+        else
+            [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m claude-headless m " ]
+            grep -q "Repair hop tiny failed (rc $rc_case) — retired" "$TEST_DIR/repair-err"
+            [ "$(grep -c "retired" "$TEST_DIR/repair-err")" = "1" ]
+        fi
+    done
+    unset _ADV_REPAIR_DEAD_HOPS
+    # a hop that writes NO exit code (the answering voice's arm, a round-trip that died before the capture) and one
+    # that returns 124 without running (the lock timed out) retire nothing — after tiny's rc 4 only tiny is retired,
+    # never a stale 4 read from the previous hop (twelfth run, c2 C-002: the rc file is truncated before every hop)
+    for ch_shape in none 124; do
+        _repair_finding_via_model() {
+            echo "$4" >> "$TEST_DIR/repair-calls"
+            case "$4" in
+                tiny) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 4 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
+                claude-headless) [[ "$CH_SHAPE" == "124" ]] && return 124; return 1 ;;
+                *) return 1 ;;
+            esac
+        }
+        : > "$TEST_DIR/repair-calls"; unset _ADV_REPAIR_DEAD_HOPS
+        result=$(CH_SHAPE="$ch_shape" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+        [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m claude-headless m " ]
+        [ "$(grep -c "retired" "$TEST_DIR/repair-err")" = "1" ]
+        grep -q "Repair hop tiny failed (rc 4) — retired" "$TEST_DIR/repair-err"
+    done
+    unset _ADV_REPAIR_DEAD_HOPS
+    unset ANTHROPIC_API_KEY
+}
+
+@test "NRM-21 a rejected_summary entry names its sidecar row: the row's index and the raw payload's title — the normaliser's positional id only when the payload had none, marked title_derived (twelfth run, a1 C-003)" {
+    doc='{"findings":[{"category":"other","description":"No title, no id, no severity."},{"title":"named payload","category":"other","description":"No severity either."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
-    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m claude-headless m " ]
-    grep -q "Repair hop tiny failed (rc 4) — retired" "$TEST_DIR/repair-err"
-    [ "$(grep -c "retired" "$TEST_DIR/repair-err")" = "1" ]
+    [ "$(jq -c '[.metadata.rejected_summary[] | {index, title_derived}]' <<<"$result")" = '[{"index":0,"title_derived":true},{"index":1,"title_derived":false}]' ]
+    [[ "$(jq -r '.metadata.rejected_summary[0].title' <<<"$result")" =~ ^DISS-[0-9]{3}$ ]]
+    [ "$(jq -r '.metadata.rejected_summary[1].title' <<<"$result")" = "named payload" ]
+    sidecar="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit.jsonl"
+    [ "$(jq -c '[.index, (.payload.title // null)]' "$sidecar" | tr '\n' ' ')" = '[0,null] [1,"named payload"] ' ]
+}
+
+@test "NRM-22 the run's repairs share a wall-clock budget: once LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS is spent the remaining payloads are rejected unrepaired and counted in repair_budget_exhausted (twelfth run, a1 C-002)" {
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 1; return 1; }
+    doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."},{"title":"three","category":"other","description":"No severity."}]}'
+    : > "$TEST_DIR/repair-calls"
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=2 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "2" ]
+    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 2 ]
+    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 6 ]   # the first payload's three hops (3 s) spend the budget; the third payload never repairs
+    grep -q "Repair budget: .* used — payload" "$TEST_DIR/repair-err"
+    # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2 — never spent by three one-second payloads
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( 5 * 60 * 2 ))" ]
     unset ANTHROPIC_API_KEY
 }

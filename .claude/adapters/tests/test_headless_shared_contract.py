@@ -75,14 +75,16 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=float("nan"))) == 720.0
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=10 ** 400)) == 720.0   # (d C-001: no OverflowError)
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
         assert caplog.text == ""
     # the catalog loader coerces once (d C-002): typed float or None, one warning each; the ceiling is applied
     # THERE, so the stored field is the effective bound (tenth run, d C-001)
-    from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS, coerce_headless_timeout_seconds
+    from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS, coerce_headless_timeout_seconds, reset_headless_timeout_reports
     assert HEADLESS_TIMEOUT_CEILING_SECONDS == 3600.0 == adapter._HEADLESS_TIMEOUT_CEILING
+    reset_headless_timeout_reports()   # (the reports are once per process — this test runs once per adapter)
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         caplog.clear()
         assert coerce_headless_timeout_seconds(900) == 900.0
@@ -95,8 +97,14 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert coerce_headless_timeout_seconds(-5, where="p/m: ") is None
         assert coerce_headless_timeout_seconds(float("inf"), where="p/m: ") is None
         assert coerce_headless_timeout_seconds(float("nan"), where="p/m: ") is None
-        assert caplog.text.count("p/m: headless_timeout_seconds") == 5
-        assert caplog.text.count("ignored") == 5
+        assert coerce_headless_timeout_seconds(10 ** 400, where="p/m: ") is None   # (d C-001: OverflowError is "not a number of seconds")
+        assert caplog.text.count("p/m: headless_timeout_seconds") == 6
+        assert caplog.text.count("ignored") == 6
+        # once per process per (where, value): the same defect on a rebuilt provider config is not repeated (d C-002)
+        caplog.clear()
+        assert coerce_headless_timeout_seconds(True, where="p/m: ") is None
+        assert coerce_headless_timeout_seconds(True, where="p/other: ") is None
+        assert caplog.text.count("headless_timeout_seconds") == 1
         caplog.clear()
         assert coerce_headless_timeout_seconds(7200, where="p/m: ") == 3600.0
         assert "p/m: headless_timeout_seconds 7200 clamped to 3600s" in caplog.text
@@ -196,6 +204,8 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     """The key applies to `kind: cli` models only; anywhere else the loader reports it once and drops it, so
     the typed field never claims a bound no hop will honour (tenth run, d C-002)."""
     import cheval
+    from loa_cheval.types import reset_headless_timeout_reports
+    reset_headless_timeout_reports()
     cfg = {"providers": {"p": {"type": "anthropic", "endpoint": "https://example.invalid", "auth": "none", "models": {
         "h": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 900},
         "x": {"context_window": 1000, "headless_timeout_seconds": 900},
@@ -212,3 +222,9 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     assert caplog.text.count("applies to kind: cli models only") == 2
     assert "p/x: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text
     assert "p/y: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text
+    # a chain walk rebuilds the provider config per hop: the same two defects are not reported again (d C-002)
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        pc2 = cheval._build_provider_config("p", cfg)
+        pc3 = cheval._build_provider_config("p", cfg)
+    assert pc2.models["x"].headless_timeout_seconds is None and pc3.models["x"].headless_timeout_seconds is None
+    assert caplog.text.count("applies to kind: cli models only") == 2

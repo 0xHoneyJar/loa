@@ -33,6 +33,13 @@ setup() {
     # keyless host: no env keys, an empty dotenv dir (bats-gated seam)
     unset ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY
     export LOA_ADVERSARIAL_ENV_DIR="$T/env"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    # …and the premise is ASSERTED, not assumed (twelfth run, c1 C-003): a host that exports another alias the probe
+    # knows fails here with a message, not in CMP-1 / CMP-11 with a planner-shaped red
+    if _adv_cred_present anthropic || _adv_cred_present openai; then
+        echo "this host exports a credential alias for anthropic or openai — the keyless-host suite cannot run here (unset it for the run)" >&2
+        return 1
+    fi
+    HOLDER_PIDS=()   # out-of-band lock holders a test spawns; teardown kills them (c1 C-002)
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI hops "installed" unless a case says otherwise (C-007 seam)
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
     # seventh run (chunk c1 C-002 / C-005): every test gets its own lock directory and none of the operator's
@@ -71,6 +78,9 @@ YAML
     _vq() {  # <voice> <ok|fail|walked> <reason|hop> <exit> → single-voice verdict_quality envelope JSON
         if [[ "$2" == "ok" ]]; then
             jq -nc --arg v "$1" '{status:"APPROVED",consensus_outcome:"consensus",truncation_waiver_applied:false,voices_planned:1,voices_succeeded:1,voices_succeeded_ids:[$v],voices_dropped:[],chain_health:"ok",confidence_floor:"low",rationale:"stub",single_voice_call:true}'
+        elif [[ "$2" == "mixed" ]]; then
+            # cheval's inner walk dropped one voice AND answered with another — one envelope with both (a3 C-007)
+            jq -nc --arg d "$3" --arg hop "$4" '{status:"DEGRADED",consensus_outcome:"consensus",truncation_waiver_applied:false,voices_planned:2,voices_succeeded:1,voices_succeeded_ids:[$hop],voices_dropped:[{voice:$d,reason:"ProviderUnavailable",exit_code:1,blocker_risk:"unknown"}],chain_health:"degraded",confidence_floor:"low",rationale:"stub mixed inner walk",single_voice_call:false}'
         elif [[ "$2" == "walked" ]]; then
             # one voice that walked internally: INV-6 (dropped == planned − succeeded) keeps voices_dropped
             # empty; the walk shows as chain_health degraded, the succeeded id is the hop it landed on
@@ -95,6 +105,11 @@ YAML
                 [[ -n "$sidecar" ]] && _vq "$model" walked "$hop" > "$sidecar"
                 jq -nc --arg m "$hop" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
                 return 0 ;;
+            walkedmixed:*)   # <dropped>:<hop> — the inner walk dropped one voice and answered with another (a3 C-007)
+                local _mx="${BEHAVIOUR[$model]#walkedmixed:}" _mxd _mxh; _mxd="${_mx%%:*}"; _mxh="${_mx#*:}"
+                [[ -n "$sidecar" ]] && _vq "$model" mixed "$_mxd" "$_mxh" > "$sidecar"
+                jq -nc --arg m "$_mxh" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
+                return 0 ;;
             malformed)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
                 jq -nc '{content: "not json at all", tokens_input: 1, tokens_output: 1, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
@@ -112,9 +127,10 @@ YAML
             unavailable-marker)            # a failure that leaves a marker the companion's stub waits for (CMP-33)
                 : > "$T/marker-$model-failed"
                 [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
-            await-primary-marker)          # answers only once the primary has failed its codex hop (bounded barrier: CMP-33)
+            await-primary-marker)          # answers only once the primary has failed its codex hop AND logged the skip of the shared
+                                           # hop (bounded barriers on a marker and on the live stderr — never a sleep: CMP-33; twelfth run, c1 C-001)
                 local _j=0; while [[ ! -e "$T/marker-codex-headless-failed" ]] && (( _j++ < 300 )); do sleep 0.1; done
-                sleep 0.5
+                _j=0; while ! grep -q "skipped on the primary chain" "$T/stderr.log" 2>/dev/null && (( _j++ < 300 )); do sleep 0.1; done
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
@@ -156,6 +172,8 @@ teardown() {
     local d
     # a PID-scoped stub the reaper under test failed to end never outlives the test (seventh run, c1 C-007)
     pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$" 2>/dev/null || true
+    # an out-of-band lock holder a failed assertion left behind (twelfth run, c1 C-002)
+    local p; for p in ${HOLDER_PIDS[@]+"${HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
     [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || return 0
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
         [[ "$d" == */a2a/sprint-comp-* ]] || continue
@@ -713,7 +731,8 @@ PY
     export XDG_RUNTIME_DIR="$T"
     # hold the claude lock for 2 s from outside; the companion's hop needs 2 s of its own; the hop cap is 3 s
     mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
-    ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 5 ) &   # held longer than the 3 s cap: queueing alone would reap (eighth run, c1 C-002)
+    ( exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; sleep 5 ) 3>&- &   # held longer than the 3 s cap: queueing alone would reap (eighth run, c1 C-002)
+    HOLDER_PIDS+=("$!")
     # wait until the lock is observably held (c1 C-006)
     for _ in $(seq 1 40); do flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null || break; sleep 0.05; done
     if flock -n "$T/loa-headless-locks-$(id -u)/claude.lock" true 2>/dev/null; then echo "lock not held" >&2; false; fi
@@ -772,6 +791,16 @@ YAML
     [ "$(_adv_cli_bin_for fast)" = "codex" ]
     [ "$(_adv_cli_bin_for claude-headless)" = "claude" ]
     [ "$(_adv_cli_bin_for opus-plain)" = "" ]
+    # the prefix and an alias are resolved before the *-headless test (twelfth run, a2 C-001): one lock per binary
+    [ "$(_adv_cli_bin_for anthropic:claude-headless)" = "claude" ]
+    [ "$(_adv_cli_bin_for openai:gpt-5.5)" = "codex" ]
+    printf 'aliases:\n  fastclaude: "anthropic:claude-headless"\n' >> "$T/catalog.yaml"
+    [ "$(_adv_cli_bin_for fastclaude)" = "claude" ]
+    invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    _adv_invoke_hop anthropic:claude-headless a b anthropic:claude-headless 30 "" review >/dev/null
+    [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
+    [ ! -e "$T/loa-headless-locks-$(id -u)/anthropic_claude.lock" ]
+    : > "$T/lock-trace"
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
     [ -f "$T/loa-headless-locks-$(id -u)/codex.lock" ]
@@ -818,33 +847,133 @@ PY
     [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
-    grep -q "companion is still running — skipped" "$T/stderr.log"
-    # the repair's HTTP hop waits for the lock only as long as its own timeout (a2 C-001)
+    grep -q "the companion is running it — skipped on the primary chain" "$T/stderr.log"
+    # the repair's HTTP hop waits for the lock only as long as its own timeout (a2 C-001) — and so does a repair's
+    # CLI hop under _ADV_LOCK_WAIT_CLI (twelfth run, a1 C-002), never a dissent hop's 910 s bound
     export ANTHROPIC_API_KEY="sk-presence-only-never-printed" XDG_RUNTIME_DIR="$T"
     mkdir -p "$T/loa-headless-locks-$(id -u)"; exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8
     _repair_finding_via_model() { echo '{}'; }
     t0=$(date +%s); rc=0; ( _ADV_LOCK_WAIT=1; _adv_with_cli_lock tiny _repair_finding_via_model x y z tiny 1 >/dev/null 2>&1 ) || rc=$?
+    (( $(date +%s) - t0 < 10 ))
+    [ "$rc" = "124" ]
+    t0=$(date +%s); rc=0; ( _ADV_LOCK_WAIT_CLI=1; _adv_with_cli_lock claude-headless _repair_finding_via_model x y z claude-headless 1 >/dev/null 2>&1 ) || rc=$?
     flock -u 8; exec 8>&-
     (( $(date +%s) - t0 < 10 ))
     [ "$rc" = "124" ]
 }
 
-@test "CMP-34 the envelope and sidecars are single-writer per (sprint, gate, tag): a second live run with the same key is refused before it removes anything, a distinct tag runs alongside, a dead run's lock is taken over (eleventh run, a2 DISS-001)" {
-    _adv_take_run_lock "$OUT_DIR" review ""; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
-    sleep 30 & holder=$!; printf '%s' "$holder" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # held by another live process
+@test "CMP-34 the envelope and sidecars are single-writer per (sprint, gate): a second live run is refused before it removes anything — a distinct tag too (the envelope path is shared); a dead run's lock, a reused pid and an abandoned empty lock are taken over; a lock seconds old with no pid yet is a holder in flight (eleventh run a2 DISS-001; twelfth run a2 C-002 / C-003)" {
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
+    [ "$(sed -n 1p "$lockd/pid")" = "$$" ]; [ -n "$(sed -n 2p "$lockd/pid")" ]   # pid + start time
+    sleep 30 3>&- & holder=$!; HOLDER_PIDS+=("$holder"); printf '%s\n%s\n' "$holder" "$(_adv_proc_start "$holder")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # held by another live process
     BEHAVIOUR[claude-headless]=reject
     rc=0; result=$(_run_main review) || rc=$?
-    [ "$rc" = "2" ]; [ -z "$result" ]
+    [ "$rc" = "2" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]   # a --json caller fails closed (twelfth run, a3 C-004)
+    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
     grep -q "another adversarial-review run for $SPRINT/review is in progress (pid $holder)" "$T/stderr.log"
     [ ! -e "$OUT_DIR/adversarial-review.json" ]
-    # a distinct tag is a different key: it runs beside the holder, and its own lock is gone when it exits
-    ( export LOA_ADVERSARIAL_RUN_TAG=other; _run_main review >/dev/null )
-    [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion-other.jsonl")" = "1" ]
-    [ -d "$lockd" ]
+    # a distinct tag is NOT a parallel path — the envelope adversarial-review.json is shared (twelfth run, a2 C-003)
+    rc=0; result=$( export LOA_ADVERSARIAL_RUN_TAG=other; _run_main review ) || rc=$?
+    [ "$rc" = "2" ]; [ ! -e "$OUT_DIR/adversarial-rejected-review-companion-other.jsonl" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]
     [ "$(ls -d "$(_adv_cli_lock_dir)"/run-*.lock.d | grep -c .)" = "1" ]
-    # the holder died without releasing: the next run with that key takes the lock over, runs, and releases it
+    # a reused pid: the token's start time is not the live process's — the holder is gone, the lock is taken over
+    printf '%s\n%s\n' "$holder" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ ! -d "$lockd" ]
+    # the holder died without releasing: taken over, run, released
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; printf '%s\n%s\n' "$holder" "$(_adv_proc_start "$holder")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""
     kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
     result=$(_run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ ! -d "$lockd" ]
+    # a lock directory seconds old with no pid yet is a holder in flight (twelfth run, a2 C-002) …
+    mkdir "$lockd"
+    rc=0; result=$(_run_main review) || rc=$?
+    [ "$rc" = "2" ]; grep -q "is starting (its lock is seconds old)" "$T/stderr.log"
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]
+    # … and an abandoned one (older than five seconds, still no pid) is taken over
+    touch -t 202001010000 "$lockd"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ ! -d "$lockd" ]
+}
+
+@test "CMP-35 the repair chain, like the main walk, omits a hop the LIVE companion shares and takes it back once the companion is gone; the answering voice is never omitted (twelfth run, a1 C-002)" {
+    export ANTHROPIC_API_KEY="sk-presence-only-never-printed"
+    companion_shared_hops="claude-headless"
+    sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID")
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny gpt-5.5-pro" ]
+    [ "$(_repair_model_chain "claude-headless")" = "tiny claude-headless" ]   # the voice that answered stays terminal
+    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
+    _ADV_COMPANION_PID=""; companion_shared_hops=""
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
+    unset ANTHROPIC_API_KEY
+}
+
+@test "CMP-36 without flock the per-binary serialisation is off and said once, never silently (twelfth run, a2 C-006)" {
+    invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    ( _ADV_FLOCK_BIN=/nonexistent/flock
+      _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null
+      _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null ) 2>"$T/noflock-err"
+    [ "$(grep -c ran "$T/lock-trace")" = "2" ]
+    [ "$(grep -c "flock is not installed" "$T/noflock-err")" = "1" ]
+    [ ! -e "$T/loa-headless-locks-$(id -u)/claude.lock" ]
+}
+
+@test "CMP-37 a shared hop is skipped only while the companion is ON it: with the companion busy on its HTTP hop the primary waits for it to settle and then runs the hop itself; a companion that moved to the shared hop is not doubled (twelfth run, a3 C-001)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # the primary chain ends on the companion's CLI hop
+    export ANTHROPIC_API_KEY="sk-presence-only-never-printed"   # a credentialed host: the companion chain is opus → claude-headless
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[opus]=slow2   # the companion is on opus (an HTTP hop) when the primary reaches claude-headless
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "opus,claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "opus" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:reviewed" ]   # not skipped: the companion never ran it
+    grep -q "the companion finished without it — the primary runs it" "$T/stderr.log"
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "false" ]   # both Anthropic: not a second voice, but the primary did answer
+    # the companion's HTTP hop fails and it moves to claude-headless: the primary does not double the binary
+    BEHAVIOUR[opus]=unavailable; BEHAVIOUR[claude-headless]=slow2
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:skipped_shared_with_companion" ]
+    [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
+    unset ANTHROPIC_API_KEY
+}
+
+@test "CMP-38 a failed prompt copy never launches the companion against an empty workdir: planned false, reason prompt_copy_failed, one voice (twelfth run, a3 C-006)" {
+    cp() { return 1; }
+    result=$(_run_main review)
+    [ "$(jq -c '.metadata.companion_voice' <<<"$result")" = '{"planned":false,"reason":"prompt_copy_failed","family":"anthropic"}' ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
+    [ "$(grep -cx "claude-headless" "$CALLS")" = "0" ]
+    grep -q "Companion voice not planned (anthropic family): prompt_copy_failed" "$T/stderr.log"
+    unset -f cp
+}
+
+@test "CMP-39 a MIXED primary attempt envelope (the inner walk dropped the companion's voice and answered with another) keeps its own voice: aggregated without the conflicting dropped entry, two voices, INV-6 intact (twelfth run, a3 C-007)" {
+    BEHAVIOUR[gpt-5.5-pro]=walkedmixed:claude-headless:codex-headless
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.metadata.companion_voice.primary_attempts_rewritten' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.companion_voice.primary_attempts_excluded' <<<"$result")" = "null" ]
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | sort | join(",")' <<<"$result")" = "claude-headless,codex-headless" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq '.verdict_quality.voices_dropped | length' <<<"$result")" = "0" ]
+    grep -q "rewritten without that entry (INV-5; the primary's own voice kept)" "$T/stderr.log"
+}
+
+@test "CMP-40 an operator wait knob that is not a number never aborts the review or reaps a healthy companion: the computed cap applies (twelfth run, a3 C-003)" {
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS="ten minutes"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    grep -qE "Companion voice \(anthropic family\): claude-headless \(wait cap [0-9]+s\)" "$T/stderr.log"
+    unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
 }

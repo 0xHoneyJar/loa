@@ -1408,8 +1408,9 @@ flatline_protocol:
     #   openai: [gpt-5.5, codex-headless]
     # KF-004 repair loop (cycle-119 C14; ALWAYS ON for unenforced voices since cycle-124 FR-7 — no flag):
     # A dissenter finding from an UNENFORCED hop that fails validate_finding
-    # gets ONE bounded repair round-trip (cycle-126 FR-2.4: to `tiny` when an
-    # Anthropic key is present, else to `claude-headless`) before rejection
+    # gets one bounded repair round-trip per hop of the repair chain (cycle-126
+    # FR-2.4: `tiny` when an Anthropic key is present → `claude-headless` when the
+    # binary is on PATH → the voice that answered, always last) before rejection
     # (schema-enforced payloads never enter the loop):
     # a normalization pre-pass (case-fold severity/category + whitespace
     # trim only, no synonym mapping) runs first; if the finding still

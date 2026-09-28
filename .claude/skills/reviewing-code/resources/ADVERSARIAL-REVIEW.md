@@ -88,11 +88,13 @@ the completed voice is never buried. The companion's rejected rows are named on 
 — the run removes its own two sidecars at start and lists the ones it produced — `LOA_ADVERSARIAL_RUN_TAG`
 scopes the names, `adversarial-rejected-<gate>[-companion][-<tag>].jsonl`, so a chunk driver passes
 its chunk key and nothing is renamed afterwards — a tag outside `[A-Za-z0-9_-]{1,64}` is replaced by a
-short hash of its raw value, with a warning, so distinct tags never share a file; the envelope and the two
-sidecars are single-writer per (sprint, gate, tag) — a second live run with the same key is refused before it
-removes anything, a dead run's lock is taken over; a stale file from a writer that did not run is never
+short hash of its raw value, with a warning, so distinct tags never share a file; the envelope
+`adversarial-<gate>.json` and the two sidecars are single-writer per (sprint, gate) — the tag scopes the sidecar
+names only, never the envelope — so a second live run for the same sprint and gate is refused before it removes
+anything (a dead run's lock is taken over); without `flock` the per-binary serialisation is off and said once; a stale file from a writer that did not run is never
 this run's); without an envelope, or without that field, every `adversarial-rejected-<gate>*.jsonl` beside the
-envelope's place counts; a non-empty sidecar a listing envelope does not name is never silent whatever its age: its
+envelope's place counts (a pre-FR-2 envelope — a metadata without a `rejected_summary` key — counts none, with a
+warning: historical sprints keep their verdicts); a non-empty sidecar a listing envelope does not name is never silent whatever its age: its
 rows count toward the section and a warning names the file (newer than the envelope: the envelope may be stale — re-run;
 older: an earlier run's rows that were never folded — triage them or remove the file; a chunk driver clears the
 directory's rejected set at the start of a round); an envelope without
@@ -135,7 +137,10 @@ is named on the envelope (`verdict_quality_error`). `LOA_ADVERSARIAL_KEEP_WORKDI
 a process. A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
 binary on PATH) → the voice that answered, always last, one bounded attempt each — a hop that failed with
-an auth / quota / unavailable class is retired for the run's remaining repairs, the answering voice never; credential
+an explicit auth / quota code is retired for the run's remaining repairs, the answering voice never; a repair skips
+a hop the live companion shares and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
+budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 — spent, the rest are rejected unrepaired
+and counted in `repair_budget_exhausted`); each `rejected_summary` entry carries its sidecar row's `index`; credential
 presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place
 that assigns a variable decides it, an empty assignment disables that alias; a provider with several
 aliases — `GOOGLE_API_KEY` / `GEMINI_API_KEY` — is present when any alias resolves non-empty); the normaliser's
@@ -152,7 +157,8 @@ bare provider-key shapes (`sk-…`, `xai-…`, `gsk_…`, `AIza…`) the shared 
 the reap takes the companion's whole process tree; `companion_voice.rejected_sidecar` is `null`
 (and the file removed) when nothing was rejected.
 
-**Repair loop (D-2.4).** The one bounded repair round-trip goes to `tiny` when an Anthropic
-credential is present, else to `claude-headless` (`LOA_ADVERSARIAL_REPAIR_MODEL` pins it) — no
-longer to the voice that produced the malformed finding. KF-004 evidence: the three real rejected
-payloads under `tests/fixtures/dissent-rejected/` now pass without a repair.
+**Repair loop (D-2.4).** The repair chain is `tiny` (when an Anthropic credential is present) →
+`claude-headless` (when the binary is on PATH) → the voice that answered, always last — one bounded
+attempt per hop, so a host with neither still repairs through its own primary; `LOA_ADVERSARIAL_REPAIR_MODEL`
+pins the whole chain to one model (the round-1 hardening below has the retirement, lock and budget rules).
+KF-004 evidence: the three real rejected payloads under `tests/fixtures/dissent-rejected/` now pass without a repair.

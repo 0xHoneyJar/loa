@@ -570,11 +570,14 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     skip_if_no_jq
     d="${TEST_TMPDIR}/s14"; mkdir -p "$d" "$d/adversarial-rejected-review-dir.jsonl"
     _vd_approved_review "$d/engineer-feedback.md"
+    # an absolute path with a sidecar-shaped name resolves beside the envelope only (never read where it points); a
+    # listed name that is no sidecar at all is its own violation (twelfth run, b C-004) — neither is ever counted
+    printf '{"reject_reason":"elsewhere"}\n' > "${TEST_TMPDIR}/adversarial-rejected-review-elsewhere.jsonl"
     printf '{"reject_reason":"elsewhere"}\n' > "${TEST_TMPDIR}/elsewhere.jsonl"
-    jq -n --arg e "${TEST_TMPDIR}/elsewhere.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review-dir.jsonl", $e, "grimoires/loa/a2a/x/adversarial-rejected-review-gone.jsonl"]}}' > "$d/adversarial-review.json"
+    jq -n --arg e "${TEST_TMPDIR}/adversarial-rejected-review-elsewhere.jsonl" --arg o "${TEST_TMPDIR}/elsewhere.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review-dir.jsonl", $e, $o, "grimoires/loa/a2a/x/adversarial-rejected-review-gone.jsonl"]}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1 and (.violations | map(select(test("gone.*missing beside it"))) | length) == 1 and (.violations | map(select(test("elsewhere.jsonl.*missing"))) | length) == 1' >/dev/null
+    echo "$output" | jq -e '(.violations | length) == 4 and (.violations | map(select(test("not a regular file"))) | length) == 1 and (.violations | map(select(test("gone.*missing beside it"))) | length) == 1 and (.violations | map(select(test("review-elsewhere.jsonl.*missing beside it"))) | length) == 1 and (.violations | map(select(test("lists elsewhere.jsonl.*not an adversarial-rejected-review"))) | length) == 1' >/dev/null
     # the positive half is not vacuous: one listed row and no section → the violation names one payload (c2 C-001)
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review.jsonl"]}}' > "$d/adversarial-review.json"
@@ -699,4 +702,34 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run "$SCRIPT" --file "" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"--file and --gate are required"* ]]
+}
+
+@test "verdict-derive: a pre-FR-2 envelope (metadata without a rejected_summary key) counts no sidecar rows and says so; no envelope at all still counts them (twelfth run, b C-005)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s21"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    printf '{"reject_reason":"old"}\n{"reject_reason":"old"}\n' > "$d/adversarial-rejected-review.jsonl"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 1 and (.warnings[0] | test("predates the rejected-payload contract.*adversarial-rejected-review.jsonl.*not counted"))' >/dev/null
+    rm -f "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations[0] | test("2 schema-rejected payload")' >/dev/null
+}
+
+@test "verdict-derive: rejected_sidecars entries that are not strings or not sidecar names are violations, never counted; whitespace-only and CR-only lines are not rows (twelfth run, b C-004 / C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s22"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    printf '{"reject_reason":"a"}\r\n   \n\r\n\n' > "$d/adversarial-rejected-review.jsonl"   # one row, CRLF, then blank-but-non-empty lines
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl", null, 7, "engineer-feedback.md"]}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | length) == 3 and (.violations | map(select(test("non-string entry null"))) | length) == 1 and (.violations | map(select(test("non-string entry 7"))) | length) == 1 and (.violations | map(select(test("lists engineer-feedback.md.*not an adversarial-rejected-review"))) | length) == 1' >/dev/null
+    jq '.metadata.rejected_sidecars = ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl"]' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]   # one real row against the section's one bullet: the blank lines counted nothing
+    echo "$output" | jq -e '.consistent == true' >/dev/null
 }

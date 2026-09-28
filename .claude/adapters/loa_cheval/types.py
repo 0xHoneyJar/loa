@@ -187,6 +187,24 @@ class ModelConfig:
 # adversarial-review.sh mirrors it as `_ADV_CLI_HOP_CEILING` (NRM-18 pins the two equal).
 HEADLESS_TIMEOUT_CEILING_SECONDS: float = 3600.0
 
+# The load-time reports are made ONCE per process per (where, value): a chain walk rebuilds the provider config per
+# hop, which would otherwise repeat the same line for every hop (twelfth run, d C-002).
+_HEADLESS_TIMEOUT_REPORTED: set = set()
+
+
+def reset_headless_timeout_reports() -> None:
+    """Forget what was reported (tests; a process that reloads its catalog)."""
+    _HEADLESS_TIMEOUT_REPORTED.clear()
+
+
+def report_headless_timeout_once(key: tuple, message: str, *args: Any) -> None:
+    """Log `message` at WARNING on the config logger unless `key` was reported before in this process."""
+    import logging
+    if key in _HEADLESS_TIMEOUT_REPORTED:
+        return
+    _HEADLESS_TIMEOUT_REPORTED.add(key)
+    logging.getLogger("loa_cheval.config").warning(message, *args)
+
 
 def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
     """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
@@ -194,25 +212,24 @@ def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[fl
     when it was above); None stays None; anything else (a boolean, a string such as "15m", zero, a negative,
     NaN or infinite value) is reported ONCE and dropped, so the adapter's arithmetic sees a typed, effective
     field and the 600 s floor applies without per-hop log noise (tenth run, d C-001)."""
-    import logging
     import math
     if raw is None:
         return None
-    log = logging.getLogger("loa_cheval.config")
+    key = ("coerce", where, repr(raw))
     if isinstance(raw, bool):
-        log.warning("%sheadless_timeout_seconds %r ignored: a boolean is not a number of seconds", where, raw)
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: a boolean is not a number of seconds", where, raw)
         return None
     try:
         value = float(raw)
-    except (TypeError, ValueError):
-        log.warning("%sheadless_timeout_seconds %r ignored: not a number of seconds", where, raw)
+    except (TypeError, ValueError, OverflowError):   # (OverflowError: a YAML integer too large for a double — twelfth run, d C-001)
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: not a number of seconds", where, raw)
         return None
     if not math.isfinite(value) or value <= 0:
-        log.warning("%sheadless_timeout_seconds %r ignored: not a positive finite number of seconds", where, raw)
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: not a positive finite number of seconds", where, raw)
         return None
     if value > HEADLESS_TIMEOUT_CEILING_SECONDS:
-        log.warning("%sheadless_timeout_seconds %r clamped to %.0fs: a catalog value never buys more than an hour per hop",
-                    where, raw, HEADLESS_TIMEOUT_CEILING_SECONDS)
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r clamped to %.0fs: a catalog value never buys more than an hour per hop",
+                                     where, raw, HEADLESS_TIMEOUT_CEILING_SECONDS)
         return HEADLESS_TIMEOUT_CEILING_SECONDS
     return value
 
