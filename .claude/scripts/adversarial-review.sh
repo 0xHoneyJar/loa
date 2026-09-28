@@ -166,8 +166,9 @@ load_adversarial_config() {
   local _cv
   _cv=$(yq eval ".flatline_protocol.${config_key}.companion_voice" "$CONFIG_FILE" 2>/dev/null || echo "null")
   case "$_cv" in false|no|off|0) CONF_COMPANION_VOICE="false" ;; *) CONF_COMPANION_VOICE="true" ;; esac
-  CONF_COMPANION_CHAIN_ANTHROPIC=$(yq eval ".flatline_protocol.${config_key}.companion_chain.anthropic[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
-  CONF_COMPANION_CHAIN_OPENAI=$(yq eval ".flatline_protocol.${config_key}.companion_chain.openai[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
+  # (|| true: a yq failure yields an empty chain and the default applies — the siblings' `|| echo` convention)
+  CONF_COMPANION_CHAIN_ANTHROPIC=$(yq eval ".flatline_protocol.${config_key}.companion_chain.anthropic[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
+  CONF_COMPANION_CHAIN_OPENAI=$(yq eval ".flatline_protocol.${config_key}.companion_chain.openai[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
   CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
@@ -510,29 +511,34 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
   # printenv shows only the name and grep -q only the verdict (an exported empty value is not present)
   # eighth run, chunk c2 C-002: standard override precedence — the first place (env → .env.local → .env)
   # that ASSIGNS the variable decides; an empty assignment disables the key, it does not fall through
+  # …and per SOURCE across all of a provider's aliases (ninth run, a1 C-005): an empty GOOGLE_API_KEY beside a
+  # set GEMINI_API_KEY is present; only when every assigned alias at a source is empty is the key disabled
+  local decided="false"
   for v in "${vars[@]}"; do
-    if printenv "$v" >/dev/null 2>&1; then printenv "$v" | grep -q . && return 0; return 1; fi
+    if printenv "$v" >/dev/null 2>&1; then printenv "$v" | grep -q . && return 0; decided="true"; fi
   done
+  [[ "$decided" == "true" ]] && return 1
   # bats-gated seam: point the dotenv lookup at a fixture directory
   if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_ADVERSARIAL_ENV_DIR:-}" ]]; then root="$LOA_ADVERSARIAL_ENV_DIR"; fi
   for f in "$root/.env.local" "$root/.env"; do
     [[ -f "$f" ]] || continue
+    decided="false"
     for v in "${vars[@]}"; do
       # review sprint-248 C-008: presence is a grep on the shape through a pipe — no variable ever holds
       # the value, so an xtrace'd run cannot echo it (same rule as loa-status / run-preflight P3);
       # the LAST assignment in the file wins, as a dotenv loader would read it
       if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null; then
         grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | grep -Eq "=[\"']?[^\"'[:space:]#]" && return 0
-        return 1
+        decided="true"
       fi
     done
+    [[ "$decided" == "true" ]] && return 1
   done
   return 1
 }
 
-_repair_model() {  # <primary model> → the model the repair round-trip uses first
-  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
-  if _adv_cred_present anthropic; then echo "tiny"; else echo "claude-headless"; fi
+_repair_model() {  # <voice that answered> → the first hop of the repair chain (one source of truth: _repair_model_chain)
+  _repair_model_chain "$1" | cut -d' ' -f1
 }
 _repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop
   # eighth run, a1 C-001: tiny only with an Anthropic credential, claude-headless only with the binary on
@@ -1291,7 +1297,8 @@ while i < len(text):
   # already used) — a colliding derived id becomes max(explicit numeric id) + 1
   local explicit_ids used_ids="" max_id_num
   explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string")] | join(" ")' 2>/dev/null || true)
-  max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$")?.n | tonumber] | max // 0' 2>/dev/null || echo 0)
+  # (no `?` after capture — that is a jq syntax error, and it silently zeroed this value until NRM-15 pinned it)
+  max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$").n | tonumber] | max // 0' 2>/dev/null || echo 0)
   [[ "$max_id_num" =~ ^[0-9]+$ ]] || max_id_num=0
   (( max_id_num < finding_count )) && max_id_num=$finding_count
   while [[ $i -lt $finding_count ]]; do
@@ -1346,6 +1353,10 @@ while i < len(text):
         done
         if [[ "$_repair_ok" == "true" ]]; then
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
+            # ninth run, a1 C-003: the derivation markers are provenance — an accepted repair carries the
+            # original's markers whatever the model echoed back
+            repaired=$(jq -n --argjson o "$candidate" --argjson r "$repaired" \
+              '$r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))' 2>/dev/null || echo "$repaired")
             # Constraint 3: repaired finding re-enters the FULL pipeline —
             # validate_finding + validate_anchor here; the hallucination
             # filter runs unconditionally on the whole result array later

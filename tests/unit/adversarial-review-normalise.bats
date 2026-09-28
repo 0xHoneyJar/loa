@@ -241,6 +241,9 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
     [ "$(jq -r '.findings[0].id' <<<"$result")" = "DISS-001" ]
     [ "$(jq -r '.findings[0].category' <<<"$result")" = "config" ]
+    # …and the provenance markers come back onto the accepted repair (ninth run, a1 C-003)
+    [ "$(jq -r '.findings[0].id_derived' <<<"$result")" = "true" ]
+    [ "$(jq -r '.findings[0].failure_mode_derived' <<<"$result")" = "true" ]
 }
 
 @test "NRM-14 a degenerate first sentence (an enumerator, an abbreviation) is not a failure_mode — below 20 characters the description's head is used (eighth run, a1 C-003)" {
@@ -250,4 +253,23 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '.findings[0].failure_mode' <<<"$result")" = "e.g. the sidecar is written before the lock is held, so rows interleave." ]
     [ "$(jq -r '.findings[1].failure_mode' <<<"$result")" = "1. Missing null check on the cursor before the walk begins." ]
     [ "$(jq -r '.findings[2].failure_mode' <<<"$result")" = "A real first sentence that is long enough." ]
+}
+
+@test "NRM-15 the collision guard reads the highest explicit id, not the finding count: a derived id colliding with an explicit one takes max(explicit) + 1 (ninth run, a1 C-002 — the jq `?` that zeroed it)" {
+    doc='{"findings":[{"id":"DISS-009","severity":"MEDIUM","category":"config","description":"Nine.","failure_mode":"s"},{"severity":"LOW","category":"other","description":"No id, positional DISS-002 collides."},{"id":"DISS-002","severity":"LOW","category":"other","description":"Two.","failure_mode":"s"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
+    [ "$(jq -r '[.findings[].id] | join(",")' <<<"$result")" = "DISS-009,DISS-010,DISS-002" ]
+}
+
+@test "NRM-16 credential presence decides per source across a provider's aliases: an empty GOOGLE_API_KEY beside a set GEMINI_API_KEY is present; all aliases empty at a source disables (ninth run, a1 C-005)" {
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-g"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    GOOGLE_API_KEY="" GEMINI_API_KEY="present-never-printed" bash -c "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present google"
+    rc=0; GOOGLE_API_KEY="" GEMINI_API_KEY="" bash -c "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present google" || rc=$?
+    [ "$rc" = "1" ]
+    printf 'GOOGLE_API_KEY=\nGEMINI_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
+    bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
+    printf 'GOOGLE_API_KEY=\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"; printf 'GEMINI_API_KEY=abc\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env"
+    rc=0; bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google" || rc=$?   # (the operator's shell may export a Google key)
+    [ "$rc" = "1" ]   # .env.local assigned the provider's only alias present there as empty: disabled at that source
 }

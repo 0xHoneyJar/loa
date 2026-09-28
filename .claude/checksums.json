@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-26T02:37:26Z",
+  "generated": "2026-09-28T00:03:05Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1177,7 +1177,7 @@
     ".claude/schemas/wire/flatline-skeptic.wire.json": "8251f74444f32c158297f7cc63997e2e08b4a90504be09fd06c83b37b7b12c9e",
     ".claude/scripts/README.md": "280e64d05e8eda11ee8b960da4ef1e060ea422cce06599704bc174be704e9aab",
     ".claude/scripts/__pycache__/loa-migrate-model-config.cpython-313.pyc": "9db5f62f73cb75a24cad707d0500d19fd0a4858e27e74f005db46341d67c4be7",
-    ".claude/scripts/adversarial-review.sh": "98c7c075bf04e32d57de8b675ab64f3a40e5378de211b76a0bace8761774013b",
+    ".claude/scripts/adversarial-review.sh": "e69cb7b05e7df6cc3d6050ca10dccd19f3ec0872af9b5c0347b6ea805baf19dc",
     ".claude/scripts/agents-md-gen.sh": "393b3f3a9557a887bf233a527bc5eb750508c0f8a85dc3ca8da2c3f5e2666f2a",
     ".claude/scripts/analytics.sh": "e9dc4bcaa0b3b08efe32edf52e3c37915e7342189a25cb3d1bc4fa67187da428",
     ".claude/scripts/anonymize-proposal.sh": "62fff7fed9942e861a48cb468d6751baa9ed210e0d5f04557e16f3ef4c94913a",
