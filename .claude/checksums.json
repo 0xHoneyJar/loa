@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-29T05:28:18Z",
+  "generated": "2026-09-29T07:22:41Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1178,7 +1178,7 @@
     ".claude/schemas/wire/flatline-skeptic.wire.json": "8251f74444f32c158297f7cc63997e2e08b4a90504be09fd06c83b37b7b12c9e",
     ".claude/scripts/README.md": "280e64d05e8eda11ee8b960da4ef1e060ea422cce06599704bc174be704e9aab",
     ".claude/scripts/__pycache__/loa-migrate-model-config.cpython-313.pyc": "9db5f62f73cb75a24cad707d0500d19fd0a4858e27e74f005db46341d67c4be7",
-    ".claude/scripts/adversarial-review.sh": "aa5f646b37b1e45e3faaa6fb78f85aef6ba158a3b43d50ff4944bf65c33736e4",
+    ".claude/scripts/adversarial-review.sh": "efab12068fc1915569d193de153e29dc08a4fc6f6d3983fff7f57755ef5c6edc",
     ".claude/scripts/agents-md-gen.sh": "393b3f3a9557a887bf233a527bc5eb750508c0f8a85dc3ca8da2c3f5e2666f2a",
     ".claude/scripts/analytics.sh": "e9dc4bcaa0b3b08efe32edf52e3c37915e7342189a25cb3d1bc4fa67187da428",
     ".claude/scripts/anonymize-proposal.sh": "62fff7fed9942e861a48cb468d6751baa9ed210e0d5f04557e16f3ef4c94913a",
@@ -1333,7 +1333,7 @@
     ".claude/scripts/jaccard-similarity.sh": "9fcd67185f53fc6ec3205a03da67c85dcd71d4b32c957f419b544b2399feaf29",
     ".claude/scripts/ledger-lib.sh": "ffe036ba79c146555173567fb9ed2783bd61f6b918d707bad723fca793c5b4f6",
     ".claude/scripts/lib-codex-exec.sh": "6c6326766481e88e2f7f5f8d15d7e6e8189a47eb9dc29af5ad7bd6eda0ba6238",
-    ".claude/scripts/lib-content.sh": "f1f2ef839d7ed560d20b8fd20c215f76622db25db5dfaa1586a4da56d0ff6fcb",
+    ".claude/scripts/lib-content.sh": "c92efc6cbbf1ff5b9170d5a657c733bb428e2a267bd4fd9c31d769675fb5b21e",
     ".claude/scripts/lib-curl-fallback.sh": "43b99d68f1e405a642ede1a4c8e9e806623ccdd5a763c605c19b2d76f85a8523",
     ".claude/scripts/lib-multipass.sh": "8b9ff792929faae8f2d832d1697b04b69b98c964bfff12305c927e723b6af771",
     ".claude/scripts/lib-provider-parse.sh": "5684fc8d89f9b1558787482935cc3e228cfe9cf8c1f1dcfda2f8b058fe52e649",
@@ -1672,7 +1672,7 @@
     ".claude/scripts/validate-skill-capabilities.sh": "638039a412c0b9e9699cd94baec8952312fa69f0d524c14495d05c9b8e04a8a9",
     ".claude/scripts/validate-skills.sh": "4107682af56ffa055a6f77ccc837813dfc14afd02c41eb75a1f90f07fd58fdcc",
     ".claude/scripts/validate-sprint-id.sh": "f91a131f2b9b04d7fd171df3ad89d3a350de70da702390ae990ba8d2b4c9d902",
-    ".claude/scripts/verdict-derive.sh": "6a996391ad3aaa28c2a9cf391328a397994018a5025414fe48f542f6f0330d63",
+    ".claude/scripts/verdict-derive.sh": "6978271ea0cd8881ed8e212a72ba4bb257ee57076ec780e9ee0876602c48f52a",
     ".claude/scripts/verify-deny-rules.sh": "eb62453247f5e929d9263ae0308535c6a287c0030c9c85a4dd3cb09909750fbd",
     ".claude/scripts/verify-invariants.sh": "2e7b9a746e17acc2561ae1568d79d0e95615aa59c88b8dba534eaa302a735af1",
     ".claude/scripts/vision-lib.sh": "c13e469f93e4b6f8ded539de16d834ddcf02bd473748ca0b475b2edb9d7ecaa0",

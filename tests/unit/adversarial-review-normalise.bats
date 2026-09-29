@@ -333,6 +333,11 @@ _fixture_content() {  # all three fixtures as one findings document
     sha256sum() { return 127; }; shasum() { return 127; }
     [ "$(LOA_ADVERSARIAL_RUN_TAG="c.1" _adv_run_tag 2>/dev/null)" = "h632e31" ]
     [ "$(LOA_ADVERSARIAL_RUN_TAG="a/1" _adv_run_tag 2>/dev/null)" = "h612f31" ]
+    # …and that branch is reachable under errexit, as process_findings calls it (fifteenth run, a2 C-003): a failing
+    # digest pipeline never aborts the resolver
+    run bash -e -o pipefail -c "sha256sum() { return 127; }; shasum() { return 127; }; export -f sha256sum shasum; $(declare -f _adv_resolve_run_tag log); LOA_ADVERSARIAL_RUN_TAG='c.1'; _ADV_RUN_TAG_RAW_SEEN=''; _adv_resolve_run_tag 2>/dev/null; printf '%s' \"\$_ADV_RUN_TAG\""
+    [ "$status" -eq 0 ]
+    [ "$output" = "h632e31" ]
     unset -f sha256sum shasum
     # the same warning once per process: the second call is silent
     ( LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag >/dev/null; _adv_run_tag >/dev/null ) 2>"$TEST_DIR/tag-err2"
@@ -456,7 +461,19 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=5m process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$exp" ]
-    grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='5m' is not a whole number of seconds" "$TEST_DIR/repair-err"
+    grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='5m' is not a whole number of at least 1" "$TEST_DIR/repair-err"
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=0900 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$exp" ]   # (a2 C-004: a leading zero is octal to bash — rejected, the default applies)
+    grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='0900' is not a whole number of at least 1" "$TEST_DIR/repair-err"
+    # every hop pre-empted from the start (a 1 s budget against 60 s bounds): no model is asked — a budget exhaustion for
+    # every payload, repair_attempted false on the rows, no repair slot spent (fifteenth run, a2 C-001)
+    : > "$TEST_DIR/repair-calls"
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=1 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "3" ]
+    [ ! -s "$TEST_DIR/repair-calls" ]
+    [ "$(jq -r '.repair_attempted' "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit.jsonl" | sort -u)" = "false" ]
+    jq -e '.metadata.repair_hops_skipped | index("tiny:over_budget") != null' <<<"$result" >/dev/null
     unset ANTHROPIC_API_KEY
 }
 
@@ -481,6 +498,12 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
     companion_shared_hops="claude-headless"
+    # a prefixed spelling of the companion's current hop is the same hop (fifteenth run, a1 C-002)
+    printf 'anthropic:claude-headless' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
     # the companion is on opus: the hop stays
     printf 'opus' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"

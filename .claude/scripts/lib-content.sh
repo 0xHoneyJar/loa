@@ -102,12 +102,17 @@ estimate_tokens() {
 
 # A chunk's head at a hunk boundary: the byte cut, trimmed back to drop the hunk the cut landed in — unless that
 # would leave no hunk at all (cycle-126 sprint-248, thirteenth / fourteenth run)
-_lc_cut_partial() {  # <chunk file> <max bytes>
+_lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partial; prints `hunk` (cut at a hunk boundary) or `mid`
+                     # (the cut fell inside the first hunk: the partial ends on a line boundary and the last hunk is incomplete —
+                     # fifteenth run, b1 C-001: never mid-line, never a marker that says every hunk is whole)
   local partial trimmed
   partial=$(head -c "$2" "$1")
   trimmed="${partial%$'\n@@ '*}"
-  if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then partial="$trimmed"; fi
-  printf '%s' "$partial"
+  if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then
+    printf '%s' "$trimmed" > "$3"; printf 'hunk'
+  else
+    printf '%s' "${partial%$'\n'*}" > "$3"; printf 'mid'
+  fi
 }
 _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)
   local c; c=$(printf '%s\n' "$1" | grep -c '^@@ ' 2>/dev/null); [[ "$c" =~ ^[0-9]+$ ]] || c=0; printf '%s' "$c"
@@ -208,7 +213,7 @@ prepare_content() {
 
   # Sort by priority (lowest number = highest importance)
   local sorted_manifest
-  sorted_manifest=$(sort -t$'\t' -k1,1n "$temp_dir/manifest")
+  sorted_manifest=$(sort -s -t$'\t' -k1,1n "$temp_dir/manifest")   # (stable: ties keep the diff's order, not the path's — fifteenth run, b1 C-002)
 
   # Build output up to token budget
   local output="" current_tokens=0 included=0
@@ -220,13 +225,29 @@ prepare_content() {
   local top_pri="" top_path="" top_idx="" top_partial_done=0
   IFS=$'\t' read -r top_pri top_path top_idx <<<"$(printf '%s\n' "$sorted_manifest" | head -1)"
   if [[ -n "$top_idx" && -f "$temp_dir/chunk_${top_idx}" ]] && (( $(estimate_tokens "$(cat "$temp_dir/chunk_${top_idx}")") > max_tokens )); then
-    local reserve=$(( max_tokens * 3 / 4 )) partial kept total
-    partial=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )))
+    # the reservation is what the OTHER files that fit leave over, clamped to a quarter … three quarters of the budget —
+    # a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large file
+    # (fifteenth run, b1 C-002)
+    local others=0 o_pri o_path o_idx o_tok reserve partial kept total how
+    while IFS=$'\t' read -r o_pri o_path o_idx; do
+      [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
+      o_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${o_idx}")")
+      (( o_tok <= max_tokens )) && others=$(( others + o_tok ))
+    done <<< "$sorted_manifest"
+    reserve=$(( max_tokens - others ))
+    (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
+    (( reserve < max_tokens / 4 )) && reserve=$(( max_tokens / 4 ))
+    how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
+    partial=$(cat "$temp_dir/partial_${top_idx}")
     total=$(_lc_hunk_count "$(cat "$temp_dir/chunk_${top_idx}")"); kept=$(_lc_hunk_count "$partial")
     output+="$partial"$'\n'
-    output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    if [[ "$how" == "mid" && $total -gt 0 ]]; then   # (a chunk with no hunk header at all is just cut: nothing to call mid-way)
+      output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    else
+      output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    fi
     current_tokens=$(estimate_tokens "$partial"); included=1; top_partial_done=1
-    $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks)"
+    $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
   fi
 
   while IFS=$'\t' read -r priority filepath chunk_idx; do

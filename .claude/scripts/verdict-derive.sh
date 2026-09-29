@@ -214,10 +214,18 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             return 0
         fi
         if [[ "$kind" == "legacy" ]]; then
-            local _lf _legacy_files=""
-            for _lf in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do [[ -f "$_lf" && -s "$_lf" ]] && _legacy_files+="${_legacy_files:+, }$(basename -- "$_lf")"; done
+            # (fifteenth run, b1 C-003: a sidecar NEWER than the pre-FR-2 envelope is a run that died after writing rows —
+            # its rows count, as on the listed path; only rows as old as the envelope ride the legacy pass)
+            local _lf _legacy_files="" _newer_files=""
+            for _lf in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
+                [[ -f "$_lf" && -s "$_lf" ]] || continue
+                if [[ "$_lf" -nt "$ENVELOPE_FILE" ]]; then _newer_files+="${_newer_files:+, }$(basename -- "$_lf")"; _rejected_rows_of "$_lf"
+                else _legacy_files+="${_legacy_files:+, }$(basename -- "$_lf")"; fi
+            done
             [[ -n "$_legacy_files" ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") predates the rejected-payload contract (no metadata.rejected_summary) — the sidecar rows beside it ($_legacy_files) are not counted; re-run the dissent to bring them under the contract")
-            return 0
+            [[ -n "$_newer_files" ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") predates the rejected-payload contract but $_newer_files is newer than it — a later run ended after writing rows; those rows are counted: triage them under '## Rejected dissent payloads' or re-run the dissent")
+            (( rows > 0 )) || return 0
+            kind="array"; n=0; has_list="legacy"; listed=""   # (only the newer rows count: neither the listed nor the glob pass runs)
         fi
         if [[ "$kind" != "array" ]]; then
             violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")
@@ -259,7 +267,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                 warnings+=("rejected-payload sidecar $(basename -- "$u") beside the envelope is not listed in its metadata.rejected_sidecars (an earlier run's file that was never folded) — its rows are counted: triage them under '## Rejected dissent payloads' or remove the file before re-running")
             fi
         done
-    else
+    elif [[ "$has_list" == "false" ]]; then
         for f in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do _rejected_rows_of "$f"; done
     fi
     need="$n"; source="metadata.rejected_summary"

@@ -40,6 +40,7 @@ setup() {
         return 1
     fi
     HOLDER_PIDS=()   # out-of-band lock holders a test spawns; teardown kills them (c1 C-002)
+    rm -f "${TMPDIR:-/tmp}"/.adv-unlocked-warned-$$   # (the said-once marker of an unlocked hop is per run — a fresh test starts clean)
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI hops "installed" unless a case says otherwise (C-007 seam)
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
     # seventh run (chunk c1 C-002 / C-005): every test gets its own lock directory and none of the operator's
@@ -890,7 +891,11 @@ PY
 
 @test "CMP-34 the envelope and sidecars are single-writer per (sprint, gate): a second live run is refused before it removes anything — a distinct tag too (the envelope path is shared); a dead run's lock, a reused pid and an abandoned empty lock are taken over; a lock seconds old with no pid yet is a holder in flight (eleventh run a2 DISS-001; twelfth run a2 C-002 / C-003)" {
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
-    [ "$(sed -n 1p "$lockd/pid")" = "$$" ]; [ -n "$(sed -n 2p "$lockd/pid")" ]   # pid + start time
+    [ "$(sed -n 1p "$lockd/pid")" = "$BASHPID" ]; [ -n "$(sed -n 2p "$lockd/pid")" ]   # pid + start time
+    # a subshell of the run (it inherits $$ and the variables) can never release the parent's lock (fifteenth run, a2 C-002)
+    ( _adv_release_run_lock ); [ -d "$lockd" ]
+    _adv_release_run_lock; [ ! -d "$lockd" ]
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
     sleep 30 3>&- & holder=$!; HOLDER_PIDS+=("$holder"); printf '%s\n%s\n' "$holder" "$(_adv_proc_start "$holder")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # held by another live process
     BEHAVIOUR[claude-headless]=reject
     rc=0; result=$(_run_main review) || rc=$?
@@ -948,14 +953,21 @@ PY
     unset ANTHROPIC_API_KEY
 }
 
-@test "CMP-36 without flock the per-binary serialisation is off and said once, never silently (twelfth run, a2 C-006)" {
+@test "CMP-36 without flock the per-binary serialisation is off and said once per run — across capture subshells — and the hop's phase still starts (twelfth run a2 C-006; fifteenth run a3 C-001 / C-002)" {
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     ( _ADV_FLOCK_BIN=/nonexistent/flock
       _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null
+      x=$(_ADV_PHASE_FILE="$T/phase" _adv_invoke_hop claude-headless a b claude-headless 30 "" review)   # a capture subshell, as the walker calls it
       _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null ) 2>"$T/noflock-err"
-    [ "$(grep -c ran "$T/lock-trace")" = "2" ]
+    [ "$(grep -c ran "$T/lock-trace")" = "3" ]
     [ "$(grep -c "flock is not installed" "$T/noflock-err")" = "1" ]
+    [ "$(cat "$T/phase")" = "hop" ]   # an unlocked hop is charged as a hop, never left in `queue`
     [ ! -e "$T/loa-headless-locks-$(id -u)/claude.lock" ]
+    # a lock directory that is not ours is another unlocked path, said once too
+    rm -f "${TMPDIR:-/tmp}"/.adv-unlocked-warned-$$; : > "$T/lock-trace"
+    ( XDG_RUNTIME_DIR="/proc"; _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null; _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null ) 2>"$T/notours-err"
+    [ "$(grep -c ran "$T/lock-trace")" = "2" ]
+    [ "$(grep -c "is not ours" "$T/notours-err")" = "1" ]
 }
 
 @test "CMP-37 a shared hop is skipped only while the companion is ON it: with the companion busy on its HTTP hop the primary waits for it to settle and then runs the hop itself; a companion that moved to the shared hop is not doubled (twelfth run, a3 C-001)" {
@@ -1065,6 +1077,24 @@ $(mk_hunk 100)"
     [[ "$out" == *"--- PARTIAL: big.sh shown up to the token budget ("*" of 4 hunks; token budget: 150)"* ]]
     [[ "$out" != *"--- TRUNCATED:"* ]]
     grep -q "Top-priority file big.sh exceeds the token budget: shown partially" "$T/prep-err"
+    # a cut inside the FIRST hunk ends on a line boundary and the marker says so (fifteenth run, b1 C-001)
+    one="diff --git a/one.sh b/one.sh
+--- a/one.sh
++++ b/one.sh
+$(mk_hunk 5)"
+    out=$(prepare_content "$one" 40 2>/dev/null)   # 40 tokens ≈ 120 bytes: inside the only hunk
+    [[ "$out" == *"--- PARTIAL: one.sh shown up to the token budget (1 of 1 hunks, the last one cut mid-way; token budget: 40)"* ]]
+    [ "$(printf '%s\n' "$out" | awk '/^--- PARTIAL/{exit} {n++} END{print n}')" -ge 5 ]   # header + hunk header + at least one whole line, then the blank line before the marker
+    # same-priority siblings that fit are not displaced by the partial view of one large file (fifteenth run, b1 C-002)
+    sib1=$'diff --git a/s1.sh b/s1.sh\n--- a/s1.sh\n+++ b/s1.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'y%.0s' $(seq 1 120))"
+    sib2=$'diff --git a/s2.sh b/s2.sh\n--- a/s2.sh\n+++ b/s2.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'z%.0s' $(seq 1 120))"
+    out=$(prepare_content "$big
+$sib1
+$sib2" 300 2>/dev/null)   # 300 tokens: the two 60-token siblings fit; the big file gets what is left, not three quarters
+    [[ "$out" == *"diff --git a/s1.sh b/s1.sh"* ]]
+    [[ "$out" == *"diff --git a/s2.sh b/s2.sh"* ]]
+    [[ "$out" == *"--- PARTIAL: big.sh"* ]]
+    [[ "$out" != *"--- TRUNCATED:"* ]]
     # the mixed case (fourteenth run, b C-002): a top-priority script that does not fit whole plus a small doc that does —
     # the script is shown FIRST, partially, and the doc follows; the doc never displaces the script
     doc=$'diff --git a/notes.md b/notes.md\n--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-a\n+b'
@@ -1085,14 +1115,32 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ "$(printf '%s\n' "$out" | grep -cx '0')" = "0" ]
 }
 
-@test "CMP-45 a timeout_seconds that is not a whole number is said once and 60 applies — the review completes with both voices (fourteenth run, a1 C-003)" {
+@test "CMP-45 a numeric knob that is not a whole number without a leading zero and at least its floor is said and its default applies — timeout_seconds, budget_cents, the context-escalation knobs and the --timeout / --budget overrides alike (fourteenth run a1 C-003; fifteenth run a1 C-001)" {
     _cfg_edit "timeout_seconds: 30" "timeout_seconds: 30s"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
-    grep -q "timeout_seconds='30s' is not a whole number of seconds — 60 applies" "$T/stderr.log"
-    [ "$(grep -c "is not a whole number of seconds" "$T/stderr.log")" = "1" ]
+    grep -q "timeout_seconds='30s' is not a whole number of at least 1 — 60 applies" "$T/stderr.log"
+    [ "$(grep -c "is not a whole number of at least" "$T/stderr.log")" = "1" ]
+    # zero (GNU timeout 0 = no limit, and a zero repair budget) and a leading zero (octal to bash, rejected by --argjson)
+    for bad in 0 060; do
+        _cfg_edit "timeout_seconds: 30s" "timeout_seconds: $bad"
+        result=$(_run_main review)
+        [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+        grep -q "timeout_seconds='$bad' is not a whole number of at least 1 — 60 applies" "$T/stderr.log"
+        _cfg_edit "timeout_seconds: $bad" "timeout_seconds: 30s"
+    done
+    # the sibling knobs get the same guard
+    _cfg_edit "budget_cents: 200" "budget_cents: 150c"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    grep -q "budget_cents='150c' is not a whole number of at least 0 — 150 applies" "$T/stderr.log"
+    # …and so do the command-line overrides
+    result=$(main --type review --sprint-id "$SPRINT" --diff-file "$T/diff.patch" --timeout 0x --budget -5 --json 2> "$T/stderr.log")
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    grep -q -- "--timeout='0x' is not a whole number of at least 1 — 60 applies" "$T/stderr.log"
+    grep -q -- "--budget='-5' is not a whole number of at least 0 — 150 applies" "$T/stderr.log"
 }
 
 @test "CMP-46 an aggregator that fails without a word never aborts the review: the envelope is emitted with verdict_quality_error (fourteenth run, a3 C-001)" {
@@ -1131,4 +1179,84 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
     [ "$(grep -c "claude-headless" "$CALLS")" = "1" ]   # one CLI invocation — the companion's
+}
+
+@test "CMP-50 the reaper signals the companion's pid only while its start token matches the one recorded at the fork — a recycled pid is left alone (fifteenth run, a3 C-003)" {
+    sleep 30 3>&- & p=$!; HOLDER_PIDS+=("$p")
+    _ADV_COMPANION_PID=$p; _ADV_COMPANION_START="t1"   # not this process's token
+    _adv_reap_companion 2>"$T/reap-err"
+    kill -0 "$p"   # untouched
+    grep -q "now belongs to another process" "$T/reap-err"
+    _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
+    LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
+    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+}
+
+@test "CMP-51 the process tree is enumerated without pgrep too (fifteenth run, a3 C-004)" {
+    bash -c 'sleep 30 & sleep 30 & wait' 3>&- & root=$!; HOLDER_PIDS+=("$root"); sleep 0.3
+    with=$(_adv_tree_pids "$root" | sort -n | tr '\n' ' ')
+    without=$(_ADV_PGREP_BIN=/nonexistent/pgrep _adv_tree_pids "$root" | sort -n | tr '\n' ' ')
+    [ "$with" = "$without" ]
+    [ "$(printf '%s' "$with" | wc -w)" -ge 3 ]
+    kill "$root" 2>/dev/null; pkill -P "$root" 2>/dev/null || true
+}
+
+@test "CMP-54 past the wait cap a companion that already ANSWERED and is finishing (phase post) is not reaped by the primary's shared-hop branch: the primary cedes, the post budget governs, one CLI run (fifteenth run, a4 C-002)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=2
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=reject   # the companion answers at once, then repairs — in `post` — for longer than the wait cap
+    _repair_finding_via_model() { [[ "${_ADV_SIDECAR_TAG:-}" == "companion" ]] && sleep 5; return 1; }
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:skipped_shared_with_companion" ]
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
+    [ "$(grep -cx "claude-headless" "$CALLS")" = "1" ]
+    [ "$(grep -c "reaping the second voice" "$T/stderr.log")" = "0" ]
+    grep -q "answered with it and is finishing (the post budget governs) — skipped on the primary chain" "$T/stderr.log"
+    unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+}
+
+@test "CMP-55 a reaper that returns non-zero never aborts the review: the envelope is still emitted (fifteenth run, a4 C-001)" {
+    eval "__real_kill_tree() $(declare -f _adv_kill_tree | sed '1d')"
+    _adv_kill_tree() { __real_kill_tree "$@"; return 1; }
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=unavailable-companion-slow
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:reviewed" ]
+    unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+}
+
+@test "CMP-52 a companion chain spelled through a catalog alias cedes like the canonical name: the fold's ceded comparison is canonical (fifteenth run, a3 C-005)" {
+    printf 'providers:\n  anthropic:\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 900\naliases:\n  fastclaude: "anthropic:claude-headless"\n' > "$T/alias.yaml"
+    export LOA_MODEL_CONFIG="$T/alias.yaml" ANTHROPIC_API_KEY="sk-presence-only-never-printed"
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - anthropic:claude-headless\n    companion_chain:\n      anthropic: [fastclaude]\n  security_audit:'
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "fastclaude" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "anthropic:claude-headless:skipped_shared_with_companion" ]
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "false" ]
+    unset ANTHROPIC_API_KEY LOA_MODEL_CONFIG
+}
+
+@test "CMP-53 the fold merges envelopes larger than an argv string can carry: both travel as files (fifteenth run, a3 C-006)" {
+    wd="$T/fold-wd"; mkdir -p "$wd"
+    python3 -c 'print("x" * 200000, end="")' > "$wd/desc.txt"   # (built through a file: a 200 KB argv string is the very limit under test)
+    big=$(jq -nc --rawfile d "$wd/desc.txt" '{findings:[{id:"DISS-001",severity:"LOW",category:"other",description:$d,failure_mode:"fm"}],metadata:{type:"review",status:"reviewed",model:"gpt-5.5-pro",cost_usd:0.01,tokens_input:1,tokens_output:1,rejected_summary:[],rejected_count:0}}')
+    [ "${#big}" -gt 150000 ]
+    jq -nc '{findings:[{id:"DISS-001",severity:"LOW",category:"other",description:"from the companion.",failure_mode:"fm"}],metadata:{type:"review",status:"reviewed",model:"claude-headless",cost_usd:0.02,tokens_input:1,tokens_output:1,rejected_summary:[],rejected_count:0}}' > "$wd/companion.result.json"
+    printf 'claude-headless' > "$wd/companion.final"; printf 'claude-headless:reviewed\n' > "$wd/companion.attempts"; printf 'reviewed' > "$wd/companion.status"; printf '0' > "$wd/companion.rc"
+    _vq claude-headless ok > "$wd/vq-companion-1.json"; printf '%s\n' "$wd/vq-companion-1.json" > "$wd/companion.vq"
+    out=$(_fold_companion "$big" "$wd" anthropic claude-headless gpt-5.5-pro gpt-5.5-pro "" "gpt-5.5-pro" "" 2>"$T/fold-err")
+    [ -n "$out" ]
+    [ "$(jq '.findings | length' <<<"$out")" = "2" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$out")" = "succeeded" ]
+    [ "$(jq '.metadata.cost_usd' <<<"$out")" = "0.03" ]
+    [ ! -s "$T/fold-err" ]
 }
