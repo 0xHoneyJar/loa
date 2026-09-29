@@ -216,6 +216,24 @@ prepare_content() {
     fi
   done <<< "$sorted_manifest"
 
+  # Nothing fitted (one file larger than the whole budget): show the highest-priority file up to the budget, cut at a
+  # hunk boundary, with a PARTIAL note — never an empty diff a voice would "review" as clean (cycle-126 sprint-248,
+  # thirteenth run c1 C-001: a 74 KB test-suite diff left one voice with zero diff lines)
+  if [[ $included -eq 0 && ${#skipped_files[@]} -gt 0 ]]; then
+    local first_path first_idx partial trimmed kept_hunks total_hunks
+    IFS=$'\t' read -r _ first_path first_idx <<<"$(printf '%s\n' "$sorted_manifest" | head -1)"
+    partial=$(head -c $(( max_tokens * 3 )) "$temp_dir/chunk_${first_idx}")
+    trimmed="${partial%$'\n@@ '*}"   # drop the hunk the cut landed in — unless it is the only one
+    if [[ "$trimmed" != "$partial" && $(printf '%s\n' "$trimmed" | grep -c '^@@ ') -gt 0 ]]; then partial="$trimmed"; fi
+    total_hunks=$(grep -c '^@@ ' "$temp_dir/chunk_${first_idx}" 2>/dev/null || echo 0)
+    kept_hunks=$(printf '%s\n' "$partial" | grep -c '^@@ ' 2>/dev/null || echo 0)
+    output+="$partial"$'\n'
+    output+=$'\n'"--- PARTIAL: ${first_path} shown up to the token budget (${kept_hunks} of ${total_hunks} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    included=1
+    skipped_files=("${skipped_files[@]:1}")
+    $_log_fn "Nothing fitted the token budget: ${first_path} is shown partially (${kept_hunks} of ${total_hunks} hunks)"
+  fi
+
   # Append summary of skipped files
   if [[ ${#skipped_files[@]} -gt 0 ]]; then
     output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'

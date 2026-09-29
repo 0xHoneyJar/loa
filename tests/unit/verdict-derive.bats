@@ -717,6 +717,18 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.violations[0] | test("2 schema-rejected payload")' >/dev/null
+    # no metadata at all is legacy too, as the resources say (thirteenth run, b C-001)
+    jq -n '{findings: []}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 1 and (.warnings[0] | test("predates the rejected-payload contract"))' >/dev/null
+    # …but an envelope carrying any FR-2 marker is under the contract even without rejected_summary — the documented
+    # fallback envelope of a failed dissent never grandfathers orphaned rows (thirteenth run, b C-002)
+    for shape in '{status: "failed", reason: "x", rejected_summary: []}' '{status: "failed", reason: "x", rejected_count: 0}' '{status: "failed", rejected_sidecars: []}' '{status: "failed", companion_voice: {planned: false}}'; do
+        jq -n "{findings: [], metadata: $shape}" > "$d/adversarial-review.json"
+        run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+        [ "$status" -eq 1 ]
+    done
 }
 
 @test "verdict-derive: rejected_sidecars entries that are not strings or not sidecar names are violations, never counted; whitespace-only and CR-only lines are not rows (twelfth run, b C-004 / C-002)" {
@@ -731,5 +743,10 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     jq '.metadata.rejected_sidecars = ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl"]' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]   # one real row against the section's one bullet: the blank lines counted nothing
+    echo "$output" | jq -e '.consistent == true' >/dev/null
+    # listed twice (a merge that unioned two lists), counted once (thirteenth run, b C-003)
+    jq '.metadata.rejected_sidecars = ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl", "grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl"]' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true' >/dev/null
 }

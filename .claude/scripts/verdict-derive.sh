@@ -185,15 +185,17 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     envdir=$(dirname -- "$ENVELOPE_FILE")
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean), and a
-        # metadata that is not an object gets its own message; an envelope with no metadata at all is the legacy shape
-        # (zero entries); a metadata WITHOUT a rejected_summary key is a pre-FR-2 envelope — its sidecar rows are not
-        # counted (twelfth run, b C-005: historical sprints keep their verdicts); one jq read — a snapshot, never four
+        # metadata that is not an object gets its own message; an envelope with no metadata at all, or a metadata WITHOUT
+        # a rejected_summary key and without any FR-2 marker (rejected_sidecars / rejected_count / companion_voice), is
+        # a pre-FR-2 envelope — its sidecar rows are not counted (twelfth run, b C-005: historical sprints keep their
+        # verdicts; thirteenth run, b C-001 / C-002); one jq read — a snapshot, never four
         # reads of a file a running dissent may be rewriting (b C-003); a non-string entry of rejected_sidecars is
         # carried out tagged, never used as a name (b C-004)
         _snap=$(jq -r '
-            (if .metadata == null then "array"
+            (if .metadata == null then "legacy"
              elif (.metadata | type) != "object" then "metadata:" + (.metadata | type)
-             elif (.metadata | has("rejected_summary") | not) then "legacy"
+             elif (.metadata | has("rejected_summary") | not)
+                  and ((.metadata | (has("rejected_sidecars") or has("rejected_count") or has("companion_voice"))) | not) then "legacy"
              elif .metadata.rejected_summary == null then "array" else (.metadata.rejected_summary | type) end) as $kind
             | (if ($kind | startswith("metadata:")) then {} else (.metadata // {}) end) as $md
             | ((($md.rejected_summary // []) | if type == "array" then length else 0 end)) as $n
@@ -237,6 +239,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                 violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") lists $_bn in metadata.rejected_sidecars, which is not an adversarial-rejected-$GATE*.jsonl sidecar — repair the envelope or re-run the dissent")
                 continue
             fi
+            [[ "$listed_names" == *" $_bn "* ]] && continue   # (thirteenth run, b C-003: listed twice, counted once)
             listed_names+="$_bn "
             _rejected_rows_of "$envdir/$_bn" listed
         done <<<"$listed"

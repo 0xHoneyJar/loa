@@ -130,7 +130,7 @@ YAML
             await-primary-marker)          # answers only once the primary has failed its codex hop AND logged the skip of the shared
                                            # hop (bounded barriers on a marker and on the live stderr — never a sleep: CMP-33; twelfth run, c1 C-001)
                 local _j=0; while [[ ! -e "$T/marker-codex-headless-failed" ]] && (( _j++ < 300 )); do sleep 0.1; done
-                _j=0; while ! grep -q "skipped on the primary chain" "$T/stderr.log" 2>/dev/null && (( _j++ < 300 )); do sleep 0.1; done
+                _j=0; while ! grep -q "the primary waits for the companion to settle" "$T/stderr.log" 2>/dev/null && (( _j++ < 300 )); do sleep 0.1; done
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
@@ -435,6 +435,12 @@ PY
     run bash -c "bash '$PROJECT_ROOT/.claude/scripts/verdict-derive.sh' --file '$OUT_DIR/engineer-feedback.md' --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("schema-rejected payload"))) | length) == 1' >/dev/null
+    # verdict quality says the companion's voice was LOST to the fold — never a healthy second voice whose findings are
+    # absent (thirteenth run, a3 C-002)
+    [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "gpt-5.5-pro" ]
+    [ "$(jq -c '[.verdict_quality.voices_dropped[] | {voice, reason}]' <<<"$result")" = '[{"voice":"claude-headless","reason":"Other"}]' ]   # (the schema's reason enum; the rationale names the fold)
 }
 
 @test "CMP-16 a failed companion carries its last diagnostic line, redacted (C-003)" {
@@ -688,7 +694,7 @@ PY
     [ "$( export ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "4910" ]   # tiny (30) + claude-headless (910) + gpt-5.5-pro (30), × 5 + 60
 }
 
-@test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null, and the primary attempt that dropped the companion's own hop is excluded from verdict quality (fifth run C-003)" {
+@test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null; a companion that already answered with the shared hop is honoured, so the primary cedes it instead of failing it (fifth run C-003; thirteenth run a3 C-004)" {
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # this host's shape: the primary chain ends on claude-headless
     # the primary's first hop fails only once the companion is GONE (a bounded barrier on its pid, not a sleep —
     # eleventh run, c1 C-001), so the primary reaches the shared hop after the companion finished, tries it itself
@@ -696,13 +702,14 @@ PY
     BEHAVIOUR[gpt-5.5-pro]=unavailable-after-companion; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
     BEHAVIOUR[claude-headless]=unavailable-primary-only
     result=$(_run_main review)
-    [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:api_failure" ]
+    [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:api_failure,gpt-5.5:api_failure,codex-headless:api_failure,claude-headless:skipped_shared_with_companion" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
-    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "true" ]
-    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "false" ]   # ceded, not exhausted (thirteenth run, a2 C-004)
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
     [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
     [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "null" ]
-    [ "$(jq '.metadata.companion_voice.primary_attempts_excluded' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.companion_voice.primary_attempts_excluded' <<<"$result")" = "null" ]   # no primary attempt ever dropped the companion's hop
+    [ "$(grep -cx "claude-headless" "$CALLS")" = "1" ]
     [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
     [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "4" ]
@@ -796,6 +803,16 @@ YAML
     [ "$(_adv_cli_bin_for openai:gpt-5.5)" = "codex" ]
     printf 'aliases:\n  fastclaude: "anthropic:claude-headless"\n' >> "$T/catalog.yaml"
     [ "$(_adv_cli_bin_for fastclaude)" = "claude" ]
+    # …and every reader of a hop's CLI bound sees the canonical id (thirteenth run, a2 C-001): a prefixed or aliased CLI hop
+    # gets the catalog's bound and counts as a CLI hop in the wait cap, never the 610 s fallback
+    printf 'providers:\n  anthropic:\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 900\naliases:\n  fastclaude: "anthropic:claude-headless"\n' > "$T/catalog2.yaml"
+    export LOA_MODEL_CONFIG="$T/catalog2.yaml"
+    [ "$(_adv_cli_hop_bound claude-headless)" = "910" ]
+    [ "$(_adv_cli_hop_bound anthropic:claude-headless)" = "910" ]
+    [ "$(_adv_cli_hop_bound fastclaude)" = "910" ]
+    [ "$(_companion_wait_cap 30 anthropic:claude-headless)" = "$(_companion_wait_cap 30 claude-headless)" ]
+    [ "$(_companion_wait_cap 30 fastclaude)" = "940" ]
+    export LOA_MODEL_CONFIG="$T/catalog.yaml"
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     _adv_invoke_hop anthropic:claude-headless a b anthropic:claude-headless 30 "" review >/dev/null
     [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
@@ -847,7 +864,11 @@ PY
     [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "sole_voice" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "null" ]
-    grep -q "the companion is running it — skipped on the primary chain" "$T/stderr.log"
+    grep -q "the companion answered with it — skipped on the primary chain" "$T/stderr.log"
+    # the primary CEDED the hop to a companion that answered with it: one voice, not a degraded "chain exhausted" (thirteenth run, a2 C-004)
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "false" ]
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
+    [ "$(jq -r '.metadata.primary_voice.hop' <<<"$result")" = "claude-headless" ]
     # the repair's HTTP hop waits for the lock only as long as its own timeout (a2 C-001) — and so does a repair's
     # CLI hop under _ADV_LOCK_WAIT_CLI (twelfth run, a1 C-002), never a dissent hop's 910 s bound
     export ANTHROPIC_API_KEY="sk-presence-only-never-printed" XDG_RUNTIME_DIR="$T"
@@ -901,15 +922,23 @@ PY
     [ ! -d "$lockd" ]
 }
 
-@test "CMP-35 the repair chain, like the main walk, omits a hop the LIVE companion shares and takes it back once the companion is gone; the answering voice is never omitted (twelfth run, a1 C-002)" {
+@test "CMP-35 the repair chain, like the main walk, omits a shared hop only while the companion is ON it (queue / hop), keeps it when the companion is on another hop or past its own, and always keeps the answering voice (twelfth run a1 C-002; thirteenth run a1 C-002)" {
     export ANTHROPIC_API_KEY="sk-presence-only-never-printed"
-    companion_shared_hops="claude-headless"
+    companion_shared_hops="claude-headless"; companion_workdir="$T/cw"; mkdir -p "$companion_workdir"
     sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID")
+    printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'queue' > "$companion_workdir/companion.phase"
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny gpt-5.5-pro" ]
     [ "$(_repair_model_chain "claude-headless")" = "tiny claude-headless" ]   # the voice that answered stays terminal
-    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true
+    printf 'hop' > "$companion_workdir/companion.phase"
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny gpt-5.5-pro" ]
+    printf 'opus' > "$companion_workdir/companion.current"                    # busy elsewhere: the hop stays
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
-    _ADV_COMPANION_PID=""; companion_shared_hops=""
+    printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'post' > "$companion_workdir/companion.phase"   # past its hop: stays
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
+    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true
+    printf 'hop' > "$companion_workdir/companion.phase"
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]   # a dead companion holds nothing
+    _ADV_COMPANION_PID=""; companion_shared_hops=""; companion_workdir=""
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
     unset ANTHROPIC_API_KEY
 }
@@ -976,4 +1005,65 @@ PY
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     grep -qE "Companion voice \(anthropic family\): claude-headless \(wait cap [0-9]+s\)" "$T/stderr.log"
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+}
+
+@test "CMP-41 a shared hop the companion is ON is not ceded on sight: the primary waits for the companion to settle, and when the companion FAILS that hop the primary runs it as its last resort — one voice, nothing dropped (thirteenth run, a2 C-003)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'   # the primary chain ends on the companion's hop
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=unavailable-companion-only   # the companion's call fails; the primary's answers
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:reviewed" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.final_model' <<<"$result")" = "claude-headless" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
+    grep -q "the companion failed it — the primary runs it" "$T/stderr.log"
+}
+
+@test "CMP-42 a companion that already answered with the shared hop before the primary reached it is honoured: the binary runs once, the primary cedes (thirteenth run, a3 C-004)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
+    BEHAVIOUR[gpt-5.5-pro]=unavailable-after-companion; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable   # the companion (instant) is gone first
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:skipped_shared_with_companion" ]
+    [ "$(grep -cx "claude-headless" "$CALLS")" = "1" ]   # one CLI invocation for the run, the companion's
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "false" ]
+    grep -q "the companion answered with it — skipped on the primary chain" "$T/stderr.log"
+    [ "$(grep -c "the primary waits for the companion to settle" "$T/stderr.log")" = "0" ]   # nothing to wait for
+}
+
+@test "CMP-43 a workdir that cannot be created refuses with a JSON envelope under --json (status workdir_unavailable), like a refused concurrent run (thirteenth run, a3 C-005)" {
+    rc=0; result=$( export TMPDIR="$T/no/such/dir"; _run_main review ) || rc=$?
+    [ "$rc" = "2" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "workdir_unavailable" ]
+    [ "$(jq -r '.metadata.tmpdir' <<<"$result")" = "$T/no/such/dir" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
+    grep -q "cannot create a workdir under $T/no/such/dir" "$T/stderr.log"
+}
+
+@test "CMP-44 a diff whose single file exceeds the whole token budget is shown partially, cut at a hunk boundary, with a PARTIAL note — never an empty diff (thirteenth run, c1 C-001)" {
+    mk_hunk() { printf '@@ -%d,3 +%d,4 @@ fn%d\n context\n-old line %d\n+new line %d %s\n+another line %d\n' "$1" "$1" "$1" "$1" "$1" "$(printf 'x%.0s' $(seq 1 200))" "$1"; }
+    big="diff --git a/big.sh b/big.sh
+--- a/big.sh
++++ b/big.sh
+$(mk_hunk 10)
+$(mk_hunk 40)
+$(mk_hunk 70)
+$(mk_hunk 100)"
+    out=$(prepare_content "$big" 150 2>"$T/prep-err")   # 150 tokens ≈ 450 bytes: no whole file fits
+    [[ "$out" == "diff --git a/big.sh b/big.sh"* ]]
+    [ "$(printf '%s\n' "$out" | grep -c '^@@ ')" -ge 1 ]
+    [ "$(printf '%s\n' "$out" | grep -c '^@@ ')" -lt 4 ]
+    [[ "$out" == *"--- PARTIAL: big.sh shown up to the token budget ("*" of 4 hunks; token budget: 150)"* ]]
+    [[ "$out" != *"--- TRUNCATED:"* ]]
+    grep -q "Nothing fitted the token budget: big.sh is shown partially" "$T/prep-err"
+    # two files, the second fits: the ordinary path — the first is omitted whole and named, no PARTIAL block
+    small=$'diff --git a/small.sh b/small.sh\n--- a/small.sh\n+++ b/small.sh\n@@ -1 +1 @@\n-a\n+b'
+    out=$(prepare_content "$big
+$small" 150 2>/dev/null)
+    [[ "$out" == *"diff --git a/small.sh b/small.sh"* ]]
+    [[ "$out" == *"--- TRUNCATED: 1 lower-priority file(s) omitted"* ]]
+    [[ "$out" != *"--- PARTIAL:"* ]]
 }

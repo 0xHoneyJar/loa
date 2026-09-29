@@ -37,6 +37,10 @@ setup() {
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
     unset LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG LOA_ADVERSARIAL_ENV_DIR LOA_ADVERSARIAL_NO_FM_DERIVATION   # (seventh run, c2 C-005)
+    # …and every other knob the script reads (thirteenth run, c2 C-004): hermetic like the companion suite; the dotenv
+    # seam points at an empty directory unless a case says otherwise
+    unset LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS _ADV_REPAIR_DEAD_HOPS _ADV_REPAIR_RC_FILE LOA_MODEL_CONFIG LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI binaries "installed" unless a case says otherwise (the repair chain gates on it)
 }
 teardown() {
@@ -307,6 +311,12 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$ceiling" = "$_ADV_CLI_HOP_CEILING" ]
     printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 120\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 7200\n' > "$TEST_DIR/over.yaml"
     [ "$(LOA_MODEL_CONFIG="$TEST_DIR/over.yaml" _adv_cli_hop_bound claude-headless)" = "$(( 10 + ceiling ))" ]
+    # a provider read_timeout already above the ceiling is NOT clamped — the shell mirrors cheval (the Python contract
+    # pins 4000 → 4020 for connect 20): with or without the catalog key (thirteenth run, c2 C-001)
+    printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 4000\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n' > "$TEST_DIR/rt.yaml"
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/rt.yaml" _adv_cli_hop_bound claude-headless)" = "4010" ]
+    printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 4000\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 7200\n' > "$TEST_DIR/rt2.yaml"
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/rt2.yaml" _adv_cli_hop_bound claude-headless)" = "4010" ]
 }
 
 @test "NRM-19 LOA_ADVERSARIAL_RUN_TAG is validated, not stripped: a tag outside [A-Za-z0-9_-]{1,64} becomes a short hash of its raw value, said once, so c.1 and c1 never share a sidecar (eleventh run, a1 C-002)" {
@@ -334,7 +344,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ ! -e "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit-c1.jsonl" ]
 }
 
-@test "NRM-20 a repair hop that failed with an auth / quota / unavailable class is retired for the run's remaining repairs; the answering voice never is; a lock timeout or an unusable reply retires nothing (eleventh run, a1 C-003)" {
+@test "NRM-20 an explicit auth (4) or quota (6) exit code retires a repair hop for the run's remaining repairs; exit 1 (unavailable, or a CLI-hop timeout reported as such), a lock timeout, no exit code or an unusable reply retires nothing; the answering voice never is (eleventh run a1 C-003; twelfth run a1 C-001)" {
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]
@@ -351,6 +361,7 @@ _fixture_content() {  # all three fixtures as one findings document
     # (twelfth run, a1 C-001)
     _repair_finding_via_model() {
         echo "$4" >> "$TEST_DIR/repair-calls"
+        echo "${_ADV_REPAIR_RC_FILE:-}" >> "$TEST_DIR/rc-paths"   # (per repair, per voice: a fresh mktemp — thirteenth run, c2 C-003)
         case "$4" in
             tiny) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf '%s' "${TINY_RC:-4}" > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
             claude-headless) [[ -n "${_ADV_REPAIR_RC_FILE:-}" ]] && printf 1 > "$_ADV_REPAIR_RC_FILE"; return 1 ;;
@@ -372,6 +383,11 @@ _fixture_content() {  # all three fixtures as one findings document
         fi
     done
     unset _ADV_REPAIR_DEAD_HOPS
+    # the rc file is a fresh mktemp under the workdir for every repair of every process_findings call — never a path
+    # keyed on $$ that a concurrent voice could truncate or read (thirteenth run, c2 C-003)
+    [ "$(grep -c . "$TEST_DIR/rc-paths")" -ge 6 ]
+    [ "$(sort -u "$TEST_DIR/rc-paths" | grep -c .)" -ge 6 ]   # one file per repaired payload (its hops share it), never one per process
+    [ "$(grep -vc 'adv-repair-rc\.' "$TEST_DIR/rc-paths")" = "0" ]
     # a hop that writes NO exit code (the answering voice's arm, a round-trip that died before the capture) and one
     # that returns 124 without running (the lock timed out) retire nothing — after tiny's rc 4 only tiny is retired,
     # never a stale 4 read from the previous hop (twelfth run, c2 C-002: the rc file is truncated before every hop)
@@ -422,6 +438,51 @@ _fixture_content() {  # all three fixtures as one findings document
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( 5 * 60 * 2 ))" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))" ]
+    # a knob that is not a whole number is said once and the default applies — the envelope is intact (thirteenth run, a1 C-001)
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=5m process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))" ]
+    grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='5m' is not a whole number of seconds" "$TEST_DIR/repair-err"
     unset ANTHROPIC_API_KEY
+}
+
+@test "NRM-23 a repair drops a shared hop only while the companion is ON it, and the envelope names the skip (repair_hops_skipped); a companion busy elsewhere leaves the hop in the chain (thirteenth run, a1 C-002)" {
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    companion_shared_hops="claude-headless"; companion_workdir="$TEST_DIR/cw"; mkdir -p "$companion_workdir"
+    sleep 30 3>&- & _ADV_COMPANION_PID=$!
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    doc='{"findings":[{"title":"no severity","category":"other","description":"Something fails."}]}'
+    # the companion is on claude-headless: the repair skips it and says so
+    printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
+    # the companion is on opus: the hop stays
+    printf 'opus' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]
+    # the companion answered and is in its post-hop phase on claude-headless: the hop stays too
+    printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'post' > "$companion_workdir/companion.phase"
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m " ]
+    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true
+    _ADV_COMPANION_PID=""; companion_shared_hops=""; companion_workdir=""
+    unset ANTHROPIC_API_KEY
+}
+
+@test "NRM-24 the 200-character cap on a derived failure_mode counts codepoints, never bytes: a multibyte character at the boundary survives and the document round-trips through jq (thirteenth run, c2 C-002)" {
+    desc=$(python3 -c 'print("A" * 198 + "\u2014x. Second sentence follows here.")')
+    doc=$(jq -nc --arg d "$desc" '{findings:[{"id":"DISS-001","severity":"LOW","category":"other","description":$d}]}')
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq -r '.findings[0].failure_mode_derived' <<<"$result")" = "true" ]
+    [ "$(jq '.findings[0].failure_mode | length' <<<"$result")" = "200" ]
+    [ "$(jq -r '.findings[0].failure_mode | endswith("\u2014x")' <<<"$result")" = "true" ]
+    printf '%s' "$result" | jq -e 'type == "object"' >/dev/null   # valid UTF-8 JSON end to end
 }

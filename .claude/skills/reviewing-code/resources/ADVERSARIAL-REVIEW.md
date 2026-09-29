@@ -22,7 +22,7 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 4. Clean up temp files
 
-**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "..."}}` BEFORE proceeding. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded), write `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` with `{"findings": [], "metadata": {"status": "failed", "reason": "...", "rejected_summary": []}}` BEFORE proceeding. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |
@@ -138,7 +138,7 @@ a process. A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
 binary on PATH) → the voice that answered, always last, one bounded attempt each — a hop that failed with
 an explicit auth / quota code is retired for the run's remaining repairs, the answering voice never; a repair skips
-a hop the live companion shares and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
+a hop the companion is running at that moment (`repair_hops_skipped` names it) and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
 budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 — spent, the rest are rejected unrepaired
 and counted in `repair_budget_exhausted`); each `rejected_summary` entry carries its sidecar row's `index`; credential
 presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place

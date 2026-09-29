@@ -22,7 +22,7 @@ Output file: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. The
 timeout, API error or exhausted budget write:
 
 ```json
-{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>"}}
+{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": []}}
 ```
 
 before proceeding, and set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
@@ -128,7 +128,7 @@ a process. A derived finding id never collides
 with one the model supplied. The repair round-trip walks `tiny` (with an Anthropic credential) → `claude-headless` (with the
 binary on PATH) → the voice that answered, always last, one bounded attempt each — a hop that failed with
 an explicit auth / quota code is retired for the run's remaining repairs, the answering voice never; a repair skips
-a hop the live companion shares and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
+a hop the companion is running at that moment (`repair_hops_skipped` names it) and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
 budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 — spent, the rest are rejected unrepaired
 and counted in `repair_budget_exhausted`); each `rejected_summary` entry carries its sidecar row's `index`; credential
 presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place
