@@ -24,26 +24,36 @@ skip_if_no_jq() {
 # Usage / argument validation
 # =============================================================================
 
+# (sixteenth run, c2c C-001: a usage error shares exit 1 with an INCONSISTENT verdict, so each case asserts the usage
+# message too — a verdict-path exit 1 on an empty file can never satisfy them; the JSON marker is pinned once)
 @test "verdict-derive: missing --file is a usage error (exit 1)" {
     run "$SCRIPT" --gate review
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: --file and --gate are required"* ]]
 }
 
 @test "verdict-derive: missing --gate is a usage error (exit 1)" {
     touch "${TEST_TMPDIR}/f.md"
     run "$SCRIPT" --file "${TEST_TMPDIR}/f.md"
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: --file and --gate are required"* ]]
 }
 
 @test "verdict-derive: invalid --gate value is a usage error (exit 1)" {
     touch "${TEST_TMPDIR}/f.md"
     run "$SCRIPT" --file "${TEST_TMPDIR}/f.md" --gate bogus
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: --gate must be 'review' or 'audit'"* ]]
+    skip_if_no_jq
+    run bash -c "'$SCRIPT' --file '${TEST_TMPDIR}/f.md' --gate bogus --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.usage_error == true and .consistent == false' >/dev/null
 }
 
 @test "verdict-derive: nonexistent file is a usage error (exit 1)" {
     run "$SCRIPT" --file "${TEST_TMPDIR}/nope.md" --gate review
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Error: file not found:"* ]]
 }
 
 @test "verdict-derive: --help exits 0" {
@@ -322,9 +332,18 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     _vd_envelope "$d/adversarial-audit.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
     run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Rejected dissent payloads"* ]]   # THE rejected-payload violation, not any audit inconsistency (sixteenth run, c2c C-002)
     run bash -c "'$SCRIPT' --file '$d/auditor-sprint-feedback.md' --gate audit --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.consistent == false and (.violations | length) >= 1' >/dev/null
+    echo "$output" | jq -e '.consistent == false and (.violations | any(test("Rejected dissent payloads")))' >/dev/null
+    # the positive control: the same audit file with the one-bullet section is consistent
+    {
+        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
+        echo "## Rejected dissent payloads"; echo; echo "- t — missing-category: not a defect."; echo
+        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/auditor-sprint-feedback.md"
+    run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit
+    [ "$status" -eq 0 ]
 }
 
 @test "verdict-derive: the section must carry one triage line per rejected payload — an empty or short section is INCONSISTENT (sprint-248 review, chunk b BLOCKING)" {
@@ -428,10 +447,22 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations[0] | test("3 schema-rejected payload") and test("sidecar rows")) and (.envelope | endswith("adversarial-review.json")) and .envelope_explicit == false' >/dev/null
-    # an audit gate does not count the review's sidecars
+    # an audit gate does not count the review's sidecars — shown with a CONSISTENT audit file, so the exit code carries the
+    # claim whatever the order of the checks (sixteenth run, c2c C-003)
     _vd_envelope "$d/adversarial-audit.json" '[]'
-    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate audit --json 2>/dev/null"
-    echo "$output" | jq -e '.violations | map(select(test("sidecar"))) | length == 0' >/dev/null
+    {
+        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
+        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/auditor-sprint-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.violations | map(select(test("sidecar"))) | length == 0)' >/dev/null
+    # …and it DOES count its own: one audit row beside the envelope → the sidecar-rows violation
+    printf '{"reject_reason":"missing-severity","payload":{"title":"d"}}\n' > "$d/adversarial-rejected-audit.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | any(test("sidecar rows")))' >/dev/null
+    rm -f "$d/adversarial-rejected-audit.jsonl"
     # three top-level bullets cover the three rows
     {
         echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
@@ -578,12 +609,15 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | length) == 4 and (.violations | map(select(test("not a regular file"))) | length) == 1 and (.violations | map(select(test("gone.*missing beside it"))) | length) == 1 and (.violations | map(select(test("review-elsewhere.jsonl.*missing beside it"))) | length) == 1 and (.violations | map(select(test("lists elsewhere.jsonl.*not an adversarial-rejected-review"))) | length) == 1' >/dev/null
-    # the positive half is not vacuous: one listed row and no section → the violation names one payload (c2 C-001)
+    # the positive half is not vacuous: one listed row and no section → the violation names one payload (c2 C-001) — and it
+    # is the ONLY violation: the unlisted directory from the first half is gone, so nothing rides on check ordering
+    # (sixteenth run, c2d C-003)
+    rmdir "$d/adversarial-rejected-review-dir.jsonl"
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review.jsonl"]}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.violations[0] | test("carries 1 schema-rejected payload")' >/dev/null
+    echo "$output" | jq -e '(.violations | length) == 1 and (.violations[0] | test("carries 1 schema-rejected payload"))' >/dev/null
 }
 
 @test "verdict-derive: the production shape — N summary entries and the same N sidecar rows — needs exactly N bullets (seventh run, chunk c2 C-002)" {
@@ -692,10 +726,15 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     _vd_approved_review "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope ""
     [ "$status" -eq 0 ]
+    [[ "$output" == *"--envelope given empty"*"adversarial-review.json"* ]]   # not given, but SAID — which file was read instead (sixteenth run, c2d C-002)
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --envelope '' --json 2>/dev/null"
-    echo "$output" | jq -e '.envelope_explicit == false' >/dev/null
+    echo "$output" | jq -e '.envelope_explicit == false and (.warnings | any(test("--envelope given empty")))' >/dev/null
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"given empty"* ]]   # …and nothing is said when the flag is simply omitted
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --review-file ""
     [ "$status" -eq 0 ]   # (an empty --review-file on a review gate is "not given", not "applies to audit only")
+    [[ "$output" == *"--review-file given empty"* ]]
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope
     [ "$status" -eq 1 ]
     [[ "$output" == *"--envelope requires a value"* ]]
@@ -735,6 +774,8 @@ _vd_envelope() {  # <file> <rejected_summary json array>
         jq -n "{findings: [], metadata: $shape}" > "$d/adversarial-review.json"
         run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
         [ "$status" -eq 1 ]
+        # THE row-count violation, once, and no legacy classification — per shape (sixteenth run, c2d C-001)
+        echo "$output" | jq -e '(.violations | map(select(test("2 schema-rejected payload"))) | length) == 1 and (.warnings | map(select(test("predates the rejected-payload contract"))) | length) == 0' >/dev/null
     done
 }
 

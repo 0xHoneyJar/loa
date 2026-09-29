@@ -214,6 +214,14 @@ prepare_content() {
   # Sort by priority (lowest number = highest importance)
   local sorted_manifest
   sorted_manifest=$(sort -s -t$'\t' -k1,1n "$temp_dir/manifest")   # (stable: ties keep the diff's order, not the path's — fifteenth run, b1 C-002)
+  # Every parsed file excluded by the review scope: an empty payload and a log line, never a `cat chunk_` under errexit
+  # (sixteenth run, b1 DISS-001)
+  if [[ -z "$(printf '%s' "$sorted_manifest" | tr -d '[:space:]')" ]]; then
+    $_log_fn "Review scope excluded every file of the diff — nothing to review"
+    rm -rf "$temp_dir"
+    printf ''
+    return 0
+  fi
 
   # Build output up to token budget
   local output="" current_tokens=0 included=0
@@ -222,15 +230,24 @@ prepare_content() {
   # The top-priority file that does not fit whole is shown FIRST, partially, within three quarters of the budget — a
   # lower-priority file never displaces the file the review is about, and a voice never reviews an incomplete diff as
   # clean without the PARTIAL marker (cycle-126 sprint-248, thirteenth run c1 C-001 / fourteenth run b C-002)
-  local top_pri="" top_path="" top_idx="" top_partial_done=0
-  IFS=$'\t' read -r top_pri top_path top_idx <<<"$(printf '%s\n' "$sorted_manifest" | head -1)"
-  if [[ -n "$top_idx" && -f "$temp_dir/chunk_${top_idx}" ]] && (( $(estimate_tokens "$(cat "$temp_dir/chunk_${top_idx}")") > max_tokens )); then
-    # the reservation is what the OTHER files that fit leave over, clamped to a quarter … three quarters of the budget —
-    # a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large file
-    # (fifteenth run, b1 C-002)
+  # the candidate is the FIRST row at the top priority whose chunk does not fit whole — not the first row (sixteenth run,
+  # b1 C-002: a small P0 file ahead of a large one must not hide the large one)
+  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx head_pri=""
+  while IFS=$'\t' read -r c_pri c_path c_idx; do
+    [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
+    [[ -z "$head_pri" ]] && head_pri="$c_pri"
+    [[ "$c_pri" == "$head_pri" ]] || break
+    if (( $(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")") > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
+  done <<< "$sorted_manifest"
+  if [[ -n "$top_idx" ]]; then
+    # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
+    # of the budget — a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large
+    # file (fifteenth run, b1 C-002), and a lower-priority row never shrinks the view of the file the review is about
+    # (sixteenth run, b1 C-001)
     local others=0 o_pri o_path o_idx o_tok reserve partial kept total how
     while IFS=$'\t' read -r o_pri o_path o_idx; do
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
+      [[ "$o_pri" -le "$top_pri" ]] || continue
       o_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${o_idx}")")
       (( o_tok <= max_tokens )) && others=$(( others + o_tok ))
     done <<< "$sorted_manifest"
@@ -251,6 +268,7 @@ prepare_content() {
   fi
 
   while IFS=$'\t' read -r priority filepath chunk_idx; do
+    [[ -n "$chunk_idx" ]] || continue
     [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]] && continue
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")

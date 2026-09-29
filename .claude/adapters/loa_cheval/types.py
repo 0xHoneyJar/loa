@@ -181,6 +181,11 @@ class ModelConfig:
     # here is the EFFECTIVE one — coerce_headless_timeout_seconds clamps it to HEADLESS_TIMEOUT_CEILING_SECONDS
     # at load, so every reader (the adapter, adversarial-review.sh's wait cap) sees the same bound.
     headless_timeout_seconds: Optional[float] = None
+    # sixteenth run, d C-001: when the raw catalog value was NOT applied as written (dropped on a non-CLI model, unusable,
+    # or clamped) the loader's verdict in one line. The load-time WARNING is one-shot on stderr, which the dissent path
+    # discards; the adapter appends this to its timeout error instead, so the MODELINV row and the companion diagnostic
+    # say why the hop ran on the 600 s floor. None when there was no value or it applied as written.
+    headless_timeout_note: Optional[str] = None
 
 
 # A catalog `headless_timeout_seconds` never buys more than an hour per hop. One constant, clamped at load;
@@ -248,6 +253,22 @@ def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[fl
                                      where, raw, HEADLESS_TIMEOUT_CEILING_SECONDS)
         return HEADLESS_TIMEOUT_CEILING_SECONDS
     return value
+
+
+def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float]) -> Optional[str]:
+    """One durable line when a catalog `headless_timeout_seconds` was NOT applied as written (sixteenth run, d C-001):
+    `raw` is the catalog value, `gated` what the CLI-only gate let through, `effective` what the coercion stored.
+    None when there was no value, or it applied as written."""
+    if raw is None:
+        return None
+    if gated is None:
+        return f"catalog headless_timeout_seconds {raw!r} not applied: CLI models only"
+    if effective is None:
+        return f"catalog headless_timeout_seconds {raw!r} ignored: not a positive finite number of seconds"
+    usable = usable_headless_timeout(raw)
+    if usable is not None and usable > HEADLESS_TIMEOUT_CEILING_SECONDS:
+        return f"catalog headless_timeout_seconds {raw!r} clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s"
+    return None
 
 
 # --- Error Types ---

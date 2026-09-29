@@ -74,8 +74,13 @@ class HeadlessCLIAdapter(ProviderAdapter):
                             env=build_headless_subprocess_env(), **invocation.kwargs,
                         )
                     except subprocess.TimeoutExpired:
+                        # sixteenth run, d C-001: a catalog bound that was not applied as written is said HERE, where the
+                        # message reaches the MODELINV row and the companion diagnostic (cheval's load-time WARNING on
+                        # stderr never reaches the dissent path)
+                        _note = getattr(model_config, "headless_timeout_note", None)
                         raise ProviderUnavailableError(
-                            self.provider, f"{self._command_label} timed out after {timeout_s:.0f}s",
+                            self.provider,
+                            f"{self._command_label} timed out after {timeout_s:.0f}s" + (f" ({_note})" if _note else ""),
                         )
                     except SubprocessOutputCapExceeded as exc:
                         raise ProviderUnavailableError(

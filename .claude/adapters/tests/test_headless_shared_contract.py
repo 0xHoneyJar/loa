@@ -235,3 +235,55 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
         pc3 = cheval._build_provider_config("p", cfg)
     assert pc2.models["x"].headless_timeout_seconds is None and pc3.models["x"].headless_timeout_seconds is None
     assert caplog.text.count("applies to CLI models only") == 0   # (the log was cleared above: two rebuilds added nothing)
+
+
+def test_headless_timeout_note_is_durable(caplog):
+    """A catalog `headless_timeout_seconds` that was not applied as written leaves more than a one-shot WARNING on
+    stderr (which the dissent path discards): the loader's verdict travels on the ModelConfig and the adapter appends
+    it to its timeout error, so the MODELINV row says why the hop ran on the floor (sixteenth run, d C-001)."""
+    import subprocess
+    import cheval
+    from loa_cheval.types import headless_timeout_note, reset_headless_timeout_reports
+    # the helper's four verdicts
+    assert headless_timeout_note(None, None, None) is None
+    assert headless_timeout_note(900, 900, 900.0) is None                       # applied as written
+    assert headless_timeout_note("900", "900", 900.0) is None                   # a quoted number applies as written
+    assert headless_timeout_note(900, None, None) == "catalog headless_timeout_seconds 900 not applied: CLI models only"
+    assert headless_timeout_note("15m", "15m", None) == "catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds"
+    assert headless_timeout_note(True, True, None) == "catalog headless_timeout_seconds True ignored: not a positive finite number of seconds"
+    assert headless_timeout_note(7200, 7200, 3600.0) == "catalog headless_timeout_seconds 7200 clamped to 3600s"
+    # …set by the loader, per model
+    reset_headless_timeout_reports()
+    cfg = {"providers": {"p": {"type": "anthropic", "endpoint": "https://example.invalid", "auth": "none", "models": {
+        "ok": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 900},
+        "bad": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": "15m"},
+        "big": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 7200},
+        "http": {"context_window": 1000, "headless_timeout_seconds": 900},
+        "none": {"kind": "cli", "context_window": 1000},
+    }}}}
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        pc = cheval._build_provider_config("p", cfg)
+    assert pc.models["ok"].headless_timeout_note is None and pc.models["ok"].headless_timeout_seconds == 900.0
+    assert pc.models["none"].headless_timeout_note is None
+    assert pc.models["bad"].headless_timeout_note == "catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds"
+    assert pc.models["bad"].headless_timeout_seconds is None
+    assert pc.models["big"].headless_timeout_note == "catalog headless_timeout_seconds 7200 clamped to 3600s"
+    assert pc.models["big"].headless_timeout_seconds == 3600.0
+    assert pc.models["http"].headless_timeout_note == "catalog headless_timeout_seconds 900 not applied: CLI models only"
+    # …and appended to the adapter's timeout error, where the MODELINV row reads it; absent when there is nothing to say
+    for note, expect in ((pc.models["bad"].headless_timeout_note, " (catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds)"), (None, "")):
+        config = ProviderConfig(
+            name="claude-headless", type="claude-headless", endpoint="", auth="", connect_timeout=1, read_timeout=1,
+            models={"entry": ModelConfig(context_window=200000, extra={"cli_model": "m"}, headless_timeout_note=note)},
+        )
+        adapter = ClaudeHeadlessAdapter(config)
+
+        def _timeout(*_a, **_k):
+            raise subprocess.TimeoutExpired(cmd=["claude"], timeout=1)
+
+        adapter._run_subprocess = _timeout
+        with pytest.raises(ProviderUnavailableError) as exc_info:
+            adapter.complete(CompletionRequest(model="entry", messages=[{"role": "user", "content": "ping"}]))
+        assert ("timed out after 610s" + expect) in str(exc_info.value)
+        if note is None:
+            assert not str(exc_info.value).rstrip().endswith(")")   # nothing to say → nothing appended

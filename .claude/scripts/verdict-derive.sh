@@ -39,6 +39,7 @@ GATE=""
 REVIEW_FILE=""
 ENVELOPE_FILE=""      # sprint-248 review (chunk b C-005): initialised like the others — an exported variable is not an option
 ENVELOPE_EXPLICIT=false
+_EMPTY_FLAGS=""        # the optional flags given an EMPTY value (sixteenth run, c2d C-002: accepted as "not given", said once)
 
 show_help() {
     cat <<EOF
@@ -115,8 +116,8 @@ while [[ $# -gt 0 ]]; do
         --gate) _need_value "$1" $# "${2:-}"; GATE="$2"; shift 2 ;;
         --json) JSON_OUTPUT=true; shift ;;
         --require-trailer) REQUIRE_TRAILER=true; shift ;;
-        --review-file) _need_value "$1" $# "${2:-}"; REVIEW_FILE="$2"; shift 2 ;;
-        --envelope) _need_value "$1" $# "${2:-}"; ENVELOPE_FILE="$2"; shift 2 ;;
+        --review-file) _need_value "$1" $# "${2:-}"; REVIEW_FILE="$2"; [[ -n "$2" ]] || _EMPTY_FLAGS+="--review-file "; shift 2 ;;
+        --envelope) _need_value "$1" $# "${2:-}"; ENVELOPE_FILE="$2"; [[ -n "$2" ]] || _EMPTY_FLAGS+="--envelope "; shift 2 ;;
         -h|--help) show_help; exit 0 ;;
         *) show_help >&2; usage_error "Unknown option: $1" ;;
     esac
@@ -291,6 +292,14 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
 
 violations=()
 warnings=()
+# sixteenth run, c2d C-002: an explicit empty value reads as "not given" (eleventh run, b DISS-C-002) but never silently —
+# a caller whose variable came out empty upstream (a chunk driver's merged envelope) learns which file was read instead
+if [[ "$_EMPTY_FLAGS" == *"--envelope "* ]]; then
+    warnings+=("--envelope given empty — the sibling $(basename -- "$ENVELOPE_FILE") beside --file is read instead")
+fi
+if [[ "$_EMPTY_FLAGS" == *"--review-file "* ]]; then
+    warnings+=("--review-file given empty — no review file is read")
+fi
 t_verdict=""
 counts_json="null"
 t_excluded=0

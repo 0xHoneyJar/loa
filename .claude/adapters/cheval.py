@@ -31,6 +31,7 @@ if _ADAPTERS_DIR not in sys.path:
 
 from loa_cheval.types import (
     coerce_headless_timeout_seconds,
+    headless_timeout_note,
     report_headless_timeout_once,
     BudgetExceededError,
     ChevalError,
@@ -456,8 +457,12 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # headless_concurrency_limit if declared (default None → adapter
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
-            headless_timeout_seconds=coerce_headless_timeout_seconds(
-                _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: ", prov.get("type", "")), where=f"{provider_name}/{model_id}: "),
+            headless_timeout_seconds=(_ht_effective := coerce_headless_timeout_seconds(
+                (_ht_gated := _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: ", prov.get("type", ""))),
+                where=f"{provider_name}/{model_id}: ")),
+            # sixteenth run, d C-001: the loader's verdict on a value that was not applied as written travels with the
+            # model (keyword arguments evaluate left to right — the two names above are bound by now)
+            headless_timeout_note=headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective),
         )
 
     return ProviderConfig(

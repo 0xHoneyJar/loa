@@ -17,11 +17,13 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="${BATS_TEST_TMPDIR:-}"; NORM_OWN_TMP=""
+    if [[ -z "$TEST_DIR" ]]; then TEST_DIR="$(mktemp -d)"; NORM_OWN_TMP="$TEST_DIR"; fi   # bats < 1.4: our own directory, removed in teardown (sixteenth run, c2a C-003)
+    # the two ledgers the script appends to are the TEST's, by construction — never a shared /tmp file no suite truncates
+    export LOA_MODELINV_LOG_PATH="$TEST_DIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$TEST_DIR/cost-ledger.jsonl"
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
@@ -33,6 +35,11 @@ setup() {
     CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
     REPAIR_CANARY="$TEST_DIR/repair-called-$$"
+    NORM_HOLDER_PIDS=()   # stand-in processes a test spawns (NRM-23's companion timer); teardown ends them (sixteenth run, c2b C-003)
+    # every test gets its own CLI lock directory, as the companion suite does (round-1q dry run: a repair through the
+    # claude-headless hop queued 60 s behind a LIVE dissent's claude.lock in the per-user directory and failed as a timeout —
+    # the KF-037 contention class, in a unit test)
+    export XDG_RUNTIME_DIR="$TEST_DIR"
     # the normaliser must make the repair unnecessary: a stub that records the call and fails
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
@@ -44,7 +51,9 @@ setup() {
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI binaries "installed" unless a case says otherwise (the repair chain gates on it)
 }
 teardown() {
-    local d
+    local d p
+    for p in ${NORM_HOLDER_PIDS[@]+"${NORM_HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
+    if [[ -n "${NORM_OWN_TMP:-}" && -d "$NORM_OWN_TMP" && "$(basename "$NORM_OWN_TMP")" == tmp.* ]]; then find "$NORM_OWN_TMP" -mindepth 1 -delete; rmdir "$NORM_OWN_TMP"; fi
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
         [[ "$d" == */a2a/sprint-norm-* ]] || continue
@@ -72,7 +81,7 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-2 a derived failure_mode is the first sentence, capped at 200 characters, and never raises the severity" {
-    long=$(python3 -c 'print("A" * 350 + ". Second sentence.")')
+    long="$(printf 'A%.0s' $(seq 1 350)). Second sentence."   # (shell, as NRM-19 builds its strings — sixteenth run, c2a C-004)
     doc=$(jq -nc --arg d "$long" '{findings: [{"severity":"LOW","category":"other","description":$d}]}')
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
@@ -181,12 +190,12 @@ _fixture_content() {  # all three fixtures as one findings document
 @test "NRM-8 credential presence never materialises the value: an xtrace'd check echoes no secret (review C-008)" {
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-x"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     printf 'ANTHROPIC_API_KEY="dotenv-secret-value-xyz-987"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
-    run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
     # the exported-variable path too (seventh run, c2 C-003): the probe never expands the value
     # (the value enters through the environment, not the traced script — an `export` line would trace itself)
-    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present anthropic"
+    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"env-secret-value-123"* ]]
 }
@@ -269,7 +278,7 @@ _fixture_content() {  # all three fixtures as one findings document
 @test "NRM-16 credential presence resolves per alias with override precedence: an empty GOOGLE_API_KEY never hides a GEMINI_API_KEY assigned in the same or a lower source; every alias assigned empty at its deciding source disables (ninth run a1 C-005; tenth run c2 C-001)" {
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-g"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     _probe() {  # <env assignments…> — runs the probe in a shell with only the named Google variables (the operator's shell may export one)
-        bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $1; $(declare -f _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
+        bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $1; $(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
     }
     _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY="present-never-printed"'                       # env: one alias empty, the other set → present
     rc=0; _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY=""' || rc=$?; [ "$rc" = "1" ]              # env: both empty → disabled
@@ -317,6 +326,16 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(LOA_MODEL_CONFIG="$TEST_DIR/rt.yaml" _adv_cli_hop_bound claude-headless)" = "4010" ]
     printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 4000\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 7200\n' > "$TEST_DIR/rt2.yaml"
     [ "$(LOA_MODEL_CONFIG="$TEST_DIR/rt2.yaml" _adv_cli_hop_bound claude-headless)" = "4010" ]
+    # cheval's whole formula whenever the catalog was read: a connect_timeout above 10 s counts under the 600 s read floor
+    # too (sixteenth run, a2 C-003); the flat 610 only without a catalog
+    printf 'providers:\n  anthropic:\n    connect_timeout: 30\n    read_timeout: 120\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n' > "$TEST_DIR/ct.yaml"
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/ct.yaml" _adv_cli_hop_bound claude-headless)" = "630" ]
+    # a hop no catalog lists keeps the operator fallback even though a catalog WAS read — yq's `//` fires on an empty
+    # stream, so a defaulted connect / read must never count as catalog data (round-1q dry run, CMP-22 red on the copy);
+    # a listed hop is bound by the formula whatever the fallback says
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/ct.yaml" _ADV_CLI_HOP_TIMEOUT=100 _adv_cli_hop_bound foo-headless)" = "100" ]
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/ct.yaml" _ADV_CLI_HOP_TIMEOUT=100 _adv_cli_hop_bound claude-headless)" = "630" ]
+    [ "$(LOA_MODEL_CONFIG="$TEST_DIR/does-not-exist.yaml" _adv_cli_hop_bound claude-headless)" = "610" ]
 }
 
 @test "NRM-19 LOA_ADVERSARIAL_RUN_TAG is validated, not stripped: a tag outside [A-Za-z0-9_-]{1,64} becomes a short hash of its raw value, said once, so c.1 and c1 never share a sidecar (eleventh run, a1 C-002)" {
@@ -327,7 +346,8 @@ _fixture_content() {  # all three fixtures as one findings document
     [[ "$a" =~ ^h[0-9a-f]{12}$ ]]; [ "$b" = "c1" ]; [[ "$c" =~ ^h[0-9a-f]{12}$ ]]; [[ "$d" =~ ^h[0-9a-f]{12}$ ]]
     [ "$a" != "$c" ]; [ "$a" != "$d" ]; [ "$c" != "$d" ]
     grep -q "LOA_ADVERSARIAL_RUN_TAG is not \[A-Za-z0-9_-\]{1,64}" "$TEST_DIR/tag-err"
-    [ "$(grep -c "c.1" "$TEST_DIR/tag-err")" = "0" ]   # the raw value is not echoed (it may be anything the driver passed)
+    [ "$(grep -cF "c.1" "$TEST_DIR/tag-err")" = "0" ]   # the raw value is not echoed, as a fixed string — `c.1` as a regex matches c01 too (sixteenth run, c2a C-001)
+    grep -qF "the tag $a" "$TEST_DIR/tag-err"          # …and the hashed tag IS named, so the line is pinned positively
     long=$(printf 'a%.0s' $(seq 1 65)); [[ "$(LOA_ADVERSARIAL_RUN_TAG="$long" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{12}$ ]]
     # no digest tool at all (twelfth run, c2 C-003): the raw tag is hex-encoded — distinct tags stay distinct, never a shared "invalid"
     sha256sum() { return 127; }; shasum() { return 127; }
@@ -335,7 +355,8 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(LOA_ADVERSARIAL_RUN_TAG="a/1" _adv_run_tag 2>/dev/null)" = "h612f31" ]
     # …and that branch is reachable under errexit, as process_findings calls it (fifteenth run, a2 C-003): a failing
     # digest pipeline never aborts the resolver
-    run bash -e -o pipefail -c "sha256sum() { return 127; }; shasum() { return 127; }; export -f sha256sum shasum; $(declare -f _adv_resolve_run_tag log); LOA_ADVERSARIAL_RUN_TAG='c.1'; _ADV_RUN_TAG_RAW_SEEN=''; _adv_resolve_run_tag 2>/dev/null; printf '%s' \"\$_ADV_RUN_TAG\""
+    # (the script's own option line, -u included, and nothing pre-seeded: the resolver reads its flag with a default — c2a C-002)
+    run bash -euo pipefail -c "sha256sum() { return 127; }; shasum() { return 127; }; export -f sha256sum shasum; $(declare -f _adv_resolve_run_tag log); LOA_ADVERSARIAL_RUN_TAG='c.1'; _adv_resolve_run_tag 2>/dev/null; printf '%s' \"\$_ADV_RUN_TAG\""
     [ "$status" -eq 0 ]
     [ "$output" = "h632e31" ]
     unset -f sha256sum shasum
@@ -357,6 +378,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(_ADV_REPAIR_DEAD_HOPS="tiny claude-headless" _repair_model_chain "gpt-5.5-pro")" = "gpt-5.5-pro" ]
     [ "$(_ADV_REPAIR_DEAD_HOPS="gpt-5.5-pro" _repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]   # the answering voice stays
     [ "$(_ADV_REPAIR_DEAD_HOPS="claude-headless" _repair_model_chain "claude-headless")" = "tiny claude-headless" ]
+    [ "$(_repair_model_chain "anthropic:claude-headless")" = "tiny claude-headless" ]   # (sixteenth run, a1 C-002: a prefixed answering voice is not appended twice)
     _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop foo 6 2>/dev/null
     [ "$_ADV_REPAIR_DEAD_HOPS" = "tiny foo" ]
     unset _ADV_REPAIR_DEAD_HOPS
@@ -418,6 +440,10 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-21 a rejected_summary entry names its sidecar row: the row's index and the raw payload's title — the normaliser's positional id only when the payload had none, marked title_derived (twelfth run, a1 C-003)" {
+    # hermetic on its own, as its siblings are (sixteenth run, c2b C-005): a recording stub that fails, the dotenv seam an
+    # empty directory — never a real repair on the host, whatever setup installs
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     doc='{"findings":[{"category":"other","description":"No title, no id, no severity."},{"title":"named payload","category":"other","description":"No severity either."}]}'
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
@@ -426,6 +452,11 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '.metadata.rejected_summary[1].title' <<<"$result")" = "named payload" ]
     sidecar="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit.jsonl"
     [ "$(jq -c '[.index, (.payload.title // null)]' "$sidecar" | tr '\n' ' ')" = '[0,null] [1,"named payload"] ' ]
+    # an EMPTY id or title is absent, not a title (sixteenth run, a1 C-005)
+    doc='{"findings":[{"id":"","title":"","category":"other","description":"Empty id and title, no severity."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [[ "$(jq -r '.metadata.rejected_summary[0].title' <<<"$result")" =~ ^DISS-[0-9]{3}$ ]]
+    [ "$(jq -r '.metadata.rejected_summary[0].title_derived' <<<"$result")" = "true" ]
 }
 
 @test "NRM-22 the run's repairs share a wall-clock budget: once LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS is spent the remaining payloads are rejected unrepaired and counted in repair_budget_exhausted (twelfth run, a1 C-002)" {
@@ -433,15 +464,17 @@ _fixture_content() {  # all three fixtures as one findings document
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."},{"title":"three","category":"other","description":"No severity."}]}'
-    # a 5 s budget with a 1 s call timeout: the HTTP hops (bound 1) run while they fit, the CLI hop (bound 910) is never
-    # started and is named over_budget, and once the budget is spent the remaining payloads are rejected unrepaired
-    # (fourteenth run, a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the stall afterwards)
+    # a 7 s budget with a 1 s call timeout and 2 s hops: the HTTP hops (bound 1) run while they fit — the slack is
+    # proportional to the sleeps, so the second hop always fits under load (sixteenth run, c2b C-001) — the CLI hop
+    # (bound 910) is never started and is named over_budget, and once the budget is spent the remaining payloads are
+    # rejected unrepaired (fourteenth run, a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the
+    # stall afterwards)
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=5 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=7 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "5" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "7" ]
     [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 4 ]
     [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 3 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 2 ]
     [ "$(grep -c "claude-headless" "$TEST_DIR/repair-calls")" = "0" ]
@@ -452,6 +485,8 @@ _fixture_content() {  # all three fixtures as one findings document
     # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
     # one-second payloads
     exp=$(( $(_adv_cli_hop_bound claude-headless) + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))
+    # (the budget figure, the skip list and the validator lines are invariant to hop duration: no sleep here — c2b C-002)
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
@@ -474,6 +509,17 @@ _fixture_content() {  # all three fixtures as one findings document
     [ ! -s "$TEST_DIR/repair-calls" ]
     [ "$(jq -r '.repair_attempted' "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit.jsonl" | sort -u)" = "false" ]
     jq -e '.metadata.repair_hops_skipped | index("tiny:over_budget") != null' <<<"$result" >/dev/null
+    # a keyless host (no tiny): the CLI hop's estimate follows its last observed duration, so the second payload is repaired
+    # too — never pre-empted against the 910 s worst case the first repair never approached (sixteenth run, a1 C-001)
+    unset ANTHROPIC_API_KEY
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
+    doc2='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc2")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless m claude-headless m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = "[]" ]
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
+    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     unset ANTHROPIC_API_KEY
 }
 
@@ -481,12 +527,15 @@ _fixture_content() {  # all three fixtures as one findings document
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     companion_shared_hops="claude-headless"; companion_workdir="$TEST_DIR/cw"; mkdir -p "$companion_workdir"
-    sleep 30 3>&- & _ADV_COMPANION_PID=$!
+    # the stand-in outlives any sequence of calls and never outlives the test (sixteenth run, c2b C-003: a 30 s timer was a
+    # hidden ceiling, and a dead timer would read as a hop-skip regression)
+    sleep 600 3>&- & _ADV_COMPANION_PID=$!; NORM_HOLDER_PIDS+=("$_ADV_COMPANION_PID")
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     doc='{"findings":[{"title":"no severity","category":"other","description":"Something fails."}]}'
     # the companion is on claude-headless: the repair skips it and says so
     printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"
+    kill -0 "$_ADV_COMPANION_PID"   # the stand-in is alive for a skip-expecting call
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
@@ -501,6 +550,7 @@ _fixture_content() {  # all three fixtures as one findings document
     # a prefixed spelling of the companion's current hop is the same hop (fifteenth run, a1 C-002)
     printf 'anthropic:claude-headless' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"
+    kill -0 "$_ADV_COMPANION_PID"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
@@ -515,13 +565,13 @@ _fixture_content() {  # all three fixtures as one findings document
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m " ]
-    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true
+    kill "$_ADV_COMPANION_PID" 2>/dev/null || true; wait "$_ADV_COMPANION_PID" 2>/dev/null || true   # (never the line that fails a passing test)
     _ADV_COMPANION_PID=""; companion_shared_hops=""; companion_workdir=""
     unset ANTHROPIC_API_KEY
 }
 
 @test "NRM-24 the 200-character cap on a derived failure_mode counts codepoints, never bytes: a multibyte character at the boundary survives and the document round-trips through jq (thirteenth run, c2 C-002)" {
-    desc=$(python3 -c 'print("A" * 198 + "\u2014x. Second sentence follows here.")')
+    desc="$(printf 'A%.0s' $(seq 1 198))$(printf '\xe2\x80\x94')x. Second sentence follows here."   # the em dash as its UTF-8 bytes, locale-independent (c2a C-004)
     doc=$(jq -nc --arg d "$desc" '{findings:[{"id":"DISS-001","severity":"LOW","category":"other","description":$d}]}')
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
@@ -529,4 +579,19 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.findings[0].failure_mode | length' <<<"$result")" = "200" ]
     [ "$(jq -r '.findings[0].failure_mode | endswith("\u2014x")' <<<"$result")" = "true" ]
     printf '%s' "$result" | jq -e 'type == "object"' >/dev/null   # valid UTF-8 JSON end to end
+}
+
+@test "NRM-25 the failure_mode derivation seam is bats-gated, as the test-mode rule requires: LOA_ADVERSARIAL_NO_FM_DERIVATION=1 without the bats marker still derives (sixteenth run, c2e C-002)" {
+    f='{"id":"DISS-001","severity":"LOW","category":"other","description":"Something fails here. Second sentence."}'
+    # outside bats (no marker) the knob is inert: production derives the failure_mode
+    out=$( unset BATS_TEST_FILENAME BATS_VERSION; printf '%s' "$f" | LOA_ADVERSARIAL_NO_FM_DERIVATION=1 _derive_failure_mode 0 )
+    [ "$(jq -r '.failure_mode_derived' <<<"$out")" = "true" ]
+    [ "$(jq -r '.failure_mode' <<<"$out")" = "Something fails here." ]
+    # under bats the seam holds: no failure_mode is derived, the id derivation stays production
+    out=$( printf '%s' "$f" | LOA_ADVERSARIAL_NO_FM_DERIVATION=1 _derive_failure_mode 0 )
+    [ "$(jq -r '.failure_mode_derived // "absent"' <<<"$out")" = "absent" ]
+    [ "$(jq -r '.failure_mode // "absent"' <<<"$out")" = "absent" ]
+    # …and the env var alone, or the marker alone, never disables it
+    out=$( printf '%s' "$f" | _derive_failure_mode 0 )
+    [ "$(jq -r '.failure_mode_derived' <<<"$out")" = "true" ]
 }
