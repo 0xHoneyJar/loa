@@ -236,10 +236,11 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-12 a finding with no description at all (or an empty one) cannot derive a failure_mode: it is rejected with a named reason, never crashes the run (seventh run, c2 C-006)" {
-    doc='{"findings":[{"severity":"HIGH","category":"config"},{"severity":"HIGH","category":"config","description":""},{"severity":"HIGH","category":"config","description":null}]}'
+    # …and a whitespace-only description IS empty (round 1r: it derived a one-space failure_mode the validator accepted)
+    doc='{"findings":[{"severity":"HIGH","category":"config"},{"severity":"HIGH","category":"config","description":""},{"severity":"HIGH","category":"config","description":null},{"severity":"HIGH","category":"config","description":"  \n\t "}]}'
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "0" ]
-    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "4" ]
     [ "$(jq -r '[.metadata.rejected_summary[].reason] | unique | join(",")' <<<"$result")" = "missing-or-empty-description" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" != "null" ]
 }
@@ -560,6 +561,16 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]
+    # the rule is asked again right before EACH hop (seventeenth run, a1 C-003): the companion moves onto claude-headless
+    # while tiny is running — the hop is skipped and named, never queued behind the live companion
+    printf 'opus' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; [[ "$4" == "tiny" ]] && printf 'claude-headless' > "$companion_workdir/companion.current"; return 1; }
+    : > "$TEST_DIR/repair-calls"
+    kill -0 "$_ADV_COMPANION_PID"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     # the companion answered and is in its post-hop phase on claude-headless: the hop stays too
     printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'post' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"
@@ -594,4 +605,26 @@ _fixture_content() {  # all three fixtures as one findings document
     # …and the env var alone, or the marker alone, never disables it
     out=$( printf '%s' "$f" | _derive_failure_mode 0 )
     [ "$(jq -r '.failure_mode_derived' <<<"$out")" = "true" ]
+}
+
+@test "NRM-26 a repair hop that never ran — its CLI lock was not acquired within the wait — leaves no duration, so the next payload's estimate stays the hop's real bound (seventeenth run, a1 C-002)" {
+    command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock case cannot run here"
+    unset ANTHROPIC_API_KEY   # keyless: the chain is claude-headless → m
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    mkdir -m 700 "$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)"
+    exec 8>>"$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)/claude.lock"; flock 8   # another claude -p holds the binary's lock
+    doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
+    # the budget is EXACTLY the hop's bound: the first payload's hop is admitted (nothing spent yet), waits 1 s for the lock and
+    # never runs; the second payload finds less than the bound left — with the fix its estimate is still the bound, so the hop
+    # is pre-empted and named; a noted 1 s lock wait would have made it 2 s and queued the hop behind the lock again
+    bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$bound" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    CONF_TIMEOUT=60
+    flock -u 8; exec 8>&-
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "m m " ]   # the CLI hop never ran for either payload
+    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 1s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
+    jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
 }

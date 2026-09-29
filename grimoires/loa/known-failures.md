@@ -85,6 +85,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing-model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 1 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable-exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 1 |
+| [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 
 ---
 
@@ -1563,3 +1564,24 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 ### Reading guide
 
 A companion (or any claude-headless) timeout while an eval or BB sweep is running is CLI contention, not a model outage: check ps for other claude -p processes before retrying, and re-run the dissent only once the CLI is idle. Verdict quality already records the primary alone; the companion's failure_class names the class.
+
+## KF-038: The companion voice's claude -p hits the operator's plan rate-limit window mid-run: RATE_LIMITED, the anthropic/headless breaker opens, every later chunk runs single-voice
+
+**Status**: open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets
+**Feature**: adversarial-review.sh companion voice (claude-headless via cheval headless adapter)
+**Symptom**: Companion voice diagnostic (claude-headless): [cheval] RETRIES_EXHAUSTED: Failed after 4 attempts: [cheval] RATE_LIMITED: Rate limited by anthropic — then, for every following chunk within DEFAULT_RESET_TIMEOUT (60 s) probes: Circuit open for anthropic/headless; the envelope says companion_voice.status failed, failure_class quota (first) / model_unavailable (breaker), voices_succeeded_ids the primary only, status clean or reviewed with degraded false
+**First observed**: 2026-09-29
+**Recurrence count**: 2
+**Current workaround**: Wait for the plan window to reset (the same account this Claude Code session runs on; a long two-voice round of ~15 chunks × 6–10 min of claude -p is itself most of a window), check .claude/adapters: python3 -m loa_cheval.routing.breaker_cli --list --run-dir <abs .run> (the breaker half-opens 60 s after opening — the next probe re-opens it while the limit holds), then re-run ONLY the single-voice chunks with the chunk runner (each chunk is idempotent: LOA_ADVERSARIAL_RUN_TAG scopes its files). Do not run evals or the unit suites' CLI hops alongside (KF-037).
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-09-30 | sprint-248 review, seventeenth two-voice run on 4d0fc6af (task bstn821ju): a1 two-voice (534 s companion), a2 RATE_LIMITED at ~21:25Z, breaker opened 2026-09-29T21:27:45Z, a3–d single-voice in ~20 s each; the fifteenth run (2026-09-29) lost b2–d the same way and re-ran them | Documented; the chunks re-run after the window (round 1r) — no code change (the companion's class quota → breaker is the designed behaviour) | commit 4d0fc6af, run task bstn821ju, envelopes scratchpad/adv-248-review-a2-script-2.json … d-cheval.json, .run/circuit-breaker-anthropic-headless.json opened_at 1790717265 |
+
+### Reading guide
+
+Not KF-013 (an auth-mode env var) and not KF-037 (a claude -p timeout under contention): the diagnostic line says RATE_LIMITED. The primary voice is unaffected (codex-headless / the OpenAI API), so the run completes and the chunks after the first failure carry one voice — an approval on such a run is single-voice evidence; re-run those chunks two-voice before approving. The breaker JSON: .run/circuit-breaker-anthropic-headless.json (state, opened_at). Root cause is the shared plan window; the fix is scheduling, not code.

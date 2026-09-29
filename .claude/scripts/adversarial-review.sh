@@ -338,7 +338,7 @@ validate_finding() {
     (.id | type) == "string" and
     (.severity | IN($sevs[])) and
     (.category | IN($cats[])) and
-    (.description | type) == "string" and (.description | length) > 0 and
+    (.description | type) == "string" and (.description | gsub("\\s"; "") | length) > 0 and
     (.failure_mode | type) == "string" and (.failure_mode | length) > 0
   ' > /dev/null 2>&1
 }
@@ -374,7 +374,7 @@ _validate_finding_reason() {
       "missing-category"
     elif ((.category | IN($cats[])) | not) then
       "category-not-in-enum (got: \(.category // "null"))"
-    elif (.description // null) == null or (.description | type) != "string" or (.description | length) == 0 then
+    elif (.description // null) == null or (.description | type) != "string" or (.description | gsub("\\s"; "") | length) == 0 then
       "missing-or-empty-description"
     elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | length) == 0 then
       "missing-or-empty-failure_mode"
@@ -590,23 +590,14 @@ _repair_model_chain() {  # <voice that answered> → the repair chain, one bound
   # live companion on the hop it is ON right now (companion.current, phase queue / hop); a companion busy elsewhere
   # leaves the hop in the chain (the bounded _ADV_LOCK_WAIT_CLI covers a later overlap); every skip is named on the envelope
   # (fourteenth run, a1 C-001: decided from the companion's CURRENT hop against this chain's own hops — never from whether
-  # the PRIMARY chain shares one; an OpenAI-primary host with `claude` installed queued every repair otherwise)
-  if [[ -n "${companion_workdir:-}" ]] && _adv_companion_alive; then
-    local _s _left="" _ccur _cph
-    _ccur=$(cat "$companion_workdir/companion.current" 2>/dev/null || true); _cph=$(cat "$companion_workdir/companion.phase" 2>/dev/null || true)
-    for _s in $chain; do
-      # (canonical names on both sides — fifteenth run, a1 C-002: an aliased or prefixed spelling is the same hop; a skip row
-      # is written once per hop, however many repairs recompute the chain)
-      if [[ "$_s" != "$1" && -n "$_ccur" && "$(_adv_hop_canon "$_ccur")" == "$(_adv_hop_canon "$_s")" && ( "$_cph" == "queue" || "$_cph" == "hop" ) ]]; then
-        if [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && ! grep -qxF "${_s}:shared_with_companion" "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; then
-          echo "${_s}:shared_with_companion" >> "$_ADV_REPAIR_SKIP_FILE"
-        fi
-        continue
-      fi
-      _left="${_left:+$_left }$_s"
-    done
-    chain="$_left"
-  fi
+  # the PRIMARY chain shares one; an OpenAI-primary host with `claude` installed queued every repair otherwise).
+  # Seventeenth run, a1 C-003: the rule is ONE predicate, applied here and again right before each hop starts
+  local _s _left=""
+  for _s in $chain; do
+    if _adv_repair_hop_shared_now "$_s" "$1"; then continue; fi
+    _left="${_left:+$_left }$_s"
+  done
+  chain="$_left"
   # eleventh run, a1 C-003: a hop that failed this run with an explicit auth / quota code is not paid for again by
   # the next repair (_adv_repair_retire_hop); the voice that answered stays terminal whatever happened
   if [[ -n "${_ADV_REPAIR_DEAD_HOPS:-}" ]]; then
@@ -618,6 +609,20 @@ _repair_model_chain() {  # <voice that answered> → the repair chain, one bound
     chain="$_kept"
   fi
   echo "${chain:-$1}"
+}
+_adv_repair_hop_shared_now() {  # <hop> <voice that answered> → 0 when the LIVE companion is on this hop right now (phase queue /
+                                # hop); the <hop>:shared_with_companion row is written once. The chain is computed once per
+                                # repair but the companion moves — so the caller asks again right before each hop starts
+                                # (seventeenth run, a1 C-003). Canonical names on both sides (fifteenth run, a1 C-002).
+  [[ "$1" != "$2" ]] || return 1
+  [[ -n "${companion_workdir:-}" ]] && _adv_companion_alive || return 1
+  local _ccur _cph
+  _ccur=$(cat "$companion_workdir/companion.current" 2>/dev/null || true); _cph=$(cat "$companion_workdir/companion.phase" 2>/dev/null || true)
+  [[ -n "$_ccur" && "$(_adv_hop_canon "$_ccur")" == "$(_adv_hop_canon "$1")" && ( "$_cph" == "queue" || "$_cph" == "hop" ) ]] || return 1
+  if [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && ! grep -qxF "${1}:shared_with_companion" "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; then
+    echo "${1}:shared_with_companion" >> "$_ADV_REPAIR_SKIP_FILE"
+  fi
+  return 0
 }
 _ADV_REPAIR_LAST_SECS=""   # "hop=secs hop=secs …" — the last observed duration per repair hop, this process (a flat map: bash 3 has no -A)
 _adv_repair_last_secs() {  # <hop> → seconds, or ""
@@ -1477,13 +1482,26 @@ while i < len(text):
             log "Repair hop $_rm needs up to ${_est}s and $(( _repair_wall_budget - _repair_wall_used ))s of the repair budget remain — not started"
             continue
           fi
+          # seventeenth run, a1 C-003: the shared-hop rule is asked again right BEFORE this hop starts — the chain was
+          # computed once, and the companion may have moved onto this hop while an earlier hop ran; a skipped hop is named
+          # and never counts as an attempt
+          if _adv_repair_hop_shared_now "$_rm" "$model"; then continue; fi
           [[ -n "$_rcf" ]] && : > "$_rcf"
+          [[ -n "$_rcf" ]] && command rm -f -- "$_rcf.lockwait" 2>/dev/null
           _any_hop_started="true"
           local _hop_started; _hop_started=$(date +%s)
-          if repaired=$(_ADV_REPAIR_RC_FILE="$_rcf" _ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _ADV_LOCK_WAIT_CLI="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
+          if repaired=$(_ADV_REPAIR_RC_FILE="$_rcf" _ADV_LOCK_EXPIRED_FILE="${_rcf:+$_rcf.lockwait}" _ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _ADV_LOCK_WAIT_CLI="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
              && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _adv_repair_note_secs "$_rm" $(( $(date +%s) - _hop_started )); _repair_ok="true"; break; fi
           repaired=""
-          _adv_repair_note_secs "$_rm" $(( $(date +%s) - _hop_started ))
+          # seventeenth run, a1 C-002: a hop that never RAN (its CLI lock was not acquired within the wait) leaves no
+          # duration — noting the lock wait would make the next estimate a fraction of the hop's real bound, and the
+          # wall-budget guard would admit a hop it cannot afford
+          if [[ -n "$_rcf" && -e "$_rcf.lockwait" ]]; then
+            command rm -f -- "$_rcf.lockwait" 2>/dev/null
+            log "Repair hop $_rm never ran (its CLI lock was not acquired within ${CONF_TIMEOUT:-60}s) — no duration noted"
+          else
+            _adv_repair_note_secs "$_rm" $(( $(date +%s) - _hop_started ))
+          fi
           # eleventh run, a1 C-003: the hop's own exit code (empty when the lock timed out or the reply was unusable
           # — neither retires a hop); an EXPLICIT auth / quota failure does, for this run's remaining repairs.
           # twelfth run, a1 C-001: exit 1 does not — it also covers a CLI-hop timeout and a transient HTTP failure,
@@ -2289,6 +2307,7 @@ _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs 
         if ! { exec 9>>"$lock"; } 2>/dev/null; then _adv_run_unlocked "the lock file $lock could not be opened" "$@"; exit $?; fi
         if ! "${_ADV_FLOCK_BIN:-flock}" -w "$wait_s" 9; then
           echo "[adversarial-review] CLI lock for $bin not acquired within ${wait_s}s — hop $model fails as a timeout (rc 124)" >&2
+          [[ -n "${_ADV_LOCK_EXPIRED_FILE:-}" ]] && : > "$_ADV_LOCK_EXPIRED_FILE" 2>/dev/null   # (the repair loop: this hop never ran — seventeenth run, a1 C-002)
           exit 124
         fi
         # sixth run, C-002: the hop's clock starts now, not while it queued for the lock
