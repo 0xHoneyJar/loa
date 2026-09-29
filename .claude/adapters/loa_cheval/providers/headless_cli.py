@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import shutil
 import subprocess
 import time
@@ -19,6 +18,7 @@ from loa_cheval.providers.base import (
 )
 from loa_cheval.types import (
     HEADLESS_TIMEOUT_CEILING_SECONDS,
+    usable_headless_timeout,
     CompletionRequest,
     CompletionResult,
     ConfigError,
@@ -168,14 +168,9 @@ class HeadlessCLIAdapter(ProviderAdapter):
         lowered (eighth run, d DISS-001 / C-001)."""
         read = max(self.config.read_timeout, 600.0)
         per_model = getattr(model_config, "headless_timeout_seconds", None)
-        usable = False
-        if isinstance(per_model, (int, float)) and not isinstance(per_model, bool):
-            try:
-                usable = math.isfinite(per_model) and per_model > 0
-            except OverflowError:   # an int too large for a double (twelfth run, d C-001): the floor applies
-                usable = False
-        if usable:
-            value = min(float(per_model), self._HEADLESS_TIMEOUT_CEILING)
+        usable_value = usable_headless_timeout(per_model)   # (the loader's own predicate — fourteenth run, d C-001)
+        if usable_value is not None:
+            value = min(usable_value, self._HEADLESS_TIMEOUT_CEILING)
             if value > read:
                 read = value
             else:

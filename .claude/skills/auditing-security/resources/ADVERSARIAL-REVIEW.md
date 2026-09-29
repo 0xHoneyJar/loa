@@ -129,7 +129,8 @@ with one the model supplied. The repair round-trip walks `tiny` (with an Anthrop
 binary on PATH) → the voice that answered, always last, one bounded attempt each — a hop that failed with
 an explicit auth / quota code is retired for the run's remaining repairs, the answering voice never; a repair skips
 a hop the companion is running at that moment (`repair_hops_skipped` names it) and waits for a CLI lock only its own timeout; the run's repairs share a wall-clock
-budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 — spent, the rest are rejected unrepaired
+budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or one full CLI repair plus a timeout if
+that is more; a hop whose bound exceeds what is left is not started and is named `<hop>:over_budget`; spent, the rest are rejected unrepaired
 and counted in `repair_budget_exhausted`); each `rejected_summary` entry carries its sidecar row's `index`; credential
 presence resolves per alias with override precedence (env → `.env.local` → `.env`: the first place
 that assigns a variable decides it, an empty assignment disables that alias; a provider with several

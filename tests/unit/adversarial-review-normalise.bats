@@ -385,8 +385,10 @@ _fixture_content() {  # all three fixtures as one findings document
     unset _ADV_REPAIR_DEAD_HOPS
     # the rc file is a fresh mktemp under the workdir for every repair of every process_findings call — never a path
     # keyed on $$ that a concurrent voice could truncate or read (thirteenth run, c2 C-003)
-    [ "$(grep -c . "$TEST_DIR/rc-paths")" -ge 6 ]
-    [ "$(sort -u "$TEST_DIR/rc-paths" | grep -c .)" -ge 6 ]   # one file per repaired payload (its hops share it), never one per process
+    # exactly one file per repaired payload — three iterations × two payloads — and each shared by that payload's hops
+    # (a per-hop mktemp would show 16 paths, a per-process path one; fourteenth run, c2 C-002)
+    [ "$(sort -u "$TEST_DIR/rc-paths" | grep -c .)" = "6" ]
+    [ "$(sort "$TEST_DIR/rc-paths" | uniq -c | awk '$1 < 2' | grep -c .)" = "0" ]
     [ "$(grep -vc 'adv-repair-rc\.' "$TEST_DIR/rc-paths")" = "0" ]
     # a hop that writes NO exit code (the answering voice's arm, a round-trip that died before the capture) and one
     # that returns 124 without running (the lock timed out) retire nothing — after tiny's rc 4 only tiny is retired,
@@ -424,25 +426,36 @@ _fixture_content() {  # all three fixtures as one findings document
 @test "NRM-22 the run's repairs share a wall-clock budget: once LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS is spent the remaining payloads are rejected unrepaired and counted in repair_budget_exhausted (twelfth run, a1 C-002)" {
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
-    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 1; return 1; }
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."},{"title":"three","category":"other","description":"No severity."}]}'
-    : > "$TEST_DIR/repair-calls"
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=2 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    # a 5 s budget with a 1 s call timeout: the HTTP hops (bound 1) run while they fit, the CLI hop (bound 910) is never
+    # started and is named over_budget, and once the budget is spent the remaining payloads are rejected unrepaired
+    # (fourteenth run, a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the stall afterwards)
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=5 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    CONF_TIMEOUT=60
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "2" ]
-    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 2 ]
-    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 6 ]   # the first payload's three hops (3 s) spend the budget; the third payload never repairs
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "5" ]
+    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 4 ]
+    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 3 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 2 ]
+    [ "$(grep -c "claude-headless" "$TEST_DIR/repair-calls")" = "0" ]
+    jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
+    grep -q "Repair hop claude-headless needs up to .*s and .*s of the repair budget remain — not started" "$TEST_DIR/repair-err"
     grep -q "Repair budget: .* used — payload" "$TEST_DIR/repair-err"
-    # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2 — never spent by three one-second payloads
+    # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2, or one full CLI repair plus a timeout if that is more
+    # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
+    # one-second payloads
+    exp=$(( $(_adv_cli_hop_bound claude-headless) + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$exp" ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = "[]" ]
     # a knob that is not a whole number is said once and the default applies — the envelope is intact (thirteenth run, a1 C-001)
     result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=5m process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))" ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$exp" ]
     grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='5m' is not a whole number of seconds" "$TEST_DIR/repair-err"
     unset ANTHROPIC_API_KEY
 }
@@ -460,6 +473,14 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
+    # …and that decision does not depend on the PRIMARY chain sharing the hop (fourteenth run, a1 C-001): an OpenAI-primary
+    # host with `claude` installed has an empty shared set and the same companion on claude-headless
+    companion_shared_hops=""
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
+    companion_shared_hops="claude-headless"
     # the companion is on opus: the hop stays
     printf 'opus' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"

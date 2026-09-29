@@ -152,6 +152,11 @@ YAML
             quota)       [[ -n "$sidecar" ]] && _vq "$model" fail RateLimited 6 > "$sidecar"; return 6 ;;
             timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
             unavailable) [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            unavailable-companion-slow)  # the COMPANION's call to this model HANGS (a PID-scoped sleep the reaper ends); the primary's answers
+                if [[ "$sidecar" == *vq-companion-* ]]; then bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"; [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1; fi
+                [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
+                jq -nc --arg m "$model" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
+                return 0 ;;
             unavailable-companion-only)  # the COMPANION's call to this model fails; the primary's answers
                 if [[ "$sidecar" == *vq-companion-* ]]; then [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1; fi
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
@@ -981,6 +986,7 @@ PY
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
     [ "$(grep -cx "claude-headless" "$CALLS")" = "0" ]
     grep -q "Companion voice not planned (anthropic family): prompt_copy_failed" "$T/stderr.log"
+    [ "$(grep -c "hop the companion shares" "$T/stderr.log")" = "0" ]   # nothing is shared with a companion that never started (a3 C-004)
     unset -f cp
 }
 
@@ -1058,12 +1064,71 @@ $(mk_hunk 100)"
     [ "$(printf '%s\n' "$out" | grep -c '^@@ ')" -lt 4 ]
     [[ "$out" == *"--- PARTIAL: big.sh shown up to the token budget ("*" of 4 hunks; token budget: 150)"* ]]
     [[ "$out" != *"--- TRUNCATED:"* ]]
-    grep -q "Nothing fitted the token budget: big.sh is shown partially" "$T/prep-err"
-    # two files, the second fits: the ordinary path — the first is omitted whole and named, no PARTIAL block
-    small=$'diff --git a/small.sh b/small.sh\n--- a/small.sh\n+++ b/small.sh\n@@ -1 +1 @@\n-a\n+b'
-    out=$(prepare_content "$big
-$small" 150 2>/dev/null)
-    [[ "$out" == *"diff --git a/small.sh b/small.sh"* ]]
-    [[ "$out" == *"--- TRUNCATED: 1 lower-priority file(s) omitted"* ]]
-    [[ "$out" != *"--- PARTIAL:"* ]]
+    grep -q "Top-priority file big.sh exceeds the token budget: shown partially" "$T/prep-err"
+    # the mixed case (fourteenth run, b C-002): a top-priority script that does not fit whole plus a small doc that does —
+    # the script is shown FIRST, partially, and the doc follows; the doc never displaces the script
+    doc=$'diff --git a/notes.md b/notes.md\n--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-a\n+b'
+    out=$(prepare_content "$doc
+$big" 150 2>/dev/null)
+    [[ "$out" == "diff --git a/big.sh b/big.sh"* ]]
+    [[ "$out" == *"--- PARTIAL: big.sh shown up to the token budget"* ]]
+    [[ "$out" == *"diff --git a/notes.md b/notes.md"* ]]
+    [[ "$out" != *"--- TRUNCATED:"* ]]
+    # the marker is ONE line even when the chunk has no hunk header at all (fourteenth run, b C-001: grep -c prints 0
+    # and exits 1 — a `|| echo 0` would have emitted a second 0)
+    bin="diff --git a/blob.bin b/blob.bin
+GIT binary patch
+literal 900
+$(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
+    out=$(prepare_content "$bin" 100 2>/dev/null)
+    [ "$(printf '%s\n' "$out" | grep -c "^--- PARTIAL: blob.bin shown up to the token budget (0 of 0 hunks; token budget: 100)")" = "1" ]
+    [ "$(printf '%s\n' "$out" | grep -cx '0')" = "0" ]
+}
+
+@test "CMP-45 a timeout_seconds that is not a whole number is said once and 60 applies — the review completes with both voices (fourteenth run, a1 C-003)" {
+    _cfg_edit "timeout_seconds: 30" "timeout_seconds: 30s"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    grep -q "timeout_seconds='30s' is not a whole number of seconds — 60 applies" "$T/stderr.log"
+    [ "$(grep -c "is not a whole number of seconds" "$T/stderr.log")" = "1" ]
+}
+
+@test "CMP-46 an aggregator that fails without a word never aborts the review: the envelope is emitted with verdict_quality_error (fourteenth run, a3 C-001)" {
+    _adv_aggregate_envelopes() { return 1; }
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.verdict_quality // "absent"' <<<"$result")" = "absent" ]
+    [ "$(jq -r '.metadata.verdict_quality_error' <<<"$result")" != "null" ]
+    grep -q "aggregator unavailable or returned no output" "$T/stderr.log"
+}
+
+@test "CMP-48 a companion still running when the wait cap expires while the primary waits on the shared hop is reaped there, and the primary runs the hop itself — one voice, not none (fourteenth run, a3 C-002)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    BEHAVIOUR[claude-headless]=unavailable-companion-slow   # the companion hangs on it; the primary's own call answers
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:reviewed" ]
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    grep -q "reaping the second voice; the primary runs the hop" "$T/stderr.log"
+    grep -q "the companion was reaped at the wait cap — the primary runs it" "$T/stderr.log"
+    unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
+}
+
+@test "CMP-49 a shared hop is recognised under a provider prefix: a primary chain ending on anthropic:claude-headless cedes it to the companion's claude-headless (fourteenth run, a3 C-003)" {
+    _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - anthropic:claude-headless\n  security_audit:'
+    BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.shared_hops | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "anthropic:claude-headless:skipped_shared_with_companion" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ]
+    [ "$(grep -c "claude-headless" "$CALLS")" = "1" ]   # one CLI invocation — the companion's
 }

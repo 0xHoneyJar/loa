@@ -76,6 +76,7 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=float("nan"))) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=10 ** 400)) == 720.0   # (d C-001: no OverflowError)
+        assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="900")) == 920.0   # (fourteenth run, d C-001: the loader's predicate — a quoted number is a number)
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
@@ -219,12 +220,18 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     assert pc.models["x"].headless_timeout_seconds is None
     assert pc.models["y"].headless_timeout_seconds is None
     assert pc.models["z"].headless_timeout_seconds is None
-    assert caplog.text.count("applies to kind: cli models only") == 2
-    assert "p/x: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text
-    assert "p/y: headless_timeout_seconds 900 applies to kind: cli models only — ignored on this http_api model" in caplog.text
+    assert caplog.text.count("applies to CLI models only") == 2
+    assert "p/x: headless_timeout_seconds 900 applies to CLI models only (kind: cli, or a *-headless provider) — ignored on this model (kind: none, provider type: anthropic)" in caplog.text
+    assert "p/y: headless_timeout_seconds 900 applies to CLI models only (kind: cli, or a *-headless provider) — ignored on this model (kind: http_api, provider type: anthropic)" in caplog.text
+    # a model of a *-headless provider is a CLI model without a model-level kind (fourteenth run, d C-002)
+    cfg2 = {"providers": {"g": {"type": "grok-headless", "endpoint": "", "auth": "none", "models": {"grok-headless": {"context_window": 1000, "headless_timeout_seconds": 800}}}}}
+    caplog.clear()
+    pg = cheval._build_provider_config("g", cfg2)
+    assert pg.models["grok-headless"].headless_timeout_seconds == 800.0
+    assert caplog.text == ""
     # a chain walk rebuilds the provider config per hop: the same two defects are not reported again (d C-002)
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         pc2 = cheval._build_provider_config("p", cfg)
         pc3 = cheval._build_provider_config("p", cfg)
     assert pc2.models["x"].headless_timeout_seconds is None and pc3.models["x"].headless_timeout_seconds is None
-    assert caplog.text.count("applies to kind: cli models only") == 2
+    assert caplog.text.count("applies to CLI models only") == 0   # (the log was cleared above: two rebuilds added nothing)

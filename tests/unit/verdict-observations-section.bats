@@ -108,9 +108,13 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
     run "$SCRIPT" --file "$T/a.md" --gate audit --review-file "$T/r.md"
     [ "$status" -eq 1 ]
     [[ "$output" == *"excluded_confirmed"* ]]
-    # --review-file only makes sense for the audit gate (a usage error: exit 1 since sprint-248 review r2)
+    # --review-file only makes sense for the audit gate (a usage error: exit 1 since sprint-248 review r2) — pinned by the
+    # usage-error marker, not by the exit code an INCONSISTENT verdict shares (fourteenth run, c2 C-001)
     run "$SCRIPT" --file "$T/r.md" --gate review --review-file "$T/r.md"
     [ "$status" -eq 1 ]
+    run bash -c "\"$SCRIPT\" --file \"$T/r.md\" --gate review --review-file \"$T/r.md\" --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.usage_error == true and .consistent == false' >/dev/null
 }
 
 @test "VO-9 excluded must be a non-negative integer of at most six digits" {

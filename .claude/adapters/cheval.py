@@ -403,15 +403,17 @@ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     return get_adapter(provider_config)
 
 
-def _headless_timeout_raw(model_data: Dict[str, Any], where: str) -> Any:
-    """`headless_timeout_seconds` applies to CLI hops only (`kind: cli`): on any other model it is reported
-    once at load and dropped, so the catalog cannot claim a bound no hop will honour (tenth run, d C-002)."""
+def _headless_timeout_raw(model_data: Dict[str, Any], where: str, provider_type: str = "") -> Any:
+    """`headless_timeout_seconds` applies to CLI hops only — a model with `kind: cli`, or any model of a provider whose
+    type is a *-headless adapter (cursor-headless, grok-headless; fourteenth run, d C-002): on any other model it is
+    reported once at load and dropped, so the catalog cannot claim a bound no hop will honour (tenth run, d C-002)."""
     raw = model_data.get("headless_timeout_seconds")
-    if raw is not None and model_data.get("kind") != "cli":
+    is_cli = model_data.get("kind") == "cli" or str(provider_type or "").endswith("-headless")
+    if raw is not None and not is_cli:
         # (once per process per provider/model and value — the provider config is rebuilt per hop; twelfth run, d C-002)
         report_headless_timeout_once(("cli-only", where, repr(raw)),
-                                     "%sheadless_timeout_seconds %r applies to kind: cli models only — ignored on this %s model",
-                                     where, raw, model_data.get("kind") or "http_api")
+                                     "%sheadless_timeout_seconds %r applies to CLI models only (kind: cli, or a *-headless provider) — ignored on this model (kind: %s, provider type: %s)",
+                                     where, raw, model_data.get("kind") or "none", provider_type or "none")
         return None
     return raw
 
@@ -455,7 +457,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
             headless_timeout_seconds=coerce_headless_timeout_seconds(
-                _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: "), where=f"{provider_name}/{model_id}: "),
+                _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: ", prov.get("type", "")), where=f"{provider_name}/{model_id}: "),
         )
 
     return ProviderConfig(

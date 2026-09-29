@@ -206,6 +206,22 @@ def report_headless_timeout_once(key: tuple, message: str, *args: Any) -> None:
     logging.getLogger("loa_cheval.config").warning(message, *args)
 
 
+def usable_headless_timeout(raw: Any) -> Optional[float]:
+    """The one predicate for a `headless_timeout_seconds` value (fourteenth run, d C-001): a positive finite number —
+    an int, a float or a numeric string such as "900" (YAML authors quote numbers) — as a float; anything else None.
+    Both the load-time coercion and the adapter's bare-ModelConfig path use it, so they never disagree."""
+    import math
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):   # (OverflowError: a YAML integer too large for a double — twelfth run, d C-001)
+        return None
+    if not math.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
 def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
     """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
     a positive finite number is returned as a float, clamped to HEADLESS_TIMEOUT_CEILING_SECONDS (one warning

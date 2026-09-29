@@ -100,6 +100,19 @@ estimate_tokens() {
 # This prevents silent token-limit truncation by the API and ensures
 # security-critical files are always reviewed first.
 
+# A chunk's head at a hunk boundary: the byte cut, trimmed back to drop the hunk the cut landed in — unless that
+# would leave no hunk at all (cycle-126 sprint-248, thirteenth / fourteenth run)
+_lc_cut_partial() {  # <chunk file> <max bytes>
+  local partial trimmed
+  partial=$(head -c "$2" "$1")
+  trimmed="${partial%$'\n@@ '*}"
+  if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then partial="$trimmed"; fi
+  printf '%s' "$partial"
+}
+_lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)
+  local c; c=$(printf '%s\n' "$1" | grep -c '^@@ ' 2>/dev/null); [[ "$c" =~ ^[0-9]+$ ]] || c=0; printf '%s' "$c"
+}
+
 # Prepare content with priority-based truncation for large diffs
 # Args: $1 = raw content, $2 = max token budget
 # If content fits budget, passes through unchanged.
@@ -201,7 +214,23 @@ prepare_content() {
   local output="" current_tokens=0 included=0
   local -a skipped_files=()
 
+  # The top-priority file that does not fit whole is shown FIRST, partially, within three quarters of the budget — a
+  # lower-priority file never displaces the file the review is about, and a voice never reviews an incomplete diff as
+  # clean without the PARTIAL marker (cycle-126 sprint-248, thirteenth run c1 C-001 / fourteenth run b C-002)
+  local top_pri="" top_path="" top_idx="" top_partial_done=0
+  IFS=$'\t' read -r top_pri top_path top_idx <<<"$(printf '%s\n' "$sorted_manifest" | head -1)"
+  if [[ -n "$top_idx" && -f "$temp_dir/chunk_${top_idx}" ]] && (( $(estimate_tokens "$(cat "$temp_dir/chunk_${top_idx}")") > max_tokens )); then
+    local reserve=$(( max_tokens * 3 / 4 )) partial kept total
+    partial=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )))
+    total=$(_lc_hunk_count "$(cat "$temp_dir/chunk_${top_idx}")"); kept=$(_lc_hunk_count "$partial")
+    output+="$partial"$'\n'
+    output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    current_tokens=$(estimate_tokens "$partial"); included=1; top_partial_done=1
+    $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks)"
+  fi
+
   while IFS=$'\t' read -r priority filepath chunk_idx; do
+    [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]] && continue
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
     local chunk_tokens
@@ -215,24 +244,6 @@ prepare_content() {
       skipped_files+=("P${priority}: ${filepath}")
     fi
   done <<< "$sorted_manifest"
-
-  # Nothing fitted (one file larger than the whole budget): show the highest-priority file up to the budget, cut at a
-  # hunk boundary, with a PARTIAL note — never an empty diff a voice would "review" as clean (cycle-126 sprint-248,
-  # thirteenth run c1 C-001: a 74 KB test-suite diff left one voice with zero diff lines)
-  if [[ $included -eq 0 && ${#skipped_files[@]} -gt 0 ]]; then
-    local first_path first_idx partial trimmed kept_hunks total_hunks
-    IFS=$'\t' read -r _ first_path first_idx <<<"$(printf '%s\n' "$sorted_manifest" | head -1)"
-    partial=$(head -c $(( max_tokens * 3 )) "$temp_dir/chunk_${first_idx}")
-    trimmed="${partial%$'\n@@ '*}"   # drop the hunk the cut landed in — unless it is the only one
-    if [[ "$trimmed" != "$partial" && $(printf '%s\n' "$trimmed" | grep -c '^@@ ') -gt 0 ]]; then partial="$trimmed"; fi
-    total_hunks=$(grep -c '^@@ ' "$temp_dir/chunk_${first_idx}" 2>/dev/null || echo 0)
-    kept_hunks=$(printf '%s\n' "$partial" | grep -c '^@@ ' 2>/dev/null || echo 0)
-    output+="$partial"$'\n'
-    output+=$'\n'"--- PARTIAL: ${first_path} shown up to the token budget (${kept_hunks} of ${total_hunks} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
-    included=1
-    skipped_files=("${skipped_files[@]:1}")
-    $_log_fn "Nothing fitted the token budget: ${first_path} is shown partially (${kept_hunks} of ${total_hunks} hunks)"
-  fi
 
   # Append summary of skipped files
   if [[ ${#skipped_files[@]} -gt 0 ]]; then

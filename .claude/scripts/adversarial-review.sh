@@ -161,6 +161,12 @@ load_adversarial_config() {
   CONF_ENABLED=$(yq eval ".flatline_protocol.${config_key}.enabled // false" "$CONFIG_FILE" 2>/dev/null || echo "false")
   CONF_MODEL=$(yq eval ".flatline_protocol.${config_key}.model // \"gpt-5.3-codex\"" "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.3-codex")
   CONF_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.timeout_seconds // 60" "$CONFIG_FILE" 2>/dev/null || echo "60")
+  # fourteenth run, a1 C-003: every arithmetic and --argjson consumer downstream sees a whole number — a `60s` or `2m`
+  # would break the repair budget's arithmetic, a bare word would silently zero it
+  if ! [[ "$CONF_TIMEOUT" =~ ^[0-9]+$ ]]; then
+    log "WARN: flatline_protocol.${config_key}.timeout_seconds='${CONF_TIMEOUT}' is not a whole number of seconds — 60 applies"
+    CONF_TIMEOUT=60
+  fi
   CONF_BUDGET_CENTS=$(yq eval ".flatline_protocol.${config_key}.budget_cents // 150" "$CONFIG_FILE" 2>/dev/null || echo "150")
   # `false // true` is true in jq/yq semantics — read the raw value and default only when absent
   local _cv _cvl
@@ -545,7 +551,7 @@ _repair_model() {  # <voice that answered> → the FIRST hop of the repair chain
                    # operator display only; the repair call site iterates _repair_model_chain, never this
   _repair_model_chain "$1" | cut -d' ' -f1
 }
-_repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop
+_repair_chain_base() {  # <voice that answered> → the repair chain before the companion / retirement filters
   # eighth run, a1 C-001: tiny only with an Anthropic credential, claude-headless only with the binary on
   # PATH, and the voice that answered ALWAYS last — an OpenAI-only host without `claude` repairs through
   # its own primary (the cycle-119 C14 behaviour) instead of failing every KF-004 payload deterministically.
@@ -555,10 +561,17 @@ _repair_model_chain() {  # <voice that answered> → the repair chain, one bound
   _adv_cred_present anthropic && chain="tiny"
   _adv_cli_present anthropic && chain="${chain:+$chain }claude-headless"
   [[ -n "$1" && " $chain " != *" $1 "* ]] && chain="${chain:+$chain }$1"
+  echo "${chain:-$1}"
+}
+_repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop (the base chain, filtered)
+  local chain; chain=$(_repair_chain_base "$1")
+  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$chain"; return 0; fi
   # twelfth run, a1 C-002 / thirteenth run, a1 C-002: like the main walk, hop-aware — a repair never queues behind the
   # live companion on the hop it is ON right now (companion.current, phase queue / hop); a companion busy elsewhere
   # leaves the hop in the chain (the bounded _ADV_LOCK_WAIT_CLI covers a later overlap); every skip is named on the envelope
-  if [[ -n "${companion_shared_hops:-}" && -n "${_ADV_COMPANION_PID:-}" && -n "${companion_workdir:-}" ]] && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null; then
+  # (fourteenth run, a1 C-001: decided from the companion's CURRENT hop against this chain's own hops — never from whether
+  # the PRIMARY chain shares one; an OpenAI-primary host with `claude` installed queued every repair otherwise)
+  if [[ -n "${_ADV_COMPANION_PID:-}" && -n "${companion_workdir:-}" ]] && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null; then
     local _s _left="" _ccur _cph
     _ccur=$(cat "$companion_workdir/companion.current" 2>/dev/null || true); _cph=$(cat "$companion_workdir/companion.phase" 2>/dev/null || true)
     for _s in $chain; do
@@ -1334,8 +1347,16 @@ while i < len(text):
   local repairs_used=0 repair_budget_exhausted=0
   # twelfth run, a1 C-002: the run's repairs share a WALL-CLOCK budget too — up to three hops per payload, each bounded
   # by its own timeout or lock wait, no longer bounded the review's latency by ADV_REPAIR_MAX_PER_RUN alone
-  local _repair_wall_started _repair_wall_budget _repair_wall_used=0
+  local _repair_wall_started _repair_wall_budget _repair_wall_used=0 _rh _rb _rmax=0
   _repair_wall_budget=$(( ADV_REPAIR_MAX_PER_RUN * ${CONF_TIMEOUT:-60} * 2 ))
+  # fourteenth run, a1 C-002: a CLI repair hop is bounded by cheval (headless_timeout_seconds + connect), not by the call
+  # timeout — the default budget always fits one full CLI repair plus a timeout, and (below) a hop whose bound exceeds
+  # what is left is not started
+  for _rh in $(_repair_chain_base "$model"); do
+    case "$(_adv_hop_canon "$_rh")" in *-headless) _rb=$(_adv_num_or "$(_adv_cli_hop_bound "$_rh")" 610) ;; *) _rb="${CONF_TIMEOUT:-60}" ;; esac
+    (( _rb > _rmax )) && _rmax=$_rb
+  done
+  (( _rmax + ${CONF_TIMEOUT:-60} > _repair_wall_budget )) && _repair_wall_budget=$(( _rmax + ${CONF_TIMEOUT:-60} ))
   # (thirteenth run, a1 C-001: the operator knob is validated where it is read — a value that is not a whole number
   # would break the arithmetic and then the envelope's --argjson; it is said once and the default applies)
   if [[ -n "${LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS:-}" ]]; then
@@ -1410,6 +1431,15 @@ while i < len(text):
         # or when tiny fails — one attempt per hop, the round-trip stays bounded
         _rcf=$(mktemp "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair-rc.XXXXXX" 2>/dev/null) || _rcf=""
         for _rm in $(_repair_model_chain "$model"); do
+          # fourteenth run, a1 C-002: a hop whose real bound exceeds what is left of the wall budget is not started —
+          # named on the envelope as <hop>:over_budget, so a stall never hides behind "budget policy"
+          local _hb; case "$(_adv_hop_canon "$_rm")" in *-headless) _hb=$(_adv_num_or "$(_adv_cli_hop_bound "$_rm")" 610) ;; *) _hb="${CONF_TIMEOUT:-60}" ;; esac
+          _repair_wall_used=$(( $(date +%s) - _repair_wall_started ))
+          if (( _repair_wall_budget - _repair_wall_used < _hb )); then
+            [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && echo "${_rm}:over_budget" >> "$_ADV_REPAIR_SKIP_FILE"
+            log "Repair hop $_rm needs up to ${_hb}s and $(( _repair_wall_budget - _repair_wall_used ))s of the repair budget remain — not started"
+            continue
+          fi
           [[ -n "$_rcf" ]] && : > "$_rcf"
           if repaired=$(_ADV_REPAIR_RC_FILE="$_rcf" _ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _ADV_LOCK_WAIT_CLI="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
              && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _repair_ok="true"; break; fi
@@ -2321,14 +2351,15 @@ _adv_shared_hop_verdict() {  # <hop> <companion workdir> <companion start epoch>
   # that failed it, or never reached it, leaves the primary's last resort to the primary; past the cap the wait loop
   # will reap the companion and the primary does not double the binary's load. (Verdict and reason travel together on
   # stdout: a captured helper cannot set a global — thirteenth run, a2 C-006.)
-  local hop="${1#*:}" wd="$2" started="$3" cap="$4" fin
+  local hop wd="$2" started="$3" cap="$4" fin
+  hop=$(_adv_hop_canon "$1")
   while [[ -n "${_ADV_COMPANION_PID:-}" ]] && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null; do
     if (( $(date +%s) - started >= cap )); then printf 'skip\tis still running past the wait cap'; return 0; fi
     sleep 1
   done
   fin=$(cat "$wd/companion.final" 2>/dev/null || true)
-  if [[ -s "$wd/companion.result.json" && "${fin#*:}" == "$hop" ]]; then printf 'skip\tanswered with it'; return 0; fi
-  if grep -q "^${hop}:" "$wd/companion.attempts" 2>/dev/null; then printf 'run\tfailed it'; return 0; fi
+  if [[ -s "$wd/companion.result.json" && "$(_adv_hop_canon "$fin")" == "$hop" ]]; then printf 'skip\tanswered with it'; return 0; fi
+  if grep -q "^${hop}:\|^[a-z]*:${hop}:" "$wd/companion.attempts" 2>/dev/null; then printf 'run\tfailed it'; return 0; fi
   printf 'run\tfinished without it'
 }
 
@@ -2514,6 +2545,17 @@ _adv_reap_companion() {
   done
   log "Companion voice: still alive ${_grace}s after TERM — KILL"
   for _x in $_pids; do kill -KILL "$_x" 2>/dev/null || true; done
+}
+_adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap the companion as a wait timeout and record it
+  _adv_reap_companion
+  printf 'wait_timeout' > "$1/companion.status"
+  # the hop that was in flight (sixth run, C-001), else the chain's first hop
+  if [[ -s "$1/companion.final" ]]; then :
+  elif [[ -s "$1/companion.current" ]]; then cp -f "$1/companion.current" "$1/companion.final"
+  else printf '%s' "${2%%,*}" > "$1/companion.final"; fi
+  printf '124' > "$1/companion.rc"
+  # (fourteenth run, a3 C-002: a walker that reached `done` had already written a complete answer — it is kept)
+  [[ "$(cat "$1/companion.phase" 2>/dev/null)" == "done" ]] || command rm -f -- "$1/companion.result.json" 2>/dev/null
 }
 _adv_cleanup_on_exit() {
   _adv_reap_companion
@@ -2776,7 +2818,8 @@ main() {
       companion_shared_hops=""
       for _cm in $companion_chain_str; do
         # (bare names on both sides — a configured `anthropic:claude-headless` is the companion's `claude-headless`; twelfth run, a2 C-001)
-        for _pm in "${fallback_chain[@]}"; do [[ "${_pm#*:}" == "${_cm#*:}" ]] && { companion_shared_hops="${companion_shared_hops:+$companion_shared_hops,}${_cm#*:}"; break; }; done
+        # (canonical on both sides — fourteenth run, a3 C-003: a prefixed or aliased CLI hop is the same hop)
+        for _pm in "${fallback_chain[@]}"; do [[ "$(_adv_hop_canon "$_pm")" == "$(_adv_hop_canon "$_cm")" ]] && { companion_shared_hops="${companion_shared_hops:+$companion_shared_hops,}$(_adv_hop_canon "$_cm")"; break; }; done
       done
       {
         companion_planned="true"
@@ -2796,8 +2839,10 @@ main() {
           companion_started=$(date +%s)
           _ADV_COMPANION_PID="$companion_pid"
         else
-          # twelfth run, a3 C-006: a local setup failure is never attributed to the provider — no fork, a named reason
-          companion_planned="false"; companion_skip_reason="prompt_copy_failed"
+          # twelfth run, a3 C-006: a local setup failure is never attributed to the provider — no fork, a named reason;
+          # fourteenth run, a3 C-004: nothing is shared with a companion that never started
+          companion_planned="false"; companion_skip_reason="prompt_copy_failed"; companion_shared_hops=""
+          rmdir "$companion_workdir" 2>/dev/null || true
         fi
       }
     fi
@@ -2810,11 +2855,18 @@ main() {
     # the fold's sole_voice / duplicate handling covers the outcome
     # (thirteenth run, a3 C-004: consulted whether or not the companion is still alive — a companion that already
     # answered with this hop is honoured too, so the binary never runs twice for the same prompt)
-    if [[ -n "${companion_shared_hops:-}" && ",$companion_shared_hops," == *",${try_model#*:},"* && -n "${companion_workdir:-}" && -d "$companion_workdir" ]]; then
+    if [[ -n "${companion_shared_hops:-}" && ",$companion_shared_hops," == *",$(_adv_hop_canon "$try_model"),"* && -n "${companion_workdir:-}" && -d "$companion_workdir" ]]; then
       [[ -n "${_ADV_COMPANION_PID:-}" ]] && kill -0 "$_ADV_COMPANION_PID" 2>/dev/null \
         && log "Model $try_model is a hop the companion shares — the primary waits for the companion to settle before deciding"
       local _sh_verdict="" _sh_reason=""
       IFS=$'\t' read -r _sh_verdict _sh_reason <<<"$(_adv_shared_hop_verdict "$try_model" "$companion_workdir" "$companion_started" "$companion_wait_cap")"
+      if [[ "$_sh_verdict" == "skip" && "$_sh_reason" == "is still running past the wait cap" ]]; then
+        # fourteenth run, a3 C-002: a companion past the wait cap is reaped HERE, and the primary runs its last resort
+        # itself — skipping it and reaping afterwards left a run with no voice at all
+        log "Companion voice: wait cap ${companion_wait_cap}s reached while the primary waited on $try_model — reaping the second voice; the primary runs the hop"
+        _adv_reap_companion_timed_out "$companion_workdir" "$companion_chain_csv"
+        _sh_verdict="run"; _sh_reason="was reaped at the wait cap"
+      fi
       if [[ "$_sh_verdict" == "skip" ]]; then
         log "Model $try_model is the companion's hop and the companion ${_sh_reason:-answered with it} — skipped on the primary chain"
         model_attempts+=("${try_model}:skipped_shared_with_companion")
@@ -2887,14 +2939,7 @@ main() {
       done
       if kill -0 "$companion_pid" 2>/dev/null; then
         log "Companion voice: wait cap ${companion_wait_cap}s reached (${_why:-deadline}) — reaping the second voice"
-        _adv_reap_companion
-        printf 'wait_timeout' > "$companion_workdir/companion.status"
-        # the hop that was in flight (sixth run, C-001), else the chain's first hop
-        if [[ -s "$companion_workdir/companion.final" ]]; then :
-        elif [[ -s "$companion_workdir/companion.current" ]]; then cp -f "$companion_workdir/companion.current" "$companion_workdir/companion.final"
-        else printf '%s' "${companion_chain_csv%%,*}" > "$companion_workdir/companion.final"; fi
-        printf '124' > "$companion_workdir/companion.rc"
-        command rm -f -- "$companion_workdir/companion.result.json" 2>/dev/null
+        _adv_reap_companion_timed_out "$companion_workdir" "$companion_chain_csv"
       fi
       # bounded: a reaped tree that will not die must not hold the review (sixth run)
       local _w=0
@@ -2926,7 +2971,7 @@ main() {
     fi
     # the hop the primary ceded (its last attempt was a shared-hop skip), for the fold's ceded / degraded distinction
     local _primary_ceded=""
-    [[ "${model_attempts[-1]:-}" == *:skipped_shared_with_companion ]] && _primary_ceded="${model_attempts[-1]%%:*}"
+    [[ "${model_attempts[-1]:-}" == *:skipped_shared_with_companion ]] && _primary_ceded="${model_attempts[-1]%:*}"   # (the hop keeps a provider prefix: only the status suffix goes)
     _folded=$(_fold_companion "$result" "$companion_workdir" "$companion_family" "$companion_chain_csv" "$final_model" "$primary_succeeded" "$companion_shared_hops" "$primary_succeeded_ids" "$_primary_ceded" 2>>"$companion_workdir/fold.log") || _folded=""
     [[ -s "$companion_workdir/fold.log" ]] && cat "$companion_workdir/fold.log" >&2
     local _fold_ok="false"
@@ -3052,7 +3097,7 @@ main() {
       fi
     else
       # eighth run, a2 C-004: the aggregator's own reason is named on the envelope, never discarded
-      local _vq_err; _vq_err=$(grep -v '^[[:space:]]*$' "$_vq_err_file" 2>/dev/null | tail -1 | cut -c1-240)
+      local _vq_err; _vq_err=$(grep -v '^[[:space:]]*$' "$_vq_err_file" 2>/dev/null | tail -1 | cut -c1-240) || _vq_err=""   # (fourteenth run, a3 C-001: an aggregator that failed silently must not abort the fail-soft branch)
       log "[vq-aggregate] aggregator unavailable or returned no output; result emitted without verdict_quality${_vq_err:+ — $_vq_err}"
       result=$(echo "$result" | jq --arg e "${_vq_err:-aggregator returned no output}" '.metadata.verdict_quality_error = $e')
     fi
