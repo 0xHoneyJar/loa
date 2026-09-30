@@ -22,7 +22,7 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 4. Clean up temp files
 
-**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded) and left NO `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` of its own, write one with `{"findings": [], "metadata": {"status": "failed", "reason": "...", "rejected_summary": []}}` BEFORE proceeding (never overwrite an envelope the script did write — its `rejected_summary` carries the triage aids). Then list `adversarial-rejected-review*.jsonl` beside it: an aborted run may have left rows (the primary's, or a companion's `-companion.jsonl`); triage each row under `## Rejected dissent payloads` or remove the file — the sidecar-ownership rule under "Rejected rows" in the hardening list applies, and the verdict self-check will demand it. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+**Failure must produce a record.** If `adversarial-review.sh` fails (timeout, API error, budget exceeded, an interrupt) and `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` is ABSENT after it exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — write `{"findings": [], "metadata": {"status": "failed", "reason": "...", "rejected_summary": [], "rejected_sidecars": []}}` BEFORE proceeding; the `.prev` files beside it are the previous round's evidence, already triaged in that round's feedback, and `rejected_sidecars: []` keeps them out of this file's count. If the envelope IS present the script wrote it (its `rejected_summary` carries the triage aids): never overwrite it. A canonical `adversarial-rejected-review*.jsonl` beside the fallback is this run's own partial work: triage its rows under `## Rejected dissent payloads` (the verdict self-check will demand it). Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |
@@ -46,7 +46,10 @@ Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets
 (`gpt-5.5` → `codex-headless`; KF-002 keeps `gpt-5.5-pro` out of the default). Credential *presence* (env → `.env.local` →
 `.env`; the value is never read) decides only where the companion chain starts — with no key it
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
-(`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). The
+(`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). `companion_voice.status` is `succeeded`,
+`failed` or `fold_failed`; `voices_planned` is 2 only when both voices completed from different families —
+`companion_voice.counted_as` (`independent_voice`, `duplicate_voice`, `sole_voice`) names every other outcome, and
+`planned: false` with a `reason` a companion that never started. The
 companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the primary's carry
 `voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
 status: succeeded|failed, failure_class: auth|model_unavailable|quota|timeout|malformed|null,
@@ -108,7 +111,9 @@ this block are generated from the same text.
   `title_derived` when only the normaliser's positional id names it; an empty id or title is absent); the companion's
   rows are in its own `-companion.jsonl`, named on the envelope (`companion_voice.rejected_sidecar`, `null` and the file
   removed when nothing was rejected). `verdict-derive.sh` counts the rows of the sidecars the envelope names
-  (`rejected_sidecars`): the run removes its own two sidecars at start and lists the ones it produced;
+  (`rejected_sidecars`): at start the run moves the previous run's envelope and its two sidecars aside (`.prev`) and it
+  lists the sidecars it produced; a run that writes its envelope drops the `.prev` files; a run that aborts leaves NO envelope
+  at the path and the `.prev` files beside it (the previous round's evidence, already triaged in that round's feedback);
   `LOA_ADVERSARIAL_RUN_TAG` scopes the NAMES — `adversarial-rejected-<gate>[-companion][-<tag>].jsonl` — so a chunk driver
   passes its chunk key and nothing is renamed afterwards (a tag outside `[A-Za-z0-9_-]{1,64}` becomes a short hash of its
   raw value, said once, so distinct tags never share a file). A non-empty sidecar a listing envelope does not name is never
@@ -126,14 +131,16 @@ this block are generated from the same text.
   the fork) and by a wait cap measured from its start: each `*-headless` hop counts the CLI adapter's bound — connect +
   max(600 s, the catalog's per-model `headless_timeout_seconds`, CLI hops only, capped at 3,600 s when the catalog loads;
   `claude-headless` carries 900 s because a dissent on `claude -p` takes 6–10 minutes; `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT` is
-  the fallback for a hop no catalog lists; a listed hop without the key is bound by the formula, 610 s) — each HTTP hop `timeout_seconds`, plus the CLI bound when its catalog chain falls through to a CLI hop (cheval walks
-  that chain inside one call), plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it). The deadline follows the companion's phase (queue → hop → post) under a global ceiling; the post-hop work
+  the fallback for a hop no catalog lists; a listed hop without the key is bound by the formula, 610 s) — each HTTP hop `timeout_seconds`, plus its lock wait and the CLI bound when its catalog chain falls through to a CLI
+  hop (it takes that binary's lock before its request, as a `queue` phase; cheval walks the chain inside one call), plus
+  30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it). The deadline follows the companion's phase (queue → hop → post) under a global ceiling; the post-hop work
   (validation, repair round-trips) has its own budget, so a model that answered is never reaped mid-processing; the
   primary's wait on a shared hop applies the same model (a companion in `post` on another hop frees the hop at once; on
-  the shared hop the primary waits for the settled record). The previous run's sidecars are moved aside at start and
-  restored if the run ends without an envelope. Every
-  numeric knob (`timeout_seconds`, `budget_cents`, the context-escalation sizes, the operator seconds) is a whole number
-  without a leading zero, or its default applies with a warning.
+  the shared hop the primary waits for the settled record). The previous run's envelope and sidecars are moved aside at
+  start (`.prev`) and never restored — see "Rejected rows". Every
+  numeric knob (`timeout_seconds`, the context-escalation sizes, the operator seconds) is a whole number
+  without a leading zero, or its default applies with a warning — except `budget_cents` / `--budget`, which fail closed
+  (0 cents, `status: budget_exceeded`, exit 4).
 - **Locks.** `*-headless` hops — the dissent hops, the repair round-trips, and an HTTP alias whose catalog chain falls
   through to a CLI hop — are serialised per CLI binary across the two walks (a per-user flock under
   `$XDG_RUNTIME_DIR`/`$TMPDIR`, 0700, ours, never a symlink); a lock not acquired within the hop's bound fails that hop as
@@ -161,8 +168,8 @@ this block are generated from the same text.
   each (by canonical name: a prefixed answering voice is not appended twice); a hop that failed with an explicit auth /
   quota code is retired for the run's remaining repairs, the answering voice never; a repair skips a hop the companion is
   running at that moment (`repair_hops_skipped` names it, once) and waits for a CLI lock only its own timeout; the run's
-  repairs share a wall-clock budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or one full CLI
-  repair plus a timeout if that is more; a hop whose estimate — twice its last observed duration, at least the timeout,
+  repairs share a wall-clock budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or two full CLI
+  repairs plus a timeout if that is more; a hop whose estimate — twice its last observed duration, at least the timeout,
   at most its bound — exceeds what is left is not started and is named `<hop>:over_budget`; spent, the rest are rejected
   unrepaired and counted in `repair_budget_exhausted`, a payload none of whose hops started among them). A derived
   finding id never collides with one the model supplied; the normaliser's `id_derived` / `failure_mode_derived` markers are

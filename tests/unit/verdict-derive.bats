@@ -56,10 +56,12 @@ skip_if_no_jq() {
     [[ "$output" == *"Error: file not found:"* ]]
 }
 
-@test "verdict-derive: --help exits 0" {
+@test "verdict-derive: --help exits 0, and its --envelope paragraph states the contract the code implements (nineteenth run, b1 C-001)" {
     run "$SCRIPT" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
+    [[ "$output" == *"none of rejected_sidecars, rejected_count or"* ]]   # legacy = no rejected_summary AND no FR-2 marker
+    [[ "$output" == *"a sidecar newer than it"*"counts, with a warning"* ]]
 }
 
 # =============================================================================
@@ -325,6 +327,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     _vd_envelope "$d/elsewhere.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]'
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope "$d/elsewhere.json"
     [ "$status" -eq 1 ]
+    [[ "$output" == *"Rejected dissent payloads"* ]]   # THE violation, as the audit half asserts (nineteenth run, c2c C-001)
     {
         echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
         echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
@@ -489,7 +492,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 0 ]
 }
 
-@test "verdict-derive: sidecar rows with no envelope beside them are a violation, an unreadable sidecar is a violation, repaired rows never count (third run, chunk b C-002 / C-005 / C-001)" {
+@test "verdict-derive: sidecar rows with no envelope beside them are a violation, repaired rows never count (third run, chunk b C-002 / C-001)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s10"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
@@ -497,8 +500,15 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations[0] | test("no dissent envelope") and test("hold 1 schema-rejected payload"))' >/dev/null
+}
+
+@test "verdict-derive: an unreadable sidecar is a violation (third run, chunk b C-005) — its own case, probed first, so the claims above never read as skipped on a host where root can read anything (nineteenth run, c2d C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s10b"; mkdir -p "$d"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
     chmod 000 "$d/adversarial-rejected-review.jsonl"
     if [[ -r "$d/adversarial-rejected-review.jsonl" ]]; then chmod 644 "$d/adversarial-rejected-review.jsonl"; skip "running as a user that can read mode-000 files"; fi
+    _vd_approved_review "$d/engineer-feedback.md"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     chmod 644 "$d/adversarial-rejected-review.jsonl"
     [ "$status" -eq 1 ]
@@ -789,12 +799,43 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | length) == 3 and (.violations | map(select(test("non-string entry null"))) | length) == 1 and (.violations | map(select(test("non-string entry 7"))) | length) == 1 and (.violations | map(select(test("lists engineer-feedback.md.*not an adversarial-rejected-review"))) | length) == 1' >/dev/null
     jq '.metadata.rejected_sidecars = ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl"]' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    # pinned POSITIVELY (nineteenth run, c2d C-001): against a file with no section the violation names exactly one payload — the
+    # CRLF line is a row and the blank lines are not — and only then does the one-bullet section make the run consistent
+    _vd_approved_review "$d/nosection.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/nosection.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations[0] | test("carries 1 schema-rejected payload")' >/dev/null
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]   # one real row against the section's one bullet: the blank lines counted nothing
     echo "$output" | jq -e '.consistent == true' >/dev/null
-    # listed twice (a merge that unioned two lists), counted once (thirteenth run, b C-003)
+    # listed twice (a merge that unioned two lists), counted once (thirteenth run, b C-003): one payload, not two
     jq '.metadata.rejected_sidecars = ["grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl", "grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl"]' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/nosection.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations[0] | test("carries 1 schema-rejected payload")' >/dev/null
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true' >/dev/null
+}
+
+@test "verdict-derive: a directory named like a sidecar is a violation on every branch — beside an FR-2 envelope that lists nothing and beside a legacy envelope alike, never skipped by a size pre-filter (nineteenth run, b1 C-003)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s24"; mkdir -p "$d" "$d/adversarial-rejected-review-dir.jsonl"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1' >/dev/null
+    # an empty regular file beside it still counts nothing and says nothing
+    rmdir "$d/adversarial-rejected-review-dir.jsonl"; : > "$d/adversarial-rejected-review-empty.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '(.warnings | length) == 0' >/dev/null
+    # beside a legacy envelope (no metadata) a directory newer than it is the same violation
+    rm -f "$d/adversarial-rejected-review-empty.jsonl"
+    jq -n '{findings: []}' > "$d/adversarial-review.json"; touch -t 202001010000 "$d/adversarial-review.json"
+    mkdir -p "$d/adversarial-rejected-review-dir.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1' >/dev/null
 }

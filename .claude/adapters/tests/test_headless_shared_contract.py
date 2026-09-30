@@ -75,6 +75,12 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=True)) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="not-a-number")) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=float("nan"))) == 720.0
+        # (nineteenth run, c2e C-001: a bool taken as 1.0 or a NaN swallowed by max() would leave the bound at 720 too — the
+        # shared predicate itself is asserted, and the NaN bound is asserted finite whatever max()'s argument order)
+        import math
+        from loa_cheval.types import usable_headless_timeout as _usable
+        assert _usable(True) is None and _usable(float("nan")) is None and _usable(10 ** 400) is None and _usable("900") == 900.0
+        assert math.isfinite(adapter._compute_timeout(ModelConfig(headless_timeout_seconds=float("nan"))))
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=10 ** 400)) == 720.0   # (d C-001: no OverflowError)
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds="900")) == 920.0   # (fourteenth run, d C-001: the loader's predicate — a quoted number is a number)
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
@@ -237,7 +243,7 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     assert caplog.text.count("applies to CLI models only") == 0   # (the log was cleared above: two rebuilds added nothing)
 
 
-def test_headless_timeout_note_is_durable(caplog):
+def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
     """A catalog `headless_timeout_seconds` that was not applied as written leaves more than a one-shot WARNING on
     stderr (which the dissent path discards): the loader's verdict travels on the ModelConfig and the adapter appends
     it to its timeout error, so the MODELINV row says why the hop ran on the floor (sixteenth run, d C-001)."""
@@ -260,6 +266,7 @@ def test_headless_timeout_note_is_durable(caplog):
         "big": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 7200},
         "http": {"context_window": 1000, "headless_timeout_seconds": 900},
         "none": {"kind": "cli", "context_window": 1000},
+        "low": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 300},
     }}}}
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         pc = cheval._build_provider_config("p", cfg)
@@ -270,6 +277,27 @@ def test_headless_timeout_note_is_durable(caplog):
     assert pc.models["big"].headless_timeout_note == "catalog headless_timeout_seconds 7200 clamped to 3600s"
     assert pc.models["big"].headless_timeout_seconds == 3600.0
     assert pc.models["http"].headless_timeout_note == "catalog headless_timeout_seconds 900 not applied: CLI models only"
+    # a positive value the read floor overrides is not applied either — it says so (nineteenth run, d C-001)
+    assert pc.models["low"].headless_timeout_note == "catalog headless_timeout_seconds 300 at or below the 600s read floor: the floor applies"
+    assert pc.models["low"].headless_timeout_seconds == 300.0
+    assert headless_timeout_note(300, 300, 300.0, floor=600.0) == "catalog headless_timeout_seconds 300 at or below the 600s read floor: the floor applies"
+    assert headless_timeout_note(900, 900, 900.0, floor=600.0) is None
+    assert headless_timeout_note(900, 900, 900.0, floor=4000.0) == "catalog headless_timeout_seconds 900 at or below the 4000s read floor: the floor applies"
+    # a chain walk rebuilds the provider config per hop: the note and the effective bound are computed from values on every
+    # build, never from the once-per-process report gate (nineteenth run, c2e C-002)
+    pc2 = cheval._build_provider_config("p", cfg)
+    pc3 = cheval._build_provider_config("p", cfg)
+    for later in (pc2, pc3):
+        for m in ("ok", "bad", "big", "http", "none", "low"):
+            assert later.models[m].headless_timeout_note == pc.models[m].headless_timeout_note, m
+            assert later.models[m].headless_timeout_seconds == pc.models[m].headless_timeout_seconds, m
+    assert pc3.models["big"].headless_timeout_seconds == 3600.0
+    # complete() runs in an isolated cwd with the binary pinned to a stub that is never executed (c2e C-003), as its siblings do
+    monkeypatch.chdir(tmp_path)
+    fake = tmp_path / "fake-claude"
+    fake.write_text("#!/bin/sh\nexit 1\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
     # …and appended to the adapter's timeout error, where the MODELINV row reads it; absent when there is nothing to say
     for note, expect in ((pc.models["bad"].headless_timeout_note, " (catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds)"), (None, "")):
         config = ProviderConfig(

@@ -32,6 +32,7 @@ if _ADAPTERS_DIR not in sys.path:
 from loa_cheval.types import (
     coerce_headless_timeout_seconds,
     headless_timeout_note,
+    usable_headless_timeout,
     report_headless_timeout_once,
     BudgetExceededError,
     ChevalError,
@@ -462,7 +463,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
                 where=f"{provider_name}/{model_id}: ")),
             # sixteenth run, d C-001: the loader's verdict on a value that was not applied as written travels with the
             # model (keyword arguments evaluate left to right — the two names above are bound by now)
-            headless_timeout_note=headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective),
+            headless_timeout_note=headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
+                                                         floor=max(usable_headless_timeout(prov.get("read_timeout", 120.0)) or 120.0, 600.0)),
         )
 
     return ProviderConfig(

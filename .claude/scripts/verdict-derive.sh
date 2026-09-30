@@ -61,7 +61,9 @@ Options:
                       adversarial-rejected-<gate>*.jsonl beside the envelope (with a warning naming it: an
                       earlier run's rows that were never folded); without an envelope, or without that field,
                       every adversarial-rejected-<gate>*.jsonl beside it counts; a pre-FR-2 envelope (no
-                      metadata.rejected_summary key) counts none; one top-level bullet per rejected payload
+                      metadata.rejected_summary key and none of rejected_sidecars, rejected_count or
+                      companion_voice) counts none of the rows as old as itself, while a sidecar newer than it
+                      counts, with a warning; one top-level bullet per rejected payload
                       under '## Rejected dissent payloads'; a missing explicit path is a usage error (exit 1).
   --review-file PATH  Audit gate only: cross-check the audit trailer's
                        excluded_confirmed against the review trailer's excluded
@@ -219,7 +221,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             # its rows count, as on the listed path; only rows as old as the envelope ride the legacy pass)
             local _lf _legacy_files="" _newer_files=""
             for _lf in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
-                [[ -f "$_lf" && -s "$_lf" ]] || continue
+                [[ -e "$_lf" || -L "$_lf" ]] || continue            # (the literal pattern of a no-match glob)
+                [[ -f "$_lf" && ! -s "$_lf" ]] && continue          # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — nineteenth run, b1 C-003)
                 if [[ "$_lf" -nt "$ENVELOPE_FILE" ]]; then _newer_files+="${_newer_files:+, }$(basename -- "$_lf")"; _rejected_rows_of "$_lf"
                 else _legacy_files+="${_legacy_files:+, }$(basename -- "$_lf")"; fi
             done
@@ -259,7 +262,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         # could clear contradicted the contract both resources state
         local u
         for u in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
-            [[ -f "$u" && -s "$u" ]] || continue
+            [[ -e "$u" || -L "$u" ]] || continue                    # (the literal pattern of a no-match glob)
+            [[ -f "$u" && ! -s "$u" ]] && continue                  # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — b1 C-003)
             [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
             _rejected_rows_of "$u"
             if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then

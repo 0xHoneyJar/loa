@@ -246,6 +246,15 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "0" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "4" ]
+    # a whitespace-only description derives NO failure_mode (nineteenth run, a1 C-002: the same emptiness test as the validators),
+    # and a repaired description supplies one — the repair is not spent on a payload that stays empty
+    _repair_finding_via_model() { printf '%s' "$1" | jq -c '. + {description: "Repaired words in the first sentence. Second."}'; }
+    ws=$(jq -nc '{findings: [{"severity":"HIGH","category":"config","description":"  \n "}]}')
+    r=$(process_findings "$(_env "$ws")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(jq '.metadata.repaired_count' <<<"$r")" = "1" ]
+    [ "$(jq -r '.findings[0].failure_mode' <<<"$r")" = "Repaired words in the first sentence." ]
+    [ "$(jq -r '.findings[0].failure_mode_derived' <<<"$r")" = "true" ]
+    _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     # …and with the derivation off (the bats seam) a whitespace-only failure_mode is rejected, never accepted blank (a1 C-001)
     ws=$(jq -nc '{findings: [{"severity":"HIGH","category":"config","description":"Words.","failure_mode":" "}]}')
     r=$(LOA_ADVERSARIAL_NO_FM_DERIVATION=1 process_findings "$(_env "$ws")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
@@ -503,7 +512,7 @@ _fixture_content() {  # all three fixtures as one findings document
     # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2, or one full CLI repair plus a timeout if that is more
     # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
     # one-second payloads
-    exp=$(( $(_adv_cli_hop_bound claude-headless) + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))
+    exp=$(( 2 * $(_adv_cli_hop_bound claude-headless) + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))   # (nineteenth run, a1 C-001: two full CLI repairs)
     # (the budget figure, the skip list and the validator lines are invariant to hop duration: no sleep here — c2b C-002)
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     : > "$TEST_DIR/repair-calls"
@@ -548,7 +557,7 @@ _fixture_content() {  # all three fixtures as one findings document
     companion_shared_hops="claude-headless"; companion_workdir="$TEST_DIR/cw"; mkdir -p "$companion_workdir"
     # the stand-in outlives any sequence of calls and never outlives the test (sixteenth run, c2b C-003: a 30 s timer was a
     # hidden ceiling, and a dead timer would read as a hop-skip regression)
-    sleep 600 3>&- & _ADV_COMPANION_PID=$!; NORM_HOLDER_PIDS+=("$_ADV_COMPANION_PID")
+    sleep 600 3>&- & _ADV_COMPANION_PID=$!; NORM_HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")   # (a live companion has a token — nineteenth run, a4 C-001)
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     doc='{"findings":[{"title":"no severity","category":"other","description":"Something fails."}]}'
     # the companion is on claude-headless: the repair skips it and says so
@@ -678,4 +687,14 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "2" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless claude-headless " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]
+}
+
+@test "NRM-28 the test seams are honoured under the bats marker only: a production environment that exports _ADV_FLOCK_BIN never loses the per-binary serialisation (nineteenth run, a2 C-005)" {
+    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; eval "$(sed "s/^main \"\\$@\"/# main disabled/" .claude/scripts/adversarial-review.sh)"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
+    # no marker: the seams are dropped at load
+    out=$(env -u BATS_TEST_FILENAME -u BATS_VERSION _ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
+    [ "$out" = "[][][]" ]
+    # under the marker (this suite) they stand
+    out=$(_ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
+    [ "$out" = "[/nonexistent/flock][/nonexistent/pgrep][1]" ]
 }

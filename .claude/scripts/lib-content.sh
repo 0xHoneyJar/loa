@@ -102,6 +102,7 @@ estimate_tokens() {
 
 # A chunk's head at a hunk boundary: the byte cut, trimmed back to drop the hunk the cut landed in — unless that
 # would leave no hunk at all (cycle-126 sprint-248, thirteenth / fourteenth run)
+_lc_log() { printf '%s\n' "$*" >&2; }   # prepare_content's fallback logger (b1 C-004)
 _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partial; prints `hunk` (cut at a hunk boundary) or `mid`
                      # (the cut fell inside the first hunk: the partial ends on a line boundary and the last hunk is incomplete —
                      # fifteenth run, b1 C-001: never mid-line, never a marker that says every hunk is whole)
@@ -139,11 +140,11 @@ prepare_content() {
     return 0
   fi
 
-  # Log function — use caller's log if available, otherwise stderr
-  local _log_fn="echo >&2"
-  if type log &>/dev/null; then
-    _log_fn="log"
-  fi
+  # Log function — the caller's `log` when it is a shell FUNCTION, else our own stderr writer (nineteenth run, b1 C-004: a string
+  # with a redirection in it is not a redirection after expansion — `$_log_fn msg` ran `echo '>&2' msg` INTO the payload; and
+  # `type log` would pick up macOS's /usr/bin/log)
+  local _log_fn
+  if declare -F log >/dev/null 2>&1; then _log_fn=log; else _log_fn=_lc_log; fi
   $_log_fn "Content exceeds token budget (${token_count} > ${max_tokens}). Applying priority-based truncation."
 
   # Parse diff into per-file sections at "diff --git" boundaries
@@ -233,13 +234,13 @@ prepare_content() {
   # The top-priority file that does not fit whole is shown FIRST, partially, within three quarters of the budget — a
   # lower-priority file never displaces the file the review is about, and a voice never reviews an incomplete diff as
   # clean without the PARTIAL marker (cycle-126 sprint-248, thirteenth run c1 C-001 / fourteenth run b C-002)
-  # the candidate is the FIRST row at the top priority whose chunk does not fit whole — not the first row (sixteenth run,
-  # b1 C-002: a small P0 file ahead of a large one must not hide the large one)
-  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx head_pri=""
+  # the candidate is the FIRST row, in priority order, whose chunk does not fit whole — not the first row (sixteenth run,
+  # b1 C-002: a small P0 file ahead of a large one must not hide the large one), and not only at the top tier (nineteenth
+  # run, b1 C-002: a large P1 file behind a small P0 one was dropped whole with three quarters of the budget unused); the
+  # reservation below is computed against the rows at or above the candidate's own priority
+  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx
   while IFS=$'\t' read -r c_pri c_path c_idx; do
     [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
-    [[ -z "$head_pri" ]] && head_pri="$c_pri"
-    [[ "$c_pri" == "$head_pri" ]] || break
     if (( $(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")") > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
   done <<< "$sorted_manifest"
   if [[ -n "$top_idx" ]]; then

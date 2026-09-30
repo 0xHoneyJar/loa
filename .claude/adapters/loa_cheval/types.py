@@ -255,10 +255,11 @@ def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[fl
     return value
 
 
-def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float]) -> Optional[str]:
+def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float], floor: Optional[float] = None) -> Optional[str]:
     """One durable line when a catalog `headless_timeout_seconds` was NOT applied as written (sixteenth run, d C-001):
-    `raw` is the catalog value, `gated` what the CLI-only gate let through, `effective` what the coercion stored.
-    None when there was no value, or it applied as written."""
+    `raw` is the catalog value, `gated` what the CLI-only gate let through, `effective` what the coercion stored, `floor`
+    the provider's read floor (max(read_timeout, 600)) — a value at or below it is not applied either: the floor wins
+    (nineteenth run, d C-001). None when there was no value, or it applied as written."""
     if raw is None:
         return None
     if gated is None:
@@ -268,6 +269,8 @@ def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float]) -> O
     usable = usable_headless_timeout(raw)
     if usable is not None and usable > HEADLESS_TIMEOUT_CEILING_SECONDS:
         return f"catalog headless_timeout_seconds {raw!r} clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s"
+    if floor is not None and effective <= floor:
+        return f"catalog headless_timeout_seconds {raw!r} at or below the {floor:.0f}s read floor: the floor applies"
     return None
 
 
