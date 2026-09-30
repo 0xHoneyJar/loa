@@ -82,6 +82,11 @@ _fixture_content() {  # all three fixtures as one findings document
 
 @test "NRM-2 a derived failure_mode is the first sentence, capped at 200 characters, and never raises the severity" {
     long="$(printf 'A%.0s' $(seq 1 350)). Second sentence."   # (shell, as NRM-19 builds its strings — sixteenth run, c2a C-004)
+    # a whitespace-only failure_mode is empty: derived over from the description (eighteenth run, a1 C-001)
+    ws=$(jq -nc '{findings: [{"severity":"LOW","category":"other","description":"Real words here in the first sentence. Second sentence.","failure_mode":"  \t "}]}')
+    r=$(process_findings "$(_env "$ws")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq -r '.findings[0].failure_mode' <<<"$r")" = "Real words here in the first sentence." ]
+    [ "$(jq -r '.findings[0].failure_mode_derived' <<<"$r")" = "true" ]
     doc=$(jq -nc --arg d "$long" '{findings: [{"severity":"LOW","category":"other","description":$d}]}')
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "1" ]
@@ -241,6 +246,10 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "0" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "4" ]
+    # …and with the derivation off (the bats seam) a whitespace-only failure_mode is rejected, never accepted blank (a1 C-001)
+    ws=$(jq -nc '{findings: [{"severity":"HIGH","category":"config","description":"Words.","failure_mode":" "}]}')
+    r=$(LOA_ADVERSARIAL_NO_FM_DERIVATION=1 process_findings "$(_env "$ws")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$r")" = "missing-or-empty-failure_mode" ]
     [ "$(jq -r '[.metadata.rejected_summary[].reason] | unique | join(",")' <<<"$result")" = "missing-or-empty-description" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" != "null" ]
 }
@@ -354,6 +363,12 @@ _fixture_content() {  # all three fixtures as one findings document
     sha256sum() { return 127; }; shasum() { return 127; }
     [ "$(LOA_ADVERSARIAL_RUN_TAG="c.1" _adv_run_tag 2>/dev/null)" = "h632e31" ]
     [ "$(LOA_ADVERSARIAL_RUN_TAG="a/1" _adv_run_tag 2>/dev/null)" = "h612f31" ]
+    # …whole up to 100 bytes: two raw tags that differ only after byte 20 never share a name (eighteenth run, a2 C-004); beyond
+    # 100 bytes the hex is cut and the byte length appended, so the name stays a filename
+    long1="$(printf 'x%.0s' $(seq 1 30))/1"; long2="$(printf 'x%.0s' $(seq 1 30))/2"
+    [ "$(LOA_ADVERSARIAL_RUN_TAG="$long1" _adv_run_tag 2>/dev/null)" != "$(LOA_ADVERSARIAL_RUN_TAG="$long2" _adv_run_tag 2>/dev/null)" ]
+    huge="$(printf 'y%.0s' $(seq 1 150))/1"
+    [[ "$(LOA_ADVERSARIAL_RUN_TAG="$huge" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{200}-152$ ]]
     # …and that branch is reachable under errexit, as process_findings calls it (fifteenth run, a2 C-003): a failing
     # digest pipeline never aborts the resolver
     # (the script's own option line, -u included, and nothing pre-seeded: the resolver reads its flag with a default — c2a C-002)
@@ -380,6 +395,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(_ADV_REPAIR_DEAD_HOPS="gpt-5.5-pro" _repair_model_chain "gpt-5.5-pro")" = "tiny claude-headless gpt-5.5-pro" ]   # the answering voice stays
     [ "$(_ADV_REPAIR_DEAD_HOPS="claude-headless" _repair_model_chain "claude-headless")" = "tiny claude-headless" ]
     [ "$(_repair_model_chain "anthropic:claude-headless")" = "tiny claude-headless" ]   # (sixteenth run, a1 C-002: a prefixed answering voice is not appended twice)
+    [ "$(_ADV_REPAIR_DEAD_HOPS="claude-headless" _repair_model_chain "anthropic:claude-headless")" = "tiny claude-headless" ]   # (eighteenth run, a1 C-002: never retired, however spelled)
     _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop tiny 4 2>/dev/null; _adv_repair_retire_hop foo 6 2>/dev/null
     [ "$_ADV_REPAIR_DEAD_HOPS" = "tiny foo" ]
     unset _ADV_REPAIR_DEAD_HOPS
@@ -477,7 +493,9 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
     [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "7" ]
     [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 4 ]
-    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 3 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 2 ]
+    # an HTTP hop is estimated at its call timeout and a failure never raises that (eighteenth run, a1 C-003), so up to four
+    # one-second-timeout hops are admitted to a 7 s budget while this stub overruns its own timeout by a second each time
+    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 4 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 2 ]
     [ "$(grep -c "claude-headless" "$TEST_DIR/repair-calls")" = "0" ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
     grep -q "Repair hop claude-headless needs up to .*s and .*s of the repair budget remain — not started" "$TEST_DIR/repair-err"
@@ -571,6 +589,13 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny m " ]
     [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '["claude-headless:shared_with_companion"]' ]
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    # the ANSWERING voice is never skipped, however it is spelled (eighteenth run, a1 C-002): the companion on claude-headless,
+    # the answering voice `anthropic:claude-headless` — the hop stays
+    printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'hop' > "$companion_workdir/companion.phase"
+    : > "$TEST_DIR/repair-calls"
+    result=$(process_findings "$(_env "$doc")" "audit" "anthropic:claude-headless" "$SPRINT" "0" "" 2>/dev/null)
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]
     # the companion answered and is in its post-hop phase on claude-headless: the hop stays too
     printf 'claude-headless' > "$companion_workdir/companion.current"; printf 'post' > "$companion_workdir/companion.phase"
     : > "$TEST_DIR/repair-calls"
@@ -619,12 +644,38 @@ _fixture_content() {  # all three fixtures as one findings document
     # never runs; the second payload finds less than the bound left — with the fix its estimate is still the bound, so the hop
     # is pre-empted and named; a noted 1 s lock wait would have made it 2 s and queued the hop behind the lock again
     bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
-    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=2   # (a two-second lock wait always crosses a second boundary — the budget guard measures whole seconds)
     result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$bound" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     flock -u 8; exec 8>&-
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "m m " ]   # the CLI hop never ran for either payload
-    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 1s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
+    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 2s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
+}
+
+@test "NRM-27 a repair hop that ran and failed fast leaves no duration either: only a usable reply says how long a completed attempt takes, so the next payload's estimate stays the bound (eighteenth run, a1 C-003)" {
+    unset ANTHROPIC_API_KEY   # keyless: the chain is claude-headless → m
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 4; return 1; }   # fails after four seconds — a transient provider error, far below the bound
+    doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
+    bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 3 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    CONF_TIMEOUT=60
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
+    # the first payload's CLI hop ran (admitted with three seconds of margin) and failed after four; the second payload's
+    # estimate is still the bound — above what is left — so it is pre-empted and named, never admitted on an 8 s note
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless m m " ]
+    jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
+    # …and a usable reply IS noted: the second payload's hop is admitted on the observed duration (sixteenth run, a1 C-001) —
+    # a budget of the bound plus three seconds admits the first attempt with margin; that attempt takes four seconds, so the
+    # bound-sized estimate would no longer fit for the second payload while the noted eight seconds do
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 4; printf '%s' "$1" | jq -c '. + {severity: "LOW"}'; }
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 3 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    CONF_TIMEOUT=60
+    [ "$(jq '.metadata.repaired_count' <<<"$result")" = "2" ]
+    [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless claude-headless " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]
 }

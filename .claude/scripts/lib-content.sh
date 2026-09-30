@@ -111,7 +111,10 @@ _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partia
   if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then
     printf '%s' "$trimmed" > "$3"; printf 'hunk'
   else
-    printf '%s' "${partial%$'\n'*}" > "$3"; printf 'mid'
+    # a budget that lands before the first newline holds no whole line: nothing is shown rather than a fragment (eighteenth
+    # run, b1 DISS-002: `${partial%$'\n'*}` trims nothing when there is no newline)
+    if [[ "$partial" == *$'\n'* ]]; then printf '%s' "${partial%$'\n'*}" > "$3"; else : > "$3"; fi
+    printf 'mid'
   fi
 }
 _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)

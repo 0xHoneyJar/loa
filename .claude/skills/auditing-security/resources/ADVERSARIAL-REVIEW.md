@@ -116,9 +116,12 @@ this block are generated from the same text.
   the fork) and by a wait cap measured from its start: each `*-headless` hop counts the CLI adapter's bound — connect +
   max(600 s, the catalog's per-model `headless_timeout_seconds`, CLI hops only, capped at 3,600 s when the catalog loads;
   `claude-headless` carries 900 s because a dissent on `claude -p` takes 6–10 minutes; `LOA_ADVERSARIAL_CLI_HOP_TIMEOUT` is
-  the fallback for a hop no catalog lists; a listed hop without the key is bound by the formula, 610 s) — each HTTP hop `timeout_seconds`, plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS`
-  pins it). The deadline follows the companion's phase (queue → hop → post) under a global ceiling; the post-hop work
-  (validation, repair round-trips) has its own budget, so a model that answered is never reaped mid-processing. Every
+  the fallback for a hop no catalog lists; a listed hop without the key is bound by the formula, 610 s) — each HTTP hop `timeout_seconds`, plus the CLI bound when its catalog chain falls through to a CLI hop (cheval walks
+  that chain inside one call), plus 30 s (`LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` pins it). The deadline follows the companion's phase (queue → hop → post) under a global ceiling; the post-hop work
+  (validation, repair round-trips) has its own budget, so a model that answered is never reaped mid-processing; the
+  primary's wait on a shared hop applies the same model (a companion in `post` on another hop frees the hop at once; on
+  the shared hop the primary waits for the settled record). The previous run's sidecars are moved aside at start and
+  restored if the run ends without an envelope. Every
   numeric knob (`timeout_seconds`, `budget_cents`, the context-escalation sizes, the operator seconds) is a whole number
   without a leading zero, or its default applies with a warning.
 - **Locks.** `*-headless` hops — the dissent hops, the repair round-trips, and an HTTP alias whose catalog chain falls
