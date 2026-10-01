@@ -195,8 +195,10 @@ spiral:
     audit_budget_usd: 2 # Budget for independent audit session
     # Advisor Strategy: Sonnet executes (cheap), Opus judges (quality)
     # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
-    executor_model: sonnet # PRD, SDD, Sprint, Implementation
-    advisor_model: opus # Review, Audit (judgment quality)
+    # 2026-10-01 operator directive: every Claude hop on Fable 5.1 (Bedrock key; harness `claude -p` reaches Bedrock
+    # only from a claude-bedrock parent — bd-swz7). Was sonnet / opus.
+    executor_model: fable # PRD, SDD, Sprint, Implementation
+    advisor_model: fable # Review, Audit (judgment quality)
     # Pipeline Profiles (cycle-072): full | standard | light
     pipeline_profile: standard # Sprint Flatline only + Opus advisor ($12)
   # Off-Hours Scheduling (cycle-072)
@@ -254,7 +256,7 @@ run_bridge:
       # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
-          model_id: claude-opus-5   # cycle-124 floor (was 4-8)
+          model_id: claude-headless   # 2026-10-01: Fable 5.1 via the CLI (cli_model fable); http_api ids need ANTHROPIC_API_KEY (unset here). Was claude-opus-5
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -303,7 +305,9 @@ flatline_protocol:
     sdd: true
     sprint: true
   models:
-    primary: opus
+    # 2026-10-01: claude-headless = Fable 5.1 on the CLI/Bedrock; `opus`/`fable` are http_api ids that fail
+    # INVALID_CONFIG without ANTHROPIC_API_KEY (fleet-measured, search 2026-10-01). Was opus.
+    primary: claude-headless
     # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
     # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks
     # Pro-tier access (gpt-5.5-pro → 404 "not a chat model" on /v1/chat/completions
