@@ -18,15 +18,19 @@ so it evaluates the code without anchoring on your conclusions.
 ## Failed or unavailable dissenter
 
 Output file: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. The
-`adversarial-review-gate.sh` hook checks that this file exists, not its contents, so on a
-timeout, API error or exhausted budget write:
+`adversarial-review-gate.sh` hook checks that this file exists, not its contents. Write the fallback only once the script has EXITED — a detached or backgrounded run is polled until its process is gone (it holds a per-(sprint, gate) run lock until then, and a fallback written beside a live run is overwritten or, worse, outlives it). When `adversarial-audit.json` is ABSENT after it exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — write
 
 ```json
-{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": []}}
+{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}
 ```
 
-before proceeding — when `adversarial-audit.json` is ABSENT after the script exits (an aborted run leaves none: the script moves the previous round's envelope and sidecars aside as `.prev` at start and never restores them; add `"rejected_sidecars": []` so those `.prev` files, already triaged in that round's feedback, stay out of this file's count; an envelope that IS present is the script's own — never overwrite it; a canonical `adversarial-rejected-audit*.jsonl` beside the fallback is this run's own partial work: triage its rows under `## Rejected dissent payloads`) — and set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
+before proceeding. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-audit*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present is the script's own — never overwrite it — but a status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`) goes to stdout only: the envelope at the path, if any, is then the PREVIOUS run's, and nothing was moved aside. Then set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
 findings from a run that completed are a normal pass, not a degraded review.
+
+A completed run is still a degraded audit when its second voice is missing: `companion_voice.status` `failed` or
+`fold_failed`, or a `counted_as` other than `independent_voice` (a planned companion that never started, a duplicate
+family, a sole voice) — set the `DEGRADED_SECURITY_REVIEW` marker and name the reason; `planned: false` because the
+block opted out (`companion_voice: false`) is the operator's choice, not a degradation.
 
 ## Two voices and the rejected-payload contract (cycle-126 FR-2)
 
@@ -36,13 +40,13 @@ Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets
 (`gpt-5.5` → `codex-headless`; KF-002 keeps `gpt-5.5-pro` out of the default). Credential *presence* (env → `.env.local` →
 `.env`; the value is never read) decides only where the companion chain starts — with no key it
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
-(`verdict_quality.voices_planned: 2`, `voices_succeeded_ids` lists only completed voices). `companion_voice.status` is `succeeded`,
-`failed` or `fold_failed`; `voices_planned` is 2 only when both voices completed from different families —
+(`verdict_quality.voices_succeeded_ids` lists only completed voices). `companion_voice.status` is `succeeded`,
+`failed` or `fold_failed`; `verdict_quality.voices_planned` is 2 only when both voices completed from different families —
 `companion_voice.counted_as` (`independent_voice`, `duplicate_voice`, `sole_voice`) names every other outcome, and
 `planned: false` with a `reason` a companion that never started. The
 companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the primary's carry
 `voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
-status: succeeded|failed, failure_class: auth|model_unavailable|quota|timeout|malformed|null,
+status: succeeded|failed|fold_failed, failure_class: auth|model_unavailable|quota|timeout|lock_wait|malformed|null,
 cost_cents, attempts}`; a companion whose chain fails is a dropped voice (degraded for an audit,
 never blocking a review). Opt-out per block: `flatline_protocol.{code_review,security_audit}.companion_voice: false`
 (the YAML boolean spellings in any case; a value that is none of them is reported and the voice stays on).
@@ -70,9 +74,8 @@ this block are generated from the same text.
   `budget_cents` is a per-voice cap (a malformed cap is 0 cents — the run fails closed with `status: budget_exceeded`).
   Findings carry `voice` (the outer hop, matching `final_model`) and `answered_by` (the model that produced them);
   `companion_voice.answered_by` is the companion's own succeeded id. An operator may set
-  `flatline_protocol.<block>.companion_chain: {anthropic: [...], openai: [...]}` to replace the default chains (used as
-  given); the default OpenAI-family chain is `gpt-5.5` → `codex-headless` (KF-002: `gpt-5.5-pro` returns empty content on
-  review prompts). A family with neither a credential nor its CLI on PATH is `reason: no_route`; a prompt copy that fails
+  `flatline_protocol.<block>.companion_chain: {anthropic: [...], openai: [...]}` to replace the default chains of D-2.1
+  (used as given). A family with neither a credential nor its CLI on PATH is `reason: no_route`; a prompt copy that fails
   is `reason: prompt_copy_failed` (no fork). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps the `/tmp` workdir's files, never a
   process.
 - **`companion_voice.independent` / `counted_as`.** Independence compares the two `answered_by` families (the primary's
@@ -140,12 +143,16 @@ this block are generated from the same text.
   sequentially when any chain holds a `*-headless` hop. The envelope `adversarial-<gate>.json` and the two sidecars are
   single-writer per (sprint, gate) — the tag scopes the sidecar names only, never the envelope — so a second live run for
   the same sprint and gate is refused before it removes anything (`status: refused_concurrent_run` under `--json`; a
-  dead run's lock is taken over; the token is the acquiring pid and its start time).
+  dead run's lock is taken over; the token is the acquiring pid and its start time; a lock directory with no token yet is a
+  holder in flight for `LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS`, default 5). A diff that prepares to no content is refused
+  before the run lock (`status: nothing_to_review` under `--json`, exit 1, no call made); a top-priority file not even one
+  hunk of which fits the budget is sent as its PARTIAL marker alone (`0 of N hunks shown`).
 - **`failure_class` and `last_error`.** The class follows cheval's exit codes — 4 (`MISSING_API_KEY`) `auth`; 6
   (`BUDGET_EXCEEDED` / `RATE_LIMITED`) or a diagnostic saying "rate limit" / "429" / "quota" `quota`; 3 / 124 `timeout`,
   and a diagnostic saying "timed out" (cheval reports its own CLI-hop timeout as `PROVIDER_UNAVAILABLE`) too; 5
   (`INVALID_RESPONSE`) or a `malformed_response` status `malformed`; anything else (1: API error, provider unavailable,
-  token revoked) `model_unavailable`. `last_error` is an allowlisted summary of the provider's own line — cheval's error
+  token revoked) `model_unavailable`; a hop whose CLI lock was never acquired is `lock_wait` (no request was sent).
+  `last_error` is an allowlisted summary of the provider's own line — cheval's error
   tokens, "timed out after Ns", HTTP / exit codes — read from the MODELINV ledger row cheval wrote for the call (the
   model-adapter shim discards cheval's stderr; the row is matched by model, primitive and the window of the companion's
   LAST hop, so a repair on the same model during its post phase is not its row; concurrent dissents on one host could still
@@ -158,10 +165,14 @@ this block are generated from the same text.
   each (by canonical name: a prefixed answering voice is not appended twice); a hop that failed with an explicit auth /
   quota code is retired for the run's remaining repairs, the answering voice never; a repair skips a hop the companion is
   running at that moment (`repair_hops_skipped` names it, once) and waits for a CLI lock only its own timeout; the run's
-  repairs share a wall-clock budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or two full CLI
-  repairs plus a timeout if that is more; a hop whose estimate — twice its last observed duration, at least the timeout,
+  repairs share a wall-clock budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or twice the heaviest hop's charge
+  (below) plus a timeout if that is more; a hop whose estimate — twice its last observed duration, at least the timeout,
   at most its bound — exceeds what is left is not started and is named `<hop>:over_budget`; spent, the rest are rejected
-  unrepaired and counted in `repair_budget_exhausted`, a payload none of whose hops started among them). A derived
+  unrepaired and counted in `repair_budget_exhausted`, a payload none of whose hops started for want of budget among them;
+  one none of whose hops started for any other reason — every hop retired or being run by the companion — is counted in
+  `repair_skipped_no_hop`). `LOA_ADVERSARIAL_REPAIR_MODEL` is filtered by the retired hops too. A hop is charged by what it
+  can reach, in the repair budget and the companion's post budget alike: a `*-headless` hop its CLI bound, an HTTP alias
+  whose chain falls through to a CLI its lock wait, its timeout and that CLI's bound. A derived
   finding id never collides with one the model supplied; the normaliser's `id_derived` / `failure_mode_derived` markers are
   not part of the repair's byte-diff; a derived `failure_mode` shorter than 20 characters (an enumerator, an abbreviation)
   gives way to the description's 200-character head (counted in characters, never bytes).

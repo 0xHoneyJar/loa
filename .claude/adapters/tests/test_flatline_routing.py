@@ -191,8 +191,12 @@ class TestModelInvokeDryRun:
         cmd = [str(MODEL_INVOKE), "--agent", agent, "--dry-run"]
         if model_override:
             cmd.extend(["--model", model_override])
+        # hermetic: a session launched through claude-bedrock exports the Bedrock bearer, and the
+        # resolver then routes every anthropic agent to bedrock — the routing under test is the config's
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("AWS_BEARER_TOKEN_BEDROCK", "CLAUDE_CODE_USE_BEDROCK")}
         result = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT)
+            cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT), env=env
         )
         assert result.returncode == 0, f"dry-run failed: {result.stderr}"
         return json.loads(result.stdout)

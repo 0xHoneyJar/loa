@@ -65,6 +65,8 @@ Options:
                       companion_voice) counts none of the rows as old as itself, while a sidecar newer than it
                       counts, with a warning; one top-level bullet per rejected payload
                       under '## Rejected dissent payloads'; a missing explicit path is a usage error (exit 1).
+                      A moved-aside adversarial-<gate>.json.prev or adversarial-rejected-<gate>*.jsonl.prev
+                      with no envelope is a violation (dissent_aborted: the run never wrote its envelope).
   --review-file PATH  Audit gate only: cross-check the audit trailer's
                        excluded_confirmed against the review trailer's excluded
   -h, --help          Show this help message
@@ -186,6 +188,16 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     #   * the same section and bullet count clear the violation whether or not the envelope exists.
     local rows=0 f envdir kind n=0 need source listed="" has_list="false" _snap
     envdir=$(dirname -- "$ENVELOPE_FILE")
+    # twentieth run, a4 C-001: the dissent moves the previous round's envelope and sidecars aside (`.prev`) when it starts and
+    # drops them once it writes its own envelope — `.prev` files with NO envelope are a run that ended in between (a session
+    # limit, a signal, a fail-closed exit): the dissent never completed, so no file can be held to it as if it had
+    if [[ ! -e "$ENVELOPE_FILE" && ! -L "$ENVELOPE_FILE" ]]; then
+        local _pv _prev_files=""
+        for _pv in "$ENVELOPE_FILE.prev" "$envdir"/adversarial-rejected-"$GATE"*.jsonl.prev; do
+            [[ -e "$_pv" || -L "$_pv" ]] && _prev_files+="${_prev_files:+, }$(basename -- "$_pv")"
+        done
+        [[ -n "$_prev_files" ]] && violations+=("dissent_aborted: $_prev_files beside this file but no dissent envelope $(basename -- "$ENVELOPE_FILE") — a dissent run moved the previous round's files aside and wrote none of its own; re-run the dissent, or record the failure with the documented fallback envelope")
+    fi
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean), and a
         # metadata that is not an object gets its own message; an envelope with no metadata at all, or a metadata WITHOUT
@@ -223,6 +235,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             for _lf in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
                 [[ -e "$_lf" || -L "$_lf" ]] || continue            # (the literal pattern of a no-match glob)
                 [[ -f "$_lf" && ! -s "$_lf" ]] && continue          # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — nineteenth run, b1 C-003)
+                # (twentieth run, c2d C-002: a non-regular entry has no age to split on — `-nt` is false for a dangling link — so it is judged here)
+                if [[ ! -f "$_lf" ]]; then _rejected_rows_of "$_lf"; continue; fi
                 if [[ "$_lf" -nt "$ENVELOPE_FILE" ]]; then _newer_files+="${_newer_files:+, }$(basename -- "$_lf")"; _rejected_rows_of "$_lf"
                 else _legacy_files+="${_legacy_files:+, }$(basename -- "$_lf")"; fi
             done

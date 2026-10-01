@@ -231,7 +231,7 @@ prepare_content() {
   local output="" current_tokens=0 included=0
   local -a skipped_files=()
 
-  # The top-priority file that does not fit whole is shown FIRST, partially, within three quarters of the budget — a
+  # The top-priority file that does not fit whole is shown partially, at its tier's place, within three quarters of the budget — a
   # lower-priority file never displaces the file the review is about, and a voice never reviews an incomplete diff as
   # clean without the PARTIAL marker (cycle-126 sprint-248, thirteenth run c1 C-001 / fourteenth run b C-002)
   # the candidate is the FIRST row, in priority order, whose chunk does not fit whole — not the first row (sixteenth run,
@@ -255,25 +255,37 @@ prepare_content() {
       o_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${o_idx}")")
       (( o_tok <= max_tokens )) && others=$(( others + o_tok ))
     done <<< "$sorted_manifest"
+    # twentieth run, b1 DISS-C-001: no floor — a quarter-budget floor let the partial displace a row at or above its tier that
+    # fits whole; what those rows leave over is all it gets (capped at three quarters), and its marker comes out of that
+    # share too when there are such rows to protect (b1 DISS-001: the marker is charged to the budget)
+    local marker_est
+    marker_est=$(estimate_tokens "--- PARTIAL: ${top_path} shown up to the token budget (999 of 999 hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---")
     reserve=$(( max_tokens - others ))
     (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
-    (( reserve < max_tokens / 4 )) && reserve=$(( max_tokens / 4 ))
+    (( others > 0 )) && reserve=$(( reserve - marker_est - 1 ))
+    (( reserve < 0 )) && reserve=0
     how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
     partial=$(cat "$temp_dir/partial_${top_idx}")
     total=$(_lc_hunk_count "$(cat "$temp_dir/chunk_${top_idx}")"); kept=$(_lc_hunk_count "$partial")
-    output+="$partial"$'\n'
-    if [[ "$how" == "mid" && $total -gt 0 ]]; then   # (a chunk with no hunk header at all is just cut: nothing to call mid-way)
-      output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    local partial_block="$partial"$'\n'
+    if [[ $kept -eq 0 && $total -gt 0 ]]; then   # (twentieth run, b1 C-003: not even one hunk header fit — only the marker is sent)
+      partial_block="--- PARTIAL: ${top_path}: no hunk fit within the token budget (0 of ${total} hunks shown; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    elif [[ "$how" == "mid" && $total -gt 0 ]]; then   # (a chunk with no hunk header at all is just cut: nothing to call mid-way)
+      partial_block+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
     else
-      output+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+      partial_block+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
     fi
-    current_tokens=$(estimate_tokens "$partial"); included=1; top_partial_done=1
+    top_partial_done=1
     $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
   fi
 
   while IFS=$'\t' read -r priority filepath chunk_idx; do
     [[ -n "$chunk_idx" ]] || continue
-    [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]] && continue
+    # the partial view sits at its own tier's place (twentieth run, b1 DISS-C-001), charged with its marker, always shown
+    if [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]]; then
+      output+="$partial_block"; current_tokens=$(( current_tokens + $(estimate_tokens "$partial_block") )); ((included++)) || true
+      continue
+    fi
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
     local chunk_tokens

@@ -44,7 +44,12 @@ skip_if_no_jq() {
     run "$SCRIPT" --file "${TEST_TMPDIR}/f.md" --gate bogus
     [ "$status" -eq 1 ]
     [[ "$output" == *"Error: --gate must be 'review' or 'audit'"* ]]
+}
+
+# (twentieth run, c2c C-001: the --json half has its own case, so a jq-less lane reports the plain-text half as a pass)
+@test "verdict-derive: invalid --gate value under --json is a usage-error result object" {
     skip_if_no_jq
+    touch "${TEST_TMPDIR}/f.md"
     run bash -c "'$SCRIPT' --file '${TEST_TMPDIR}/f.md' --gate bogus --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.usage_error == true and .consistent == false' >/dev/null
@@ -477,7 +482,9 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true and .envelope_explicit == false' >/dev/null
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json --envelope \"$d/adversarial-review.json\" 2>/dev/null"
-    echo "$output" | jq -e '.envelope_explicit == true' >/dev/null
+    # the explicit path is a drop-in for the default sibling: same verdict, same envelope (twentieth run, c2c C-002)
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and .envelope_explicit == true and (.envelope | endswith("adversarial-review.json"))' >/dev/null
 }
 
 @test "verdict-derive: an envelope without rejected_summary (every pre-FR-2.2 envelope) or with null passes — no section required (sprint-248 review r2, chunk c C-002)" {
@@ -697,9 +704,12 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [[ "$output" == *"metadata of type array"* ]]
     rm -f "$d/adversarial-review.json"
     printf '{"reject_reason":"missing-severity","payload":{"description":"the model wrote \\"repair_succeeded\\": true in its text"}}\nnot json at all\n{"reject_reason":"x","repair_succeeded":true}\n' > "$d/adversarial-rejected-review.jsonl"
+    # …and the literal `"repair_succeeded":true` bytes on the line, at a NESTED level, are not the top-level field either: a
+    # substring exclusion keyed on those bytes would drop this row (twentieth run, c2d C-001)
+    printf '{"reject_reason":"missing-severity","payload":{"repair_succeeded":true,"title":"a"}}\n' >> "$d/adversarial-rejected-review.jsonl"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.violations[0] | test("hold 2 schema-rejected payload")' >/dev/null   # the payload-text row and the non-JSON line count; the repaired row does not
+    echo "$output" | jq -e '.violations[0] | test("hold 3 schema-rejected payload")' >/dev/null   # the payload-text row, the non-JSON line and the nested-key row count; the repaired row does not
 }
 
 @test "verdict-derive: an envelope with no metadata at all is the legacy shape; a scalar sidecar row counts as one row; warnings reach stderr on a trailer-less file (tenth run, chunk b C-004 / C-003 / C-002)" {
@@ -838,4 +848,65 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1' >/dev/null
+}
+
+@test "verdict-derive: a dangling symlink named like a sidecar — size 0 on every filesystem, no age — is a violation beside an FR-2 envelope and beside a legacy one (twentieth run, c2d C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s24b"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    ln -s "$d/nowhere" "$d/adversarial-rejected-review-dangling.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("dangling.jsonl is not a regular file"))) | length) == 1' >/dev/null
+    # a legacy envelope: a dangling link is neither older nor newer than it (`-nt` is false for a missing target), so the
+    # age split must not file it under "not counted"
+    jq -n '{findings: []}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("dangling.jsonl is not a regular file"))) | length) == 1' >/dev/null
+}
+
+@test "verdict-derive: the dissent's moved-aside files (.json.prev / .jsonl.prev) are never counted as sidecars beside a standing envelope (twentieth run, b1 C-004)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s25"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"old"}}\n' > "$d/adversarial-rejected-review.jsonl.prev"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"old"}}\n' > "$d/adversarial-rejected-review-companion.jsonl.prev"
+    jq -n '{findings: [], metadata: {type: "review", rejected_summary: [{"title":"old"}]}}' > "$d/adversarial-review.json.prev"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 0' >/dev/null
+    # the contrast: the same row under a sidecar name IS counted
+    cp "$d/adversarial-rejected-review.jsonl.prev" "$d/adversarial-rejected-review.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+}
+
+@test "verdict-derive: a moved-aside envelope or sidecar with NO current envelope is dissent_aborted — a run moved the previous round's files aside and wrote none of its own (twentieth run, a4 C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s26"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", rejected_summary: [{"title":"old"}]}}' > "$d/adversarial-review.json.prev"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | any(test("dissent_aborted") and test("adversarial-review.json.prev")))' >/dev/null
+    # a moved-aside sidecar alone says the same
+    rm -f "$d/adversarial-review.json.prev"
+    printf '{"reject_reason":"missing-severity","payload":{"title":"old"}}\n' > "$d/adversarial-rejected-review-companion.jsonl.prev"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations | any(test("dissent_aborted") and test("companion.jsonl.prev"))' >/dev/null
+    # the other gate's moved-aside files are not this gate's
+    rm -f "$d/adversarial-rejected-review-companion.jsonl.prev"
+    jq -n '{findings: []}' > "$d/adversarial-audit.json.prev"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    # the documented fallback envelope beside the .prev files clears it: the failure is on record
+    jq -n '{findings: []}' > "$d/adversarial-review.json.prev"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "failed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.violations | map(select(test("dissent_aborted"))) | length == 0' >/dev/null
 }

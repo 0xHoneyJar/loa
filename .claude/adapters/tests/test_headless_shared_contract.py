@@ -243,6 +243,23 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     assert caplog.text.count("applies to CLI models only") == 0   # (the log was cleared above: two rebuilds added nothing)
 
 
+def test_headless_timeout_report_gate_keys(caplog):
+    """The once-per-process report gate keys on repr(raw): a repeated NaN is reported once, while False and 0 —
+    equal and equal-hashing in Python — are distinct defects and each reported (twentieth run, c2e C-002)."""
+    from loa_cheval.types import coerce_headless_timeout_seconds, reset_headless_timeout_reports
+    reset_headless_timeout_reports()
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        caplog.clear()
+        assert coerce_headless_timeout_seconds(float("nan"), where="p/m: ") is None
+        assert coerce_headless_timeout_seconds(float("nan"), where="p/m: ") is None
+        assert len(caplog.records) == 1
+        assert coerce_headless_timeout_seconds(False, where="p/m: ") is None
+        assert coerce_headless_timeout_seconds(0, where="p/m: ") is None
+        assert len(caplog.records) == 3
+    assert "headless_timeout_seconds False ignored: a boolean" in caplog.records[1].getMessage()
+    assert "headless_timeout_seconds 0 ignored: not a positive finite number" in caplog.records[2].getMessage()
+
+
 def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
     """A catalog `headless_timeout_seconds` that was not applied as written leaves more than a one-shot WARNING on
     stderr (which the dissent path discards): the loader's verdict travels on the ModelConfig and the adapter appends
@@ -283,6 +300,18 @@ def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
     assert headless_timeout_note(300, 300, 300.0, floor=600.0) == "catalog headless_timeout_seconds 300 at or below the 600s read floor: the floor applies"
     assert headless_timeout_note(900, 900, 900.0, floor=600.0) is None
     assert headless_timeout_note(900, 900, 900.0, floor=4000.0) == "catalog headless_timeout_seconds 900 at or below the 4000s read floor: the floor applies"
+    # a clamped value the read floor still overrides names both: the floor is what the hop ran on (twentieth run, d C-002)
+    assert headless_timeout_note(4500, 4500, 3600.0, floor=4000.0) == "catalog headless_timeout_seconds 4500 clamped to 3600s, at or below the 4000s read floor: the floor applies"
+    assert headless_timeout_note(7200, 7200, 3600.0, floor=600.0) == "catalog headless_timeout_seconds 7200 clamped to 3600s"
+    # …and the loader computes the floor from the provider's own read_timeout (twentieth run, c2e C-001)
+    cfg_hi = {"providers": {"q": {"type": "anthropic", "endpoint": "https://example.invalid", "auth": "none", "read_timeout": 4000, "models": {
+        "mid": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 900},
+        "huge": {"kind": "cli", "context_window": 1000, "headless_timeout_seconds": 4500},
+    }}}}
+    pq = cheval._build_provider_config("q", cfg_hi)
+    assert pq.models["mid"].headless_timeout_note == "catalog headless_timeout_seconds 900 at or below the 4000s read floor: the floor applies"
+    assert pq.models["huge"].headless_timeout_note == "catalog headless_timeout_seconds 4500 clamped to 3600s, at or below the 4000s read floor: the floor applies"
+    assert pq.models["huge"].headless_timeout_seconds == 3600.0
     # a chain walk rebuilds the provider config per hop: the note and the effective bound are computed from values on every
     # build, never from the once-per-process report gate (nineteenth run, c2e C-002)
     pc2 = cheval._build_provider_config("p", cfg)

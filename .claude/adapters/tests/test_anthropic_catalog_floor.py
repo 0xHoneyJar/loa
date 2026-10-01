@@ -247,7 +247,8 @@ def test_advisor_tier_points_at_opus_5():
     assert cfg["advisor_strategy"]["tier_aliases"]["advisor"]["anthropic"] == "claude-opus-5"
     # audit slice D: every Opus pin in the live config sits on the floor, not only the advisor tier
     bb_models = cfg["run_bridge"]["bridgebuilder"]["multi_model"]["models"]
-    assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-opus-5"]
+    # 2026-10-01 operator directive (2fb4f9f2): the BB anthropic voice is Fable 5.1 through the CLI
+    assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-headless"]
     assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
     assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()

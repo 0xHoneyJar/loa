@@ -585,7 +585,13 @@ _repair_chain_base() {  # <voice that answered> → the repair chain before the 
 }
 _repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop (the base chain, filtered)
   local chain; chain=$(_repair_chain_base "$1")
-  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$chain"; return 0; fi
+  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then
+    # twentieth run, a1 DISS-C-002: a pin is the whole chain, but a pinned hop retired this run is not paid for again — an
+    # entirely retired pin is an empty chain (the payload is then repair_skipped_no_hop), never the answering voice
+    local _ph _pk=""
+    for _ph in $chain; do [[ " ${_ADV_REPAIR_DEAD_HOPS:-} " == *" $_ph "* ]] || _pk="${_pk:+$_pk }$_ph"; done
+    echo "$_pk"; return 0
+  fi
   # twelfth run, a1 C-002 / thirteenth run, a1 C-002: like the main walk, hop-aware — a repair never queues behind the
   # live companion on the hop it is ON right now (companion.current, phase queue / hop); a companion busy elsewhere
   # leaves the hop in the chain (the bounded _ADV_LOCK_WAIT_CLI covers a later overlap); every skip is named on the envelope
@@ -1027,7 +1033,8 @@ OUTPUT: JSON object {"findings": [...]}. Same field structure as code review.'
     --rawfile system "$ctx_tmp/system" \
     --rawfile user "$ctx_tmp/user" \
     --argjson escalated "$( [[ "$escalation_used" == "true" ]] && echo true || echo false )" \
-    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated}' || jq_rc=$?
+    --argjson empty "$( [[ "$prepared_diff" =~ [^[:space:]] || "$escalated_content" =~ [^[:space:]] ]] && echo false || echo true )" \
+    '{system_prompt: $system, user_prompt: $user, context_escalated: $escalated, nothing_to_review: $empty}' || jq_rc=$?
   rm -f "$ctx_tmp/system" "$ctx_tmp/user"
   rmdir "$ctx_tmp" 2>/dev/null || true
   return $jq_rc
@@ -1381,7 +1388,7 @@ while i < len(text):
   # voice that returns thirty out-of-enum findings would otherwise cost thirty
   # calls per review. At most ADV_REPAIR_MAX_PER_RUN repairs per run; the rest
   # are rejected unrepaired and counted in repair_budget_exhausted.
-  local repairs_used=0 repair_budget_exhausted=0
+  local repairs_used=0 repair_budget_exhausted=0 repair_skipped_no_hop=0
   # twelfth run, a1 C-002: the run's repairs share a WALL-CLOCK budget too — up to three hops per payload, each bounded
   # by its own timeout or lock wait, no longer bounded the review's latency by ADV_REPAIR_MAX_PER_RUN alone
   local _repair_wall_started _repair_wall_budget _repair_wall_used=0 _rh _rb _rmax=0
@@ -1390,7 +1397,7 @@ while i < len(text):
   # timeout — the default budget always fits one full CLI repair plus a timeout, and (below) a hop whose bound exceeds
   # what is left is not started
   for _rh in $(_repair_chain_base "$model"); do
-    case "$(_adv_hop_canon "$_rh")" in *-headless) _rb=$(_adv_num_or "$(_adv_cli_hop_bound "$_rh")" 610) ;; *) _rb="${CONF_TIMEOUT:-60}" ;; esac
+    _rb=$(_adv_hop_charge "$_rh" "${CONF_TIMEOUT:-60}")   # (twentieth run, a1 DISS-C-001: an HTTP hop that reaches a CLI is charged that CLI)
     (( _rb > _rmax )) && _rmax=$_rb
   done
   # nineteenth run, a1 C-001: TWO full CLI repairs plus a timeout — with no duration noted for a failed hop (eighteenth run, a1
@@ -1466,11 +1473,11 @@ while i < len(text):
         # fourth run, chunk c C-008: tiny first when a credential is present, claude-headless when it is not
         # or when tiny fails — one attempt per hop, the round-trip stays bounded
         _rcf=$(mktemp "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair-rc.XXXXXX" 2>/dev/null) || _rcf=""
-        local _any_hop_started="false"
+        local _any_hop_started="false" _budget_skip="false"
         for _rm in $(_repair_model_chain "$model"); do
           # fourteenth run, a1 C-002: a hop whose real bound exceeds what is left of the wall budget is not started —
           # named on the envelope as <hop>:over_budget, so a stall never hides behind "budget policy"
-          local _hb _est _last; case "$(_adv_hop_canon "$_rm")" in *-headless) _hb=$(_adv_num_or "$(_adv_cli_hop_bound "$_rm")" 610) ;; *) _hb="${CONF_TIMEOUT:-60}" ;; esac
+          local _hb _est _last; _hb=$(_adv_hop_charge "$_rm" "${CONF_TIMEOUT:-60}")   # (twentieth run, a1 DISS-C-001: the charge the post budget uses)
           # sixteenth run, a1 C-001: the estimate is the hop's LAST observed duration, doubled — at least the call timeout,
           # at most the bound; before any observation the bound. A keyless host's second payload is repaired too, instead
           # of every later payload being pre-empted against a 910 s worst case the first repair never approached
@@ -1482,7 +1489,7 @@ while i < len(text):
           if (( _repair_wall_budget - _repair_wall_used < _est )); then
             if [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && ! grep -qxF "${_rm}:over_budget" "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; then echo "${_rm}:over_budget" >> "$_ADV_REPAIR_SKIP_FILE"; fi   # (once per hop, like the shared row — nineteenth run, a1 C-003)
             log "Repair hop $_rm needs up to ${_est}s and $(( _repair_wall_budget - _repair_wall_used ))s of the repair budget remain — not started"
-            continue
+            _budget_skip="true"; continue
           fi
           # seventeenth run, a1 C-003: the shared-hop rule is asked again right BEFORE this hop starts — the chain was
           # computed once, and the companion may have moved onto this hop while an earlier hop ran; a skipped hop is named
@@ -1515,8 +1522,11 @@ while i < len(text):
         [[ -n "$_rcf" ]] && command rm -f -- "$_rcf" 2>/dev/null
         # fifteenth run, a2 C-001: every hop pre-empted → no model was asked: a budget exhaustion, not an attempt, and
         # no ADV_REPAIR_MAX_PER_RUN slot spent
+        # (twentieth run, a1 DISS-C-002: only a hop pre-empted by the budget makes it an exhaustion — a chain that was empty or
+        # whose every hop the companion held is repair_skipped_no_hop)
         if [[ "$_any_hop_started" != "true" ]]; then
-          repair_attempted="false"; repairs_used=$((repairs_used - 1)); repair_budget_exhausted=$((repair_budget_exhausted + 1))
+          repair_attempted="false"; repairs_used=$((repairs_used - 1))
+          if [[ "$_budget_skip" == "true" ]]; then repair_budget_exhausted=$((repair_budget_exhausted + 1)); else repair_skipped_no_hop=$((repair_skipped_no_hop + 1)); fi
         fi
         if [[ "$_repair_ok" == "true" ]]; then
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
@@ -1606,9 +1616,9 @@ while i < len(text):
   # findings and whether the hop enforced the wire schema.
   local repair_metadata_json
   repair_metadata_json=$(jq -nc --argjson rc "$repaired_count" --arg se "$schema_enforced" --arg pp "$parse_path" \
-    --argjson rbe "$repair_budget_exhausted" \
+    --argjson rbe "$repair_budget_exhausted" --argjson rsn "$repair_skipped_no_hop" \
     --argjson rws "$(( $(date +%s) - _repair_wall_started ))" --argjson rwb "$_repair_wall_budget" --arg rhs "$( [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" && -s "$_ADV_REPAIR_SKIP_FILE" ]] && sort -u "$_ADV_REPAIR_SKIP_FILE" | tr '\n' ' ' | sed 's/ $//' )" \
-    '{repaired_count: $rc, schema_enforced: ($se == "true"), parse_path: $pp, repair_budget_exhausted: $rbe, repair_wall_seconds: $rws, repair_wall_budget_seconds: $rwb,
+    '{repaired_count: $rc, schema_enforced: ($se == "true"), parse_path: $pp, repair_budget_exhausted: $rbe, repair_skipped_no_hop: $rsn, repair_wall_seconds: $rws, repair_wall_budget_seconds: $rwb,
       repair_hops_skipped: (if $rhs == "" then [] else ($rhs | split(" ") | unique) end)}')
   [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && command rm -f -- "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; _ADV_REPAIR_SKIP_FILE=""
 
@@ -2178,8 +2188,10 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
   # gate) — the tag scopes the sidecar NAMES only, the envelope path is shared (twelfth run, a2 C-003) — so a second live
   # run for the same sprint and gate is refused before anything is removed. mkdir + a pid token, not flock: no fd for a
   # child to inherit. The token is pid + process start time (a reused pid is not the holder); an absent token is a
-  # holder in flight for five seconds and a dead one after (twelfth run, a2 C-002).
-  local key="" dir pidf other ostart cur _try _w lockdir
+  # holder in flight for five seconds (LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS) and a dead one after (twelfth run, a2 C-002).
+  local key="" dir pidf other ostart cur _try _w lockdir _g
+  # (twentieth run, c1b C-005: the in-flight grace is a validated knob, so a test can hold a token-less lock live past it)
+  _g=$(_conf_uint "LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS" "${LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS:-5}" 5 0) || _g=5
   key=$(printf '%s|%s' "$1" "$2" | sha256sum 2>/dev/null | cut -c1-16) || key=""
   [[ -n "$key" ]] || key=$(printf '%s|%s' "$1" "$2" | shasum -a 256 2>/dev/null | cut -c1-16) || key=""
   [[ -n "$key" ]] || return 0   # (no hash tool: no guard — never a refusal for want of one)
@@ -2206,7 +2218,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
         if ! { exec 7>>"$_tl"; } 2>/dev/null || ! "${_ADV_FLOCK_BIN:-flock}" -w 5 7; then echo retry; exit 0; fi
       fi
       _w=0
-      while [[ -d "$dir" && ! -s "$pidf" ]] && (( _w < 10 )) && (( $(date +%s) - $(_adv_mtime "$dir") < 5 )); do sleep 0.2; _w=$((_w + 1)); done
+      while [[ -d "$dir" && ! -s "$pidf" ]] && (( _w < 10 )) && (( $(date +%s) - $(_adv_mtime "$dir") < _g )); do sleep 0.2; _w=$((_w + 1)); done
       [[ -d "$dir" ]] || { echo retry; exit 0; }   # (thirteenth run, a2 C-005: the holder released between our mkdir and the read — retry, never a false refusal)
       other=$(sed -n 1p "$pidf" 2>/dev/null || true); ostart=$(sed -n 2p "$pidf" 2>/dev/null || true)
       if [[ "$other" =~ ^[0-9]+$ ]] && _adv_pid_alive "$other"; then   # (nineteenth run, a2 C-002: a zombie answers kill -0 and keeps its start time — it is dead, as the reaper knows)
@@ -2216,7 +2228,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
           echo refuse; exit 0
         fi
         # the pid was reused by an unrelated process: the holder is gone
-      elif [[ -d "$dir" && ! -s "$pidf" ]] && (( $(date +%s) - $(_adv_mtime "$dir") < 5 )); then
+      elif [[ -d "$dir" && ! -s "$pidf" ]] && (( $(date +%s) - $(_adv_mtime "$dir") < _g )); then
         error "another adversarial-review run for ${1##*/}/$2 is starting (its lock is seconds old) — wait for it to finish"
         echo refuse; exit 0
       fi
@@ -2282,6 +2294,17 @@ _adv_cli_inner_bound() {  # <HTTP hop> → the CLI bound its catalog fallback_ch
                           # and the post budget count the same possibility: the hop's own timeout, then the CLI adapter's bound)
   local bin; bin=$(_adv_cli_bin_for "$1")
   if [[ -n "$bin" ]]; then _adv_cli_hop_bound "${bin}-headless"; else echo 0; fi
+}
+_adv_hop_charge() {  # <hop> <timeout_seconds> → the seconds ONE call on this hop can take: a *-headless hop its CLI bound; an HTTP
+                     # hop whose catalog chain reaches a CLI binary its lock wait, its own timeout, then that CLI's bound; else
+                     # the timeout (twentieth run, a1 DISS-C-001: one rule for the repair budget and the post budget; a3 DISS-C-003:
+                     # a bound that is not a whole number is the adapter's default, never 0 or an arithmetic error)
+  local t="$2" bin b
+  case "$(_adv_hop_canon "$1")" in
+    *-headless) _adv_num_or "$(_adv_cli_hop_bound "$1")" 610 ;;
+    *) bin=$(_adv_cli_bin_for "$1")
+       if [[ -n "$bin" ]]; then b=$(_adv_num_or "$(_adv_cli_hop_bound "${bin}-headless")" 610); echo $(( t + t + b )); else echo "$t"; fi ;;
+  esac
 }
 _companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
   local t="$1" cap=0 h b; shift
@@ -2387,7 +2410,7 @@ _adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (ma
   local line="$1" out=""
   # (nineteenth run, d C-002: the adapter's note on a catalog bound not applied as written travels too — up to the closing paren)
   out=$(printf '%s\n' "$line" | grep -oE '\b[A-Z][A-Z_]{4,}\b|timed out after [0-9]+s|HTTP [0-9]{3}|status [0-9]{3}|exit code [0-9]+|catalog headless_timeout_seconds [^()]{1,100}' \
-        | grep -vE '^REDACTED' | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ *$//' | cut -c1-200)
+        | grep -vE '^REDACTED' | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ *$//' | cut -c1-200) || out=""   # (no token: empty, never a pipefail abort — twentieth run, a2 DISS-001)
   printf '%s' "$out"
 }
 
@@ -2395,16 +2418,19 @@ _companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] → t
   local m="$1" since="$2" until="${3:-9999-12-31T23:59:59Z}" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
   [[ -s "$ledger" ]] || { echo ""; return 0; }
   # (tenth run, c1 C-005: bounded by the companion's END too — a concurrent dissent's later row is not ours)
-  tail -n 400 -- "$ledger" 2>/dev/null | jq -r --arg m "$m" --arg since "$since" --arg until "$until" '
-      select(type == "object" and (.event_type // "") == "model.invoke.complete" and ((.ts_utc // "") >= $since) and ((.ts_utc // "") <= $until)
+  # (twentieth run, a2 DISS-C-002: line by line — a torn append from a concurrent writer is skipped, never the end of the parse;
+  # fractional seconds are dropped before the window test — "…:05.123Z" sorts before "…:05Z" as a string)
+  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg since "$since" --arg until "$until" '
+      fromjson? | ((.ts_utc? // "") | if type == "string" then sub("\\.[0-9]+"; "") else "" end) as $ts
+      | select(type == "object" and (.event_type // "") == "model.invoke.complete" and ($ts >= $since) and ($ts <= $until)
              and ((.payload.calling_primitive // "adversarial-review") == "adversarial-review")
              and (((.payload.models_requested // []) | map(. == $m or endswith(":" + $m)) | any)))
       | (.payload.models_failed // [])[]? | .message_redacted // empty' 2>/dev/null | tail -1 | cut -c1-300
 }
 
-_companion_failure_class() {  # <last status> <last exit code> [diagnostic text] → auth|model_unavailable|quota|timeout|malformed
+_companion_failure_class() {  # <last status> <last exit code> [diagnostic text] → auth|model_unavailable|quota|timeout|malformed|lock_wait
   local status="$1" rc="$2" diag="${3:-}"
-  case "$status" in malformed_response) echo "malformed"; return 0 ;; wait_timeout) echo "timeout"; return 0 ;; esac
+  case "$status" in malformed_response) echo "malformed"; return 0 ;; wait_timeout) echo "timeout"; return 0 ;; lock_wait) echo "lock_wait"; return 0 ;; esac
   case "$rc" in
     4) echo "auth" ;;
     6) echo "quota" ;;
@@ -2448,14 +2474,20 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
     # request — it queues too, so main's deadline charges the lock wait to the queue, never to the hop)
     if [[ -n "$(_adv_cli_bin_for "$m")" ]]; then printf 'queue' > "$workdir/companion.phase"; else printf 'hop' > "$workdir/companion.phase"; fi
     date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_started_iso" 2>/dev/null || true   # (the MODELINV lookup window is this hop, not the companion's lifetime — sixteenth run, a3 C-004)
-    raw=$(_ADV_PHASE_FILE="$workdir/companion.phase" _adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
+    command rm -f -- "$workdir/companion.lockwait" 2>/dev/null
+    raw=$(_ADV_PHASE_FILE="$workdir/companion.phase" _ADV_LOCK_EXPIRED_FILE="$workdir/companion.lockwait" _adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
     date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_ended_iso" 2>/dev/null || true
     [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
     printf 'post' > "$workdir/companion.phase"   # the model answered: validation and repair round-trips get their own budget
-    res=$(process_findings "$raw" "$type" "$m" "$sprint_id" "$rc" "$diff_files")
-    status=$(_extract_result_status "$res")
+    # twentieth run, a2 DISS-C-001: the walker runs as a background job, where errexit is live — a failing post-hop helper is
+    # an unusable answer for this hop, never the end of the walk with no record
+    res=$(process_findings "$raw" "$type" "$m" "$sprint_id" "$rc" "$diff_files") || res=""
+    status=""; [[ -n "$res" ]] && { status=$(_extract_result_status "$res") || status=""; }
+    [[ -n "$status" ]] || status="malformed_response"
     echo "${m}:${status}" >> "$workdir/companion.attempts"
     last_status="$status"; last_rc="$rc"
+    # twentieth run, a2 DISS-C-003: a hop whose CLI lock was never acquired never sent its request — its own class, not a timeout
+    if [[ -e "$workdir/companion.lockwait" ]]; then last_status="lock_wait"; command rm -f -- "$workdir/companion.lockwait" 2>/dev/null; fi
     if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then
       final="$m"
       printf '%s' "$res" > "$workdir/companion.result.json"
@@ -2474,14 +2506,28 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
 _companion_post_budget() {  # <primary model> <timeout_seconds> → seconds
   local t="$2" h b sum=0
   for h in $(_repair_model_chain "$1"); do
-    case "$(_adv_hop_canon "$h")" in *-headless) b=$(_adv_cli_hop_bound "$h") ;; *) b=$(_adv_cli_inner_bound "$h"); if (( b > 0 )); then b=$(( t + t + b )); else b=$t; fi ;; esac   # (a2 C-002; nineteenth run, a2 C-001: the lock wait too)
+    b=$(_adv_hop_charge "$h" "$t")   # (a2 C-002; nineteenth run, a2 C-001: the lock wait too; twentieth run, a3 DISS-C-003: validated)
     sum=$(( sum + b ))
   done
-  echo $(( sum * ${ADV_REPAIR_MAX_PER_RUN:-5} + 60 ))
+  echo $(( sum * $(_adv_num_or "${ADV_REPAIR_MAX_PER_RUN:-5}" 5) + 60 ))
+}
+_adv_vq_dropped_matching() {  # <envelope> <space-separated ids> → the envelope's dropped voices (as recorded, one per line) that
+                              # canonicalise to one of the ids; status 1 when none (twentieth run, a3 DISS-C-005: the pre-check
+                              # and the rewrite share it)
+  local _i _v _cids=" " _out=""
+  for _i in $2; do _cids+="$(_adv_hop_canon "$_i") "; done
+  while IFS= read -r _v; do
+    [[ -n "$_v" && "$_cids" == *" $(_adv_hop_canon "$_v") "* ]] && _out+="${_out:+$'\n'}$_v"
+  done < <(jq -r '(.voices_dropped // [])[]? | .voice? // empty | strings' "$1" 2>/dev/null)
+  [[ -n "$_out" ]] || return 1
+  printf '%s' "$_out"
 }
 _adv_inv5_rewrite() {  # <envelope> <space-separated ids> <out> — the envelope without the dropped entries naming those ids,
                        # voices_planned decremented by as many (INV-6: dropped == planned − succeeded holds); 1 when unusable
-  jq --arg ids "$2" '(($ids | split(" ")) as $c | (.voices_dropped // []) as $d
+  # twentieth run, a3 DISS-C-005: canonical names on both sides — the dropped voices that canonicalise to one of the ids are
+  # resolved here and matched byte for byte below
+  local _drop; _drop=$(_adv_vq_dropped_matching "$1" "$2") || _drop=""
+  jq --arg ids "$_drop" '(($ids | split("\n")) as $c | (.voices_dropped // []) as $d
       | ($d | map(select(.voice as $v | ($c | index($v)) != null)) | length) as $gone
       | .voices_dropped = ($d | map(select(.voice as $v | ($c | index($v)) == null)))
       | .voices_planned = (((.voices_planned // 0) - $gone) | if . < 0 then 0 else . end)
@@ -2545,7 +2591,12 @@ _adv_shared_hop_verdict() {  # <hop> <companion workdir> <companion start epoch>
         # the companion is left to the post budget; on OUR hop the primary waits for the settled record, bounded by the
         # same deadline main applies (past it the caller reaps and runs)
         cur=$(cat "$wd/companion.current" 2>/dev/null || true)
-        if [[ -z "$cur" || "$(_adv_hop_canon "$cur")" != "$hop" ]]; then printf 'run\tcompanion_on_other_hop\tis finishing on another hop (the post budget governs it)'; return 0; fi
+        # (twentieth run, a3 DISS-C-002: the hop's answer may have come from the shared hop under another outer hop — the
+        # answering id of the last vq sidecar counts too, as below the loop)
+        local _pvq="" _paid=""
+        [[ -s "$wd/companion.vq" ]] && _pvq=$(tail -1 "$wd/companion.vq" 2>/dev/null || true)
+        [[ -n "$_pvq" && -s "$_pvq" ]] && _paid=$(jq -r '(.voices_succeeded_ids // []) | if length > 0 then .[-1] else empty end' "$_pvq" 2>/dev/null || true)
+        if [[ ( -z "$cur" || "$(_adv_hop_canon "$cur")" != "$hop" ) && ( -z "$_paid" || "$(_adv_hop_canon "$_paid")" != "$hop" ) ]]; then printf 'run\tcompanion_on_other_hop\tis finishing on another hop (the post budget governs it)'; return 0; fi
         _companion_deadline_why "$wd" "$started" "$cap" "$post" "$qallow" why
         if [[ -n "$why" ]]; then printf 'run\tpost_budget_expired\tis still finishing on it past its deadline (%s)' "$why"; return 0; fi
         sleep 1; continue ;;
@@ -2617,9 +2668,10 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     # chunk c C-003 (round 2): `voice` is the outer hop (it matches final_model / model_attempts);
     # `answered_by` is the model that actually produced the finding (cheval's inner chain may differ)
     # (fifteenth run, a3 C-006: both envelopes travel as FILES — an argv string is capped at 128 KiB on Linux, which a
-    # large primary envelope exceeds; a3 C-005: the ceded comparison is canonical, like the skip that produced it)
+    # large primary envelope exceeds; a3 C-005: the ceded comparison is canonical, like the skip that produced it; twentieth run,
+    # a3 DISS-C-001: and made on the ANSWERING id, the one the shared-hop verdict skipped on — not the outer hop)
     printf '%s' "$result" > "$workdir/fold-primary.json"; printf '%s' "$cres" > "$workdir/fold-companion.json"
-    result=$(jq -n --slurpfile pf "$workdir/fold-primary.json" --slurpfile cf "$workdir/fold-companion.json" --arg pv "$primary_final" --arg cv "$final" --arg pa "$primary_succeeded" --arg ca "$companion_answered" --arg ceded "$ceded" --arg cvc "$(_adv_hop_canon "$final")" --arg cededc "$(_adv_hop_canon "$ceded")" '
+    result=$(jq -n --slurpfile pf "$workdir/fold-primary.json" --slurpfile cf "$workdir/fold-companion.json" --arg pv "$primary_final" --arg cv "$final" --arg pa "$primary_succeeded" --arg ca "$companion_answered" --arg ceded "$ceded" --arg cvc "$(_adv_hop_canon "$companion_answered")" --arg cededc "$(_adv_hop_canon "$ceded")" '
       $pf[0] as $p | $cf[0] as $c |
       ($c.findings // [] | to_entries | map(.value + {id: ("DISS-C-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)), voice: $cv, answered_by: $ca})) as $cf
       | (($p.metadata.status // "") | IN("api_failure", "malformed_response")) as $primary_failed
@@ -2752,15 +2804,28 @@ _adv_pid_alive() {  # <pid> → 0 when the process exists and is not a zombie
   kill -0 "$1" 2>/dev/null || return 1
   [[ "$(ps -o stat= -p "$1" 2>/dev/null)" != Z* ]]
 }
+_adv_pid_tokens() {  # <pids> → "pid=token …": the token "" when unreadable (the pid alone then decides), "-" for a pid already gone
+  local x t; for x in $1; do if _adv_pid_alive "$x"; then t=$(_adv_proc_start "$x" 2>/dev/null) || t=""; else t="-"; fi; printf '%s=%s ' "$x" "$t"; done
+}
+_adv_kill_same() {  # <pid> <pid=token map> — KILL the pid only while it is still the process collected (twentieth run, a3 DISS-C-004:
+                    # a descendant that exited on TERM frees its pid, and another process may take it within the grace)
+  local p="$1" e t="" now
+  for e in ${2:-}; do [[ "${e%%=*}" == "$p" ]] && { t="${e#*=}"; break; }; done
+  [[ "$t" == "-" ]] && return 0
+  _adv_pid_alive "$p" || return 0
+  if [[ -n "$t" ]]; then now=$(_adv_proc_start "$p" 2>/dev/null) || now=""; [[ -z "$now" || "$now" == "$t" ]] || return 0; fi
+  kill -KILL "$p" 2>/dev/null || true
+}
+_ADV_REAP_TREE_TOKENS=""
 _adv_reap_companion() {
   [[ -n "${_ADV_COMPANION_PID:-}" ]] || return 0
   # eighteenth run, a3 C-004: re-entered from the EXIT trap while a reap was under way — finish the kill of the tree already
   # collected instead of returning on a blank pid (the pid is cleared only once the tree has been signalled)
   if [[ "${_ADV_REAP_IN_PROGRESS:-false}" == "true" ]]; then
-    local _x; for _x in ${_ADV_REAP_TREE_PIDS:-}; do kill -KILL "$_x" 2>/dev/null || true; done
+    local _x; for _x in ${_ADV_REAP_TREE_PIDS:-}; do _adv_kill_same "$_x" "${_ADV_REAP_TREE_TOKENS:-}"; done
     _ADV_COMPANION_PID=""; _ADV_REAP_IN_PROGRESS="false"; return 0
   fi
-  _ADV_REAP_IN_PROGRESS="true"; _ADV_REAP_TREE_PIDS=""
+  _ADV_REAP_IN_PROGRESS="true"; _ADV_REAP_TREE_PIDS=""; _ADV_REAP_TREE_TOKENS=""
   _adv_reap_companion_inner "$_ADV_COMPANION_PID" || true
   _ADV_COMPANION_PID=""; _ADV_REAP_IN_PROGRESS="false"
   return 0
@@ -2784,7 +2849,9 @@ _adv_reap_companion_inner() {  # <pid> — the reap itself; every helper is guar
   # nineteenth run, a3 C-002: the tree is published BEFORE it is frozen — an INT that cuts the freeze short re-enters the reaper
   # from the trap, and KILL reaches a stopped process
   _ADV_REAP_TREE_PIDS=$(_adv_tree_pids "$_pid" 2>/dev/null | tr '\n' ' ') || _ADV_REAP_TREE_PIDS="$_pid"
-  _pids=$(_adv_kill_tree "$_pid" TERM) || _pids="$_pid"; _ADV_REAP_TREE_PIDS="$_pids"; _ADV_REAPED_LIVE_TREE="true"   # (a3 C-001: the timed-out record is written only for a tree we signalled)
+  _ADV_REAP_TREE_TOKENS=$(_adv_pid_tokens "$_ADV_REAP_TREE_PIDS") || _ADV_REAP_TREE_TOKENS=""   # (each pid's identity, before any signal)
+  _pids=$(_adv_kill_tree "$_pid" TERM) || _pids="$_pid"; _ADV_REAP_TREE_PIDS="$_pids"; _ADV_REAPED_LIVE_TREE="true"
+  for _x in $_pids; do [[ " $_ADV_REAP_TREE_TOKENS" == *" $_x="* ]] || _ADV_REAP_TREE_TOKENS+="$(_adv_pid_tokens "$_x" 2>/dev/null || true)"; done   # (forked before the freeze; a3 C-001: the timed-out record is written only for a tree we signalled)
   for (( _i = 0; _i < _grace * 4; _i++ )); do
     _alive="false"
     for _x in $_pids; do _adv_pid_alive "$_x" && { _alive="true"; break; }; done
@@ -2794,7 +2861,8 @@ _adv_reap_companion_inner() {  # <pid> — the reap itself; every helper is guar
   log "Companion voice: still alive ${_grace}s after TERM — KILL"
   # (a3 C-006: re-collected before KILL — whatever the tree forked while it was being asked to leave goes with it)
   for _x in $_pids; do _adv_pid_alive "$_x" && { _fresh=$(_adv_tree_pids "$_x"); _pids=$(printf '%s\n%s\n' "$_pids" "$_fresh" | grep -v '^$' | sort -un); }; done
-  for _x in $_pids; do kill -KILL "$_x" 2>/dev/null || true; done
+  for _x in $_pids; do [[ " $_ADV_REAP_TREE_TOKENS" == *" $_x="* ]] || _ADV_REAP_TREE_TOKENS+="$(_adv_pid_tokens "$_x" 2>/dev/null || true)"; done
+  for _x in $_pids; do _adv_kill_same "$_x" "$_ADV_REAP_TREE_TOKENS"; done
   return 0
 }
 _ADV_REAPED_LIVE_TREE="false"
@@ -2950,6 +3018,13 @@ main() {
   log "Dissenter input: model=$model estimated_input_tokens=$estimated_input_tokens primary_budget=$primary_input_budget max_output_tokens=$DISSENT_MAX_OUTPUT_TOKENS"
   local context_json
   context_json=$(assemble_dissent_context "$diff_file" "$type" "$context_file" "$primary_input_budget")
+  # twentieth run, b1 C-002: a diff that prepares to nothing is refused before the run lock — no call is made and the
+  # previous envelope is left where it is
+  if [[ "$(jq -r '.nothing_to_review // false' <<<"$context_json" 2>/dev/null)" == "true" ]]; then
+    error "Nothing to review: the diff prepared to no content — no dissent call made"
+    [[ "$json_output" == "true" ]] && _adv_refuse_json nothing_to_review
+    exit 1
+  fi
 
   # Write prompts to workdir
   echo "$context_json" | jq -r '.system_prompt' > "$_ADVERSARIAL_WORKDIR/system-prompt.txt"
@@ -3069,7 +3144,8 @@ main() {
   if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
     # eighteenth run, a4 C-001: moved aside, not removed — the previous envelope lists them, and a run that aborts before
     # writing its own envelope (a session limit, an operator INT, a fail-closed exit) would leave it pointing at nothing;
-    # the exit cleanup restores them unless this run's envelope was written (write_output drops them then)
+    # nothing is restored: an aborted run leaves the `.prev` files beside the path, and write_output drops them once this
+    # run's envelope is written (twentieth run, a4 C-003)
     local _sc; _ADV_PREV_FILES=""
     for _sc in "${_run_sidecars[@]}"; do
       if [[ -f "$PROJECT_ROOT/$_sc" ]] && mv -f -- "$PROJECT_ROOT/$_sc" "$PROJECT_ROOT/$_sc.prev" 2>/dev/null; then _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$_sc"; fi
@@ -3301,7 +3377,7 @@ main() {
     local _cx _kept_vq=() _excluded_vq=() _cid_x _rewritten_vq=0
     _cid_x=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${COMPANION_VQ_FILES[@]}" 2>/dev/null </dev/null || true)
     for _cx in "${vq_attempt_files[@]}"; do
-      if [[ -n "$_cid_x" ]] && jq -e --arg ids "$_cid_x" '[(.voices_dropped // [])[].voice] | any(. as $v | ($ids | split(" ")) | index($v) != null)' "$_cx" >/dev/null 2>&1; then
+      if [[ -n "$_cid_x" ]] && _adv_vq_dropped_matching "$_cx" "$_cid_x" >/dev/null; then   # (canonical — twentieth run, a3 DISS-C-005)
         if jq -e '(.voices_succeeded_ids // []) | length == 0' "$_cx" >/dev/null 2>&1; then
           _excluded_vq+=("$(jq -r '[(.voices_dropped // [])[].voice] | join(",")' "$_cx" 2>/dev/null || true)")   # (a4 C-003: never the last command of the assignment)
         elif _adv_inv5_rewrite "$_cx" "$_cid_x" "$_cx.inv5.json"; then
@@ -3334,7 +3410,7 @@ main() {
     fi
     local _rewritten_cvq=0
     for _cx in "${COMPANION_VQ_FILES[@]}"; do
-      if [[ -n "$_pid_x" ]] && jq -e --arg ids "$_pid_x" '[(.voices_dropped // [])[].voice] | any(. as $v | ($ids | split(" ")) | index($v) != null)' "$_cx" >/dev/null 2>&1; then
+      if [[ -n "$_pid_x" ]] && _adv_vq_dropped_matching "$_cx" "$_pid_x" >/dev/null; then   # (canonical — twentieth run, a3 DISS-C-005)
         if jq -e '(.voices_succeeded_ids // []) | length == 0' "$_cx" >/dev/null 2>&1; then
           _excluded_cvq+=("$(jq -r '[(.voices_dropped // [])[].voice] | join(",")' "$_cx" 2>/dev/null || true)")   # (a4 C-003)
         elif _adv_inv5_rewrite "$_cx" "$_pid_x" "$_cx.inv5.json"; then

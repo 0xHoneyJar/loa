@@ -267,10 +267,13 @@ def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float], floo
     if effective is None:
         return f"catalog headless_timeout_seconds {raw!r} ignored: not a positive finite number of seconds"
     usable = usable_headless_timeout(raw)
-    if usable is not None and usable > HEADLESS_TIMEOUT_CEILING_SECONDS:
-        return f"catalog headless_timeout_seconds {raw!r} clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s"
+    clamped = usable is not None and usable > HEADLESS_TIMEOUT_CEILING_SECONDS
+    # the floor is checked first: a clamped value the floor still overrides ran on the floor (twentieth run, d C-002)
     if floor is not None and effective <= floor:
-        return f"catalog headless_timeout_seconds {raw!r} at or below the {floor:.0f}s read floor: the floor applies"
+        via = f" clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s," if clamped else ""
+        return f"catalog headless_timeout_seconds {raw!r}{via} at or below the {floor:.0f}s read floor: the floor applies"
+    if clamped:
+        return f"catalog headless_timeout_seconds {raw!r} clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s"
     return None
 
 

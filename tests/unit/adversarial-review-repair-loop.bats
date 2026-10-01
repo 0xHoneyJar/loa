@@ -41,7 +41,8 @@ setup() {
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
 
     # Source the script functions (but don't run main)
-    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    # the trailer is an indented `main "$@"` in the BASH_SOURCE guard: `^main` matched nothing; `:` keeps the `then` non-empty (twentieth run, c2b C-001)
+    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
 
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
@@ -300,6 +301,87 @@ _sidecar_path() {
     sidecar=$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")
     reason=$(jq -r '.reject_reason' "$sidecar")
     [[ "$reason" == severity-not-in-enum* ]]
+}
+
+@test "C14: production derivation — a missing severity is repaired alone; the derived failure_mode and id and their markers survive" {
+    # twentieth run, c2e C-003: the repair round-trip on the PRODUCTION normaliser (no seam) — the model sees the
+    # derived candidate, may touch only severity, and its reply drops the markers as a real model's would
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-$$"
+    _REPAIR_SEEN="$BATS_TEST_TMPDIR/repair-seen.json"
+    _repair_finding_via_model() {
+        local finding_json="$1"
+        printf '%s' "$finding_json" > "$_REPAIR_SEEN"
+        echo "$finding_json" | jq 'del(.id_derived, .failure_mode_derived) | .severity = "BLOCKING"'
+    }
+
+    local content='{"findings":[{"category":"null-safety","anchor":"src/auth.ts:validateToken","description":"The token is never checked before use. It is then dereferenced."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "src/auth.ts")
+
+    # the model was asked about the derived candidate, whose only defect is the severity
+    [[ "$(jq -r '.failure_mode' "$_REPAIR_SEEN")" == "The token is never checked before use." ]]
+    [[ "$(jq -r '.id' "$_REPAIR_SEEN")" == "DISS-001" ]]
+    [[ "$(jq -r 'has("severity")' "$_REPAIR_SEEN")" == "false" ]]
+
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "0" ]]
+    local f
+    f=$(echo "$result" | jq -c '.findings[0]')
+    [[ "$(jq -r '.severity' <<<"$f")" == "BLOCKING" ]]
+    [[ "$(jq -r '.category' <<<"$f")" == "null-safety" ]]
+    [[ "$(jq -r '.description' <<<"$f")" == "The token is never checked before use. It is then dereferenced." ]]
+    [[ "$(jq -r '.failure_mode' <<<"$f")" == "The token is never checked before use." ]]
+    [[ "$(jq -r '.id' <<<"$f")" == "DISS-001" ]]
+    [[ "$(jq -r '.failure_mode_derived' <<<"$f")" == "true" ]]
+    [[ "$(jq -r '.id_derived' <<<"$f")" == "true" ]]
+    [[ "$(jq -r '.anchor_status' <<<"$f")" == "valid" ]]
+}
+
+@test "C14: production derivation — a repair that rewrites the DERIVED failure_mode is a non-violated-field mutation" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-mutate-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up"'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "1" ]]
+    [[ "$(jq -r '.reject_reason' "$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")")" == "repair-mutated-nonviolated-field" ]]
+}
+
+@test "C14: production derivation — a whitespace-only description derives nothing; the repaired description supplies the failure_mode" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-ws-desc-$$"
+    _REPAIR_SEEN="$BATS_TEST_TMPDIR/repair-seen.json"
+    _repair_finding_via_model() {
+        printf '%s' "$1" > "$_REPAIR_SEEN"
+        printf '%s\n' "$3" > "$_REPAIR_SEEN.reason"
+        echo "$1" | jq 'del(.id_derived, .failure_mode_derived) | .description = "The lock is released twice on the error path. Callers crash."'
+    }
+    local content='{"findings":[{"id":"DISS-007","severity":"ADVISORY","category":"concurrency","description":" \t "}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+
+    # nothing was derived from the blank description, so the model was told about the description, not the failure_mode
+    [[ "$(cat "$_REPAIR_SEEN.reason")" == "missing-or-empty-description" ]]
+    [[ "$(jq -r 'has("failure_mode")' "$_REPAIR_SEEN")" == "false" ]]
+
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    local f
+    f=$(echo "$result" | jq -c '.findings[0]')
+    [[ "$(jq -r '.id' <<<"$f")" == "DISS-007" ]]
+    [[ "$(jq -r '.id_derived // "absent"' <<<"$f")" == "absent" ]]
+    [[ "$(jq -r '.severity' <<<"$f")" == "ADVISORY" ]]
+    [[ "$(jq -r '.failure_mode' <<<"$f")" == "The lock is released twice on the error path." ]]
+    [[ "$(jq -r '.failure_mode_derived' <<<"$f")" == "true" ]]
 }
 
 # =============================================================================

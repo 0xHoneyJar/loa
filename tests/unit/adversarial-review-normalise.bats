@@ -27,7 +27,8 @@ setup() {
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
-    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    # the trailer is an indented `main "$@"` in the BASH_SOURCE guard: `^main` matched nothing; `:` keeps the `then` non-empty (twentieth run, c2b C-001)
+    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
     CONF_ENABLED="true"; CONF_MODEL="gpt-5.5-pro"; CONF_TIMEOUT=60; CONF_BUDGET_CENTS=150
@@ -200,9 +201,15 @@ _fixture_content() {  # all three fixtures as one findings document
     [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
     # the exported-variable path too (seventh run, c2 C-003): the probe never expands the value
     # (the value enters through the environment, not the traced script — an `export` line would trace itself)
-    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; _adv_cred_present anthropic"
+    # …hermetic like the first probe (twentieth run, c2a C-001): the dotenv seam points at an EMPTY directory, so only the
+    # environment branch can answer — the inherited env-x above (or a host .env.local) would otherwise say "present" for it
+    mkdir -p "$TEST_DIR/env-empty"
+    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"env-secret-value-123"* ]]
+    # the inverse under the same prelude: no variable, no dotenv — absent, so the branch is proven both ways
+    run env -u ANTHROPIC_API_KEY -u CLAUDE_API_KEY bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    [ "$status" -eq 1 ]
 }
 
 @test "NRM-9 a derived id never collides with an id the model supplied — the collision takes max(explicit id) + 1 (fourth run, chunk c C-005)" {
@@ -223,10 +230,19 @@ _fixture_content() {  # all three fixtures as one findings document
         printf '%s' "$1" | jq -c '. + {failure_mode: "stubbed repair"}'
     }
     doc='{"findings":[{"id":"DISS-001","severity":"MEDIUM","category":"config","description":"Needs a repair."}]}'
+    # the per-user lock directories a leaked override would fall back to, snapshotted (twentieth run, c2a C-002)
+    local uid; uid=$(id -u)
+    snap() { local d; for d in "/run/user/$uid/loa-headless-locks-$uid" "${TMPDIR:-/tmp}/loa-headless-locks-$uid"; do if [[ -d "$d" ]]; then ls -A "$d"; fi; done | LC_ALL=C sort; }
+    before=$(snap)
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-models")" = "tiny claude-headless " ]   # the answering voice (m) would be third; never reached
+    # the CLI hop's lock was taken under this test's XDG_RUNTIME_DIR, never in the per-user directory a live dissent holds
+    if command -v flock >/dev/null 2>&1; then
+        [ -e "$TEST_DIR/loa-headless-locks-$uid/claude.lock" ]
+        [ "$(snap)" = "$before" ]
+    fi
     [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
 }
 
@@ -490,29 +506,34 @@ _fixture_content() {  # all three fixtures as one findings document
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."},{"title":"three","category":"other","description":"No severity."}]}'
-    # a 7 s budget with a 1 s call timeout and 2 s hops: the HTTP hops (bound 1) run while they fit — the slack is
-    # proportional to the sleeps, so the second hop always fits under load (sixteenth run, c2b C-001) — the CLI hop
-    # (bound 910) is never started and is named over_budget, and once the budget is spent the remaining payloads are
-    # rejected unrepaired (fourteenth run, a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the
-    # stall afterwards)
+    # a 4 s budget with a 1 s call timeout and 2 s hops: `tiny` and `claude-headless` both reach the claude CLI, so each is
+    # charged its CLI bound (twentieth run, a3 DISS-C-003: `tiny` falls through to the CLI inside one cheval call) and is
+    # never started — named over_budget — while the answering voice (an HTTP hop, estimated at its 1 s call timeout) runs
+    # while a second remains; two 2 s hops spend the budget, so the third payload is rejected unrepaired (fourteenth run,
+    # a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the stall afterwards). Under load the
+    # second hop may not fit either — at least one payload is exhausted whatever the scheduling.
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=7 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=4 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "7" ]
-    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 4 ]
-    # an HTTP hop is estimated at its call timeout and a failure never raises that (eighteenth run, a1 C-003), so up to four
-    # one-second-timeout hops are admitted to a 7 s budget while this stub overruns its own timeout by a second each time
-    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 4 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 2 ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "4" ]
+    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 2 ]
+    [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 2 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 1 ]
     [ "$(grep -c "claude-headless" "$TEST_DIR/repair-calls")" = "0" ]
+    [ "$(grep -cx "tiny" "$TEST_DIR/repair-calls")" = "0" ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
+    jq -e '.metadata.repair_hops_skipped | index("tiny:over_budget") != null' <<<"$result" >/dev/null
     grep -q "Repair hop claude-headless needs up to .*s and .*s of the repair budget remain — not started" "$TEST_DIR/repair-err"
     grep -q "Repair budget: .* used — payload" "$TEST_DIR/repair-err"
     # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2, or one full CLI repair plus a timeout if that is more
     # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
     # one-second payloads
-    exp=$(( 2 * $(_adv_cli_hop_bound claude-headless) + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))   # (nineteenth run, a1 C-001: two full CLI repairs)
+    # (nineteenth run, a1 C-001: two full CLI repairs; twentieth run, a3 DISS-C-003: the heaviest hop is charged as the budget
+    # charges it — `tiny` with a key pays its lock wait, its timeout and the claude CLI bound)
+    _hmax=$(_adv_hop_charge claude-headless 60); (( $(_adv_hop_charge tiny 60) > _hmax )) && _hmax=$(_adv_hop_charge tiny 60)
+    exp=$(( 2 * _hmax + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))
+    (( _hmax > $(_adv_cli_hop_bound claude-headless) ))   # (tiny reaches the CLI: it outweighs the CLI hop alone)
     # (the budget figure, the skip list and the validator lines are invariant to hop duration: no sleep here — c2b C-002)
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     : > "$TEST_DIR/repair-calls"
@@ -528,17 +549,20 @@ _fixture_content() {  # all three fixtures as one findings document
     result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=0900 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "$exp" ]   # (a2 C-004: a leading zero is octal to bash — rejected, the default applies)
     grep -q "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS='0900' is not a whole number of at least 1" "$TEST_DIR/repair-err"
-    # every hop pre-empted from the start (a 1 s budget against 60 s bounds): no model is asked — a budget exhaustion for
-    # every payload, repair_attempted false on the rows, no repair slot spent (fifteenth run, a2 C-001)
+    # every hop pre-empted from the start (a 30 s budget against bounds of 900 s and more): no model is asked — a budget
+    # exhaustion for every payload, repair_attempted false on the rows, no repair slot spent (fifteenth run, a2 C-001)
+    # (twentieth-run dry run: a 1 s budget is spent by crossing one whole-second boundary, so under load the first payload
+    # was rejected before any hop was weighed and the over_budget names were never written — 30 s is never spent here)
     : > "$TEST_DIR/repair-calls"
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=1 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=30 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "3" ]
     [ ! -s "$TEST_DIR/repair-calls" ]
     [ "$(jq -r '.repair_attempted' "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit.jsonl" | sort -u)" = "false" ]
     jq -e '.metadata.repair_hops_skipped | index("tiny:over_budget") != null' <<<"$result" >/dev/null
-    # a keyless host (no tiny): the CLI hop's estimate follows its last observed duration, so the second payload is repaired
-    # too — never pre-empted against the 910 s worst case the first repair never approached (sixteenth run, a1 C-001)
+    # a keyless host (no tiny): the default budget (two full CLI repairs plus a timeout) admits the CLI hop for both payloads
+    # — this block pins the default budget, not duration-following: a failed hop notes no duration (NRM-27), and NRM-27's
+    # usable-reply half is the regression pin for the observed-duration estimate (twentieth run, c2b C-002)
     unset ANTHROPIC_API_KEY
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
     doc2='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
@@ -649,12 +673,14 @@ _fixture_content() {  # all three fixtures as one findings document
     mkdir -m 700 "$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)"
     exec 8>>"$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)/claude.lock"; flock 8   # another claude -p holds the binary's lock
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
-    # the budget is EXACTLY the hop's bound: the first payload's hop is admitted (nothing spent yet), waits 1 s for the lock and
-    # never runs; the second payload finds less than the bound left — with the fix its estimate is still the bound, so the hop
-    # is pre-empted and named; a noted 1 s lock wait would have made it 2 s and queued the hop behind the lock again
+    # the budget is the hop's bound plus one second: the first payload's hop is admitted (at most one whole second spent before
+    # it — the twentieth-run dry run under load: a budget of exactly the bound pre-empted it as soon as one second boundary had
+    # passed), waits 2 s for the lock and never runs; the second payload finds less than the bound left (a 2 s wait always
+    # crosses two whole-second boundaries) — with the fix its estimate is still the bound, so the hop is pre-empted and named;
+    # a noted lock wait would have made it a few seconds and queued the hop behind the lock again
     bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=2   # (a two-second lock wait always crosses a second boundary — the budget guard measures whole seconds)
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$bound" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 1 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     flock -u 8; exec 8>&-
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
@@ -690,11 +716,23 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-28 the test seams are honoured under the bats marker only: a production environment that exports _ADV_FLOCK_BIN never loses the per-binary serialisation (nineteenth run, a2 C-005)" {
-    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; eval "$(sed "s/^main \"\\$@\"/# main disabled/" .claude/scripts/adversarial-review.sh)"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
+    # the trailer is an indented `main "$@"` inside the BASH_SOURCE guard: the sed must match it (the old `"s/^main \"\\$@\"…"`
+    # reached sed as `^main "\"` — `$@` expanded empty — and matched nothing), replace it with `:` (a comment would leave an
+    # empty `then`), and the probe refuses to eval a body that still calls main (twentieth run, c2b C-001)
+    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; body=$(sed -e "s/^\\( *\\)main \"\\\$@\"\$/\\1: main disabled/" .claude/scripts/adversarial-review.sh); if grep -Eq "^ *main \"\\\$@\"" <<<"$body"; then echo MAIN-LIVE; exit 9; fi; eval "$body"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
     # no marker: the seams are dropped at load
     out=$(env -u BATS_TEST_FILENAME -u BATS_VERSION _ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
     [ "$out" = "[][][]" ]
     # under the marker (this suite) they stand
     out=$(_ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
     [ "$out" = "[/nonexistent/flock][/nonexistent/pgrep][1]" ]
+}
+
+@test "NRM-29 the last_error summary of a line with no allowlisted token is empty and never fails, even called outside a command substitution under errexit and pipefail (twentieth run, a2 DISS-001)" {
+    # (inside `$(…)` bash clears errexit, which is why the one caller never aborted; called directly, the empty grep is a
+    # pipefail failure of the assignment — the summary may be empty by contract)
+    ( set -euo pipefail; _adv_error_summary "plain words, nothing allowlisted" > "$TEST_DIR/summary"; echo done > "$TEST_DIR/after" )
+    [ -f "$TEST_DIR/after" ]
+    [ ! -s "$TEST_DIR/summary" ]
+    [ "$(_adv_error_summary "boom RATE_LIMITED HTTP 429")" = "RATE_LIMITED HTTP 429" ]
 }

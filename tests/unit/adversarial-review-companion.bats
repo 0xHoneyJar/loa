@@ -30,7 +30,7 @@ setup() {
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
-    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
     # keyless host: no env keys, an empty dotenv dir (bats-gated seam) — the unset list IS the probe's alias table, so the two
@@ -188,7 +188,7 @@ YAML
 teardown() {
     local d
     # a PID-scoped stub the reaper under test failed to end never outlives the test (seventh run, c1 C-007)
-    pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$" 2>/dev/null || true
+    pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$"'( |$)' 2>/dev/null || true   # (anchored: pid 1234 never matches a sibling's 12345 — twentieth run, c1a DISS-C-001)
     # an out-of-band lock holder a failed assertion left behind (twelfth run, c1 C-002)
     local p; for p in ${HOLDER_PIDS[@]+"${HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
     if [[ -n "${CMP_OWN_TMP:-}" && -d "$CMP_OWN_TMP" && "$(basename "$CMP_OWN_TMP")" == tmp.* ]]; then find "$CMP_OWN_TMP" -mindepth 1 -delete; rmdir "$CMP_OWN_TMP"; fi
@@ -428,6 +428,13 @@ PY
 }
 
 @test "CMP-14 the wait cap reaps a hung companion: failure_class timeout, the review completes, no orphan (C-001)" {
+    # positive control first (twentieth run, c1a DISS-C-002): the probe below counts a live stub, then nothing once it is gone
+    _cmp14_probe() { local a; a=$(ps -eo args=) || { echo "ps -eo args= is unsupported here" >&2; return 1; }; grep -Ec "loa-cmp14-hun[g]-$$"'( |$)' <<<"$a" || true; }
+    bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$" 3>&- & s=$!; HOLDER_PIDS+=("$s")
+    for _ in $(seq 1 50); do [ "$(_cmp14_probe)" = "1" ] && break; sleep 0.1; done
+    [ "$(_cmp14_probe)" = "1" ]
+    kill -KILL "$s"; wait "$s" 2>/dev/null || true
+    [ "$(_cmp14_probe)" = "0" ]
     BEHAVIOUR[claude-headless]=slow
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=1
     result=$(_run_main review)
@@ -436,15 +443,17 @@ PY
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "claude-headless" ]   # the hop in flight, not a guess (sixth run C-001)
-    # the orphan probe needs no pgrep (sixteenth run, c1b C-004): ps args, the pattern bracketed so the grep never matches itself
-    [ "$(ps -eo args= | grep -c "loa-cmp14-hun[g]-$$")" = "0" ]   # the reaper ended a 300 s hop
+    # the orphan probe needs no pgrep (sixteenth run, c1b C-004): ps args, the pattern bracketed so the grep never matches itself,
+    # anchored after the pid (twentieth run, c1a DISS-C-001), and a ps that cannot answer is a red, never a vacuous 0 (c1a DISS-C-002)
+    _cmp14_orphans() { local a; a=$(ps -eo args=) || { echo "ps -eo args= is unsupported here" >&2; return 1; }; grep -Ec "loa-cmp14-hun[g]-$$"'( |$)' <<<"$a" || true; }
+    [ "$(_cmp14_orphans)" = "0" ]   # the reaper ended a 300 s hop
     # …and the same reap through the pgrep-FREE walker (round 1p's fallback — the path most likely to be wrong is the one
     # asserted too): pgrep hidden from the script, a fresh hung hop, no orphan afterwards
     : > "$CALLS"
     result=$(_ADV_PGREP_BIN=/nonexistent/pgrep _run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
-    [ "$(ps -eo args= | grep -c "loa-cmp14-hun[g]-$$")" = "0" ]
+    [ "$(_cmp14_orphans)" = "0" ]
 }
 
 @test "CMP-15 a fold that fails keeps the primary envelope (companion_voice.status fold_failed) instead of blanking it (C-002), and the companion's sidecar stays listed so its rows are still counted (tenth run, c2 C-002)" {
@@ -664,6 +673,8 @@ PY
 }
 
 @test "CMP-24 when the shim swallowed cheval's stderr, the failed companion's class and last_error come from the MODELINV ledger row for that call (fourth run)" {
+    # test-scoped, asserted before ANY write to it — never the repository's append-only chain (sixteenth run, c1b C-002; twentieth run, c1b DISS-C-001)
+    [[ "${LOA_MODELINV_LOG_PATH:-}" == "$T"/* ]]
     BEHAVIOUR[claude-headless]=errquiet
     # the row cheval writes for this call lands inside the companion's window (the stub writes it at call time;
     # the harness points LOA_MODELINV_LOG_PATH at a temp file)
@@ -683,22 +694,16 @@ PY
     [[ "$le" == *"timed out after 610s"* ]]
     [[ "$le" == *"catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds"* ]]
     # a row written by ANOTHER invocation of the same model during the companion's post phase (a primary repair) is not
-    # this voice's either: the window is the companion's last hop (sixteenth run, a3 C-004)
-    _repair_finding_via_model() {
-        if [[ "${_ADV_SIDECAR_TAG:-}" == "companion" ]]; then
-            sleep 1
-            jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
+    # this voice's either: the window is the companion's last hop (sixteenth run, a3 C-004) — pinned on the lookup itself
+    # (twentieth run, c1b DISS-C-002: a companion that succeeds carries no last_error, so an envelope assertion is inert)
+    _row() { jq -nc --arg ts "$1" --arg msg "$2" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
                 payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
-                         models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:"repair: rate limit hit"}]}}' >> "$LOA_MODELINV_LOG_PATH"
-        fi
-        return 1
-    }
-    : > "$LOA_MODELINV_LOG_PATH"; unset ERRQUIET_LEDGER_MESSAGE
-    BEHAVIOUR[claude-headless]=reject   # the companion answers, then repairs (post phase) — the row above lands during that phase
-    result=$(_run_main review)
-    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
-    [[ "$(jq -r '.metadata.companion_voice.last_error // ""' <<<"$result")" != *"rate limit"* ]]
-    unset -f _repair_finding_via_model
+                         models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:$msg}]}}'; }
+    { _row 2026-10-01T10:00:03Z before; _row 2026-10-01T10:00:06Z hop; _row 2026-10-01T10:00:12Z "repair: rate limit hit"; } > "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "hop" ]   # the post-phase row (after the hop's end) is not this voice's
+    _row 2026-10-01T10:00:12Z "repair: rate limit hit" > "$LOA_MODELINV_LOG_PATH"
+    [ -z "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" ]
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:13Z)" = "repair: rate limit hit" ]   # positive control: inside a wider window it is read
     BEHAVIOUR[claude-headless]=errquiet
     # a row older than the companion's start is not this call's — nor one after its end (tenth run, c1 C-005)
     unset ERRQUIET_LEDGER_MESSAGE
@@ -739,10 +744,17 @@ PY
     grep -q "not acquired within 1s" "$T/lock-err"
     # an HTTP hop whose chain holds no CLI hop takes no lock: the lock directory is byte-identical around the call
     # (lock files are named after the BINARY, so "no gpt-5.5.lock" proves nothing — c1 C-001 of the tenth run)
+    # …and proven the held-lock way too (twentieth run, c1b DISS-C-004): with claude.lock and codex.lock held, a wrong
+    # resolution onto either would wait out its 1 s bound and fail rc 124; the hop runs at once instead
     printf 'providers:\n  openai:\n    models:\n      gpt-5.5-plain:\n        context_window: 400000\n' > "$T/plain-catalog.yaml"
+    exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; exec 9>>"$T/loa-headless-locks-$(id -u)/codex.lock"; flock 9
     before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
-    : > "$T/lock-trace"; LOA_MODEL_CONFIG="$T/plain-catalog.yaml" _adv_invoke_hop gpt-5.5-plain a b gpt-5.5-plain 30 "" review >/dev/null
+    : > "$T/lock-trace"; rc=0
+    ( _ADV_CLI_HOP_TIMEOUT=1; _ADV_LOCK_WAIT=1; _ADV_LOCK_WAIT_CLI=1; LOA_MODEL_CONFIG="$T/plain-catalog.yaml" _adv_invoke_hop gpt-5.5-plain a b gpt-5.5-plain 30 "" review >/dev/null 2>"$T/lock-err3" ) || rc=$?
+    flock -u 9; exec 9>&-; flock -u 8; exec 8>&-
     after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
+    [ "$rc" = "0" ]
+    ! grep -q "not acquired" "$T/lock-err3" || { echo "the HTTP hop queued for a lock" >&2; return 1; }
     [ -n "$before" ]
     [ "$before" = "$after" ]
     [ "$(grep -c . "$T/lock-trace")" = "2" ]
@@ -854,7 +866,7 @@ PY
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     grep -q "after TERM — KILL" "$T/stderr.log"
     command -v pgrep >/dev/null || skip "pgrep not installed"
-    [ -z "$(pgrep -f "loa-cmp30-stubborn-$$")" ]
+    [ -z "$(pgrep -f "loa-cmp30-stubborn-$$"'( |$)')" ]
 }
 
 @test "CMP-31 the per-binary lock follows the alias's resolved chain: an HTTP alias whose catalog fallback_chain falls through to a CLI hop takes that binary's lock (eighth run, a2 C-002)" {
@@ -910,8 +922,13 @@ YAML
     _adv_invoke_hop gpt-5.5 a b gpt-5.5 30 "" review >/dev/null
     [ -f "$T/loa-headless-locks-$(id -u)/codex.lock" ]
     before=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
-    _adv_invoke_hop opus-plain a b opus-plain 30 "" review >/dev/null
+    # held-lock proof (twentieth run, c1b DISS-C-004): both binaries' locks held, a wrong resolution would fail rc 124 within 1 s
+    exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8; exec 9>>"$T/loa-headless-locks-$(id -u)/codex.lock"; flock 9
+    rc=0; ( _ADV_CLI_HOP_TIMEOUT=1; _ADV_LOCK_WAIT=1; _ADV_LOCK_WAIT_CLI=1; _adv_invoke_hop opus-plain a b opus-plain 30 "" review >/dev/null 2>"$T/lock-err4" ) || rc=$?
+    flock -u 9; exec 9>&-; flock -u 8; exec 8>&-
     after=$(ls -A "$T/loa-headless-locks-$(id -u)" 2>/dev/null)
+    [ "$rc" = "0" ]
+    ! grep -q "not acquired" "$T/lock-err4" || { echo "the HTTP hop queued for a lock" >&2; return 1; }
     [ -n "$before" ]
     [ "$before" = "$after" ]   # a model with no CLI in its chain touched no lock (snapshot, not a filename guess)
     [ "$(grep -c ran "$T/lock-trace")" = "2" ]
@@ -986,17 +1003,28 @@ PY
     _adv_release_run_lock; [ ! -d "$lockd" ]
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
     sleep 30 3>&- & holder=$!; HOLDER_PIDS+=("$holder"); printf '%s\n%s\n' "$holder" "$(_adv_proc_start "$holder")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # held by another live process
+    # the live run's envelope and sidecars are on disk: the refused run must leave them exactly as they are (twentieth run, c1b DISS-C-003)
+    mkdir -p "$OUT_DIR"
+    printf '{"findings":[],"metadata":{"status":"reviewed","marker":"live-run"}}\n' > "$OUT_DIR/adversarial-review.json"
+    printf '{"reject_reason":"live-primary"}\n' > "$OUT_DIR/adversarial-rejected-review.jsonl"
+    printf '{"reject_reason":"live-companion"}\n' > "$OUT_DIR/adversarial-rejected-review-companion.jsonl"
+    seeded=$(cd "$OUT_DIR" && for x in adversarial-review.json adversarial-rejected-review.jsonl adversarial-rejected-review-companion.jsonl; do printf '%s:' "$x"; cat "$x"; done)
+    _cmp34_untouched() {
+        [ "$(cd "$OUT_DIR" && for x in adversarial-review.json adversarial-rejected-review.jsonl adversarial-rejected-review-companion.jsonl; do printf '%s:' "$x"; cat "$x"; done)" = "$seeded" ] || { echo "the refused run changed the live run's files" >&2; return 1; }
+        [ -z "$(ls -A "$OUT_DIR" | grep -E '\.prev$|moved-aside')" ] || { echo "the refused run moved files aside: $(ls -A "$OUT_DIR")" >&2; return 1; }
+    }
     BEHAVIOUR[claude-headless]=reject
     rc=0; result=$(_run_main review) || rc=$?
     [ "$rc" = "2" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]   # a --json caller fails closed (twelfth run, a3 C-004)
     [ "$(jq '.findings | length' <<<"$result")" = "0" ]
     grep -q "another adversarial-review run for $SPRINT/review is in progress (pid $holder)" "$T/stderr.log"
-    [ ! -e "$OUT_DIR/adversarial-review.json" ]
+    _cmp34_untouched
     # a distinct tag is NOT a parallel path — the envelope adversarial-review.json is shared (twelfth run, a2 C-003)
     rc=0; result=$( export LOA_ADVERSARIAL_RUN_TAG=other; _run_main review ) || rc=$?
     [ "$rc" = "2" ]; [ ! -e "$OUT_DIR/adversarial-rejected-review-companion-other.jsonl" ]
     [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]
+    _cmp34_untouched
     [ "$(ls -d "$(_adv_cli_lock_dir)"/run-*.lock.d | grep -c .)" = "1" ]
     # a reused pid: the token's start time is not the live process's — the holder is gone, the lock is taken over
     printf '%s\n%s\n' "$holder" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"
@@ -1010,8 +1038,9 @@ PY
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ ! -d "$lockd" ]
     # a lock directory seconds old with no pid yet is a holder in flight (twelfth run, a2 C-002) …
+    # (the grace is set wide so a loaded host's startup never outlasts it — twentieth run, c1b DISS-C-005)
     mkdir "$lockd"
-    rc=0; result=$(_run_main review) || rc=$?
+    rc=0; result=$(LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS=120 _run_main review) || rc=$?
     [ "$rc" = "2" ]; grep -q "is starting (its lock is seconds old)" "$T/stderr.log"
     [ "$(jq -r '.metadata.status' <<<"$result")" = "refused_concurrent_run" ]
     # … and an abandoned one (older than five seconds, still no pid) is taken over
@@ -1181,7 +1210,7 @@ $(mk_hunk 5)"
     [ "$(_lc_cut_partial "$T/first-line" 12 "$T/first-out")" = "mid" ]; [ ! -s "$T/first-out" ]
     out=$(prepare_content "$one" 4 2>/dev/null)   # 4 tokens ≈ 12 bytes: inside the header line
     [[ "$out" != *"diff --git a/on"* ]]
-    [[ "$out" == *"--- PARTIAL: one.sh shown up to the token budget (0 of 1 hunks"* ]]
+    [[ "$out" == *"--- PARTIAL: one.sh: no hunk fit within the token budget (0 of 1 hunks shown; token budget: 4)"* ]]   # (twentieth run, b1 DISS-C-003: a view that kept no hunk says so)
     # same-priority siblings that fit are not displaced by the partial view of one large file (fifteenth run, b1 C-002)
     sib1=$'diff --git a/s1.sh b/s1.sh\n--- a/s1.sh\n+++ b/s1.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'y%.0s' $(seq 1 120))"
     sib2=$'diff --git a/s2.sh b/s2.sh\n--- a/s2.sh\n+++ b/s2.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'z%.0s' $(seq 1 120))"
@@ -1229,7 +1258,7 @@ $bigpy" 300 2>/dev/null)
     # the script is shown FIRST, partially, and the doc follows; the doc never displaces the script
     doc=$'diff --git a/notes.md b/notes.md\n--- a/notes.md\n+++ b/notes.md\n@@ -1 +1 @@\n-a\n+b'
     out=$(prepare_content "$doc
-$big" 150 2>/dev/null)
+$big" 200 2>/dev/null)   # (twentieth run, b1 DISS-001: 200, not 150 — the PARTIAL marker is charged now, and 150 holds the partial and its marker but not the doc too)
     [[ "$out" == "diff --git a/big.sh b/big.sh"* ]]
     [[ "$out" == *"--- PARTIAL: big.sh shown up to the token budget"* ]]
     [[ "$out" == *"diff --git a/notes.md b/notes.md"* ]]
@@ -1330,7 +1359,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     grep -q "now belongs to another process" "$T/reap-err"
     _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
-    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+    sleep 0.3; if kill -0 "$p" 2>/dev/null; then echo "pid $p still alive after reap" >&2; return 1; fi   # (twentieth run, c1c DISS-C-001: errexit-evaluable)
 }
 
 @test "CMP-51 the process tree is enumerated without pgrep too (fifteenth run, a3 C-004)" {
@@ -1413,7 +1442,8 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 
 @test "CMP-56 a second run against a REAL holder is refused: the holder's lock token is its own, so it never looks recycled (sixteenth run, a2 C-001)" {
     ( _adv_take_run_lock "$OUT_DIR" review; printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/holder.dir"; sleep 30 ) 3>&- & holder=$!; HOLDER_PIDS+=("$holder")
-    sleep 0.5; lockd=$(cat "$T/holder.dir"); [ -d "$lockd" ]
+    for _ in $(seq 1 50); do [ -s "$T/holder.dir" ] && break; sleep 0.1; done   # bounded poll, not a fixed sleep (twentieth run, c1c DISS-C-003)
+    lockd=$(cat "$T/holder.dir"); [ -d "$lockd" ]
     [ "$(sed -n 1p "$lockd/pid")" = "$holder" ]
     [ "$(sed -n 2p "$lockd/pid")" = "$(_adv_proc_start "$holder")" ]   # the token seen from outside is the holder's
     rc=0; result=$(_run_main review) || rc=$?
@@ -1437,14 +1467,14 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     printf 'hop' > "$wd/companion.phase"
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion_timed_out "$wd" "claude-headless" 2>/dev/null
     [ "$(cat "$wd/companion.status")" = "wait_timeout" ]; [ "$(cat "$wd/companion.rc")" = "124" ]
-    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+    sleep 0.3; if kill -0 "$p" 2>/dev/null; then echo "pid $p still alive after reap" >&2; return 1; fi   # (twentieth run, c1c DISS-C-001: errexit-evaluable)
 }
 
 @test "CMP-58 a reap grace knob that is not a whole number is said and the default applies (sixteenth run, a3 C-002)" {
     sleep 30 3>&- & p=$!; HOLDER_PIDS+=("$p"); _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=5s _adv_reap_companion 2>"$T/grace-err"
     grep -q "LOA_ADVERSARIAL_REAP_GRACE_SECONDS='5s' is not a whole number of at least 0 — 5 applies" "$T/grace-err"
-    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+    sleep 0.3; if kill -0 "$p" 2>/dev/null; then echo "pid $p still alive after reap" >&2; return 1; fi   # (twentieth run, c1c DISS-C-001: errexit-evaluable)
 }
 
 @test "CMP-59 the INV-5 duplicate guard compares canonical names: a companion that fails on an alias of a hop the primary answered with is a duplicate, never a dropped voice (sixteenth run, a3 C-005)" {
@@ -1470,17 +1500,18 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
     [ "$(grep -c x "$T/collect-count")" -ge 3 ]   # before STOP, after STOP, before KILL
-    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+    sleep 0.3; if kill -0 "$p" 2>/dev/null; then echo "pid $p still alive after reap" >&2; return 1; fi   # (twentieth run, c1c DISS-C-001: errexit-evaluable)
 }
 
 @test "CMP-63 a dead run's lock is taken over by ONE of two concurrent takers at a time — the takeover is an atomic rename, never rm + rmdir; a second holder is legitimate only once the first released (eighteenth run, a2 C-001)" {
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
     printf '%s\n%s\n' "999999" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # a dead holder (no such pid)
+    # (the takers stamp with _now_ms, never GNU-only `date +%s%N` — twentieth run, c1c DISS-C-002)
     for round in 1 2 3; do
         : > "$T/takers"
-        ( _adv_take_run_lock "$OUT_DIR" review 2>>"$T/takers-err" && { echo "held $BASHPID $(date +%s%N)" >> "$T/takers"; sleep 1; echo "released $BASHPID $(date +%s%N)" >> "$T/takers"; _adv_release_run_lock; } ) 3>&- &
+        ( _adv_take_run_lock "$OUT_DIR" review 2>>"$T/takers-err" && { echo "held $BASHPID $(_now_ms)" >> "$T/takers"; sleep 1; echo "released $BASHPID $(_now_ms)" >> "$T/takers"; _adv_release_run_lock; } ) 3>&- &
         p1=$!
-        ( _adv_take_run_lock "$OUT_DIR" review 2>>"$T/takers-err" && { echo "held $BASHPID $(date +%s%N)" >> "$T/takers"; sleep 1; echo "released $BASHPID $(date +%s%N)" >> "$T/takers"; _adv_release_run_lock; } ) 3>&- &
+        ( _adv_take_run_lock "$OUT_DIR" review 2>>"$T/takers-err" && { echo "held $BASHPID $(_now_ms)" >> "$T/takers"; sleep 1; echo "released $BASHPID $(_now_ms)" >> "$T/takers"; _adv_release_run_lock; } ) 3>&- &
         p2=$!
         wait "$p1" "$p2" 2>/dev/null || true
         [ "$(grep -c '^held' "$T/takers")" -ge 1 ]   # the dead lock was taken over
@@ -1540,14 +1571,14 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     _orig_proc_start=$(declare -f _adv_proc_start); _adv_proc_start() { return 1; }
     ( set -e; _adv_reap_companion )
     eval "$_orig_proc_start"
-    sleep 0.3; ! kill -0 "$p" 2>/dev/null
+    sleep 0.3; if kill -0 "$p" 2>/dev/null; then echo "pid $p still alive after reap" >&2; return 1; fi   # (twentieth run, c1c DISS-C-001: a mid-body `! cmd` is inert under bats)
     _ADV_COMPANION_PID=""
     # a re-entry while a reap is under way (the EXIT trap firing inside the reaper) finishes the kill of the collected tree —
     # even one already frozen by the interrupted reap (nineteenth run, a3 C-002: the tree is published before the freeze)
     sleep 30 3>&- & q=$!; HOLDER_PIDS+=("$q"); kill -STOP "$q"
     _ADV_COMPANION_PID=$q; _ADV_REAP_IN_PROGRESS="true"; _ADV_REAP_TREE_PIDS="$q"
     _adv_reap_companion
-    sleep 0.3; ! kill -0 "$q" 2>/dev/null
+    sleep 0.3; if kill -0 "$q" 2>/dev/null; then kill -CONT "$q" 2>/dev/null || true; kill -KILL "$q" 2>/dev/null || true; echo "pid $q still alive after the re-entered reap" >&2; return 1; fi   # (a stopped survivor is resumed and KILLed so the TERM teardown cannot leave it)
     [ -z "${_ADV_COMPANION_PID:-}" ]; [ "$_ADV_REAP_IN_PROGRESS" = "false" ]
 }
 
@@ -1586,11 +1617,12 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ -z "$(_companion_deadline_why "$T/dw" $(( now - 100 )) 10 60 940)" ]   # 100 s from the fork, cap 10: still queued within its bound and the ceiling (10 + 940 + 60)
     [[ "$(_companion_deadline_why "$T/dw" $(( now - 2000 )) 10 60 940)" == "global ceiling: 1010s from the fork" ]]
     # hop: the wait cap from the phase start
-    printf 'hop' > "$T/dw/companion.phase"; touch -d '-30 seconds' "$T/dw/companion.phase"
+    _age30() { python3 -c 'import os, sys, time; t = time.time() - 30; os.utime(sys.argv[1], (t, t))' "$1"; }   # (portable, never GNU `touch -d` — twentieth run, c1c DISS-C-002)
+    printf 'hop' > "$T/dw/companion.phase"; _age30 "$T/dw/companion.phase"
     [[ "$(_companion_deadline_why "$T/dw" $(( now - 100 )) 10 60 940)" == "phase 'hop' deadline: 10s from the phase start" ]]
     touch "$T/dw/companion.phase"; [ -z "$(_companion_deadline_why "$T/dw" $(( now - 100 )) 60 60 940)" ]
     # post: the post budget from the phase start
-    printf 'post' > "$T/dw/companion.phase"; touch -d '-30 seconds' "$T/dw/companion.phase"
+    printf 'post' > "$T/dw/companion.phase"; _age30 "$T/dw/companion.phase"
     [[ "$(_companion_deadline_why "$T/dw" $(( now - 100 )) 10 20 940)" == "phase 'post' deadline: 20s from the phase start" ]]
     [ -z "$(_companion_deadline_why "$T/dw" $(( now - 100 )) 10 60 940)" ]
     # in the caller's shell (printf -v) the queue-bound cache holds — one yq per hop (nineteenth run, a3 C-001)
@@ -1614,7 +1646,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     invoke_dissenter() { echo ran >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
     mkdir -p "$T/ww"; printf 'system' > "$T/ww/system-prompt.txt"; printf 'user' > "$T/ww/user-prompt.txt"
     ( _ADV_LOCK_WAIT=3; _walk_companion_chain "$T/ww" "$T/ww" review "$SPRINT" 30 "" opus >/dev/null 2>&1 ) 3>&- & w=$!
-    sleep 0.6
+    for _ in $(seq 1 50); do [ "$(cat "$T/ww/companion.phase" 2>/dev/null)" = "queue" ] && break; sleep 0.1; done   # bounded poll (twentieth run, c1c DISS-C-003)
     [ "$(cat "$T/ww/companion.phase")" = "queue" ]   # opus reaches claude in the shipped catalog: it is queueing, not on the hop
     flock -u 8; exec 8>&-
     wait "$w" 2>/dev/null || true
@@ -1673,4 +1705,196 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ -z "$out" ]                                                     # the empty payload the early return promises — not a stray log line
     grep -q "Review scope excluded every file of the diff" "$T/lc-err"
     [ "$(grep -c '>&2' "$T/lc-err")" = "0" ]
+}
+
+@test "CMP-74 the fold decides 'ceded' from the companion's ANSWERING id, as the shared-hop verdict does: an outer hop whose inner chain answered from the ceded hop is a cede, not an exhausted primary (twentieth run, a3 DISS-C-001)" {
+    wd="$T/fold-ans"; mkdir -p "$wd"
+    p='{"findings":[],"metadata":{"type":"review","status":"api_failure","model":"gpt-5.5-pro","cost_usd":0,"tokens_input":0,"tokens_output":0,"rejected_summary":[],"rejected_count":0}}'
+    jq -nc '{findings:[{id:"DISS-001",severity:"LOW",category:"other",description:"from the companion.",failure_mode:"fm"}],metadata:{type:"review",status:"reviewed",model:"claude-headless",cost_usd:0.02,tokens_input:1,tokens_output:1,rejected_summary:[],rejected_count:0}}' > "$wd/companion.result.json"
+    printf 'opus' > "$wd/companion.final"; printf 'opus:reviewed\n' > "$wd/companion.attempts"; printf 'reviewed' > "$wd/companion.status"; printf '0' > "$wd/companion.rc"
+    printf '{"voices_succeeded_ids":["claude-headless"]}' > "$wd/vq-companion-1.json"; printf '%s\n' "$wd/vq-companion-1.json" > "$wd/companion.vq"
+    out=$(_fold_companion "$p" "$wd" anthropic "opus" codex-headless "" "claude-headless" "" "claude-headless" 2>"$T/fold-ans-err")
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$out")" = "ceded" ]
+    [ "$(jq -r '.metadata.degraded' <<<"$out")" = "false" ]
+}
+
+@test "CMP-75 a partial view never displaces a row of a higher or the same tier that fits whole, sits at its own tier's place, and its PARTIAL marker is charged to the budget (twentieth run, b1 DISS-001 / DISS-C-001)" {
+    mk_hunk() { printf '@@ -%d,3 +%d,4 @@ fn%d\n context\n-old line %d\n+new line %d %s\n+another line %d\n' "$1" "$1" "$1" "$1" "$1" "$(printf 'x%.0s' $(seq 1 200))" "$1"; }
+    mk_file() { printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n-a\n+%s\n' "$1" "$1" "$1" "$1" "$(printf 'q%.0s' $(seq 1 "$2"))"; }
+    bigpy="diff --git a/big.py b/big.py
+--- a/big.py
++++ b/big.py
+$(mk_hunk 10)
+$(mk_hunk 40)
+$(mk_hunk 70)
+$(mk_hunk 100)"
+    bigsh=$(printf '%s' "$bigpy" | sed 's/big\.py/big.sh/g')
+    # (a) a P0 script worth 0.9 of the budget ahead of a large P1 file: the script is reviewed whole, the P1 file after it
+    a=$(mk_file a.sh 740)
+    out=$(prepare_content "$a
+$bigpy" 300 2>/dev/null)
+    [[ "$out" == "diff --git a/a.sh b/a.sh"* ]]
+    [[ "$out" != *"P0: a.sh"* ]]
+    [[ "$out" == *"--- PARTIAL: big.py"* ]]
+    # (b) the same tier: a P0 sibling worth 0.8 of the budget stays whole beside the partial view
+    a=$(mk_file a.sh 650)
+    out=$(prepare_content "$bigsh
+$a" 300 2>/dev/null)
+    [[ "$out" == *"diff --git a/a.sh b/a.sh"* ]]
+    [[ "$out" != *"P0: a.sh"* ]]
+    [[ "$out" == *"--- PARTIAL: big.sh"* ]]
+    # (c) the marker is charged: the payload before the TRUNCATED list never exceeds the budget, whatever a doc's size
+    local n payload
+    for n in 30 60 90 120 150 180 210 240 270 300; do
+        out=$(prepare_content "$bigsh
+$(mk_file d.md "$n")" 300 2>/dev/null)
+        payload=$(printf '%s' "$out" | sed '/^--- TRUNCATED:/,$d')
+        [ "$(estimate_tokens "$payload")" -le 300 ] || { echo "doc of $n bytes: payload $(estimate_tokens "$payload") tokens > 300"; false; }
+    done
+}
+
+@test "CMP-76 a hop is charged by what it can reach, one rule for the repair budget and the post budget: an HTTP hop whose chain falls through to a CLI pays its lock wait, its timeout and the CLI bound; a bound that is not a number never zeroes the charge (twentieth run, a1 DISS-C-001 / a3 DISS-C-003)" {
+    _adv_cli_bin_for() { case "$1" in plain-x|claude-headless) echo claude ;; *) echo "" ;; esac; }
+    _adv_cli_hop_bound() { echo 700; }
+    [ "$(_adv_hop_charge plain-x 60)" = "820" ]
+    [ "$(_adv_hop_charge plain-y 60)" = "60" ]
+    [ "$(_adv_hop_charge claude-headless 60)" = "700" ]
+    [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-x _companion_post_budget m 60)" = "$(( 820 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
+    _adv_cli_hop_bound() { echo 610s; }
+    [ "$(_adv_hop_charge claude-headless 60)" = "610" ]
+    [ "$(_adv_hop_charge plain-x 60)" = "730" ]
+    _adv_cli_hop_bound() { echo ""; }
+    [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=claude-headless _companion_post_budget m 60)" = "$(( 610 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
+    # the repair loop: a hop that reaches the CLI is not started against a budget its CLI bound exceeds
+    _adv_cli_hop_bound() { echo 700; }
+    _repair_finding_via_model() { echo "$4" >> "$T/repair-calls"; return 1; }
+    : > "$T/repair-calls"; CONF_TIMEOUT=60
+    raw=$(jq -nc '{content: "{\"findings\":[{\"title\":\"t\",\"category\":\"other\",\"description\":\"No severity.\"}]}"}')
+    result=$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-x LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=200 process_findings "$raw" review m "$SPRINT" 0 "" 2>/dev/null)
+    [ ! -s "$T/repair-calls" ]
+    jq -e '.metadata.repair_hops_skipped | index("plain-x:over_budget") != null' <<<"$result" >/dev/null
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "1" ]
+}
+
+@test "CMP-77 a pinned repair chain is filtered by this run's retired hops like the default chain, and a payload no hop was started for without a budget skip is repair_skipped_no_hop, never a budget exhaustion (twentieth run, a1 DISS-C-002)" {
+    _ADV_REPAIR_DEAD_HOPS="plain-y"
+    [ -z "$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-y _repair_model_chain m)" ]
+    [ "$(LOA_ADVERSARIAL_REPAIR_MODEL='plain-y plain-z' _repair_model_chain m)" = "plain-z" ]
+    _repair_finding_via_model() { echo "$4" >> "$T/repair-calls"; return 1; }
+    : > "$T/repair-calls"
+    raw=$(jq -nc '{content: "{\"findings\":[{\"title\":\"t\",\"category\":\"other\",\"description\":\"No severity.\"}]}"}')
+    result=$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-y process_findings "$raw" review m "$SPRINT" 0 "" 2>/dev/null)
+    [ ! -s "$T/repair-calls" ]
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
+    [ "$(jq '.metadata.repair_skipped_no_hop' <<<"$result")" = "1" ]
+    # the shared-hop skip of a pinned hop is the same outcome
+    _ADV_REPAIR_DEAD_HOPS=""
+    _adv_repair_hop_shared_now() { [[ "$1" == plain-y ]]; }
+    result=$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-y process_findings "$raw" review m "$SPRINT" 0 "" 2>/dev/null)
+    [ ! -s "$T/repair-calls" ]
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
+    [ "$(jq '.metadata.repair_skipped_no_hop' <<<"$result")" = "1" ]
+}
+
+@test "CMP-78 the companion walker survives a failing post-hop helper under errexit: the hop is malformed_response and the walk records done (twentieth run, a2 DISS-C-001)" {
+    mkdir -p "$T/wk"; printf 's' > "$T/wk/system-prompt.txt"; printf 'u' > "$T/wk/user-prompt.txt"
+    invoke_dissenter() { echo '{"content":"{\"findings\":[]}"}'; }
+    process_findings() { return 5; }
+    # a background job, as main launches the walker: errexit is live there (inside `( … ) || true` it would be ignored)
+    ( set -e; _walk_companion_chain "$T/wk" "$T/wk" review "$SPRINT" 30 "" plain-x plain-y ) >/dev/null 2>&1 3>&- &
+    wait "$!" || true
+    [ "$(cat "$T/wk/companion.phase")" = "done" ]
+    [ "$(cat "$T/wk/companion.status")" = "malformed_response" ]
+    [ "$(tr '\n' ' ' < "$T/wk/companion.attempts")" = "plain-x:malformed_response plain-y:malformed_response " ]
+}
+
+@test "CMP-79 the MODELINV lookup skips a torn ledger line instead of stopping at it, and a fractional-second row in the hop's first second is inside the window (twentieth run, a2 DISS-C-002)" {
+    row() { jq -nc --arg ts "$1" --arg msg "$2" '{event_type:"model.invoke.complete", ts_utc:$ts, payload:{models_requested:["anthropic:claude-headless"], calling_primitive:"adversarial-review", models_failed:[{model:"anthropic:claude-headless", message_redacted:$msg}]}}'; }
+    { row 2026-10-01T10:00:00Z older; printf '{"torn": \n'; row 2026-10-01T10:00:05.123Z mine; } > "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "mine" ]
+    { row 2026-10-01T10:00:09.500Z late-in-last-second; } > "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "late-in-last-second" ]
+}
+
+@test "CMP-80 a companion hop whose CLI lock was never acquired is class lock_wait, not a model timeout: the request was never sent (twentieth run, a2 DISS-C-003)" {
+    _need_flock
+    mkdir -m 700 "$T/loa-headless-locks-$(id -u)"
+    exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8   # another claude -p holds the binary for longer than the wait
+    invoke_dissenter() { echo ran >> "$T/lw-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    mkdir -p "$T/ww"; printf 's' > "$T/ww/system-prompt.txt"; printf 'u' > "$T/ww/user-prompt.txt"
+    ( _ADV_LOCK_WAIT=1; _walk_companion_chain "$T/ww" "$T/ww" review "$SPRINT" 30 "" opus ) >/dev/null 2>&1 3>&- || true
+    flock -u 8; exec 8>&-
+    [ ! -e "$T/lw-trace" ]
+    [ "$(cat "$T/ww/companion.status")" = "lock_wait" ]
+    [ "$(cat "$T/ww/companion.rc")" = "124" ]
+    [ "$(_companion_failure_class lock_wait 124 "")" = "lock_wait" ]
+    [ "$(_companion_drop_reason lock_wait)" = "Other" ]
+}
+
+@test "CMP-81 in post the shared-hop verdict reads the answering id too: an outer hop whose inner chain answered from the shared hop is waited for, then skipped (twentieth run, a3 DISS-C-002)" {
+    wd="$T/sh"; mkdir -p "$wd"
+    sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")
+    printf 'post' > "$wd/companion.phase"; printf 'opus' > "$wd/companion.current"
+    printf '{"voices_succeeded_ids":["claude-headless"]}' > "$wd/vq1.json"; printf '%s\n' "$wd/vq1.json" > "$wd/companion.vq"
+    ( sleep 1.5; printf '{"findings":[]}' > "$wd/companion.result.json"; printf 'opus' > "$wd/companion.final"; printf 'done' > "$wd/companion.phase" ) 3>&- &
+    out=$(_adv_shared_hop_verdict claude-headless "$wd" "$(date +%s)" 600 600)
+    [ "$(cut -f2 <<<"$out")" = "answered_with_it" ]
+    kill "$_ADV_COMPANION_PID" 2>/dev/null || true; _ADV_COMPANION_PID=""
+}
+
+@test "CMP-82 the reaper KILLs a pid only while it is still the process it collected: a pid whose start token changed during the grace is left alone (twentieth run, a3 DISS-C-004)" {
+    sleep 30 3>&- & p=$!; HOLDER_PIDS+=("$p"); tok=$(_adv_proc_start "$p")
+    _adv_kill_same "$p" "$p=bogus"; sleep 0.2; _adv_pid_alive "$p"
+    _adv_kill_same "$p" "$p=-"; sleep 0.2; _adv_pid_alive "$p"
+    _adv_kill_same "$p" "$p=$tok"; sleep 0.3; if _adv_pid_alive "$p"; then false; fi
+    sleep 30 3>&- & q=$!; HOLDER_PIDS+=("$q")
+    _adv_kill_same "$q" ""; sleep 0.3; if _adv_pid_alive "$q"; then false; fi   # (no token recorded — unreadable at collection: the pid alone, as before)
+    # the whole reap: the root's identity changes after the TERM (a reuse inside the grace window) — no KILL
+    eval "__real_kill_tree() $(declare -f _adv_kill_tree | sed '1d')"
+    _adv_kill_tree() { __real_kill_tree "$@"; : > "$T/reused"; }
+    _adv_proc_start() { if [[ -e "$T/reused" ]]; then echo t2; else echo t1; fi; }
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & r=$!; HOLDER_PIDS+=("$r"); sleep 0.3
+    _ADV_COMPANION_PID=$r; _ADV_COMPANION_START=t1
+    LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
+    _adv_pid_alive "$r"
+    kill -KILL "$r"
+}
+
+@test "CMP-83 the INV-5 rewrite compares canonical names: a dropped entry recorded with a provider prefix is removed for its bare id (twentieth run, a3 DISS-C-005)" {
+    printf '%s' '{"voices_planned":3,"voices_succeeded":1,"voices_dropped":[{"voice":"anthropic:claude-headless","reason":"Other"},{"voice":"gpt-5.5","reason":"Other"}]}' > "$T/e.json"
+    _adv_inv5_rewrite "$T/e.json" "claude-headless" "$T/o.json"
+    [ "$(jq -c '[.voices_dropped[].voice]' "$T/o.json")" = '["gpt-5.5"]' ]
+    [ "$(jq '.voices_planned' "$T/o.json")" = "2" ]
+    _adv_inv5_rewrite "$T/e.json" "openai:gpt-5.5 claude-headless" "$T/o2.json"
+    [ "$(jq -c '.voices_dropped' "$T/o2.json")" = '[]' ]
+    [ "$(jq '.voices_planned' "$T/o2.json")" = "1" ]
+}
+
+@test "CMP-84 an empty prepared payload is never dispatched: status nothing_to_review, exit 1, before the run lock and the move-aside — the previous envelope stays where it is (twentieth run, b1 DISS-C-002)" {
+    mkdir -p "$OUT_DIR"; printf '{"prev":true}' > "$OUT_DIR/adversarial-review.json"
+    prepare_content() { :; }
+    run _run_main review
+    [ "$status" -eq 1 ]
+    [ "$(jq -r '.metadata.status' <<<"$output")" = "nothing_to_review" ]
+    [ ! -s "$CALLS" ]
+    [ "$(cat "$OUT_DIR/adversarial-review.json")" = '{"prev":true}' ]
+    [ ! -e "$OUT_DIR/adversarial-review.json.prev" ]
+}
+
+@test "CMP-85 a partial view that kept no hunk says so: no 'cut mid-way', no hunk claimed (twentieth run, b1 DISS-C-003)" {
+    big="diff --git a/big.sh b/big.sh
+--- a/big.sh
++++ b/big.sh
+@@ -1,3 +1,4 @@ $(printf 'h%.0s' $(seq 1 2400))
+ context
++new"
+    out=$(prepare_content "$big" 300 2>/dev/null)
+    [[ "$out" == *"--- PARTIAL: big.sh: no hunk fit within the token budget (0 of 1 hunks shown; token budget: 300) — split the diff for a full review ---"* ]]
+    [[ "$out" != *"cut mid-way"* ]]
+    [[ "$out" != *"hhhhhhhh"* ]]
+}
+
+@test "CMP-86 a timeout line that carries cheval's headless-timeout note still classifies as timeout (twentieth run, d DISS-C-001)" {
+    [ "$(_companion_failure_class "" 1 "[cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p timed out after 610s (catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds)")" = "timeout" ]
+    [ "$(_companion_failure_class "" 1 "claude -p timed out after 3600s (headless_timeout_seconds 4500 clamped to 3600s)")" = "timeout" ]
 }
