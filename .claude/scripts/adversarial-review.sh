@@ -187,6 +187,19 @@ load_adversarial_config() {
        CONF_COMPANION_VOICE="true" ;;
   esac
   # (|| true: a yq failure yields an empty chain and the default applies — the siblings' `|| echo` convention)
+  # twenty-second run, a1 DISS-C-001: `[]?` reads a scalar or a map as no entries — a shape that is not a list is SAID (the
+  # default chain then applies), never silently taken as an empty operator chain
+  local _cct _ccf
+  _cct=$(yq eval ".flatline_protocol.${config_key}.companion_chain | tag" "$CONFIG_FILE" 2>/dev/null || true)
+  if [[ -n "$_cct" && "$_cct" != "!!null" && "$_cct" != "!!map" ]]; then
+    log "WARN: flatline_protocol.${config_key}.companion_chain is a ${_cct}, not a map of family lists — ignored, the default chains apply"
+  elif [[ "$_cct" == "!!map" ]]; then
+    for _ccf in anthropic openai; do
+      _cct=$(yq eval ".flatline_protocol.${config_key}.companion_chain.${_ccf} | tag" "$CONFIG_FILE" 2>/dev/null || true)
+      [[ -z "$_cct" || "$_cct" == "!!null" || "$_cct" == "!!seq" ]] \
+        || log "WARN: flatline_protocol.${config_key}.companion_chain.${_ccf} is a ${_cct}, not a list — ignored, the default ${_ccf} chain applies"
+    done
+  fi
   CONF_COMPANION_CHAIN_ANTHROPIC=$(yq eval ".flatline_protocol.${config_key}.companion_chain.anthropic[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
   CONF_COMPANION_CHAIN_OPENAI=$(yq eval ".flatline_protocol.${config_key}.companion_chain.openai[]?" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
@@ -1427,7 +1440,9 @@ while i < len(text):
   # fourth run, chunk c C-005: a positional id may not collide with an id the model supplied (or one
   # already used) — a colliding derived id becomes max(explicit numeric id) + 1
   local explicit_ids used_ids="" max_id_num
-  explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string")] | join(" ")' 2>/dev/null || true)
+  # (twenty-second run, a1 DISS-C-003: only a safe token is an explicit id — one with whitespace or a control character would split
+  # into, or forge, ids in these space-joined sets; it is renumbered below and never logged raw)
+  explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z"))] | join(" ")' 2>/dev/null || true)
   # (no `?` after capture — that is a jq syntax error, and it silently zeroed this value until NRM-15 pinned it;
   # a jq failure here is LOGGED, never folded into 0 — tenth run, a1 C-002)
   if ! max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$").n | tonumber] | max // 0' 2>/dev/null); then
@@ -1461,15 +1476,19 @@ while i < len(text):
     fi
     # twenty-first run, a1 DISS-C-003: an explicit id the model supplied twice keeps it on its first use only — the second is
     # renumbered past every id in use and marked id_derived (the script, not the model, named it), whatever the branch
-    local _xid=""
-    _xid=$(echo "$candidate" | jq -r '.id | strings' 2>/dev/null || true)
-    if [[ -n "$_xid" && " $used_ids " == *" $_xid "* ]]; then
+    # — and an id that is not a safe token is renumbered the same way, never logged raw (twenty-second run, a1 DISS-C-003)
+    local _xid="" _xunsafe=0
+    _xid=$(echo "$candidate" | jq -r '.id | strings | if test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else "\u0001" end' 2>/dev/null || true)
+    [[ "$_xid" == $'\001' ]] && _xunsafe=1
+    if [[ -n "$_xid" ]] && { (( _xunsafe )) || [[ " $used_ids " == *" $_xid "* ]]; }; then
       local _xnew="$_xid"
-      while [[ " $explicit_ids " == *" $_xnew "* || " $used_ids " == *" $_xnew "* ]]; do
+      while (( _xunsafe )) || [[ " $explicit_ids " == *" $_xnew "* || " $used_ids " == *" $_xnew "* ]]; do
+        _xunsafe=0
         max_id_num=$((max_id_num + 1))
         _xnew=$(printf 'DISS-%03d' "$max_id_num")
       done
-      log "Finding $i: duplicate explicit id $_xid — renumbered $_xnew"
+      if [[ "$_xid" == $'\001' ]]; then log "Finding $i: an explicit id that is not a safe token ([A-Za-z0-9._:-], 1-64) — renumbered $_xnew"
+      else log "Finding $i: duplicate explicit id $_xid — renumbered $_xnew"; fi
       candidate=$(echo "$candidate" | jq --arg id "$_xnew" '.id = $id | .id_derived = true')
       _xid="$_xnew"
     fi
@@ -2255,8 +2274,11 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
     # under a per-key flock, and the loop's mkdir decides). Without flock the section runs unserialised, as before.
     local _tl="$lockdir/run-${key}.takeover.lock" _verdict=""
     _verdict=$(
+      # twenty-second run, a2 DISS-C-001: a section that cannot be entered (another taker holds it past the wait) still judges the
+      # holder — a LIVE one refuses this run, as it would inside — but takes nothing over without the flock: the loop retries
+      _unser=0
       if command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1; then   # (the same resolved binary as the per-binary lock — a2 C-005)
-        if ! { exec 7>>"$_tl"; } 2>/dev/null || ! "${_ADV_FLOCK_BIN:-flock}" -w 5 7; then echo retry; exit 0; fi
+        if ! { exec 7>>"$_tl"; } 2>/dev/null || ! "${_ADV_FLOCK_BIN:-flock}" -w 5 7; then _unser=1; fi
       fi
       _w=0
       while [[ -d "$dir" && ! -s "$pidf" ]] && (( _w < 10 )) && (( $(date +%s) - $(_adv_mtime "$dir") < _g )); do sleep 0.2; _w=$((_w + 1)); done
@@ -2274,6 +2296,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
         error "another adversarial-review run for ${1##*/}/$2 is starting (its lock is seconds old) — wait for it to finish"
         echo refuse; exit 0
       fi
+      (( _unser )) && { echo retry; exit 0; }
       # a dead run's lock: renamed away (atomic), then removed; the loop's mkdir takes the key
       _stale="$dir.stale.$BASHPID.$RANDOM"
       if mv -- "$dir" "$_stale" 2>/dev/null; then command rm -rf -- "$_stale" 2>/dev/null || true; fi
@@ -2355,11 +2378,16 @@ _adv_hop_charge() {  # <hop> <timeout_seconds> → the seconds ONE call on this 
        if [[ -n "$bin" ]]; then b=$(_adv_num_or "$(_adv_cli_hop_bound "${bin}-headless")" 610); echo $(( t + t + b )); else echo "$t"; fi ;;
   esac
 }
-_companion_queue_allowance() {  # <hop>... → seconds: the global ceiling's allowance for the queue phases — every hop that queues for a CLI
-                                # lock (a *-headless hop, or an HTTP hop whose catalog chain reaches a CLI binary) at the bound its own
-                                # queue phase is given (twenty-first run, a4 DISS-C-001: the HTTP hop that queues was missing)
+_companion_queue_allowance() {  # <hop>... → seconds: the global ceiling's allowance for the queue phases — each *-headless hop's queue at the
+                                # bound its own queue phase is given (twenty-first run, a4 DISS-C-001). An HTTP hop whose catalog chain
+                                # reaches a CLI adds nothing here: its lock wait is already the first t of its t + t + b wait-cap share
+                                # (twenty-second run, a2 DISS-C-002 — counting it again over-granted the ceiling)
   local h a=0
-  for h in "$@"; do [[ -n "$(_adv_cli_bin_for "$h")" ]] && a=$(( a + $(_adv_num_or "$(_adv_cli_hop_bound "$h")" 610) + 30 )); done
+  for h in "$@"; do
+    case "$(_adv_hop_canon "$h")" in
+      *-headless) a=$(( a + $(_adv_num_or "$(_adv_cli_hop_bound "$h")" 610) + 30 )) ;;
+    esac
+  done
   echo "$a"
 }
 _companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
@@ -2857,17 +2885,25 @@ _adv_tree_pids() {  # <pid> → the process and every descendant, one per line (
     for c in $(ps -eo pid=,ppid= 2>/dev/null | awk -v pp="$p" '$2 == pp { print $1 }'); do _adv_tree_pids "$c"; done
   fi
 }
-_adv_kill_tree() {  # <pid> [signal] — signal a process and every descendant (all frozen first so none escapes); prints the pids
+_adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every descendant (all frozen first so none escapes); prints the
+                    # pids — or, with `tokens`, pid=token pairs taken while the whole tree is frozen (twenty-second run, a4 DISS-C-002:
+                    # a pid tokenised after TERM may already be free, and another process's token then licensed its KILL)
   # sixteenth run, a3 C-006: the tree is collected again after STOP — a descendant forked between the first collection and
   # the freeze (cheval exec'ing claude -p at that instant) is signalled too, never left holding the per-binary lock
-  local p="$1" sig="${2:-TERM}" pids x more
+  local p="$1" sig="${2:-TERM}" pids x more toks=""
   pids=$(_adv_tree_pids "$p")
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
   more=$(_adv_tree_pids "$p"); pids=$(printf '%s\n%s\n' "$pids" "$more" | grep -v '^$' | sort -un)
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
+  [[ "${3:-}" == "tokens" ]] && { toks=$(_adv_pid_tokens "$pids" 2>/dev/null) || toks=""; }
   for x in $pids; do kill "-$sig" "$x" 2>/dev/null || true; done
   for x in $pids; do kill -CONT "$x" 2>/dev/null || true; done
-  printf '%s\n' $pids
+  if [[ "${3:-}" == "tokens" ]]; then
+    for x in $pids; do [[ " $toks" == *" $x="* ]] || toks+="$x= "; done   # (a pid the token pass missed: the pid alone decides)
+    printf '%s\n' $toks
+  else
+    printf '%s\n' $pids
+  fi
 }
 _adv_pid_alive() {  # <pid> → 0 when the process exists and is not a zombie
   kill -0 "$1" 2>/dev/null || return 1
@@ -2922,8 +2958,17 @@ _adv_reap_companion_inner() {  # <pid> — the reap itself; every helper is guar
   # from the trap, and KILL reaches a stopped process
   _ADV_REAP_TREE_PIDS=$(_adv_tree_pids "$_pid" 2>/dev/null | tr '\n' ' ') || _ADV_REAP_TREE_PIDS="$_pid"
   _ADV_REAP_TREE_TOKENS=$(_adv_pid_tokens "$_ADV_REAP_TREE_PIDS") || _ADV_REAP_TREE_TOKENS=""   # (each pid's identity, before any signal)
-  _pids=$(_adv_kill_tree "$_pid" TERM) || _pids="$_pid"; _ADV_REAP_TREE_PIDS="$_pids"; _ADV_REAPED_LIVE_TREE="true"
-  for _x in $_pids; do [[ " $_ADV_REAP_TREE_TOKENS" == *" $_x="* ]] || _ADV_REAP_TREE_TOKENS+="$(_adv_pid_tokens "$_x" 2>/dev/null || true)"; done   # (forked before the freeze; a3 C-001: the timed-out record is written only for a tree we signalled)
+  # (twenty-second run, a4 DISS-C-002: a pid forked before the freeze carries the token kill_tree took while it was frozen — never
+  # one read after TERM; a3 C-001: the timed-out record is written only for a tree we signalled)
+  local _kt _e; _kt=$(_adv_kill_tree "$_pid" TERM tokens) || _kt=""
+  [[ -n "$_kt" ]] || _kt="$_pid="
+  _pids=""
+  for _e in $_kt; do
+    [[ "${_e%%=*}" =~ ^[0-9]+$ ]] || continue
+    _pids+="${_e%%=*} "
+    [[ " $_ADV_REAP_TREE_TOKENS" == *" ${_e%%=*}="* ]] || _ADV_REAP_TREE_TOKENS+="$_e "
+  done
+  _ADV_REAP_TREE_PIDS="$_pids"; _ADV_REAPED_LIVE_TREE="true"
   for (( _i = 0; _i < _grace * 4; _i++ )); do
     _alive="false"
     for _x in $_pids; do _adv_pid_alive "$_x" && { _alive="true"; break; }; done
@@ -2968,6 +3013,9 @@ _adv_prev_files_drop() {  # the previous run's envelope and sidecars moved aside
   return 0
 }
 _adv_cleanup_on_exit() {
+  # twenty-second run, a4 DISS-C-004: a second INT / TERM while this runs would exit from inside it — the workdir and the run lock
+  # left behind; the process is already exiting, so the signals are ignored until the cleanup is done
+  trap '' INT TERM
   _adv_reap_companion
   # (an aborted run restores nothing: the path holds no envelope, and the previous round's `.prev` files stay beside it — b2 C-001)
   # LOA_ADVERSARIAL_KEEP_WORKDIR keeps FILES for debugging, never processes: the companion tree is reaped on
@@ -3270,8 +3318,9 @@ main() {
           date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.started_iso" 2>/dev/null || true   # (before the launch: the window holds the first hop's first second too)
           ( _walk_companion_chain "$companion_workdir" "$companion_workdir" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
           companion_pid=$!
+          _ADV_COMPANION_PID="$companion_pid"   # (twenty-second run, a4 DISS-C-001: published before the next fork — a signal in that window reaps it)
           companion_started=$(date +%s)
-          _ADV_COMPANION_PID="$companion_pid"; _ADV_COMPANION_START=$(_adv_proc_start "$companion_pid" 2>/dev/null) || _ADV_COMPANION_START=""   # (nineteenth run, a4 C-001: a child gone in the fork window never aborts main — an unreadable token falls back to the pid alone)
+          _ADV_COMPANION_START=$(_adv_proc_start "$companion_pid" 2>/dev/null) || _ADV_COMPANION_START=""   # (nineteenth run, a4 C-001: a child gone in the fork window never aborts main — an unreadable token falls back to the pid alone)
         else
           # twelfth run, a3 C-006: a local setup failure is never attributed to the provider — no fork, a named reason;
           # fourteenth run, a3 C-004: nothing is shared with a companion that never started

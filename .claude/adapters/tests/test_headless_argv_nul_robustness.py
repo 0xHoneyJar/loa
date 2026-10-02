@@ -1,6 +1,6 @@
 """bd-q0o: argv-prompt headless adapters must WALK (not crash) on un-execable argv.
 
-Only gemini-headless + claude-headless pass the UNTRUSTED prompt on ARGV (`-p <prompt>`),
+Only gemini-headless + claude-headless pass the UNTRUSTED prompt on ARGV (`-p <prompt>`; claude only up to `_ARGV_PROMPT_MAX_BYTES`, stdin above it),
 so only they are reachable by an embedded-NUL ValueError or an ARG_MAX OSError from a
 crafted/oversized diff. (grok uses --prompt-file; codex + cursor use stdin via input= —
 their prompt never touches argv. Verified: a NUL in stdin does NOT raise, a NUL in argv does.)

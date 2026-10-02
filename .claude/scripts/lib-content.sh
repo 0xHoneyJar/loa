@@ -260,7 +260,9 @@ prepare_content() {
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
       [[ "$o_pri" -le "$top_pri" ]] || continue
       o_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${o_idx}")")
-      (( o_tok <= max_tokens )) && others=$(( others + o_tok ))
+      # what those rows take TOGETHER, by the main loop's greedy rule — two siblings that each fit but not side by side are not
+      # reserved twice (twenty-second run, b1 DISS-C-001)
+      (( others + o_tok <= max_tokens )) && others=$(( others + o_tok ))
     done <<< "$sorted_manifest"
     # twentieth run, b1 DISS-C-001: no floor — a quarter-budget floor let the partial displace a row at or above its tier that
     # fits whole; what those rows leave over is all it gets (capped at three quarters), and its marker comes out of that

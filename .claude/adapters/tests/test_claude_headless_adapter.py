@@ -692,3 +692,58 @@ class TestLive:
         )
         assert "PONG" in result.content.upper()
         assert result.provider == "claude-headless"
+
+
+# ---------------------------------------------------------------------------
+# Prompt transport (cycle-126 sprint-248, twenty-second run: a companion prompt over the per-argument limit
+# made the spawn fail with E2BIG — `[Errno 7] Argument list too long` — on every retry)
+# ---------------------------------------------------------------------------
+
+
+class TestPromptTransport:
+    def _invocation(self, prompt):
+        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with adapter._prepare_invocation(_make_request(), ModelConfig(), prompt) as inv:
+            return inv, _ARGV_PROMPT_MAX_BYTES
+
+    def test_a_small_prompt_stays_on_argv(self):
+        inv, _ = self._invocation("hello prompt")
+        assert inv.command[inv.command.index("-p") + 1] == "hello prompt"
+        assert "input" not in inv.kwargs
+
+    def test_a_prompt_over_the_argv_bound_goes_on_stdin(self):
+        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
+        big = "x" * (_ARGV_PROMPT_MAX_BYTES + 1)
+        inv, _ = self._invocation(big)
+        assert big not in inv.command
+        assert all(len(a.encode("utf-8")) < 131072 for a in inv.command)
+        assert inv.kwargs.get("input") == big
+        # `-p` is a flag; with no positional prompt claude reads the prompt from stdin
+        assert inv.command[inv.command.index("-p") + 1] == "--output-format"
+
+    def test_the_bound_is_measured_in_bytes_not_characters(self):
+        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
+        wide = "é" * (_ARGV_PROMPT_MAX_BYTES // 2 + 1)   # fewer characters than the bound, more bytes
+        inv, _ = self._invocation(wide)
+        assert inv.kwargs.get("input") == wide
+
+    def test_the_bound_is_under_the_kernel_per_argument_limit(self):
+        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
+        assert _ARGV_PROMPT_MAX_BYTES < 131072   # MAX_ARG_STRLEN (32 pages) includes the terminating NUL
+
+    def test_complete_spawns_a_big_prompt_without_e2big(self, tmp_path, monkeypatch):
+        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
+        fake = tmp_path / "fake-claude"
+        seen = tmp_path / "stdin.txt"
+        fake.write_text(
+            "#!/bin/sh\ncat > " + str(seen) + "\n"
+            "printf '%s' '{\"type\":\"result\",\"is_error\":false,\"result\":\"pong\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}'\n"
+        )
+        fake.chmod(0o755)
+        monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        big = "y" * (200 * 1024)   # over MAX_ARG_STRLEN: argv transport raised E2BIG here
+        result = adapter.complete(_make_request(messages=[{"role": "user", "content": big}]))
+        assert result.content == "pong"
+        assert big in seen.read_text()

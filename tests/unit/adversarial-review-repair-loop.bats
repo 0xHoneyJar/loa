@@ -548,4 +548,7 @@ EOF
     [ "$REPAIR_LOOP_MAIN_NEUTRALISED" = "1" ]
     [ "$(_repair_model_chain "gpt-5.3-codex")" = "gpt-5.3-codex" ]
     [ "$XDG_RUNTIME_DIR" = "$TEST_DIR" ]
+    # the RESOLVED lock directory, not just the input: a resolver cached at source time would leave the export inert
+    # (twenty-second run, c2e DISS-C-001)
+    [ "$(_adv_cli_lock_dir)" = "$TEST_DIR/loa-headless-locks-$(id -u)" ]
 }

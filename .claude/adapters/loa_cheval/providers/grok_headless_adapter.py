@@ -237,9 +237,11 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                         cwd=workspace,
                     )
                 except subprocess.TimeoutExpired:
+                    # the catalog bound's note, as the base adapter appends it (twenty-second run, d DISS-C-002)
+                    _note = getattr(model_config, "headless_timeout_note", None)
                     raise ProviderUnavailableError(
                         self.provider,
-                        f"grok timed out after {timeout_s:.0f}s",
+                        f"grok timed out after {timeout_s:.0f}s" + (f" ({_note})" if _note else ""),
                     )
                 except SubprocessOutputCapExceeded as exc:
                     # Truncated output is a provider failure, not a successful

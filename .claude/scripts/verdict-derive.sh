@@ -198,6 +198,12 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         done
         [[ -n "$_prev_files" ]] && violations+=("dissent_aborted: $_prev_files beside this file but no dissent envelope $(basename -- "$ENVELOPE_FILE") — a dissent run moved the previous round's files aside and wrote none of its own; re-run the dissent, or record the failure with the documented fallback envelope")
     fi
+    # twenty-second run, b1 C-002: a sibling envelope that exists but is not a regular file (a directory, a FIFO, a dangling
+    # symlink) cannot be read — an explicit one is a usage error above; the default sibling is a violation, never skipped
+    if [[ ( -e "$ENVELOPE_FILE" || -L "$ENVELOPE_FILE" ) && ! -f "$ENVELOPE_FILE" ]]; then
+        violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") is not a regular file — the rejected-payload contract cannot be checked; remove it and re-run the dissent")
+        return 0
+    fi
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean), and a
         # metadata that is not an object gets its own message; an envelope with no metadata at all, or a metadata WITHOUT

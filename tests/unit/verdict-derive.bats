@@ -504,6 +504,8 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and ([.violations[] | test("predates")] | any | not)' >/dev/null
+    # …and the violation IS the sidecar-rows count, not some other one (twenty-second run, c2c C-002)
+    echo "$output" | jq -e '(.violations | length) == 1 and (.violations[0] | test("(^|[^0-9])1 schema-rejected payload\\(s\\) \\(the adversarial-rejected-review\\*\\.jsonl sidecar rows beside it\\)"))' >/dev/null
 }
 
 @test "verdict-derive: sidecar rows with no envelope beside them are a violation, repaired rows never count (third run, chunk b C-002 / C-001)" {
@@ -644,7 +646,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     echo "$output" | jq -e '(.violations | length) == 1 and (.violations[0] | test("carries 1 schema-rejected payload"))' >/dev/null
 }
 
-@test "verdict-derive: the production shape — N summary entries and the same N sidecar rows — needs exactly N bullets (seventh run, chunk c2 C-002)" {
+@test "verdict-derive: the production shape — N summary entries and the same N sidecar rows — needs at least N bullets, N+1 passes too (seventh run, chunk c2 C-002; twenty-second run, c2d C-003)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s16"; mkdir -p "$d"
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n{"reject_reason":"missing-category","payload":{"title":"b"}}\n' > "$d/adversarial-rejected-review.jsonl"
@@ -652,6 +654,14 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     {
         echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
         echo "## Rejected dissent payloads"; echo; echo "- a — missing-severity: not a defect."; echo "- b — missing-category: not a defect."; echo
+        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    [ "$status" -eq 0 ]
+    # the contract is a floor (count >= N), not an equality: a bullet per row plus a summary line still passes
+    {
+        echo "All good"; echo; echo "Sprint 9 has been reviewed and approved."; echo
+        echo "## Rejected dissent payloads"; echo; echo "- a — missing-severity: not a defect."; echo "- b — missing-category: not a defect."; echo "- both rows above are repair-loop leftovers."; echo
         echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
     } > "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
@@ -691,7 +701,9 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 1 ]   # one row, no section
     echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("1 schema-rejected payload")) and (.warnings | map(select(test("old.jsonl.*not listed.*never folded"))) | length) == 1' >/dev/null
     rm -f "$d/adversarial-rejected-review-old.jsonl"
-    sleep 1; printf '{"reject_reason":"new"}\n' > "$d/adversarial-rejected-review-new.jsonl"
+    # the age relation is forced, never write order on a coarse-mtime filesystem (twenty-second run, c2d C-001)
+    printf '{"reject_reason":"new"}\n' > "$d/adversarial-rejected-review-new.jsonl"
+    touch -t 202101010000 "$d/adversarial-review.json"; touch -t 202201010000 "$d/adversarial-rejected-review-new.jsonl"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | length) == 1 and (.warnings | map(select(test("new.jsonl is newer than the dissent envelope.*may be stale"))) | length) == 1' >/dev/null
@@ -730,6 +742,12 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.consistent == true and (.warnings | any(test("predates the rejected-payload contract")))' >/dev/null
+    # …and the counted side of the same branch: a sidecar NEWER than the metadata-less envelope is a later run that died after
+    # writing rows — they count (twenty-second run, c2d C-002)
+    touch -t 202101010000 "$d/adversarial-review.json"; touch -t 202201010000 "$d/adversarial-rejected-review.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | length) == 1 and (.violations[0] | test("(^|[^0-9])1 schema-rejected payload")) and (.warnings | any(test("is newer than it.*rows are counted")))' >/dev/null
     # a scalar JSON row and a repaired object row: one row counts
     printf '"a bare payload string"\n{"reject_reason":"x","repair_succeeded":true}\n' > "$d/adversarial-rejected-review.jsonl"
     touch -t 201901010000 "$d/adversarial-rejected-review.jsonl"   # the age relation below is forced, never write order (c2d C-001)
@@ -864,6 +882,11 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1' >/dev/null
+    # …and one OLDER than it too: a non-regular entry is judged before the age split (twenty-second run, c2d C-002)
+    touch -t 201901010000 "$d/adversarial-rejected-review-dir.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | map(select(test("not a regular file"))) | length) == 1' >/dev/null
 }
 
 @test "verdict-derive: a dangling symlink named like a sidecar — size 0 on every filesystem, no age — is a violation beside an FR-2 envelope and beside a legacy one (twentieth run, c2d C-002)" {
@@ -925,4 +948,30 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.violations | map(select(test("dissent_aborted"))) | length == 0' >/dev/null
+}
+
+@test "verdict-derive: a default sibling envelope that is not a regular file — a directory, a FIFO, a dangling symlink — is a violation, as an explicit one is a usage error (twenty-second run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s27"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    mkdir "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | any(test("adversarial-review.json") and test("not a regular file")))' >/dev/null
+    rmdir "$d/adversarial-review.json"
+    mkfifo "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations | any(test("not a regular file"))' >/dev/null
+    rm -f "$d/adversarial-review.json"
+    ln -s "$d/nowhere.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.violations | any(test("not a regular file"))' >/dev/null
+    # a symlink to a regular envelope is read as that envelope
+    rm -f "$d/adversarial-review.json"
+    jq -n '{findings: [], metadata: {type: "review", rejected_summary: [], rejected_sidecars: []}}' > "$d/real.json"
+    ln -s "$d/real.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
 }

@@ -56,6 +56,13 @@ teardown() {
     local d p
     for p in ${NORM_HOLDER_PIDS[@]+"${NORM_HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
     if [[ -n "${NORM_OWN_TMP:-}" && -d "$NORM_OWN_TMP" && "$(basename "$NORM_OWN_TMP")" == tmp.* ]]; then find "$NORM_OWN_TMP" -mindepth 1 -delete; rmdir "$NORM_OWN_TMP"; fi
+    # a directory an earlier, killed run of this suite left behind (its pid is dead) never accumulates (twenty-second run, c2a C-002)
+    for d in "$PROJECT_ROOT"/grimoires/loa/a2a/sprint-norm-[0-9]*; do
+        [[ "$d" == */a2a/sprint-norm-[0-9]* && -d "$d" && ! -L "$d" ]] || continue
+        p=${d##*/sprint-norm-}; p=${p%%-*}
+        [[ "$p" =~ ^[0-9]+$ ]] || continue
+        if ! kill -0 "$p" 2>/dev/null; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    done
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
         [[ "$d" == */a2a/sprint-norm-* ]] || continue
@@ -231,10 +238,11 @@ _fixture_content() {  # all three fixtures as one findings document
         printf '%s' "$1" | jq -c '. + {failure_mode: "stubbed repair"}'
     }
     doc='{"findings":[{"id":"DISS-001","severity":"MEDIUM","category":"config","description":"Needs a repair."}]}'
-    # the per-user lock directories a leaked override would fall back to, snapshotted (twentieth run, c2a C-002)
+    # the lock directory is resolved under this test's XDG_RUNTIME_DIR — deterministic, never a snapshot of the shared
+    # per-user directories a live dissent writes to concurrently (twentieth run, c2a C-002; twenty-second run, c2a C-001)
     local uid; uid=$(id -u)
-    snap() { local d; for d in "/run/user/$uid/loa-headless-locks-$uid" "${TMPDIR:-/tmp}/loa-headless-locks-$uid"; do if [[ -d "$d" ]]; then ls -A "$d"; fi; done | LC_ALL=C sort; }
-    before=$(snap)
+    [ "$(_adv_cli_lock_dir)" = "$TEST_DIR/loa-headless-locks-$uid" ]
+    [ "$(grep -c 'loa-headless-locks' "$ADVERSARIAL_REVIEW")" = "1" ]   # one resolver: no second path can bypass the override
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
@@ -242,7 +250,6 @@ _fixture_content() {  # all three fixtures as one findings document
     # the CLI hop's lock was taken under this test's XDG_RUNTIME_DIR, never in the per-user directory a live dissent holds
     if command -v flock >/dev/null 2>&1; then
         [ -e "$TEST_DIR/loa-headless-locks-$uid/claude.lock" ]
-        [ "$(snap)" = "$before" ]
     fi
     [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
 }
@@ -509,21 +516,22 @@ _fixture_content() {  # all three fixtures as one findings document
 @test "NRM-22 the run's repairs share a wall-clock budget: once LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS is spent the remaining payloads are rejected unrepaired and counted in repair_budget_exhausted (twelfth run, a1 C-002)" {
     export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
-    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 3; return 1; }
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."},{"title":"three","category":"other","description":"No severity."}]}'
     # a 4 s budget with a 1 s call timeout and 2 s hops: `tiny` and `claude-headless` both reach the claude CLI, so each is
     # charged its CLI bound (twentieth run, a3 DISS-C-003: `tiny` falls through to the CLI inside one cheval call) and is
     # never started — named over_budget — while the answering voice (an HTTP hop, estimated at its 1 s call timeout) runs
     # while a second remains; two 2 s hops spend the budget, so the third payload is rejected unrepaired (fourteenth run,
     # a1 C-002: the budget pre-empts a hop it cannot afford instead of discovering the stall afterwards). Under load the
-    # second hop may not fit either — at least one payload is exhausted whatever the scheduling.
+    # second hop may not fit either — at least one payload is exhausted whatever the scheduling. (twenty-second run, c2b
+    # C-002: a 6 s budget and 3 s hops — the first `m` hop is admitted with up to five seconds of setup spent, not three)
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=4 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=6 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "3" ]
     [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" -ge 1 ]
-    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "4" ]
-    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 2 ]
+    [ "$(jq '.metadata.repair_wall_budget_seconds' <<<"$result")" = "6" ]
+    [ "$(jq '.metadata.repair_wall_seconds' <<<"$result")" -ge 3 ]
     [ "$(grep -c '' "$TEST_DIR/repair-calls")" -le 2 ]; [ "$(grep -c '' "$TEST_DIR/repair-calls")" -ge 1 ]
     [ "$(grep -c "claude-headless" "$TEST_DIR/repair-calls")" = "0" ]
     [ "$(grep -cx "tiny" "$TEST_DIR/repair-calls")" = "0" ]
@@ -685,36 +693,38 @@ _fixture_content() {  # all three fixtures as one findings document
     # than the two of margin) — with the fix its estimate is still the bound, so the hop is pre-empted and named;
     # a noted lock wait would have made it a few seconds and queued the hop behind the lock again
     bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
-    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=4   # (a four-second lock wait outlasts the two seconds of margin — the budget guard measures whole seconds)
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 2 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    # (twenty-second run, c2b C-002: four seconds of margin and an eight-second wait — the wait still outlasts the margin, and
+    # setup under load has twice the room)
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=8   # (an eight-second lock wait outlasts the four seconds of margin — the budget guard measures whole seconds)
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 4 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     flock -u 8; exec 8>&-
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "m m " ]   # the CLI hop never ran for either payload
-    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 4s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
+    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 8s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
 }
 
 @test "NRM-27 a repair hop that ran and failed fast leaves no duration either: only a usable reply says how long a completed attempt takes, so the next payload's estimate stays the bound (eighteenth run, a1 C-003)" {
     unset ANTHROPIC_API_KEY   # keyless: the chain is claude-headless → m
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
-    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 4; return 1; }   # fails after four seconds — a transient provider error, far below the bound
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 6; return 1; }   # fails after six seconds — a transient provider error, far below the bound
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
     bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 3 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 5 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     CONF_TIMEOUT=60
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
-    # the first payload's CLI hop ran (admitted with three seconds of margin) and failed after four; the second payload's
+    # the first payload's CLI hop ran (admitted with five seconds of margin — twenty-second run, c2b C-002) and failed after six; the second payload's
     # estimate is still the bound — above what is left — so it is pre-empted and named, never admitted on an 8 s note
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless m m " ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
     # …and a usable reply IS noted: the second payload's hop is admitted on the observed duration (sixteenth run, a1 C-001) —
-    # a budget of the bound plus three seconds admits the first attempt with margin; that attempt takes four seconds, so the
-    # bound-sized estimate would no longer fit for the second payload while the noted eight seconds do
-    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 4; printf '%s' "$1" | jq -c '. + {severity: "LOW"}'; }
+    # a budget of the bound plus five seconds admits the first attempt with margin; that attempt takes six seconds, so the
+    # bound-sized estimate would no longer fit for the second payload while the noted duration does
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 6; printf '%s' "$1" | jq -c '. + {severity: "LOW"}'; }
     : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 3 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 5 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     CONF_TIMEOUT=60
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "2" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "claude-headless claude-headless " ]
@@ -744,13 +754,26 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-30 setup is keyless for every alias the probe recognises — the alias table, not a hand-kept list (twenty-first run, c2a C-001)" {
-    local p v
+    local p v c
     for p in anthropic openai google; do
+        # a non-empty table: an empty or mis-keyed one would pass the loop below vacuously (twenty-second run, c2b C-001)
+        [ -n "$(_adv_cred_aliases "$p")" ]
+        # …that carries the provider's canonical variable (the name cheval's credential chain reads): a typo'd alias would
+        # otherwise be self-consistent with the positive control below and blind to the real key
+        case "$p" in anthropic) c=ANTHROPIC_API_KEY ;; openai) c=OPENAI_API_KEY ;; google) c=GOOGLE_API_KEY ;; esac
+        [[ " $(_adv_cred_aliases "$p") " == *" $c "* ]]
         for v in $(_adv_cred_aliases "$p"); do
             run printenv "$v"
             [ "$status" -ne 0 ]
         done
         run _adv_cred_present "$p"
         [ "$status" -eq 1 ]
+        # positive control: every alias the table lists is one the probe actually sees
+        for v in $(_adv_cred_aliases "$p"); do
+            export "$v=presence-only-never-printed"
+            run _adv_cred_present "$p"
+            unset "$v"
+            [ "$status" -eq 0 ]
+        done
     done
 }

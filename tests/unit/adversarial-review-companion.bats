@@ -152,6 +152,9 @@ YAML
             errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger —
                       # the row is written NOW (inside the companion's window), as cheval would (tenth run, c1 C-005)
                 if [[ -n "${ERRQUIET_LEDGER_MESSAGE:-}" ]]; then
+                    # the guard travels with the writer (twenty-second run, c1a DISS-C-002): a fabricated row lands only in this test's
+                    # own ledger, never in the repository's signed chain (KF-033)
+                    [[ -n "${LOA_MODELINV_LOG_PATH:-}" && "$LOA_MODELINV_LOG_PATH" == "$T"/* ]] || { echo "stub: LOA_MODELINV_LOG_PATH is not test-scoped — no row written" >&2; return 98; }
                     jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg msg "$ERRQUIET_LEDGER_MESSAGE" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
                         payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
                                  models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:$msg}]}}' >> "$LOA_MODELINV_LOG_PATH"
@@ -194,6 +197,13 @@ teardown() {
     local p; for p in ${HOLDER_PIDS[@]+"${HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
     if [[ -n "${CMP_OWN_TMP:-}" && -d "$CMP_OWN_TMP" && "$(basename "$CMP_OWN_TMP")" == tmp.* ]]; then find "$CMP_OWN_TMP" -mindepth 1 -delete; rmdir "$CMP_OWN_TMP"; fi
     [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || return 0
+    # a directory an earlier, killed run of this suite left behind (its pid is dead) never accumulates (twenty-second run, c2a C-002)
+    for d in "${OUT_DIR%/*}"/sprint-comp-[0-9]*; do
+        [[ "$d" == */a2a/sprint-comp-[0-9]* && -d "$d" && ! -L "$d" ]] || continue
+        p=${d##*/sprint-comp-}; p=${p%%-*}
+        [[ "$p" =~ ^[0-9]+$ ]] || continue
+        if ! kill -0 "$p" 2>/dev/null; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    done
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
         [[ "$d" == */a2a/sprint-comp-* ]] || continue
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
@@ -389,7 +399,8 @@ _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/d
 @test "CMP-11 no credential and no CLI for the other family → planned false, reason no_route; the CLI alone is a route (C-007)" {
     export LOA_ADVERSARIAL_CLI_PROBE=none
     result=$(_run_main review)
-    [ "$(jq -c '.metadata.companion_voice' <<<"$result")" = '{"planned":false,"reason":"no_route","family":"anthropic"}' ]
+    # (field by field, as every other case — an additive field is not a defect; twenty-second run, c1a DISS-C-003)
+    [ "$(jq -r '.metadata.companion_voice | [.planned, .reason, .family] | map(tostring) | join(",")' <<<"$result")" = "false,no_route,anthropic" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
     export LOA_ADVERSARIAL_CLI_PROBE=claude
     result=$(_run_main review)
@@ -438,8 +449,13 @@ PY
     kill -KILL "$s"; wait "$s" 2>/dev/null || true; unset 'HOLDER_PIDS[-1]'
     [ "$(_cmp14_probe)" = "0" ]
     BEHAVIOUR[claude-headless]=slow
-    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=1
+    # (twenty-second run, c1a DISS-C-001: the hop must have been IN FLIGHT — a 1 s cap that fires before the stub spawned anything
+    # reaps nothing — and the run is bounded, so a reaper that failed is not hidden by a 300 s sleep that ends on its own)
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    local t0; t0=$(_now_ms)
     result=$(_run_main review)
+    (( $(_now_ms) - t0 < 120000 )) || { echo "the run took $(( ($(_now_ms) - t0) / 1000 )) s: the hung hop was not reaped"; return 1; }
+    grep -qx claude-headless "$CALLS"
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
@@ -452,7 +468,10 @@ PY
     # …and the same reap through the pgrep-FREE walker (round 1p's fallback — the path most likely to be wrong is the one
     # asserted too): pgrep hidden from the script, a fresh hung hop, no orphan afterwards
     : > "$CALLS"
+    t0=$(_now_ms)
     result=$(_ADV_PGREP_BIN=/nonexistent/pgrep _run_main review)
+    (( $(_now_ms) - t0 < 120000 )) || { echo "the pgrep-free run took $(( ($(_now_ms) - t0) / 1000 )) s: the hung hop was not reaped"; return 1; }
+    grep -qx claude-headless "$CALLS"
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.companion_voice.failure_class' <<<"$result")" = "timeout" ]
     [ "$(_cmp14_orphans)" = "0" ]
@@ -730,11 +749,14 @@ PY
     _need_flock
     # phase-tagged trace: serialised hops read start,end,start,end by timestamp; overlapping ones start,start,… (c1 C-001)
     invoke_dissenter() { echo "$(_now_ms) start $BASHPID" >> "$T/lock-trace"; sleep 1; echo "$(_now_ms) end $BASHPID" >> "$T/lock-trace"; echo '{"content":"{\"findings\":[]}"}'; }
+    # (twenty-second run, c1b DISS-C-003: a short lock bound, so a lock-release regression is a prompt red, never a 910 s stall,
+    # and each hop's own status is checked — a bare `wait` is 0 whatever its children returned)
     t0=$(_now_ms)
-    _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
-    _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null &
-    wait
+    ( _ADV_LOCK_WAIT_CLI=20; _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null ) & h1=$!
+    ( _ADV_LOCK_WAIT_CLI=20; _adv_invoke_hop claude-headless a b claude-headless 30 "" review >/dev/null ) & h2=$!
+    wait "$h1"; wait "$h2"
     t1=$(_now_ms)
+    (( t1 - t0 < 20000 ))
     [ "$(sort -n "$T/lock-trace" | awk '{printf "%s,", $2}')" = "start,end,start,end," ]
     (( t1 - t0 >= 2000 ))   # two one-second hops, one after the other
     [ -f "$T/loa-headless-locks-$(id -u)/claude.lock" ]
@@ -818,12 +840,15 @@ PY
 
 @test "CMP-28 LOA_ADVERSARIAL_RUN_TAG scopes the sidecar names to the run: only this run's files are removed at start and listed on the envelope (fifth run C-004)" {
     mkdir -p "$OUT_DIR"; printf '{"reject_reason":"earlier"}\n' > "$OUT_DIR/adversarial-rejected-review-companion.jsonl"   # another run's file
+    # …and a stale file under THIS run's tag, from a previous attempt: removed at start, never appended to (twenty-second run, c1b DISS-C-002)
+    printf '{"reject_reason":"stale-1"}\n{"reject_reason":"stale-2"}\n' > "$OUT_DIR/adversarial-rejected-review-companion-chunk-x.jsonl"
     export LOA_ADVERSARIAL_RUN_TAG="chunk-x"
     BEHAVIOUR[claude-headless]=reject
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.rejected_sidecar' <<<"$result")" = "grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion-chunk-x.jsonl" ]
     [ "$(jq -c '.metadata.rejected_sidecars' <<<"$result")" = "[\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-chunk-x.jsonl\",\"grimoires/loa/a2a/$SPRINT/adversarial-rejected-review-companion-chunk-x.jsonl\"]" ]
     [ "$(grep -c '' "$OUT_DIR/adversarial-rejected-review-companion-chunk-x.jsonl")" = "1" ]
+    if grep -q 'stale-' "$OUT_DIR/adversarial-rejected-review-companion-chunk-x.jsonl"; then echo "this run's stale rows survived its start"; return 1; fi
     [ "$(cat "$OUT_DIR/adversarial-rejected-review-companion.jsonl")" = '{"reject_reason":"earlier"}' ]   # untouched — its CONTENT, not its presence (sixteenth run, c1c C-004)
     # sixth run, C-004: with the sidecar disabled nothing of ours is listed (another run's files stay out)
     unset LOA_ADVERSARIAL_RUN_TAG; export LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1
@@ -1368,9 +1393,11 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 }
 
 @test "CMP-51 the process tree is enumerated without pgrep too (fifteenth run, a3 C-004)" {
-    bash -c 'sleep 30 & sleep 30 & wait' 3>&- & root=$!; sleep 0.3
+    bash -c 'sleep 30 & sleep 30 & wait' 3>&- & root=$!
+    # a bounded poll until both children are forked, never a fixed wait (twenty-second run, c1b DISS-C-001): the baseline below is the whole tree
+    local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$root" | wc -w)" -ge 3 ] && break; sleep 0.1; done
     with=$(_adv_tree_pids "$root" | sort -n | tr '\n' ' ')
-    [ "$(printf '%s' "$with" | wc -w)" -ge 3 ]
+    [ "$(printf '%s' "$with" | wc -w)" -eq 3 ]
     # the WHOLE tree is a teardown holder (sixteenth run, c1c C-001: a TERM to the root alone frees its children first)
     for p in $with; do HOLDER_PIDS+=("$p"); done
     # the seam is observable (c1c C-003): a shadow pgrep first in PATH answers nothing, so an enumeration that ignored the
@@ -1611,8 +1638,12 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     # the skill's fallback envelope, as the resources say to write it: consistent, and the .prev files count nothing
     jq -n '{findings: [], metadata: {status: "failed", reason: "aborted", rejected_summary: [], rejected_sidecars: []}}' > "$OUT_DIR/adversarial-review.json"
     printf 'All good\n' > "$T/fb.md"
-    vd=$(bash "$PROJECT_ROOT/.claude/scripts/verdict-derive.sh" --file "$T/fb.md" --gate review --envelope "$OUT_DIR/adversarial-review.json" --json 2>/dev/null) || true
-    jq -e '(.violations | length) == 0 and (.warnings | length) == 0' <<<"$vd" >/dev/null
+    # (the exit code and the keys are asserted — a usage error or a parse failure carries no violations array either: twenty-second
+    # run, c1c DISS-C-003)
+    vrc=0; vd=$(bash "$PROJECT_ROOT/.claude/scripts/verdict-derive.sh" --file "$T/fb.md" --gate review --envelope "$OUT_DIR/adversarial-review.json" --json 2>"$T/vd.err") || vrc=$?
+    # (2 is a trailer-less file — success without --require-trailer; 1 a violation, and a usage error says so in the object)
+    [[ "$vrc" == 0 || "$vrc" == 2 ]] || { echo "verdict-derive exited $vrc: $(cat "$T/vd.err")"; return 1; }
+    jq -e '(.usage_error // false) == false and (.violations | type) == "array" and (.violations | length) == 0 and (.warnings | type) == "array" and (.warnings | length) == 0' <<<"$vd" >/dev/null
     # a run that completes drops the previous round's files: only its own are present
     BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     result=$(_run_main review)
@@ -1710,7 +1741,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ "$(cat "$OUT_DIR/adversarial-review.json.prev")" = "prev" ]; [ ! -e "$OUT_DIR/adversarial-review.json" ]
 }
 
-@test "CMP-71 a start token that cannot be read at the fork never aborts main: the companion is treated as gone, the review completes (nineteenth run, a4 C-001)" {
+@test "CMP-71 a start token that cannot be read at the fork never aborts main: the pid alone keeps the companion in view, its answer is folded, the review completes (nineteenth run, a4 C-001; title per the twenty-second run, c1c DISS-C-002)" {
     _orig_proc_start=$(declare -f _adv_proc_start); _adv_proc_start() { return 1; }
     result=$(_run_main review)
     eval "$_orig_proc_start"
@@ -2071,7 +2102,8 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     # a lock directory that IS ours: taken, nothing said
     unset _ADV_RUN_LOCK_WARNED
     _adv_take_run_lock "$OUT_DIR" review 2>"$T/rl-err"
-    [ -n "$_ADV_RUN_LOCK_DIR" ] && [ -d "$_ADV_RUN_LOCK_DIR" ]
+    [ -n "$_ADV_RUN_LOCK_DIR" ]   # (two statements: a failed `[ ]` before `&&` never trips errexit — twenty-second run, c1c DISS-C-001)
+    [ -d "$_ADV_RUN_LOCK_DIR" ]
     if grep -q "run lock is not taken" "$T/rl-err"; then echo "an owned lock directory was reported unguarded"; return 1; fi
     _adv_release_run_lock
 }
@@ -2179,14 +2211,16 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     kill "$s"; wait "$s" 2>/dev/null || true
 }
 
-@test "CMP-101 the global ceiling's queue allowance counts every hop that queues for a CLI lock — an HTTP hop whose chain reaches a CLI too — with the bound the queue phase itself uses (twenty-first run, a4 DISS-C-001)" {
+@test "CMP-101 the global ceiling's queue allowance counts each *-headless hop's queue at the bound its queue phase uses; an HTTP hop whose chain reaches a CLI adds nothing — its lock wait is already the first timeout of its wait-cap share (twenty-first run, a4 DISS-C-001; re-pinned by the twenty-second run, a2 DISS-C-002)" {
     _adv_cli_bin_for() { case "$1" in plain-x|claude-headless) echo claude ;; *) echo "" ;; esac; }
     _adv_cli_hop_bound() { echo 700; }
     [ "$(_companion_queue_allowance claude-headless)" = "730" ]
-    [ "$(_companion_queue_allowance plain-x claude-headless)" = "1460" ]
+    [ "$(_companion_queue_allowance plain-x claude-headless)" = "730" ]
+    [ "$(_companion_queue_allowance plain-x)" = "0" ]
     [ "$(_companion_queue_allowance plain-y)" = "0" ]
+    [ "$(_companion_queue_allowance anthropic:claude-headless)" = "730" ]   # (canonical: a prefixed CLI hop is the CLI hop)
     _adv_cli_hop_bound() { echo 10m; }   # (a bound that is not a number: the adapter's default, as the queue phase reads it)
-    [ "$(_companion_queue_allowance plain-x)" = "640" ]
+    [ "$(_companion_queue_allowance claude-headless)" = "640" ]
 }
 
 @test "CMP-102 main's INT and TERM traps exit 130 / 143 even when the reaper fails under errexit (twenty-first run, a4 DISS-C-002)" {
@@ -2209,4 +2243,125 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "gpt-5.5-pro" ]
     [ "$(jq -c '[.verdict_quality.voices_dropped[] | {voice, reason}]' <<<"$result")" = '[{"voice":"claude-headless","reason":"Other"}]' ]
+}
+
+@test "CMP-104 the room a partial view leaves to the rows at or above its tier is what those rows can take TOGETHER — two siblings that each fit but not beside each other never reserve the budget twice (twenty-second run, b1 DISS-C-001)" {
+    mk_hunk() { printf '@@ -%d,3 +%d,4 @@ fn%d\n context\n-old line %d\n+new line %d %s\n+another line %d\n' "$1" "$1" "$1" "$1" "$1" "$(printf 'x%.0s' $(seq 1 200))" "$1"; }
+    mk_file() { printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n-a\n+%s\n' "$1" "$1" "$1" "$1" "$(printf 'q%.0s' $(seq 1 "$2"))"; }
+    big="diff --git a/big.sh b/big.sh
+--- a/big.sh
++++ b/big.sh
+$(mk_hunk 10)
+$(mk_hunk 40)
+$(mk_hunk 70)
+$(mk_hunk 100)"
+    a=$(mk_file a.sh 380); s=$(mk_file s.sh 470)
+    [ "$(estimate_tokens "$a")" -lt 160 ]   # each fits alone; a + s overflow 300 (two statements: errexit never sees a failed `[ ]` before `&&`)
+    [ "$(estimate_tokens "$s")" -gt 150 ]
+    out=$(prepare_content "$a
+$big
+$s" 300 2>/dev/null)
+    [[ "$out" == "diff --git a/a.sh b/a.sh"* ]]
+    [[ "$out" != *"P0: a.sh"* ]]
+    [[ "$out" == *"--- PARTIAL: big.sh"* ]]
+    payload=$(printf '%s' "$out" | sed '/^--- TRUNCATED:/,$d')
+    [ "$(estimate_tokens "$payload")" -le 300 ]
+}
+
+@test "CMP-105 a companion_chain family written as a scalar or a map — or a companion_chain that is not a map — is SAID, never read silently as an empty chain (twenty-second run, a1 DISS-C-001)" {
+    _cfg_edit $'  code_review:\n    enabled: true\n' $'  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: claude-headless\n      openai: {first: codex-headless}\n'
+    result=$(_run_main review)
+    grep -q 'WARN: flatline_protocol.code_review.companion_chain.anthropic is a !!str, not a list' "$T/stderr.log"
+    grep -q 'WARN: flatline_protocol.code_review.companion_chain.openai is a !!map, not a list' "$T/stderr.log"
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]   # the default chain applies
+    _cfg_edit $'    companion_chain:\n      anthropic: claude-headless\n      openai: {first: codex-headless}\n' $'    companion_chain: claude-headless\n'
+    ( _run_main review ) >/dev/null || true
+    grep -q 'WARN: flatline_protocol.code_review.companion_chain is a !!str, not a map of family lists' "$T/stderr.log"
+    # a list is read silently, as before
+    _cfg_edit $'    companion_chain: claude-headless\n' $'    companion_chain:\n      anthropic: [claude-headless]\n'
+    ( _run_main review ) >/dev/null || true
+    if grep 'companion_chain' "$T/stderr.log" | grep -q 'WARN'; then return 1; fi
+}
+
+@test "CMP-106 only a safe token is an explicit id: an id with whitespace, a newline or a control character is renumbered id_derived and never logged raw, and it never renumbers the safe id it would split into (twenty-second run, a1 DISS-C-003)" {
+    doc=$(jq -nc '{findings: [
+      {id: "x DISS-002", severity: "HIGH", category: "config", description: "Spaced.", failure_mode: "stated"},
+      {id: "A\nB", severity: "LOW", category: "other", description: "Newlined.", failure_mode: "stated"},
+      {id: "DISS-007\n", severity: "LOW", category: "other", description: "Trailing.", failure_mode: "stated"},
+      {id: "ok\u0007", severity: "LOW", category: "other", description: "Bell.", failure_mode: "stated"},
+      {id: "DISS-002", severity: "LOW", category: "other", description: "Safe.", failure_mode: "stated"}]}')
+    raw=$(jq -nc --arg c "$doc" '{content: $c}')
+    result=$(process_findings "$raw" audit m "$SPRINT" 0 "" 2>"$T/tok-err")
+    [ "$(jq '.findings | length' <<<"$result")" = "5" ]
+    [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "5" ]
+    [ "$(jq -r '.findings[] | select(.description == "Safe.") | .id' <<<"$result")" = "DISS-002" ]
+    [ "$(jq '[.findings[] | select(.description != "Safe.") | .id_derived] | all' <<<"$result")" = "true" ]
+    [ "$(jq '[.findings[].id | test("\\A[A-Za-z0-9._:-]{1,64}\\z")] | all' <<<"$result")" = "true" ]
+    grep -q "not a safe token" "$T/tok-err"
+    if grep -q 'x DISS-002' "$T/tok-err"; then return 1; fi
+}
+
+@test "CMP-107 a takeover whose per-key flock times out still judges the holder — a LIVE holder refuses the run — and never takes a lock over without the flock (twenty-second run, a2 DISS-C-001)" {
+    printf '#!/bin/sh\nexit 1\n' > "$T/flock-busy"; chmod +x "$T/flock-busy"   # (flock -w 5 that times out: another taker holds the section)
+    sleep 60 3>&- & holder=$!; HOLDER_PIDS+=("$holder")
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
+    printf '%s\n%s\n' "$holder" "$(_adv_proc_start "$holder")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""
+    rc=0; ( _ADV_FLOCK_BIN="$T/flock-busy"; _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/busy.err" || rc=$?
+    [ "$rc" = "1" ]; grep -q "is in progress (pid $holder)" "$T/busy.err"
+    [ "$(sed -n 1p "$lockd/pid")" = "$holder" ]
+    # a dead holder behind a busy section: not taken over without the flock — the run goes unguarded, the lock is left alone
+    kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
+    rc=0; ( _ADV_FLOCK_BIN="$T/flock-busy"; _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/busy.err" || rc=$?
+    [ "$rc" = "0" ]; grep -q "run lock is not taken" "$T/busy.err"
+    [ "$(sed -n 1p "$lockd/pid")" = "$holder" ]
+    command rm -f -- "$lockd/pid"; rmdir "$lockd"
+}
+
+@test "CMP-108 the companion's pid is published to the reaper before main forks anything else — a signal in the next command's fork window still reaps it (twenty-second run, a4 DISS-C-001)" {
+    # the first `date` main runs once it holds the companion's pid is the next fork after the companion's: the reaper must already see it
+    date() { if [[ -n "${companion_pid:-}" && ! -e "$T/pid-probe" ]]; then printf '%s|%s\n' "$companion_pid" "${_ADV_COMPANION_PID:-unset}" > "$T/pid-probe"; fi; command date "$@"; }
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ -s "$T/pid-probe" ]
+    IFS='|' read -r forked published < "$T/pid-probe"
+    [ "$published" = "$forked" ]
+}
+
+@test "CMP-109 the reaper takes each pid's token while the tree is frozen — a descendant found by the second collection is never tokenised after TERM, when its pid may be free (twenty-second run, a4 DISS-C-002)" {
+    # kill_tree's tokens mode: pid=token pairs of the frozen tree, the tree signalled as before
+    bash -c 'sleep 30 & wait' 3>&- & s=$!; HOLDER_PIDS+=("$s")
+    sleep 0.3
+    want="$s=$(_adv_tok_word "$(_adv_proc_start "$s")")"
+    out=$(_adv_kill_tree "$s" TERM tokens)
+    grep -qx "$want" <<<"$out" || { echo "no frozen token for the root ($want): $out"; return 1; }
+    [ "$(grep -c '=' <<<"$out")" -ge 2 ]
+    sleep 0.3; if kill -0 "$s" 2>/dev/null; then echo "the tree was not signalled"; return 1; fi
+    wait "$s" 2>/dev/null || true
+    # the inner reap uses those pairs: a pid only the frozen collection saw carries the token taken while frozen
+    sleep 30 3>&- & s=$!; HOLDER_PIDS+=("$s")
+    _adv_kill_tree() { printf '%s=%s\n' "$1" "$(_adv_tok_word "$(_adv_proc_start "$1")")" 999999 tFROZEN; kill "$1"; }
+    _ADV_COMPANION_PID="$s"; _ADV_COMPANION_START=$(_adv_proc_start "$s"); LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1
+    _adv_reap_companion_inner "$s"
+    [[ " $_ADV_REAP_TREE_TOKENS" == *" 999999=tFROZEN "* ]] || { echo "tokens: $_ADV_REAP_TREE_TOKENS"; return 1; }
+    [[ " $_ADV_REAP_TREE_PIDS " == *" 999999 "* ]]
+    [[ "$_ADV_REAP_TREE_TOKENS" != *"tFROZEN="* ]]
+    wait "$s" 2>/dev/null || true
+}
+
+@test "CMP-110 a second INT or TERM that lands while the EXIT trap cleans up never exits from inside it — the workdir is removed and the run lock released (twenty-second run, a4 DISS-C-004)" {
+    local sig
+    for sig in INT TERM; do
+        command rm -f -- "$T/once"; mkdir -p "$T/wd-$sig"
+        ( _ADVERSARIAL_WORKDIR="$T/wd-$sig"
+          _adv_take_run_lock "$OUT_DIR" review
+          printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/lockdir"
+          trap '_adv_cleanup_on_exit' EXIT
+          trap '_adv_reap_companion || true; exit 130' INT
+          trap '_adv_reap_companion || true; exit 143' TERM
+          _adv_reap_companion() { [[ -e "$T/once" ]] && return 0; : > "$T/once"; kill -"$sig" "$BASHPID"; sleep 0.3; return 0; }
+          exit 0 ) 3>&- || true
+        [ -e "$T/once" ]
+        [ ! -d "$T/wd-$sig" ] || { echo "$sig: the workdir survived the cleanup"; return 1; }
+        [ ! -d "$(cat "$T/lockdir")" ] || { echo "$sig: the run lock survived the cleanup"; return 1; }
+    done
 }

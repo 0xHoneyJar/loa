@@ -208,6 +208,19 @@ class TestErrors:
             with pytest.raises(ProviderUnavailableError):
                 _adapter().complete(_req())
 
+    def test_timeout_carries_the_catalog_note(self):
+        # twenty-second run, d DISS-C-002: a catalog bound not applied as written is said in the timeout error, as the base
+        # adapter does — the MODELINV row and the companion diagnostic read it there; nothing is appended without a note
+        note = "catalog headless_timeout_seconds 7200 clamped to 3600s"
+        for model_note, expect in ((note, f" ({note})"), (None, "")):
+            adapter = _adapter(**{"gemini-3-pro": ModelConfig(context_window=1048576, extra={"cli_model": _GEMINI_LABEL}, headless_timeout_note=model_note)})
+            with patch(_WHICH, return_value="/usr/bin/agy"), \
+                 patch(_PGKILL, side_effect=subprocess.TimeoutExpired("agy", 1)):
+                with pytest.raises(ProviderUnavailableError) as exc_info:
+                    adapter.complete(_req())
+            msg = str(exc_info.value)
+            assert expect in msg if expect else not msg.rstrip().endswith(")")
+
     def test_missing_cli_is_config_error(self):
         with patch(_PGKILL, side_effect=FileNotFoundError("agy")):
             with pytest.raises(ConfigError):

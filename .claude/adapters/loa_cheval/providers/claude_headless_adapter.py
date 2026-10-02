@@ -52,11 +52,13 @@ import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
 import threading
+import time
+from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.metering.pricing import cli_cost_micro_usd
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -73,6 +75,11 @@ from loa_cheval.types import (
 logger = logging.getLogger("loa_cheval.providers.claude_headless")
 _CLI_COST_WARNED = False
 _CLI_COST_WARN_LOCK = threading.Lock()
+
+# cycle-126 sprint-248 (twenty-second run): a prompt is one argv string, and Linux refuses an argument over MAX_ARG_STRLEN
+# (32 pages = 131072 bytes, its NUL included) with E2BIG — the companion voice's spawn failed that way on every retry. A
+# prompt over this many UTF-8 bytes goes on stdin instead (`claude -p` with no positional prompt reads it from there).
+_ARGV_PROMPT_MAX_BYTES = 100_000
 
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -219,13 +226,22 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         """Resolve the claude CLI binary name (env var override allowed)."""
         return os.environ.get("CLAUDE_HEADLESS_BIN", _CLAUDE_BIN_DEFAULT)
 
+    @contextmanager
+    def _prepare_invocation(self, request, model_config, prompt):
+        """Argv transport for a prompt within _ARGV_PROMPT_MAX_BYTES; stdin above it (E2BIG)."""
+        started_at = time.monotonic()
+        if len(prompt.encode("utf-8", "surrogatepass")) > _ARGV_PROMPT_MAX_BYTES:
+            yield CLIInvocation(self._build_command(request, model_config, None), {"input": prompt}, started_at)
+        else:
+            yield CLIInvocation(self._build_command(request, model_config, prompt), {}, started_at)
+
     def _build_command(
         self,
         request: CompletionRequest,
         model_config,
-        prompt: str,
+        prompt: Optional[str],
     ) -> List[str]:
-        """Build the claude argv. Headless, plan-mode (read-only), no tools."""
+        """Build the claude argv. Headless, plan-mode (read-only), no tools. ``prompt=None``: the prompt is on stdin."""
         # cycle-104 sprint-2 T2.11 amendment: when the chain entry is a
         # kind:cli alias (e.g. `claude-headless`) the CLI binary doesn't
         # recognize the Loa alias as a model name. Honor `extra.cli_model`
@@ -235,7 +251,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         cmd: List[str] = [
             self._cli_bin(),
             "-p",
-            prompt,
+            *([] if prompt is None else [prompt]),
             "--output-format",
             "json",
             "--permission-mode",

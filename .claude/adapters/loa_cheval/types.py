@@ -177,7 +177,8 @@ class ModelConfig:
     # cycle-126 sprint-248 (review round 1, fourth live run): per-model read bound for a CLI hop.
     # The headless adapter's timeout is max(connect, 10) + max(read_timeout, 600); a long dissent on
     # claude -p takes 6–10 minutes, so the catalog can raise the floor per model. None → 600 s floor.
-    # CLI hops only (`kind: cli`): cheval.py drops it with a warning on any other model. The value stored
+    # CLI hops only (`kind: cli`, or any model of a `*-headless` provider type — cheval.py `_headless_timeout_raw`): it is
+    # dropped with a warning on any other model (twenty-second run, d DISS-C-001). The value stored
     # here is the EFFECTIVE one — coerce_headless_timeout_seconds clamps it to HEADLESS_TIMEOUT_CEILING_SECONDS
     # at load, so every reader (the adapter, adversarial-review.sh's wait cap) sees the same bound.
     headless_timeout_seconds: Optional[float] = None
