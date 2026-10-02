@@ -371,3 +371,16 @@ def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
         assert ("timed out after 610s" + expect) in str(exc_info.value)
         if note is None:
             assert not str(exc_info.value).rstrip().endswith(")")   # nothing to say → nothing appended
+
+
+# run 23, c2e DISS-C-001: the once-per-process report gate is module state — conftest resets it around every
+# test, so a key one test seeds never silences a warning another test asserts (pytest runs these two in file order)
+def test_report_gate_seeded_here_without_a_reset():
+    from loa_cheval import types as _types
+    _types.report_headless_timeout_once(("gate-leak/x: ", 900), "seeded %s", "here")
+    assert ("gate-leak/x: ", 900) in _types._HEADLESS_TIMEOUT_REPORTED
+
+
+def test_report_gate_is_empty_when_the_next_test_starts():
+    from loa_cheval import types as _types
+    assert not _types._HEADLESS_TIMEOUT_REPORTED

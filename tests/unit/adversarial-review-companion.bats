@@ -27,6 +27,14 @@ setup() {
     export LOA_MODELINV_LOG_PATH="$T/model-invoke.jsonl"
     export LOA_COST_LEDGER_PATH="$T/cost-ledger.jsonl"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+    # seventh run (chunk c1 C-002 / C-005): every test gets its own lock directory and none of the operator's
+    # knobs — the suite runs in the same session that drives live dissents; cleared BEFORE the script is sourced, which reads
+    # some at load (twenty-third run, c2a DISS-C-001: LOA_ADVERSARIAL_CLI_HOP_TIMEOUT → _ADV_CLI_HOP_TIMEOUT)
+    export XDG_RUNTIME_DIR="$T"
+    unset LOA_ADVERSARIAL_KEEP_WORKDIR LOA_ADVERSARIAL_RUN_TAG LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE \
+          LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REAP_GRACE_SECONDS LOA_MODEL_CONFIG LOA_ADVERSARIAL_CLI_HOP_TIMEOUT \
+          LOA_ADVERSARIAL_NO_FM_DERIVATION LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS \
+          _ADV_PGREP_BIN _ADV_FLOCK_BIN _ADV_REDACTOR_BIN   # (twenty-first run, c1a DISS-C-003: the knobs and seams added since the list was written)
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
@@ -47,13 +55,6 @@ setup() {
     HOLDER_PIDS=()   # out-of-band lock holders a test spawns; teardown kills them (c1 C-002)
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI hops "installed" unless a case says otherwise (C-007 seam)
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
-    # seventh run (chunk c1 C-002 / C-005): every test gets its own lock directory and none of the operator's
-    # knobs — the suite runs in the same session that drives live dissents
-    export XDG_RUNTIME_DIR="$T"
-    unset LOA_ADVERSARIAL_KEEP_WORKDIR LOA_ADVERSARIAL_RUN_TAG LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE \
-          LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REAP_GRACE_SECONDS LOA_MODEL_CONFIG LOA_ADVERSARIAL_CLI_HOP_TIMEOUT \
-          LOA_ADVERSARIAL_NO_FM_DERIVATION LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS \
-          _ADV_PGREP_BIN _ADV_FLOCK_BIN _ADV_REDACTOR_BIN   # (twenty-first run, c1a DISS-C-003: the knobs and seams added since the list was written)
     # temp config: review enabled, primary gpt-5.5-pro with the OpenAI chain
     CONFIG_FILE="$T/loa.config.yaml"
     cat > "$CONFIG_FILE" <<'YAML'
@@ -126,6 +127,7 @@ YAML
                 return 0 ;;
             stubborn) # a hop that ignores TERM (a CLI stuck under a usage limit): only KILL ends it
                 bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
+            sleeper)  sleep 20 & echo "$!" > "$T/sleeper.pid"; wait "$!"; return 0 ;;   # a hop in flight for longer than any test waits (CMP-114)
             slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             abort-shell)                   # the shell running main is ended at once (a session limit, an operator INT): the EXIT trap is all that runs (CMP-64)
                 kill -TERM "${_ADV_RUN_LOCK_OWNER:-$BASHPID}" 2>/dev/null; sleep 5; exit 70 ;;
@@ -222,6 +224,12 @@ _cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); ass
 
 _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/diff.patch" --json 2> "$T/stderr.log"; }
 
+
+# bounded readiness polls, never a fixed sleep (twenty-third run, c1c DISS-C-001: a 300 ms gap is not exotic on a host a live
+# claude -p saturates): the stubborn child has exec'd its renamed sleep only after `trap "" TERM` ran, and a tree is ready when
+# it has as many pids as it forks
+_await_stubborn() { local _i; for _i in $(seq 1 100); do [[ "$(ps -o args= -p "$1" 2>/dev/null)" == "loa-cmp30-stubborn-"* ]] && return 0; sleep 0.05; done; echo "pid $1 never installed its TERM-ignore" >&2; return 1; }
+_await_tree() { local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$1" | wc -w)" -ge "$2" ] && return 0; sleep 0.05; done; echo "the tree of $1 never reached $2 pids" >&2; return 1; }
 @test "CMP-1 keyless host: the primary's inner chain lands on codex-headless, the Anthropic companion is claude-headless; voices_planned 2, both ids succeeded, companion status succeeded with its cost" {
     BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     result=$(_run_main review)
@@ -469,7 +477,7 @@ PY
     # asserted too): pgrep hidden from the script, a fresh hung hop, no orphan afterwards
     : > "$CALLS"
     t0=$(_now_ms)
-    result=$(_ADV_PGREP_BIN=/nonexistent/pgrep _run_main review)
+    result=$( export _ADV_PGREP_BIN=/nonexistent/pgrep; _run_main review )   # exported: a prefix is undone before the EXIT-trap reaper runs (run 23 c1a C-001)
     (( $(_now_ms) - t0 < 120000 )) || { echo "the pgrep-free run took $(( ($(_now_ms) - t0) / 1000 )) s: the hung hop was not reaped"; return 1; }
     grep -qx claude-headless "$CALLS"
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
@@ -808,8 +816,11 @@ PY
     (( $(_now_ms) - t0 >= 5000 ))
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
-    [ "$(_companion_post_budget gpt-5.5-pro 30)" = "7960" ]      # keyless: claude-headless (910) + the answering voice (its lock wait 30 + timeout 30 + its inner codex bound 610 — eighteenth run a2 C-002, nineteenth run a2 C-001), × 5 + 60
-    [ "$( export ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "12810" ]   # tiny (30 + 30 + its inner claude bound 910) + claude-headless (910) + gpt-5.5-pro (30 + 30 + its inner codex bound 610), × 5 + 60
+    # the budget is read from a FIXTURE catalog whose bounds differ from the shipped ones (twenty-third run, c1b DISS-C-002: a
+    # catalog retune must never read as a budget regression): claude-headless 1200 → bound 1210, codex-headless 800 → 810
+    printf 'providers:\n  anthropic:\n    models:\n      haiku-fixture:\n        context_window: 1000\n        fallback_chain: ["anthropic:claude-headless"]\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 1200\n  openai:\n    models:\n      gpt-5.5-pro:\n        context_window: 1000\n        fallback_chain: ["openai:codex-headless"]\n      codex-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 800\naliases:\n  tiny: "anthropic:haiku-fixture"\n' > "$T/budget-catalog.yaml"
+    [ "$( export LOA_MODEL_CONFIG="$T/budget-catalog.yaml"; _companion_post_budget gpt-5.5-pro 30 )" = "10610" ]      # keyless: claude-headless (its lock wait 30 + its bound 1210 — twenty-third run, a2 DISS-C-001) + the answering voice (its lock wait 30 + timeout 30 + its inner codex bound 810 — eighteenth run a2 C-002, nineteenth run a2 C-001), × 5 + 60
+    [ "$( export LOA_MODEL_CONFIG="$T/budget-catalog.yaml" ANTHROPIC_API_KEY=k; _companion_post_budget gpt-5.5-pro 30 )" = "16960" ]   # tiny (30 + 30 + its inner claude bound 1210) + claude-headless (30 + 1210) + gpt-5.5-pro (30 + 30 + its inner codex bound 810), × 5 + 60
 }
 
 @test "CMP-27 a primary that never answered leaves the companion as the sole voice: counted_as sole_voice, independent null; a companion that already answered with the shared hop is honoured, so the primary cedes it instead of failing it (fifth run C-003; thirteenth run a3 C-004)" {
@@ -1013,7 +1024,9 @@ PY
     [ "$(_adv_cli_bin_for tiny)" = "claude" ]
     mkdir -p "$T/loa-headless-locks-$(id -u)"; exec 8>>"$T/loa-headless-locks-$(id -u)/claude.lock"; flock 8
     _repair_finding_via_model() { echo '{}'; }
-    t0=$(date +%s); rc=0; ( _ADV_LOCK_WAIT=1; _adv_with_cli_lock tiny _repair_finding_via_model x y z tiny 1 >/dev/null 2>&1 ) || rc=$?
+    # the DEFAULT rule, never the override knob (twenty-third run, c1b DISS-C-001): both knobs unset, the hop's own CONF_TIMEOUT
+    # of 1 s against a fixture bound of 910 s — a rule that charged this hop the CLI bound runs past the 10 s ceiling below
+    t0=$(date +%s); rc=0; ( unset _ADV_LOCK_WAIT _ADV_LOCK_WAIT_CLI; CONF_TIMEOUT=1; _adv_with_cli_lock tiny _repair_finding_via_model x y z tiny 1 >/dev/null 2>&1 ) || rc=$?
     (( $(date +%s) - t0 < 10 ))
     [ "$rc" = "124" ]
     t0=$(date +%s); rc=0; ( _ADV_LOCK_WAIT_CLI=1; _adv_with_cli_lock claude-headless _repair_finding_via_model x y z claude-headless 1 >/dev/null 2>&1 ) || rc=$?
@@ -1528,7 +1541,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     : > "$T/collect-count"
     eval "__real_tree_pids() $(declare -f _adv_tree_pids | sed '1d')"
     _adv_tree_pids() { echo x >> "$T/collect-count"; __real_tree_pids "$@"; }
-    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & p=$!; HOLDER_PIDS+=("$p"); sleep 0.3
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & p=$!; HOLDER_PIDS+=("$p"); _await_stubborn "$p"
     _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
     [ "$(grep -c x "$T/collect-count")" -ge 3 ]   # before STOP, after STOP, before KILL
@@ -1536,6 +1549,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 }
 
 @test "CMP-63 a dead run's lock is taken over by ONE of two concurrent takers at a time — the takeover is an atomic rename, never rm + rmdir; a second holder is legitimate only once the first released (eighteenth run, a2 C-001)" {
+    _need_flock   # the takeover runs under the per-key flock section: without flock it is refused and the run is unguarded (twenty-third run, c1c DISS-C-002)
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
     printf '%s\n%s\n' "999999" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # a dead holder (no such pid)
     # (the takers stamp with _now_ms, never GNU-only `date +%s%N` — twentieth run, c1c DISS-C-002)
@@ -1821,16 +1835,16 @@ $(mk_file d.md "$n")" 300 2>/dev/null)
     _adv_cli_hop_bound() { echo 700; }
     [ "$(_adv_hop_charge plain-x 60)" = "820" ]
     [ "$(_adv_hop_charge plain-y 60)" = "60" ]
-    [ "$(_adv_hop_charge claude-headless 60)" = "700" ]
+    [ "$(_adv_hop_charge claude-headless 60)" = "760" ]   # its lock wait too: the repair waits up to the timeout for the CLI lock (twenty-third run, a2 DISS-C-001)
     [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-x _companion_post_budget m 60)" = "$(( 820 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
     # (twenty-first run, c1c DISS-C-003: digits that differ from the 610 fallback, so a stripped suffix cannot pass)
     _adv_cli_hop_bound() { echo 905s; }
-    [ "$(_adv_hop_charge claude-headless 60)" = "610" ]
+    [ "$(_adv_hop_charge claude-headless 60)" = "670" ]
     [ "$(_adv_hop_charge plain-x 60)" = "730" ]
     _adv_cli_hop_bound() { echo 0x2bc; }
-    [ "$(_adv_hop_charge claude-headless 60)" = "610" ]
+    [ "$(_adv_hop_charge claude-headless 60)" = "670" ]
     _adv_cli_hop_bound() { echo ""; }
-    [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=claude-headless _companion_post_budget m 60)" = "$(( 610 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
+    [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=claude-headless _companion_post_budget m 60)" = "$(( 670 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
     # the repair loop: a hop that reaches the CLI is not started against a budget its CLI bound exceeds
     _adv_cli_hop_bound() { echo 700; }
     _repair_finding_via_model() { echo "$4" >> "$T/repair-calls"; return 1; }
@@ -1921,7 +1935,7 @@ $(mk_file d.md "$n")" 300 2>/dev/null)
     eval "__real_kill_tree() $(declare -f _adv_kill_tree | sed '1d')"
     _adv_kill_tree() { __real_kill_tree "$@"; : > "$T/reused"; }
     _adv_proc_start() { if [[ -e "$T/reused" ]]; then echo t2; else echo t1; fi; }
-    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & r=$!; HOLDER_PIDS+=("$r"); sleep 0.3
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & r=$!; HOLDER_PIDS+=("$r"); _await_stubborn "$r"
     _ADV_COMPANION_PID=$r; _ADV_COMPANION_START=t1
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_companion 2>/dev/null
     _adv_pid_alive "$r"
@@ -2084,6 +2098,9 @@ $(mk_file c.py 120)" 300 2>/dev/null)
 
 @test "CMP-93 the run lock fails open on a lock directory that is not ours, and on no hash tool — never a refusal, and said once per run (twenty-first run, a2 DISS-C-001 / c1b DISS-C-004)" {
     local lockdir; lockdir=$(_adv_cli_lock_dir)
+    # the symlink is planted and removed only under this test's directory — never at the per-user lock dir a live dissent
+    # holds, should the suite's redirect ever regress (twenty-third run, c1c DISS-C-003)
+    [[ -n "$T" && "$lockdir" == "$T/"* ]] || { echo "the CLI lock dir $lockdir is not under the test directory"; return 1; }
     mkdir -p "$T/elsewhere"; ln -s "$T/elsewhere" "$lockdir"
     _ADV_RUN_LOCK_DIR=""; unset _ADV_RUN_LOCK_WARNED
     _adv_take_run_lock "$OUT_DIR" review 2>"$T/rl-err"
@@ -2229,7 +2246,11 @@ $(mk_file c.py 120)" 300 2>/dev/null)
         code="${sig#*:}"; sig="${sig%%:*}"
         tr=$(grep -E "^[[:space:]]*trap '.*_adv_reap_companion.*' ${sig}\$" "$ADVERSARIAL_REVIEW" | sed -E "s/^[[:space:]]*trap '(.*)' ${sig}\$/\\1/")
         [ -n "$tr" ]
-        run bash -c 'set -e; _adv_reap_companion() { return 1; }; trap "$1" "$2"; kill -"$2" $$; sleep 2; exit 0' _ "$tr" "$sig"
+        # a shell started as an async job inherits SIGINT ignored, and a non-interactive bash cannot trap a signal ignored at
+        # entry (run 23: the detached regression read this as a red) — the probe shell gets the default disposition back
+        local pre=(); env --default-signal=INT true 2>/dev/null && pre=(env --default-signal=INT)
+        if [[ ${#pre[@]} -eq 0 && -n "$(bash -c 'trap -p INT')" ]]; then skip "SIGINT is ignored here and env --default-signal is unavailable"; fi
+        run "${pre[@]}" bash -c 'set -e; _adv_reap_primary() { return 1; }; _adv_reap_companion() { return 1; }; trap "$1" "$2"; kill -"$2" $$; sleep 2; exit 0' _ "$tr" "$sig"
         [ "$status" -eq "$code" ] || { echo "$sig trap '$tr' exited $status, not $code"; false; }
     done
 }
@@ -2301,7 +2322,7 @@ $s" 300 2>/dev/null)
     if grep -q 'x DISS-002' "$T/tok-err"; then return 1; fi
 }
 
-@test "CMP-107 a takeover whose per-key flock times out still judges the holder — a LIVE holder refuses the run — and never takes a lock over without the flock (twenty-second run, a2 DISS-C-001)" {
+@test "CMP-107 a takeover whose per-key flock times out still judges the holder — a LIVE holder refuses the run — never takes a lock over without the flock, and a dead holder behind the busy section refuses too (twenty-second run, a2 DISS-C-001; twenty-third run, c1c DISS-C-004)" {
     printf '#!/bin/sh\nexit 1\n' > "$T/flock-busy"; chmod +x "$T/flock-busy"   # (flock -w 5 that times out: another taker holds the section)
     sleep 60 3>&- & holder=$!; HOLDER_PIDS+=("$holder")
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
@@ -2309,10 +2330,12 @@ $s" 300 2>/dev/null)
     rc=0; ( _ADV_FLOCK_BIN="$T/flock-busy"; _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/busy.err" || rc=$?
     [ "$rc" = "1" ]; grep -q "is in progress (pid $holder)" "$T/busy.err"
     [ "$(sed -n 1p "$lockd/pid")" = "$holder" ]
-    # a dead holder behind a busy section: not taken over without the flock — the run goes unguarded, the lock is left alone
+    # a dead holder behind a busy section: not taken over without the flock, and the run is REFUSED — a section another taker holds
+    # is a live taker about to become the holder, never an absence to run unguarded beside (twenty-third run, c1c DISS-C-004)
     kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null || true
     rc=0; ( _ADV_FLOCK_BIN="$T/flock-busy"; _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/busy.err" || rc=$?
-    [ "$rc" = "0" ]; grep -q "run lock is not taken" "$T/busy.err"
+    [ "$rc" = "1" ]; grep -q "another taker holds the takeover of a dead run's lock" "$T/busy.err"
+    if grep -q "run lock is not taken" "$T/busy.err"; then echo "a busy takeover section ran unguarded"; return 1; fi
     [ "$(sed -n 1p "$lockd/pid")" = "$holder" ]
     command rm -f -- "$lockd/pid"; rmdir "$lockd"
 }
@@ -2330,7 +2353,7 @@ $s" 300 2>/dev/null)
 @test "CMP-109 the reaper takes each pid's token while the tree is frozen — a descendant found by the second collection is never tokenised after TERM, when its pid may be free (twenty-second run, a4 DISS-C-002)" {
     # kill_tree's tokens mode: pid=token pairs of the frozen tree, the tree signalled as before
     bash -c 'sleep 30 & wait' 3>&- & s=$!; HOLDER_PIDS+=("$s")
-    sleep 0.3
+    _await_tree "$s" 2
     want="$s=$(_adv_tok_word "$(_adv_proc_start "$s")")"
     out=$(_adv_kill_tree "$s" TERM tokens)
     grep -qx "$want" <<<"$out" || { echo "no frozen token for the root ($want): $out"; return 1; }
@@ -2364,4 +2387,224 @@ $s" 300 2>/dev/null)
         [ ! -d "$T/wd-$sig" ] || { echo "$sig: the workdir survived the cleanup"; return 1; }
         [ ! -d "$(cat "$T/lockdir")" ] || { echo "$sig: the run lock survived the cleanup"; return 1; }
     done
+}
+
+@test "CMP-111 a companion_chain family written as a map is ignored as the WARN says: its values never become hops — the default chain is walked (twenty-third run, a1 DISS-C-001)" {
+    _cfg_edit $'  code_review:\n    enabled: true\n' $'  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: {first: bogus-hop-a}\n      openai: {first: bogus-hop-o}\n'
+    result=$(_run_main review)
+    grep -q 'companion_chain.anthropic is a !!map, not a list' "$T/stderr.log"
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    chain=$(jq -r '.metadata.companion_voice.chain | if type == "array" then join(",") else . end' <<<"$result")
+    [ -n "$chain" ]
+    if [[ "$chain" == *bogus-hop* ]]; then return 1; fi
+}
+
+
+@test "CMP-112 an unreadable hop name in post is not 'another hop': the primary keeps waiting instead of running the shared hop the companion may be moving onto, and the walker publishes its hop and phase whole (twenty-third run, a3 DISS-C-001)" {
+    sleep 60 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")
+    mkdir -p "$T/vw"; : > "$T/vw/companion.current"; printf 'post' > "$T/vw/companion.phase"
+    # an empty current (a truncating write caught mid-way) with no answering id: wait, then the walker publishes its next hop
+    t0=$(_now_ms)
+    ( sleep 2; printf 'opus' > "$T/vw/companion.current" ) 3>&- & writer=$!
+    [ "$(_adv_shared_hop_verdict claude-headless "$T/vw" "$(( $(date +%s) - 20 ))" 10 60 | cut -f1,2)" = "$(printf 'run\tcompanion_on_other_hop')" ]   # (inside the post deadline)
+    (( $(_now_ms) - t0 >= 1900 ))   # it waited for a readable name
+    wait "$writer" 2>/dev/null || true
+    kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true; _ADV_COMPANION_PID=""
+    # the walker's hop/phase writes are atomic (a temp file renamed over the target), never a truncate-then-write
+    body=$(declare -f _walk_companion_chain)
+    if grep -qE "> \"\\\$workdir/companion\.(current|phase)\"" <<<"$body"; then return 1; fi
+    if declare -f _adv_invoke_hop | grep -qE "> \"\\\$_ADV_PHASE_FILE\""; then return 1; fi
+    _adv_put_state "$T/vw/companion.phase" queue; [ "$(cat "$T/vw/companion.phase")" = "queue" ]
+    [ -z "$(find "$T/vw" -name '*.tmp*')" ]
+}
+
+@test "CMP-113 an errno diagnostic survives the allowlisted summary: [Errno 7] Argument list too long and E2BIG reach last_error, and a long upper-case token with digits (an access-key shape) still does not (twenty-third run, a3 DISS-C-002)" {
+    out=$(_adv_error_summary "[cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: [Errno 7] Argument list too long: 'claude'")
+    [[ "$out" == *"PROVIDER_UNAVAILABLE"* ]]
+    [[ "$out" == *"[Errno 7] Argument list too long"* ]]
+    out=$(_adv_error_summary "OSError: E2BIG from execve")
+    [[ "$out" == *"E2BIG"* ]]
+    out=$(_adv_error_summary "key AKIAIOSFODNN7EXAMPLE leaked E2BIG")
+    [[ "$out" != *"AKIA"* ]]
+    [[ "$out" == *"E2BIG"* ]]
+}
+
+@test "CMP-114 a TERM sent to the run while a primary hop is in flight ends it at once — exit 143, the hop's tree reaped — never only once the hop returns (twenty-third run, a4 DISS-C-001)" {
+    BEHAVIOUR[gpt-5.5-pro]=sleeper
+    local mp start rc=0 i=0
+    ( _run_main review ) >/dev/null 3>&- &
+    mp=$!
+    while [[ ! -s "$T/sleeper.pid" ]] && (( i++ < 300 )); do sleep 0.05; done
+    [ -s "$T/sleeper.pid" ]
+    HOLDER_PIDS+=("$(cat "$T/sleeper.pid")")
+    start=$SECONDS; kill -TERM "$mp"
+    wait "$mp" || rc=$?
+    [ "$rc" -eq 143 ]
+    (( SECONDS - start < 12 )) || { echo "the run waited $(( SECONDS - start )) s for the hop"; return 1; }
+    if kill -0 "$(cat "$T/sleeper.pid")" 2>/dev/null; then echo "the primary hop survived the run"; return 1; fi
+}
+
+@test "CMP-115 a reap re-entered while only the companion's root pid is published still KILLs its descendants — the root is verified, then its tree goes (twenty-third run, a4 DISS-C-002)" {
+    bash -c 'sleep 60 & sleep 60 & wait' 3>&- & local root=$!; HOLDER_PIDS+=("$root")
+    local i=0 kids
+    while (( $(pgrep -P "$root" | wc -l) < 2 && i++ < 100 )); do sleep 0.05; done
+    kids=$(pgrep -P "$root" | tr '\n' ' '); HOLDER_PIDS+=($kids)
+    [ "$(wc -w <<<"$kids")" -eq 2 ]
+    _ADV_COMPANION_PID="$root"; _ADV_COMPANION_START=$(_adv_proc_start "$root")
+    _ADV_REAP_TREE_PIDS="$root"; _ADV_REAP_TREE_TOKENS="$root=$(_adv_tok_word "$_ADV_COMPANION_START") "; _ADV_REAP_IN_PROGRESS="true"
+    _adv_reap_companion
+    sleep 0.3
+    local k; for k in $kids; do if _adv_pid_alive "$k"; then echo "descendant $k survived the re-entered reap"; return 1; fi; done
+    # a root whose token no longer matches is not this run's companion: nothing is signalled
+    bash -c 'sleep 60 & wait' 3>&- & root=$!; HOLDER_PIDS+=("$root")
+    i=0; while (( $(pgrep -P "$root" | wc -l) < 1 && i++ < 100 )); do sleep 0.05; done
+    kids=$(pgrep -P "$root" | tr '\n' ' '); HOLDER_PIDS+=($kids)
+    _ADV_COMPANION_PID="$root"; _ADV_REAP_TREE_PIDS="$root"; _ADV_REAP_TREE_TOKENS="$root=not-this-process "; _ADV_REAP_IN_PROGRESS="true"
+    _adv_reap_companion
+    sleep 0.2
+    _adv_pid_alive "$root"
+    for k in $kids; do _adv_pid_alive "$k"; done
+}
+
+@test "CMP-116 the EXIT cleanup runs to its end under errexit when a reaper returns non-zero — the workdir is removed and the run lock released (twenty-third run, a4 DISS-C-003)" {
+    mkdir -p "$T/wd"
+    ( set -e
+      _ADVERSARIAL_WORKDIR="$T/wd"
+      _adv_take_run_lock "$OUT_DIR" review
+      printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/lockdir"
+      _adv_reap_companion() { return 1; }
+      _adv_reap_primary() { return 1; }
+      _adv_cleanup_on_exit ) 3>&- &   # (a job, not `( … ) || true`: the `||` would switch errexit off inside the subshell)
+    wait "$!" || true
+    [ -s "$T/lockdir" ]
+    [ ! -d "$T/wd" ] || { echo "the workdir survived the cleanup"; return 1; }
+    [ ! -d "$(cat "$T/lockdir")" ] || { echo "the run lock survived the cleanup"; return 1; }
+}
+
+@test "CMP-117 a byte cut that lands exactly on a hunk boundary keeps the hunk it completes — before or after that hunk's last newline; a cut inside the next header still drops only the incomplete hunk (twenty-third run, b1 DISS-C-001)" {
+    printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n@@ -9 +9 @@\n-e\n+f\n' > "$T/chunk"
+    local one two how
+    one=$(printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n' | wc -c)
+    two=$(printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n' | wc -c)
+    local n
+    for n in "$one" $(( one - 1 )); do
+        how=$(_lc_cut_partial "$T/chunk" "$n" "$T/part")
+        [ "$how" = hunk ] || { echo "cut at $n: $how"; return 1; }
+        [ "$(_lc_hunk_count "$(cat "$T/part")")" -eq 1 ]
+        [[ "$(cat "$T/part")" == *$'\n+b' ]]
+    done
+    for n in "$two" $(( two - 1 )); do
+        how=$(_lc_cut_partial "$T/chunk" "$n" "$T/part")
+        [ "$how" = hunk ]
+        [ "$(_lc_hunk_count "$(cat "$T/part")")" -eq 2 ] || { echo "cut at $n kept $(_lc_hunk_count "$(cat "$T/part")")"; return 1; }
+    done
+    # a cut two bytes into hunk 3's header: hunk 3 is dropped, hunks 1 and 2 stay
+    how=$(_lc_cut_partial "$T/chunk" $(( two + 2 )) "$T/part")
+    [ "$how" = hunk ]
+    [ "$(_lc_hunk_count "$(cat "$T/part")")" -eq 2 ]
+    # a cut inside hunk 1's last line is still mid-way (the only hunk is incomplete)
+    how=$(_lc_cut_partial "$T/chunk" $(( one - 2 )) "$T/part")
+    [ "$how" = mid ]
+}
+
+@test "CMP-118 a top-priority file dropped for want of room for a partial view is named as such in the TRUNCATED footer — never counted among 'lower-priority' files; a plain truncation keeps its wording (twenty-third run, b1 DISS-C-002)" {
+    mk_hunk() { printf '@@ -%d,3 +%d,4 @@ fn%d\n context\n-old line %d\n+new line %d %s\n+another line %d\n' "$1" "$1" "$1" "$1" "$1" "$(printf 'x%.0s' $(seq 1 200))" "$1"; }
+    mk_file() { printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n-a\n+%s\n' "$1" "$1" "$1" "$1" "$(printf 'q%.0s' $(seq 1 "$2"))"; }
+    bigsh="diff --git a/big.sh b/big.sh
+--- a/big.sh
++++ b/big.sh
+$(mk_hunk 10)
+$(mk_hunk 40)
+$(mk_hunk 70)
+$(mk_hunk 100)"
+    out=$(prepare_content "$bigsh
+$(mk_file a.sh 780)" 300 2>/dev/null)
+    [[ "$out" != *"--- PARTIAL:"* ]]
+    [[ "$out" == *"P0: big.sh"* ]]
+    local foot; foot=$(grep '^--- TRUNCATED:' <<<"$out")
+    [[ "$foot" != *"lower-priority"* ]] || { echo "footer: $foot"; return 1; }
+    [[ "$foot" == *"big.sh"*"no room for a partial view"* ]]
+    # control: a P2 doc dropped behind a P0 file that fits keeps the lower-priority wording
+    out=$(prepare_content "$(mk_file a.sh 780)
+$(mk_file README.md 780)" 300 2>/dev/null)
+    foot=$(grep '^--- TRUNCATED:' <<<"$out")
+    [[ "$foot" == *"lower-priority file(s) omitted"* ]] || { echo "control footer: $foot"; return 1; }
+}
+
+@test "CMP-119 --record-fallback writes the skill's failed-run record under the run lock: a pre-lock refusal moves the previous envelope and sidecars aside, an aborted run's record never overwrites a standing envelope, a live run is refused (twenty-third run, b2 DISS-C-001)" {
+    mkdir -p "$OUT_DIR"
+    local env="$OUT_DIR/adversarial-review.json" sc="$OUT_DIR/adversarial-rejected-review.jsonl" rc
+    printf '{"findings":[],"metadata":{"status":"reviewed","rejected_summary":[{"id":"x"}]}}\n' > "$env"
+    printf '{"row":1}\n' > "$sc"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback nothing_to_review --reason "nothing to review: the diff prepared to no content" ) >"$T/out" 2>"$T/err" || rc=$?
+    [ "$rc" -eq 0 ] || { cat "$T/err"; return 1; }
+    [ "$(jq -r '.metadata.status' "$env")" = "nothing_to_review" ]
+    [ "$(jq -r '.metadata.reason' "$env")" = "nothing to review: the diff prepared to no content" ]
+    [ "$(jq -c '[.findings, .metadata.rejected_summary, .metadata.rejected_sidecars]' "$env")" = "[[],[],[]]" ]
+    [ "$(jq -r '.metadata.status' "$env.prev")" = "reviewed" ]
+    [ -f "$sc.prev" ]
+    [ ! -e "$sc" ]
+    # an aborted run (no envelope at the path): the record is written and this run's own sidecar stays where verdict-derive counts it
+    command rm -f -- "$env"; printf '{"row":2}\n' > "$sc"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason "session limit mid-run" ) >/dev/null 2>"$T/err" || rc=$?
+    [ "$rc" -eq 0 ]
+    [ "$(jq -r '.metadata.status' "$env")" = "failed" ]
+    [ -f "$sc" ]
+    # …but an envelope that stands is a run's own: never overwritten
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason "again" ) >/dev/null 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ]
+    [ "$(jq -r '.metadata.reason' "$env")" = "session limit mid-run" ]
+    # a live run holding the lock: refused, nothing moved
+    ( _adv_take_run_lock "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT" review; : > "$T/held"; sleep 30 ) 3>&- & HOLDER_PIDS+=("$!")
+    local i=0; while [[ ! -e "$T/held" ]] && (( i++ < 100 )); do sleep 0.05; done
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback budget_exceeded --reason "over budget" ) >"$T/out" 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ]
+    [ "$(jq -r '.metadata.status' "$T/out")" = "refused_concurrent_run" ]
+    [ "$(jq -r '.metadata.status' "$env")" = "failed" ]
+    # the statuses it does not record, and a missing reason
+    local bad
+    for bad in refused_concurrent_run bogus; do
+        rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback "$bad" --reason r ) >/dev/null 2>&1 || rc=$?
+        [ "$rc" -eq 2 ] || { echo "$bad: rc $rc"; return 1; }
+    done
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 2 ]
+}
+
+@test "CMP-120 the skills can carry out the failed-run procedure their resources prescribe: both allowlist adversarial-review.sh (the audit also git diff), the resources name --record-fallback and no hand-moved .prev files; the Locks bullet, the voices_planned rule, the degraded-audit rule and the config example match the envelope (twenty-third run, b2 DISS-C-001…005)" {
+    local s r
+    for s in reviewing-code auditing-security; do
+        grep -q 'Bash(.claude/scripts/adversarial-review.sh \*)' "$PROJECT_ROOT/.claude/skills/$s/SKILL.md" || { echo "$s: adversarial-review.sh not allowlisted"; return 1; }
+        grep -q 'command: ".claude/scripts/adversarial-review.sh"' "$PROJECT_ROOT/.claude/skills/$s/SKILL.md" || { echo "$s: capabilities miss adversarial-review.sh"; return 1; }
+        r="$PROJECT_ROOT/.claude/skills/$s/resources/ADVERSARIAL-REVIEW.md"
+        grep -q -- '--record-fallback' "$r" || { echo "$s: resource does not name --record-fallback"; return 1; }
+        if grep -q 'move that envelope and its' "$r"; then echo "$s: resource still prescribes a hand move"; return 1; fi
+        if grep -A1 'a lock not acquired within the hop' "$r" | grep -q '`timeout`'; then echo "$s: Locks bullet says timeout"; return 1; fi
+        grep -q 'voices_planned` stays 1' "$r" || { echo "$s: voices_planned rule omits the INV-5 case"; return 1; }
+    done
+    grep -q 'Bash(git diff \*)' "$PROJECT_ROOT/.claude/skills/auditing-security/SKILL.md"
+    r="$PROJECT_ROOT/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md"
+    grep -q 'A bare `planned: false`' "$r"
+    if grep -q 'a `counted_as` other than `independent_voice`' "$r"; then echo "audit: the counted_as clause reads an opt-out as degraded"; return 1; fi
+    grep -q 'no_route' "$PROJECT_ROOT/.loa.config.yaml.example"
+}
+
+@test "CMP-121 every suite that names adversarial-review.sh resolves the CLI lock under its own XDG_RUNTIME_DIR — never the per-user directory a live dissent holds (run 23: the e2e suite queued 910 s behind a live claude -p and failed)" {
+    local f bad=""
+    while IFS= read -r f; do
+        grep -qE 'export[^#]*XDG_RUNTIME_DIR=' "$f" || bad+=" ${f#"$PROJECT_ROOT"/}"
+    done < <(grep -lE 'adversarial-review\.sh' "$PROJECT_ROOT"/tests/unit/*.bats "$PROJECT_ROOT"/tests/integration/*.bats)
+    [ -z "$bad" ] || { echo "no XDG_RUNTIME_DIR isolation in:$bad"; return 1; }
+}
+
+@test "CMP-122 the operator's knobs are cleared BEFORE the script is sourced — a value it reads at load (the CLI hop bound) never drives the suite (twenty-third run, c2a DISS-C-001)" {
+    # (setup cannot run twice here — the script declares a readonly — so the order is read from setup itself)
+    local body unset_at eval_at
+    body=$(declare -f setup)
+    unset_at=$(grep -n 'LOA_ADVERSARIAL_CLI_HOP_TIMEOUT' <<<"$body" | head -n 1 | cut -d: -f1)
+    eval_at=$(grep -n 'eval "$(sed' <<<"$body" | head -n 1 | cut -d: -f1)
+    [ -n "$unset_at" ] || { echo "setup never clears LOA_ADVERSARIAL_CLI_HOP_TIMEOUT"; return 1; }
+    [ -n "$eval_at" ]
+    (( unset_at < eval_at )) || { echo "the knobs are cleared at line $unset_at, after the script is sourced at $eval_at"; return 1; }
+    [ "$_ADV_CLI_HOP_TIMEOUT" = "610" ]
 }

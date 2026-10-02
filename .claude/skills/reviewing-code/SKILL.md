@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -19,6 +19,8 @@ capabilities:
       - command: "git"
         args: ["log", "*"]
       - command: ".claude/scripts/verdict-derive.sh"
+        args: ["*"]
+      - command: ".claude/scripts/adversarial-review.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -194,7 +196,7 @@ Read ALL context documents in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`: run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (acceptance criteria and code remain primary). Missing, disabled, or empty is a graceful no-op.
+5. Unless `qmd_context.enabled` is `false` in `.loa.config.yaml`, run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (acceptance criteria and code remain primary). Missing, disabled, or empty is a graceful no-op.
 
 ## Phase 2: Code Review
 
@@ -259,7 +261,7 @@ Before approving: `ls grimoires/loa/a2a/subagent-reports/documentation-coherence
 <subagent_report_check>
 ## Subagent Report Check
 
-Before approving any sprint, read the current sprint's reports in `grimoires/loa/a2a/subagent-reports/`. Blocking verdicts: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. Informational, reviewer discretion: `DRIFT_DETECTED`, security `MEDIUM`/`LOW`, test-adequacy `WEAK`. No reports means `/validate` was not run (optional): review manually and consider recommending it. Grep commands that surface blocking verdicts: `resources/REFERENCE.md` §Subagent Report Check.
+Before approving, read the sprint's reports in `grimoires/loa/a2a/subagent-reports/`. Blocking verdicts: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. Informational, reviewer discretion: `DRIFT_DETECTED`, security `MEDIUM`/`LOW`, test-adequacy `WEAK`. No reports: `/validate` was not run (optional) — review manually, consider recommending it. Grep commands for blocking verdicts: `resources/REFERENCE.md` §Subagent Report Check.
 </subagent_report_check>
 
 <checklists>
@@ -269,7 +271,7 @@ Complete checklists and the Red Flags list (private keys, SQL string concatenati
 <complexity_review>
 ## Complexity Review (Required)
 
-Complexity is reviewed every time (threshold tables: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …` (tag meanings: `resources/REFERENCE.md` §Complexity); a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
+Review complexity every time (thresholds and tag meanings: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
 </complexity_review>
 
 <beads_workflow>

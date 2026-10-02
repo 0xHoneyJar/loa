@@ -3,7 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(git diff *), Bash(.claude/scripts/adversarial-review.sh *)
 # Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -15,6 +15,10 @@ capabilities:
   execute_commands:
     allowed:
       - command: ".claude/scripts/verdict-derive.sh"
+        args: ["*"]
+      - command: "git"
+        args: ["diff", "*"]
+      - command: ".claude/scripts/adversarial-review.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -155,15 +159,15 @@ Run `.claude/scripts/security-audit-scope.sh` before detailed analysis. It categ
 
 ## Phase 1A: Recon Pass
 
-Catalog untrusted entry points and dangerous sinks without investigating yet (lists and trust levels: see `resources/REFERENCE.md` §Sources and Sinks). Track them in a working file, e.g. `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY_ANALYSIS_TODO.md`, with file:line, trust level and a status (`PENDING` → `CONFIRMED` / `SAFE` / `PARTIAL` / `N/A`) per item. On a large repo, prioritize by sink severity and route reachability; cap entries and log overflow rather than stalling.
+Catalog untrusted entry points and dangerous sinks without investigating yet (lists, trust levels: `resources/REFERENCE.md` §Sources and Sinks). Track them in a working file, e.g. `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY_ANALYSIS_TODO.md`, with file:line, trust level and a status (`PENDING` → `CONFIRMED` / `SAFE` / `PARTIAL` / `N/A`) per item. On a large repo, prioritize by sink severity and reachability; cap entries, log the overflow.
 
 ## Phase 1B: Investigate Pass
 
-Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Update the working file with each confirmed or dismissed path. If tracing outruns the audit's time budget, mark the rest deferred, log it, and continue with the findings gathered so far.
+Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Record each confirmed or dismissed path in the working file. If tracing outruns the time budget, mark the rest deferred, log it, and continue with what you have.
 
 ## Phase 1C: Security Dissenter Analysis
 
-Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh` enforces this at `PreToolUse:Write`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes.
+Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh` enforces it at `PreToolUse:Write`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
 Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
@@ -233,7 +237,7 @@ and resolve any reported inconsistency before reporting completion to the user.
 <parallel_execution>
 ## Parallel Splitting (LARGE codebases)
 
-When Phase -1 rates the codebase LARGE, split into 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to the files relevant to its category and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate by deduplicating overlapping findings, sorting CRITICAL → LOW, and recomputing the overall risk from the highest severity present.
+When Phase -1 rates the codebase LARGE, split into 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to its category's files and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate: deduplicate overlaps, sort CRITICAL → LOW, take the overall risk from the highest severity present.
 </parallel_execution>
 
 <rubric_scoring>
@@ -255,7 +259,7 @@ Be direct and specific, with evidence: "Line 47: user input passed unsanitized t
 <documentation_audit>
 ## Documentation Audit
 
-For sprint audits, confirm each task has a documentation-coherence report (`ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: a missing report without manual verification; security-critical code without explanatory comments; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
+For sprint audits, confirm each task has a documentation-coherence report (`ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: an unverified missing report; uncommented security-critical code; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
 </documentation_audit>
 
 <checklists>
@@ -265,7 +269,7 @@ Complete checklists for the five categories (Security, Architecture, Code Qualit
 <beads_workflow>
 ## Beads Workflow (beads_rust)
 
-When `br` is installed: `br sync --import-only` at session start, `br sync --flush-only` at session end. Record the result on the task/sprint epic — `br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"`, labelled `security`, `security-approved` or `security-blocked`. Log a discovered vulnerability as its own issue: `.claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [description]" bug 0`, then `br label add <new-issue-id> security`. Protocol: `.claude/protocols/beads-integration.md`.
+When `br` is installed: `br sync --import-only` at session start, `br sync --flush-only` at session end. Record the result — `br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"`, labelled `security`, `security-approved` or `security-blocked`. Log a discovered vulnerability as its own issue: `.claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [description]" bug 0`, then `br label add <new-issue-id> security`. Protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
 
 <retrospective_postlude>

@@ -10,6 +10,7 @@
 # =============================================================================
 
 setup() {
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT

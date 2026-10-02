@@ -1397,6 +1397,9 @@ flatline_protocol:
     # companion_chain.openai, see KF-002; OpenAI primary → opus → claude-headless) runs in parallel and both envelopes
     # aggregate (voices_planned 2). Credential presence only decides where
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
+    # A host with no route to the other family (no key, its CLI not on PATH) records
+    # companion_voice {planned: false, reason: no_route} — on security_audit that is a
+    # DEGRADED_SECURITY_REVIEW on every audit; set false where one voice is the host's shape.
     companion_voice: true
     # Optional: replace the default companion chains (used as given; the CLI hop
     # is planned only when its binary is on PATH; a hop this block's fallback_chain

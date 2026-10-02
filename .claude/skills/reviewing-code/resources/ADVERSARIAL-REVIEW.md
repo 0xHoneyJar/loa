@@ -22,13 +22,13 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 4. Clean up temp files
 
-**Failure must produce a record.** Write the fallback only once the script has EXITED — a detached or backgrounded run is polled until its process is gone (it holds a per-(sprint, gate) run lock until then, and a fallback written beside a live run is overwritten or, worse, outlives it). When `adversarial-review.json` is ABSENT after it exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — write
+**Failure must produce a record.** When `adversarial-review.json` is ABSENT after the script exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — record the failure with the script itself (a call this skill's allowlist holds; never a hand-written file):
 
-```json
-{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}
+```bash
+.claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" --record-fallback failed --reason "<what happened>"
 ```
 
-before proceeding. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited and run again; on any other, move that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) and write the fallback above with `status` set to the refusal and `reason` to its stdout line — `verdict-derive.sh` then judges this round's record, not the last round's. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+before proceeding. It writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock — a run that still holds it (a detached or backgrounded one) gets `refused_concurrent_run`, exit 2: wait until it has exited and record again — and never over an envelope that stands (exit 2). `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited and run again; on any other, record it — `--record-fallback <the status> --reason "<its stdout line>"` moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes — so `verdict-derive.sh` judges this round's record, not the last round's. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |
@@ -54,7 +54,8 @@ Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
 (`verdict_quality.voices_succeeded_ids` lists only completed voices). `companion_voice.status` is `succeeded`,
 `failed` or `fold_failed`; `verdict_quality.voices_planned` counts the aggregated envelopes — 2 whenever the companion ran,
-completed or not (a failed one is listed in `voices_dropped`); a `duplicate_voice` companion contributes none, and a
+completed or not (a failed one is listed in `voices_dropped`) — except a failed companion whose id is one of the primary's
+succeeded voices: INV-5 lets it feed no envelope, so `voices_planned` stays 1 and `companion_voice` is its only record; a `duplicate_voice` companion contributes none, and a
 dropped entry naming the model the companion answered with is removed (INV-5). `companion_voice.counted_as`
 (`independent_voice`, `duplicate_voice`, `sole_voice` — the primary never answered) names the outcome, and `planned: false` with a `reason` (`no_workdir`, `no_route`,
 `prompt_copy_failed`) is a companion that never started; a bare `planned: false` is the opt-out. The
@@ -151,7 +152,7 @@ this block are generated from the same text.
 - **Locks.** `*-headless` hops — the dissent hops, the repair round-trips, and an HTTP alias whose catalog chain falls
   through to a CLI hop — are serialised per CLI binary across the two walks (a per-user flock under
   `$XDG_RUNTIME_DIR`/`$TMPDIR`, 0700, ours, never a symlink); a lock not acquired within the hop's bound fails that hop as
-  a `timeout` (the chain walks on); a model that merely resolves to a CLI hop, and a repair, wait only their own call
+  `lock_wait` — no request was sent (the chain walks on); a model that merely resolves to a CLI hop, and a repair, wait only their own call
   timeout; queueing for the lock is not charged to the hop's cap; without `flock` (or a lock directory that is not ours)
   the serialisation is off and said once per run. The queue is one hop deep by design: a chunk driver runs dissents
   sequentially when any chain holds a `*-headless` hop. The envelope `adversarial-<gate>.json` and the two sidecars are

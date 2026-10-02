@@ -86,6 +86,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 1 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable-exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 1 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
+| [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 
 ---
 
@@ -1585,3 +1586,24 @@ A companion (or any claude-headless) timeout while an eval or BB sweep is runnin
 ### Reading guide
 
 Not KF-013 (an auth-mode env var) and not KF-037 (a claude -p timeout under contention): the diagnostic line says RATE_LIMITED. The primary voice is unaffected (codex-headless / the OpenAI API), so the run completes and the chunks after the first failure carry one voice — an approval on such a run is single-voice evidence; re-run those chunks two-voice before approving. The breaker JSON: .run/circuit-breaker-anthropic-headless.json (state, opened_at). Root cause is the shared plan window; the fix is scheduling, not code.
+
+## KF-039: claude-headless companion fails at execve with E2BIG on a prompt over 128 KiB
+
+**Status**: RESOLVED (398859ad)
+**Feature**: cheval claude-headless adapter / adversarial-review companion voice
+**Symptom**: adversarial-review.json companion_voice.status failed; companion.log shows [Errno 7] Argument list too long: 'claude' — the whole prompt rode claude -p's argv and one argument over MAX_ARG_STRLEN (131072 bytes) fails execve; the chunk runs single-voice
+**First observed**: 2026-10-02 cycle-126 sprint-248 twenty-second dissent run, chunk b2-contracts-docs (131 KB prompt)
+**Recurrence count**: 1
+**Current workaround**: split the diff into smaller chunks (each prompt under ~100 KB)
+**Upstream issue**: fixed in cycle-126 round 1w: a prompt over 100 KB goes on stdin (_ARGV_PROMPT_MAX_BYTES, TestPromptTransport)
+**Related visions / lore**: KF-037, KF-038
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-02 | claude_headless_adapter sends a prompt over 100 KB on stdin | unit-tested (TestPromptTransport); live re-check in run 23 b2 | 398859ad |
+
+### Reading guide
+
+Not a timeout or rate limit (KF-037/KF-038): an immediate failure with Errno 7 means argv size. Check the adapter sends large prompts on stdin; do not retry the same chunk unchanged.

@@ -439,6 +439,13 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         if extra and not thinking_enabled:
             extra = {k: v for k, v in extra.items()
                      if k not in ("thinking_level", "thinking_budget")}
+        # sixteenth run, d C-001 / run 23, d DISS-C-001: the loader's verdict on a value that was not applied as written
+        # travels with the model — gated and effective are computed here, per model, never bound inside the call's arguments
+        _where = f"{provider_name}/{model_id}: "
+        _ht_gated = _headless_timeout_raw(model_data, _where, prov.get("type", ""))
+        _ht_effective = coerce_headless_timeout_seconds(_ht_gated, where=_where)
+        _ht_note = headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
+                                         floor=max(usable_headless_timeout(prov.get("read_timeout", 120.0)) or 120.0, 600.0))
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
@@ -458,13 +465,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # headless_concurrency_limit if declared (default None → adapter
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
-            headless_timeout_seconds=(_ht_effective := coerce_headless_timeout_seconds(
-                (_ht_gated := _headless_timeout_raw(model_data, f"{provider_name}/{model_id}: ", prov.get("type", ""))),
-                where=f"{provider_name}/{model_id}: ")),
-            # sixteenth run, d C-001: the loader's verdict on a value that was not applied as written travels with the
-            # model (keyword arguments evaluate left to right — the two names above are bound by now)
-            headless_timeout_note=headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
-                                                         floor=max(usable_headless_timeout(prov.get("read_timeout", 120.0)) or 120.0, 600.0)),
+            headless_timeout_seconds=_ht_effective,
+            headless_timeout_note=_ht_note,
         )
 
     return ProviderConfig(

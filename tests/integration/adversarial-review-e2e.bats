@@ -6,6 +6,7 @@
 # Uses FLATLINE_MOCK_MODE=true for hermetic testing without real API calls.
 
 setup() {
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     # cycle-124 FR-6: adversarial-review.sh execs model-adapter → cheval, whose mock
     # path still appends MODELINV + cost rows — redirect both ledgers (found live
     # 2026-09-18: this suite wrote mock rows into the operator's .run/ ledgers).

@@ -106,15 +106,25 @@ _lc_log() { printf '%s\n' "$*" >&2; }   # prepare_content's fallback logger (b1 
 _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partial; prints `hunk` (cut at a hunk boundary) or `mid`
                      # (the cut fell inside the first hunk: the partial ends on a line boundary and the last hunk is incomplete —
                      # fifteenth run, b1 C-001: never mid-line, never a marker that says every hunk is whole)
-  local partial trimmed
+  local partial trimmed nxt
   partial=$(head -c "$2" "$1")
+  # twenty-third run, b1 DISS-C-001: whole lines first — a cut inside a line (a hunk header's first bytes included) drops that
+  # line — then a hunk header (or the end) right after them means their last hunk is complete, and it is kept
+  nxt=$(tail -c +"$(( $(printf '%s' "$partial" | LC_ALL=C wc -c) + 1 ))" "$1" 2>/dev/null | head -c 5) || true
+  if [[ -n "$nxt" && "$nxt" != $'\n'* ]]; then
+    if [[ "$partial" == *$'\n'* ]]; then partial="${partial%$'\n'*}"; else partial=""; fi
+    nxt=$(tail -c +"$(( $(printf '%s' "$partial" | LC_ALL=C wc -c) + 1 ))" "$1" 2>/dev/null | head -c 5) || true
+  fi
+  if [[ -z "$nxt" || "$nxt" == $'\n@@ '* ]] && (( $(_lc_hunk_count "$partial") > 0 )); then
+    printf '%s' "$partial" > "$3"; printf 'hunk'; return 0
+  fi
   trimmed="${partial%$'\n@@ '*}"
   if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then
     printf '%s' "$trimmed" > "$3"; printf 'hunk'
   else
     # a budget that lands before the first newline holds no whole line: nothing is shown rather than a fragment (eighteenth
     # run, b1 DISS-002: `${partial%$'\n'*}` trims nothing when there is no newline)
-    if [[ "$partial" == *$'\n'* ]]; then printf '%s' "${partial%$'\n'*}" > "$3"; else : > "$3"; fi
+    printf '%s' "$partial" > "$3"   # (whole lines already — twenty-third run, b1 DISS-C-001)
     printf 'mid'
   fi
 }
@@ -230,7 +240,7 @@ prepare_content() {
   fi
 
   # Build output up to token budget
-  local output="" current_tokens=0 included=0
+  local output="" current_tokens=0 included=0 inc_low=-1
   local -a skipped_files=()
 
   # The top-priority file that does not fit whole is shown partially, at its tier's place, within three quarters of the budget — a
@@ -243,7 +253,7 @@ prepare_content() {
   # — and not only a row larger than the WHOLE budget (twenty-first run, b1 DISS-C-002: a P0 file that fits the budget alone but
   # not beside the P0 rows ahead of it was dropped whole while a P1 file behind it was shown); the running sum below is the main
   # loop's own include rule up to its first omission
-  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx c_tok c_run=0
+  local top_pri="" top_path="" top_idx="" top_partial_done=0 top_no_room=0 c_pri c_path c_idx c_tok c_run=0
   while IFS=$'\t' read -r c_pri c_path c_idx; do
     [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
     c_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")")
@@ -278,6 +288,7 @@ prepare_content() {
   # made (a marker-only block placed first would displace a sibling that fits whole); the file is listed as omitted, like any other
   if [[ -n "$top_idx" ]] && (( others > 0 && reserve <= 0 )); then
     $_log_fn "File ${top_path} exceeds what the rows that fit leave over: no room for a partial view, listed as omitted"
+    top_no_room=1
   elif [[ -n "$top_idx" ]]; then
     how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
     partial=$(cat "$temp_dir/partial_${top_idx}")
@@ -310,6 +321,7 @@ prepare_content() {
       output+="$chunk_content"$'\n'
       current_tokens=$(( current_tokens + chunk_tokens ))
       ((included++))
+      (( priority > inc_low )) && inc_low=$priority
     else
       skipped_files+=("P${priority}: ${filepath}")
     fi
@@ -317,7 +329,13 @@ prepare_content() {
 
   # Append summary of skipped files
   if [[ ${#skipped_files[@]} -gt 0 ]]; then
-    output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'
+    # (twenty-third run, b1 DISS-C-002: the file dropped for want of room for a partial view is the one the review is about — the
+    # footer never calls it lower-priority)
+    if [[ $top_no_room -eq 1 ]] && (( inc_low < 0 || inc_low >= top_pri )); then   # (a shown file at its tier or below)
+      output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} file(s) omitted, among them P${top_pri}: ${top_path} — the highest-priority file over the budget, with no room for a partial view (token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    else
+      output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'
+    fi
     for sf in "${skipped_files[@]}"; do
       output+="  $sf"$'\n'
     done
