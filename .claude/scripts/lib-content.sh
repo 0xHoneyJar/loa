@@ -280,8 +280,18 @@ prepare_content() {
     local marker_est
     marker_est=$(estimate_tokens "--- PARTIAL: ${top_path} shown up to the token budget (999 of 999 hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---")
     reserve=$(( max_tokens - others ))
-    (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
-    (( others > 0 )) && reserve=$(( reserve - marker_est - 1 ))
+    # twenty-fourth run, b1 DISS-C-001: the cap keeps a quarter for the rows ranked BELOW the top file — with none, the quarter
+    # went unspent and the file the review is about was shown shorter; uncapped, the marker comes out of the view's own share
+    local lower=0
+    while IFS=$'\t' read -r o_pri o_path o_idx; do
+      [[ -n "$o_idx" && "$o_idx" != "$top_idx" && "$o_pri" -gt "$top_pri" ]] && { lower=1; break; }
+    done <<< "$sorted_manifest"
+    if (( lower )); then
+      (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
+      (( others > 0 )) && reserve=$(( reserve - marker_est - 1 ))
+    else
+      reserve=$(( reserve - marker_est - 1 ))
+    fi
     (( reserve < 0 )) && reserve=0
   fi
   # twenty-first run, b1 DISS-001: the rows at or above its tier that fit leave no room for even the marker — no partial view is

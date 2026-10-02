@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -21,6 +21,8 @@ capabilities:
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
       - command: ".claude/scripts/adversarial-review.sh"
+        args: ["*"]
+      - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -181,7 +183,7 @@ Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`
 </trajectory_logging>
 
 <citation_requirements>
-Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve context links (Discord threads, Linear issues) from `integration-context.md` in the output when present.
+Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links (Discord, Linear) when present.
 </citation_requirements>
 
 <workflow>
@@ -191,20 +193,20 @@ Cite OWASP/CWE for security issues and SDD sections for architecture concerns; q
 
 ## Phase 1: Context Gathering
 
-Read ALL context documents in order:
+Read, in order:
 1. `grimoires/loa/a2a/integration-context.md` if it exists
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled` is `false` in `.loa.config.yaml`, run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (acceptance criteria and code remain primary). Missing, disabled, or empty is a graceful no-op.
+5. Unless `qmd_context.enabled` is `false` in `.loa.config.yaml`, run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (criteria and code stay primary); missing or empty is a no-op.
 
 ## Phase 2: Code Review
 
-Review the implementation, not the report: read every modified file; validate against the acceptance criteria; assess readability, maintainability and conventions; read the tests and verify their assertions; check SDD alignment; audit security (see `resources/REFERENCE.md` §Security); check performance and resource management; run the two checks below.
+Review the implementation, not the report: read every modified file; validate against the acceptance criteria; assess readability and conventions; read the tests and verify their assertions; check SDD alignment; audit security (see `resources/REFERENCE.md` §Security); check performance and resource use; run the two checks below.
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran; re-run if in doubt. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran (re-run if in doubt). Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
 ## Phase 2.5: Adversarial Cross-Model Review
 

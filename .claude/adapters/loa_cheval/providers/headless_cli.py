@@ -18,6 +18,7 @@ from loa_cheval.providers.base import (
 )
 from loa_cheval.types import (
     HEADLESS_TIMEOUT_CEILING_SECONDS,
+    headless_read_floor,
     usable_headless_timeout,
     CompletionRequest,
     CompletionResult,
@@ -171,7 +172,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
         this only bounds a bare ModelConfig the same way and never warns per hop (tenth run, d C-001).
         The key only ever RAISES the bound — a provider read_timeout already above the ceiling is never
         lowered (eighth run, d DISS-001 / C-001)."""
-        read = max(self.config.read_timeout, 600.0)
+        read = headless_read_floor(self.config.read_timeout)   # (the loader's note reads the same floor — run 24, d DISS-C-002)
         per_model = getattr(model_config, "headless_timeout_seconds", None)
         usable_value = usable_headless_timeout(per_model)   # (the loader's own predicate — fourteenth run, d C-001)
         if usable_value is not None:

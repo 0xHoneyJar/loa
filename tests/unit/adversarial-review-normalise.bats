@@ -62,7 +62,14 @@ teardown() {
         [[ "$d" == */a2a/sprint-norm-[0-9]* && -d "$d" && ! -L "$d" ]] || continue
         p=${d##*/sprint-norm-}; p=${p%%-*}
         [[ "$p" =~ ^[0-9]+$ ]] || continue
-        if ! kill -0 "$p" 2>/dev/null; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+        # (twenty-fourth run, c1a DISS-C-001: `kill -0` also fails with EPERM for a LIVE process of another uid — dead only when
+        # no probe sees it: kill, ps, /proc)
+        if ! kill -0 "$p" 2>/dev/null && ! ps -p "$p" >/dev/null 2>&1 && [[ ! -d "/proc/$p" ]]; then
+            # (twenty-fourth run, c2a DISS-C-001: concurrent teardowns may pick the same stale dir — the rename claims it, so one
+            # sweeper deletes and the losers move on, never an ENOENT that fails a passing test under errexit)
+            mv -- "$d" "$d.reap-$$" 2>/dev/null || continue
+            find "$d.reap-$$" -mindepth 1 -delete 2>/dev/null || true; rmdir "$d.reap-$$" 2>/dev/null || true
+        fi
     done
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
@@ -586,7 +593,7 @@ _fixture_content() {  # all three fixtures as one findings document
     # — this block pins the default budget, not duration-following: a failed hop notes no duration (NRM-27), and NRM-27's
     # usable-reply half is the regression pin for the observed-duration estimate (twentieth run, c2b C-002)
     unset ANTHROPIC_API_KEY
-    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; sleep 2; return 1; }
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }   # (no real sleep: the fake clock is the test's — twenty-fourth run, c2b DISS-C-001)
     doc2='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc2")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
@@ -771,6 +778,10 @@ _fixture_content() {  # all three fixtures as one findings document
 
 @test "NRM-30 setup is keyless for every alias the probe recognises — the alias table, not a hand-kept list (twenty-first run, c2a C-001)" {
     local p v c
+    # both legs the probe reads are pinned here, not inherited from setup (twenty-fourth run, c2b DISS-C-002): the dotenv leg is an
+    # empty directory of this test's own, as NRM-21/22/23/26/27 pin it
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-nrm30"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    [ -z "$(ls -A "$LOA_ADVERSARIAL_ENV_DIR")" ]
     for p in anthropic openai google; do
         # a non-empty table: an empty or mis-keyed one would pass the loop below vacuously (twenty-second run, c2b C-001)
         [ -n "$(_adv_cred_aliases "$p")" ]
@@ -844,4 +855,23 @@ _fixture_content() {  # all three fixtures as one findings document
     local bad
     bad=$(grep -nE '^@test "([^"\\]|\\.)*"[^{]*"' "$PROJECT_ROOT"/tests/unit/adversarial-review*.bats "$PROJECT_ROOT"/tests/unit/verdict-derive.bats || true)
     [ -z "$bad" ] || { echo "a test name with an inner double quote: ${bad:0:300}"; return 1; }
+}
+
+@test "NRM-36 an explicit DISS-<n> id longer than fifteen digits does not drive the derived numbering: jq 1.7 keeps its digits and shell arithmetic would wrap them (twenty-fourth run, a1 DISS-C-002)" {
+    doc='{"findings":[{"id":"DISS-99999999999999999999","severity":"LOW","category":"other","description":"First real sentence here for the test. More.","failure_mode":"stated"},{"severity":"LOW","category":"other","description":"Second real sentence here for the test. More.","failure_mode":"stated"},{"id":"DISS-002","severity":"LOW","category":"other","description":"Third real sentence here for the test. More.","failure_mode":"stated"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "3" ]
+    # the id-less finding's positional DISS-002 collides with the explicit one: it steps past max(explicit, count) = 3
+    [ "$(jq -r '.findings[] | select(.description | startswith("Second")) | .id' <<<"$result")" = "DISS-004" ]
+    [ "$(jq -r '.findings[] | select(.description | startswith("First")) | .id' <<<"$result")" = "DISS-99999999999999999999" ]   # a safe token, kept
+}
+
+@test "NRM-37 an explicit id in the companion's DISS-C- namespace is renumbered, never kept beside the fold's own DISS-C-NNN ids (twenty-fourth run, a1 DISS-C-003)" {
+    doc='{"findings":[{"id":"DISS-C-001","severity":"LOW","category":"other","description":"First real sentence here for the test. More.","failure_mode":"stated"},{"id":"DISS-C-x","severity":"LOW","category":"other","description":"Second real sentence here for the test. More.","failure_mode":"stated"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/pf.err")
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq '[.findings[].id | select(startswith("DISS-C-"))] | length' <<<"$result")" = "0" ]
+    [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "2" ]
+    [ "$(jq '[.findings[].id_derived] | all' <<<"$result")" = "true" ]
+    [ "$(grep -c "companion's DISS-C- namespace" "$TEST_DIR/pf.err")" = "2" ]
 }

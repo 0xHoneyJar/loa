@@ -6,21 +6,19 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
 **Objective**: Invoke a cross-model dissenter to catch reviewer blind spots before the final decision.
 
 **Steps**:
-1. Prepare git diff of sprint changes: `git diff main...HEAD > /tmp/adversarial-diff.txt`
-2. Invoke adversarial review:
+1. Invoke adversarial review (`--diff-range`: the script runs the `git diff` itself):
    ```bash
    findings=$(.claude/scripts/adversarial-review.sh \
      --type review \
      --sprint-id "$sprint_id" \
-     --diff-file /tmp/adversarial-diff.txt \
+     --diff-range main...HEAD \
      --context-file "$reviewer_concerns_file" \
      --json)
    ```
-3. Parse findings:
+2. Parse findings:
    - If `findings` array is empty or invocation failed: log and continue to Phase 3
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
-4. Clean up temp files
 
 **Failure must produce a record.** When `adversarial-review.json` is ABSENT after the script exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — record the failure with the script itself (a call this skill's allowlist holds; never a hand-written file):
 
@@ -28,13 +26,13 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
 .claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" --record-fallback failed --reason "<what happened>"
 ```
 
-before proceeding. It writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock — a run that still holds it (a detached or backgrounded one) gets `refused_concurrent_run`, exit 2: wait until it has exited and record again — and never over an envelope that stands (exit 2). `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited and run again; on any other, record it — `--record-fallback <the status> --reason "<its stdout line>"` moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes — so `verdict-derive.sh` judges this round's record, not the last round's. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+before proceeding. It writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock — a run that still holds it (a detached or backgrounded one) gets `refused_concurrent_run`, exit 2: wait until it has exited (an envelope it left is the record) — and never over an envelope that stands (exit 2), unless the run died before its lock with no status on stdout: what stands is then the previous round's — add `--since <the time on the run's "run started" stderr line>` and an envelope older than that goes aside as `.prev`. The record names what it moved aside (`metadata.displaced`: status, timestamp, findings, rejected); `verdict-derive.sh` warns when that held findings. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited — an envelope that then stands with a `metadata.timestamp` after your refusal is that run's, this round's dissent: triage it; run again only when none stands; on any other, record it — `--record-fallback <the status> --reason "<its stdout line>"` moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes — so `verdict-derive.sh` judges this round's record, not the last round's. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |
 |-----------------|-----------------|
 | `--sprint-id` | From SKILL invocation args, resolved via ledger |
-| `--diff-file` | `git diff main...HEAD` written to temp file |
+| `--diff-range` | `main...HEAD` (the script runs `git diff`) |
 | `--context-file` | Reviewer's Phase 2 concern notes |
 | `--model` | From `flatline_protocol.code_review.model` config |
 | `--budget` | From `flatline_protocol.code_review.budget_cents` config |
@@ -47,8 +45,8 @@ before proceeding. It writes `{"findings": [], "metadata": {"status": "failed", 
 ## Two voices and the rejected-payload contract (cycle-126 FR-2)
 
 **Companion voice (D-2.1).** Every dissent plans a second chain from the *other* provider
-family — the primary configured on the block decides: an OpenAI-family primary gets the
-Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets the OpenAI chain
+family — the primary configured on the block decides: any primary outside the Anthropic family (OpenAI,
+Google, xAI, unknown) gets the Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets the OpenAI chain
 (`gpt-5.5` → `codex-headless`; KF-002 keeps `gpt-5.5-pro` out of the default). Credential *presence* (env → `.env.local` →
 `.env`; the value is never read) decides only where the companion chain starts — with no key it
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
@@ -90,7 +88,7 @@ this block are generated from the same text.
   Findings carry `voice` (the outer hop, matching `final_model`) and `answered_by` (the model that produced them);
   `companion_voice.answered_by` is the companion's own succeeded id. An operator may set
   `flatline_protocol.<block>.companion_chain: {anthropic: [...], openai: [...]}` to replace the default chains of D-2.1
-  (used as given). A family with neither a credential nor its CLI on PATH is `reason: no_route`; a prompt copy that fails
+  (used as given; only those two keys are read — keyed by the companion's family). A family with neither a credential nor its CLI on PATH is `reason: no_route`; a prompt copy that fails
   is `reason: prompt_copy_failed` (no fork). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps the `/tmp` workdir's files, never a
   process.
 - **`companion_voice.independent` / `counted_as`.** Independence compares the two `answered_by` families (the primary's

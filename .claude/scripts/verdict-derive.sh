@@ -222,13 +222,19 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             | ((($md.rejected_summary // []) | if type == "array" then length else 0 end)) as $n
             | (if $kind == "legacy" then null else ($md.rejected_sidecars // null) end) as $rs
             | (($rs | type) == "array") as $has_list
-            | ([$kind, ($n | tostring), ($has_list | tostring)] | @tsv),
+            | (if $md.recorded_by? == "record-fallback" then ($md.displaced? | objects) else null end) as $dp
+            | ([$kind, ($n | tostring), (if $has_list or $rs == null then ($has_list | tostring) else "type:" + ($rs | type) end),
+                (($dp.findings? // 0) | if type == "number" then tostring else "0" end),
+                (($dp.status? // "-") | tostring), (($dp.timestamp? // "-") | tostring)] | @tsv),
               (if $has_list then ($rs[] | if type == "string" then . else ("\u0001" + tojson) end) else empty end)' -- "$ENVELOPE_FILE" 2>/dev/null) || _snap=""
         if [[ -z "$_snap" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
             return 0
         fi
-        { IFS=$'\t' read -r kind n has_list; listed=$(cat); } <<<"$_snap"
+        { IFS=$'\t' read -r kind n has_list dfind dstat dts; listed=$(cat); } <<<"$_snap"
+        # twenty-fourth run, b2 DISS-C-002: a fallback record that moved an envelope with findings aside — legitimate when that
+        # was the previous round's, never when it was this round's dissent: said, for the reviewer to confirm
+        [[ "${dfind:-0}" =~ ^[1-9][0-9]*$ ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") is a --record-fallback record that displaced an envelope with $dfind findings (status ${dstat:--}, timestamp ${dts:--}; now .prev) — confirm it was the previous round's, not this round's dissent")
         [[ "$n" =~ ^[0-9]+$ ]] || n=0
         if [[ "$kind" == metadata:* ]]; then
             violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata of type ${kind#metadata:} (an object is the contract) — repair the envelope or re-run the dissent")
@@ -250,6 +256,12 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             [[ -n "$_newer_files" ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") predates the rejected-payload contract but $_newer_files is newer than it — a later run ended after writing rows; those rows are counted: triage them under '## Rejected dissent payloads' or re-run the dissent")
             (( rows > 0 )) || return 0
             kind="array"; n=0; has_list="legacy"; listed=""   # (only the newer rows count: neither the listed nor the glob pass runs)
+        fi
+        # twenty-fourth run, b1 DISS-C-002: a rejected_sidecars that is not an array was read as absent, silently — it is a
+        # violation naming its type; the glob scan below still counts the rows beside the envelope
+        if [[ "$has_list" == type:* ]]; then
+            violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_sidecars of type ${has_list#type:} (an array is the contract) — repair the envelope or re-run the dissent")
+            has_list="false"
         fi
         if [[ "$kind" != "array" ]]; then
             violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") carries a metadata.rejected_summary of type $kind (an array is the contract) — repair the envelope or re-run the dissent")

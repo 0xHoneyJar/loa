@@ -32,6 +32,7 @@ if _ADAPTERS_DIR not in sys.path:
 from loa_cheval.types import (
     coerce_headless_timeout_seconds,
     headless_timeout_note,
+    headless_read_floor,
     usable_headless_timeout,
     report_headless_timeout_once,
     BudgetExceededError,
@@ -445,7 +446,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         _ht_gated = _headless_timeout_raw(model_data, _where, prov.get("type", ""))
         _ht_effective = coerce_headless_timeout_seconds(_ht_gated, where=_where)
         _ht_note = headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
-                                         floor=max(usable_headless_timeout(prov.get("read_timeout", 120.0)) or 120.0, 600.0))
+                                         floor=headless_read_floor(prov.get("read_timeout", 120.0)))
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),

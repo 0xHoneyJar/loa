@@ -1394,7 +1394,8 @@ flatline_protocol:
     budget_cents: 150            # Max cost per dissent call (each voice ≤ this)
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
     # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
-    # companion_chain.openai, see KF-002; OpenAI primary → opus → claude-headless) runs in parallel and both envelopes
+    # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI, unknown — → opus → claude-headless;
+    # companion_chain reads only its anthropic / openai keys) runs in parallel and both envelopes
     # aggregate (voices_planned 2). Credential presence only decides where
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     # A host with no route to the other family (no key, its CLI not on PATH) records

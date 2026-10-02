@@ -52,7 +52,8 @@ skip_if_no_jq() {
     touch "${TEST_TMPDIR}/f.md"
     run bash -c "'$SCRIPT' --file '${TEST_TMPDIR}/f.md' --gate bogus --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.usage_error == true and .consistent == false' >/dev/null
+    # (twenty-fourth run, c2c DISS-C-002: the message class too — any usage error reached first would pass the shape alone)
+    echo "$output" | jq -e '.usage_error == true and .consistent == false and (.violations[0] | test("--gate must be"))' >/dev/null
 }
 
 @test "verdict-derive: nonexistent file is a usage error (exit 1)" {
@@ -638,9 +639,12 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     _vd_approved_review "$d/engineer-feedback.md"
     # an absolute path with a sidecar-shaped name resolves beside the envelope only (never read where it points); a
     # listed name that is no sidecar at all is its own violation (twelfth run, b C-004) — neither is ever counted
-    printf '{"reject_reason":"elsewhere"}\n' > "${TEST_TMPDIR}/adversarial-rejected-review-elsewhere.jsonl"
-    printf '{"reject_reason":"elsewhere"}\n' > "${TEST_TMPDIR}/elsewhere.jsonl"
-    jq -n --arg e "${TEST_TMPDIR}/adversarial-rejected-review-elsewhere.jsonl" --arg o "${TEST_TMPDIR}/elsewhere.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review-dir.jsonl", $e, $o, "grimoires/loa/a2a/x/adversarial-rejected-review-gone.jsonl"]}}' > "$d/adversarial-review.json"
+    # (twenty-fourth run, c2c DISS-C-001: the fixtures live in this case's own directory — never TEST_TMPDIR's root beside other cases —
+    # and `elsewhere/` is still not beside the envelope)
+    mkdir -p "$d/elsewhere"
+    printf '{"reject_reason":"elsewhere"}\n' > "$d/elsewhere/adversarial-rejected-review-elsewhere.jsonl"
+    printf '{"reject_reason":"elsewhere"}\n' > "$d/elsewhere/elsewhere.jsonl"
+    jq -n --arg e "$d/elsewhere/adversarial-rejected-review-elsewhere.jsonl" --arg o "$d/elsewhere/elsewhere.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["grimoires/loa/a2a/x/adversarial-rejected-review-dir.jsonl", $e, $o, "grimoires/loa/a2a/x/adversarial-rejected-review-gone.jsonl"]}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations | length) == 4 and (.violations | map(select(test("not a regular file"))) | length) == 1 and (.violations | map(select(test("gone.*missing beside it"))) | length) == 1 and (.violations | map(select(test("review-elsewhere.jsonl.*missing beside it"))) | length) == 1 and (.violations | map(select(test("lists elsewhere.jsonl.*not an adversarial-rejected-review"))) | length) == 1' >/dev/null
@@ -994,11 +998,14 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     mkfifo "$d/adversarial-review.json"
     # a script that opened the FIFO would block forever: a writer opens it after 20 s, so such a regression fails (EOF, not
     # "not a regular file") instead of wedging the suite — portable, no timeout(1) on macOS (run 23, c2d DISS-C-001)
-    ( sleep 20; exec 4>"$d/adversarial-review.json" ) >/dev/null 2>&1 3>&- & local unblock=$!   # (3>&-: bats waits on fd 3 — an orphaned sleep must not hold it)
-    local t0=$SECONDS
-    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
-    kill "$unblock" 2>/dev/null || true; wait "$unblock" 2>/dev/null || true
-    (( SECONDS - t0 < 15 ))   # never opened: the answer does not wait for the writer
+    # (twenty-fourth run, c2d DISS-C-001: the deadline is on the READER — a one-shot writer bounded only a single open; a watchdog
+    # kills the script after 15 s whatever it blocks on (143, never 1), and its TERM trap takes its own sleep with it)
+    "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json >"$d/fifo-out" 2>/dev/null 3>&- & local reader=$!
+    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; kill "$reader" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
+    status=0; wait "$reader" || status=$?
+    kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true
+    output=$(cat "$d/fifo-out")
+    [ "$status" -ne 143 ] || { echo "verdict-derive blocked on the FIFO sibling envelope"; return 1; }
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.violations | any(test("not a regular file"))' >/dev/null
     rm -f "$d/adversarial-review.json"
@@ -1010,6 +1017,30 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     rm -f "$d/adversarial-review.json"
     jq -n '{findings: [], metadata: {type: "review", rejected_summary: [], rejected_sidecars: []}}' > "$d/real.json"
     ln -s "$d/real.json" "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+}
+
+@test "verdict-derive: a metadata.rejected_sidecars that is not an array — a string, an object, a number — is a violation naming its type, and the sidecar rows beside the envelope are still counted (twenty-fourth run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s28"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    printf '{"reject_reason":"a"}\n' > "$d/adversarial-rejected-review.jsonl"
+    local rs ty
+    for rs in '"adversarial-rejected-review.jsonl"' '{"a": 1}' '7'; do
+        ty=$(jq -rn --argjson v "$rs" '$v | type')
+        jq -n --argjson v "$rs" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: $v}}' > "$d/adversarial-review.json"
+        run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+        [ "$status" -eq 1 ]
+        echo "$output" | jq -e --arg ty "$ty" '(.violations | length) == 1 and (.violations[0] | test("metadata.rejected_sidecars of type " + $ty))' >/dev/null
+        # the rows are still counted: without the section the count is named too
+        _vd_approved_review "$d/nosection.md"
+        run bash -c "\"$SCRIPT\" --file \"$d/nosection.md\" --gate review --json 2>/dev/null"
+        [ "$status" -eq 1 ]
+        echo "$output" | jq -e '.violations | any(test("carries 1 schema-rejected payload"))' >/dev/null
+    done
+    # null is absent, not a wrong type: no violation, the row is counted against the one-bullet section
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: null}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
 }

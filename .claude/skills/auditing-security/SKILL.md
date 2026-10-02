@@ -3,7 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(git diff *), Bash(.claude/scripts/adversarial-review.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *)
 # Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -16,9 +16,9 @@ capabilities:
     allowed:
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
-      - command: "git"
-        args: ["diff", "*"]
       - command: ".claude/scripts/adversarial-review.sh"
+        args: ["*"]
+      - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -169,7 +169,7 @@ Trace each flagged source forward to a sink or sanitizer (is the data validated/
 
 Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh` enforces it at `PreToolUse:Write`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
-Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 1: Systematic Audit
 

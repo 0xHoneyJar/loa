@@ -12,15 +12,18 @@
 #   --type <review|audit>     Dissent type (required)
 #   --sprint-id <id>          Sprint identifier (required)
 #   --diff-file <path>        Path to git diff file (required)
+#   --diff-range <base>...<head>
+#                             Instead of --diff-file: the script runs `git diff` on the range itself (ref names only)
 #   --context-file <path>     Reviewer findings (review only; omit for audit independence)
 #   --model <model>           Dissenter model (default: from config or gpt-5.3-codex)
 #   --budget <cents>          Max cost in cents (default: from config or 150)
 #   --timeout <seconds>       API timeout (default: from config or 60)
 #   --dry-run                 Assemble context without calling API
 #   --json                    Output as JSON (default)
-#   --record-fallback <status> --reason <text>
+#   --record-fallback <status> --reason <text> [--since <ISO-8601 UTC>]
 #                             Write the failed-run record instead of a review (no --diff-file): status `failed` (the
-#                             run aborted — never over a standing envelope) or a pre-lock refusal (`workdir_unavailable`,
+#                             run aborted — never over a standing envelope, unless `--since <the run's start>` shows it
+#                             older: the previous round's, moved aside) or a pre-lock refusal (`workdir_unavailable`,
 #                             `nothing_to_review`, `budget_exceeded` — the previous envelope and sidecars go aside as
 #                             `.prev`); under the run lock, so a live run is refused (`refused_concurrent_run`, exit 2)
 #
@@ -206,8 +209,8 @@ load_adversarial_config() {
         || log "WARN: flatline_protocol.${config_key}.companion_chain.${_ccf} is a ${_cct}, not a list — ignored, the default ${_ccf} chain applies"
     done
   fi
-  CONF_COMPANION_CHAIN_ANTHROPIC=$(yq eval ".flatline_protocol.${config_key}.companion_chain.anthropic | select(tag == \"!!seq\") | .[]" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
-  CONF_COMPANION_CHAIN_OPENAI=$(yq eval ".flatline_protocol.${config_key}.companion_chain.openai | select(tag == \"!!seq\") | .[]" "$CONFIG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
+  CONF_COMPANION_CHAIN_ANTHROPIC=$(_adv_conf_chain_hops "$config_key" anthropic)
+  CONF_COMPANION_CHAIN_OPENAI=$(_adv_conf_chain_hops "$config_key" openai)
   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
   CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
@@ -656,6 +659,20 @@ _adv_repair_hop_shared_now() {  # <hop> <voice that answered> → 0 when the LIV
     echo "${1}:shared_with_companion" >> "$_ADV_REPAIR_SKIP_FILE"
   fi
   return 0
+}
+_adv_conf_chain_hops() {  # <config key> <family> → the family list's hop names, space-separated; any other element is said and
+  # dropped (twenty-fourth run, a1 DISS-C-001: a map, list or null element printed as YAML and split into hop tokens such as `{a:`,
+  # `1}` or `null`) — the value is never echoed, only its index and tag
+  local n i tg v out=""
+  n=$(yq eval ".flatline_protocol.${1}.companion_chain.${2} | select(tag == \"!!seq\") | length" "$CONFIG_FILE" 2>/dev/null || true)
+  [[ "$n" =~ ^[0-9]{1,3}$ ]] || return 0
+  for (( i = 0; i < n; i++ )); do
+    tg=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i] | tag" "$CONFIG_FILE" 2>/dev/null || true)
+    v=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i]" "$CONFIG_FILE" 2>/dev/null || true)
+    if [[ "$tg" == "!!str" && "$v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]]; then out+="$v "
+    else log "WARN: flatline_protocol.${1}.companion_chain.${2}[$i] is not a hop name (${tg:-unreadable}) — dropped"; fi
+  done
+  printf '%s' "${out% }"
 }
 _adv_repair_now() { date +%s; }   # the repair budget's clock — one reader, so a suite can drive the budget on its own clock (run 23, c2b DISS-C-001)
 _ADV_REPAIR_LAST_SECS=""   # "hop=secs hop=secs …" — the last observed duration per repair hop, this process (a flat map: bash 3 has no -A)
@@ -1454,10 +1471,11 @@ while i < len(text):
   local explicit_ids used_ids="" max_id_num
   # (twenty-second run, a1 DISS-C-003: only a safe token is an explicit id — one with whitespace or a control character would split
   # into, or forge, ids in these space-joined sets; it is renumbered below and never logged raw)
-  explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z"))] | join(" ")' 2>/dev/null || true)
+  # (twenty-fourth run, a1 DISS-C-003: DISS-C- is the companion fold's namespace — such an id is renumbered, never explicit)
+  explicit_ids=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z") and (startswith("DISS-C-") | not))] | join(" ")' 2>/dev/null || true)
   # (no `?` after capture — that is a jq syntax error, and it silently zeroed this value until NRM-15 pinned it;
   # a jq failure here is LOGGED, never folded into 0 — tenth run, a1 C-002)
-  if ! max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]+)$").n | tonumber] | max // 0' 2>/dev/null); then
+  if ! max_id_num=$(echo "$parsed" | jq -r '[.findings[]? | .id? | select(type == "string") | capture("^DISS-(?<n>[0-9]{1,15})$").n | tonumber] | max // 0' 2>/dev/null); then   # (≤ 15 digits: jq 1.7 keeps a longer one whole and shell arithmetic wraps it — twenty-fourth run, a1 DISS-C-002)
     log "WARN: the explicit-id scan failed (jq) — derived ids are checked against the used set only"
     max_id_num=0
   fi
@@ -1490,8 +1508,8 @@ while i < len(text):
     # renumbered past every id in use and marked id_derived (the script, not the model, named it), whatever the branch
     # — and an id that is not a safe token is renumbered the same way, never logged raw (twenty-second run, a1 DISS-C-003)
     local _xid="" _xunsafe=0
-    _xid=$(echo "$candidate" | jq -r '.id | strings | if test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else "\u0001" end' 2>/dev/null || true)
-    [[ "$_xid" == $'\001' ]] && _xunsafe=1
+    _xid=$(echo "$candidate" | jq -r '.id | strings | if test("\\A[A-Za-z0-9._:-]{1,64}\\z") then (if startswith("DISS-C-") then "\u0002" else . end) else "\u0001" end' 2>/dev/null || true)
+    [[ "$_xid" == $'\001' || "$_xid" == $'\002' ]] && _xunsafe=1
     if [[ -n "$_xid" ]] && { (( _xunsafe )) || [[ " $used_ids " == *" $_xid "* ]]; }; then
       local _xnew="$_xid"
       while (( _xunsafe )) || [[ " $explicit_ids " == *" $_xnew "* || " $used_ids " == *" $_xnew "* ]]; do
@@ -1500,6 +1518,7 @@ while i < len(text):
         _xnew=$(printf 'DISS-%03d' "$max_id_num")
       done
       if [[ "$_xid" == $'\001' ]]; then log "Finding $i: an explicit id that is not a safe token ([A-Za-z0-9._:-], 1-64) — renumbered $_xnew"
+      elif [[ "$_xid" == $'\002' ]]; then log "Finding $i: an explicit id in the companion's DISS-C- namespace — renumbered $_xnew"
       else log "Finding $i: duplicate explicit id $_xid — renumbered $_xnew"; fi
       candidate=$(echo "$candidate" | jq --arg id "$_xnew" '.id = $id | .id_derived = true')
       _xid="$_xnew"
@@ -2238,16 +2257,20 @@ _adv_refuse_json() {  # <status> [key value]… → the envelope a --json caller
   jq -n --arg t "${type:-}" --arg sid "${sprint_id:-}" --arg st "$st" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${kv[@]+"${kv[@]}"} \
     '{findings: [], metadata: ({type: $t, sprint_id: $sid, timestamp: $ts, status: $st, model: null, cost_usd: 0} + ($ARGS.named | del(.t, .sid, .st, .ts)))}'
 }
-_adv_record_fallback() {  # <type> <sprint id> <status> <reason> → the failed-run record the review / audit skill writes, done by the
+_adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the failed-run record the review / audit skill writes, done by the
                           # script under its run lock (twenty-third run, b2 DISS-C-001: the skills' allowlists hold no `mv`, and a
                           # Write-tool fallback can neither move the previous round's files aside nor see a live run)
-  local t="$1" sid="$2" st="$3" why="$4" dir env sc
+  local t="$1" sid="$2" st="$3" why="$4" since="${5:-}" dir env sc ets displaced="null"
   case "$st" in
     failed|workdir_unavailable|nothing_to_review|budget_exceeded) ;;
     refused_concurrent_run) error "--record-fallback: refused_concurrent_run is not recorded — wait until the holding run has exited and run the review again"; return 2 ;;
     *) error "--record-fallback: unknown status '$st' (failed | workdir_unavailable | nothing_to_review | budget_exceeded)"; return 2 ;;
   esac
   [[ -n "$why" ]] || { error "--record-fallback needs --reason <what happened>"; return 2; }
+  if [[ -n "$since" ]]; then
+    [[ "$st" == "failed" ]] || { error "--since applies to --record-fallback failed only"; return 2; }
+    [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { error "--since: expected YYYY-MM-DDTHH:MM:SSZ (UTC)"; return 2; }
+  fi
   [[ "$sid" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ && "$sid" != *..* ]] || { error "--record-fallback: invalid --sprint-id"; return 2; }
   dir="$PROJECT_ROOT/grimoires/loa/a2a/${sid}"; env="$dir/adversarial-${t}.json"
   mkdir -p "$dir" || { error "cannot create $dir"; return 2; }
@@ -2257,10 +2280,33 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> → the failed-
     _adv_refuse_json refused_concurrent_run
     return 2
   fi
+  # (twenty-fourth run, b2 DISS-C-002: the record says what it moves aside — a regular envelope is moved on every path that
+  # gets past the refusals below — so a reviewer and verdict-derive can read what the fallback replaced)
+  if [[ -f "$env" && ! -L "$env" ]]; then
+    displaced=$(jq -c '{status: (.metadata.status? // null), timestamp: (.metadata.timestamp? // null),
+      findings: (.findings? | if type == "array" then length else null end),
+      rejected: (.metadata.rejected_summary? | if type == "array" then length else null end)}' -- "$env" 2>/dev/null) || displaced=""
+    [[ -n "$displaced" ]] || displaced='{"status":null,"timestamp":null,"findings":null,"rejected":null,"unreadable":true}'
+  fi
   if [[ "$st" == "failed" ]]; then
     # an aborted run left no envelope; one that stands was written by a run that took the lock — it is never overwritten, and
     # this run's own sidecars stay where verdict-derive counts them
-    if [[ -e "$env" || -L "$env" ]]; then error "an envelope stands at $env — a run wrote it; nothing is recorded over it"; return 2; fi
+    # (twenty-fourth run, a2 DISS-C-001: a run that died BEFORE its lock wrote no status and moved nothing aside — the envelope
+    # that stands is the previous round's; `--since <the run's start>` shows it: a metadata.timestamp older than that, or none)
+    if [[ -e "$env" || -L "$env" ]]; then
+      local older="false"
+      if [[ -n "$since" && -f "$env" && ! -L "$env" ]] && ets=$(jq -r '.metadata.timestamp? // "" | strings' -- "$env" 2>/dev/null); then
+        if [[ -z "$ets" ]] || [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && "$ets" < "$since" ]]; then older="true"; fi
+      fi
+      if [[ "$older" != "true" ]]; then
+        error "an envelope stands at $env — a run wrote it; nothing is recorded over it (a run that died before its lock left the previous round's: pass --since <that run's start, UTC> to move an older one aside)"
+        return 2
+      fi
+      for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
+        [[ -f "$sc" && ! -L "$sc" ]] || continue
+        mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
+      done
+    fi
   else
     # a pre-lock refusal moved nothing aside: whatever is at the path is the PREVIOUS round's, as a run's start would treat it
     for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
@@ -2268,9 +2314,9 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> → the failed-
       mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
     done
   fi
-  jq -n --arg t "$t" --arg sid "$sid" --arg st "$st" --arg r "$why" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  jq -n --arg t "$t" --arg sid "$sid" --arg st "$st" --arg r "$why" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson d "$displaced" \
     '{findings: [], metadata: {type: $t, sprint_id: $sid, timestamp: $ts, status: $st, reason: $r, recorded_by: "record-fallback",
-      rejected_summary: [], rejected_sidecars: []}}' > "$env.tmp.$$" && mv -f -- "$env.tmp.$$" "$env" \
+      displaced: $d, rejected_summary: [], rejected_sidecars: []}}' > "$env.tmp.$$" && mv -f -- "$env.tmp.$$" "$env" \
     || { command rm -f -- "$env.tmp.$$"; error "cannot write $env"; return 2; }
   log "Recorded the $t fallback ($st) at $env"
   return 0
@@ -2312,14 +2358,20 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
   command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1 \
     || log "WARN: flock is not installed — the run lock's stale-lock takeover runs unserialised (two takers of a dead run's lock may race)"
   dir="$lockdir/run-${key}.lock.d"; pidf="$dir/pid"
+  local _mkerr=""
   for _try in 1 2 3; do
-    if mkdir "$dir" 2>/dev/null; then
+    if _mkerr=$(LC_ALL=C mkdir "$dir" 2>&1); then
       # (fifteenth run, a2 C-002: the owner is the acquiring BASHPID — a subshell of this run inherits $$ but never this;
       # sixteenth run, a2 C-001: the pid and its token are taken HERE — `$BASHPID` inside a $(...) is the substitution's
       # own pid, whose start time made every live holder look recycled)
       local me="$BASHPID" tok=""; tok=$(_adv_proc_start "$me") || tok=""
       printf '%s\n%s\n' "$me" "$tok" > "$pidf"
       _ADV_RUN_LOCK_DIR="$dir"; _ADV_RUN_LOCK_OWNER="$me"; return 0
+    fi
+    # twenty-fourth run, a2 C-002: only contention (EEXIST) is a holder to judge — a lock that cannot be made (EACCES, ENOSPC, EROFS)
+    # runs unguarded at once with mkdir's reason, never three rounds of a race that is not there
+    if [[ ! -d "$dir" && "$_mkerr" != *"File exists"* ]]; then
+      _adv_run_lock_unguarded "the run lock $dir cannot be created: ${_mkerr##*: }"; return 0
     fi
     # the verdict on the holder and the takeover itself are ONE critical section per key (eighteenth run, a2 C-001: rm + rmdir
     # let two takers each believe they held the key; the round-1s dry run then showed a taker that had judged the holder dead
@@ -2331,7 +2383,8 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       # holder — a LIVE one refuses this run, as it would inside — but takes nothing over without the flock: the loop retries, and a section still busy after the last round refuses
       _unser=0
       if command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1; then   # (the same resolved binary as the per-binary lock — a2 C-005)
-        if ! { exec 7>>"$_tl"; } 2>/dev/null || ! "${_ADV_FLOCK_BIN:-flock}" -w 5 7; then _unser=1; fi
+        if ! { exec 7>>"$_tl"; } 2>/dev/null; then _unser=2   # (twenty-fourth run, a2 C-002: an unopenable section is no taker — never busy)
+        elif ! "${_ADV_FLOCK_BIN:-flock}" -w 5 7; then _unser=1; fi
       fi
       _w=0
       while [[ -d "$dir" && ! -s "$pidf" ]] && (( _w < 10 )) && (( $(date +%s) - $(_adv_mtime "$dir") < _g )); do sleep 0.2; _w=$((_w + 1)); done
@@ -2349,6 +2402,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
         error "another adversarial-review run for ${1##*/}/$2 is starting (its lock is seconds old) — wait for it to finish"
         echo refuse; exit 0
       fi
+      (( _unser == 2 )) && { echo unopenable; exit 0; }
       (( _unser )) && { echo busy; exit 0; }
       # a dead run's lock: renamed away (atomic), then removed; the loop's mkdir takes the key
       _stale="$dir.stale.$BASHPID.$RANDOM"
@@ -2356,6 +2410,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       echo takeover
     ) || _verdict="retry"
     [[ "$_verdict" == "refuse" ]] && return 1
+    [[ "$_verdict" == "unopenable" ]] && { _adv_run_lock_unguarded "the takeover lock $_tl cannot be opened (a dead run's lock is not taken over unserialised)"; return 0; }
   done
   # twenty-third run, c1c DISS-C-004: a section still held after the last round is another taker inside the takeover — about to
   # become the live holder, never an absence — so the run is refused, not run unguarded beside it (flock frees the section on exit)
@@ -2552,7 +2607,10 @@ _adv_invoke_hop() { local model="$1"; shift; _adv_with_cli_lock "$model" invoke_
 # goes to stderr and stays in the /tmp workdir.
 _adv_put_state() {  # <file> <value> — the companion's state files are published whole: a temp file renamed over the target, so a
                     # reader polling once a second never sees the truncated file between open and write (twenty-third run, a3 DISS-C-001)
-  printf '%s' "$2" > "$1.tmp" 2>/dev/null && mv -f -- "$1.tmp" "$1" 2>/dev/null
+  # best-effort (twenty-fourth run, a3 DISS-C-001): the walker runs under errexit, so a failed write or rename never ends
+  # it — the state file only steers the reaper and the deadline; a failed rename leaves no temp behind
+  if ! { printf '%s' "$2" > "$1.tmp" && mv -f -- "$1.tmp" "$1"; } 2>/dev/null; then rm -f -- "$1.tmp" 2>/dev/null; fi
+  return 0
 }
 _adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (may be empty)
   local line="$1" out=""
@@ -3072,10 +3130,10 @@ _adv_run_interruptible() {  # <out file> <command…> — `out=$(command)` as a 
 _adv_reap_primary() {  # the job _adv_run_interruptible was waiting for when a signal ended the run: TERM, the grace, then KILL
   [[ -n "${_ADV_PRIMARY_PID:-}" ]] || return 0
   local _p="$_ADV_PRIMARY_PID" _kt _e _pids="" _x _i _alive _grace
-  _ADV_PRIMARY_PID=""
-  _adv_pid_alive "$_p" || return 0
+  _adv_pid_alive "$_p" || { _ADV_PRIMARY_PID=""; return 0; }
   _grace=$(_conf_uint "LOA_ADVERSARIAL_REAP_GRACE_SECONDS" "${LOA_ADVERSARIAL_REAP_GRACE_SECONDS:-5}" 5 0) || _grace=5
   _kt=$(_adv_kill_tree "$_p" TERM tokens) || _kt="$_p="
+  _ADV_PRIMARY_PID=""   # (twenty-fourth run, a4 DISS-C-001: published until its tree is signalled — never cleared before)
   for _e in $_kt; do [[ "${_e%%=*}" =~ ^[0-9]+$ ]] && _pids+="${_e%%=*} "; done
   for (( _i = 0; _i < _grace * 4; _i++ )); do
     _alive="false"
@@ -3103,6 +3161,7 @@ _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap th
   [[ "$(cat "$1/companion.phase" 2>/dev/null)" == "done" ]] || command rm -f -- "$1/companion.result.json" 2>/dev/null
   return 0
 }
+_ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
 _adv_prev_files_drop() {  # the previous run's envelope and sidecars moved aside at start (`.prev`), one per line: dropped once THIS run's
                           # envelope stands — never restored (nineteenth run, b2 C-001: an aborted run leaves NO envelope at the path,
@@ -3123,6 +3182,7 @@ _adv_cleanup_on_exit() {
   # must never skip the workdir removal and the lock release below)
   _adv_reap_primary || true
   _adv_reap_companion || true
+  [[ -n "${_ADV_RANGE_DIFF:-}" ]] && command rm -f -- "$_ADV_RANGE_DIFF" 2>/dev/null
   # (an aborted run restores nothing: the path holds no envelope, and the previous round's `.prev` files stay beside it — b2 C-001)
   # LOA_ADVERSARIAL_KEEP_WORKDIR keeps FILES for debugging, never processes: the companion tree is reaped on
   # every exit path (a background tree that outlived the run was round 1's first finding) — its partial
@@ -3137,8 +3197,8 @@ _adv_cleanup_on_exit() {
 }
 
 main() {
-  local type="" sprint_id="" diff_file="" context_file="" model="" budget="" timeout=""
-  local dry_run="false" json_output="true" record_fallback="" fallback_reason=""
+  local type="" sprint_id="" diff_file="" diff_range="" context_file="" model="" budget="" timeout=""
+  local dry_run="false" json_output="true" record_fallback="" fallback_reason="" fallback_since=""
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -3146,6 +3206,7 @@ main() {
       --type)       type="$2"; shift 2 ;;
       --sprint-id)  sprint_id="$2"; shift 2 ;;
       --diff-file)  diff_file="$2"; shift 2 ;;
+      --diff-range) diff_range="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
       --context-file) context_file="$2"; shift 2 ;;
       --model)      model="$2"; shift 2 ;;
       --budget)     budget="$2"; shift 2 ;;
@@ -3154,6 +3215,7 @@ main() {
       --json)       json_output="true"; shift ;;
       --record-fallback) record_fallback="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
       --reason)     fallback_reason="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      --since)      fallback_since="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
       *)            error "Unknown option: $1"; exit 2 ;;
     esac
   done
@@ -3164,7 +3226,22 @@ main() {
     error "Invalid --type: $type (must be review or audit)"; exit 2
   fi
   if [[ -z "$sprint_id" ]]; then error "Missing --sprint-id"; exit 2; fi
-  if [[ -n "$record_fallback" ]]; then local _rf=0; _adv_record_fallback "$type" "$sprint_id" "$record_fallback" "$fallback_reason" || _rf=$?; exit "$_rf"; fi
+  if [[ -n "$record_fallback" ]]; then local _rf=0; _adv_record_fallback "$type" "$sprint_id" "$record_fallback" "$fallback_reason" "$fallback_since" || _rf=$?; exit "$_rf"; fi
+  if [[ -n "$fallback_since" ]]; then error "--since applies to --record-fallback failed only"; exit 2; fi
+  # twenty-fourth run, a2 DISS-C-001: the skills cannot run `date` — a run that dies before it writes any record names its start
+  # here, as the --since its `--record-fallback failed` needs
+  log "adversarial review run started $(date -u +%Y-%m-%dT%H:%M:%SZ) (if it leaves no record: --record-fallback failed --since <this time>)"
+  # twenty-fourth run, b2 DISS-C-001: the script produces the diff itself — a skill granted `git diff *` can pass --output /
+  # --no-index; ref names only (never an option), no external diff driver and no textconv
+  if [[ -n "$diff_range" ]]; then
+    [[ -z "$diff_file" ]] || { error "--diff-file and --diff-range are exclusive"; exit 2; }
+    [[ "$diff_range" =~ ^[A-Za-z0-9_][A-Za-z0-9._/~^-]*\.\.\.?[A-Za-z0-9_][A-Za-z0-9._/~^-]*$ ]] \
+      || { error "--diff-range: expected <base>...<head> (ref names only)"; exit 2; }
+    _ADV_RANGE_DIFF=$(mktemp "${TMPDIR:-/tmp}/adversarial-range-XXXXXX") || { error "cannot create a temp file under ${TMPDIR:-/tmp}"; exit 2; }
+    trap 'command rm -f -- "$_ADV_RANGE_DIFF"' EXIT
+    git -C "$PROJECT_ROOT" diff --no-ext-diff --no-textconv "$diff_range" -- > "$_ADV_RANGE_DIFF" || { error "git diff $diff_range failed"; exit 2; }
+    diff_file="$_ADV_RANGE_DIFF"
+  fi
   if [[ -z "$diff_file" ]]; then error "Missing --diff-file"; exit 2; fi
   if [[ ! -f "$diff_file" ]]; then error "Diff file not found: $diff_file"; exit 2; fi
 
@@ -3219,8 +3296,10 @@ main() {
   trap '_adv_cleanup_on_exit' EXIT
   # (twenty-first run, a4 DISS-C-002: a trap's command list runs under errexit — the reaper is guarded like every other call site,
   # so the run exits 130 / 143, never the reaper's status)
-  trap '_adv_reap_primary || true; _adv_reap_companion || true; exit 130' INT
-  trap '_adv_reap_primary || true; _adv_reap_companion || true; exit 143' TERM
+  # (twenty-fourth run, a4 DISS-C-001: bash runs a second signal's trap NESTED inside a running one — each handler first ignores
+  # INT / TERM, so one reap runs to the end and the run exits with the first signal's status)
+  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; exit 130" INT
+  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; exit 143" TERM
 
   # Extract diff file list
   local diff_files

@@ -228,6 +228,13 @@ def usable_headless_timeout(raw: Any) -> Optional[float]:
     return value
 
 
+def headless_read_floor(read_timeout: Any) -> float:
+    """The headless adapter's read floor, max(read_timeout, 600), through the one timeout predicate (run 24, d DISS-C-002):
+    the loader's note and the adapter's bound both read it here, so a quoted "900", a zero or a non-number never makes
+    the note name a floor the adapter did not use (nor the adapter TypeError on a string)."""
+    return max(usable_headless_timeout(read_timeout) or 0.0, 600.0)
+
+
 def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
     """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
     a positive finite number is returned as a float, clamped to HEADLESS_TIMEOUT_CEILING_SECONDS (one warning
