@@ -198,7 +198,7 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled` is `false` in `.loa.config.yaml`, run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (criteria and code stay primary); missing or empty is a no-op.
+5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and include the output as advisory context (criteria, code primary); missing or empty is a no-op.
 
 ## Phase 2: Code Review
 

@@ -596,12 +596,21 @@ DF
     # every repair-budget clock read goes through the seam — a raw clock in process_findings, or in any function it calls,
     # is the wall clock again: every spelling (`date +%s`, `date '+%s'`, $EPOCHSECONDS / $EPOCHREALTIME, `printf '%(%s)T'`,
     # $SECONDS), only the seam itself excepted (twenty-fifth run, c2b DISS-C-001)
-    local f fns="" clk
-    for f in $(declare -f process_findings | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | sort -u); do declare -F "$f" >/dev/null 2>&1 && fns+="$f "; done
-    [[ " $fns" == *" _adv_hop_charge "* && " $fns" == *" _adv_repair_now "* ]]   # (the callee scan sees the budget helpers)
+    # (every function reachable from process_findings, a worklist to a fixed point — the seam's own body is not walked — and
+    # `date` as a word: an identifier holding "date" before a printf '%s' is not a clock — twenty-sixth run, c2b DISS-C-002)
+    local f g fns=" " clk; local -a todo=(process_findings)
+    while (( ${#todo[@]} )); do
+        f="${todo[0]}"; todo=("${todo[@]:1}")
+        [[ "$fns" == *" $f "* ]] && continue
+        fns+="$f "; [[ "$f" == _adv_repair_now ]] && continue
+        for g in $(declare -f "$f" | tail -n +2 | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | LC_ALL=C sort -u); do
+            [[ "$fns" != *" $g "* ]] && declare -F "$g" >/dev/null 2>&1 && todo+=("$g")
+        done
+    done
+    [[ "$fns" == *" _adv_hop_charge "* && "$fns" == *" _adv_repair_now "* && "$fns" == *" _adv_cli_hop_bound "* ]]   # (the scan sees the budget helpers, and a callee's callee)
     for f in $fns; do
         [[ "$f" == _adv_repair_now ]] && continue
-        clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|date[^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
+        clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
         [ "$clk" = "0" ] || { echo "$f reads the wall clock ($clk) outside the _adv_repair_now seam"; return 1; }
     done
     # (the clock stays the test's for the rest of this case: none of the blocks below spends time)
@@ -610,9 +619,13 @@ DF
     # one-second payloads
     # (nineteenth run, a1 C-001: two full CLI repairs; twentieth run, a3 DISS-C-003: the heaviest hop is charged as the budget
     # charges it — `tiny` with a key pays its lock wait, its timeout and the claude CLI bound)
-    _hmax=$(_adv_hop_charge claude-headless 60); (( $(_adv_hop_charge tiny 60) > _hmax )) && _hmax=$(_adv_hop_charge tiny 60)
+    # (both charges captured and checked as numbers first — an empty charge would make the comparison an arithmetic error
+    # that `&&` swallows; tiny reaches the CLI, so it outweighs the CLI hop's own charge — twenty-sixth run, c2b DISS-C-003)
+    local _tc _cc; _tc=$(_adv_hop_charge tiny 60); _cc=$(_adv_hop_charge claude-headless 60)
+    [[ "$_tc" =~ ^[0-9]+$ && "$_cc" =~ ^[0-9]+$ ]] || { echo "hop charges tiny='$_tc' claude-headless='$_cc'"; return 1; }
+    (( _tc > _cc ))
+    _hmax=$_tc
     exp=$(( 2 * _hmax + 60 )); (( exp < ADV_REPAIR_MAX_PER_RUN * 60 * 2 )) && exp=$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))
-    (( _hmax > $(_adv_cli_hop_bound claude-headless) ))   # (tiny reaches the CLI: it outweighs the CLI hop alone)
     # (the budget figure, the skip list and the validator lines are invariant to hop duration: no sleep here — c2b C-002)
     _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
     : > "$TEST_DIR/repair-calls"
@@ -948,11 +961,47 @@ DF
     [ "$status" -ne 0 ]; [[ "$output" == *"no alias"* ]]
     run env OPENAI_API_KEY=x GEMINI_API_KEY=y bash -c "$(declare -f _scrub_cred_aliases _adv_cred_aliases); _scrub_cred_aliases && echo \"[\${OPENAI_API_KEY-unset}][\${GEMINI_API_KEY-unset}]\""
     [ "$status" -eq 0 ]; [ "$output" = "[unset][unset]" ]
+    # the table's contract is ONE space-separated line per provider — the production probe and the scrub both read it with one
+    # `read -a`, so a line-per-alias table would break the probe itself; pinned here (twenty-sixth run, c1a/c2a/c2e DISS-C-001)
+    local p; for p in anthropic openai google; do [ "$(_adv_cred_aliases "$p" | grep -c '')" = "1" ] || { echo "$p: the alias table is not one line"; return 1; }; done
+    [ "$(_adv_cred_aliases google)" = "GOOGLE_API_KEY GEMINI_API_KEY" ]
     body=$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-normalise.bats")
     [ -n "$body" ]
     for s in companion repair-loop; do
         [ "$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats")" = "$body" ]
         grep -q '^    _scrub_cred_aliases || return 1$' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"
-        ! grep -qF 'unset $(_adv_cred_aliases' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"
+        # (an `if`, never a mid-body `!`: bash exempts a negated pipeline from errexit, so only the last iteration counted —
+        # twenty-sixth run, c2b DISS-C-001)
+        if grep -qF 'unset $(_adv_cred_aliases' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s still unsets the aliases by hand"; return 1; fi
     done
+}
+
+@test "NRM-40 the repair pin is validated where it is read: only hop-name tokens survive, unglobbed, each dropped token said once, an all-invalid pin is ignored (twenty-sixth run, a1 DISS-C-001)" {
+    local unpinned
+    cd "$TEST_DIR"; : > "$TEST_DIR/glob-bait-1"; : > "$TEST_DIR/glob-bait-2"
+    unpinned=$(_repair_model_chain "gpt-5.5-pro")
+    LOA_ADVERSARIAL_REPAIR_MODEL='codex-headless *'
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "codex-headless" ]
+    [ "$(_repair_chain_base "gpt-5.5-pro")" = "codex-headless" ]
+    run _adv_repair_pin_check
+    [[ "$output" == *"token 2"* ]]; [[ "$output" != *glob-bait* ]]
+    LOA_ADVERSARIAL_REPAIR_MODEL='a=b codex-headless'
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "codex-headless" ]
+    LOA_ADVERSARIAL_REPAIR_MODEL='  tiny   claude-headless '
+    [ "$(_repair_chain_base "gpt-5.5-pro")" = "tiny claude-headless" ]
+    run _adv_repair_pin_check
+    [ -z "$output" ]
+    LOA_ADVERSARIAL_REPAIR_MODEL='* a=b'
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "$unpinned" ]
+    run _adv_repair_pin_check
+    [[ "$output" == *"ignored"* ]]
+    unset LOA_ADVERSARIAL_REPAIR_MODEL
+    declare -f process_findings | grep -q '_adv_repair_pin_check'
+}
+
+@test "NRM-41 a description with no sentence-ending punctuation derives its head as failure_mode, never drops the finding (twenty-sixth run, a1 DISS-001 refuted — pinned)" {
+    local f='{"id":"DISS-001","severity":"LOW","category":"other","description":"A finding whose description never ends a sentence and runs on"}' out
+    out=$( printf '%s' "$f" | _derive_failure_mode 0 )
+    [ "$(jq -r '.failure_mode' <<<"$out")" = "A finding whose description never ends a sentence and runs on" ]
+    [ "$(jq -r '.failure_mode_derived' <<<"$out")" = "true" ]
 }

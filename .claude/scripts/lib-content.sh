@@ -141,6 +141,12 @@ _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one numbe
 # If content fits budget, passes through unchanged.
 # If over budget, parses diff into per-file sections, sorts by priority,
 # includes highest-priority files first, appends summary of skipped files.
+_lc_chunk_tok() {  # <temp dir> <chunk index> <outvar> → the chunk's estimate, counted once per prepare_content call: the memo is the
+                  # caller's local `_lc_tok` array (twenty-sixth run, b1 DISS-C-001 — the candidate scan, the reservation scan and the
+                  # include loop each re-read and re-counted every chunk); printf -v, so the memo survives (a `$(...)` would drop it)
+  [[ -n "${_lc_tok[$2]:-}" ]] || _lc_tok[$2]=$(estimate_tokens "$(cat "$1/chunk_$2")")
+  printf -v "$3" '%s' "${_lc_tok[$2]}"
+}
 prepare_content() {
   local raw_content="$1"
   local max_tokens="${2:-30000}"
@@ -256,9 +262,10 @@ prepare_content() {
   # not beside the P0 rows ahead of it was dropped whole while a P1 file behind it was shown); the running sum below is the main
   # loop's own include rule up to its first omission
   local top_pri="" top_path="" top_idx="" top_partial_done=0 top_no_room=0 c_pri c_path c_idx c_tok c_run=0
+  local -a _lc_tok=()
   while IFS=$'\t' read -r c_pri c_path c_idx; do
     [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
-    c_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")")
+    _lc_chunk_tok "$temp_dir" "$c_idx" c_tok
     if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
     c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
@@ -271,7 +278,7 @@ prepare_content() {
     while IFS=$'\t' read -r o_pri o_path o_idx; do
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
       [[ "$o_pri" -le "$top_pri" ]] || continue
-      o_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${o_idx}")")
+      _lc_chunk_tok "$temp_dir" "$o_idx" o_tok
       # what those rows take TOGETHER, by the main loop's greedy rule — two siblings that each fit but not side by side are not
       # reserved twice (twenty-second run, b1 DISS-C-001)
       (( others + o_tok <= max_tokens )) && others=$(( others + o_tok ))
@@ -327,7 +334,7 @@ prepare_content() {
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
     local chunk_tokens
-    chunk_tokens=$(estimate_tokens "$chunk_content")
+    _lc_chunk_tok "$temp_dir" "$chunk_idx" chunk_tokens
 
     if [[ $(( current_tokens + chunk_tokens )) -le $max_tokens ]]; then
       output+="$chunk_content"$'\n'

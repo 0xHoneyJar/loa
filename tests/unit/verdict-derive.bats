@@ -478,7 +478,8 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations | any(test("sidecar rows")))' >/dev/null
-    rm -f "$d/adversarial-rejected-audit.jsonl"
+    # (the audit's row STAYS through the review legs: the review gate counting it — a gate-blind glob — would see four rows against
+    # three bullets; twenty-sixth run, c2c DISS-C-001)
     # three top-level bullets cover the three rows
     {
         echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
@@ -1003,16 +1004,22 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations | any(test("adversarial-review.json") and test("not a regular file")))' >/dev/null
+    # …and the same path given explicitly is a usage error that says what it is — not "not found" (twenty-sixth run, c2d DISS-C-002)
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --envelope \"$d/adversarial-review.json\" --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.usage_error == true and (.violations[0] | test("not a regular file"))' >/dev/null || { echo "$output"; return 1; }
     rmdir "$d/adversarial-review.json"
     mkfifo "$d/adversarial-review.json"
-    # a script that opened the FIFO would block forever: a writer opens it after 20 s, so such a regression fails (EOF, not
-    # "not a regular file") instead of wedging the suite — portable, no timeout(1) on macOS (run 23, c2d DISS-C-001)
+    # a script that opened the FIFO would block forever — portable, no timeout(1) on macOS (run 23, c2d DISS-C-001)
     # (twenty-fourth run, c2d DISS-C-001: the deadline is on the READER — a one-shot writer bounded only a single open; a watchdog
     # kills the script after 15 s whatever it blocks on (and says so in a marker), and its TERM trap takes its own sleep with it)
     "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json >"$d/fifo-out" 2>/dev/null 3>&- & local reader=$!
     # (twenty-fifth run, c2d DISS-C-001: the watchdog ends the reader's children first — a child blocked in open() on the FIFO
     # would outlive a TERM to its parent, reparented and blocked for good — and the FIFO goes on both paths)
-    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; pkill -TERM -P "$reader" 2>/dev/null; kill "$reader" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
+    # (twenty-sixth run, c2d DISS-C-001: the reader's WHOLE tree, collected before any signal — a jq in a command substitution
+    # is a grandchild that `pkill -P` never reached, and it stayed blocked on the FIFO after the unlink)
+    _vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }
+    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true
     output=$(cat "$d/fifo-out")
@@ -1071,5 +1078,25 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
         run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
         if echo "$output" | jq -e '.violations | any(test("not parseable"))' >/dev/null; then echo "displaced $dp: read as unparseable"; return 1; fi
         [ "$status" -eq 0 ] || { echo "displaced $dp: $output"; return 1; }
+    done
+}
+
+@test "verdict-derive: an unlisted sidecar that cannot be read — a directory, a dangling symlink, an unreadable file — beside an FR-2 envelope is one violation and never also a 'rows are counted' warning (twenty-sixth run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s27"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+    mkdir "$d/adversarial-rejected-review-dir.jsonl"
+    ln -s "$d/nowhere" "$d/adversarial-rejected-review-dangling.jsonl"
+    printf '{"x":1}\n' > "$d/adversarial-rejected-review-unread.jsonl"; chmod 000 "$d/adversarial-rejected-review-unread.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    chmod 600 "$d/adversarial-rejected-review-unread.jsonl"
+    [ "$status" -eq 1 ]
+    local n
+    for n in dir dangling unread; do
+        echo "$output" | jq -e --arg n "$n" '(.violations | map(select(test("review-" + $n + ".jsonl is not (a regular file|readable)"))) | length) == 1' >/dev/null \
+            || { echo "$n: no single violation: $output"; return 1; }
+        echo "$output" | jq -e --arg n "$n" '(.warnings // [] | map(select(test("review-" + $n + ".jsonl"))) | length) == 0' >/dev/null \
+            || { echo "$n: a contradictory warning: $output"; return 1; }
     done
 }

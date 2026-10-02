@@ -18,6 +18,7 @@ from loa_cheval.providers.base import (
 )
 from loa_cheval.types import (
     HEADLESS_TIMEOUT_CEILING_SECONDS,
+    headless_connect_floor,
     headless_read_floor,
     usable_headless_timeout,
     CompletionRequest,
@@ -46,7 +47,6 @@ class HeadlessCLIAdapter(ProviderAdapter):
     _cli_type: str
     _cli_name: str
     _command_label: str
-    _HEADLESS_TIMEOUT_CEILING: float = HEADLESS_TIMEOUT_CEILING_SECONDS   # one constant (types.py); the load-time coercion clamps and warns
     _install_hint: str
     _spawn_install_hint: str = ""
     _logger = logging.getLogger("loa_cheval.providers.headless")
@@ -176,14 +176,14 @@ class HeadlessCLIAdapter(ProviderAdapter):
         per_model = getattr(model_config, "headless_timeout_seconds", None)
         usable_value = usable_headless_timeout(per_model)   # (the loader's own predicate — fourteenth run, d C-001)
         if usable_value is not None:
-            value = min(usable_value, self._HEADLESS_TIMEOUT_CEILING)
+            value = min(usable_value, HEADLESS_TIMEOUT_CEILING_SECONDS)   # (the module constant the loader clamps to — no class copy, run 26 d DISS-C-002)
             if value > read:
                 read = value
             else:
                 self._logger.debug("headless_timeout_seconds %r: the %.0fs read bound already meets it", per_model, read)
         elif per_model is not None:
             self._logger.debug("headless_timeout_seconds %r unusable here (the catalog loader reports this at load)", per_model)
-        return max(self.config.connect_timeout, 10.0) + read
+        return headless_connect_floor(self.config.connect_timeout) + read   # (run 26, d DISS-C-001)
 
     def _build_prompt(self, messages: List[Dict[str, Any]]) -> str:
         """Flatten messages into role-prefixed sections for single-shot inference."""

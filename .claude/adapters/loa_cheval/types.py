@@ -235,6 +235,12 @@ def headless_read_floor(read_timeout: Any) -> float:
     return max(usable_headless_timeout(read_timeout) or 0.0, 600.0)
 
 
+def headless_connect_floor(connect_timeout: Any) -> float:
+    """The headless adapter's connect floor, max(connect_timeout, 10), through the same predicate (run 26, d DISS-C-001):
+    a quoted "30", a null or a non-number never raises TypeError at a hop."""
+    return max(usable_headless_timeout(connect_timeout) or 0.0, 10.0)
+
+
 def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
     """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
     a positive finite number is returned as a float, clamped to HEADLESS_TIMEOUT_CEILING_SECONDS (one warning

@@ -139,7 +139,11 @@ if [[ -n "$REVIEW_FILE" ]]; then
 fi
 # sprint-248 review (chunk b C-002): an explicit envelope that is not a regular file is a usage
 # error, like --review-file — never a warning that --json consumers ignore
-[[ -z "$ENVELOPE_FILE" || -f "$ENVELOPE_FILE" ]] || usage_error "envelope file not found: $ENVELOPE_FILE"
+# (twenty-sixth run, c2d DISS-C-002: a path that exists — a directory, a FIFO — is named as what it is, never "not found")
+if [[ -n "$ENVELOPE_FILE" && ! -f "$ENVELOPE_FILE" ]]; then
+    if [[ -e "$ENVELOPE_FILE" ]]; then usage_error "envelope file is not a regular file: $ENVELOPE_FILE"; fi
+    usage_error "envelope file not found: $ENVELOPE_FILE"
+fi
 
 # cycle-126 FR-2.3 (SDD D-2.3): the dissent envelope beside the feedback file
 # (adversarial-<gate>.json, or --envelope) — when its metadata.rejected_summary
@@ -300,6 +304,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             [[ -f "$u" && ! -s "$u" ]] && continue                  # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — b1 C-003)
             [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
             _rejected_rows_of "$u"
+            [[ -f "$u" && -r "$u" ]] || continue                    # (its violation says the rows cannot be triaged — no "counted" warning beside it — twenty-sixth run, b1 DISS-C-002)
             if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then
                 warnings+=("rejected-payload sidecar $(basename -- "$u") is newer than the dissent envelope and not listed in its metadata.rejected_sidecars — the envelope may be stale (a run ended after writing rows); its rows are counted: triage them under '## Rejected dissent payloads' or re-run the dissent")
             else

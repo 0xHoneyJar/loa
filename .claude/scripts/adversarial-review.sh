@@ -24,8 +24,8 @@
 #                             Write the failed-run record instead of a review (no --diff-file): status `failed` (the
 #                             run aborted — never over a standing envelope, unless `--since <the run's start>` shows it
 #                             older: the previous round's, moved aside) or a pre-lock refusal (`workdir_unavailable`,
-#                             `nothing_to_review`, `budget_exceeded` — the previous envelope and sidecars go aside as
-#                             `.prev`); under the run lock, so a live run is refused (`refused_concurrent_run`, exit 2)
+#                             `nothing_to_review`, `budget_exceeded`, `diff_range_failed` — the previous envelope and
+#                             sidecars go aside as `.prev`, never one `--since` shows newer); under the run lock, so a live run is refused (`refused_concurrent_run`, exit 2)
 #
 # Exit codes:
 #   0 - Success (findings returned, may be empty)
@@ -588,12 +588,34 @@ _repair_model() {  # <voice that answered> → the FIRST hop of the repair chain
                    # operator display only; the repair call site iterates _repair_model_chain, never this
   _repair_model_chain "$1" | cut -d' ' -f1
 }
+_adv_repair_pin() {  # → the operator pin's hop-name tokens, space-joined ("" when unset or none survives)
+  # twenty-sixth run, a1 DISS-C-001: validated where it is read, like every other hop source (_adv_conf_chain_hops) — the
+  # chain is iterated unquoted and space-joined into the _ADV_REPAIR_* maps, so a glob character or an `=` must never reach it;
+  # `read -a` splits without pathname expansion
+  local -a _t; local _v _o=""
+  read -ra _t <<<"${LOA_ADVERSARIAL_REPAIR_MODEL:-}"
+  for _v in "${_t[@]}"; do [[ "$_v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]] && _o="${_o:+$_o }$_v"; done
+  printf '%s' "$_o"
+}
+_adv_repair_pin_check() {  # say each dropped pin token (by position, never raw) and an ignored pin; process_findings calls it
+  [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]] || return 0
+  local -a _t; local _i
+  read -ra _t <<<"$LOA_ADVERSARIAL_REPAIR_MODEL"
+  for _i in "${!_t[@]}"; do
+    [[ "${_t[$_i]}" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]] \
+      || log "WARN: LOA_ADVERSARIAL_REPAIR_MODEL token $(( _i + 1 )) is not a hop name ([A-Za-z0-9._/:-], 1-128 chars) — dropped"
+  done
+  [[ -n "$(_adv_repair_pin)" ]] \
+    || log "WARN: LOA_ADVERSARIAL_REPAIR_MODEL holds no hop name — the pin is ignored and the computed repair chain applies"
+  return 0
+}
 _repair_chain_base() {  # <voice that answered> → the repair chain before the companion / retirement filters
   # eighth run, a1 C-001: tiny only with an Anthropic credential, claude-headless only with the binary on
   # PATH, and the voice that answered ALWAYS last — an OpenAI-only host without `claude` repairs through
   # its own primary (the cycle-119 C14 behaviour) instead of failing every KF-004 payload deterministically.
   # An operator pin (LOA_ADVERSARIAL_REPAIR_MODEL) is the whole chain.
-  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then echo "$LOA_ADVERSARIAL_REPAIR_MODEL"; return 0; fi
+  local _pin; _pin=$(_adv_repair_pin)
+  if [[ -n "$_pin" ]]; then echo "$_pin"; return 0; fi
   local chain=""
   _adv_cred_present anthropic && chain="tiny"
   _adv_cli_present anthropic && chain="${chain:+$chain }claude-headless"
@@ -608,7 +630,7 @@ _repair_chain_base() {  # <voice that answered> → the repair chain before the 
 }
 _repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop (the base chain, filtered)
   local chain; chain=$(_repair_chain_base "$1")
-  if [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]]; then
+  if [[ -n "$(_adv_repair_pin)" ]]; then
     # twentieth run, a1 DISS-C-002: a pin is the whole chain, but a pinned hop retired this run is not paid for again — an
     # entirely retired pin is an empty chain (the payload is then repair_skipped_no_hop), never the answering voice
     local _ph _pk=""
@@ -1452,6 +1474,8 @@ while i < len(text):
   # twenty-third run, a2 DISS-C-002: each hop is charged once per run ("<hop> <seconds>" lines) — a charge costs several catalog
   # reads, which a per-payload recharge spent against the wall budget again for every rejected payload
   local _hb_memo=""
+  [[ "${_ADV_REPAIR_MODEL_SAID:-}" == "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]] \
+    || { _ADV_REPAIR_MODEL_SAID="${LOA_ADVERSARIAL_REPAIR_MODEL:-}"; _adv_repair_pin_check; }
   for _rh in $(_repair_chain_base "$model"); do
     _rb=$(_adv_hop_charge "$_rh" "${CONF_TIMEOUT:-60}")   # (twentieth run, a1 DISS-C-001: an HTTP hop that reaches a CLI is charged that CLI)
     _hb_memo+="$_rh $_rb"$'\n'
@@ -2270,13 +2294,12 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
                           # Write-tool fallback can neither move the previous round's files aside nor see a live run)
   local t="$1" sid="$2" st="$3" why="$4" since="${5:-}" dir env sc ets displaced="null"
   case "$st" in
-    failed|workdir_unavailable|nothing_to_review|budget_exceeded) ;;
+    failed|workdir_unavailable|nothing_to_review|budget_exceeded|diff_range_failed) ;;
     refused_concurrent_run) error "--record-fallback: refused_concurrent_run is not recorded — wait until the holding run has exited and run the review again"; return 2 ;;
-    *) error "--record-fallback: unknown status '$st' (failed | workdir_unavailable | nothing_to_review | budget_exceeded)"; return 2 ;;
+    *) error "--record-fallback: unknown status '$st' (failed | workdir_unavailable | nothing_to_review | budget_exceeded | diff_range_failed)"; return 2 ;;
   esac
   [[ -n "$why" ]] || { error "--record-fallback needs --reason <what happened>"; return 2; }
   if [[ -n "$since" ]]; then
-    [[ "$st" == "failed" ]] || { error "--since applies to --record-fallback failed only"; return 2; }
     [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { error "--since: expected YYYY-MM-DDTHH:MM:SSZ (UTC)"; return 2; }
   fi
   [[ "$sid" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ && "$sid" != *..* ]] || { error "--record-fallback: invalid --sprint-id"; return 2; }
@@ -2316,7 +2339,14 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
       done
     fi
   else
-    # a pre-lock refusal moved nothing aside: whatever is at the path is the PREVIOUS round's, as a run's start would treat it
+    # a pre-lock refusal moved nothing aside: whatever is at the path is the PREVIOUS round's, as a run's start would treat it —
+    # unless `--since <the refused run's start>` shows it was written after that start: another run's, finished meanwhile,
+    # this round's dissent — never displaced (twenty-sixth run, b2 DISS-C-002: the same age guard as `failed`)
+    if [[ -n "$since" && -f "$env" && ! -L "$env" ]] && ets=$(jq -r '.metadata.timestamp? // "" | strings' -- "$env" 2>/dev/null) \
+       && [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && ! "$ets" < "$since" ]]; then
+      error "an envelope written after this run started ($ets, since $since) stands at $env — another run's: triage it; nothing is recorded over it"
+      return 2
+    fi
     for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
       [[ -f "$sc" && ! -L "$sc" ]] || continue
       mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
@@ -2361,7 +2391,10 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
   # directory: two launchers that resolve XDG_RUNTIME_DIR differently, or two users of one checkout, do not see each other's lock
   [[ -n "$key" ]] || { _adv_run_lock_unguarded "no sha256sum or shasum to name the lock"; return 0; }
   lockdir=$(_adv_cli_lock_dir)
-  [[ -d "$lockdir" ]] || mkdir -m 700 "$lockdir" 2>/dev/null || { _adv_run_lock_unguarded "the lock directory $lockdir cannot be created"; return 0; }
+  # (twenty-sixth run, a2 DISS-C-001: a racer that loses the first-of-session mkdir to another run sees EEXIST — the directory is
+  # re-tested after the mkdir, as _adv_with_cli_lock does, so the loser still takes the per-key lock)
+  [[ -d "$lockdir" ]] || mkdir -m 700 "$lockdir" 2>/dev/null || true
+  [[ -d "$lockdir" ]] || { _adv_run_lock_unguarded "the lock directory $lockdir cannot be created"; return 0; }
   [[ -L "$lockdir" || ! -O "$lockdir" ]] && { _adv_run_lock_unguarded "the lock directory $lockdir is a symlink or not owned by this user"; return 0; }   # (not ours: the CLI lock declines it too)
   command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1 \
     || log "WARN: flock is not installed — the run lock's stale-lock takeover runs unserialised (two takers of a dead run's lock may race)"
@@ -3187,8 +3220,9 @@ _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap th
   return 0
 }
 _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and the file-list reader parse: no external driver or textconv,
-                     # and none of the operator's presentation config — no colour, a/ b/ prefixes (twenty-fifth run, a4 DISS-C-002)
-  git -C "$1" diff --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$2" --
+                     # and none of the operator's presentation config — no colour, a/ b/ prefixes (twenty-fifth run, a4 DISS-C-002);
+                     # a submodule is its short gitlink record, never its own files as top-level records (twenty-sixth run, a3 DISS-C-001)
+  git -C "$1" diff --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
@@ -3256,7 +3290,7 @@ main() {
   fi
   if [[ -z "$sprint_id" ]]; then error "Missing --sprint-id"; exit 2; fi
   if [[ -n "$record_fallback" ]]; then local _rf=0; _adv_record_fallback "$type" "$sprint_id" "$record_fallback" "$fallback_reason" "$fallback_since" || _rf=$?; exit "$_rf"; fi
-  if [[ -n "$fallback_since" ]]; then error "--since applies to --record-fallback failed only"; exit 2; fi
+  if [[ -n "$fallback_since" ]]; then error "--since applies to --record-fallback only"; exit 2; fi
   # twenty-fourth run, a2 DISS-C-001: the skills cannot run `date` — a run that dies before it writes any record names its start
   # here, as the --since its `--record-fallback failed` needs
   log "adversarial review run started $(date -u +%Y-%m-%dT%H:%M:%SZ) (if it leaves no record: --record-fallback failed --since <this time>)"
@@ -3264,11 +3298,21 @@ main() {
   # --no-index; ref names only (never an option), no external diff driver and no textconv
   if [[ -n "$diff_range" ]]; then
     [[ -z "$diff_file" ]] || { error "--diff-file and --diff-range are exclusive"; exit 2; }
-    [[ "$diff_range" =~ ^[A-Za-z0-9_][A-Za-z0-9._/~^-]*\.\.\.?[A-Za-z0-9_][A-Za-z0-9._/~^-]*$ ]] \
+    # (twenty-sixth run, a4 DISS-C-003: exactly three dots — a two-dot range diffs the tips, not from the merge base — and no
+    # side holds `..`, which no ref name may)
+    [[ "$diff_range" =~ ^[A-Za-z0-9_][A-Za-z0-9._/~^-]*\.\.\.[A-Za-z0-9_][A-Za-z0-9._/~^-]*$ && "${diff_range%%...*}" != *..* \
+       && "${diff_range#*...}" != *..* && "$diff_range" != *....* ]] \
       || { error "--diff-range: expected <base>...<head> (ref names only)"; exit 2; }
-    _ADV_RANGE_DIFF=$(mktemp "${TMPDIR:-/tmp}/adversarial-range-XXXXXX") || { error "cannot create a temp file under ${TMPDIR:-/tmp}"; exit 2; }
+    # (twenty-sixth run, a4 DISS-C-001: the two runtime failures are refusals a --json caller can read and record, as a workdir's is)
+    _ADV_RANGE_DIFF=$(mktemp "${TMPDIR:-/tmp}/adversarial-range-XXXXXX") || {
+      error "cannot create a temp file under ${TMPDIR:-/tmp}"
+      [[ "$json_output" == "true" ]] && _adv_refuse_json workdir_unavailable tmpdir "${TMPDIR:-/tmp}"
+      exit 2; }
     trap 'command rm -f -- "$_ADV_RANGE_DIFF"' EXIT
-    _adv_range_diff "$PROJECT_ROOT" "$diff_range" > "$_ADV_RANGE_DIFF" || { error "git diff $diff_range failed"; exit 2; }
+    _adv_range_diff "$PROJECT_ROOT" "$diff_range" > "$_ADV_RANGE_DIFF" || {
+      error "git diff $diff_range failed"
+      [[ "$json_output" == "true" ]] && _adv_refuse_json diff_range_failed range "$diff_range"
+      exit 2; }
     diff_file="$_ADV_RANGE_DIFF"
   fi
   if [[ -z "$diff_file" ]]; then error "Missing --diff-file"; exit 2; fi
@@ -3584,14 +3628,15 @@ main() {
     # (twenty-third run, a4 DISS-C-001: the hop and the findings pass — its repair hops — run as jobs the run waits for, so a signal
     # is handled at once)
     _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-hop.out" _adv_invoke_hop "$try_model" "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$try_model" "$timeout" "$vq_sidecar" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json" || api_exit=$?
-    raw_response=$(cat "$_ADVERSARIAL_WORKDIR/primary-hop.out")
+    # (twenty-sixth run, a4 DISS-C-002: a job that never wrote its file is an empty answer — malformed, the next hop — never an abort)
+    raw_response=$(cat "$_ADVERSARIAL_WORKDIR/primary-hop.out" 2>/dev/null) || raw_response=""
     # Collect the per-attempt envelope (if cheval wrote one).
     if [[ -s "$vq_sidecar" ]]; then
       vq_attempt_files+=("$vq_sidecar")
       vq_cleanup_files+=("$vq_sidecar")
     fi
     _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-findings.out" process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files"
-    result=$(cat "$_ADVERSARIAL_WORKDIR/primary-findings.out")
+    result=$(cat "$_ADVERSARIAL_WORKDIR/primary-findings.out" 2>/dev/null) || result=""
     status=$(_extract_result_status "$result")
     model_attempts+=("${try_model}:${status}")
 
@@ -3811,6 +3856,17 @@ main() {
   # absent from the source diff. Bidirectional + normalization per SDD §3.7.
   # Non-fatal: on any error or missing diff, returns input unchanged.
   result=$(_apply_hallucination_filter "$result" "$diff_file")
+
+  # twenty-sixth run, b2 DISS-C-002/003: the envelope says what it reviewed — a skill refused while another run held the lock
+  # adopts the envelope that run left only when the scope is the one it asked for (a chunk driver's tagged run reviews one chunk)
+  local _scope_sha="" _scoped=""
+  _scope_sha=$( { sha256sum < "$diff_file" || shasum -a 256 < "$diff_file"; } 2>/dev/null | cut -c1-64) || _scope_sha=""
+  [[ "$_scope_sha" =~ ^[0-9a-f]{64}$ ]] || _scope_sha=""
+  if _scoped=$(jq -c --arg dr "$diff_range" --arg sha "$_scope_sha" --arg tag "${_ADV_RUN_TAG:-}" \
+      '.metadata.scope = {diff_range: (if $dr == "" then null else $dr end), diff_sha256: (if $sha == "" then null else $sha end),
+        run_tag: (if $tag == "" then null else $tag end)}' <<<"$result" 2>/dev/null) && [[ -n "$_scoped" ]]; then
+    result="$_scoped"
+  fi
 
   # Write output
   write_output "$result" "$sprint_id" "$type" "$api_exit"

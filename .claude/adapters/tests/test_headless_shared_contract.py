@@ -90,7 +90,10 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
     # the catalog loader coerces once (d C-002): typed float or None, one warning each; the ceiling is applied
     # THERE, so the stored field is the effective bound (tenth run, d C-001)
     from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS, coerce_headless_timeout_seconds, reset_headless_timeout_reports
-    assert HEADLESS_TIMEOUT_CEILING_SECONDS == 3600.0 == adapter._HEADLESS_TIMEOUT_CEILING
+    assert HEADLESS_TIMEOUT_CEILING_SECONDS == 3600.0
+    # (run 26, d DISS-C-002: no class-level copy of the ceiling — a subclass or test overriding one would make the adapter's
+    # bound disagree with the loader's effective value and note; the module constant is the only reading)
+    assert not any("_HEADLESS_TIMEOUT_CEILING" in vars(k) for k in type(adapter).__mro__)
     reset_headless_timeout_reports()   # (the reports are once per process — this test runs once per adapter)
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         caplog.clear()
@@ -404,6 +407,18 @@ def test_note_floor_and_adapter_bound_share_one_read_floor(adapter_case):
         assert headless_read_floor(rt) == floor
         adapter.config.read_timeout = rt
         assert adapter._compute_timeout() == 10.0 + floor   # (connect 1 → its 10 s floor)
+
+
+def test_connect_bound_takes_the_same_predicate_as_the_read_floor(adapter_case):
+    """Run 26, d DISS-C-001: the connect half of the bound reads the provider's connect_timeout through the one timeout
+    predicate too — a quoted "30", a null or a non-number never raises TypeError at a hop; 10 s stays the floor."""
+    from loa_cheval.types import headless_connect_floor
+    adapter, _, _ = adapter_case
+    adapter.config.read_timeout = 600
+    for ct, floor in (("30", 30.0), (30, 30.0), (12.5, 12.5), (0, 10.0), (-1, 10.0), ("x", 10.0), (None, 10.0), (True, 10.0), (5, 10.0)):
+        assert headless_connect_floor(ct) == floor
+        adapter.config.connect_timeout = ct
+        assert adapter._compute_timeout() == floor + 600.0
 
 
 def test_loader_note_uses_the_adapter_read_floor():
