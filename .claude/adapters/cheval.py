@@ -427,11 +427,14 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
     if provider_name not in providers:
         raise ConfigError(f"Provider '{provider_name}' not configured")
 
+    prov = providers[provider_name]
+    # bound once: the headless note's floor and the adapter's bound read this one value (run 25, d DISS-C-001)
+    read_timeout = prov.get("read_timeout", 120.0)
+
     # Feature flag: thinking_traces (Task 3.6)
     flags = config.get("feature_flags", {})
     thinking_enabled = flags.get("thinking_traces", True)
 
-    prov = providers[provider_name]
     models_raw = prov.get("models", {})
     models = {}
     for model_id, model_data in models_raw.items():
@@ -446,7 +449,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         _ht_gated = _headless_timeout_raw(model_data, _where, prov.get("type", ""))
         _ht_effective = coerce_headless_timeout_seconds(_ht_gated, where=_where)
         _ht_note = headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
-                                         floor=headless_read_floor(prov.get("read_timeout", 120.0)))
+                                         floor=headless_read_floor(read_timeout))
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
@@ -477,7 +480,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         auth=prov.get("auth", ""),
         models=models,
         connect_timeout=prov.get("connect_timeout", 10.0),
-        read_timeout=prov.get("read_timeout", 120.0),
+        read_timeout=read_timeout,
         write_timeout=prov.get("write_timeout", 30.0),
         # cycle-096 Sprint 1 (Task 1.2 / FR-1) — Bedrock-specific provider fields.
         region_default=prov.get("region_default"),

@@ -107,6 +107,8 @@ _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partia
                      # (the cut fell inside the first hunk: the partial ends on a line boundary and the last hunk is incomplete —
                      # fifteenth run, b1 C-001: never mid-line, never a marker that says every hunk is whole)
   local partial trimmed nxt
+  # (twenty-fifth run, b1 DISS-C-003: no room for any byte is an empty cut — BSD head refuses `-c 0`)
+  if (( $2 <= 0 )); then : > "$3"; printf 'mid'; return 0; fi
   partial=$(head -c "$2" "$1")
   # twenty-third run, b1 DISS-C-001: whole lines first — a cut inside a line (a hunk header's first bytes included) drops that
   # line — then a hunk header (or the end) right after them means their last hunk is complete, and it is kept
@@ -174,7 +176,7 @@ prepare_content() {
         pri=$(file_priority "$current_file")
         printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
         printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
-        ((file_index++))
+        ((file_index++)) || true
       fi
       current_file="${BASH_REMATCH[1]}"
       current_content="$line"
@@ -189,7 +191,7 @@ prepare_content() {
     pri=$(file_priority "$current_file")
     printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
     printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
-    ((file_index++))
+    ((file_index++)) || true
   fi
 
   # If no diff structure found (not a diff file), truncate raw content
@@ -214,7 +216,7 @@ prepare_content() {
     local filtered_manifest=""
     while IFS=$'\t' read -r priority filepath chunk_idx; do
       if is_excluded "$filepath"; then
-        ((scope_excluded++))
+        ((scope_excluded++)) || true
         rm -f "$temp_dir/chunk_${chunk_idx}"
       else
         filtered_manifest+="${priority}"$'\t'"${filepath}"$'\t'"${chunk_idx}"$'\n'
@@ -330,7 +332,7 @@ prepare_content() {
     if [[ $(( current_tokens + chunk_tokens )) -le $max_tokens ]]; then
       output+="$chunk_content"$'\n'
       current_tokens=$(( current_tokens + chunk_tokens ))
-      ((included++))
+      ((included++)) || true   # (twenty-fifth run, b1 DISS-C-004: every counter here is errexit-neutral — from 0 a bare ((x++)) returns 1)
       (( priority > inc_low )) && inc_low=$priority
     else
       skipped_files+=("P${priority}: ${filepath}")

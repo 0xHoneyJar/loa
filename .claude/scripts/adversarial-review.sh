@@ -664,8 +664,16 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
   # dropped (twenty-fourth run, a1 DISS-C-001: a map, list or null element printed as YAML and split into hop tokens such as `{a:`,
   # `1}` or `null`) — the value is never echoed, only its index and tag
   local n i tg v out=""
-  n=$(yq eval ".flatline_protocol.${1}.companion_chain.${2} | select(tag == \"!!seq\") | length" "$CONFIG_FILE" 2>/dev/null || true)
-  [[ "$n" =~ ^[0-9]{1,3}$ ]] || return 0
+  # (an absent or non-list value is the default chain, said by the loader; a list read short is said here — twenty-fifth
+  # run, a1 DISS-C-003: over 999 entries, or a length yq could not report, fell back to the default with no line)
+  tg=$(yq eval ".flatline_protocol.${1}.companion_chain.${2} | tag" "$CONFIG_FILE" 2>/dev/null || true)
+  [[ "$tg" == "!!seq" ]] || return 0
+  n=$(yq eval ".flatline_protocol.${1}.companion_chain.${2} | length" "$CONFIG_FILE" 2>/dev/null || true)
+  if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+    log "WARN: flatline_protocol.${1}.companion_chain.${2} could not be read — the default ${2} chain applies"; return 0
+  elif [[ ! "$n" =~ ^[0-9]{1,3}$ ]]; then
+    log "WARN: flatline_protocol.${1}.companion_chain.${2} has ${n} entries (at most 999 are read) — the default ${2} chain applies"; return 0
+  fi
   for (( i = 0; i < n; i++ )); do
     tg=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i] | tag" "$CONFIG_FILE" 2>/dev/null || true)
     v=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i]" "$CONFIG_FILE" 2>/dev/null || true)
@@ -2359,7 +2367,8 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
     || log "WARN: flock is not installed — the run lock's stale-lock takeover runs unserialised (two takers of a dead run's lock may race)"
   dir="$lockdir/run-${key}.lock.d"; pidf="$dir/pid"
   local _mkerr=""
-  for _try in 1 2 3; do
+  # (twenty-fifth run, a2 C-001: a fourth round only makes the mkdir — a takeover or a release in round three frees the key for it)
+  for _try in 1 2 3 4; do
     if _mkerr=$(LC_ALL=C mkdir "$dir" 2>&1); then
       # (fifteenth run, a2 C-002: the owner is the acquiring BASHPID — a subshell of this run inherits $$ but never this;
       # sixteenth run, a2 C-001: the pid and its token are taken HERE — `$BASHPID` inside a $(...) is the substitution's
@@ -2373,6 +2382,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
     if [[ ! -d "$dir" && "$_mkerr" != *"File exists"* ]]; then
       _adv_run_lock_unguarded "the run lock $dir cannot be created: ${_mkerr##*: }"; return 0
     fi
+    (( _try == 4 )) && break
     # the verdict on the holder and the takeover itself are ONE critical section per key (eighteenth run, a2 C-001: rm + rmdir
     # let two takers each believe they held the key; the round-1s dry run then showed a taker that had judged the holder dead
     # from the OLD pid file renaming a LIVE lock re-created a moment earlier — so the decision and the rename are serialised
@@ -2525,7 +2535,9 @@ _adv_cli_lock_dir() { echo "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/loa-headless-loc
 _adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alias resolved (thirteenth run, a2 C-001 — every
                     # reader of a hop's CLI nature and bound goes through this, so `anthropic:claude-headless` IS claude-headless)
   local m="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" target
-  m="${m#anthropic:}"; m="${m#openai:}"; m="${m#google:}"
+  # (twenty-fifth run, a3 C-001: ANY provider prefix — `bedrock:`, `xai:` as well as the three companion families — so a prefixed
+  # and a bare spelling of one hop share one bound and one lock; a provider token has no dot, so a bedrock id's `-v1:0` stays)
+  [[ "$m" =~ ^[A-Za-z0-9_-]+:(.+)$ ]] && m="${BASH_REMATCH[1]}"
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
     target=$(yq eval ".aliases.\"$m\"" "$cat" 2>/dev/null); [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
   fi
@@ -2778,6 +2790,7 @@ _companion_deadline_why() {  # <workdir> <started> <wait cap> <post budget> <que
     post|done) budget=$post ;;
     queue)
       cur=$(cat "$wd/companion.current" 2>/dev/null || echo x-headless)
+      [[ -n "$cur" ]] || cur=x-headless   # (twenty-fifth run, a3 C-002: an empty file is the missing one's fallback bound — never the cache's initial key and a 0 s budget)
       if [[ "$cur" != "$_ADV_QB_HOP" ]]; then _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( $(_adv_num_or "$(_adv_cli_hop_bound "$cur")" 610) + 30 )); fi
       budget=$_ADV_QB_VAL ;;
     *) budget=$cap ;;
@@ -3121,19 +3134,31 @@ _adv_run_interruptible() {  # <out file> <command…> — `out=$(command)` as a 
                             # TERM only once a FOREGROUND command returns, so a hop in `$(…)` kept a signalled run alive for up to its
                             # whole bound (twenty-third run, a4 DISS-C-001); `wait` returns at once and the trap reaps the job's tree
   local _out="$1" _rc=0; shift
+  # (twenty-fifth run, a4 DISS-C-003: the job is the pid AND its start token, as the companion is — a pid freed by `wait` and
+  # reused before it is cleared is never signalled; a signal between the fork and the publish reaps the new $!, never an older job)
+  _ADV_PRIMARY_BANG="${!:-}"; _ADV_PRIMARY_FORKING=1
   ( "$@" || exit $? ) > "$_out" &   # (`||`: errexit stays off inside, as it was in the substitution)
-  _ADV_PRIMARY_PID=$!
+  _ADV_PRIMARY_PID=$!; _ADV_PRIMARY_FORKING=""
+  _ADV_PRIMARY_START=$(_adv_proc_start "$_ADV_PRIMARY_PID" 2>/dev/null) || _ADV_PRIMARY_START=""
   wait "$_ADV_PRIMARY_PID" || _rc=$?
-  _ADV_PRIMARY_PID=""
+  _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""
   return "$_rc"
 }
 _adv_reap_primary() {  # the job _adv_run_interruptible was waiting for when a signal ended the run: TERM, the grace, then KILL
+  if [[ -z "${_ADV_PRIMARY_PID:-}" && "${_ADV_PRIMARY_FORKING:-}" == "1" && -n "${!:-}" && "${!:-}" != "${_ADV_PRIMARY_BANG:-}" ]]; then
+    _ADV_PRIMARY_PID="$!"; _ADV_PRIMARY_START=""   # (forked, not yet published: $! is the new job)
+  fi
+  _ADV_PRIMARY_FORKING=""
   [[ -n "${_ADV_PRIMARY_PID:-}" ]] || return 0
-  local _p="$_ADV_PRIMARY_PID" _kt _e _pids="" _x _i _alive _grace
-  _adv_pid_alive "$_p" || { _ADV_PRIMARY_PID=""; return 0; }
+  local _p="$_ADV_PRIMARY_PID" _kt _e _pids="" _x _i _alive _grace _now_start=""
+  _adv_pid_alive "$_p" || { _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""; return 0; }
+  if [[ -n "${_ADV_PRIMARY_START:-}" ]]; then
+    _now_start=$(_adv_proc_start "$_p" 2>/dev/null) || _now_start=""
+    if [[ -n "$_now_start" && "$_now_start" != "$_ADV_PRIMARY_START" ]]; then _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""; return 0; fi   # (reused: not ours)
+  fi
   _grace=$(_conf_uint "LOA_ADVERSARIAL_REAP_GRACE_SECONDS" "${LOA_ADVERSARIAL_REAP_GRACE_SECONDS:-5}" 5 0) || _grace=5
   _kt=$(_adv_kill_tree "$_p" TERM tokens) || _kt="$_p="
-  _ADV_PRIMARY_PID=""   # (twenty-fourth run, a4 DISS-C-001: published until its tree is signalled — never cleared before)
+  _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""   # (twenty-fourth run, a4 DISS-C-001: published until its tree is signalled — never cleared before)
   for _e in $_kt; do [[ "${_e%%=*}" =~ ^[0-9]+$ ]] && _pids+="${_e%%=*} "; done
   for (( _i = 0; _i < _grace * 4; _i++ )); do
     _alive="false"
@@ -3160,6 +3185,10 @@ _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap th
   # (fourteenth run, a3 C-002: a walker that reached `done` had already written a complete answer — it is kept)
   [[ "$(cat "$1/companion.phase" 2>/dev/null)" == "done" ]] || command rm -f -- "$1/companion.result.json" 2>/dev/null
   return 0
+}
+_adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and the file-list reader parse: no external driver or textconv,
+                     # and none of the operator's presentation config — no colour, a/ b/ prefixes (twenty-fifth run, a4 DISS-C-002)
+  git -C "$1" diff --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ "$2" --
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
@@ -3239,7 +3268,7 @@ main() {
       || { error "--diff-range: expected <base>...<head> (ref names only)"; exit 2; }
     _ADV_RANGE_DIFF=$(mktemp "${TMPDIR:-/tmp}/adversarial-range-XXXXXX") || { error "cannot create a temp file under ${TMPDIR:-/tmp}"; exit 2; }
     trap 'command rm -f -- "$_ADV_RANGE_DIFF"' EXIT
-    git -C "$PROJECT_ROOT" diff --no-ext-diff --no-textconv "$diff_range" -- > "$_ADV_RANGE_DIFF" || { error "git diff $diff_range failed"; exit 2; }
+    _adv_range_diff "$PROJECT_ROOT" "$diff_range" > "$_ADV_RANGE_DIFF" || { error "git diff $diff_range failed"; exit 2; }
     diff_file="$_ADV_RANGE_DIFF"
   fi
   if [[ -z "$diff_file" ]]; then error "Missing --diff-file"; exit 2; fi
@@ -3529,7 +3558,10 @@ main() {
     if [[ -n "${companion_shared_hops:-}" && ",$companion_shared_hops," == *",$(_adv_hop_canon "$try_model"),"* && -n "${companion_workdir:-}" && -d "$companion_workdir" ]]; then
       _adv_companion_alive && log "Model $try_model is a hop the companion shares — the primary waits for the companion to settle before deciding"
       local _sh_verdict="" _sh_token="" _sh_reason=""
-      IFS=$'\t' read -r _sh_verdict _sh_token _sh_reason <<<"$(_adv_shared_hop_verdict "$try_model" "$companion_workdir" "$companion_started" "$companion_wait_cap" "$companion_post_budget" "$companion_q_allow")"
+      # (twenty-fifth run, a4 DISS-C-001: the wait — up to the wait cap — is an interruptible job like the hop itself: a TERM sent
+      # to main alone runs its trap at once, never after the wait returns)
+      _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/shared-hop.out" _adv_shared_hop_verdict "$try_model" "$companion_workdir" "$companion_started" "$companion_wait_cap" "$companion_post_budget" "$companion_q_allow" || true
+      IFS=$'\t' read -r _sh_verdict _sh_token _sh_reason < "$_ADVERSARIAL_WORKDIR/shared-hop.out" || true
       if [[ "$_sh_token" == "past_wait_cap" || "$_sh_token" == "post_budget_expired" ]]; then   # (a token, never prose — fifteenth run, a4 C-003; eighteenth run, a3: a post phase past its budget too)
         # fourteenth run, a3 C-002: a companion past the wait cap and still ON the hop is reaped HERE, and the primary
         # runs its last resort itself — skipping it and reaping afterwards left a run with no voice at all

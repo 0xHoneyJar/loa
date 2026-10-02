@@ -380,9 +380,18 @@ def test_report_gate_is_reset_around_every_test(request):
     from loa_cheval import types as _types
     assert "_reset_headless_timeout_gate" in request.fixturenames   # autouse: active in a test that never asked for it
     assert not _types._HEADLESS_TIMEOUT_REPORTED
+    # Run 25, c2e DISS-C-001: drive the fixture's own body, not a reset this test calls itself.
+    import os, sys
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "conftest.py")
+    loaded = [m for m in list(sys.modules.values()) if os.path.abspath(getattr(m, "__file__", None) or "") == here]
+    assert len(loaded) == 1                        # the conftest pytest loaded, not a second copy
+    gate = loaded[0]._reset_gate_around()
+    _types.report_headless_timeout_once(("gate-leak/x: ", 900), "seeded %s", "here")
+    next(gate)                                     # the fixture's set-up half
+    assert not _types._HEADLESS_TIMEOUT_REPORTED
     _types.report_headless_timeout_once(("gate-leak/x: ", 900), "seeded %s", "here")
     assert ("gate-leak/x: ", 900) in _types._HEADLESS_TIMEOUT_REPORTED
-    _types.reset_headless_timeout_reports()   # the fixture's reset path
+    assert next(gate, "done") == "done"            # the fixture's tear-down half
     assert not _types._HEADLESS_TIMEOUT_REPORTED
 
 
@@ -403,3 +412,15 @@ def test_loader_note_uses_the_adapter_read_floor():
                                             "models": {"m": {"kind": "cli", "headless_timeout_seconds": 800}}}}}
     pc = cheval._build_provider_config("anthropic", hounfour)
     assert pc.models["m"].headless_timeout_note == "catalog headless_timeout_seconds 800 at or below the 900s read floor: the floor applies"
+
+
+def test_loader_note_floor_is_the_read_timeout_the_config_carries():
+    """Run 25, d DISS-C-001: the note's floor is read from the one bound value the ProviderConfig carries — an absent
+    read_timeout (each side's own default) or any override can never give the note a floor the adapter does not use."""
+    import cheval
+    from loa_cheval.types import headless_read_floor, headless_timeout_note
+    for extra in ({}, {"read_timeout": "900"}, {"read_timeout": 0}, {"read_timeout": 750.5}):
+        prov = {"type": "anthropic", "endpoint": "", "auth": "", **extra,
+                "models": {"m": {"kind": "cli", "headless_timeout_seconds": 50}}}
+        pc = cheval._build_provider_config("anthropic", {"providers": {"anthropic": prov}})
+        assert pc.models["m"].headless_timeout_note == headless_timeout_note(50, 50, 50, floor=headless_read_floor(pc.read_timeout))

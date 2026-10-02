@@ -212,6 +212,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         # verdicts; thirteenth run, b C-001 / C-002); one jq read — a snapshot, never four
         # reads of a file a running dissent may be rewriting (b C-003); a non-string entry of rejected_sidecars is
         # carried out tagged, never used as a name (b C-004)
+        # (twenty-fifth run, b1 DISS-C-001 / DISS-C-002: every binding is total — a fallback record's displaced that is null or absent
+        # binds null, never the empty stream that printed nothing; rejected_sidecars is read on presence, so `false` is a boolean)
         _snap=$(jq -r '
             (if .metadata == null then "legacy"
              elif (.metadata | type) != "object" then "metadata:" + (.metadata | type)
@@ -220,9 +222,9 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
              elif .metadata.rejected_summary == null then "array" else (.metadata.rejected_summary | type) end) as $kind
             | (if ($kind | startswith("metadata:")) then {} else (.metadata // {}) end) as $md
             | ((($md.rejected_summary // []) | if type == "array" then length else 0 end)) as $n
-            | (if $kind == "legacy" then null else ($md.rejected_sidecars // null) end) as $rs
+            | (if $kind == "legacy" or ($md | has("rejected_sidecars") | not) then null else $md.rejected_sidecars end) as $rs
             | (($rs | type) == "array") as $has_list
-            | (if $md.recorded_by? == "record-fallback" then ($md.displaced? | objects) else null end) as $dp
+            | (if $md.recorded_by? == "record-fallback" and ($md.displaced? | type) == "object" then $md.displaced else null end) as $dp
             | ([$kind, ($n | tostring), (if $has_list or $rs == null then ($has_list | tostring) else "type:" + ($rs | type) end),
                 (($dp.findings? // 0) | if type == "number" then tostring else "0" end),
                 (($dp.status? // "-") | tostring), (($dp.timestamp? // "-") | tostring)] | @tsv),

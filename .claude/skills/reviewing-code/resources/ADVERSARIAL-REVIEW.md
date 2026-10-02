@@ -6,16 +6,12 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
 **Objective**: Invoke a cross-model dissenter to catch reviewer blind spots before the final decision.
 
 **Steps**:
-1. Invoke adversarial review (`--diff-range`: the script runs the `git diff` itself):
+1. Invoke adversarial review as the bare call the allowlist grants (`--diff-range`: the script runs the `git diff` itself):
    ```bash
-   findings=$(.claude/scripts/adversarial-review.sh \
-     --type review \
-     --sprint-id "$sprint_id" \
-     --diff-range main...HEAD \
-     --context-file "$reviewer_concerns_file" \
-     --json)
+   .claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" \
+     --diff-range main...HEAD --context-file "$reviewer_concerns_file" --json
    ```
-2. Parse findings:
+2. Read `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` (Read tool) and parse its findings:
    - If `findings` array is empty or invocation failed: log and continue to Phase 3
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
@@ -26,7 +22,16 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
 .claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" --record-fallback failed --reason "<what happened>"
 ```
 
-before proceeding. It writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock — a run that still holds it (a detached or backgrounded one) gets `refused_concurrent_run`, exit 2: wait until it has exited (an envelope it left is the record) — and never over an envelope that stands (exit 2), unless the run died before its lock with no status on stdout: what stands is then the previous round's — add `--since <the time on the run's "run started" stderr line>` and an envelope older than that goes aside as `.prev`. The record names what it moved aside (`metadata.displaced`: status, timestamp, findings, rejected); `verdict-derive.sh` warns when that held findings. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited — an envelope that then stands with a `metadata.timestamp` after your refusal is that run's, this round's dissent: triage it; run again only when none stands; on any other, record it — `--record-fallback <the status> --reason "<its stdout line>"` moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes — so `verdict-derive.sh` judges this round's record, not the last round's. Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
+before proceeding. Branch on the `status` line the script prints on stdout, never on exit 2 alone (exit 2 with no status line is a usage error, or a standing envelope that stderr names):
+
+- **An envelope stands after a run that took the run lock** — it is the script's own: triage it; never overwrite it.
+- **`failed`** (no envelope: the run aborted) — the call above writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock. It never writes over an envelope that stands (exit 2), unless the run died before its lock with no status on stdout: what stands is then the previous round's — add `--since <the time on the run's "run started" stderr line>` and an envelope older than that goes aside as `.prev`.
+- **`refused_concurrent_run`** (another run — a detached or backgrounded one — holds the run lock; nothing recorded, nothing moved; a `--record-fallback` made meanwhile is refused the same way) — wait until the holding run has exited: an envelope that then stands with a `metadata.timestamp` after your refusal is that run's, this round's dissent: triage it; run again only when none stands.
+- **`workdir_unavailable`, `nothing_to_review`, `budget_exceeded`** (written BEFORE the run lock; non-zero exit, stdout only; nothing moved aside, so any envelope at the path is the PREVIOUS run's and never this round's evidence) — record it: `--record-fallback <the status> --reason "<its stdout line>"` moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes, so `verdict-derive.sh` judges this round's record, not the last round's.
+
+A record names what it moved aside (`metadata.displaced`: status, timestamp, findings, rejected); `verdict-derive.sh` warns when that held findings. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which a fallback record clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`.
+
+Do NOT silently skip — the gate hook has no way to distinguish "not attempted" from "attempted and failed", and the distinction matters for audit trail.
 
 **Parameter Derivation**:
 | Script Parameter | SKILL Derivation |
@@ -80,7 +85,7 @@ and marks the trailer INCONSISTENT (exit 1) when the section is missing. Reading
 `repair_attempted` / `repair_succeeded` whether the bounded repair round-trip ran.
 
 **Round-1 hardening (sprint-248 review, sixteen live two-voice runs).** One list, by envelope field; both skills' copies of
-this block are generated from the same text.
+this block are kept byte-identical (CMP-138 fails on any drift).
 
 - **Two voices, one envelope.** The companion runs in its own sub-workdir with a log and its own copies of the prompt files.
   The envelope's `cost_usd` / tokens are BOTH voices; the per-voice spend stays under `companion_voice.cost_cents`, and

@@ -27,11 +27,16 @@ def _isolate_ledgers(monkeypatch, tmp_path):
         monkeypatch.setenv(var, str(tmp_path / basename))
 
 
-@pytest.fixture(autouse=True)
-def _reset_headless_timeout_gate():
-    """The once-per-process headless_timeout_seconds report gate is module state: reset it around every test,
-    so a key one test seeds never silences a warning another test asserts (run 23, c2e DISS-C-001)."""
+def _reset_gate_around():
+    """The fixture's body, a plain generator so a test can drive both halves (run 25, c2e DISS-C-001)."""
     from loa_cheval.types import reset_headless_timeout_reports
     reset_headless_timeout_reports()
     yield
     reset_headless_timeout_reports()
+
+
+@pytest.fixture(autouse=True)
+def _reset_headless_timeout_gate():
+    """The once-per-process headless_timeout_seconds report gate is module state: reset it around every test,
+    so a key one test seeds never silences a warning another test asserts (run 23, c2e DISS-C-001)."""
+    yield from _reset_gate_around()

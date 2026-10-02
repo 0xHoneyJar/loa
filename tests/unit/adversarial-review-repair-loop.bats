@@ -28,6 +28,18 @@
 # sourcing wins over the real implementation.
 # =============================================================================
 
+_scrub_cred_aliases() {  # unset every credential alias the probe recognises, from the script's own table; a missing or empty table fails setup rather than scrubbing nothing (twenty-fifth run, c2e DISS-C-002)
+    local p v
+    local -a names=() row
+    declare -F _adv_cred_aliases >/dev/null || { echo "setup: _adv_cred_aliases is not loaded — the credential scrub would be a no-op" >&2; return 1; }
+    for p in anthropic openai google; do
+        read -ra row <<<"$(_adv_cred_aliases "$p")"
+        [ "${#row[@]}" -gt 0 ] || { echo "setup: _adv_cred_aliases printed no alias for $p — the credential scrub would miss it" >&2; return 1; }
+        names+=("${row[@]}")
+    done
+    for v in "${names[@]}"; do unset "$v"; done
+}
+
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -69,7 +81,7 @@ setup() {
     # hermetic like the normalise and companion suites (twenty-first run, c2e C-002): no credential alias, an empty dotenv
     # seam, no CLI binary "installed" and a private lock directory — the repair chain is the answering voice alone on any
     # host, so no case charges or queues behind a real hop (the KF-037 contention class)
-    unset $(_adv_cred_aliases anthropic) $(_adv_cred_aliases openai) $(_adv_cred_aliases google)
+    _scrub_cred_aliases || return 1
     unset LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS _ADV_REPAIR_DEAD_HOPS LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     export LOA_ADVERSARIAL_CLI_PROBE=none

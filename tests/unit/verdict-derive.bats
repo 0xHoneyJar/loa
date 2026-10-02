@@ -295,8 +295,11 @@ _vd_approved_review() {  # <file> [with_section]
         echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
     } > "$1"
 }
-_vd_envelope() {  # <file> <rejected_summary json array>
-    jq -n --argjson rs "$2" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: $rs}}' > "$1"
+_vd_envelope() {  # <file> <rejected_summary json array> [type — default: audit for an adversarial-audit*.json, else review]
+    # (an audit leg's envelope declares the audit type — never an inconsistent fixture verdict-derive happens not to compare:
+    # twenty-fifth run, c2c DISS-C-001)
+    local ty="${3:-review}"; [[ -z "${3:-}" && "${1##*/}" == adversarial-audit* ]] && ty=audit
+    jq -n --argjson rs "$2" --arg ty "$ty" '{findings: [], metadata: {type: $ty, model: "m", status: "reviewed", rejected_summary: $rs}}' > "$1"
 }
 
 @test "verdict-derive: a non-empty rejected_summary in the sibling envelope without a '## Rejected dissent payloads' section is INCONSISTENT (exit 1) with the repair text" {
@@ -587,7 +590,9 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     echo "$output" | jq -e '.consistent == false and (.violations | length) == 1 and (.violations[0] | test("holds 1 top-level triage line.*4 rejected payload"))' >/dev/null
     echo "$output" | jq -e '.warnings | length == 1 and (.[0] | test("companion.jsonl.*not listed.*never folded.*rows are counted"))' >/dev/null
     # the printed repair is real (eleventh run, b DISS-C-001): a bullet per row clears it — consistent, the warning stays
-    { echo "All good"; echo; echo "## Rejected dissent payloads"; echo
+    # (the siblings' prose verdict marker too — the leg exercises the same prose/trailer path: twenty-fifth run, c2c DISS-C-002)
+    { echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+      echo "## Rejected dissent payloads"; echo
       echo "- DISS-x (MEDIUM, x.sh:12) — triaged: not a defect (the guard exists two lines up)."
       for i in 1 2 3; do echo "- stale $i — not a defect."; done; echo
       echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'; } > "$d/engineer-feedback.md"
@@ -603,7 +608,11 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-companion.jsonl"
     _vd_approved_review "$d/engineer-feedback.md" yes
     # without the field the glob counts every file (4 rows > 1 bullet) — and no file is "unlisted"
-    jq '.metadata |= del(.rejected_sidecars)' "$d/adversarial-review.json" > "$d/x.json" && mv "$d/x.json" "$d/adversarial-review.json"
+    # (two statements and the result pinned, as s13 — a failed rewrite in an `&&` list is exempt from errexit: twenty-fifth run,
+    # c2c DISS-C-003)
+    jq '.metadata |= del(.rejected_sidecars)' "$d/adversarial-review.json" > "$d/x.json"
+    mv "$d/x.json" "$d/adversarial-review.json"
+    jq -e '.metadata | has("rejected_sidecars") | not' "$d/adversarial-review.json" >/dev/null
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations[0] | test("4 rejected payload")) and (.warnings | length) == 0' >/dev/null
@@ -999,16 +1008,19 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     # a script that opened the FIFO would block forever: a writer opens it after 20 s, so such a regression fails (EOF, not
     # "not a regular file") instead of wedging the suite — portable, no timeout(1) on macOS (run 23, c2d DISS-C-001)
     # (twenty-fourth run, c2d DISS-C-001: the deadline is on the READER — a one-shot writer bounded only a single open; a watchdog
-    # kills the script after 15 s whatever it blocks on (143, never 1), and its TERM trap takes its own sleep with it)
+    # kills the script after 15 s whatever it blocks on (and says so in a marker), and its TERM trap takes its own sleep with it)
     "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json >"$d/fifo-out" 2>/dev/null 3>&- & local reader=$!
-    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; kill "$reader" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
+    # (twenty-fifth run, c2d DISS-C-001: the watchdog ends the reader's children first — a child blocked in open() on the FIFO
+    # would outlive a TERM to its parent, reparented and blocked for good — and the FIFO goes on both paths)
+    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; pkill -TERM -P "$reader" 2>/dev/null; kill "$reader" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true
     output=$(cat "$d/fifo-out")
-    [ "$status" -ne 143 ] || { echo "verdict-derive blocked on the FIFO sibling envelope"; return 1; }
+    rm -f "$d/adversarial-review.json"
+    # (the deadline is read from the watchdog's own marker: a reader whose blocked child was ended may exit with any status)
+    [ ! -e "$d/fifo-expired" ] || { echo "verdict-derive blocked on the FIFO sibling envelope (status $status)"; return 1; }
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.violations | any(test("not a regular file"))' >/dev/null
-    rm -f "$d/adversarial-review.json"
     ln -s "$d/nowhere.json" "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
@@ -1027,7 +1039,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     _vd_approved_review "$d/engineer-feedback.md" yes
     printf '{"reject_reason":"a"}\n' > "$d/adversarial-rejected-review.jsonl"
     local rs ty
-    for rs in '"adversarial-rejected-review.jsonl"' '{"a": 1}' '7'; do
+    for rs in '"adversarial-rejected-review.jsonl"' '{"a": 1}' '7' 'false'; do   # (twenty-fifth run, b1 DISS-C-002: false is a boolean, never absent)
         ty=$(jq -rn --argjson v "$rs" '$v | type')
         jq -n --argjson v "$rs" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: $v}}' > "$d/adversarial-review.json"
         run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
@@ -1043,4 +1055,21 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: null}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
+}
+
+@test "verdict-derive: a --record-fallback record that displaced nothing — metadata.displaced null, absent, or not an object — is read like any other envelope, never as unparseable (twenty-fifth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s29"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md"
+    local dp
+    for dp in null absent '"x"' '[1]'; do
+        if [[ "$dp" == absent ]]; then
+            jq -n '{findings: [], metadata: {type: "review", status: "nothing_to_review", recorded_by: "record-fallback", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+        else
+            jq -n --argjson v "$dp" '{findings: [], metadata: {type: "review", status: "nothing_to_review", recorded_by: "record-fallback", displaced: $v, rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
+        fi
+        run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+        if echo "$output" | jq -e '.violations | any(test("not parseable"))' >/dev/null; then echo "displaced $dp: read as unparseable"; return 1; fi
+        [ "$status" -eq 0 ] || { echo "displaced $dp: $output"; return 1; }
+    done
 }

@@ -10,6 +10,18 @@
 # Source-based harness (the pattern of adversarial-review-schema-enforced.bats).
 # =============================================================================
 
+_scrub_cred_aliases() {  # unset every credential alias the probe recognises, from the script's own table; a missing or empty table fails setup rather than scrubbing nothing (twenty-fifth run, c2e DISS-C-002)
+    local p v
+    local -a names=() row
+    declare -F _adv_cred_aliases >/dev/null || { echo "setup: _adv_cred_aliases is not loaded — the credential scrub would be a no-op" >&2; return 1; }
+    for p in anthropic openai google; do
+        read -ra row <<<"$(_adv_cred_aliases "$p")"
+        [ "${#row[@]}" -gt 0 ] || { echo "setup: _adv_cred_aliases printed no alias for $p — the credential scrub would miss it" >&2; return 1; }
+        names+=("${row[@]}")
+    done
+    for v in "${names[@]}"; do unset "$v"; done
+}
+
 setup() {
     # the sprint id comes FIRST: teardown runs on any setup failure, and a delete target derived from
     # an unset id would be the a2a root (fourth run, chunk c C-001)
@@ -17,6 +29,7 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && : > "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"   # this suite's own: the stale sweep deletes only marked dirs
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
     TEST_DIR="${BATS_TEST_TMPDIR:-}"; NORM_OWN_TMP=""
@@ -49,33 +62,54 @@ setup() {
     # the normaliser must make the repair unnecessary: a stub that records the call and fails
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
     # every credential alias the probe recognises, from the script's own table (twenty-first run, c2a C-001; as the companion suite)
-    unset $(_adv_cred_aliases anthropic) $(_adv_cred_aliases openai) $(_adv_cred_aliases google)
+    _scrub_cred_aliases || return 1
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI binaries "installed" unless a case says otherwise (the repair chain gates on it)
+}
+
+# A directory an earlier, killed run of this suite left behind never accumulates (twenty-second run, c2a C-002) — and only a
+# directory this suite MARKED as its own is ever deleted: setup writes `<a2a>/.<prefix>-<pid>.owner`, so a real sprint that
+# happens to be named <prefix>-<n> is never touched (twenty-fifth run, c1a DISS-C-001). An owner is dead only when no probe
+# sees it — `kill -0` also fails with EPERM for a LIVE process of another uid (twenty-fourth run, c1a DISS-C-001). The
+# rename claims a directory, so concurrent teardowns never race one delete (twenty-fourth run, c2a DISS-C-001); a `.reap-<q>`
+# a dead sweeper left is finished here, and the marker goes with its owner's last directory.
+_sweep_alive() { kill -0 "$1" 2>/dev/null || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]; }
+_sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
+    local a2a="$1" pre="$2" m p d q left
+    for m in "$a2a"/."$pre"-[0-9]*.owner; do
+        [[ -f "$m" && ! -L "$m" ]] || continue
+        p=${m##*/."$pre"-}; p=${p%.owner}
+        [[ "$p" =~ ^[0-9]+$ ]] || continue
+        _sweep_alive "$p" && continue
+        left=0
+        for d in "$a2a/$pre-$p" "$a2a/$pre-$p"-* "$a2a/$pre-$p".reap-*; do
+            [[ -e "$d" || -L "$d" ]] || continue
+            [[ -d "$d" && ! -L "$d" ]] || { left=1; continue; }
+            if [[ "$d" == *.reap-* ]]; then
+                q=${d##*.reap-}
+                if [[ ! "$q" =~ ^[0-9]+$ ]] || { [[ "$q" != "$$" ]] && _sweep_alive "$q"; }; then left=1; continue; fi
+            else
+                mv -- "$d" "$d.reap-$$" 2>/dev/null || { left=1; continue; }
+                d="$d.reap-$$"
+            fi
+            find "$d" -mindepth 1 -delete 2>/dev/null || true
+            rmdir "$d" 2>/dev/null || left=1
+        done
+        (( left )) || rm -f -- "$m"
+    done
+    return 0
 }
 teardown() {
     local d p
     for p in ${NORM_HOLDER_PIDS[@]+"${NORM_HOLDER_PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
     if [[ -n "${NORM_OWN_TMP:-}" && -d "$NORM_OWN_TMP" && "$(basename "$NORM_OWN_TMP")" == tmp.* ]]; then find "$NORM_OWN_TMP" -mindepth 1 -delete; rmdir "$NORM_OWN_TMP"; fi
-    # a directory an earlier, killed run of this suite left behind (its pid is dead) never accumulates (twenty-second run, c2a C-002)
-    for d in "$PROJECT_ROOT"/grimoires/loa/a2a/sprint-norm-[0-9]*; do
-        [[ "$d" == */a2a/sprint-norm-[0-9]* && -d "$d" && ! -L "$d" ]] || continue
-        p=${d##*/sprint-norm-}; p=${p%%-*}
-        [[ "$p" =~ ^[0-9]+$ ]] || continue
-        # (twenty-fourth run, c1a DISS-C-001: `kill -0` also fails with EPERM for a LIVE process of another uid — dead only when
-        # no probe sees it: kill, ps, /proc)
-        if ! kill -0 "$p" 2>/dev/null && ! ps -p "$p" >/dev/null 2>&1 && [[ ! -d "/proc/$p" ]]; then
-            # (twenty-fourth run, c2a DISS-C-001: concurrent teardowns may pick the same stale dir — the rename claims it, so one
-            # sweeper deletes and the losers move on, never an ENOENT that fails a passing test under errexit)
-            mv -- "$d" "$d.reap-$$" 2>/dev/null || continue
-            find "$d.reap-$$" -mindepth 1 -delete 2>/dev/null || true; rmdir "$d.reap-$$" 2>/dev/null || true
-        fi
-    done
+    _sweep_stale_suite_dirs "$PROJECT_ROOT"/grimoires/loa/a2a sprint-norm
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
         [[ "$d" == */a2a/sprint-norm-* ]] || continue
         if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
     done
+    rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
 }
 _fake_repair_clock() {  # the repair budget reads _adv_repair_now: a file this test advances, never the wall clock (run 23, c2b DISS-C-001)
     echo 1000 > "$TEST_DIR/clock"
@@ -256,9 +290,16 @@ _fixture_content() {  # all three fixtures as one findings document
     # per-user directories a live dissent writes to concurrently (twentieth run, c2a C-002; twenty-second run, c2a C-001)
     local uid; uid=$(id -u)
     [ "$(_adv_cli_lock_dir)" = "$TEST_DIR/loa-headless-locks-$uid" ]
-    # one resolver in the CODE: comment text is stripped first, so prose naming the directory never reds a correct change (twenty-third
-    # run, c2a DISS-C-003); a path assembled from pieces is beyond a static count — the CLI hop's lock below is the behavioural proof
-    [ "$(sed -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#[^"'"'"']*$//' "$ADVERSARIAL_REVIEW" | grep -c 'loa-headless-locks')" = "1" ]
+    # one resolver in the CODE: counted over bash's own reprint of the script's functions (`declare -f` in a clean shell: no
+    # comments, whatever quotes they hold — twenty-fifth run, c2a DISS-C-002; prose never reds a correct change, twenty-third
+    # run, c2a DISS-C-003); a path assembled from pieces, or one at top level, is beyond a static count — the CLI hop's lock
+    # below is the behavioural proof
+    cat > "$TEST_DIR/df.sh" <<'DF'
+source "$1/.claude/scripts/lib-content.sh"; source "$1/.claude/scripts/compat-lib.sh"
+eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled/' "$2")"
+declare -f
+DF
+    [ "$(PROJECT_ROOT="$PROJECT_ROOT" bash "$TEST_DIR/df.sh" "$PROJECT_ROOT" "$ADVERSARIAL_REVIEW" 2>/dev/null | grep -c 'loa-headless-locks')" = "1" ]
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ]
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ]
@@ -552,8 +593,17 @@ _fixture_content() {  # all three fixtures as one findings document
     jq -e '.metadata.repair_hops_skipped | index("tiny:over_budget") != null' <<<"$result" >/dev/null
     grep -q "Repair hop claude-headless needs up to .*s and .*s of the repair budget remain — not started" "$TEST_DIR/repair-err"
     grep -q "Repair budget: 6s of 6s used — payload" "$TEST_DIR/repair-err"
-    # every repair-budget clock read goes through the seam — a raw `date +%s` in process_findings is the wall clock again
-    [ "$(declare -f process_findings | grep -c 'date +%s')" = "0" ]
+    # every repair-budget clock read goes through the seam — a raw clock in process_findings, or in any function it calls,
+    # is the wall clock again: every spelling (`date +%s`, `date '+%s'`, $EPOCHSECONDS / $EPOCHREALTIME, `printf '%(%s)T'`,
+    # $SECONDS), only the seam itself excepted (twenty-fifth run, c2b DISS-C-001)
+    local f fns="" clk
+    for f in $(declare -f process_findings | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | sort -u); do declare -F "$f" >/dev/null 2>&1 && fns+="$f "; done
+    [[ " $fns" == *" _adv_hop_charge "* && " $fns" == *" _adv_repair_now "* ]]   # (the callee scan sees the budget helpers)
+    for f in $fns; do
+        [[ "$f" == _adv_repair_now ]] && continue
+        clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|date[^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
+        [ "$clk" = "0" ] || { echo "$f reads the wall clock ($clk) outside the _adv_repair_now seam"; return 1; }
+    done
     # (the clock stays the test's for the rest of this case: none of the blocks below spends time)
     # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2, or one full CLI repair plus a timeout if that is more
     # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
@@ -874,4 +924,35 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq '[.findings[].id] | unique | length' <<<"$result")" = "2" ]
     [ "$(jq '[.findings[].id_derived] | all' <<<"$result")" = "true" ]
     [ "$(grep -c "companion's DISS-C- namespace" "$TEST_DIR/pf.err")" = "2" ]
+}
+
+@test "NRM-38 the stale-directory sweep deletes only marked sprint-norm-<dead pid> directories, and setup marks its own (twenty-fifth run, c1a DISS-C-001)" {
+    local a="$TEST_DIR/a2a" d1 d2
+    ( : ) & d1=$!; wait "$d1"
+    ( : ) & d2=$!; wait "$d2"
+    mkdir -p "$a/sprint-norm-$d1" "$a/sprint-norm-$d2/x" "$a/sprint-norm-$d2.reap-$d1"
+    : > "$a/.sprint-norm-$d2.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$d1" ]
+    [ ! -e "$a/sprint-norm-$d2" ]
+    [ ! -e "$a/sprint-norm-$d2.reap-$d1" ]
+    [ ! -e "$a/.sprint-norm-$d2.owner" ]
+    [ -f "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner" ]
+}
+
+@test "NRM-39 the credential scrub fails setup when the alias table is missing or empty, never a silent no-op, and all three suites share it (twenty-fifth run, c2e DISS-C-002)" {
+    local s body
+    run bash -c "$(declare -f _scrub_cred_aliases); unset -f _adv_cred_aliases; _scrub_cred_aliases"
+    [ "$status" -ne 0 ]; [[ "$output" == *"_adv_cred_aliases"* ]]
+    run bash -c "$(declare -f _scrub_cred_aliases); _adv_cred_aliases() { echo ''; }; _scrub_cred_aliases"
+    [ "$status" -ne 0 ]; [[ "$output" == *"no alias"* ]]
+    run env OPENAI_API_KEY=x GEMINI_API_KEY=y bash -c "$(declare -f _scrub_cred_aliases _adv_cred_aliases); _scrub_cred_aliases && echo \"[\${OPENAI_API_KEY-unset}][\${GEMINI_API_KEY-unset}]\""
+    [ "$status" -eq 0 ]; [ "$output" = "[unset][unset]" ]
+    body=$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-normalise.bats")
+    [ -n "$body" ]
+    for s in companion repair-loop; do
+        [ "$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats")" = "$body" ]
+        grep -q '^    _scrub_cred_aliases || return 1$' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"
+        ! grep -qF 'unset $(_adv_cred_aliases' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"
+    done
 }

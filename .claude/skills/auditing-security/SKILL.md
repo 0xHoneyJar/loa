@@ -3,7 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *)
 # Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -17,8 +17,6 @@ capabilities:
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
       - command: ".claude/scripts/adversarial-review.sh"
-        args: ["*"]
-      - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
