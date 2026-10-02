@@ -183,7 +183,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         enforce_context_window(request, model_config)
 
         prompt = self._build_prompt(request.messages)
-        timeout_s = self._compute_timeout()
+        timeout_s = self._compute_timeout(model_config)   # the hop's catalog bound (twenty-first run, d C-001)
         # Per-model headless concurrency slots (peer pattern). Default 50 when
         # the operator hasn't seeded a stress-test-discovered value.
         n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50

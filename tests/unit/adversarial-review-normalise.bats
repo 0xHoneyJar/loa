@@ -43,7 +43,8 @@ setup() {
     export XDG_RUNTIME_DIR="$TEST_DIR"
     # the normaliser must make the repair unnecessary: a stub that records the call and fails
     _repair_finding_via_model() { : > "$REPAIR_CANARY"; return 1; }
-    unset ANTHROPIC_API_KEY OPENAI_API_KEY LOA_ADVERSARIAL_REPAIR_MODEL
+    # every credential alias the probe recognises, from the script's own table (twenty-first run, c2a C-001; as the companion suite)
+    unset $(_adv_cred_aliases anthropic) $(_adv_cred_aliases openai) $(_adv_cred_aliases google) LOA_ADVERSARIAL_REPAIR_MODEL
     unset LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG LOA_ADVERSARIAL_ENV_DIR LOA_ADVERSARIAL_NO_FM_DERIVATION   # (seventh run, c2 C-005)
     # …and every other knob the script reads (thirteenth run, c2 C-004): hermetic like the companion suite; the dotenv
     # seam points at an empty directory unless a case says otherwise
@@ -208,7 +209,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$status" -eq 0 ]
     [[ "$output" != *"env-secret-value-123"* ]]
     # the inverse under the same prelude: no variable, no dotenv — absent, so the branch is proven both ways
-    run env -u ANTHROPIC_API_KEY -u CLAUDE_API_KEY bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    run env $(printf -- '-u %s ' $(_adv_cred_aliases anthropic)) bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 1 ]
 }
 
@@ -303,7 +304,7 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '.findings[2].failure_mode' <<<"$result")" = "A real first sentence that is long enough." ]
 }
 
-@test "NRM-15 the collision guard reads the highest explicit id, not the finding count: a derived id colliding with an explicit one takes max(explicit) + 1 (ninth run, a1 C-002 — the jq `?` that zeroed it)" {
+@test "NRM-15 the collision guard reads the highest explicit id, not the finding count: a derived id colliding with an explicit one takes max(explicit) + 1 (ninth run, a1 C-002 — the jq "?" that zeroed it)" {
     doc='{"findings":[{"id":"DISS-009","severity":"MEDIUM","category":"config","description":"Nine.","failure_mode":"s"},{"severity":"LOW","category":"other","description":"No id, positional DISS-002 collides."},{"id":"DISS-002","severity":"LOW","category":"other","description":"Two.","failure_mode":"s"}]}'
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
     [ "$(jq '.findings | length' <<<"$result")" = "3" ]
@@ -405,10 +406,14 @@ _fixture_content() {  # all three fixtures as one findings document
     ( LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag >/dev/null; _adv_run_tag >/dev/null ) 2>"$TEST_DIR/tag-err2"
     [ "$(grep -c "is not" "$TEST_DIR/tag-err2")" = "1" ]
     # end to end: the sidecar a rejecting run writes carries the hashed tag, never the stripped one
+    # (hermetic on its own, twenty-first run c2b C-002: a failing repair stub and an empty dotenv seam — never setup's alone)
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"; : > "$TEST_DIR/repair-calls"
     doc='{"findings":[{"title":"no severity","category":"other","description":"Something fails."}]}'
     LOA_ADVERSARIAL_RUN_TAG="c.1" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" >/dev/null 2>&1 || true
     [ -f "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit-$a.jsonl" ]
     [ ! -e "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT/adversarial-rejected-audit-c1.jsonl" ]
+    [ -s "$TEST_DIR/repair-calls" ]   # the repair ran through this test's stub, not a real hop
 }
 
 @test "NRM-20 an explicit auth (4) or quota (6) exit code retires a repair hop for the run's remaining repairs; exit 1 (unavailable, or a CLI-hop timeout reported as such), a lock timeout, no exit code or an unusable reply retires nothing; the answering voice never is (eleventh run a1 C-003; twelfth run a1 C-001)" {
@@ -673,19 +678,20 @@ _fixture_content() {  # all three fixtures as one findings document
     mkdir -m 700 "$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)"
     exec 8>>"$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)/claude.lock"; flock 8   # another claude -p holds the binary's lock
     doc='{"findings":[{"title":"one","category":"other","description":"No severity."},{"title":"two","category":"other","description":"No severity."}]}'
-    # the budget is the hop's bound plus one second: the first payload's hop is admitted (at most one whole second spent before
-    # it — the twentieth-run dry run under load: a budget of exactly the bound pre-empted it as soon as one second boundary had
-    # passed), waits 2 s for the lock and never runs; the second payload finds less than the bound left (a 2 s wait always
-    # crosses two whole-second boundaries) — with the fix its estimate is still the bound, so the hop is pre-empted and named;
+    # the budget is the hop's bound plus two seconds: the first payload's hop is admitted with up to two whole seconds spent
+    # before it (the twentieth-run dry run under load: a budget of exactly the bound pre-empted it as soon as one second boundary
+    # had passed; twenty-first run, c2b C-001: plus one left about one real second of margin), waits 4 s for the lock and never
+    # runs; the second payload finds less than the bound left (a 4 s wait crosses at least four whole-second boundaries, more
+    # than the two of margin) — with the fix its estimate is still the bound, so the hop is pre-empted and named;
     # a noted lock wait would have made it a few seconds and queued the hop behind the lock again
     bound=$(_adv_cli_hop_bound claude-headless); [ "$bound" -gt 60 ]
-    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=2   # (a two-second lock wait always crosses a second boundary — the budget guard measures whole seconds)
-    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 1 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=4   # (a four-second lock wait outlasts the two seconds of margin — the budget guard measures whole seconds)
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS="$(( bound + 2 ))" process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
     CONF_TIMEOUT=60
     flock -u 8; exec 8>&-
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "m m " ]   # the CLI hop never ran for either payload
-    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 2s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
+    [ "$(grep -c "Repair hop claude-headless never ran (its CLI lock was not acquired within 4s) — no duration noted" "$TEST_DIR/repair-err")" = "1" ]
     jq -e '.metadata.repair_hops_skipped | index("claude-headless:over_budget") != null' <<<"$result" >/dev/null
 }
 
@@ -735,4 +741,16 @@ _fixture_content() {  # all three fixtures as one findings document
     [ -f "$TEST_DIR/after" ]
     [ ! -s "$TEST_DIR/summary" ]
     [ "$(_adv_error_summary "boom RATE_LIMITED HTTP 429")" = "RATE_LIMITED HTTP 429" ]
+}
+
+@test "NRM-30 setup is keyless for every alias the probe recognises — the alias table, not a hand-kept list (twenty-first run, c2a C-001)" {
+    local p v
+    for p in anthropic openai google; do
+        for v in $(_adv_cred_aliases "$p"); do
+            run printenv "$v"
+            [ "$status" -ne 0 ]
+        done
+        run _adv_cred_present "$p"
+        [ "$status" -eq 1 ]
+    done
 }

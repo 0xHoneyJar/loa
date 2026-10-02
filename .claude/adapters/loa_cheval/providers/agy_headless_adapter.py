@@ -98,7 +98,7 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
 
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
-        timeout_s = self._compute_timeout()
+        timeout_s = self._compute_timeout(model_config)   # the hop's catalog bound (twenty-first run, d C-001)
         n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(

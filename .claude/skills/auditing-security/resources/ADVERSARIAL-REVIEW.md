@@ -24,13 +24,14 @@ Output file: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. The
 {"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}
 ```
 
-before proceeding. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-audit*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present is the script's own — never overwrite it — but a status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`) goes to stdout only: the envelope at the path, if any, is then the PREVIOUS run's, and nothing was moved aside. Then set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
+before proceeding. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which this fallback clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-audit*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`. An envelope that IS present after a run that took the run lock is the script's own — never overwrite it. A status written BEFORE the run lock (`refused_concurrent_run`, `workdir_unavailable`, `nothing_to_review`, `budget_exceeded`; non-zero exit, stdout only) moves nothing aside, so any envelope at the path is the PREVIOUS run's and is never this round's evidence: on `refused_concurrent_run` wait until the holding run has exited and run again; on any other, move that envelope and its `adversarial-rejected-audit*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) and write the fallback above with `status` set to the refusal and `reason` to its stdout line — `verdict-derive.sh` then judges this round's record, not the last round's. Then set a `DEGRADED_SECURITY_REVIEW` marker in the audit report. Empty
 findings from a run that completed are a normal pass, not a degraded review.
 
 A completed run is still a degraded audit when its second voice is missing: `companion_voice.status` `failed` or
-`fold_failed`, or a `counted_as` other than `independent_voice` (a planned companion that never started, a duplicate
-family, a sole voice) — set the `DEGRADED_SECURITY_REVIEW` marker and name the reason; `planned: false` because the
-block opted out (`companion_voice: false`) is the operator's choice, not a degradation.
+`fold_failed`, a `counted_as` other than `independent_voice` (a duplicate family, a sole voice), or `planned: false`
+WITH a `reason` (a companion that never started: `no_workdir`, `no_route`, `prompt_copy_failed`) — set the
+`DEGRADED_SECURITY_REVIEW` marker and name the reason; a bare `planned: false` (the block opted out, `companion_voice:
+false`) is the operator's choice, not a degradation.
 
 ## Two voices and the rejected-payload contract (cycle-126 FR-2)
 
@@ -41,9 +42,11 @@ Anthropic chain (`opus` → `claude-headless`), an Anthropic-family primary gets
 `.env`; the value is never read) decides only where the companion chain starts — with no key it
 starts at the CLI hop. Both chains walk in parallel; the two completed envelopes are aggregated
 (`verdict_quality.voices_succeeded_ids` lists only completed voices). `companion_voice.status` is `succeeded`,
-`failed` or `fold_failed`; `verdict_quality.voices_planned` is 2 only when both voices completed from different families —
-`companion_voice.counted_as` (`independent_voice`, `duplicate_voice`, `sole_voice`) names every other outcome, and
-`planned: false` with a `reason` a companion that never started. The
+`failed` or `fold_failed`; `verdict_quality.voices_planned` counts the aggregated envelopes — 2 whenever the companion ran,
+completed or not (a failed one is listed in `voices_dropped`); a `duplicate_voice` companion contributes none, and a
+dropped entry naming the model the companion answered with is removed (INV-5). `companion_voice.counted_as`
+(`independent_voice`, `duplicate_voice`, `sole_voice` — the primary never answered) names the outcome, and `planned: false` with a `reason` (`no_workdir`, `no_route`,
+`prompt_copy_failed`) is a companion that never started; a bare `planned: false` is the opt-out. The
 companion's findings arrive re-numbered `DISS-C-NNN` with a `voice` field; the primary's carry
 `voice` too. `metadata.companion_voice` records `{planned, family, family_basis, chain, model,
 status: succeeded|failed|fold_failed, failure_class: auth|model_unavailable|quota|timeout|lock_wait|malformed|null,
@@ -56,7 +59,7 @@ first sentence of its `description` (≤ 200 chars) becomes `failure_mode` and t
 marked `failure_mode_derived: true` (a missing `id` is filled positionally, `id_derived: true`).
 Severity, category and description are never touched. Payloads that still fail go to the
 sidecar (`adversarial-rejected-<type>.jsonl`, `-companion` suffix for the second voice) **and**
-to `metadata.rejected_summary[]` as `{severity, title, anchor, reason, description_head}`.
+to `metadata.rejected_summary[]` as `{index, severity, title, title_derived, anchor, reason, description_head}`.
 
 **The contract (D-2.3).** When `rejected_summary` is non-empty the feedback file MUST contain a
 `## Rejected dissent payloads` section with one line per entry — `- <title> (<severity>, <anchor>)

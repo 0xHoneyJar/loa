@@ -119,7 +119,9 @@ _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partia
   fi
 }
 _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)
-  local c; c=$(printf '%s\n' "$1" | grep -c '^@@ ' 2>/dev/null); [[ "$c" =~ ^[0-9]+$ ]] || c=0; printf '%s' "$c"
+  # (twenty-first run, b1 DISS-C-001: the assignment itself is guarded — a plain-statement call under errexit, or a substitution
+  # under inherit_errexit, must not stop on a text with no hunk header; the function always returns 0)
+  local c; c=$(printf '%s\n' "$1" | grep -c '^@@ ' 2>/dev/null) || true; [[ "$c" =~ ^[0-9]+$ ]] || c=0; printf '%s' "$c"
 }
 
 # Prepare content with priority-based truncation for large diffs
@@ -238,10 +240,15 @@ prepare_content() {
   # b1 C-002: a small P0 file ahead of a large one must not hide the large one), and not only at the top tier (nineteenth
   # run, b1 C-002: a large P1 file behind a small P0 one was dropped whole with three quarters of the budget unused); the
   # reservation below is computed against the rows at or above the candidate's own priority
-  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx
+  # — and not only a row larger than the WHOLE budget (twenty-first run, b1 DISS-C-002: a P0 file that fits the budget alone but
+  # not beside the P0 rows ahead of it was dropped whole while a P1 file behind it was shown); the running sum below is the main
+  # loop's own include rule up to its first omission
+  local top_pri="" top_path="" top_idx="" top_partial_done=0 c_pri c_path c_idx c_tok c_run=0
   while IFS=$'\t' read -r c_pri c_path c_idx; do
     [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
-    if (( $(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")") > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
+    c_tok=$(estimate_tokens "$(cat "$temp_dir/chunk_${c_idx}")")
+    if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
+    c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
   if [[ -n "$top_idx" ]]; then
     # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
@@ -264,6 +271,12 @@ prepare_content() {
     (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
     (( others > 0 )) && reserve=$(( reserve - marker_est - 1 ))
     (( reserve < 0 )) && reserve=0
+  fi
+  # twenty-first run, b1 DISS-001: the rows at or above its tier that fit leave no room for even the marker — no partial view is
+  # made (a marker-only block placed first would displace a sibling that fits whole); the file is listed as omitted, like any other
+  if [[ -n "$top_idx" ]] && (( others > 0 && reserve <= 0 )); then
+    $_log_fn "File ${top_path} exceeds what the rows that fit leave over: no room for a partial view, listed as omitted"
+  elif [[ -n "$top_idx" ]]; then
     how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
     partial=$(cat "$temp_dir/partial_${top_idx}")
     total=$(_lc_hunk_count "$(cat "$temp_dir/chunk_${top_idx}")"); kept=$(_lc_hunk_count "$partial")

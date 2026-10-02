@@ -42,7 +42,13 @@ setup() {
 
     # Source the script functions (but don't run main)
     # the trailer is an indented `main "$@"` in the BASH_SOURCE guard: `^main` matched nothing; `:` keeps the `then` non-empty (twentieth run, c2b C-001)
-    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    # …and the substitution is CHECKED before the text is eval'd (twenty-first run, c2e C-001): a trailer change that makes the
+    # sed a no-op again fails setup loudly instead of leaning on the BASH_SOURCE guard
+    local _src; _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    grep -q ': main disabled for testing' <<<"$_src" || { echo "setup: the main trailer sed matched nothing" >&2; return 1; }
+    ! grep -Eq '^[[:space:]]*main "\$@"' <<<"$_src" || { echo "setup: a main \"\$@\" call survived the sed" >&2; return 1; }
+    eval "$_src"
+    REPAIR_LOOP_MAIN_NEUTRALISED=1
 
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
@@ -59,6 +65,15 @@ setup() {
     CONF_SECRET_SCANNING="true"
     CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
+
+    # hermetic like the normalise and companion suites (twenty-first run, c2e C-002): no credential alias, an empty dotenv
+    # seam, no CLI binary "installed" and a private lock directory — the repair chain is the answering voice alone on any
+    # host, so no case charges or queues behind a real hop (the KF-037 contention class)
+    unset $(_adv_cred_aliases anthropic) $(_adv_cred_aliases openai) $(_adv_cred_aliases google)
+    unset LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS _ADV_REPAIR_DEAD_HOPS LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    export LOA_ADVERSARIAL_CLI_PROBE=none
+    export XDG_RUNTIME_DIR="$TEST_DIR"
 }
 
 teardown() {
@@ -526,4 +541,11 @@ EOF
     invoke_dissenter "$sysfile" "$userfile" "gpt-5.3-codex" "60" "" "audit" >/dev/null
 
     grep -qx -- "adversarial-audit" "$fake_dir/captured-args.txt"
+}
+
+@test "setup is hermetic: the main trailer was neutralised, and the repair chain is the answering voice alone — no host key, dotenv or CLI binary decides the hop (twenty-first run, c2e C-001 / C-002)" {
+    [[ "$(type -t main)" == "function" ]]
+    [ "$REPAIR_LOOP_MAIN_NEUTRALISED" = "1" ]
+    [ "$(_repair_model_chain "gpt-5.3-codex")" = "gpt-5.3-codex" ]
+    [ "$XDG_RUNTIME_DIR" = "$TEST_DIR" ]
 }

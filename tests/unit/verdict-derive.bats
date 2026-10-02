@@ -497,6 +497,13 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "api_failure", rejected_summary: null}}' > "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 0 ]
+    # …and a null summary is the FR-2 shape, not the legacy one (twenty-first run, c2c C-001): the key is present, so an
+    # unlisted sidecar OLDER than the envelope (a companion's rows are written before the fold's envelope) still counts
+    printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
+    touch -t 202001010000 "$d/adversarial-rejected-review.jsonl"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and ([.violations[] | test("predates")] | any | not)' >/dev/null
 }
 
 @test "verdict-derive: sidecar rows with no envelope beside them are a violation, repaired rows never count (third run, chunk b C-002 / C-001)" {
@@ -716,11 +723,16 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     skip_if_no_jq
     d="${TEST_TMPDIR}/s19"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
+    # no metadata at all is the legacy shape — pinned against a sidecar row, which only the legacy branch leaves uncounted
+    # (twenty-first run, c2d C-002: with no sidecar an FR-2 classification passes too, so the bare case proved nothing)
+    printf '{"reject_reason":"old"}\n' > "$d/adversarial-rejected-review.jsonl"; touch -t 201901010000 "$d/adversarial-rejected-review.jsonl"
     jq -n '{findings: []}' > "$d/adversarial-review.json"
-    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | any(test("predates the rejected-payload contract")))' >/dev/null
     # a scalar JSON row and a repaired object row: one row counts
     printf '"a bare payload string"\n{"reject_reason":"x","repair_succeeded":true}\n' > "$d/adversarial-rejected-review.jsonl"
+    touch -t 201901010000 "$d/adversarial-rejected-review.jsonl"   # the age relation below is forced, never write order (c2d C-001)
     rm -f "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
@@ -748,6 +760,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     [ "$status" -eq 0 ]
     [[ "$output" == *"--envelope given empty"*"adversarial-review.json"* ]]   # not given, but SAID — which file was read instead (sixteenth run, c2d C-002)
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --envelope '' --json 2>/dev/null"
+    [ "$status" -eq 0 ]   # (twenty-first run, c2d C-002)
     echo "$output" | jq -e '.envelope_explicit == false and (.warnings | any(test("--envelope given empty")))' >/dev/null
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 0 ]
@@ -768,6 +781,9 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     d="${TEST_TMPDIR}/s21"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
     printf '{"reject_reason":"old"}\n{"reject_reason":"old"}\n' > "$d/adversarial-rejected-review.jsonl"
+    # every age relation in this case is forced with touch -t, never left to write order on a coarse-mtime filesystem
+    # (twenty-first run, c2d C-001): the sidecar is from 2019; the envelope is now unless a step says otherwise
+    touch -t 201901010000 "$d/adversarial-rejected-review.jsonl"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0}}' > "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 0 ]
@@ -778,7 +794,7 @@ _vd_envelope() {  # <file> <rejected_summary json array>
     echo "$output" | jq -e '.violations[0] | test("2 schema-rejected payload")' >/dev/null
     # …unless a sidecar is NEWER than the pre-FR-2 envelope: a later run died after writing rows — they count (fifteenth run, b1 C-003)
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0}}' > "$d/adversarial-review.json"
-    touch -t 202001010000 "$d/adversarial-review.json"
+    touch -t 201801010000 "$d/adversarial-review.json"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '(.violations[0] | test("2 schema-rejected payload")) and (.warnings | map(select(test("is newer than it.*rows are counted"))) | length) == 1' >/dev/null

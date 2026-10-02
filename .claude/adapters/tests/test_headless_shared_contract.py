@@ -169,6 +169,25 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
         assert not Path(calls[1]["cwd"]).exists()
 
 
+def test_complete_bounds_the_hop_by_its_model(adapter_case, tmp_path, monkeypatch):
+    """Every adapter's complete() hands the hop's ModelConfig to _compute_timeout — a subclass with its own complete()
+    (agy, grok) that called it with no argument ran a catalog `headless_timeout_seconds` on the 600 s floor, though the
+    loader accepted the key for its *-headless provider (twenty-first run, d C-001)."""
+    adapter, name, output = adapter_case
+    adapter.config.models["entry"].headless_timeout_seconds = 900.0
+    binary = tmp_path / "fake-cli"
+    binary.write_text(f"#!/usr/bin/env python3\nimport sys\nsys.stdin.read()\nprint('local-version' if '--version' in sys.argv else {output!r})\n")
+    binary.chmod(0o755)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(f"{name.upper()}_HEADLESS_BIN", str(binary))
+    seen = []
+    real = type(adapter)._compute_timeout
+    monkeypatch.setattr(adapter, "_compute_timeout", lambda *a, **k: seen.append(real(adapter, *a, **k)) or seen[-1])
+    result = adapter.complete(CompletionRequest(messages=[{"role": "user", "content": "ping"}], model="entry"))
+    assert result.content == "pong"
+    assert seen == [910.0]
+
+
 def test_missing_binary_health_is_false(adapter_case, monkeypatch):
     adapter, name, _ = adapter_case
     monkeypatch.setenv(f"{name.upper()}_HEADLESS_BIN", "/nonexistent/local-cli")
@@ -235,6 +254,14 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     pg = cheval._build_provider_config("g", cfg2)
     assert pg.models["grok-headless"].headless_timeout_seconds == 800.0
     assert caplog.text == ""
+    # a provider with no `type:` is the openai adapter — never a headless one — so the gate's empty default and the
+    # loader's "openai" default agree: the key is dropped, and no headless hop runs without it (twenty-first run, d C-002)
+    cfg3 = {"providers": {"n": {"endpoint": "", "auth": "none", "models": {"m": {"context_window": 1000, "headless_timeout_seconds": 800}}}}}
+    pn = cheval._build_provider_config("n", cfg3)
+    assert pn.type == "openai" and not pn.type.endswith("-headless")
+    assert pn.models["m"].headless_timeout_seconds is None
+    assert "n/m: headless_timeout_seconds 800 applies to CLI models only" in caplog.text
+    caplog.clear()
     # a chain walk rebuilds the provider config per hop: the same two defects are not reported again (d C-002)
     with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
         pc2 = cheval._build_provider_config("p", cfg)
