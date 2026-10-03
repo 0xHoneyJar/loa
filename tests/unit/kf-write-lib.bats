@@ -214,6 +214,8 @@ _kf_link_lint() {
   python3 - "$1" <<'PY'
 import re, sys
 s = open(sys.argv[1], encoding="utf-8").read()
+# (a fenced block renders no heading and no link — a fenced example never shadows a real one: thirty-third run, e2c DISS-C-003)
+s = re.sub(r"^(```|~~~).*?^\1[ \t]*$", "", s, flags=re.M | re.S)
 heads = {h.split(":")[0]: re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
          for h in re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
@@ -233,10 +235,45 @@ PY
     '| [KF-042](#kf-042-café-timeout--retry) | OPEN | x | 1 |' '' '##  KF-040: Two blanks' '' '## KF-041: Trailing blank  ' '' '## KF-042: Café timeout — retry' > "$G"
   run _kf_link_lint "$G"
   [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-  # the ASCII-stripped slug GitHub never emits is a broken link
-  sed -i 's/#kf-042-café-timeout--retry/#kf-042-caf-timeout--retry/' "$G"
-  run _kf_link_lint "$G"
+  # the ASCII-stripped slug GitHub never emits is a broken link (the fixture rewritten, never `sed -i` — BSD reads its next word
+  # as a backup suffix: thirty-third run, e2c DISS-C-002)
+  local B="$BATS_TEST_TMPDIR/lint-broken.md" line
+  while IFS= read -r line; do printf '%s\n' "${line//#kf-042-café-timeout--retry/#kf-042-caf-timeout--retry}"; done < "$G" > "$B"
+  ! grep -q 'café-timeout' "$B" || { echo "the broken fixture still holds the good slug"; return 1; }
+  run _kf_link_lint "$B"
   [ "$status" -eq 1 ] && [[ "$output" == *KF-042* ]]
+}
+
+@test "kf-write: the ledger link lint skips fenced blocks — a fenced example heading never shadows the real one, a fenced row is no link (thirty-third run, e2c DISS-C-003)" {
+  local G="$BATS_TEST_TMPDIR/lint-fenced.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-real-heading) | OPEN | x | 1 |' '' '## KF-040: Real heading' '' \
+    '```' '## KF-040: An example heading' '| [KF-041](#nowhere) | OPEN | x | 1 |' '```' '' '~~~md' '## KF-040: Another example' '~~~' > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "kf-write new: a non-ASCII title's Index anchor is the GitHub slug — its letters kept and lowercased, the link lint green (thirty-third run, e2c DISS-C-001)" {
+  local G="$BATS_TEST_TMPDIR/utf8.md"
+  printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G"
+  run bash "$KFW" new --file "$G" --title "Naïve retry — CAFÉ_X" --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF '| [KF-001](#kf-001-naïve-retry--café_x) | OPEN' "$G" || { grep 'KF-001' "$G"; return 1; }
+  run _kf_link_lint "$G"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  # an ASCII title still slugs as before, without python
+  run bash "$KFW" new --file "$G" --title "Plain / ASCII" --status OPEN --quiet
+  [ "$status" -eq 0 ]
+  grep -qF '| [KF-002](#kf-002-plain--ascii) | OPEN' "$G"
+}
+
+@test "kf-write new: a title that is not valid UTF-8 is refused before any write — never an anchor GitHub cannot match (thirty-third run, e2c DISS-C-001)" {
+  local G="$BATS_TEST_TMPDIR/badutf8.md"
+  printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G"
+  local before; before="$(cksum < "$G")"
+  run bash "$KFW" new --file "$G" --title "$(printf 'bad \377 byte')" --status OPEN --quiet
+  [ "$status" -ne 0 ] || { echo "a non-UTF-8 title was written"; return 1; }
+  [[ "$output" == *UTF-8* ]] || { echo "$output"; return 1; }
+  [ "$(cksum < "$G")" = "$before" ] || { echo "the ledger changed"; return 1; }
 }
 
 @test "kf-write new: can create the FIRST entry in an empty-Index ledger" {

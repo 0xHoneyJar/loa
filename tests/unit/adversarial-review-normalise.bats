@@ -133,6 +133,9 @@ teardown() {
     d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
     if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
+    # (thirty-third run, c2b DISS-C-004: the one link a test registered at its own path — removed, never followed)
+    d="${NORM_OWN_LINK:-}"
+    if [[ "$d" == "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" && -L "$d" ]]; then rm -f -- "$d"; fi
     # (thirty-second run, c2b DISS-C-003: the one sibling a test registered — that exact path, a real directory, this suite's shape)
     d="${NORM_SIB_DIR:-}"
     if [[ "$d" == "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}-sib" && -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
@@ -1090,16 +1093,22 @@ DF
 }
 
 @test "NRM-42 the teardowns delete only real directories of their own: a symlink at an own-dir path is never followed nor fails the teardown — the sweep's rule, in every suite (twenty-seventh run, c2a DISS-C-002)" {
-    local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc s
+    local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc rc2 s
     # every delete below is under a2a/$SPRINT: the id is this suite's own shape, or nothing is deleted (thirtieth run, c2b DISS-C-001)
     [[ "$SPRINT" =~ ^sprint-norm-[0-9]+$ ]] || { echo "SPRINT '$SPRINT' is not this suite's own id"; return 1; }
     mkdir -p "$tgt" "$a2a"; : > "$tgt/keep"
     # (the link sits AT the own-dir path — the one path teardown deletes; twenty-ninth run, c2a: a sibling is never a candidate)
     if [[ -d "$a2a/$SPRINT" && ! -L "$a2a/$SPRINT" ]]; then find "$a2a/$SPRINT" -mindepth 1 -delete; rmdir "$a2a/$SPRINT"; fi
-    lnk="$a2a/$SPRINT"; ln -s "$tgt" "$lnk"
+    # (thirty-third run, c2b DISS-C-004: named for the real teardown before it exists, as the sibling is below — an interrupted
+    # test never leaves the link; the teardown under test runs without that name, so the leg still proves a link is never followed)
+    lnk="$a2a/$SPRINT"; NORM_OWN_LINK="$lnk"; ln -s "$tgt" "$lnk"
     # (as bats runs it: errexit live — a subshell left of `||` would ignore it, so a background job is waited for)
-    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
-    command rm -f -- "$lnk"
+    rc=0; ( set -e; NORM_OWN_LINK=""; teardown ) 3>&- & wait $! || rc=$?
+    [ -L "$lnk" ] || { echo "the unregistered link was removed or followed"; return 1; }
+    rc2=0; ( set -e; teardown ) 3>&- & wait $! || rc2=$?
+    [ "$rc2" -eq 0 ] && [ ! -L "$lnk" ] || { echo "the registered own link outlived the teardown (rc $rc2)"; command rm -f -- "$lnk"; return 1; }
+    [ -e "$tgt/keep" ] || { echo "removing the registered link followed it"; return 1; }
+    NORM_OWN_LINK=""
     [ "$rc" -eq 0 ] || { echo "a symlinked own-dir path failed the teardown (rc $rc)"; return 1; }
     [ -e "$tgt/keep" ]
     # (twenty-eighth run, c2b DISS-C-002: a real own directory is removed — the path was a candidate, so the kept target is the
@@ -1252,13 +1261,20 @@ rejected_sidecar_rel repair_attempted repair_budget_exhausted repair_metadata_js
 repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason since sprint_id st stability stop_reason t timestamp
 tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
 api_exit_code _pf_rc""".split())
+# ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
+SMALL |= {"2"}
 CMDS = ("[[", "date ", "_adv_hop_canon ", "_adv_scope_json", "_companion_drop_reason ", "printf '%s\\n' \"${model_attempts[@]}\" |")
+# (a positional operand of --args / --jsonargs: the dry run's two token counts — thirty-third run, c2b DISS-C-001)
+POSITIONAL = ('"$(estimate_tokens ',)
 bad = []
-for line in open(sys.argv[1]):
+lines = open(sys.argv[1]).read().split('\n')
+for n, line in enumerate(lines):
     if line.lstrip().startswith('#'):
         continue                                   # a comment that names the flag
     line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
-    for m in re.finditer(r'--(?:argjson|arg)\s+[A-Za-z_0-9]+\s+(?=(\S.{0,80}))', line):
+    # (thirty-third run, c2b DISS-C-001: a name is any word — a dynamic --arg "$1" "$2" is checked too — and every variable a
+    # quoted operand interpolates, not the first one alone)
+    for m in re.finditer(r'--(?:argjson|arg)\s+\S+\s+(?=(\S.{0,80}))', line):
         op = m.group(1)
         if op.startswith('"') and not op.startswith('"$'):
             # a literal, or one interpolating only reviewed scalars
@@ -1274,9 +1290,18 @@ for line in open(sys.argv[1]):
             if not o[2:].lstrip().startswith(CMDS):
                 bad.append(op)
         else:
-            v = re.match(r'\$\{?([A-Za-z_0-9]+)', o)
-            if not v or v.group(1) not in SMALL:
+            span = o.split('"', 1)[0] if op.startswith('"') else re.split(r'[\s;|&)]', o, maxsplit=1)[0]
+            vs = re.findall(r'\$\{?([A-Za-z_0-9]+)', span)
+            if not vs or '$(' in span or any(v not in SMALL for v in vs):
                 bad.append(op)
+    for m in re.finditer(r'(?<![\w-])--(?:json)?args(?![\w-])(.*)', line):
+        rest, k = m.group(1).strip(), n
+        if rest not in ('', '\\'):
+            bad.append(m.group(0)); continue
+        while lines[k].rstrip().endswith('\\') and k + 1 < len(lines):
+            k += 1; p = lines[k].strip()
+            if not p.startswith(POSITIONAL):
+                bad.append('positional: ' + p)
 for b in bad: print("an unreviewed jq argv operand:", b[:80])
 sys.exit(1 if bad else 0)
 PY
@@ -1285,6 +1310,19 @@ PY
     if python3 -c "$lint" "$fx"; then echo "a second operand on one line was never checked"; return 1; fi
     printf '%s\n' '  jq -n --arg m "$model" --argjson i "$i" '"'"'{m: $m, i: $i}'"'"'' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: two reviewed operands on one line pass)
+    # (thirty-third run, c2b DISS-C-001: a second variable in one quoted operand, a dynamic name, an unreviewed positional)
+    printf '%s\n' '  jq -n --arg m "$model$finding_json" '"'"'{m: $m}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a quoted operand's second variable was never checked"; return 1; fi
+    printf '%s\n' '  jq -n --arg m "${model}-${finding_json}" '"'"'{m: $m}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a braced second variable was never checked"; return 1; fi
+    printf '%s\n' '  kv+=(--arg "$name" "$finding_json")' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a dynamic name's operand was never checked"; return 1; fi
+    printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --args \' '    "$finding_json"' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a --args positional was never checked"; return 1; fi
+    printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --jsonargs "$finding_json"' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a same-line --jsonargs positional was never checked"; return 1; fi
+    printf '%s\n' '  jq -n --arg m "$model-$i" '"'"'{m: $m}'"'"' --jsonargs \' '    "$(estimate_tokens "$x")"' > "$fx"
+    python3 -c "$lint" "$fx"   # (the positive control: reviewed variables and a reviewed positional pass)
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"
 }
 
@@ -1318,10 +1356,10 @@ PY
 @test "NRM-48 a rejected_summary row's severity is a capped control-free string like every other row field — an invalid severity is exactly the model's free text (thirty-first run, a2 DISS-C-002)" {
     local doc="$TEST_DIR/doc-48.json"
     jq -nc '{findings: [
-      {severity: ("HIGH\n## Injected\u0007" + ("s" * 5000)), title: "t1", category: "config", description: "Fails."},
+      {severity: ("HIGH\t\n## Injected\u0007" + ("s" * 5000)), title: "t1", category: "config", description: "Fails."},
       {severity: {nested: ("o" * 500)}, title: "t2", category: "config", description: "Fails."},
       {title: "t3", category: "config", description: "Fails."},
-      {severity: "HIGH", title: "t4", category: ("cfg\n## Injected\u0007" + ("c" * 5000)), description: "Fails."}
+      {severity: "HIGH", title: "t4", category: ("cfg\t## Injected\u0007" + ("c" * 5000)), description: "Fails."}
     ]}' > "$doc"
     env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
     result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
@@ -1329,14 +1367,15 @@ PY
     rs=$(jq -c '.metadata.rejected_summary' <<<"$result")
     # the reject reason quotes the bad value too: capped and control-free in the row and in the log line
     jq -e 'all(.[]; (.reason | type) == "string" and (.reason | length) <= 80)' <<<"$rs" >/dev/null || { jq -c 'map(.reason | length)' <<<"$rs"; return 1; }
-    if jq -r '.[] | .reason' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced in a reason"; return 1; fi
+    # (thirty-third run, c2b DISS-C-002: every C0 control, a tab too, checked on the jq side — a grep class skipped \t and \n)
+    jq -e 'all(.[]; .reason | test("[\u0000-\u001f\u007f]") | not)' <<<"$rs" >/dev/null || { echo "a control character surfaced in a reason"; return 1; }
     [ "$(jq -r '.[] | .reason' <<<"$rs" | wc -l | tr -d ' ')" = "4" ]
     [[ "$(jq -r '.[3].reason' <<<"$rs")" == "category-not-in-enum (got: cfg ## injected "* ]]   # (the normaliser lower-cases a category)
     jq -e 'all(.[]; (.severity | type) as $t | $t == "string" or $t == "null")' <<<"$rs" >/dev/null || { echo "$rs" | cut -c1-400; return 1; }
     jq -e 'all(.[]; ((.severity // "") | length) <= 32)' <<<"$rs" >/dev/null || { jq -c 'map(.severity | length)' <<<"$rs"; return 1; }
-    if jq -r '.[] | .severity // empty' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced"; return 1; fi
+    jq -e 'all(.[]; (.severity // "") | test("[\u0000-\u001f\u007f]") | not)' <<<"$rs" >/dev/null || { echo "a control character surfaced"; return 1; }
     [ "$(jq -r '.[] | .severity // empty' <<<"$rs" | wc -l | tr -d ' ')" = "3" ]   # one line each: no newline survived
-    [[ "$(jq -r '.[0].severity' <<<"$rs")" == "HIGH ## INJECTED"* ]]   # (the normaliser upper-cases a string severity)
+    [[ "$(jq -r '.[0].severity' <<<"$rs")" == "HIGH  ## INJECTED"* ]]   # (the normaliser upper-cases a string severity)
     [[ "$(jq -r '.[1].severity' <<<"$rs")" == '{"nested":'* ]]
     [ "$(jq -r '.[2].severity' <<<"$rs")" = "null" ]
 }
@@ -1411,4 +1450,21 @@ PY
     [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/other/keep" ]
     NORM_SIB_DIR=""
     : > "$a2a/.$SPRINT.owner"
+}
+
+@test "NRM-52 a rejected_summary row and its reason quote carry no C1 control, Unicode line separator, bidi or zero-width format character — a row renders as the bytes it holds; other non-ASCII text stays (thirty-third run, a2 DISS-C-003)" {
+    local doc="$TEST_DIR/doc-52.json"
+    jq -nc '{findings: [
+      {severity: "HIGH", title: "café \u202egnp.exe\u202c ok\u200b", category: "nope", anchor: "a.sh#f\u2066x\u2069\u2028y", description: "Fails\u0085 here\ufeff."},
+      {severity: "HIGH", title: "t2", category: "cfg\u202e\u2029x", description: "Fails."},
+      {severity: "HI\u200fGH", title: "t3", category: "config", description: "Fails."}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "3" ] || { echo "$result" | cut -c1-600; return 1; }
+    rs=$(jq -c '.metadata.rejected_summary' <<<"$result")
+    jq -e '[.. | strings | select(test("[\u0080-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"))] | length == 0' <<<"$rs" >/dev/null \
+      || { jq -c '[.. | strings | select(test("[\u0080-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"))]' <<<"$rs"; return 1; }
+    [[ "$(jq -r '.[0].title' <<<"$rs")" == "café  gnp.exe  ok"* ]] || { jq -r '.[0].title' <<<"$rs"; return 1; }
+    [[ "$(jq -r '.[1].reason' <<<"$rs")" == "category-not-in-enum (got: cfg  x"* ]] || { jq -r '.[1].reason' <<<"$rs"; return 1; }
 }

@@ -189,6 +189,9 @@ spiral:
   harness: # Evidence-gated orchestrator (cycle-071)
     enabled: true # Use harness vs monolithic dispatch
     max_phase_retries: 3 # Retries per gate on failure
+    # (thirty-third run, e2b DISS-C-003) the caps below were sized for the sonnet executor / opus advisor split:
+    # Fable 5.1 is 5x sonnet-5 and 2x opus-5 per token, and each cap is `claude -p --max-budget-usd` — a session that reaches it ends,
+    # leaving partial work for the retry gate. Not raised here (a spend decision for the operator, NOTES 2026-10-03).
     planning_budget_usd: 1 # Per-phase budget for PRD/SDD/Sprint
     implement_budget_usd: 5 # Budget for implementation session
     review_budget_usd: 2 # Budget for independent review session
@@ -258,7 +261,8 @@ run_bridge:
         - provider: anthropic
           model_id: claude-headless   # 2026-10-01: Fable 5.1 via the CLI (cli_model fable); http_api ids need ANTHROPIC_API_KEY (unset here). Was claude-opus-5
           # (a CLI hop: a concurrent BB sweep or a live dissent shares the claude CLI and the plan window — KF-010 / KF-037 / KF-038;
-          # run sweeps serially, and read a sweep-wide timeout as contention, not an outage)
+          # run sweeps serially, and read a sweep-wide timeout as contention, not an outage. Its auth follows CLAUDE_HEADLESS_BIN:
+          # the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7)
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -312,6 +316,8 @@ flatline_protocol:
     # Flatline runs its voices in parallel and nothing serialises CLI hops across it (the per-binary lock is
     # adversarial-review.sh's): two claude -p calls share the CLI and the plan window, each bounded by the catalog's
     # headless_timeout_seconds (900 s) — up to ~15 min per phase under contention (KF-037 / KF-038).
+    # Its auth follows CLAUDE_HEADLESS_BIN (the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7), and it
+    # shares the anthropic headless circuit breaker with the dissent companion: a rate limit on either opens it for both.
     primary: claude-headless
     # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
     # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks

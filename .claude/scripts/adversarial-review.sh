@@ -190,8 +190,9 @@ load_adversarial_config() {
   # case, and a value that is none of them is SAID, not silently read as "on"
   _cvl=$(printf '%s' "$_cv" | tr '[:upper:]' '[:lower:]')
   case "$_cvl" in
-    false|no|off|0) CONF_COMPANION_VOICE="false" ;;
-    true|yes|on|1|null|"") CONF_COMPANION_VOICE="true" ;;
+    # (YAML 1.1's single-letter n / y too — thirty-third run, a1 DISS-C-001)
+    false|no|n|off|0) CONF_COMPANION_VOICE="false" ;;
+    true|yes|y|on|1|null|"") CONF_COMPANION_VOICE="true" ;;
     *) log "WARN: flatline_protocol.${config_key}.companion_voice='${_cv}' is not a boolean — the companion voice stays on (write false / no / off / 0 to opt out)"
        CONF_COMPANION_VOICE="true" ;;
   esac
@@ -389,7 +390,9 @@ _validate_finding_reason() {
   # and the repair prompt — so the quote is a capped, control-free excerpt; the sidecar keeps the whole payload)
   echo "$finding" | jq -r --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
     # (a jq gsub is quadratic in the length of the string — slice first, then clean: thirty-second run, a1 DISS-C-001)
-    def got: tostring | .[0:32] | gsub("[\u0000-\u001f\u007f]"; " ");
+    # (thirty-third run, a2 DISS-C-003: C1 controls, the Unicode line separators and the bidi and zero-width format characters
+    # too — a quote renders as the bytes it holds; the class is the one clean() uses below)
+    def got: tostring | .[0:32] | gsub("[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"; " ");
     if (.id // null) == null or (.id | type) != "string" then
       "missing-or-non-string-id"
     elif (.severity // null) == null then
@@ -722,13 +725,14 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
   fi
   # (twenty-eighth run, a1 DISS-C-002: two yq calls per element — about 4,000 spawns for a 999-entry list at every load — so
   # every element's tag and value come from one yq pass, classified by one jq: a line per element, "<index> ok <hop>" or
-  # "<index> drop <tag>"; only a hop name or a tag ever reaches the shell)
+  # "<index> drop <tag>"; only a hop name or a tag ever reaches the shell; \A…\z, never ^…$ — Oniguruma's $ matches before a
+  # final newline, so a block-scalar "tiny\n" passed and printed an extra row: thirty-third run, a1 DISS-C-002)
   local rows=""
   # (an empty list is read as no rows — yq prints `[]` for an empty iteration in JSON mode, which is no element)
   (( n == 0 )) || rows=$(yq -o=json -I=0 eval ".flatline_protocol.${1}.companion_chain.${2}[] | [tag, .]" "$CONFIG_FILE" 2>/dev/null \
     | jq -rn '[inputs] | to_entries[]
-        | (.value[0] | if type == "string" and test("^[!A-Za-z0-9._/:-]{1,64}$") then . else "unreadable" end) as $tg
-        | if $tg == "!!str" and (.value[1] | type) == "string" and (.value[1] | test("^[A-Za-z0-9._/:-]{1,128}$"))
+        | (.value[0] | if type == "string" and test("\\A[!A-Za-z0-9._/:-]{1,64}\\z") then . else "unreadable" end) as $tg
+        | if $tg == "!!str" and (.value[1] | type) == "string" and (.value[1] | test("\\A[A-Za-z0-9._/:-]{1,128}\\z"))
           then "\(.key) ok \(.value[1])" else "\(.key) drop \($tg)" end' 2>/dev/null) || rows=""
   # (twenty-ninth run, a1 DISS-C-001: `grep -c '' <<<""` is 1 — an empty read is no row, so a list of one whose pass failed is unreadable)
   local _nr=0; [[ -z "$rows" ]] || _nr=$(grep -c '' <<<"$rows")
@@ -1751,7 +1755,9 @@ while i < len(text):
           # (twenty-ninth run, a1 DISS-C-002: the row is a surface of an untrusted payload — a title is a capped string with
           # no control character, an id stands in for one only as a safe token (the rule the renumbering above applies), and an
           # anchor of any type is a capped string)
-          def clean($n): .[0:$n] | gsub("[\u0000-\u001f\u007f]"; " ");   # (sliced first: gsub is quadratic — thirty-second run, a1 DISS-C-001)
+          # (thirty-third run, a2 DISS-C-003: C1 controls, U+2028/U+2029 and the bidi and zero-width format characters too — a
+          # right-to-left override or a zero-width space made a row render unlike its bytes; got() in the validator is the same class)
+          def clean($n): .[0:$n] | gsub("[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"; " ");   # (sliced first: gsub is quadratic — thirty-second run, a1 DISS-C-001)
           def ttl: if type == "string" then clean(160) | nz else null end;
           def sid: if type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else null end;
           (($o.title | ttl) // ($o.id | sid)) as $own | (($f.title | ttl) // ($f.id | sid)) as $norm
@@ -2719,7 +2725,10 @@ _adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alia
   # (twenty-fifth run, a3 C-001: ANY provider prefix — `bedrock:`, `xai:` as well as the three companion families — so a prefixed
   # and a bare spelling of one hop share one bound and one lock; a provider token has no dot, so a bedrock id's `-v1:0` stays)
   [[ "$m" =~ ^[A-Za-z0-9_-]+:(.+)$ ]] && m="${BASH_REMATCH[1]}"
-  target=$(_adv_alias_target "$m"); [[ -n "$target" ]] && m="${target#*:}"
+  # (thirty-third run, a2 DISS-C-002: the target loses a provider token by the same rule — `${target#*:}` made a bare Bedrock
+  # target's canonical hop `0`, and two such aliases one shared hop)
+  target=$(_adv_alias_target "$m")
+  if [[ "$target" =~ ^[A-Za-z0-9_-]+:(.+)$ ]]; then m="${BASH_REMATCH[1]}"; elif [[ -n "$target" ]]; then m="$target"; fi
   echo "$m"
 }
 _adv_cli_bin_for() {  # <model> → the CLI binary this hop can end up exec'ing ("" when none): the hop itself, or the first
@@ -3223,7 +3232,10 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
   local indep="null" counted_as="null"
   [[ "$comp_status" == "failed" && -e "$workdir/companion.duplicate" ]] && counted_as='"duplicate_voice"'
   if [[ "$comp_status" == "succeeded" && -n "$companion_answered" && -n "$primary_succeeded" ]]; then   # (nineteenth run, a3 C-006: a failed companion has no independence to judge)
-    if [[ "$(_adv_family_of "$companion_answered")" != "$(_adv_family_of "$primary_succeeded")" ]]; then indep="true"; else indep="false"; fi
+    # (thirty-third run, b2 DISS-C-002: an unknown family is no evidence of a second one — a Claude primary behind an id no
+    # catalog entry or name rule places was judged independent of a Claude companion; its findings are kept, tagged)
+    local _cfam _pfam; _cfam=$(_adv_family_of "$companion_answered"); _pfam=$(_adv_family_of "$primary_succeeded")
+    if [[ "$_cfam" != "unknown" && "$_pfam" != "unknown" && "$_cfam" != "$_pfam" ]]; then indep="true"; else indep="false"; fi
     if [[ "$comp_status" == "succeeded" ]]; then
       if [[ "$indep" == "true" ]]; then
         counted_as='"independent_voice"'
@@ -3232,7 +3244,11 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
         # contribute NO envelope to verdict quality — the aggregator counts distinct voices (its INV-5
         # forbids one id both succeeded and dropped), and one family is never cross-family consensus
         counted_as='"duplicate_voice"'
-        log "Companion voice: NOT independent — the primary answered as $primary_succeeded and the companion as $companion_answered (same family); the companion is not counted as a second voice in verdict quality"
+        if [[ "$_cfam" == "unknown" || "$_pfam" == "unknown" ]]; then
+          log "Companion voice: cannot be judged independent — the primary answered as $primary_succeeded ($_pfam) and the companion as $companion_answered ($_cfam), and an unknown family is no second family; the companion is not counted as a second voice in verdict quality"
+        else
+          log "Companion voice: NOT independent — the primary answered as $primary_succeeded and the companion as $companion_answered (same family); the companion is not counted as a second voice in verdict quality"
+        fi
         : > "$workdir/companion.duplicate"
       fi
     fi
@@ -3274,7 +3290,10 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   pids=$(_adv_tree_pids "$p")
   # (thirty-second run, a3 DISS-C-003: a reviewer KILLed between the STOP and CONT passes left the tree stopped — a frozen
   # claude -p holding its binary's lock for good, which no takeover reclaims, since a stopped process is alive. A detached
-  # watchdog, holding no descriptor of ours, resumes each frozen pid after a few seconds; on the normal path its CONT is a no-op)
+  # watchdog, holding no descriptor of ours, resumes each frozen pid after a few seconds — thirty-third run, a3 DISS-C-001: it is
+  # cancelled once our own CONT pass ran, so a pid resumed, then stopped by its owner or recycled, is never resumed later; its
+  # delay is then a bound on a killed reaper's freeze only, longer than any loaded freeze pass; and it has its own session)
+  local _ADV_CONT_WD=""
   _adv_cont_watchdog "$pids"
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
   more=$(_adv_tree_pids "$p"); pids=$(printf '%s\n%s\n' "$pids" "$more" | grep -v '^$' | sort -un)
@@ -3283,6 +3302,7 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   [[ "${3:-}" == "tokens" ]] && { toks=$(_adv_pid_tokens "$pids" 2>/dev/null) || toks=""; }
   for x in $pids; do kill "-$sig" "$x" 2>/dev/null || true; done
   for x in $pids; do kill -CONT "$x" 2>/dev/null || true; done
+  for x in $_ADV_CONT_WD; do kill -TERM -- "$x" 2>/dev/null || true; done
   if [[ "${3:-}" == "tokens" ]]; then
     for x in $pids; do [[ " $toks" == *" $x="* ]] || toks+="$x= "; done   # (a pid the token pass missed: the pid alone decides)
     printf '%s\n' $toks
@@ -3290,9 +3310,20 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
     printf '%s\n' $pids
   fi
 }
-_adv_cont_watchdog() {  # <pids> — resume them in ${_ADV_CONT_WATCHDOG_SECONDS:-3} s from a process that outlives this shell
+_adv_cont_watchdog() {  # <pids> — resume them in ${_ADV_CONT_WATCHDOG_SECONDS:-10} s from a process that outlives this shell; its
+                        # handle (a process group under setsid, else a pid) is added to the caller's _ADV_CONT_WD for the cancel
   [[ -n "$1" ]] || return 0
-  ( trap '' HUP; sleep "${_ADV_CONT_WATCHDOG_SECONDS:-3}"; for x in $1; do kill -CONT "$x" 2>/dev/null; done ) </dev/null >/dev/null 2>&1 3>&- 9>&- &
+  local s="${_ADV_CONT_WATCHDOG_SECONDS:-10}"
+  if command -v setsid >/dev/null 2>&1; then
+    # (its own session: a KILL of the reviewer's process group never reaches it; a background job of a non-interactive shell is
+    # no group leader, so setsid execs in place and $! leads the new group)
+    # shellcheck disable=SC2016,SC2086
+    setsid sh -c 'trap "" HUP; sleep "$0"; for x in "$@"; do kill -CONT "$x" 2>/dev/null; done' "$s" $1 </dev/null >/dev/null 2>&1 3>&- 9>&- &
+    _ADV_CONT_WD+="-$! "
+  else
+    ( trap '' HUP; sleep "$s"; for x in $1; do kill -CONT "$x" 2>/dev/null; done ) </dev/null >/dev/null 2>&1 3>&- 9>&- &
+    _ADV_CONT_WD+="$! "
+  fi
   disown $! 2>/dev/null || true
 }
 _adv_pid_alive() {  # <pid> → 0 when the process exists and is not a zombie
@@ -3405,7 +3436,7 @@ _adv_reap_primary() {  # the job _adv_run_interruptible was waiting for when a s
   fi
   _ADV_PRIMARY_FORKING=""
   [[ -n "${_ADV_PRIMARY_PID:-}" ]] || return 0
-  local _p="$_ADV_PRIMARY_PID" _kt _e _pids="" _x _i _alive _grace _now_start=""
+  local _p="$_ADV_PRIMARY_PID" _kt _e _pids="" _tok="" _fresh _x _i _alive _grace _now_start=""
   _adv_pid_alive "$_p" || { _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""; return 0; }
   if [[ -n "${_ADV_PRIMARY_START:-}" ]]; then
     _now_start=$(_adv_proc_start "$_p" 2>/dev/null) || _now_start=""
@@ -3414,14 +3445,18 @@ _adv_reap_primary() {  # the job _adv_run_interruptible was waiting for when a s
   _grace=$(_conf_uint "LOA_ADVERSARIAL_REAP_GRACE_SECONDS" "${LOA_ADVERSARIAL_REAP_GRACE_SECONDS:-5}" 5 0) || _grace=5
   _kt=$(_adv_kill_tree "$_p" TERM tokens) || _kt="$_p="
   _ADV_PRIMARY_PID=""; _ADV_PRIMARY_START=""   # (twenty-fourth run, a4 DISS-C-001: published until its tree is signalled — never cleared before)
-  for _e in $_kt; do [[ "${_e%%=*}" =~ ^[0-9]+$ ]] && _pids+="${_e%%=*} "; done
+  for _e in $_kt; do [[ "${_e%%=*}" =~ ^[0-9]+$ ]] && { _pids+="${_e%%=*} "; _tok+="$_e "; }; done
   for (( _i = 0; _i < _grace * 4; _i++ )); do
     _alive="false"
     for _x in $_pids; do _adv_pid_alive "$_x" && { _alive="true"; break; }; done
     [[ "$_alive" == "true" ]] || return 0
     sleep 0.25
   done
-  for _x in $_pids; do _adv_kill_same "$_x" "$_kt"; done
+  # (thirty-third run, a3 DISS-001: re-collected before KILL, as the companion's reaper is — a child the job forked while it was
+  # being asked to leave goes with it, its token taken now; a collected pid keeps its token from the freeze)
+  for _x in $_pids; do _adv_pid_alive "$_x" && { _fresh=$(_adv_tree_pids "$_x" 2>/dev/null) || _fresh=""; _pids=$(printf '%s\n%s\n' "$_pids" "$_fresh" | tr ' ' '\n' | grep -v '^$' | sort -un); }; done
+  for _x in $_pids; do [[ " $_tok" == *" $_x="* ]] || _tok+="$(_adv_pid_tokens "$_x" 2>/dev/null || true)"; done
+  for _x in $_pids; do _adv_kill_same "$_x" "$_tok"; done
   return 0
 }
 _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap the companion as a wait timeout and record it

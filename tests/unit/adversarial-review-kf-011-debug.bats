@@ -10,12 +10,12 @@
 #   - The sidecar passes through log-redactor (NFR-Sec-1)
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    TEST_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # no mktemp fallback no teardown removes (thirty-second run, c2a DISS-C-002)
+    TEST_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # no mktemp fallback no teardown removes (thirty-second run, c2a DISS-C-002)
 
     # Sandbox the sprint dir so we don't pollute the real grimoires tree.
     # The sidecar is written under $PROJECT_ROOT/grimoires/loa/a2a/$sprint_id,

@@ -82,6 +82,7 @@ No issues found.
 EOF
     run "$SCRIPT" --file "${TEST_TMPDIR}/f.md" --gate review
     [ "$status" -eq 2 ]
+    [[ "$output" == *"NO_TRAILER: legacy file"* && "$output" != *INCONSISTENT* ]] || { echo "$output"; return 1; }   # (the legacy pass by its status line, not exit 2 alone — thirty-third run, c2c DISS-C-001)
 }
 
 @test "verdict-derive: legacy file --json reports trailer_found=false" {
@@ -599,6 +600,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     } > "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 2 ]
+    [[ "$output" == *"NO_TRAILER: legacy file"* && "$output" != *INCONSISTENT* ]] || { echo "$output"; return 1; }   # (the legacy pass by its status line, not exit 2 alone — thirty-third run, c2c DISS-C-001)
     echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->' >> "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 0 ]
@@ -1051,8 +1053,10 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # writer — thirtieth run, c2d DISS-C-001)
     # (twenty-eighth run, c2d DISS-C-001: and then the FIFO's write end is opened — a bounded writer — so an opener the tree walk
     # missed (no pgrep on the host) is woken by EOF before the unlink: the regression path never leaks a blocked process)
-    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep "${VD_FIFO_DEADLINE:-60}" & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null || :
-      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null || : ) >/dev/null 2>&1 3>&- & local wd=$!
+    # (thirty-third run, c2d DISS-C-002: a reader that traps or ignores TERM, or opens the FIFO again after the one EOF, is KILLed —
+    # the tree collected before any signal, so a child reparented by its parent's death is still in it)
+    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep "${VD_FIFO_DEADLINE:-60}" & s=$!; wait "$s"; : > "$d/fifo-expired"; t=$(_vd_tree "$reader"); kill -TERM $t 2>/dev/null || :
+      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null || :; kill -KILL $t $(_vd_tree "$reader") 2>/dev/null || : ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     [[ -e "$d/fifo-expired" ]] || kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true   # (an expired watchdog finishes its wake)
     output=$(cat "$d/fifo-out")
@@ -1233,14 +1237,84 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     echo "$output" | jq -e --arg p "$d/adir" '.usage_error == true and .violations == ["review file is not a regular file: \($p)"]' >/dev/null || { echo "$output"; return 1; }
     # a missing path is still "not found"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate audit --review-file \"$d/nope.md\" --json 2>/dev/null"
-    echo "$output" | jq -e --arg p "$d/nope.md" '.violations == ["review file not found: \($p)"]' >/dev/null || { echo "$output"; return 1; }
+    [ "$status" -eq 1 ] || { echo "a missing review file exited $status"; return 1; }   # (the exit code is the gate too — thirty-third run, c2d DISS-C-003)
+    echo "$output" | jq -e --arg p "$d/nope.md" '.usage_error == true and .violations == ["review file not found: \($p)"]' >/dev/null || { echo "$output"; return 1; }
 }
 
 @test "verdict-derive: no awk program uses a POSIX character class — a pre-1.3.4 mawk (Debian 10 / Ubuntu 18.04 default awk) reads [[:space:]] as a plain bracket, so no triage bullet or Observations entry would ever match (thirty-second run, b1 DISS-C-001)" {
     # every line of the script that carries a [[: class is a sed / grep / bash test line, never an awk program line
-    local bad
-    bad=$(awk '/awk[ ]+\x27/ {inawk = 1} inawk && /\[\[:/ {print NR": "$0} inawk && /\x27/ && !/awk[ ]+\x27/ {inawk = 0} inawk && /awk[ ]+\x27.*\x27/ {inawk = 0}' < "$SCRIPT")
-    [ -z "$bad" ] || { echo "$bad"; return 1; }
+    # (thirty-third run, c2d DISS-C-001: every awk program — after -v / -F options, spliced across '"'"', spanning lines — and an
+    # awk the lint cannot read (-f, a variable program or binary) is refused; a comment naming awk is never a program)
+    local bad lint fx="${TEST_TMPDIR}/awk-lint-fixture.sh"
+    lint=$(cat <<'PY'
+import re, sys
+src = open(sys.argv[1]).read()
+bad = []
+def word(s, i):                       # one shell word from i: unquoted text with '…' and "…" segments
+    j = i
+    while j < len(s) and not s[j].isspace() and s[j] not in ';|&)':
+        if s[j] in "'\"":
+            k = s.find(s[j], j + 1)
+            j = len(s) if k < 0 else k + 1
+        else:
+            j += 1
+    return j
+pos = 0
+for line in src.split('\n'):
+    start, pos = pos, pos + len(line) + 1
+    if line.lstrip().startswith('#'):
+        continue
+    code = re.split(r'\s#\s', line, maxsplit=1)[0]
+    for m in re.finditer(r'(?<![\w.-])(?:[gmn]?awk\b|"?\$\{?AWK\b)', code):
+        if 'AWK' in m.group(0):
+            bad.append('a variable awk: ' + line.strip()); continue
+        i, skip = start + m.end(), False
+        while True:                   # options: -v name=value, -F sep, -- (each one word, or a flag and its word)
+            while i < len(src) and src[i] in ' \t': i += 1
+            if src.startswith('-f', i):
+                bad.append('awk -f, a program the lint cannot read: ' + line.strip()); skip = True; break
+            if src[i:i + 1] == '-':
+                flag_end = word(src, i)
+                if flag_end - i == 2 and src[i + 1] in 'vF':
+                    i = flag_end
+                    while i < len(src) and src[i] in ' \t': i += 1
+                    i = word(src, i)
+                else:
+                    i = flag_end
+                continue
+            break
+        if skip:
+            continue
+        if src[i:i + 1] != "'":
+            bad.append('an awk program not in single quotes: ' + line.strip()); continue
+        prog, j = '', i + 1
+        while True:
+            k = src.find("'", j)
+            if k < 0:
+                bad.append('an unterminated awk program: ' + line.strip()); break
+            prog += src[j:k]
+            if src.startswith("'\"'\"'", k):   # a spliced quote: the program goes on
+                prog += "'"; j = k + 5; continue
+            break
+        if '[[:' in prog:
+            bad.append('a POSIX class in the awk program at: ' + line.strip()[:80])
+for b in bad: print(b)
+sys.exit(1 if bad else 0)
+PY
+)
+    local f
+    for f in 'x=$(awk -v n="$y" '"'"'/[[:space:]]/ {print}'"'"' f)' \
+             'awk -F'"'"'\t'"'"' '"'"'/[[:digit:]]/'"'"' f' \
+             $'awk \'\n  /a\'"\'"\'b/ {x = 1}\n  /[[:space:]]/ {y = 1}\n\' f' \
+             'awk -f prog.awk f' \
+             '"$AWK" '"'"'/x/'"'"' f'; do
+        printf '%s\n' "$f" > "$fx"
+        if python3 -c "$lint" "$fx" >/dev/null; then echo "the lint passed a fixture it must refuse: $f"; return 1; fi
+    done
+    # (the positive control: a class-free program, a comment naming one with a class, a grep line with a class)
+    printf '%s\n' "  awk '/[ \\t]/ {print}' f" "  # awk '/[[:space:]]/' is what mawk misreads" "  grep -q '[[:space:]]' f" > "$fx"
+    python3 -c "$lint" "$fx" || { echo "the positive control was refused"; return 1; }
+    bad=$(python3 -c "$lint" "$SCRIPT") || { echo "$bad"; return 1; }
     # the class-free spellings still count a tab-separated bullet and a tab-indented Observations entry
     skip_if_no_jq
     d="${TEST_TMPDIR}/s32b1"; mkdir -p "$d"
@@ -1261,4 +1335,33 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     [ "$status" -eq 1 ] || { echo "status $status: $output"; return 1; }
     echo "$output" | jq -e '.violations | map(select(test("has no .## Rejected dissent payloads. section"))) | length == 1' >/dev/null || { echo "$output"; return 1; }
     echo "$output" | jq -e '.violations | map(select(test("holds 0 top-level triage line"))) | length == 0' >/dev/null
+}
+
+@test "verdict-derive: a fence closes only on its own character, at least its own length, with no info string — a four-backtick fence quoting a three-backtick example, or a tilde block holding a backtick line, never inverts the section count (thirty-third run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s33b1"; mkdir -p "$d"
+    local trailer='<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    # two payloads, one real entry: the quoted heading and bullets inside the nested example are not triage lines
+    _vd_envelope "$d/adversarial-review.json" '[{"index":0,"title":"a"},{"index":1,"title":"b"}]'
+    printf 'All good\n\n````markdown\n```\n## Rejected dissent payloads\n- quoted\n```\n````\n\n```\n```bash\n- quoted too\n```\n\n## Rejected dissent payloads\n\n- DISS-a (MEDIUM, x.sh:1) — triaged: not a defect.\n\n%s\n' "$trailer" > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ] || { echo "nested (status $status): $output"; return 1; }
+    echo "$output" | jq -e '.violations | map(select(test("holds 1 top-level triage line"))) | length == 1' >/dev/null || { echo "nested: $output"; return 1; }
+    # one payload, one real entry after a tilde block holding a backtick line: the section is found and consistent
+    _vd_envelope "$d/adversarial-review.json" '[{"index":0,"title":"a"}]'
+    printf 'All good\n\n~~~\n```\n~~~\n\n## Rejected dissent payloads\n\n- DISS-a (MEDIUM, x.sh:1) — triaged: not a defect.\n\n%s\n' "$trailer" > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ] || { echo "mixed (status $status): $output"; return 1; }
+    echo "$output" | jq -e '.consistent == true' >/dev/null || { echo "mixed: $output"; return 1; }
+}
+
+@test "verdict-derive: an empty rejected_sidecars entry, or one holding a newline or another control character, is a violation that names it — never dropped silently or split into two names (thirty-third run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s33b2"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: ["", "adversarial-rejected-review-x.jsonl\nengineer-feedback.md"]}}' > "$d/adversarial-review.json"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; return 1; }
+    echo "$output" | jq -e '(.violations | map(select(test("malformed entry"))) | length) == 2' >/dev/null || { echo "$output"; return 1; }
+    echo "$output" | jq -e '(.violations | map(select(test("lists engineer-feedback.md"))) | length) == 0' >/dev/null || { echo "$output"; return 1; }
 }

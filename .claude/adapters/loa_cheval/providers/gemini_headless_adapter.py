@@ -20,6 +20,10 @@ Design notes:
   - Tools / tool_choice are NOT forwarded to the gemini agent. Forward later
     when an agent binding genuinely needs gemini-cli's MCP tool surface.
   - Approval mode locked to `plan` (read-only, no shell exec, no file edits).
+  - The prompt rides stdin (gemini-cli joins piped stdin before the `-p` text), never argv: an argv prompt is readable by any
+    local user through /proc/<pid>/cmdline and one argument over 128 KiB fails at exec (cycle-126 thirty-third run, e1b
+    DISS-C-002). gemini-cli truncates stdin past 8 MiB, so a larger prompt is refused, walkable. An operator `--sandbox` in
+    `gemini_extra_flags` re-injects stdin into the sandbox child's argv.
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
     invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
     an isolated empty directory, never the reviewed tree (cycle-126).
@@ -110,6 +114,10 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     _install_hint = 'Install with: npm install -g @google/gemini-cli'
     _logger = logger
 
+    # (the fixed `-p` text: headless mode, the prompt itself on stdin — e1b DISS-C-002)
+    _ARGV_PROMPT = "Answer the request above."
+    _STDIN_CAP = 8 * 1024 * 1024   # gemini-cli's MAX_STDIN_SIZE (UTF-16 code units of the decoded stdin)
+
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
         return run_subprocess_pgkill(command, **kwargs)
@@ -119,11 +127,16 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         """An isolated empty cwd under the private base, as its siblings: gemini-cli reads GEMINI.md and `.gemini/` from its
         cwd, and `--skip-trust` trusts that directory — the caller's cwd is the tree under review, so a reviewed branch would
         shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first."""
+        # (gemini-cli counts its cap in decoded string length — UTF-16 code units)
+        if len(prompt.encode("utf-16-le")) // 2 >= self._STDIN_CAP:
+            raise ProviderUnavailableError(
+                self.provider, f"gemini -p reads at most 8 MiB of stdin and would truncate this {len(prompt)}-character prompt",
+            )
         command = self._build_command(request, model_config, prompt)
         workspace = tempfile.mkdtemp(prefix="loa-gemini-ws-", dir=private_workspace_base())
         started_at = time.monotonic()
         try:
-            yield CLIInvocation(command, {"cwd": workspace}, started_at)
+            yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
 
@@ -176,7 +189,7 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         model_config,
         prompt: str,
     ) -> List[str]:
-        """Build the gemini argv. Headless, plan-mode (read-only), trusted."""
+        """Build the gemini argv. Headless, plan-mode (read-only), trusted. `prompt` is never on it: it rides stdin."""
         # cycle-104 sprint-2 T2.11 amendment: honor `extra.cli_model`
         # so a kind:cli alias (`gemini-headless`) translates to the real
         # gemini model id the CLI binary expects.
@@ -184,7 +197,7 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         cmd: List[str] = [
             self._cli_bin(),
             "-p",
-            prompt,
+            self._ARGV_PROMPT,
             "--output-format",
             "json",
             "--approval-mode",

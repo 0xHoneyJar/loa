@@ -17,7 +17,7 @@
 # =============================================================================
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     export TEST_WORKDIR
     TEST_WORKDIR=$(mktemp -d)
     cd "$TEST_WORKDIR"
@@ -45,6 +45,13 @@ setup() {
     } > filter-fns.sh
     source filter-fns.sh
     [ "$(type -t _adv_jq_pair)" = function ] || { echo "setup: _adv_jq_pair was not extracted" >&2; return 1; }
+    # …and extracted whole: the column-0 `}` that ends the range is the function's own — the script line after it is no
+    # indented body (thirty-third run, e3 DISS-C-004)
+    local _end _next
+    _end="$(awk '/^_adv_jq_pair\(\) \{/{f=1} f && /^}/{print NR; exit}' "$script_path")"
+    _next="$(sed -n "$((_end + 1))p" "$script_path")"
+    [[ -n "$_end" && ( -z "$_next" || "$_next" != [[:space:]]* ) ]] \
+        || { echo "setup: _adv_jq_pair's extraction ended inside its body (line $_end)" >&2; return 1; }
 }
 
 teardown() {

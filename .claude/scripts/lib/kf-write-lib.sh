@@ -56,7 +56,23 @@ cell(){ san1 "${1-}" | sed -E 's/\|/\\|/g'; }
 # never collapses them, so `a / b` is `a--b`: cycle-126).
 # Underscores are KEPT — GitHub's algorithm preserves them and the existing Index
 # links rely on it (e.g. #kf-005-beads_rust-021-...).
-gh_anchor(){ printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr ' ' '-'; }
+# A non-ASCII heading is slugged as GitHub does — its Unicode letters lowercased and KEPT, the rule the ledger link lint holds —
+# by python3; under this script's LC_ALL=C, tr/sed see bytes and would drop them (cycle-126 thirty-third run, e2c DISS-C-001).
+# A title that is not UTF-8 has no GitHub slug: refused before any write.
+gh_anchor(){
+  if [[ -z "$(printf '%s' "${1-}" | tr -d '\000-\177')" ]]; then
+    printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr ' ' '-'
+    return 0
+  fi
+  command -v python3 >/dev/null 2>&1 || die "new: a non-ASCII title needs python3 for its GitHub anchor"
+  printf '%s' "${1-}" | python3 -c 'import re, sys
+try:
+    h = sys.stdin.buffer.read().decode("utf-8")
+except UnicodeDecodeError:
+    sys.exit(1)
+sys.stdout.buffer.write(re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-").encode("utf-8"))' \
+    || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
+}
 
 # NB: grep can legitimately match nothing; with `set -o pipefail` the pipe then
 # returns non-zero, so every grep-in-substitution is guarded with `|| true`.

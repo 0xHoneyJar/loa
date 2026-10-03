@@ -39,7 +39,7 @@ setup() {
     fi
 
     # Per-test scratch tmpdir for the MODELINV log. BATS sets BATS_TEST_TMPDIR.
-    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"
     MODELINV_LOG="$BATS_TEST_TMPDIR/model-invoke.jsonl"
     : > "$MODELINV_LOG"
     export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"

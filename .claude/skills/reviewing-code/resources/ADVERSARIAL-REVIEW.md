@@ -98,7 +98,8 @@ this block are kept byte-identical (CMP-138 fails on any drift).
   is `reason: prompt_copy_failed` (no fork). `LOA_ADVERSARIAL_KEEP_WORKDIR=1` keeps the `/tmp` workdir's files, never a
   process.
 - **`companion_voice.independent` / `counted_as`.** Independence compares the two `answered_by` families (the primary's
-  succeeded id, not its configured hop). Same family: the companion's findings are kept (tagged) but its envelope
+  succeeded id, not its configured hop). Same family — or either family `unknown`, an id no catalog entry or name rule
+  places, which is no evidence of a second family: the companion's findings are kept (tagged) but its envelope
   contributes no voice to verdict quality — `counted_as: duplicate_voice` (the aggregator counts distinct voices; its
   INV-5 forbids one id both succeeded and dropped, so a failed companion whose id is one of the primary's succeeded voices
   feeds no dropped-voice envelope either, and a MIXED attempt envelope keeps its own voice: a copy without the conflicting

@@ -16,7 +16,7 @@
 setup() {
     SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)
     FR7_OWN_DIRS=()          # the suffixed a2a directories a test makes, for teardown (thirty-first run, c2e DISS-C-001)
-    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirty-first run, c2e DISS-C-002)
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirty-first run, c2e DISS-C-002)
     export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

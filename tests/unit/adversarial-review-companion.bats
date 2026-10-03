@@ -206,6 +206,9 @@ YAML
                     return 0
                 fi
                 [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
+            *)   # a value with no arm (a typo, a behaviour added before its arm) fails the test in teardown — it fell out of the
+                 # case as an empty answer the script read as malformed (thirty-third run, c1a DISS-C-001)
+                printf '%s\n' "$b" >> "$T/marker-unknown-behaviour"; echo "stub: no arm for BEHAVIOUR '$b'" >&2; return 99 ;;
         esac
     }
     export PYTHONPATH="$PROJECT_ROOT/.claude/adapters"
@@ -250,8 +253,9 @@ teardown() {
     pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$"'( |$)' 2>/dev/null || true   # (anchored: pid 1234 never matches a sibling's 12345 — twentieth run, c1a DISS-C-001)
     # an out-of-band lock holder a failed assertion left behind (twelfth run, c1 C-002)
     _end_holders
+    local _unk=""; [[ -s "$T/marker-unknown-behaviour" ]] && _unk=$(sort -u "$T/marker-unknown-behaviour" | tr '\n' ' ')
     if [[ -n "${CMP_OWN_TMP:-}" && -d "$CMP_OWN_TMP" && "$(basename "$CMP_OWN_TMP")" == tmp.* ]]; then find "$CMP_OWN_TMP" -mindepth 1 -delete; rmdir "$CMP_OWN_TMP"; fi
-    [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || return 0
+    [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || { _unknown_behaviour_said "$_unk"; return; }
     _sweep_stale_suite_dirs "${OUT_DIR%/*}" sprint-comp
     # this test's directory only — never a sibling it did not make (twenty-ninth run, c1a DISS-001)
     if [[ -d "$OUT_DIR" && ! -L "$OUT_DIR" ]]; then find "$OUT_DIR" -mindepth 1 -delete; rmdir "$OUT_DIR"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
@@ -262,6 +266,10 @@ teardown() {
         [[ "$d" == */adversarial-sprint-comp-* && -d "$d" && ! -L "$d" ]] || continue   # (never a link — twenty-eighth run, c1a DISS-C-001)
         find "$d" -mindepth 1 -delete; rmdir "$d"
     done
+    _unknown_behaviour_said "$_unk"
+}
+_unknown_behaviour_said() {  # <values> — the teardown verdict on a BEHAVIOUR the stub has no arm for (CMP-206)
+    [[ -z "$1" ]] || { echo "the stub has no arm for BEHAVIOUR value(s): $1" >&2; return 1; }
 }
 # a holder a failed assertion left behind ends — a stopped one too: a TERM to a SIGSTOPped process stays pending until a CONT
 # (twenty-fifth run, c1b DISS-C-003)
@@ -1677,7 +1685,11 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 @test "CMP-63 a dead run's lock is taken over by ONE of two concurrent takers at a time — the takeover is an atomic rename, never rm + rmdir; a second holder is legitimate only once the first released (eighteenth run, a2 C-001)" {
     _need_flock   # the takeover runs under the per-key flock section: without flock it is refused and the run is unguarded (twenty-third run, c1c DISS-C-002)
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
-    printf '%s\n%s\n' "999999" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # a dead holder (no such pid)
+    # a dead holder: a pid above pid_max is never live (thirty-third run, c1b DISS-C-002: 999999 is a legal, often live, pid
+    # under the 4194304 pid_max systemd sets — the takeover then ran the recycled-token branch, not the dead-holder one)
+    local dead; dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live — not a dead holder"; return 1; fi
+    printf '%s\n%s\n' "$dead" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""
     # (the takers stamp with _now_ms, never GNU-only `date +%s%N` — twentieth run, c1c DISS-C-002)
     for round in 1 2 3; do
         : > "$T/takers"; : > "$T/takers-err"
@@ -1701,7 +1713,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
             [ "$r1" -le "$h1" ]
         fi
         [ -z "$(ls -d "$lockd".stale.* 2>/dev/null)" ]   # the renamed carcass is gone
-        mkdir -p "$lockd"; printf '%s\n%s\n' "999999" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"   # dead again for the next round
+        mkdir -p "$lockd"; printf '%s\n%s\n' "$dead" "Thu Jan  1 00:00:00 1970" > "$lockd/pid"   # dead again for the next round
     done
     command rm -f -- "$lockd/pid"; rmdir "$lockd" 2>/dev/null || true
 }
@@ -1859,6 +1871,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 }
 
 @test "CMP-67 a run-lock holder that is a zombie is dead, as the reaper knows: its lock is taken over (nineteenth run, a2 C-002)" {
+    _need_flock   # the takeover runs under the per-key flock section, as CMP-63 says (thirty-third run, c1b DISS-C-001)
     bash -c 'sleep 0.05 & echo $! > "$1/zpid"; exec sleep 30' _ "$T" 3>&- & HOLDER_PIDS+=("$!")
     sleep 0.4; z=$(cat "$T/zpid")
     [[ "$(ps -o stat= -p "$z" 2>/dev/null)" == Z* ]] || skip "no zombie could be staged on this host"
@@ -2992,7 +3005,8 @@ $doc" 300 2>/dev/null)
     [ "$(grep -c . "$T/git.log")" = "1" ]
     # (twenty-seventh run, a4 DISS-C-002: the diff is taken between the commits the range resolved to, and the scope names them)
     local _b _h; _b=$(command git -C "$PROJECT_ROOT" rev-parse "$_r"); _h=$(command git -C "$PROJECT_ROOT" rev-parse HEAD)
-    grep -qx -- "-C $PROJECT_ROOT -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ ${_b}...${_h} --" "$T/git.log"
+    # (a fixed string: the checkout path and the `...` between the oids are literal — thirty-third run, c1c DISS-C-002)
+    grep -qxF -- "-C $PROJECT_ROOT -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ ${_b}...${_h} --" "$T/git.log"
     [ "$(jq -c '.metadata.scope.diff_oids' <<<"$result")" = "{\"base\":\"$_b\",\"head\":\"$_h\"}" ]
     [ "$(jq -r '.metadata.scope.diff_range' <<<"$result")" = "$_r...HEAD" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
@@ -3221,10 +3235,14 @@ $doc" 300 2>/dev/null)
 }
 
 @test "CMP-140 a holder left stopped by a failed assertion is ended by teardown, never left with a pending TERM (twenty-fifth run, c1b DISS-C-003)" {
-    sleep 30 3>&- & q=$!; HOLDER_PIDS=("$q"); kill -STOP "$q"
+    sleep 30 3>&- & q=$!; HOLDER_PIDS=("$q")
+    # (thirty-third regression: STOPped before the fork had exec'd sleep, the TERM reached the child shell's inherited trap and
+    # was lost across the exec — a 1-in-8 red no poll length cured; the holder is stopped only once it is sleep)
+    local i; for i in $(seq 1 50); do [[ "$(ps -o comm= -p "$q" 2>/dev/null)" == sleep ]] && break; sleep 0.05; done
+    kill -STOP "$q"
     _end_holders
     # (a bounded poll, never a fixed 0.5 s: a TERM'd process on a loaded host can take longer to exit — round 1ag's regression)
-    local i; for i in $(seq 1 50); do { kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; } || break; sleep 0.1; done
+    for i in $(seq 1 50); do { kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; } || break; sleep 0.1; done
     if kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; then kill -CONT "$q"; kill -KILL "$q"; echo "a stopped holder outlived _end_holders by 5 s" >&2; return 1; fi
     HOLDER_PIDS=()
 }
@@ -3342,7 +3360,6 @@ $sib2" 300 2>/dev/null)
 }
 
 @test "CMP-147 every envelope main writes says what it reviewed (metadata.scope: diff_range, the diff's sha256, run_tag — null when absent), and both resources adopt another run's envelope after refused_concurrent_run only when its scope matches (twenty-sixth run, b2 DISS-C-003)" {
-    BEHAVIOUR[gpt-5.5-pro]=clean
     result=$(_run_main review) || { tail -5 "$T/stderr.log"; return 1; }
     local want; want=$(_cmp_sha256 < "$T/diff.patch" | cut -c1-64); [[ "$want" =~ ^[0-9a-f]{64}$ ]]
     [ "$(jq -r '.metadata.scope.diff_sha256' <<<"$result")" = "$want" ]
@@ -3592,7 +3609,7 @@ YAML
     wait "$sec" 2>/dev/null || true
     # a section held past the release's wait: the lock is still released (a dead run's lock must never outlive it), and that is said
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
-    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section2"; sleep 12 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
+    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section2"; exec sleep 12 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
     for _ in $(seq 1 50); do [ -e "$T/in-section2" ] && break; sleep 0.1; done; [ -e "$T/in-section2" ]
     t0=$(date +%s)
     _adv_release_run_lock 2>"$T/rel-err"
@@ -3600,6 +3617,10 @@ YAML
     [ ! -d "$lockd" ]
     grep -q 'released unserialised' "$T/rel-err"
     kill "$sec" 2>/dev/null || true
+    # (thirty-third run, c1c DISS-C-001: the holder that was ended is the one holding the section — a forked sleep kept fd 7,
+    # and the flock with it, for the rest of its 12 s after the test ended)
+    wait "$sec" 2>/dev/null || true
+    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" -n 7 ) 3>&- || { echo "the takeover section is still held after its holder was ended"; return 1; }
 }
 
 @test "CMP-162 a refusal envelope carries the documented metadata keys only — its scope once, as metadata.scope, never a stray copy of a jq binding (twenty-eighth run, a2 DISS-C-002)" {
@@ -4143,6 +4164,7 @@ PY
 
 @test "CMP-193 a reviewer killed between _adv_kill_tree's STOP and CONT passes never leaves the tree stopped: a detached watchdog resumes it, so a frozen claude -p never holds the per-binary lock for good (thirty-second run, a3 DISS-C-003)" {
     sleep 30 3>&- & local victim=$!; HOLDER_PIDS+=("$victim")
+    export _ADV_CONT_WATCHDOG_SECONDS=2   # (the default is longer: the watchdog is cancelled on the normal path — CMP-204)
     # the token pass runs while the tree is frozen; the stub KILLs the shell running _adv_kill_tree right there
     _adv_pid_tokens() { kill -KILL "$KT_SHELL"; sleep 5; }
     ( KT_SHELL=$BASHPID; _adv_kill_tree "$victim" TERM tokens ) >/dev/null 2>&1 3>&- || true
@@ -4278,4 +4300,126 @@ PY
     printf '@test "y" {\n    ! false || { echo no; return 1; }\n    true\n    ! false\n}\n' > "$T/neg-b.bats"
     run python3 "$T/neg-lint.py" "$T/neg-a.bats" "$T/neg-b.bats"
     [ "$status" -eq 1 ]; [[ "$output" == *"neg-a.bats:2:"* ]]; [[ "$output" != *"neg-b.bats"* ]]
+}
+
+@test "CMP-200 companion_voice reads the YAML 1.1 single-letter booleans: n opts out and y stays on, never 'not a boolean' (thirty-third run, a1 DISS-C-001)" {
+    _cfg_edit $'enabled: true\n' $'enabled: true\n    companion_voice: n\n'
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "false" ] || { echo "$result"; return 1; }
+    [ "$(grep -c "is not a boolean" "$T/stderr.log")" = "0" ] || { cat "$T/stderr.log"; return 1; }
+    _cfg_edit "companion_voice: n" "companion_voice: Y"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(grep -c "is not a boolean" "$T/stderr.log")" = "0" ] || { cat "$T/stderr.log"; return 1; }
+}
+
+@test "CMP-201 a companion_chain element ending in a newline (a block scalar) is dropped alone — never read as its trimmed name, nor an extra row that discards the whole list as unreadable (thirty-third run, a1 DISS-C-002)" {
+    _cfg_edit $'  code_review:\n    enabled: true\n' "  code_review:"$'\n'"    enabled: true"$'\n'"    companion_chain:"$'\n'"      anthropic:"$'\n'"        - claude-headless"$'\n'"        - |"$'\n'"          tiny"$'\n'
+    [ "$(yq eval '.flatline_protocol.code_review.companion_chain.anthropic[1]' -o=json "$CONFIG_FILE")" = '"tiny\n"' ]
+    run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; _adv_conf_chain_hops code_review anthropic"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"could not be read"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"companion_chain.anthropic[1] is not a hop name"* ]] || { echo "$output"; return 1; }
+    [ "$(tail -n 1 <<<"$output")" = "claude-headless" ]
+    # first in the list: before, its extra empty row made the count disagree and the whole list was discarded
+    yq -i '.flatline_protocol.code_review.companion_chain.anthropic |= [.[1], .[0]]' "$CONFIG_FILE"
+    run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; _adv_conf_chain_hops code_review anthropic"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"could not be read"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"companion_chain.anthropic[0] is not a hop name"* ]] || { echo "$output"; return 1; }
+    [ "$(tail -n 1 <<<"$output")" = "claude-headless" ]
+}
+
+@test "CMP-202 an alias's target loses only a provider token: a bare Bedrock id keeps its -v1:0, so two such aliases never collapse onto the canonical hop 0 (thirty-third run, a2 DISS-C-002)" {
+    local cat="$T/cat-202.yaml"
+    cp "$PROJECT_ROOT/.claude/defaults/model-config.yaml" "$cat"
+    yq -i '.aliases["my-bare"] = "anthropic.claude-sonnet-4-5-20250929-v1:0" | .aliases["my-bare-2"] = "anthropic.claude-haiku-4-5-20251001-v1:0" | .aliases["my-host"] = "bedrock:anthropic.claude-sonnet-4-5-20250929-v1:0" | .aliases["my-cli"] = "anthropic:claude-headless"' "$cat"
+    export LOA_MODEL_CONFIG="$cat"
+    [ "$(_adv_hop_canon my-bare)" = "anthropic.claude-sonnet-4-5-20250929-v1:0" ] || { echo "my-bare → $(_adv_hop_canon my-bare)"; return 1; }
+    [ "$(_adv_hop_canon my-bare-2)" != "$(_adv_hop_canon my-bare)" ]
+    [ "$(_adv_hop_canon my-host)" = "anthropic.claude-sonnet-4-5-20250929-v1:0" ]
+    # a provider-prefixed target and a prefixed spelling of the hop canonicalise as before
+    [ "$(_adv_hop_canon my-cli)" = "claude-headless" ]
+    [ "$(_adv_hop_canon anthropic:claude-headless)" = "claude-headless" ]
+    [ "$(_adv_hop_canon bedrock:us.anthropic.claude-opus-4-8)" = "us.anthropic.claude-opus-4-8" ]
+}
+
+@test "CMP-203 the primary reaper collects the tree again before KILL, as the companion's does: a child the job forked during the grace never outlives the reap (thirty-third run, a3 DISS-001)" {
+    rm -f "$T/p203-child" "$T/p203-ready"
+    bash -c 'trap "sleep 300 3>&- & echo \$! > \"\$1/p203-child\"" TERM; : > "$1/p203-ready"; while :; do sleep 0.1; done' _ "$T" 3>&- & local p=$!; HOLDER_PIDS+=("$p")
+    for i in $(seq 1 50); do [ -e "$T/p203-ready" ] && break; sleep 0.1; done
+    [ -e "$T/p203-ready" ]
+    _ADV_PRIMARY_PID=$p; _ADV_PRIMARY_START=$(_adv_proc_start "$p"); LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1 _adv_reap_primary
+    for i in $(seq 1 30); do [ -s "$T/p203-child" ] && break; sleep 0.1; done
+    local c; c=$(cat "$T/p203-child" 2>/dev/null || true); [[ "$c" =~ ^[0-9]+$ ]] || { echo "the job never forked its child (got: $c)"; return 1; }
+    HOLDER_PIDS+=("$c")
+    sleep 0.3
+    if kill -0 "$p" 2>/dev/null; then echo "job $p still alive after the primary reap"; return 1; fi
+    if kill -0 "$c" 2>/dev/null; then echo "child $c forked during the grace outlived the primary reap"; return 1; fi
+}
+
+@test "CMP-204 the CONT watchdog is cancelled once the reaper's own CONT pass ran — a pid it resumed and someone then stopped is never resumed seconds later — and it runs in its own session, so a process-group KILL of the reviewer never takes it down (thirty-third run, a3 DISS-C-001)" {
+    export _ADV_CONT_WATCHDOG_SECONDS=1
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-204-$$" 3>&- & local v=$!; HOLDER_PIDS+=("$v"); _await_stubborn "$v"
+    _adv_kill_tree "$v" TERM >/dev/null
+    kill -0 "$v"
+    kill -STOP "$v"   # stopped after the reap by someone else (or a recycled pid's owner)
+    sleep 2
+    [[ "$(ps -o stat= -p "$v")" == T* ]] || { echo "the watchdog resumed pid $v after the reaper had finished: $(ps -o stat= -p "$v")"; return 1; }
+    kill -CONT "$v"
+    if command -v setsid >/dev/null 2>&1; then
+        # a reviewer killed by its process group mid-freeze: the watchdog is in no group of the reviewer's
+        sleep 30 3>&- & local w=$!; HOLDER_PIDS+=("$w")
+        _adv_pid_tokens() { kill -KILL -- -"$(ps -o pgid= -p "$BASHPID" | tr -d ' ')"; sleep 5; }
+        setsid bash -c "$(declare -f _adv_kill_tree _adv_tree_pids _adv_cont_watchdog _adv_pid_tokens); _adv_kill_tree $w TERM tokens" >/dev/null 2>&1 3>&- </dev/null || true
+        local i; for i in $(seq 1 30); do [[ "$(ps -o stat= -p "$w")" == T* ]] && break; sleep 0.1; done
+        for i in $(seq 1 40); do [[ "$(ps -o stat= -p "$w")" == T* ]] || break; sleep 0.1; done
+        [[ "$(ps -o stat= -p "$w")" != T* ]] || { echo "pid $w is still stopped after the reviewer's group was killed"; kill -CONT "$w"; return 1; }
+    fi
+}
+
+@test "CMP-205 a primary that answered as an id no catalog entry or name rule places (family unknown) is never judged independent of the companion: independent false, duplicate_voice, the findings kept, and the log says why (thirty-third run, b2 DISS-C-002)" {
+    BEHAVIOUR[gpt-5.5-pro]=walked:my-proxy-model
+    [ "$(_adv_family_of my-proxy-model)" = "unknown" ]
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ] || { echo "$result"; return 1; }
+    [ "$(jq -r '.metadata.companion_voice.primary_succeeded_model' <<<"$result")" = "my-proxy-model" ] || { echo "$result"; return 1; }
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "false" ] || { jq -c '.metadata.companion_voice' <<<"$result"; return 1; }
+    [ "$(jq -r '.metadata.companion_voice.counted_as' <<<"$result")" = "duplicate_voice" ]
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    grep -q "cannot be judged independent" "$T/stderr.log" || { cat "$T/stderr.log"; return 1; }
+    # a known, different family stays independent
+    BEHAVIOUR[gpt-5.5-pro]=ok
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.independent' <<<"$result")" = "true" ]
+}
+
+@test "CMP-206 a BEHAVIOUR value the stub has no arm for fails the test that set it — never a silent empty answer the script reads as malformed (thirty-third run, c1a DISS-C-001)" {
+    BEHAVIOUR[gpt-5.5-pro]=malfromed
+    result=$(_run_main review) || true   # (a subshell: main exits)
+    [ -e "$T/marker-unknown-behaviour" ] || { echo "the stub answered an unknown BEHAVIOUR without a marker"; return 1; }
+    grep -q "malfromed" "$T/marker-unknown-behaviour"
+    command rm -f -- "$T/marker-unknown-behaviour"   # (this test meant it: the teardown check stays for every other test)
+}
+
+@test "CMP-207 the CHANGELOG FR-2 bullet states one shipped state: only the review skill grants the qmd step (the audit skill dropped it), and the headless cwd fails closed when no private base qualifies — gemini's prompt on stdin with claude's (thirty-third run, e2a DISS-C-002, e1b DISS-C-002)" {
+    local cl="$PROJECT_ROOT/CHANGELOG.md" sk="$PROJECT_ROOT/.claude/skills"
+    if grep -q 'both skills allowlist the `qmd-context-query.sh` step they prescribe' "$cl"; then echo "a qmd grant the audit skill no longer has"; return 1; fi
+    grep -q 'the review skill allowlists the `qmd-context-query.sh` step it prescribes' "$cl" || { echo "the qmd grant is not stated as shipped"; return 1; }
+    if grep -q 'and none fails the call closed' "$cl"; then echo "a cwd guarantee that reads as never failing closed"; return 1; fi
+    grep -q 'when none qualifies, the hop fails closed as provider-unavailable' "$cl" || { echo "the fail-closed cwd is not stated"; return 1; }
+    grep -q 'and `gemini-headless` adapters send every prompt on stdin' "$cl" || { echo "gemini's stdin transport is not stated"; return 1; }
+    # (what the bullet says is what ships)
+    grep -q 'Bash(.claude/scripts/qmd-context-query.sh \*)' "$sk/reviewing-code/SKILL.md" || { echo "the review skill lost its qmd grant"; return 1; }
+    if grep -q 'qmd-context-query' "$sk/auditing-security/SKILL.md"; then echo "the audit skill grants qmd again"; return 1; fi
+}
+
+@test "CMP-208 the config states what the all-Fable move costs and how its claude-headless gate hops authenticate: the harness caps are named as sized for the sonnet/opus split, and the Flatline and BB primaries' auth follows CLAUDE_HEADLESS_BIN with the breaker shared with the dissent companion (thirty-third run, e2b DISS-C-001/003)" {
+    local cfg="$PROJECT_ROOT/.loa.config.yaml"
+    grep -q 'caps below were sized for the sonnet executor / opus advisor split' "$cfg" || { echo "the harness caps are not named as pre-Fable"; return 1; }
+    grep -q 'Fable 5.1 is 5x sonnet-5 and 2x opus-5 per token' "$cfg" || { echo "the Fable cost multiple is not stated"; return 1; }
+    [ "$(grep -c 'auth follows CLAUDE_HEADLESS_BIN' "$cfg")" -ge 2 ] || { echo "a claude-headless gate primary does not state its auth mode"; return 1; }
+    grep -q 'shares the anthropic headless circuit breaker with the dissent companion' "$cfg" || { echo "the shared breaker is not stated"; return 1; }
+    # (the caps themselves are the operator's spend decision — this round names them, never raises them)
+    [ "$(yq '.spiral.harness.implement_budget_usd' "$cfg")" = "5" ] || { echo "the implement cap moved"; return 1; }
 }

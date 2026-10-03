@@ -26,6 +26,9 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     it (clean output, exit 0, zero ANSI). `--sandbox` keeps it terminal-restricted (the
     read-only analog of gemini's `--approval-mode plan`); never `--dangerously-skip-permissions`
     alone on a review path.
+  - **cwd** — an isolated empty directory per hop (cycle-126). Not yet probed live there (no agy on the cycle-126 host): a
+    folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a walkable
+    non-zero exit or ends at the catalog timeout — never a hang; re-run the T4.1 gate probe before re-enabling agy.
   - **Auth** — agy is **OAuth**-authed on host (`agy models` → exit 0; no API-key flag; creds in
     an OAuth store, not `GOOGLE_API_KEY`). The gemini env-strip is a no-op for agy; we keep
     `build_headless_subprocess_env()` (harmless — agy ignores the stripped vars).
@@ -46,7 +49,7 @@ import tempfile
 import time
 from typing import Any, Dict, List
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base, cwd_vanished
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -158,6 +161,10 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                         f"agy -p {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
+                    if cwd_vanished(workspace):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                        raise ProviderUnavailableError(
+                            self.provider, f"agy -p working directory {workspace} vanished before the CLI started: {exc}",
+                        ) from exc
                     raise ConfigError(
                         f"agy CLI not found on PATH (set AGY_HEADLESS_BIN to override). "
                         f"Install + authenticate the Antigravity CLI on the cheval host. "

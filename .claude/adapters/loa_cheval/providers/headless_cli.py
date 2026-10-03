@@ -38,19 +38,39 @@ from loa_cheval.types import (
 
 _TRUSTED_ABOVE: Optional[str] = None   # a test hook only (the suite's private root and its ancestors are not judged)
 
+# the files claude (and gemini) load from a cwd's project — never at or above an isolated cwd (thirty-third run, d DISS-C-001 /
+# DISS-C-003)
+_PROJECT_FILES = ("CLAUDE.md", "CLAUDE.local.md", ".claude", ".mcp.json")
+
+
+def _group_private(gid: int) -> bool:
+    """No other account is in the group: none is a listed member and none has it as its primary group — a user-private group
+    (the Debian/Ubuntu default), never macOS `staff` or a shared `users` (thirty-third run, d DISS-001 / DISS-C-002). An
+    account database that cannot answer is no proof."""
+    try:
+        import grp
+        import pwd
+        me = pwd.getpwuid(os.getuid()).pw_name
+        members = grp.getgrgid(gid).gr_mem
+        accounts = pwd.getpwall()
+    except (ImportError, KeyError, OSError):
+        return False
+    return all(m == me for m in members) and all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts)
+
 
 def _dir_trustworthy(st) -> bool:
     """A directory no other user can write into: owned by root or this uid, never other-writable, and group-writable only
-    for this process's own group (a user-private group — the Debian/Ubuntu default for ~/.cache)."""
+    for this process's own group when no other account is in it (a user-private group — the Debian/Ubuntu default for
+    ~/.cache)."""
     if not stat.S_ISDIR(st.st_mode) or st.st_uid not in (0, os.getuid()):
         return False
     if st.st_mode & stat.S_IWOTH:
         return False
-    return not (st.st_mode & stat.S_IWGRP) or st.st_gid == os.getgid()
+    return not (st.st_mode & stat.S_IWGRP) or (st.st_gid == os.getgid() and _group_private(st.st_gid))
 
 
-def _chain_private(path: str) -> bool:
-    """`path` (resolved) and every directory above it are trustworthy; a missing one is not."""
+def _trusted_stop() -> set:
+    """The test hook's root and every directory above it (empty outside the tests)."""
     stop = set()
     if _TRUSTED_ABOVE:
         t = os.path.realpath(_TRUSTED_ABOVE)
@@ -59,6 +79,30 @@ def _chain_private(path: str) -> bool:
             if os.path.dirname(t) == t:
                 break
             t = os.path.dirname(t)
+    return stop
+
+
+def _project_marker(path: str) -> Optional[str]:
+    """The first project file at or above `path` (resolved) that a CLI started below it would load: a .git — a work tree, the
+    reviewed one — or a CLAUDE.md / CLAUDE.local.md / .claude / .mcp.json anywhere but the home directory, whose are the
+    user's own (thirty-third run, d DISS-C-001: TMPDIR=.tmp, a read-only /tmp's cwd fallback, an XDG_RUNTIME_DIR in the
+    tree). None when there is none."""
+    home = os.path.realpath(os.path.expanduser("~"))
+    stop = _trusted_stop()
+    p = os.path.realpath(path)
+    while p not in stop:
+        for n in (".git",) + (() if p == home else _PROJECT_FILES):
+            if os.path.lexists(os.path.join(p, n)):
+                return os.path.join(p, n)
+        if os.path.dirname(p) == p:
+            break
+        p = os.path.dirname(p)
+    return None
+
+
+def _chain_private(path: str) -> bool:
+    """`path` (resolved) and every directory above it are trustworthy; a missing one is not."""
+    stop = _trusted_stop()
     p = os.path.realpath(path)
     while p not in stop:
         try:
@@ -74,27 +118,38 @@ def _chain_private(path: str) -> bool:
 
 def private_workspace_base() -> str:
     """The directory the headless CLIs' isolated cwds live in: $XDG_RUNTIME_DIR, else the temporary directory (a per-user
-    one on macOS, or a private $TMPDIR), else ~/.cache/loa — the first whose every ancestor no other user can write.
-    None → OSError (fail closed: a hop never runs where another user's CLAUDE.md is on its discovery path)."""
+    one on macOS, or a private $TMPDIR), else ~/.cache/loa — the first whose every ancestor no other user can write, and
+    that is inside no project tree (thirty-third run, d DISS-C-001). None → OSError (fail closed: a hop never runs where
+    another user's, or the reviewed tree's, CLAUDE.md is on its discovery path)."""
     if not hasattr(os, "getuid"):
         return tempfile.gettempdir()
     tried = []
     xdg = os.environ.get("XDG_RUNTIME_DIR", "")
     for cand in ([xdg] if os.path.isabs(xdg) else []) + [tempfile.gettempdir()]:
         if os.path.isdir(cand) and _chain_private(cand):
-            return os.path.realpath(cand)
+            marker = _project_marker(cand)
+            if marker is None:
+                return os.path.realpath(cand)
+            tried.append(f"{cand} (inside a project: {marker})")
+            continue
         tried.append(cand)
     home = os.path.expanduser("~")
     if os.path.isabs(home) and os.path.isdir(home) and _chain_private(home):
         base = os.path.join(os.path.realpath(home), ".cache", "loa")
-        os.makedirs(base, mode=0o700, exist_ok=True)
-        if _chain_private(base):
-            return base
-        tried.append(base)
+        try:
+            os.makedirs(base, mode=0o700, exist_ok=True)
+        except OSError as exc:
+            tried.append(f"{base} ({exc.strerror or exc})")
+        else:
+            marker = _project_marker(base)
+            if _chain_private(base) and marker is None:
+                return base
+            tried.append(f"{base} (inside a project: {marker})" if marker else base)
     else:
         tried.append(os.path.join(home, ".cache", "loa"))
     raise OSError(errno.EACCES, "no private directory for a headless CLI's working directory — each candidate has an "
-                  "ancestor another user can write into: " + ", ".join(tried) + " (set XDG_RUNTIME_DIR to a 0700 directory)")
+                  "ancestor another user can write into, or is inside a project tree: " + ", ".join(tried)
+                  + " (set XDG_RUNTIME_DIR to a 0700 directory outside any project)")
 
 
 def private_workspace(name: str) -> str:
@@ -106,11 +161,24 @@ def private_workspace(name: str) -> str:
     except FileExistsError:
         pass
     st = os.lstat(path)
-    if (not stat.S_ISDIR(st.st_mode) or (hasattr(os, "getuid") and st.st_uid != os.getuid())
-            or st.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+    # (no ownership on a host without getuid — Windows reports a directory 0o777 — so the mode test goes with the uid test, as
+    # the base's checks do: thirty-third run, d DISS-C-005)
+    if not stat.S_ISDIR(st.st_mode) or (hasattr(os, "getuid") and (
+            st.st_uid != os.getuid() or st.st_mode & (stat.S_IWGRP | stat.S_IWOTH))):
         raise OSError(errno.EEXIST, f"{path} is not a private directory of this user (a symlink, another owner, or "
                       "writable by others): remove it")
+    # (one stable cwd for every hop: a project file left in it would be loaded by every later hop — thirty-third run, d DISS-C-003)
+    held = [n for n in _PROJECT_FILES + (".git",) if os.path.lexists(os.path.join(path, n))]
+    if held:
+        raise OSError(errno.EEXIST, f"{path} holds {', '.join(held)} — a CLI started there would load it: remove it")
     return path
+
+
+def cwd_vanished(cwd: Optional[str]) -> bool:
+    """A FileNotFoundError at exec names a missing cwd as it names a missing binary: the cwd is gone — logind clears
+    $XDG_RUNTIME_DIR at the last logout, perhaps while the hop waited for a slot — so the failure is the hop's, walkable,
+    never 'CLI not found' (thirty-third run, e1 DISS-C-002)."""
+    return bool(cwd) and not os.path.isdir(cwd)
 
 
 @dataclass
@@ -173,6 +241,12 @@ class HeadlessCLIAdapter(ProviderAdapter):
                             self.provider, f"{self._command_label} {exc}",
                         ) from exc
                     except FileNotFoundError as exc:
+                        _cwd = invocation.kwargs.get("cwd")
+                        if cwd_vanished(_cwd):
+                            raise ProviderUnavailableError(
+                                self.provider, f"{self._command_label} working directory {_cwd} vanished before the CLI "
+                                f"started: {exc}",
+                            ) from exc
                         env_name = self._cli_type.upper().replace("-", "_") + "_BIN"
                         hint = self._spawn_install_hint or self._install_hint
                         raise ConfigError(
@@ -186,6 +260,12 @@ class HeadlessCLIAdapter(ProviderAdapter):
                 self.provider,
                 f"[CHAIN-EXHAUSTED-CONCURRENCY] {self._cli_type} semaphore "
                 f"exhausted after {exc.waited_seconds:.1f}s (n_slots={exc.n_slots})",
+            ) from exc
+        except OSError as exc:
+            # (thirty-third run, d DISS-C-004: a refused workspace — or a slot file — before the CLI ran is this hop's typed
+            # failure, so the chain walks on; a bare OSError ended the walk as API_ERROR)
+            raise ProviderUnavailableError(
+                self.provider, f"{self._command_label} could not prepare its run: {exc}",
             ) from exc
 
         # Context exit performs provider-specific cleanup before parsing.

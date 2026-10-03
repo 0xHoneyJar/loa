@@ -21,7 +21,7 @@
 # =============================================================================
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     BASELINE_CAPTURE="$PROJECT_ROOT/tools/cycle-baseline-capture.sh"

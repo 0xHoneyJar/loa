@@ -1391,7 +1391,8 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /review-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
-    budget_cents: 150            # Max cost per dissent call (each voice ≤ this)
+    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this); the KF-004
+                                 # repairs (≤ 5 per voice, one finding each) are bounded by count and wall clock, not by this
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
     # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
     # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI, unknown — → opus → claude-headless;
@@ -1433,7 +1434,8 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
-    budget_cents: 150            # Max cost per dissent call (each voice ≤ this — two voices, up to twice this per audit)
+    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this — two voices, up
+                                 # to twice this per audit; the KF-004 repairs are bounded by count and wall clock, not this)
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape
   stable_anchors:

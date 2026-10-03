@@ -160,6 +160,10 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
+        # (thirty-third run, e1 DISS-C-001: the stable cwd is one project key for every hop on the host — its auto-memory, which
+        # anything out of band can write, is never loaded into a reviewer, whatever the operator's own setting)
+        kwargs["env"] = {**(kwargs["env"] if kwargs.get("env") is not None else os.environ),
+                         "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
         proc = run_subprocess_pgkill(command, **kwargs)
         # cycle-124 FR-7: the CLI validates the schema itself ("--json-schema
         # is not a valid JSON Schema: …", measured live 2026-09-18 on a
@@ -235,7 +239,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         reviewed branch would shape its own reviewer's context (cycle-126 thirty-first run, c2e DISS-C-003). It reads every
         ancestor's CLAUDE.md too, so the cwd sits under a private base, never a world-writable /tmp; and it is one stable
         directory — Claude Code keys project state by cwd, one key, never one per hop (thirty-second run, e1 DISS-C-001 /
-        DISS-C-002). A creation OSError propagates unchanged, as cursor's."""
+        DISS-C-002). A creation OSError is the base complete()'s ProviderUnavailableError, as cursor's (thirty-third run, d
+        DISS-C-004)."""
         command = self._build_command(request, model_config, None)
         workspace = private_workspace("loa-claude-ws")
         started_at = time.monotonic()

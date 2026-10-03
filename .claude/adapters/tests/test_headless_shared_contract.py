@@ -165,7 +165,8 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
     assert args[args.index(model_flag) + 1] == "requested-model"
     assert not calls[1]["auth"]
     prompt = "## User\n\nping\n"
-    if name in ("codex", "cursor", "claude"):   # (claude on stdin at every size — cycle-126 thirtieth run, e1 DISS-C-001)
+    # (claude on stdin at every size — cycle-126 thirtieth run, e1 DISS-C-001; gemini too — thirty-third run, e1b DISS-C-002)
+    if name in ("codex", "cursor", "claude", "gemini"):
         assert calls[1]["stdin"] == prompt
         assert prompt not in args
     elif name == "grok":
@@ -186,6 +187,53 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
         assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
     elif name == "claude":
         assert calls[1]["cwd"] == headless_cli.private_workspace("loa-claude-ws")
+        # (thirty-third run, c2e DISS-C-001: by the relation itself, not the helper's own answer — the stable directory sits
+        # directly under the private base, and that base is the test's own 0700 root, never the temporary directory)
+        assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
+        assert headless_cli.private_workspace_base() == os.path.realpath(os.environ["XDG_RUNTIME_DIR"])
+        assert os.path.basename(calls[1]["cwd"]) == "loa-claude-ws"
+
+
+def test_no_private_base_is_a_provider_unavailable_hop(adapter_case, tmp_path, monkeypatch):
+    """A refused workspace is the hop's typed failure — ProviderUnavailableError, so cheval walks on to the next hop — never a
+    bare OSError that the chain's catch-all ends as API_ERROR; and the CLI is never started (thirty-third run, d DISS-C-004)."""
+    adapter, name, _ = adapter_case
+    pub = Path(os.environ["XDG_RUNTIME_DIR"]) / "pub"
+    pub.mkdir()
+    os.chmod(pub, 0o777)
+    (pub / "run").mkdir(mode=0o700)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(pub / "run"))
+    monkeypatch.setenv("HOME", str(pub / "h"))
+    monkeypatch.setattr(headless_cli.tempfile, "gettempdir", lambda: str(pub))
+    marker = tmp_path / "started"
+    binary = tmp_path / "fake-cli"
+    binary.write_text(f"#!/bin/sh\n: > {str(marker)!r}\necho pong\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv(f"{name.upper()}_HEADLESS_BIN", str(binary))
+    with pytest.raises(ProviderUnavailableError, match="no private directory"):
+        adapter.complete(CompletionRequest(messages=[{"role": "user", "content": "ping"}], model="entry"))
+    assert not marker.exists()
+
+
+def test_a_workspace_that_vanished_before_exec_is_a_walkable_hop(adapter_case, tmp_path, monkeypatch):
+    """Popen raises FileNotFoundError for a missing cwd as for a missing binary: a workspace removed between its creation and the
+    exec (logind clearing $XDG_RUNTIME_DIR while the hop waited for a slot) is this hop's ProviderUnavailableError — never
+    'CLI not found on PATH', a ConfigError that ends the chain (thirty-third run, e1 DISS-C-002)."""
+    import shutil
+    import subprocess
+    adapter, name, _ = adapter_case
+    binary = tmp_path / "fake-cli"
+    binary.write_text("#!/bin/sh\necho pong\n")
+    binary.chmod(0o755)
+    monkeypatch.setenv(f"{name.upper()}_HEADLESS_BIN", str(binary))
+    real = subprocess.Popen
+    def vanish(*args, **kwargs):
+        if kwargs.get("cwd"):
+            shutil.rmtree(kwargs["cwd"])
+        return real(*args, **kwargs)
+    monkeypatch.setattr(subprocess, "Popen", vanish)
+    with pytest.raises(ProviderUnavailableError, match="vanished"):
+        adapter.complete(CompletionRequest(messages=[{"role": "user", "content": "ping"}], model="entry"))
 
 
 def test_complete_bounds_the_hop_by_its_model(adapter_case, tmp_path, monkeypatch):

@@ -159,8 +159,9 @@ class CursorHeadlessAdapter(HeadlessCLIAdapter):
 
     @contextmanager
     def _prepare_invocation(self, request, model_config, prompt):
-        # Cursor counts latency after workspace creation; creation OSError
-        # propagates unchanged. Prompt stays on stdin, with an isolated cwd.
+        # Cursor counts latency after workspace creation; a creation OSError
+        # is the base complete()'s ProviderUnavailableError (thirty-third run,
+        # d DISS-C-004). Prompt stays on stdin, with an isolated cwd.
         command = self._build_command(request, model_config)
         workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-", dir=private_workspace_base())
         started_at = time.monotonic()

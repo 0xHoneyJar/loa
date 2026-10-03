@@ -250,7 +250,10 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                # (twenty-eighth run, b1 DISS-C-001: tab is IFS whitespace — an empty column collapses into its neighbour and
                # shifts every later one, so no column is ever empty)
                | map(if . == "" then "-" else . end) | @tsv),
-              (if $has_list then ($rs[] | if type == "string" then . else ("\u0001" + tojson) end) else empty end)' -- "$ENVELOPE_FILE" 2>/dev/null) || _snap=""
+              # (thirty-third run, b1 DISS-C-002: an empty name, or one holding a newline or another control character, is
+              # tagged too — the line transport dropped the first and split the second into two names)
+              (if $has_list then ($rs[] | if type != "string" then ("\u0001" + tojson)
+                                          elif . == "" or test("[\u0000-\u001f\u007f]") then ("\u0002" + tojson) else . end) else empty end)' -- "$ENVELOPE_FILE" 2>/dev/null) || _snap=""
         if [[ -z "$_snap" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
             return 0
@@ -308,6 +311,10 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                 violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") lists a non-string entry ${f#$'\001'} in metadata.rejected_sidecars — repair the envelope or re-run the dissent")
                 continue
             fi
+            if [[ "$f" == $'\002'* ]]; then
+                violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") lists a malformed entry ${f#$'\002'} in metadata.rejected_sidecars (empty, or a control character no sidecar name holds) — repair the envelope or re-run the dissent")
+                continue
+            fi
             _bn=$(basename -- "$f")
             if [[ "$_bn" != adversarial-rejected-"$GATE"*.jsonl ]]; then
                 violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") lists $_bn in metadata.rejected_sidecars, which is not an adversarial-rejected-$GATE*.jsonl sidecar — repair the envelope or re-run the dissent")
@@ -348,7 +355,13 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     # passed a section short of an entry; no interval expressions — mawk has none)
     # (thirty-second run, b1 DISS-C-001: no POSIX class either — a pre-1.3.4 mawk has none; b1 DISS-C-002: the section is found
     # by the same fence-aware pass that counts it — a heading quoted in a fence is not the section)
-    read -r found lines < <(awk '/^ ? ? ?(```|~~~)/{f = !f; next} f{next} /^##? /{inside = ($0 ~ /^## Rejected dissent payloads/); if (inside) s = 1} inside && /^([-*+]|[0-9]+\.)[ \t]/ {c++} END{print s+0, c+0}' < "$FILE") || true
+    # (thirty-third run, b1 DISS-C-001: a fence closes only on its own character, at least its own length, with nothing but
+    # blanks after — a four-backtick fence quoting a three-backtick example, or a tilde block holding a backtick line, inverted
+    # the pass; a backtick run followed by a backtick is no opening fence)
+    read -r found lines < <(awk '/^ ? ? ?(```|~~~)/{l = $0; sub(/^ */, "", l); q = substr(l, 1, 1); k = 0; while (substr(l, k + 1, 1) == q) k++; r = substr(l, k + 1)
+        if (!f) { if (q != "`" || r !~ /`/) { f = 1; fq = q; fl = k; next } }
+        else if (q == fq && k >= fl && r ~ /^[ \t]*$/) { f = 0; next } }
+      f{next} /^##? /{inside = ($0 ~ /^## Rejected dissent payloads/); if (inside) s = 1} inside && /^([-*+]|[0-9]+\.)[ \t]/ {c++} END{print s+0, c+0}' < "$FILE") || true
     if (( ! ${found:-0} )); then
         local where
         if [[ -f "$ENVELOPE_FILE" ]]; then where="the dissent envelope $(basename -- "$ENVELOPE_FILE") carries"

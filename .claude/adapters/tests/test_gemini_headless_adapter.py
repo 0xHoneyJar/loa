@@ -179,9 +179,11 @@ class TestCommandConstruction:
         cmd = adapter._build_command(_make_request(), ModelConfig(), "hello prompt")
         # Required flags for safe non-interactive invocation
         assert cmd[0] == "gemini"
-        # -p must be present and followed by the prompt
+        # -p must be present: headless mode, with a fixed instruction — the prompt itself rides stdin, never argv, where any
+        # local user reads it through /proc/<pid>/cmdline and a >128 KiB one fails at exec (thirty-third run, e1b DISS-C-002)
         idx = cmd.index("-p")
-        assert cmd[idx + 1] == "hello prompt"
+        assert cmd[idx + 1] == GeminiHeadlessAdapter._ARGV_PROMPT
+        assert not any("hello prompt" in a for a in cmd)
         assert "--output-format" in cmd
         assert cmd[cmd.index("--output-format") + 1] == "json"
         assert "--approval-mode" in cmd
@@ -508,9 +510,9 @@ class TestEndToEnd:
             )
         called_cmd = mock_run.call_args.args[0]
         assert called_cmd[0] == "gemini"
-        # Confirm prompt was assembled with role prefixes and passed via -p
-        p_idx = called_cmd.index("-p")
-        prompt_passed = called_cmd[p_idx + 1]
+        # Confirm prompt was assembled with role prefixes and passed on stdin, never argv (thirty-third run, e1b DISS-C-002)
+        prompt_passed = mock_run.call_args.kwargs["input"]
+        assert not any("be terse" in a for a in called_cmd)
         assert "## System" in prompt_passed
         assert "be terse" in prompt_passed
         assert "ping" in prompt_passed
@@ -684,3 +686,16 @@ class TestLive:
         )
         assert "PONG" in result.content.upper()
         assert result.provider == "gemini-headless"
+
+
+def test_a_prompt_over_gemini_stdin_cap_is_a_walkable_hop_never_truncated():
+    """gemini-cli reads at most 8 MiB of stdin and silently truncates the rest: a larger prompt is refused before the spawn as
+    this hop's ProviderUnavailableError, never reviewed in part (thirty-third run, e1b DISS-C-002)."""
+    from loa_cheval.types import ProviderUnavailableError
+    adapter = GeminiHeadlessAdapter(_make_config())
+    # (the context-window gate is the first bound today; this one holds whatever window a catalog later grants)
+    with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run, \
+            patch("loa_cheval.providers.headless_cli.enforce_context_window"):
+        with pytest.raises(ProviderUnavailableError, match="8 MiB"):
+            adapter.complete(_make_request(messages=[{"role": "user", "content": "x" * (8 * 1024 * 1024)}]))
+    mock_run.assert_not_called()

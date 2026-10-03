@@ -180,7 +180,7 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
             except OSError as exc:
                 raise ProviderUnavailableError(
                     self.provider,
-                    f"codex-headless: failed to create isolated workspace: {type(exc).__name__}",
+                    f"codex-headless: failed to create isolated workspace: {type(exc).__name__}: {exc}",   # (the reason too — d DISS-C-004)
                 ) from exc
             command = self._build_command(request, model_config, workspace)
             yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)

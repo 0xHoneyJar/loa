@@ -52,5 +52,8 @@ def _private_headless_workspace(monkeypatch, tmp_path_factory):
     from loa_cheval.providers import headless_cli
     root = tmp_path_factory.mktemp("headless-ws")
     os.chmod(root, 0o700)
-    monkeypatch.setattr(headless_cli, "_TRUSTED_ABOVE", str(root.resolve()), raising=False)
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(root))
+    # (thirty-third run, e1 DISS-C-004: a renamed seam fails here — no raising=False — and the base the suite gets is checked, so
+    # a drifted fixture never falls back to the operator's own ~/.cache/loa with every test still green)
+    monkeypatch.setattr(headless_cli, "_TRUSTED_ABOVE", str(root.resolve()))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(root.resolve()))
+    assert headless_cli.private_workspace_base() == str(root.resolve()), "the suite's private headless base was not chosen"

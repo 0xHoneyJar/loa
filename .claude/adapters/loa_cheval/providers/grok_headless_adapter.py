@@ -79,7 +79,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base, cwd_vanished
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -219,7 +219,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                 raise ProviderUnavailableError(
                     self.provider,
                     f"grok-headless: failed to stage isolated workspace: "
-                    f"{type(exc).__name__}",
+                    f"{type(exc).__name__}: {exc}",   # (the refusal's reason too — thirty-third run, d DISS-C-004)
                 ) from exc
             cmd = self._build_command(request, model_config, prompt_path)
             with _acquire_slot("grok-headless", n_slots=n_slots):
@@ -251,6 +251,10 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                         f"grok {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
+                    if cwd_vanished(workspace):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                        raise ProviderUnavailableError(
+                            self.provider, f"grok working directory {workspace} vanished before the CLI started: {exc}",
+                        ) from exc
                     raise ConfigError(
                         f"grok CLI not found on PATH (set GROK_HEADLESS_BIN to "
                         f"override). Install Grok + run `grok login`. Original: {exc}"
