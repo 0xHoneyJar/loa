@@ -210,6 +210,11 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") is not a regular file — the rejected-payload contract cannot be checked; remove it and re-run the dissent")
         return 0
     fi
+    # thirtieth run, b1 DISS-C-002: an envelope this user cannot read is said as such, never "not parseable JSON"
+    if [[ -f "$ENVELOPE_FILE" && ! -r "$ENVELOPE_FILE" ]]; then
+        violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") is not readable — fix its permissions or re-run the dissent; the rejected-payload contract cannot be checked")
+        return 0
+    fi
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean), and a
         # metadata that is not an object gets its own message; an envelope with no metadata at all, or a metadata WITHOUT
@@ -339,7 +344,9 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     local lines
     # top-level bullets only (column 0): a sub-bullet under one entry is not a second triage line
     # (stdin, not `-- "$FILE"`: mawk treats `--` as a file name)
-    lines=$(awk '/^## /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
+    # (thirtieth run, b1 DISS-C-001: a bullet inside a code fence, or under a later H1, is not a triage line — padded, the count
+    # passed a section short of an entry; no interval expressions — mawk has none)
+    lines=$(awk '/^ ? ? ?(```|~~~)/{f = !f; next} f{next} /^##? /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
     if (( lines < need )); then
         violations+=("'## Rejected dissent payloads' holds $lines top-level triage line(s) but $source carries $need rejected payload(s) — one top-level bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
     fi

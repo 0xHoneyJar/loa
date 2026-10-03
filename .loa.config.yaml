@@ -193,14 +193,14 @@ spiral:
     implement_budget_usd: 5 # Budget for implementation session
     review_budget_usd: 2 # Budget for independent review session
     audit_budget_usd: 2 # Budget for independent audit session
-    # Advisor Strategy: Sonnet executes (cheap), Opus judges (quality)
-    # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
-    # 2026-10-01 operator directive: every Claude hop on Fable 5.1 (Bedrock key; harness `claude -p` reaches Bedrock
-    # only from a claude-bedrock parent — bd-swz7). Was sonnet / opus.
+    # Advisor Strategy (https://claude.com/blog/the-advisor-strategy): a cheap executor, a stronger judge — set aside
+    # 2026-10-01 by operator directive: every Claude hop on Fable 5.1 (Bedrock key; harness `claude -p` reaches Bedrock
+    # only from a claude-bedrock parent — bd-swz7). Was sonnet / opus. Both values go only to `claude -p --model`
+    # (spiral-harness.sh _invoke_claude and the BB fix cycle): the CLI resolves `fable`, never cheval.
     executor_model: fable # PRD, SDD, Sprint, Implementation
     advisor_model: fable # Review, Audit (judgment quality)
     # Pipeline Profiles (cycle-072): full | standard | light
-    pipeline_profile: standard # Sprint Flatline only + Opus advisor ($12)
+    pipeline_profile: standard # Sprint Flatline only + the advisor_model judge
   # Off-Hours Scheduling (cycle-072)
   scheduling:
     enabled: false # Must opt-in
@@ -257,6 +257,8 @@ run_bridge:
       models:
         - provider: anthropic
           model_id: claude-headless   # 2026-10-01: Fable 5.1 via the CLI (cli_model fable); http_api ids need ANTHROPIC_API_KEY (unset here). Was claude-opus-5
+          # (a CLI hop: a concurrent BB sweep or a live dissent shares the claude CLI and the plan window — KF-010 / KF-037 / KF-038;
+          # run sweeps serially, and read a sweep-wide timeout as contention, not an outage)
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -307,6 +309,9 @@ flatline_protocol:
   models:
     # 2026-10-01: claude-headless = Fable 5.1 on the CLI/Bedrock; `opus`/`fable` are http_api ids that fail
     # INVALID_CONFIG without ANTHROPIC_API_KEY (fleet-measured, search 2026-10-01). Was opus.
+    # Flatline runs its voices in parallel and nothing serialises CLI hops across it (the per-binary lock is
+    # adversarial-review.sh's): two claude -p calls share the CLI and the plan window, each bounded by the catalog's
+    # headless_timeout_seconds (900 s) — up to ~15 min per phase under contention (KF-037 / KF-038).
     primary: claude-headless
     # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
     # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks

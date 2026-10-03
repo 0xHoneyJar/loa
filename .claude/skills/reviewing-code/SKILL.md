@@ -3,8 +3,8 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
-# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -23,6 +23,8 @@ capabilities:
       - command: ".claude/scripts/adversarial-review.sh"
         args: ["*"]
       - command: ".claude/scripts/qmd-context-query.sh"
+        args: ["*"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
         args: ["*"]
       - command: "br"
         args: ["sync", "--import-only"]
@@ -59,10 +61,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:c908c3b5 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:cd3fe039 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -71,8 +73,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -133,12 +135,12 @@ Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/l
 </zone_constraints>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->
@@ -197,7 +199,7 @@ Cite OWASP/CWE for security issues and SDD sections for architecture concerns; q
 <workflow>
 ## Phase -1: Context Assessment
 
-`wc -l grimoires/loa/{prd,sdd,sprint}.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split). MEDIUM/LARGE: see `<parallel_execution>` below.
+Line-count `grimoires/loa/{prd,sdd,sprint}.md` + the sprint's `reviewer.md` (Grep `^`, count mode): under 3,000 is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split; `<parallel_execution>`).
 
 ## Phase 1: Context Gathering
 
@@ -206,7 +208,7 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
+5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
@@ -214,7 +216,7 @@ Review the code, not the report: read every modified file and its tests (verify 
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran (re-run if in doubt). Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
@@ -258,14 +260,13 @@ and resolve any reported inconsistency before finishing.
 <parallel_execution>
 ## Parallel Review (MEDIUM/LARGE sprints)
 
-LARGE (or MEDIUM with >3 tasks): see `resources/PARALLEL-REVIEW.md` for the per-task split and
-the consolidation steps.
+LARGE (or MEDIUM with >3 tasks): `resources/PARALLEL-REVIEW.md` (per-task split, consolidation).
 </parallel_execution>
 
 <documentation_verification>
 ## Documentation Verification (Required)
 
-Before approving: `ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null`; status `ACTION_REQUIRED` blocks; no report → run `/validate docs` or verify by hand. Blocking: a CHANGELOG entry per task, a CLAUDE.md entry per new command or skill, comments on security code, an SDD update for a major architecture change. Approval templates: `resources/REFERENCE.md` §Documentation Verification.
+Before approving, Glob `grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md`; status `ACTION_REQUIRED` blocks; no report → run `/validate docs` or verify by hand. Blocking: a CHANGELOG entry per task, a CLAUDE.md entry per new command or skill, comments on security code, an SDD update for a major architecture change. Approval templates: `resources/REFERENCE.md` §Documentation Verification.
 </documentation_verification>
 
 <subagent_report_check>

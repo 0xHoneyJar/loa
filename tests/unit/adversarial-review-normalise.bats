@@ -282,7 +282,7 @@ _fixture_content() {  # all three fixtures as one findings document
 
 @test "NRM-10 the repair round-trip walks tiny then claude-headless when a credential is present: a failing tiny degrades to the CLI hop instead of rejecting (fourth run, chunk c C-008)" {
     export LOA_ADVERSARIAL_NO_FM_DERIVATION=1   # bats-gated seam: production id derivation, no failure_mode derivation (c2 C-004)
-    export ANTHROPIC_API_KEY="sk-ant-test-presence-only-never-printed"
+    export ANTHROPIC_API_KEY="presence-canary-nrm10-never-printed"   # no sk- prefix: a masked leak must still show (thirtieth run, c1a DISS-C-002)
     _repair_finding_via_model() {  # <finding> <type> <clause> <model> [timeout]
         echo "$4" >> "$TEST_DIR/repair-models"
         [[ "$4" == "tiny" ]] && return 1
@@ -311,7 +311,7 @@ DF
     if command -v flock >/dev/null 2>&1; then
         [ -e "$TEST_DIR/loa-headless-locks-$uid/claude.lock" ]
     fi
-    [[ "$result" != *"sk-ant-test-presence-only-never-printed"* ]]
+    [[ "$result" != *"presence-canary-nrm10-never-printed"* ]]
 }
 
 @test "NRM-11 a non-object element in findings[] still lands in rejected_summary (raw value as description_head) and in the sidecar (fifth run C-006)" {
@@ -1065,6 +1065,8 @@ DF
 
 @test "NRM-42 the teardowns delete only real directories of their own: a symlink at an own-dir path is never followed nor fails the teardown — the sweep's rule, in every suite (twenty-seventh run, c2a DISS-C-002)" {
     local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc s
+    # every delete below is under a2a/$SPRINT: the id is this suite's own shape, or nothing is deleted (thirtieth run, c2b DISS-C-001)
+    [[ "$SPRINT" =~ ^sprint-norm-[0-9]+$ ]] || { echo "SPRINT '$SPRINT' is not this suite's own id"; return 1; }
     mkdir -p "$tgt" "$a2a"; : > "$tgt/keep"
     # (the link sits AT the own-dir path — the one path teardown deletes; twenty-ninth run, c2a: a sibling is never a candidate)
     if [[ -d "$a2a/$SPRINT" && ! -L "$a2a/$SPRINT" ]]; then find "$a2a/$SPRINT" -mindepth 1 -delete; rmdir "$a2a/$SPRINT"; fi
@@ -1128,15 +1130,17 @@ DF
         done
     done
     (cd "$PROJECT_ROOT/.claude/adapters" && python3 -c '
-import sys, yaml
-from loa_cheval import types as t
+import logging, sys, yaml
+from loa_cheval.types import ModelConfig, ProviderConfig
+from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
+logging.disable(logging.CRITICAL)
+# (the adapter own bound, called — not its terms recomposed here: thirtieth run, c2b DISS-C-002)
 for line in open(sys.argv[1]):
     path = line.split("\t", 1)[0]
     p = yaml.safe_load(open(path))["providers"]["anthropic"]
-    u = t.usable_headless_timeout(p["models"]["claude-headless"]["headless_timeout_seconds"])
-    read = t.headless_read_floor(p["read_timeout"])
-    if u is not None: read = max(read, min(u, t.HEADLESS_TIMEOUT_CEILING_SECONDS))
-    print(t.headless_connect_floor(p["connect_timeout"]) + read)' "$TEST_DIR/cats-44") > "$TEST_DIR/py-44"
+    a = ClaudeHeadlessAdapter(ProviderConfig(name="anthropic", type="claude-headless", endpoint="", auth="",
+                                             connect_timeout=p["connect_timeout"], read_timeout=p["read_timeout"]))
+    print(a._compute_timeout(ModelConfig(headless_timeout_seconds=p["models"]["claude-headless"]["headless_timeout_seconds"])))' "$TEST_DIR/cats-44") > "$TEST_DIR/py-44"
     [ "$(grep -c '' "$TEST_DIR/py-44")" = "$i" ] || { echo "cheval's bounds: $(grep -c '' "$TEST_DIR/py-44") of $i"; return 1; }
     n=0
     while IFS=$'\t' read -r cat v <&5 && read -r py <&6; do
@@ -1199,8 +1203,46 @@ for line in open(sys.argv[1]):
     [ "$(_adv_jq_pair '[1]' '2' '$a + [$b]' -c)" = "[1,2]" ]
     if _adv_jq_pair '[1]' '' '$a' >/dev/null 2>&1; then echo "one value read as a pair"; return 1; fi
     if _adv_jq_pair '[1]' '2 3' '$a' >/dev/null 2>&1; then echo "three values read as a pair"; return 1; fi
-    # and no payload-sized variable is passed to jq on argv anywhere in the script
-    if grep -nE -- '--(argjson|arg|rawfile) [A-Za-z_]+ "\$(finding|finding_json|candidate|repaired|original|validated|validated_findings|accepted_finding|filtered|rejected_summary|raw|raw_response|content|result|merged)"' "$ADVERSARIAL_REVIEW"; then
-        echo "a payload passed on argv"; return 1
-    fi
+    # and no payload-sized value is passed to jq on argv anywhere in the script: every --arg / --argjson operand is a literal,
+    # or a variable or command reviewed as small — an allowlist, so a new operand fails here until it is reviewed (a payload
+    # goes through _adv_jq_pair or a file; thirtieth run, c2b DISS-C-003)
+    python3 - "$ADVERSARIAL_REVIEW" <<'PY'
+import re, sys
+SMALL = set("""_ADV_RANGE_OIDS _ADV_RUN_TAG _cid _drop _enforced_err _ff_final _ff_why _repair_wall_budget _rewritten_cvq
+_rewritten_vq _sc _sc_rel _sidecars_json _vq_agg _vq_err _xnew allowed_field attempts_json budget ceded chain cls comp_status
+companion_answered companion_chain_csv companion_family companion_skip_reason cost cost_cents counted_as degraded demoted_sev
+diff_range displaced dissenter_sev downgrade_count escalated estimated_cost_cents family fid final final_model finding_id i indep
+index last_error latency m match_idx model new_sev parse_path prim primary_final primary_succeeded reject_reason rejected_count
+rejected_sidecar_rel repair_attempted repair_budget_exhausted repair_metadata_json repair_skipped_no_hop repair_succeeded
+repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason since sprint_id st stability stop_reason t timestamp
+tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
+api_exit_code _pf_rc""".split())
+CMDS = ("[[", "date ", "_adv_hop_canon ", "_adv_scope_json", "_companion_drop_reason ", "printf '%s\\n' \"${model_attempts[@]}\" |")
+bad = []
+for line in open(sys.argv[1]):
+    if line.lstrip().startswith('#'):
+        continue                                   # a comment that names the flag
+    line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
+    for m in re.finditer(r'--(?:argjson|arg)\s+[A-Za-z_0-9]+\s+(\S.{0,80})', line):
+        op = m.group(1)
+        if op.startswith('"') and not op.startswith('"$'):
+            # a literal, or one interpolating only reviewed scalars
+            if any(v not in SMALL for v in re.findall(r'\$\{?([A-Za-z_0-9]+)', op[1:].split('"', 1)[0])):
+                bad.append(op)
+            continue
+        o = op[1:] if op.startswith('"') else op
+        if not o.startswith('$'):
+            bad.append(op)
+        elif o.startswith('$((') or o.startswith('${#'):
+            pass                                   # arithmetic, a length
+        elif o.startswith('$('):
+            if not o[2:].lstrip().startswith(CMDS):
+                bad.append(op)
+        else:
+            v = re.match(r'\$\{?([A-Za-z_0-9]+)', o)
+            if not v or v.group(1) not in SMALL:
+                bad.append(op)
+for b in bad: print("an unreviewed jq argv operand:", b[:80])
+sys.exit(1 if bad else 0)
+PY
 }

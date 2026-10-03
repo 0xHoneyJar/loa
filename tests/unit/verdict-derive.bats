@@ -387,6 +387,8 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
         echo "## Rejected dissent payloads"; echo
         echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."
         echo "- b (LOW, y.sh:2) — missing-category: real; counted under Observations as LOW."; echo
+        # (the LOW the bullet counts is in the body, so the trailer's low:1 describes the file — thirtieth run, c2c DISS-C-001)
+        echo "## Observations"; echo; echo "- [LOW] y.sh:2 — b: the category is missing (the rejected payload above)."; echo
         echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":1},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
     } > "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
@@ -1043,10 +1045,12 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # (twenty-sixth run, c2d DISS-C-001: the reader's WHOLE tree, collected before any signal — a jq in a command substitution
     # is a grandchild that `pkill -P` never reached, and it stayed blocked on the FIFO after the unlink)
     _vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }
+    # (the signals are fail-soft: the subshell runs under bats' errexit, and a tree pid already gone would end it before the
+    # writer — thirtieth run, c2d DISS-C-001)
     # (twenty-eighth run, c2d DISS-C-001: and then the FIFO's write end is opened — a bounded writer — so an opener the tree walk
     # missed (no pgrep on the host) is woken by EOF before the unlink: the regression path never leaks a blocked process)
-    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null
-      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
+    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null || :
+      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null || : ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     [[ -e "$d/fifo-expired" ]] || kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true   # (an expired watchdog finishes its wake)
     output=$(cat "$d/fifo-out")
@@ -1158,6 +1162,9 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
         want=${disp#*|}; disp=${disp%%|*}
         jq -n --argjson dp "$disp" '{findings: [], metadata: {type: "audit", status: "fallback", recorded_by: "record-fallback", displaced: $dp, rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-audit.json"
         run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --envelope \"$d/adversarial-audit.json\" --json 2>/dev/null"
+        # (a same-gate fallback record beside an approved audit is consistent — thirtieth run, c2d DISS-C-002)
+        [ "$status" -eq 0 ] || { echo "displaced $disp: rc $status: $output"; return 1; }
+        echo "$output" | jq -e '.consistent == true' >/dev/null || { echo "displaced $disp: not consistent: $output"; return 1; }
         echo "$output" | jq -e --arg w "displaced an envelope with 2 findings ($want; now .prev)" '[.warnings[] | select(contains($w))] | length == 1' >/dev/null \
             || { echo "displaced $disp: want '$want': $output"; return 1; }
         echo "$output" | jq -e '[.violations[] | select(test("declares type"))] | length == 0' >/dev/null || { echo "same gate refused: $output"; return 1; }
@@ -1176,4 +1183,37 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     [ "$status" -eq 1 ]
     [ "$(echo "$output" | jq -c 'keys')" = "$ok_keys" ] || { echo "usage error keys $(echo "$output" | jq -c keys) vs $ok_keys"; return 1; }
     echo "$output" | jq -e '.usage_error == true and .excluded == 0 and .excluded_confirmed == 0 and .envelope == null and .envelope_explicit == false' >/dev/null
+}
+
+@test "verdict-derive: a bullet inside a code fence or under a later H1 is not a triage line — two payloads with one real entry stay INCONSISTENT however the section is padded; a fenced heading does not open or close the section (thirtieth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s30b1"; mkdir -p "$d"
+    _vd_envelope "$d/adversarial-review.json" '[{"index":0,"title":"a"},{"index":1,"title":"b"}]'
+    local trailer='<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    _fb() { { echo "All good"; echo; echo "## Rejected dissent payloads"; echo; echo "- DISS-a (MEDIUM, x.sh:1) — triaged: not a defect."; echo; cat; echo; echo "$trailer"; } > "$d/engineer-feedback.md"; }
+    printf '```yaml\n- one: 1\n- two: 2\n```\n' | _fb
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ] || { echo "fenced: $output"; return 1; }
+    echo "$output" | jq -e '.violations | map(select(test("holds 1 top-level triage line"))) | length == 1' >/dev/null
+    printf '~~~\n## Rejected dissent payloads\n~~~\n# Appendix\n\n- an H1 bullet\n' | _fb
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ] || { echo "h1: $output"; return 1; }
+    echo "$output" | jq -e '.violations | map(select(test("holds 1 top-level triage line"))) | length == 1' >/dev/null
+    # a second real entry after the fence is counted: consistent
+    printf '```\n- quoted\n```\n- DISS-b (LOW, y.sh:2) — triaged: not a defect.\n' | _fb
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    echo "$output" | jq -e '.consistent == true' >/dev/null || { echo "two real: $output"; return 1; }
+}
+
+@test "verdict-derive: an envelope this user cannot read is said as not readable — never 'not parseable JSON', whose repair points elsewhere (thirtieth run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s30b2"; mkdir -p "$d"
+    _vd_envelope "$d/adversarial-review.json" '[]'
+    chmod 000 "$d/adversarial-review.json"
+    if [[ -r "$d/adversarial-review.json" ]]; then chmod 644 "$d/adversarial-review.json"; skip "running as a user that can read mode-000 files"; fi
+    _vd_approved_review "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    chmod 644 "$d/adversarial-review.json"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("is not readable"))) | length == 1) and (.violations | map(select(test("not parseable"))) | length == 0)' >/dev/null || { echo "$output"; return 1; }
 }

@@ -583,7 +583,9 @@ _adv_cred_present() {  # <provider> → 0 when a credential is present (presence
       # review sprint-248 C-008: presence is a grep on the shape through a pipe — no variable ever holds
       # the value, so an xtrace'd run cannot echo it (same rule as loa-status / run-preflight P3);
       # the LAST assignment in the file wins, as a dotenv loader would read it; the value shape is anchored
-      # on the assignment itself (tenth run, a1 C-003): an `=` inside a trailing comment is not a value
+      # on the assignment itself (tenth run, a1 C-003): an `=` inside a trailing comment is not a value; a `$OTHER`
+      # value is a non-empty literal, as both consumers read it — cheval's DotenvProvider and env-loader.sh never
+      # interpolate (thirtieth run, a1 DISS-C-001, refuted)
       if grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null; then
         grep -E "^[[:space:]]*(export[[:space:]]+)?${v}=" "$f" 2>/dev/null | tail -1 | grep -Eq "^[[:space:]]*(export[[:space:]]+)?${v}=[\"']?[^\"'[:space:]#]" && return 0
         break   # assigned empty at its deciding source: this alias is disabled; the next alias may still be present
@@ -2772,7 +2774,7 @@ _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs 
         "$@" 9>&-   # the child never inherits the lock fd: a lingering helper cannot keep the lock
       )
       ;;
-    *) "$@" ;;
+    *) _adv_hop_begins; "$@" ;;   # (an HTTP hop's window starts sub-second as well — thirtieth run, a2 DISS-001)
   esac
 }
 _adv_invoke_hop() { local model="$1"; shift; _adv_with_cli_lock "$model" invoke_dissenter "$@"; }
@@ -2916,7 +2918,7 @@ _adv_repair_wall_for() {  # <the heaviest repair hop's charge> <repair timeout> 
   [[ -n "${LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS:-}" ]] && w=$(_conf_uint "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$w" 1)   # (fifteenth run, a2 C-004: no leading zero — octal to bash)
   echo "$w"
 }
-_companion_post_budget() {  # <primary model> <repair timeout> → seconds
+_companion_post_budget() {  # <the voice that answered> <repair timeout> → seconds (the repairs walk that voice's repair chain)
   # twenty-ninth run, a3 DISS-C-001: the repairs are held to the repair wall budget — a hop starts only while its estimate fits
   # what is left, and runs at most its charge — so the post-hop work is that budget plus one hop that overran its estimate;
   # the chain × the per-run count was several times that, and the global ceiling carried it. A short chain keeps the product.
@@ -2929,6 +2931,13 @@ _companion_post_budget() {  # <primary model> <repair timeout> → seconds
   wall=$(_adv_repair_wall_for "$bmax" "$t" 2>/dev/null)   # (a bad pin is said by the repair loop, once)
   sum=$(( sum * $(_adv_num_or "${ADV_REPAIR_MAX_PER_RUN:-5}" 5) )); (( sum > wall + hmax )) && sum=$(( wall + hmax ))
   echo $(( sum + 60 ))
+}
+_companion_post_budget_chain() {  # <repair timeout> <companion hop…> → seconds: the largest post budget of any hop that can answer
+  # (thirtieth run, a3 DISS-C-001: the companion's repairs walk the chain of the companion hop that answered — sized from the
+  # primary's, a companion answering on a heavier CLI hop was reaped by main's deadline mid-repair)
+  local t="$1" h b max=60; shift
+  for h in "$@"; do b=$(_adv_num_or "$(_companion_post_budget "$h" "$t")" 60); (( b > max )) && max=$b; done
+  echo "$max"
 }
 _adv_vq_dropped_matching() {  # <envelope> <space-separated ids> → the envelope's dropped voices (as recorded, one per line) that
                               # canonicalise to one of the ids; status 1 when none (twentieth run, a3 DISS-C-005: the pre-check
@@ -3406,8 +3415,10 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # (twenty-eighth run, a3 DISS-C-004); diff.relative pinned as config — a git < 2.28 ignores an unknown key
                      # where it rejects the --no-relative flag (a3 DISS-C-001); every submodule's gitlink, whatever diff.ignoreSubmodules
                      # or a submodule's ignore says, and no global attributes file turning text hunks into "Binary files differ" — the
-                     # repository's own .gitattributes still applies (twenty-ninth run, a3 DISS-C-003)
-  git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
+                     # repository's own .gitattributes still applies (twenty-ninth run, a3 DISS-C-003); nor the system-wide
+                     # gitattributes (GIT_ATTR_NOSYSTEM) — `.git/info/attributes` is the repository's own, and applies like
+                     # .gitattributes (thirtieth run, a3 DISS-C-002)
+  GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
     -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
     --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" --
@@ -3415,6 +3426,14 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
+_adv_move_aside() {  # <repo-relative path> → 0 when nothing stands there or it moved aside as `.prev` (listed for the drop); 1 when a
+                     # file stands there and could not move — it would be read as THIS run's (thirtieth run, a4 DISS-C-001)
+  [[ -f "$PROJECT_ROOT/$1" ]] || return 0
+  if mv -f -- "$PROJECT_ROOT/$1" "$PROJECT_ROOT/$1.prev" 2>/dev/null && [[ ! -e "$PROJECT_ROOT/$1" ]]; then
+    _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$1"; return 0
+  fi
+  return 1
+}
 _adv_prev_files_drop() {  # the previous run's envelope and sidecars moved aside at start (`.prev`), one per line: dropped once THIS run's
                           # envelope stands — never restored (nineteenth run, b2 C-001: an aborted run leaves NO envelope at the path,
                           # so the skill can read "the script left no envelope" as a fact; the `.prev` files beside it are the previous
@@ -3724,20 +3743,25 @@ main() {
   }
   local -a _run_sidecars=("grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}${_run_tag:+-$_run_tag}.jsonl"
                           "grimoires/loa/a2a/${sprint_id}/adversarial-rejected-${type}-companion${_run_tag:+-$_run_tag}.jsonl")
-  if [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]]; then
-    # eighteenth run, a4 C-001: moved aside, not removed — the previous envelope lists them, and a run that aborts before
-    # writing its own envelope (a session limit, an operator INT, a fail-closed exit) would leave it pointing at nothing;
-    # nothing is restored: an aborted run leaves the `.prev` files beside the path, and write_output drops them once this
-    # run's envelope is written (twentieth run, a4 C-003)
-    local _sc; _ADV_PREV_FILES=""
-    for _sc in "${_run_sidecars[@]}"; do
-      if [[ -f "$PROJECT_ROOT/$_sc" ]] && mv -f -- "$PROJECT_ROOT/$_sc" "$PROJECT_ROOT/$_sc.prev" 2>/dev/null; then _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$_sc"; fi
-    done
-  fi
-  # nineteenth run, b2 C-001 (BLOCKING): the previous run's ENVELOPE goes aside too, so a run that aborts leaves none at the
-  # path — "the script left no envelope" becomes a fact the skill can read, never a guess about whose envelope it is
-  local _env_rel="grimoires/loa/a2a/${sprint_id}/adversarial-${type}.json"
-  if [[ -f "$PROJECT_ROOT/$_env_rel" ]] && mv -f -- "$PROJECT_ROOT/$_env_rel" "$PROJECT_ROOT/$_env_rel.prev" 2>/dev/null; then _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$_env_rel"; fi
+  # eighteenth run, a4 C-001: the sidecars are moved aside, not removed — the previous envelope lists them, and a run that aborts
+  # before writing its own envelope (a session limit, an operator INT, a fail-closed exit) would leave it pointing at nothing;
+  # nothing is restored: an aborted run leaves the `.prev` files beside the path, and write_output drops them once this
+  # run's envelope is written (twentieth run, a4 C-003).
+  # Nineteenth run, b2 C-001 (BLOCKING): the previous run's ENVELOPE goes aside too, so a run that aborts leaves none at the
+  # path — "the script left no envelope" becomes a fact the skill can read, never a guess about whose envelope it is.
+  # Thirtieth run, a4 DISS-C-001: a file that stands and cannot move (an unwritable a2a directory, a read-only mount) would be
+  # read as this run's — the skill triages a standing envelope as the run's own, verdict-derive counts a canonical sidecar —
+  # so the run refuses before it reviews anything; the envelope goes first, so a refused run has usually moved nothing
+  _ADV_PREV_FILES=""
+  local _env_rel="grimoires/loa/a2a/${sprint_id}/adversarial-${type}.json" _ma
+  local -a _ma_set=("$_env_rel")   # (its own statement: a compound value in the same `local` expands before _env_rel is set)
+  [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]] && _ma_set+=("${_run_sidecars[@]}")
+  for _ma in "${_ma_set[@]}"; do
+    _adv_move_aside "$_ma" && continue
+    error "the previous round's $_ma could not be moved aside as $_ma.prev — it would read as this run's; nothing was reviewed (make grimoires/loa/a2a/${sprint_id} writable and run again)"
+    [[ "$json_output" == "true" ]] && _adv_refuse_json workdir_unavailable path "$_ma"
+    exit 2
+  done
   if [[ "${CONF_COMPANION_VOICE:-true}" == "true" && ( -z "${_ADVERSARIAL_WORKDIR:-}" || ! -d "${_ADVERSARIAL_WORKDIR:-}" ) ]]; then
     # round 1 (third run, C-006): the companion needs the run's workdir; without one it is not planned
     companion_skip_reason="no_workdir"; companion_family=$(_companion_family "$(_adv_family_of "$model")")
@@ -3766,7 +3790,8 @@ main() {
         companion_chain_csv="${companion_chain_str// /,}"
         # shellcheck disable=SC2086
         companion_wait_cap=$(_adv_num_or "${LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS:-$(_companion_wait_cap "$timeout" $companion_chain_str)}" "$(_adv_num_or "$(_companion_wait_cap "$timeout" $companion_chain_str)" 630)")   # (a3 C-003: an operator knob is validated)
-        companion_post_budget=$(_adv_num_or "$(_companion_post_budget "$model" "${CONF_TIMEOUT:-60}")" 60)   # (the repairs' timeout — twenty-ninth run, a3 DISS-C-001)
+        # shellcheck disable=SC2086
+        companion_post_budget=$(_adv_num_or "$(_companion_post_budget_chain "${CONF_TIMEOUT:-60}" $companion_chain_str)" 60)   # (the repairs' timeout — twenty-ninth run, a3 DISS-C-001; the companion's hops — thirtieth run, a3 DISS-C-001)
         # the queue allowance of the global ceiling (twelfth run, a3 C-002), computed once here so the primary's shared-hop wait
         # and the post-walk wait share one deadline model (eighteenth run, a4 C-002)
         # shellcheck disable=SC2086

@@ -42,12 +42,12 @@ Zones per CLAUDE.loa.md Three-Zone Model (`.claude/` system = never edit — use
 </zone_constraints>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->

@@ -6,7 +6,8 @@ When beads_rust (`br`) is installed, use it to record review feedback:
 
 ### Session Start
 ```bash
-br sync --import-only  # Import latest state from JSONL
+# Import latest state from JSONL
+br sync --import-only
 ```
 
 ### Recording Review Feedback
@@ -15,8 +16,9 @@ br sync --import-only  # Import latest state from JSONL
 br comments add <task-id> "REVIEW: [verdict] - grimoires/loa/a2a/sprint-N/engineer-feedback.md"
 
 # Mark task status based on review outcome
-br label add <task-id> review-approved     # If approved
-br label add <task-id> needs-revision       # If changes required
+# If approved / if changes required
+br label add <task-id> review-approved
+br label add <task-id> needs-revision
 ```
 
 ### Using Labels for Status
@@ -28,7 +30,8 @@ br label add <task-id> needs-revision       # If changes required
 
 ### Session End
 ```bash
-br sync --flush-only  # Export SQLite → JSONL before commit
+# Export SQLite → JSONL before commit
+br sync --flush-only
 ```
 
 ### Agent Teams

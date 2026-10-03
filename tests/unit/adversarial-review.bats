@@ -8,18 +8,19 @@
 # for unit testing without invoking the full CLI.
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirtieth run, e3 DISS-C-001)
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     # cycle-124 FR-6: adversarial-review.sh execs model-adapter → cheval, whose mock
     # path still appends MODELINV + cost rows — redirect both ledgers (found live
     # 2026-09-18: this suite wrote mock rows into the operator's .run/ ledgers).
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}/cost-ledger.jsonl"
+    export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/adversarial-review"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="$BATS_TEST_TMPDIR"
 
     # Save PROJECT_ROOT before sourcing (script redefines it)
     local saved_root="$PROJECT_ROOT"
@@ -762,4 +763,12 @@ EOF
     local status_out
     status_out=$(_extract_result_status "" 2>"$err_file")
     [[ "$status_out" == "malformed_response" ]]
+}
+
+@test "e3 DISS-C-001: no per-test path falls back to a mktemp dir no teardown removes" {
+    local f
+    for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash; do
+        if grep -n 'BATS_TEST_TMPDIR[:]-' "$PROJECT_ROOT/$f"; then echo "$f falls back past BATS_TEST_TMPDIR"; return 1; fi
+        grep -q 'BATS_TEST_TMPDIR:?' "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
+    done
 }

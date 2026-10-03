@@ -76,10 +76,9 @@ logger = logging.getLogger("loa_cheval.providers.claude_headless")
 _CLI_COST_WARNED = False
 _CLI_COST_WARN_LOCK = threading.Lock()
 
-# cycle-126 sprint-248 (twenty-second run): a prompt is one argv string, and Linux refuses an argument over MAX_ARG_STRLEN
-# (32 pages = 131072 bytes, its NUL included) with E2BIG — the companion voice's spawn failed that way on every retry. A
-# prompt over this many UTF-8 bytes goes on stdin instead (`claude -p` with no positional prompt reads it from there).
-_ARGV_PROMPT_MAX_BYTES = 100_000
+# cycle-126 sprint-248: the prompt goes on stdin (`claude -p` with no positional prompt reads it from there), at every size.
+# An argv prompt failed with E2BIG over MAX_ARG_STRLEN (twenty-second run) and was readable by every local user through
+# /proc/<pid>/cmdline while the process ran (thirtieth run, e1 DISS-C-001).
 
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -228,12 +227,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     @contextmanager
     def _prepare_invocation(self, request, model_config, prompt):
-        """Argv transport for a prompt within _ARGV_PROMPT_MAX_BYTES; stdin above it (E2BIG)."""
-        started_at = time.monotonic()
-        if len(prompt.encode("utf-8", "surrogatepass")) > _ARGV_PROMPT_MAX_BYTES:
-            yield CLIInvocation(self._build_command(request, model_config, None), {"input": prompt}, started_at)
-        else:
-            yield CLIInvocation(self._build_command(request, model_config, prompt), {}, started_at)
+        """Stdin transport, at every size: the prompt never touches argv."""
+        yield CLIInvocation(self._build_command(request, model_config, None), {"input": prompt}, time.monotonic())
 
     def _build_command(
         self,

@@ -3,8 +3,8 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *)
-# Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *)
+# Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -27,6 +27,10 @@ capabilities:
       - command: "br"
         args: ["label", "add", "*"]
       - command: ".claude/scripts/beads/log-discovered-issue.sh"
+        args: ["*"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
+        args: ["*"]
+      - command: ".claude/scripts/security-audit-scope.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -57,10 +61,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:46df906b | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:11663b90 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -69,8 +73,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -87,16 +91,16 @@ Audit code, architecture, infrastructure or sprint implementations for security 
 
 Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit (use `.claude/overrides/` or `.loa.config.yaml`); `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.
 
-Scope: app-zone files per `.reviewignore` and zone detection (`source .claude/scripts/review-scope.sh; detect_zones; load_reviewignore; is_excluded "path/to/file"`); `.claude/`, `grimoires/`, `.beads/` and `.run/` are excluded unless `--no-reviewignore` is passed.
+Scope: app-zone files less the `.reviewignore` patterns (read it); `.claude/`, `grimoires/`, `.beads/` and `.run/` are excluded unless `--no-reviewignore` is passed.
 </zone_constraints>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->
@@ -155,7 +159,7 @@ Read the actual implementation (never documentation alone) and cross-reference t
 <workflow>
 ## Phase -1: Context Assessment (do this first)
 
-`find . -name "*.ts" -o -name "*.js" -o -name "*.tf" -o -name "*.py" | xargs wc -l 2>/dev/null | tail -1`: under 2,000 lines is SMALL (sequential, all 5 categories); 2,000–5,000 MEDIUM (consider category splitting); over 5,000 LARGE (parallel category agents — see `<parallel_execution>`).
+Total the lines of the `*.{ts,js,tf,py}` files (Grep `^`, count mode): under 2,000 lines is SMALL (sequential, all 5 categories); 2,000–5,000 MEDIUM (consider category splitting); over 5,000 LARGE (parallel category agents — see `<parallel_execution>`).
 
 ## Phase 0: Prerequisites Check
 
@@ -175,7 +179,7 @@ Trace each flagged source forward to a sink or sanitizer (is the data validated/
 
 ## Phase 1C: Security Dissenter Analysis
 
-Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh` enforces it at `PreToolUse:Write`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
+Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
 Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
@@ -185,7 +189,7 @@ Execute by category (sequential, or parallel per Phase -1), each per its `resour
 
 ## Phase 2: Report Generation
 
-Use `resources/templates/audit-report.md`. Output stays in the State Zone: codebase audits → `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` plus a `remediation/` directory (`mkdir -p` it); sprint audits → `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`; deployment audits → `grimoires/loa/a2a/deployment-feedback.md`.
+Use `resources/templates/audit-report.md`. Output stays in the State Zone: codebase audits → `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` plus files under `remediation/` (Write creates it); sprint audits → `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`; deployment audits → `grimoires/loa/a2a/deployment-feedback.md`.
 
 ### Coverage
 
@@ -267,7 +271,7 @@ Be direct and specific, with evidence: "Line 47: user input passed unsanitized t
 <documentation_audit>
 ## Documentation Audit
 
-For sprint audits, confirm each task has a documentation-coherence report (`ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: an unverified missing report; uncommented security-critical code; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
+For sprint audits, confirm each task has a documentation-coherence report (Glob `grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: an unverified missing report; uncommented security-critical code; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
 </documentation_audit>
 
 <checklists>

@@ -566,9 +566,9 @@ class TestEndToEnd:
             )
         called_cmd = mock_run.call_args.args[0]
         assert called_cmd[0] == "claude"
-        # Confirm prompt was assembled with role prefixes and passed via -p
-        p_idx = called_cmd.index("-p")
-        prompt_passed = called_cmd[p_idx + 1]
+        # Confirm prompt was assembled with role prefixes and passed on stdin, never argv (thirtieth run, e1 DISS-C-001)
+        prompt_passed = mock_run.call_args.kwargs["input"]
+        assert called_cmd[called_cmd.index("-p") + 1] == "--output-format"
         assert "## System" in prompt_passed
         assert "be terse" in prompt_passed
         assert "ping" in prompt_passed
@@ -701,39 +701,27 @@ class TestLive:
 
 
 class TestPromptTransport:
+    # thirtieth run, e1 DISS-C-001: the prompt is ALWAYS on stdin — an argv prompt is readable by every local user through
+    # /proc/<pid>/cmdline and `ps` for the life of the process, and one transport means one behaviour for a NUL or a lone
+    # surrogate at any size (the size split it replaces existed only for E2BIG)
     def _invocation(self, prompt):
-        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
         adapter = ClaudeHeadlessAdapter(_make_config())
         with adapter._prepare_invocation(_make_request(), ModelConfig(), prompt) as inv:
-            return inv, _ARGV_PROMPT_MAX_BYTES
+            return inv
 
-    def test_a_small_prompt_stays_on_argv(self):
-        inv, _ = self._invocation("hello prompt")
-        assert inv.command[inv.command.index("-p") + 1] == "hello prompt"
-        assert "input" not in inv.kwargs
-
-    def test_a_prompt_over_the_argv_bound_goes_on_stdin(self):
-        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
-        big = "x" * (_ARGV_PROMPT_MAX_BYTES + 1)
-        inv, _ = self._invocation(big)
-        assert big not in inv.command
-        assert all(len(a.encode("utf-8")) < 131072 for a in inv.command)
-        assert inv.kwargs.get("input") == big
+    @pytest.mark.parametrize("prompt", ["hello prompt", "x" * 100_001, "é" * 50_001, "a\x00b"])
+    def test_every_prompt_goes_on_stdin_never_argv(self, prompt):
+        inv = self._invocation(prompt)
+        assert inv.kwargs.get("input") == prompt
+        assert not any(prompt in a for a in inv.command)
         # `-p` is a flag; with no positional prompt claude reads the prompt from stdin
         assert inv.command[inv.command.index("-p") + 1] == "--output-format"
 
-    def test_the_bound_is_measured_in_bytes_not_characters(self):
-        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
-        wide = "é" * (_ARGV_PROMPT_MAX_BYTES // 2 + 1)   # fewer characters than the bound, more bytes
-        inv, _ = self._invocation(wide)
-        assert inv.kwargs.get("input") == wide
-
-    def test_the_bound_is_under_the_kernel_per_argument_limit(self):
-        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
-        assert _ARGV_PROMPT_MAX_BYTES < 131072   # MAX_ARG_STRLEN (32 pages) includes the terminating NUL
+    def test_the_argv_bound_is_gone(self):
+        import loa_cheval.providers.claude_headless_adapter as m
+        assert not hasattr(m, "_ARGV_PROMPT_MAX_BYTES")
 
     def test_complete_spawns_a_big_prompt_without_e2big(self, tmp_path, monkeypatch):
-        from loa_cheval.providers.claude_headless_adapter import _ARGV_PROMPT_MAX_BYTES
         fake = tmp_path / "fake-claude"
         seen = tmp_path / "stdin.txt"
         fake.write_text(

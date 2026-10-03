@@ -35,10 +35,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:f47cf733 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:d1045b3c | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -47,8 +47,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -83,12 +83,12 @@ Run read-only local commands (`git status/log/diff/branch/show`, `gh issue/pr li
 </cli_tool_permissions>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->

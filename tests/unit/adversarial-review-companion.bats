@@ -286,6 +286,11 @@ _cmp_bounded() {
 _now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (macOS date has no %N)
 # a --diff-range base this checkout resolves: `main` when the local branch exists, else HEAD — a PR checkout (a detached merge
 # ref, depth 1) or a fork whose default branch is not main has no refs/heads/main (twenty-ninth run, c1c DISS-C-004)
+# a scratch repository the suite builds is the suite's own: no global or system config reaches its init, add or commit —
+# commit.gpgsign, core.hooksPath, init.templateDir, commit.template (thirtieth run, c1c DISS-C-003)
+_cmp_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@"; }
+# sha256 hex of stdin — sha256sum, else shasum -a 256 (BSD / macOS), as the script falls back (thirtieth run, c1c DISS-C-002)
+_cmp_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v shasum >/dev/null 2>&1; then shasum -a 256; else return 1; fi; }
 _cmp_base_ref() { if command git -C "$PROJECT_ROOT" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; then echo main; else echo HEAD; fi; }
 _need_flock() { command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock cases cannot run here"; }
 # portable in-place literal substitution (first occurrence) — no GNU-only `sed -i`
@@ -361,13 +366,13 @@ _await_tree() { local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$1" | 
     [ "$(grep -cx "gpt-5.5-pro" "$CALLS")" = "0" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     # with an OpenAI credential the default companion chain starts at gpt-5.5 — never gpt-5.5-pro (KF-002; third run C-007)
-    export OPENAI_API_KEY="sk-presence-only-never-printed"
+    export OPENAI_API_KEY="presence-canary-openai-never-printed"   # no sk- prefix: the diagnostic mask would hide a leak of an sk- canary (thirtieth run, c1a DISS-C-002)
     : > "$CALLS"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "gpt-5.5,codex-headless" ]
     [ "$(grep -cx "gpt-5.5-pro" "$CALLS")" = "0" ]
-    [[ "$result" != *"sk-presence-only-never-printed"* ]]
-    [[ "$(cat "$T/stderr.log")" != *"sk-presence-only-never-printed"* ]]   # (sixteenth run, c1a C-003: stderr too, as CMP-6 checks for the Anthropic key)
+    [[ "$result" != *"presence-canary-openai-never-printed"* ]]
+    [[ "$(cat "$T/stderr.log")" != *"presence-canary-openai-never-printed"* ]]   # (sixteenth run, c1a C-003: stderr too, as CMP-6 checks for the Anthropic key)
 }
 
 @test "CMP-5 companion_voice: false on the block disables the second chain (voices_planned 1, planned false); the YAML boolean spellings match in any case and a non-boolean is said and ignored (eleventh run, a1 C-001)" {
@@ -394,12 +399,19 @@ _await_tree() { local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$1" | 
 }
 
 @test "CMP-6 with a credential present the companion chain starts at the HTTP voice (opus) before the hop" {
-    export ANTHROPIC_API_KEY="sk-ant-presence-only-never-printed"
+    local canary="presence-canary-anthropic-never-printed"
+    # the canary has teeth: neither the shared redactor nor the script's provider-key mask rewrites it, so a leak through
+    # either redacted path still shows (an sk-ant- canary was masked whole — thirtieth run, c1a DISS-C-002)
+    local mask; mask=$(grep -o "s/(^|\[^A-Za-z0-9\])(sk|xai|gsk)[^']*" "$ADVERSARIAL_REVIEW" | head -1)
+    [ -n "$mask" ]
+    [ "$(printf '%s\n' "x sk-ant-presence-only-never-printed" | sed -E "$mask")" = "x [REDACTED-KEY]" ]   # (the mask is live)
+    [ "$(printf '%s\n' "x $canary" | bash "$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh" | sed -E "$mask")" = "x $canary" ]
+    export ANTHROPIC_API_KEY="$canary"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.model' <<<"$result")" = "opus" ]
     grep -qx "opus" "$CALLS"
-    [[ "$(cat "$T/stderr.log")" != *"sk-ant-presence-only-never-printed"* ]]
-    [[ "$result" != *"sk-ant-presence-only-never-printed"* ]]
+    [[ "$(cat "$T/stderr.log")" != *"$canary"* ]]
+    [[ "$result" != *"$canary"* ]]
 }
 
 @test "CMP-7 the audit gate plans a companion too and keeps its degraded rules for a failed one" {
@@ -720,7 +732,9 @@ PY
 }
 
 @test "CMP-22 the wait cap is sized per hop — a *-headless hop by the CLI adapter's bound (connect 10 s + max(600 s, the catalog's headless_timeout_seconds)), an HTTP hop by timeout_seconds — plus 30 s slack (third + fourth run)" {
-    # claude-headless carries headless_timeout_seconds: 900 in the catalog → 910; codex-headless does not → 610
+    # claude-headless carries headless_timeout_seconds: 900 in the catalog → 910; codex-headless does not → 610. These legs pin the
+    # SHIPPED catalog on purpose (the System-Zone defaults no operator edits; a framework change to a bound or a chain is reviewed
+    # here) — the formula over arbitrary catalogs is NRM-44's (thirtieth run, c1a DISS-C-001, refuted)
     [ "$(_adv_cli_hop_bound claude-headless)" = "910" ]
     [ "$(_adv_cli_hop_bound codex-headless)" = "610" ]
     [ "$(_companion_wait_cap 30 claude-headless)" = "940" ]
@@ -2986,7 +3000,9 @@ $doc" 300 2>/dev/null)
     result=$(_run_main review)
     grep -qE 'run started [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' "$T/stderr.log"
     local ts; ts=$(grep -oE 'run started [0-9T:Z-]+' "$T/stderr.log" | head -n 1 | cut -d' ' -f3)
-    [[ ! "$(jq -r '.metadata.timestamp' <<<"$result")" < "$ts" ]]   # the envelope this run writes is never older than its start
+    local ets; ets=$(jq -er '.metadata.timestamp' <<<"$result")   # an absent timestamp is "null", which sorts after any date (thirtieth run, c1c DISS-C-004)
+    [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { echo "metadata.timestamp is not an ISO-8601 UTC stamp: $ets"; return 1; }
+    [[ ! "$ets" < "$ts" ]]   # the envelope this run writes is never older than its start
 }
 
 @test "CMP-130 a fallback record that moves an envelope aside says what it displaced — its status, timestamp, findings and rejected counts — and verdict-derive warns when the displaced envelope held findings (twenty-fourth run, b2 DISS-C-002)" {
@@ -3071,10 +3087,10 @@ $doc" 300 2>/dev/null)
 }
 
 @test "CMP-136 --diff-range's diff ignores the operator's presentation config: no colour, a/ b/ prefixes under diff.noprefix / mnemonicPrefix (twenty-fifth run, a4 DISS-C-002)" {
-    local r="$T/hostile"; command git init -q "$r"
-    command git -C "$r" -c user.email=t@t -c user.name=t commit -q --allow-empty -m base
-    printf 'one\n' > "$r/f.txt"; command git -C "$r" add f.txt
-    command git -C "$r" -c user.email=t@t -c user.name=t commit -q -m head
+    local r="$T/hostile"; _cmp_git init -q "$r"
+    _cmp_git -C "$r" commit -q --allow-empty -m base
+    printf 'one\n' > "$r/f.txt"; _cmp_git -C "$r" add f.txt
+    _cmp_git -C "$r" commit -q -m head
     command git -C "$r" config color.ui always; command git -C "$r" config color.diff always
     command git -C "$r" config diff.noprefix true; command git -C "$r" config diff.mnemonicPrefix true
     out=$(_adv_range_diff "$r" HEAD~1...HEAD)
@@ -3191,17 +3207,17 @@ $doc" 300 2>/dev/null)
       _adv_take_run_lock "$OUT_DIR" review; printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/race.dir" ) 2>"$T/race.err" || rc=$?
     [ "$rc" = "0" ]
     if grep -q "run lock is not taken" "$T/race.err"; then echo "the race loser ran unguarded: $(cat "$T/race.err")"; return 1; fi
-    lockd=$(cat "$T/race.dir"); [ -n "$lockd" ] && [ -d "$lockd" ]
+    lockd=$(cat "$T/race.dir"); [ -n "$lockd" ]; [ -d "$lockd" ]   # two statements: a failed left operand of && never fails a test (thirtieth run, c1c DISS-C-001)
     command rm -f -- "$lockd/pid"; rmdir "$lockd" 2>/dev/null || true
 }
 
 @test "CMP-142 --diff-range's diff shows a submodule change as its short gitlink record under diff.submodule=diff — the submodule's own files never appear as top-level diff --git records (twenty-sixth run, a3 DISS-C-001)" {
-    local s="$T/sub" r="$T/super" g=(-c user.email=t@t -c user.name=t -c protocol.file.allow=always)
-    command git init -q "$s"; printf 'one\n' > "$s/inner.txt"; command git -C "$s" add inner.txt; command git "${g[@]}" -C "$s" commit -q -m s1
-    command git init -q "$r"; command git "${g[@]}" -C "$r" submodule add -q "$s" mod >/dev/null 2>&1
-    command git "${g[@]}" -C "$r" commit -q -m base
-    printf 'two\n' >> "$r/mod/inner.txt"; command git "${g[@]}" -C "$r/mod" commit -qam s2
-    command git -C "$r" add mod; command git "${g[@]}" -C "$r" commit -q -m head
+    local s="$T/sub" r="$T/super"
+    _cmp_git init -q "$s"; printf 'one\n' > "$s/inner.txt"; _cmp_git -C "$s" add inner.txt; _cmp_git -C "$s" commit -q -m s1
+    _cmp_git init -q "$r"; _cmp_git -C "$r" submodule add -q "$s" mod >/dev/null 2>&1
+    _cmp_git -C "$r" commit -q -m base
+    printf 'two\n' >> "$r/mod/inner.txt"; _cmp_git -C "$r/mod" commit -qam s2
+    _cmp_git -C "$r" add mod; _cmp_git -C "$r" commit -q -m head
     command git -C "$r" config diff.submodule diff
     out=$(_adv_range_diff "$r" HEAD~1...HEAD)
     if grep -q '^diff --git a/mod/inner.txt' <<<"$out"; then echo "a submodule's file surfaced as a top-level record"; return 1; fi
@@ -3258,7 +3274,7 @@ $(mk_hunk 100)"
     sib1=$'diff --git a/s1.sh b/s1.sh\n--- a/s1.sh\n+++ b/s1.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'y%.0s' $(seq 1 120))"
     sib2=$'diff --git a/s2.sh b/s2.sh\n--- a/s2.sh\n+++ b/s2.sh\n@@ -1 +1 @@\n-a\n+'"$(printf 'z%.0s' $(seq 1 120))"
     eval "_orig_$(declare -f estimate_tokens)"
-    estimate_tokens() { printf '%s' "$1" | sha256sum | cut -c1-16 >> "$T/est.log"; _orig_estimate_tokens "$1"; }
+    estimate_tokens() { printf '%s' "$1" | _cmp_sha256 | cut -c1-16 >> "$T/est.log"; _orig_estimate_tokens "$1"; }
     out=$(prepare_content "$sib1
 $big
 $sib2" 300 2>/dev/null)
@@ -3292,7 +3308,7 @@ $sib2" 300 2>/dev/null)
 @test "CMP-147 every envelope main writes says what it reviewed (metadata.scope: diff_range, the diff's sha256, run_tag — null when absent), and both resources adopt another run's envelope after refused_concurrent_run only when its scope matches (twenty-sixth run, b2 DISS-C-003)" {
     BEHAVIOUR[gpt-5.5-pro]=clean
     result=$(_run_main review) || { tail -5 "$T/stderr.log"; return 1; }
-    local want; want=$(sha256sum < "$T/diff.patch" | cut -c1-64)
+    local want; want=$(_cmp_sha256 < "$T/diff.patch" | cut -c1-64); [[ "$want" =~ ^[0-9a-f]{64}$ ]]
     [ "$(jq -r '.metadata.scope.diff_sha256' <<<"$result")" = "$want" ]
     [ "$(jq -r '.metadata.scope.diff_range' <<<"$result")" = "null" ]
     [ "$(jq -r '.metadata.scope.run_tag' <<<"$result")" = "null" ]
@@ -3403,18 +3419,28 @@ YAML
     echo 2000-01-01T00:00:00Z > "$f"
     out=$(_ADV_FLOCK_BIN=/nonexistent/flock _ADV_HOP_START_FILE="$f" _adv_with_cli_lock claude-headless cat "$f" 2>/dev/null)
     [[ "$out" =~ ^20[2-9][0-9]- ]] || { echo "unserialised path: $out"; return 1; }
+    # an HTTP hop restamps it too — sub-second where date has %N — and turns its phase `hop` (thirtieth run, a2 DISS-001)
+    local ph="$T/hop_phase"; echo 2000-01-01T00:00:00Z > "$f"; echo queue > "$ph"
+    [ -z "$(_adv_cli_bin_for http-only-hop)" ]   # (no catalog chain reaches a CLI: the unlocked branch)
+    out=$(_ADV_PHASE_FILE="$ph" _ADV_HOP_START_FILE="$f" _adv_with_cli_lock http-only-hop cat "$f")
+    if [[ "$(date -u +%N)" =~ ^[0-9]{9}$ ]]; then
+        [[ "$out" =~ ^20[2-9][0-9]-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z$ ]] || { echo "http path: $out"; return 1; }
+    else
+        [[ "$out" =~ ^20[2-9][0-9]- ]] || { echo "http path: $out"; return 1; }
+    fi
+    [ "$(cat "$ph")" = hop ]
     # the walker publishes the stamp file to the hop, and the fold passes the gate's primitive
     grep -q '_ADV_HOP_START_FILE="\$workdir/companion.hop_started_iso"' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"
     grep -q '_companion_ledger_message "\$final" "\$_since" "\$_until" "adversarial-' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"
 }
 
 @test "CMP-154 --diff-range's diff takes no shape from the operator's diff.relative, diff.suppressBlankEmpty or core.quotePath — byte-identical to the unconfigured diff, from the root or a subdirectory (twenty-seventh run, a3 DISS-C-002)" {
-    local r="$T/shape" g=(-c user.email=t@t -c user.name=t) d
-    command git init -q "$r"; mkdir -p "$r/sub"
+    local r="$T/shape" d
+    _cmp_git init -q "$r"; mkdir -p "$r/sub"
     printf 'a\n\nb\n\nc\n' > "$r/top.txt"; printf 'x\n' > "$r/sub/in.txt"; printf 'n\n' > "$r/café.txt"
-    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m base
+    _cmp_git -C "$r" add -A; _cmp_git -C "$r" commit -q -m base
     printf 'a\n\nB\n\nc\n' > "$r/top.txt"; printf 'y\n' > "$r/sub/in.txt"; printf 'm\n' > "$r/café.txt"
-    command git "${g[@]}" -C "$r" commit -qam head
+    _cmp_git -C "$r" commit -qam head
     local want_root want_sub; want_root=$(_adv_range_diff "$r" HEAD~1...HEAD); want_sub=$(_adv_range_diff "$r/sub" HEAD~1...HEAD)
     grep -q '^ $' <<<"$want_root"; grep -q '"a/caf\\303\\251.txt"' <<<"$want_root"; grep -q '^diff --git a/top.txt' <<<"$want_sub"
     command git -C "$r" config diff.relative true; command git -C "$r" config diff.suppressBlankEmpty true; command git -C "$r" config core.quotePath false
@@ -3564,18 +3590,23 @@ YAML
     [ "$(_adv_family_of composer-2.5)" = "cursor" ]
     # a Bedrock model of another vendor is not passed off as anthropic
     [ "$(_adv_family_of bedrock:amazon.nova-pro-v1:0)" != "anthropic" ]
+    # every generated provider value is a vendor or the one host the family reader sets aside — a new host
+    # (vertex, azure) must be taught to _adv_family_of before it ships (thirtieth run, a2 C-001, refuted and pinned)
+    local bad
+    bad=$(bash -c 'declare -A MODEL_IDS=() MODEL_PROVIDERS=(); source "$1" >/dev/null 2>&1 || exit 3; printf "%s\n" "${MODEL_PROVIDERS[@]}"' _ "$BATS_TEST_DIRNAME/../../.claude/scripts/generated-model-maps.sh" | sort -u | grep -vxE 'anthropic|openai|google|xai|cursor|bedrock') || true
+    [ -z "$bad" ] || { echo "unhandled provider values: $bad"; return 1; }
 }
 
 @test "CMP-164 --diff-range's diff takes no shape from diff.context, interHunkContext, renames, algorithm, orderFile, noprefix, mnemonicPrefix or indentHeuristic — byte-identical to the unconfigured diff — and pins diff.relative by config, not the git ≥ 2.28 --no-relative flag (twenty-eighth run, a3 DISS-C-001 / DISS-C-004)" {
-    local r="$T/shape2" g=(-c user.email=t@t -c user.name=t) i
-    command git init -q "$r"
+    local r="$T/shape2" i
+    _cmp_git init -q "$r"
     for i in $(seq 1 30); do printf 'line %s\n' "$i"; done > "$r/b.txt"
     for i in $(seq 1 40); do printf 'src %s\n' "$i"; done > "$r/src.txt"
     printf 'z\n' > "$r/z.txt"
-    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m base
-    sed -i 's/^line 10$/LINE 10/; s/^line 20$/LINE 20/' "$r/b.txt"; printf 'z2\n' > "$r/z.txt"
+    _cmp_git -C "$r" add -A; _cmp_git -C "$r" commit -q -m base
+    sed 's/^line 10$/LINE 10/; s/^line 20$/LINE 20/' "$r/b.txt" > "$r/b.new"; command mv -f -- "$r/b.new" "$r/b.txt"; printf 'z2\n' > "$r/z.txt"   # (no GNU-only sed -i)
     cp "$r/src.txt" "$r/copy.txt"; printf 'src 41\n' >> "$r/src.txt"
-    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m head
+    _cmp_git -C "$r" add -A; _cmp_git -C "$r" commit -q -m head
     local want; want=$(_adv_range_diff "$r" HEAD~1...HEAD)
     grep -q '^diff --git a/b.txt b/b.txt' <<<"$want"; [ "$(grep -c '^@@' <<<"$(sed -n '/^diff --git a\/b.txt/,/^diff --git a\/[^b]/p' <<<"$want")")" = 2 ]
     printf 'z.txt\n' > "$T/order"
@@ -3802,7 +3833,7 @@ YAML
     [ "$(LOA_ADVERSARIAL_REPAIR_MODEL=plain-y _companion_post_budget m 60)" = "$(( 60 * ADV_REPAIR_MAX_PER_RUN + 60 ))" ]
     unset -f _adv_cli_bin_for
     # the caller passes the timeout the repairs use (CONF_TIMEOUT), not the hop --timeout
-    grep -q 'companion_post_budget=$(_adv_num_or "$(_companion_post_budget "$model" "${CONF_TIMEOUT:-60}")" 60)' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+    grep -q 'companion_post_budget=$(_adv_num_or "$(_companion_post_budget_chain "${CONF_TIMEOUT:-60}" $companion_chain_str)" 60)' "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     # and the repair loop reads the same wall budget
     [ "$(_adv_repair_wall_for 1240 30)" = "2510" ]
     [ "$(_adv_repair_wall_for 10 60)" = "$(( ADV_REPAIR_MAX_PER_RUN * 120 ))" ]
@@ -3825,14 +3856,14 @@ YAML
 }
 
 @test "CMP-180 --diff-range's diff shows a submodule's gitlink under diff.ignoreSubmodules=all, and its text hunks under a global attributes file marking them -diff — the operator's config never hides what the range changed (twenty-ninth run, a3 DISS-C-003)" {
-    local s="$T/sub3" r="$T/super3" g=(-c user.email=t@t -c user.name=t -c protocol.file.allow=always)
-    command git init -q "$s"; printf 'one\n' > "$s/inner.txt"; command git -C "$s" add inner.txt; command git "${g[@]}" -C "$s" commit -q -m s1
-    command git init -q "$r"; command git "${g[@]}" -C "$r" submodule add -q "$s" mod >/dev/null 2>&1
-    printf 'a\n' > "$r/t.txt"; command git -C "$r" add t.txt
-    command git "${g[@]}" -C "$r" commit -q -m base
-    printf 'two\n' >> "$r/mod/inner.txt"; command git "${g[@]}" -C "$r/mod" commit -qam s2
+    local s="$T/sub3" r="$T/super3"
+    _cmp_git init -q "$s"; printf 'one\n' > "$s/inner.txt"; _cmp_git -C "$s" add inner.txt; _cmp_git -C "$s" commit -q -m s1
+    _cmp_git init -q "$r"; _cmp_git -C "$r" submodule add -q "$s" mod >/dev/null 2>&1
+    printf 'a\n' > "$r/t.txt"; _cmp_git -C "$r" add t.txt
+    _cmp_git -C "$r" commit -q -m base
+    printf 'two\n' >> "$r/mod/inner.txt"; _cmp_git -C "$r/mod" commit -qam s2
     printf 'b\n' >> "$r/t.txt"
-    command git -C "$r" add mod t.txt; command git "${g[@]}" -C "$r" commit -q -m head
+    _cmp_git -C "$r" add mod t.txt; _cmp_git -C "$r" commit -q -m head
     command git -C "$r" config diff.ignoreSubmodules all
     printf '*.txt -diff\n' > "$T/attrs"; command git -C "$r" config core.attributesFile "$T/attrs"
     out=$(_adv_range_diff "$r" HEAD~1...HEAD)
@@ -3894,4 +3925,112 @@ YAML
     rc=0; ( set -u; _cmp_bounded 1 sleep 5 ) 2>"$T/b-err" || rc=$?
     [ "$rc" -eq 199 ] || { echo "rc $rc: $(cat "$T/b-err")"; return 1; }
     grep -q 'still running after 1 s' "$T/b-err"
+}
+
+@test "CMP-184 a finding the pass cannot append fails that hop loudly — malformed_response and the chain falls through — never a reviewed envelope short of a finding (thirtieth run, a1 DISS-C-002, refuted and pinned)" {
+    eval "_orig_$(declare -f validate_anchor)"
+    validate_anchor() {   # the first call emits nothing — an anchor pass that failed on one finding
+        if [[ ! -e "$T/va-184" ]]; then : > "$T/va-184"; return 0; fi
+        _orig_validate_anchor "$@"
+    }
+    _cfg_edit $'enabled: true\n' $'enabled: true\n    companion_voice: false\n'
+    set +e; ( set -e; _run_main review > "$T/main.out" 2>/dev/null ); rc=$?; set -e; result=$(cat "$T/main.out")
+    [ -e "$T/va-184" ]
+    jq -e '(.metadata.model_attempts[0] | test(":malformed_response$")) and (.metadata.model_attempts | length) >= 2
+           and .metadata.status == "reviewed"' <<<"$result" >/dev/null \
+        || { echo "rc $rc: $(jq -c '{s: .metadata.status, n: (.findings | length), ma: .metadata.model_attempts}' <<<"$result" 2>/dev/null)"; return 1; }
+}
+
+@test "CMP-185 the companion's post budget is sized from the hops the companion can answer on — its repairs walk the answering hop's chain — never from the primary's: a companion answering on a heavier CLI hop is not reaped mid-repair (thirtieth run, a3 DISS-C-001)" {
+    printf 'providers:\n  anthropic:\n    models:\n      claude-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 300\n  openai:\n    models:\n      gpt-5.5-pro:\n        context_window: 1000\n      codex-headless:\n        kind: cli\n        context_window: 1000\n        headless_timeout_seconds: 2000\n' > "$T/pb185.yaml"
+    export LOA_MODEL_CONFIG="$T/pb185.yaml"
+    local prim comp chain
+    prim=$(_companion_post_budget opus 30); comp=$(_companion_post_budget codex-headless 30)
+    (( comp > prim )) || { echo "fixture: codex $comp vs primary $prim"; return 1; }
+    chain=$(_companion_post_budget_chain 30 gpt-5.5-pro codex-headless)
+    [ "$chain" = "$comp" ] || { echo "chain $chain, codex $comp, primary $prim"; return 1; }
+    # the largest of the hops, whatever their order; an empty chain is the floor
+    [ "$(_companion_post_budget_chain 30 codex-headless gpt-5.5-pro)" = "$comp" ]
+    [ "$(_companion_post_budget_chain 30)" = "60" ]
+}
+
+@test "CMP-186 --diff-range's diff reads no system-wide gitattributes — GIT_ATTR_NOSYSTEM reaches git — while the repository's own .git/info/attributes still applies (thirtieth run, a3 DISS-C-002)" {
+    git() { printf '%s\n' "${GIT_ATTR_NOSYSTEM:-unset}" > "$T/nosys"; }
+    _adv_range_diff "$PROJECT_ROOT" HEAD~1...HEAD >/dev/null
+    unset -f git
+    [ "$(cat "$T/nosys")" = "1" ] || { echo "GIT_ATTR_NOSYSTEM: $(cat "$T/nosys")"; return 1; }
+    # the variable is the git call's alone — never exported to the caller
+    [ -z "${GIT_ATTR_NOSYSTEM:-}" ]
+    local r="$T/infoattr"
+    _cmp_git init -q "$r"; printf 'a\n' > "$r/t.txt"; _cmp_git -C "$r" add t.txt; _cmp_git -C "$r" commit -q -m base
+    printf 'b\n' >> "$r/t.txt"; _cmp_git -C "$r" commit -qam head
+    grep -qx '+b' <<<"$(_adv_range_diff "$r" HEAD~1...HEAD)"
+    printf '*.txt -diff\n' > "$r/.git/info/attributes"
+    grep -q '^Binary files' <<<"$(_adv_range_diff "$r" HEAD~1...HEAD)"
+}
+
+@test "CMP-187 a previous round's file that cannot be moved aside refuses the run before it reviews anything — never a stale envelope or sidecar read as this run's — and the refusal releases the run lock (thirtieth run, a4 DISS-C-001)" {
+    mkdir -p "$OUT_DIR"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", timestamp: "2026-01-01T00:00:00Z"}}' > "$OUT_DIR/adversarial-review.json"
+    prev_env=$(cat "$OUT_DIR/adversarial-review.json")
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    # an unwritable a2a directory: the envelope stands, nothing moved, the refusal says which file
+    if [[ "$(id -u)" != 0 ]]; then
+        chmod a-w "$OUT_DIR"
+        rc=0; result=$(_run_main review) || rc=$?
+        chmod u+w "$OUT_DIR"
+        [ "$rc" = 2 ] || { echo "rc $rc: $result"; return 1; }
+        [ "$(jq -r '.metadata.status + " " + .metadata.path' <<<"$result")" = "workdir_unavailable grimoires/loa/a2a/$SPRINT/adversarial-review.json" ]
+        [ "$(cat "$OUT_DIR/adversarial-review.json")" = "$prev_env" ]; [ ! -e "$OUT_DIR/adversarial-review.json.prev" ]
+        grep -q 'could not be moved aside' "$T/stderr.log"
+    fi
+    # a sidecar that cannot move (the envelope could): refused too — a canonical sidecar is counted as this run's
+    printf '{"reject_reason":"earlier"}\n' > "$OUT_DIR/adversarial-rejected-review.jsonl"
+    mv() { case "$*" in *adversarial-rejected-review.jsonl*) return 1 ;; esac; command mv "$@"; }
+    rc=0; result=$(_run_main review) || rc=$?
+    unset -f mv
+    [ "$rc" = 2 ] || { echo "rc $rc: $result"; return 1; }
+    [ "$(jq -r '.metadata.status + " " + .metadata.path' <<<"$result")" = "workdir_unavailable grimoires/loa/a2a/$SPRINT/adversarial-rejected-review.jsonl" ]
+    # the lock is released: the next run reviews
+    command rm -f -- "$OUT_DIR/adversarial-rejected-review.jsonl"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ] || { jq -c .metadata <<<"$result"; return 1; }
+}
+
+@test "CMP-188 every shell step either review skill or its beads resource prescribes is granted under deny_raw_shell, byte for byte — allowed-tools and capabilities alike — or is a native-tool step (thirtieth run, b2 DISS-C-002 / DISS-C-003)" {
+    run python3 - "$PROJECT_ROOT" <<'PY'
+import fnmatch, re, sys, yaml
+root = sys.argv[1]
+WORDS = r'(?:find|ls|wc|yq|jq|mkdir|source|cat|grep|git|br|xargs|tail|head|sed|awk|cp|mv|rm|touch|chmod|python3|bash|echo|test)'
+SPAN = re.compile(r'`((?:\.claude/scripts/|' + WORDS + r' )[^`]*)`')
+bad = []
+for s in ('reviewing-code', 'auditing-security'):
+    text = open(f'{root}/.claude/skills/{s}/SKILL.md').read()
+    _, fm, body = text.split('---\n', 2)
+    meta = yaml.safe_load(fm)
+    grants = [g.strip()[5:-1] for g in meta['allowed-tools'].split(', ') if g.strip().startswith('Bash(')]
+    caps = meta['capabilities']['execute_commands']
+    assert caps['deny_raw_shell'] is True
+    cap_cmds = {c['command'] for c in caps['allowed']}
+    spans = SPAN.findall(body)
+    # the beads resource: its backticked commands and every command line of a bash block, as written
+    res = open(f'{root}/.claude/skills/{s}/resources/BEADS-WORKFLOW.md').read()
+    spans += [x for x in SPAN.findall(res) if x.startswith(('br ', '.claude/scripts/'))]
+    for block in re.findall(r'```bash\n(.*?)```', res, re.S):
+        spans += [l for l in block.splitlines() if l.strip() and not l.lstrip().startswith('#')]
+    for span in spans:
+        if '{' in span.split()[0]:
+            continue
+        hit = [g for g in grants if fnmatch.fnmatchcase(span, g) or (g.endswith(' *') and span == g[:-2])]
+        if not hit:
+            bad.append(f'{s}: `{span}` is prescribed but no Bash grant admits it')
+        elif not any(h.split()[0] in cap_cmds for h in hit):
+            bad.append(f'{s}: `{span}` is granted in allowed-tools but not in capabilities.execute_commands')
+print('\n'.join(bad))
+sys.exit(1 if bad else 0)
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    # the shared integrity step reads the config natively — never a yq call no review skill may run
+    grep -q '`yq ' "$PROJECT_ROOT/.claude/data/skill-includes/integrity_precheck.md" && { echo "integrity_precheck still prescribes yq"; return 1; }
+    true
 }

@@ -6,17 +6,18 @@
 # Uses FLATLINE_MOCK_MODE=true for hermetic testing without real API calls.
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirtieth run, e3 DISS-C-001)
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     # cycle-124 FR-6: adversarial-review.sh execs model-adapter → cheval, whose mock
     # path still appends MODELINV + cost rows — redirect both ledgers (found live
     # 2026-09-18: this suite wrote mock rows into the operator's .run/ ledgers).
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}/cost-ledger.jsonl"
+    export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/adversarial-review"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="$BATS_TEST_TMPDIR"
 
     # Enable mock mode for all tests
     export FLATLINE_MOCK_MODE="true"

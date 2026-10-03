@@ -162,7 +162,7 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
     assert args[args.index(model_flag) + 1] == "requested-model"
     assert not calls[1]["auth"]
     prompt = "## User\n\nping\n"
-    if name in ("codex", "cursor"):
+    if name in ("codex", "cursor", "claude"):   # (claude on stdin at every size — cycle-126 thirtieth run, e1 DISS-C-001)
         assert calls[1]["stdin"] == prompt
         assert prompt not in args
     elif name == "grok":

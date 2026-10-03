@@ -1,9 +1,10 @@
 """bd-q0o: argv-prompt headless adapters must WALK (not crash) on un-execable argv.
 
-Only gemini-headless + claude-headless pass the UNTRUSTED prompt on ARGV (`-p <prompt>`; claude only up to `_ARGV_PROMPT_MAX_BYTES`, stdin above it),
-so only they are reachable by an embedded-NUL ValueError or an ARG_MAX OSError from a
-crafted/oversized diff. (grok uses --prompt-file; codex + cursor use stdin via input= —
-their prompt never touches argv. Verified: a NUL in stdin does NOT raise, a NUL in argv does.)
+Only gemini-headless (agy) passes the UNTRUSTED prompt on ARGV (`-p <prompt>`), so only it is reachable by an
+embedded-NUL ValueError or an ARG_MAX OSError from a crafted/oversized diff. (grok uses --prompt-file; claude, codex
+and cursor use stdin via input= — their prompt never touches argv; claude since cycle-126's thirtieth run, e1 DISS-C-001.
+Verified: a NUL in stdin does NOT raise, a NUL in argv does.) claude-headless stays in the table: a spawn error on its
+flags still walks the chain.
 
 Found by the Gemini council voice (agy) reviewing the agy adapter on loa#1109 — a bug codex+
 cursor missed. The agy adapter is fixed there; this covers the two vulnerable siblings.
