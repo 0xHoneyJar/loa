@@ -51,7 +51,10 @@ setup() {
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
-    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    local _src; _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"   # (twenty-eighth run, c2a DISS-C-001: the substitution is asserted)
+    grep -q ': main disabled for testing' <<<"$_src" || { echo "setup: the main trailer sed matched nothing" >&2; return 1; }
+    ! grep -Eq '^[[:space:]]*main "\$@"' <<<"$_src" || { echo "setup: a main \"\$@\" call survived the sed" >&2; return 1; }
+    eval "$_src"
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
     # keyless host: no env keys, an empty dotenv dir (bats-gated seam) — the unset list IS the probe's alias table, so the two
@@ -257,7 +260,7 @@ teardown() {
     # a workdir a failing CMP-16 kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1) holds the raw diagnostic line — it never
     # outlives the test (eleventh run, c1 C-003)
     for d in "${TMPDIR:-/tmp}"/adversarial-"$SPRINT"-*; do
-        [[ "$d" == */adversarial-sprint-comp-* && -d "$d" ]] || continue
+        [[ "$d" == */adversarial-sprint-comp-* && -d "$d" && ! -L "$d" ]] || continue   # (never a link — twenty-eighth run, c1a DISS-C-001)
         find "$d" -mindepth 1 -delete; rmdir "$d"
     done
 }
@@ -1500,14 +1503,15 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     # a bounded poll until both children are forked, never a fixed wait (twenty-second run, c1b DISS-C-001): the baseline below is the whole tree
     local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$root" | wc -w)" -ge 3 ] && break; sleep 0.1; done
     with=$(_adv_tree_pids "$root" | sort -n | tr '\n' ' ')
+    # the WHOLE tree is a teardown holder (sixteenth run, c1c C-001: a TERM to the root alone frees its children first) — registered
+    # before the assertion below can fail (twenty-eighth run, c1b DISS-C-004)
+    HOLDER_PIDS+=("$root"); for p in $with; do HOLDER_PIDS+=("$p"); done
     [ "$(printf '%s' "$with" | wc -w)" -eq 3 ]
-    # the WHOLE tree is a teardown holder (sixteenth run, c1c C-001: a TERM to the root alone frees its children first)
-    for p in $with; do HOLDER_PIDS+=("$p"); done
     # the seam is observable (c1c C-003): a shadow pgrep first in PATH answers nothing, so an enumeration that ignored the
     # seam would return the root alone — asserted — while the ps walker returns the whole tree
     mkdir -p "$T/shadowbin"; printf '#!/bin/sh\nexit 1\n' > "$T/shadowbin/pgrep"; chmod +x "$T/shadowbin/pgrep"
     shadow=$( PATH="$T/shadowbin:$PATH"; hash -r; _adv_tree_pids "$root" | sort -n | tr '\n' ' ' )
-    [ "$(printf '%s' "$shadow" | wc -w)" = "1" ]
+    [ "$(printf '%s' "$shadow" | wc -w)" -eq 1 ]   # (-eq: BSD wc pads its count — twenty-eighth run, c1b DISS-C-001)
     without=$( PATH="$T/shadowbin:$PATH"; hash -r; _ADV_PGREP_BIN=/nonexistent/pgrep _adv_tree_pids "$root" | sort -n | tr '\n' ' ' )
     [ "$with" = "$without" ]
     # signalled as a whole, children with the parent — never the root first
@@ -1722,11 +1726,14 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     _ADV_COMPANION_PID=""
     # a re-entry while a reap is under way (the EXIT trap firing inside the reaper) finishes the kill of the collected tree —
     # even one already frozen by the interrupted reap (nineteenth run, a3 C-002: the tree is published before the freeze)
-    sleep 30 3>&- & q=$!; HOLDER_PIDS+=("$q"); kill -STOP "$q"
+    # (twenty-eighth run, c1b DISS-C-002: a TERM-ignoring survivor — a re-entry that only TERMed, or a CONT that delivered a pending
+    # TERM, would leave it alive; only the reap's KILL ends it)
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$" 3>&- & q=$!; HOLDER_PIDS+=("$q"); _await_stubborn "$q"; kill -STOP "$q"
     _ADV_COMPANION_PID=$q; _ADV_REAP_IN_PROGRESS="true"; _ADV_REAP_TREE_PIDS="$q"
     _ADV_REAP_TREE_TOKENS="$q=$(_adv_tok_word "$(_adv_proc_start "$q")") "   # (the token the interrupted reap collected: twenty-fifth run, c1b DISS-C-002)
     _adv_reap_companion
-    kill -CONT "$q" 2>/dev/null || true   # (a stopped survivor is never left to a TERM: twenty-fifth run, c1b DISS-C-003)
+    # (twenty-eighth run, c1b DISS-C-002: read BEFORE any CONT of the test's own — a TERM pending on the stopped survivor would be
+    # delivered by it, and a TERM-only re-entry would pass; only the reap's KILL ends a process that is still stopped)
     sleep 0.3; if kill -0 "$q" 2>/dev/null; then kill -CONT "$q" 2>/dev/null || true; kill -KILL "$q" 2>/dev/null || true; echo "pid $q still alive after the re-entered reap" >&2; return 1; fi   # (a stopped survivor is resumed and KILLed so the TERM teardown cannot leave it)
     [ -z "${_ADV_COMPANION_PID:-}" ]; [ "$_ADV_REAP_IN_PROGRESS" = "false" ]
     # the re-entered reap KILLs only a pid still the process collected: a pid whose recorded token no longer matches (reused)
@@ -2287,6 +2294,10 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     kill -0 "$z"   # (the premise: kill -0 answers for a zombie)
     _ADV_COMPANION_PID="$z"; _ADV_COMPANION_START=""
     if _adv_companion_alive; then echo "a zombie companion was judged alive"; return 1; fi
+    # (twenty-eighth run, c1c DISS-C-001: and on the normal path — a fork-time token that is present and matches; a zombie keeps a
+    # readable /proc/<pid>/stat, so this is the leg a token-path regression that trusts kill -0 would turn red)
+    _ADV_COMPANION_START=$(_adv_proc_start "$z"); [ -n "$_ADV_COMPANION_START" ]
+    if _adv_companion_alive; then echo "a zombie companion with a matching token was judged alive"; return 1; fi
     # a live companion still is
     _ADV_COMPANION_PID="$parent"; _ADV_COMPANION_START=$(_adv_proc_start "$parent")
     _adv_companion_alive
@@ -2345,14 +2356,16 @@ $(mk_file c.py 120)" 300 2>/dev/null)
 
 @test "CMP-102 main's INT and TERM traps exit 130 / 143 even when the reaper fails under errexit (twenty-first run, a4 DISS-C-002)" {
     local sig code tr
-    for sig in INT:130 TERM:143; do
+    # (twenty-eighth run, c1c DISS-C-003: TERM first — it needs no default-signal reset — so a host that must skip the INT leg
+    # still runs it; bats' skip ends the test)
+    for sig in TERM:143 INT:130; do
         code="${sig#*:}"; sig="${sig%%:*}"
         tr=$(grep -E "^[[:space:]]*trap [\"'].*_adv_reap_companion.*[\"'] ${sig}\$" "$ADVERSARIAL_REVIEW" | sed -E "s/^[[:space:]]*trap [\"'](.*)[\"'] ${sig}\$/\\1/")   # (either quote: the twenty-fourth run's masking trap is double-quoted)
         [ -n "$tr" ]
         # a shell started as an async job inherits SIGINT ignored, and a non-interactive bash cannot trap a signal ignored at
         # entry (run 23: the detached regression read this as a red) — the probe shell gets the default disposition back
         local pre=(); env --default-signal=INT true 2>/dev/null && pre=(env --default-signal=INT)
-        if [[ ${#pre[@]} -eq 0 && -n "$(bash -c 'trap -p INT')" ]]; then skip "SIGINT is ignored here and env --default-signal is unavailable"; fi
+        if [[ "$sig" == INT && ${#pre[@]} -eq 0 && -n "$(bash -c 'trap -p INT')" ]]; then skip "SIGINT is ignored here and env --default-signal is unavailable (the TERM leg ran)"; fi
         run "${pre[@]}" bash -c 'set -e; _adv_reap_primary() { return 1; }; _adv_reap_companion() { return 1; }; trap "$1" "$2"; kill -"$2" $$; sleep 2; exit 0' _ "$tr" "$sig"
         [ "$status" -eq "$code" ] || { echo "$sig trap '$tr' exited $status, not $code"; false; }
     done
@@ -2741,8 +2754,18 @@ $(mk_file README.md 780)" 300 2>/dev/null)
 
 @test "CMP-121 every suite that names adversarial-review.sh resolves the CLI lock under its own XDG_RUNTIME_DIR — never the per-user directory a live dissent holds (run 23: the e2e suite queued 910 s behind a live claude -p and failed)" {
     local f bad=""
+    # (twenty-eighth run, c1c DISS-C-002: an export STATEMENT — at the line start or after `{` — whose own assignments include
+    # XDG_RUNTIME_DIR; a commented-out redirect or a bare assignment after an unrelated `export …;` is no isolation)
+    local re='(^[[:space:]]*|[{][[:space:]]*)export[[:space:]]+([A-Za-z_][A-Za-z_0-9]*=("[^"]*"|[^[:space:];#"]*)[[:space:]]+)*XDG_RUNTIME_DIR='
+    local probe
+    for probe in '    # export XDG_RUNTIME_DIR="$T"' '    export A=1; XDG_RUNTIME_DIR="$T"' '    XDG_RUNTIME_DIR="$T"  # export'; do
+        if printf '%s\n' "$probe" | grep -qE "$re"; then echo "the rule accepts: $probe"; return 1; fi
+    done
+    for probe in '    export XDG_RUNTIME_DIR="$T"' '    export A="x y" XDG_RUNTIME_DIR="$T"' 'setup() { export XDG_RUNTIME_DIR="$d"; }'; do
+        printf '%s\n' "$probe" | grep -qE "$re" || { echo "the rule rejects: $probe"; return 1; }
+    done
     while IFS= read -r f; do
-        grep -qE 'export[^#]*XDG_RUNTIME_DIR=' "$f" || bad+=" ${f#"$PROJECT_ROOT"/}"
+        grep -qE "$re" "$f" || bad+=" ${f#"$PROJECT_ROOT"/}"
     done < <(grep -lE 'adversarial-review\.sh' "$PROJECT_ROOT"/tests/unit/*.bats "$PROJECT_ROOT"/tests/integration/*.bats)
     [ -z "$bad" ] || { echo "no XDG_RUNTIME_DIR isolation in:$bad"; return 1; }
 }
@@ -2752,7 +2775,7 @@ $(mk_file README.md 780)" 300 2>/dev/null)
     local body unset_at eval_at
     body=$(declare -f setup)
     unset_at=$(grep -n 'LOA_ADVERSARIAL_CLI_HOP_TIMEOUT' <<<"$body" | head -n 1 | cut -d: -f1)
-    eval_at=$(grep -n 'eval "$(sed' <<<"$body" | head -n 1 | cut -d: -f1)
+    eval_at=$(grep -n 'eval "$_src"' <<<"$body" | head -n 1 | cut -d: -f1)
     [ -n "$unset_at" ] || { echo "setup never clears LOA_ADVERSARIAL_CLI_HOP_TIMEOUT"; return 1; }
     [ -n "$eval_at" ]
     (( unset_at < eval_at )) || { echo "the knobs are cleared at line $unset_at, after the script is sourced at $eval_at"; return 1; }
@@ -2927,7 +2950,7 @@ $doc" 300 2>/dev/null)
     [ "$(grep -c . "$T/git.log")" = "1" ]
     # (twenty-seventh run, a4 DISS-C-002: the diff is taken between the commits the range resolved to, and the scope names them)
     local _b _h; _b=$(command git -C "$PROJECT_ROOT" rev-parse main); _h=$(command git -C "$PROJECT_ROOT" rev-parse HEAD)
-    grep -qx -- "-C $PROJECT_ROOT -c diff.suppressBlankEmpty=false -c core.quotePath=true diff --no-relative --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ ${_b}...${_h} --" "$T/git.log"
+    grep -qx -- "-C $PROJECT_ROOT -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ ${_b}...${_h} --" "$T/git.log"
     [ "$(jq -c '.metadata.scope.diff_oids' <<<"$result")" = "{\"base\":\"$_b\",\"head\":\"$_h\"}" ]
     [ "$(jq -r '.metadata.scope.diff_range' <<<"$result")" = "main...HEAD" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
@@ -3456,4 +3479,199 @@ YAML
     _adv_cli_present() { return 1; }
     [ "$(CONF_COMPANION_CHAIN_ANTHROPIC="opus claude-headless"; _companion_chain anthropic)" = "opus claude-headless" ]
     [[ " $(CONF_COMPANION_CHAIN_ANTHROPIC=""; _companion_chain anthropic) " != *" claude-headless "* ]]
+}
+
+@test "CMP-160 a companion_chain family list is read in a fixed number of yq calls, not two per element, and classifies each element as before (twenty-eighth run, a1 DISS-C-002)" {
+    local hops; hops=$(printf 'claude-headless,%.0s' $(seq 1 30)); hops="[${hops%,} , {a: 1}, ~, [b, c], \"x y\", 12, \"multi\\nline\"]"
+    _cfg_edit $'  code_review:\n    enabled: true\n' "  code_review:"$'\n'"    enabled: true"$'\n'"    companion_chain:"$'\n'"      anthropic: ${hops}"$'\n'
+    run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; yq() { echo x >> '$T/yq-calls'; command yq \"\$@\"; }; _adv_conf_chain_hops code_review anthropic"
+    [ "$status" -eq 0 ]
+    calls=$(grep -c '' "$T/yq-calls")
+    (( calls <= 4 )) || { echo "$calls yq calls for a 36-element list"; return 1; }
+    [ "$(grep -o 'claude-headless' <<<"$(tail -n 1 <<<"$output")" | grep -c '')" = "30" ]
+    [ "$(grep -c 'is not a hop name' <<<"$output")" = "6" ]
+    for _i in 30 31 32 33 34 35; do grep -q "companion_chain.anthropic\[$_i\] is not a hop name" <<<"$output"; done
+    grep -q 'anthropic\[30\] is not a hop name (!!map)' <<<"$output"
+    grep -q 'anthropic\[34\] is not a hop name (!!int)' <<<"$output"
+    if grep -q 'x y\|multi' <<<"$output"; then return 1; fi   # a dropped value is never echoed
+    # the element pass itself failing is said, and the default applies — never a partial chain
+    run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; yq() { case \"\$*\" in *'[tag, .]'*) return 1 ;; *) command yq \"\$@\" ;; esac; }; _adv_conf_chain_hops code_review anthropic"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"companion_chain.anthropic could not be read — the default anthropic chain applies"* ]]
+    [[ "$(tail -n 1 <<<"$output")" != *claude-headless* ]]
+}
+
+@test "CMP-161 a run releases its lock inside the per-key takeover section: a taker judging the holder never sees the lock vanish and another run's appear under the same name mid-section; a section held past the wait still releases, and says so (twenty-eighth run, a2 DISS-C-001)" {
+    _need_flock
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
+    tl="${lockd%.lock.d}.takeover.lock"
+    # a taker inside the section for 2 s: the release waits for it
+    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section"; sleep 2 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
+    for _ in $(seq 1 50); do [ -e "$T/in-section" ] && break; sleep 0.1; done; [ -e "$T/in-section" ]
+    # (the release runs here — only the acquiring BASHPID releases — and a sampler watches the lock from outside)
+    ( sleep 1; [ -d "$lockd" ] && : > "$T/still-held" ) 3>&- & samp=$!; HOLDER_PIDS+=("$samp")
+    _adv_release_run_lock
+    wait "$samp" 2>/dev/null || true
+    [ -e "$T/still-held" ] || { echo "the lock was released while a taker held the section"; return 1; }
+    [ ! -d "$lockd" ]
+    wait "$sec" 2>/dev/null || true
+    # a section held past the release's wait: the lock is still released (a dead run's lock must never outlive it), and that is said
+    _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
+    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section2"; sleep 12 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
+    for _ in $(seq 1 50); do [ -e "$T/in-section2" ] && break; sleep 0.1; done; [ -e "$T/in-section2" ]
+    t0=$(date +%s)
+    _adv_release_run_lock 2>"$T/rel-err"
+    (( $(date +%s) - t0 <= 8 ))
+    [ ! -d "$lockd" ]
+    grep -q 'released unserialised' "$T/rel-err"
+    kill "$sec" 2>/dev/null || true
+}
+
+@test "CMP-162 a refusal envelope carries the documented metadata keys only — its scope once, as metadata.scope, never a stray copy of a jq binding (twenty-eighth run, a2 DISS-C-002)" {
+    out=$(type=review sprint_id="$SPRINT" _adv_refuse_json nothing_to_review reason "no diff")
+    [ "$(jq -c '.metadata | keys' <<<"$out")" = '["cost_usd","model","reason","scope","sprint_id","status","timestamp","type"]' ] || { jq -c '.metadata | keys' <<<"$out"; return 1; }
+    [ "$(jq -r '.metadata.reason' <<<"$out")" = "no diff" ]
+    [ "$(jq -r '.metadata.scope | type' <<<"$out")" = "object" ]
+}
+
+@test "CMP-163 a model's family is its vendor, never its host: a Bedrock-hosted Claude is anthropic — its companion is the OpenAI chain and a Claude companion beside it is the same family, never an independent voice (twenty-eighth run, a2 DISS-C-004)" {
+    local m
+    for m in us.anthropic.claude-opus-4-8 us.anthropic.claude-haiku-4-5-20251001-v1:0 bedrock:us.anthropic.claude-sonnet-4-6 anthropic:claude-headless claude-headless opus; do
+        [ "$(_adv_family_of "$m")" = "anthropic" ] || { echo "$m → $(_adv_family_of "$m")"; return 1; }
+    done
+    [ "$(_companion_family "$(_adv_family_of us.anthropic.claude-opus-4-8)")" = "openai" ]
+    # (the independence judgement compares the two answering ids' families)
+    [ "$(_adv_family_of claude-headless)" = "$(_adv_family_of us.anthropic.claude-opus-4-8)" ]
+    # vendors that are their own family stay so; a prefix names the host only when it is not a family
+    [ "$(_adv_family_of gpt-5.5-pro)" = "openai" ]
+    [ "$(_adv_family_of openai:gpt-5.5)" = "openai" ]
+    [ "$(_adv_family_of gemini-3.1-pro)" = "google" ]
+    [ "$(_adv_family_of grok-fast)" = "xai" ]
+    [ "$(_adv_family_of xai:grok-fast)" = "xai" ]
+    [ "$(_adv_family_of composer-2.5)" = "cursor" ]
+    # a Bedrock model of another vendor is not passed off as anthropic
+    [ "$(_adv_family_of bedrock:amazon.nova-pro-v1:0)" != "anthropic" ]
+}
+
+@test "CMP-164 --diff-range's diff takes no shape from diff.context, interHunkContext, renames, algorithm, orderFile, noprefix, mnemonicPrefix or indentHeuristic — byte-identical to the unconfigured diff — and pins diff.relative by config, not the git ≥ 2.28 --no-relative flag (twenty-eighth run, a3 DISS-C-001 / DISS-C-004)" {
+    local r="$T/shape2" g=(-c user.email=t@t -c user.name=t) i
+    command git init -q "$r"
+    for i in $(seq 1 30); do printf 'line %s\n' "$i"; done > "$r/b.txt"
+    for i in $(seq 1 40); do printf 'src %s\n' "$i"; done > "$r/src.txt"
+    printf 'z\n' > "$r/z.txt"
+    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m base
+    sed -i 's/^line 10$/LINE 10/; s/^line 20$/LINE 20/' "$r/b.txt"; printf 'z2\n' > "$r/z.txt"
+    cp "$r/src.txt" "$r/copy.txt"; printf 'src 41\n' >> "$r/src.txt"
+    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m head
+    local want; want=$(_adv_range_diff "$r" HEAD~1...HEAD)
+    grep -q '^diff --git a/b.txt b/b.txt' <<<"$want"; [ "$(grep -c '^@@' <<<"$(sed -n '/^diff --git a\/b.txt/,/^diff --git a\/[^b]/p' <<<"$want")")" = 2 ]
+    printf 'z.txt\n' > "$T/order"
+    for kv in diff.context=0 diff.interHunkContext=10 diff.renames=copies diff.algorithm=histogram "diff.orderFile=$T/order" \
+              diff.noprefix=true diff.mnemonicPrefix=true diff.indentHeuristic=false; do command git -C "$r" config "${kv%%=*}" "${kv#*=}"; done
+    [ "$(_adv_range_diff "$r" HEAD~1...HEAD)" = "$want" ] || { echo "the diff took the operator's config"; diff <(printf '%s\n' "$want") <(_adv_range_diff "$r" HEAD~1...HEAD) | head -20; return 1; }
+    # the argv: diff.relative pinned as config (a git < 2.28 ignores an unknown key; it rejects an unknown flag)
+    local body; body=$(declare -f _adv_range_diff)
+    grep -q 'diff.relative=false' <<<"$body"; ! grep -q -- '--no-relative' <<<"$body"
+}
+
+@test "CMP-165 the fallback classifier reads 429 as a status code, never a digit run inside a duration or an id (twenty-eighth run, a3 DISS-C-002)" {
+    [ "$(_companion_failure_class api_failure 1 'PROVIDER_UNAVAILABLE: upstream reset after 4290ms')" = "model_unavailable" ]
+    [ "$(_companion_failure_class api_failure 1 'request id req_14291 failed')" = "model_unavailable" ]
+    [ "$(_companion_failure_class api_failure 1 'HTTP 429 Too Many Requests')" = "quota" ]
+    [ "$(_companion_failure_class api_failure 1 'status=429: slow down')" = "quota" ]
+    [ "$(_companion_failure_class api_failure 1 '429')" = "quota" ]
+    [ "$(_companion_failure_class api_failure 1 'Rate limit reached')" = "quota" ]
+}
+
+@test "CMP-166 a shared hop's failed_it reads any provider spelling of the hop in the attempts rows — the canonical prefix rule, not a lower-case one (twenty-eighth run, a3 DISS-C-003)" {
+    mkdir -p "$T/vw166"; printf 'done' > "$T/vw166/companion.phase"; printf 'opus' > "$T/vw166/companion.final"
+    local row
+    for row in 'Bedrock:claude-headless:api_failure' 'openai-compat:claude-headless:api_failure' 'ANTHROPIC:claude-headless:lock_wait' 'claude-headless:api_failure'; do
+        printf 'opus:api_failure\n%s\n' "$row" > "$T/vw166/companion.attempts"
+        [ "$(_adv_shared_hop_verdict claude-headless "$T/vw166" 0 10 | cut -f1,2)" = "$(printf 'run\tfailed_it')" ] || { echo "row $row not read as the hop"; return 1; }
+    done
+    for row in 'claude-headless-x:api_failure' 'x:claude-headless-y:api_failure' 'claude-headless'; do
+        printf '%s\n' "$row" > "$T/vw166/companion.attempts"
+        [ "$(_adv_shared_hop_verdict claude-headless "$T/vw166" 0 10 | cut -f1,2)" = "$(printf 'run\tfinished_without_it')" ] || { echo "row $row read as the hop"; return 1; }
+    done
+}
+
+@test "CMP-167 the exit cleanup releases the run lock even when the workdir cannot be fully removed — the rm -rf is guarded, its failure logged (twenty-eighth run, a4 DISS-C-001)" {
+    local wd="$T/wd-167"
+    mkdir -p "$wd/stuck"; : > "$wd/stuck/f"; chmod 555 "$wd/stuck"
+    if command rm -f -- "$wd/stuck/f" 2>/dev/null; then chmod 755 "$wd/stuck"; skip "rm in a read-only dir succeeds here (root)"; fi
+    set +e; ( set -e; _adv_release_run_lock() { echo released > "$T/rel-167"; }; _ADV_RANGE_DIFF=""; _ADVERSARIAL_WORKDIR="$wd"; _adv_cleanup_on_exit; echo returned > "$T/ret-167" ) 2>"$T/err-167"; set -e
+    chmod 755 "$wd/stuck"
+    [ -s "$T/rel-167" ] || { echo "the run lock was not released"; return 1; }
+    [ -s "$T/ret-167" ]
+    grep -q 'could not be removed' "$T/err-167"
+}
+
+@test "CMP-168 a findings job that dies on the LAST primary hop is that hop's malformed_response envelope — never an empty envelope written over the previous round's (twenty-eighth run, a4 DISS-C-002)" {
+    eval "_orig_$(declare -f _adv_run_interruptible)"
+    _adv_run_interruptible() {
+        if [[ "$1" == */primary-findings.out ]]; then : > "$T/killed-168"; command rm -f -- "$1"; return 137; fi
+        _orig__adv_run_interruptible "$@"
+    }
+    set +e; ( set -e; _run_main review > "$T/main.out" ); rc=$?; set -e; result=$(cat "$T/main.out")
+    [ -e "$T/killed-168" ]
+    # with the companion: the primary's failure is recorded and the envelope degraded — never a companion-only clean envelope
+    jq -e '(.metadata.primary_voice.status == "failed") and (.metadata.primary_voice.error | test("findings pass ended without an answer"))
+           and .metadata.degraded == true and (.metadata.model_attempts | length) == 3 and (.metadata.final_model | length) > 0' <<<"$result" >/dev/null \
+        || { echo "rc $rc, metadata: $(jq -c '.metadata | del(.rejected_summary)' <<<"$result" 2>/dev/null | cut -c1-600)"; return 1; }
+    # alone: that hop's malformed_response envelope
+    _cfg_edit $'enabled: true\n' $'enabled: true\n    companion_voice: false\n'
+    set +e; ( set -e; _run_main review > "$T/main2.out" ); rc=$?; set -e; result=$(cat "$T/main2.out")
+    jq -e 'type == "object" and .metadata.status == "malformed_response" and .findings == [] and (.metadata.error | test("findings pass"))' <<<"$result" >/dev/null \
+        || { echo "rc $rc, envelope: ${result:0:400}"; return 1; }
+}
+
+@test "CMP-169 no negative array subscript in the script — bash < 4.3 rejects \${a[-1]} (twenty-eighth run, a4 DISS-C-003)" {
+    run grep -nE '\$\{[A-Za-z_][A-Za-z0-9_]*\[-[0-9]' "$ADVERSARIAL_REVIEW"
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+}
+
+@test "CMP-170 both resources say a --record-fallback record never opens the COMPLETED gate, with its remedy; both skills allowlist the br and log-discovered-issue steps they prescribe, narrowly (twenty-eighth run, b2 DISS-C-001 / DISS-C-002)" {
+    local s r f sub
+    for s in reviewing-code auditing-security; do
+        r="$PROJECT_ROOT/.claude/skills/$s/resources/ADVERSARIAL-REVIEW.md"
+        grep -q 'never opens the gate' "$r" || { echo "$s: the resource does not say a fallback record never opens the gate"; return 1; }
+        grep -q 'LOA_ADVERSARIAL_REVIEW_ENFORCE=false' "$r" || { echo "$s: no remedy named"; return 1; }
+    done
+    # every br step the skill (or its beads resource) instructs is granted — by subcommand, never `br *`
+    for s in reviewing-code auditing-security; do
+        f="$PROJECT_ROOT/.claude/skills/$s/SKILL.md"
+        for sub in 'sync' 'comments add' 'label add'; do
+            grep -q "Bash(br $sub \*)" "$f" || { echo "$s: br $sub not allowlisted"; return 1; }
+            grep -qF "args: [$(sed 's/\([a-z]*\)/"\1"/g; s/ /, /g' <<<"$sub"), \"*\"]" "$f" || { echo "$s: capabilities miss br $sub"; return 1; }
+        done
+        if grep -q 'Bash(br \*)' "$f"; then echo "$s: a blanket br grant"; return 1; fi
+    done
+    f="$PROJECT_ROOT/.claude/skills/auditing-security/SKILL.md"
+    grep -q 'Bash(.claude/scripts/beads/log-discovered-issue.sh \*)' "$f"
+    grep -q 'command: ".claude/scripts/beads/log-discovered-issue.sh"' "$f"
+}
+
+@test "CMP-171 the kept-workdir sweep in TMPDIR never follows nor fails on a symlink at a workdir path — the suite's one link rule (twenty-eighth run, c1a DISS-C-001)" {
+    local tgt="$T/link-171" lnk="${TMPDIR:-/tmp}/adversarial-${SPRINT}-lnk171" rc=0
+    mkdir -p "$tgt"; : > "$tgt/keep"; ln -s "$tgt" "$lnk"
+    ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    command rm -f -- "$lnk"
+    [ "$rc" -eq 0 ] || { echo "a symlinked workdir path failed the teardown (rc $rc)"; return 1; }
+    [ -e "$tgt/keep" ]
+}
+
+@test "CMP-172 on a /proc host a start token is always the starttime form — a failed /proc read is unknown, never the lstart form a reader compares unlike, so a live holder's lock is never taken over as recycled (twenty-eighth regression, CMP-63 under load)" {
+    [[ -r /proc/self/stat ]] || skip "no /proc: the lstart form is the only form"
+    _need_flock
+    sleep 300 3>&- & local p=$!; HOLDER_PIDS+=("$p")
+    local tok; tok=$(awk() { return 1; }; _adv_proc_start "$p") || tok=""
+    [ -z "$tok" ] || { echo "a failed /proc read gave the token '$tok' — another form than a reader's"; return 1; }
+    # a live holder whose token was taken under that failure keeps its lock
+    _adv_take_run_lock "$OUT_DIR" review; local lockd="$_ADV_RUN_LOCK_DIR"; _ADV_RUN_LOCK_DIR=""
+    printf '%s\n%s\n' "$p" "$(TZ=UTC LC_ALL=C ps -o lstart= -p "$p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/[[:space:]]\{1,\}/_/g')" > "$lockd/pid"
+    local rc=0; ( _adv_take_run_lock "$OUT_DIR" review ) 2>/dev/null || rc=$?
+    [ "$(sed -n 1p "$lockd/pid" 2>/dev/null)" = "$p" ] || { echo "a live holder's lock (an lstart token) was taken over"; return 1; }
+    [ "$rc" -eq 1 ]
+    command rm -f -- "$lockd/pid"; rmdir "$lockd"
 }

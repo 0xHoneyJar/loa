@@ -703,12 +703,24 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
   elif [[ ! "$n" =~ ^[0-9]{1,3}$ ]]; then
     log "WARN: flatline_protocol.${1}.companion_chain.${2} has ${n} entries (at most 999 are read) — the default ${2} chain applies"; return 0
   fi
-  for (( i = 0; i < n; i++ )); do
-    tg=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i] | tag" "$CONFIG_FILE" 2>/dev/null || true)
-    v=$(yq eval ".flatline_protocol.${1}.companion_chain.${2}[$i]" "$CONFIG_FILE" 2>/dev/null || true)
-    if [[ "$tg" == "!!str" && "$v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]]; then out+="$v "
-    else log "WARN: flatline_protocol.${1}.companion_chain.${2}[$i] is not a hop name (${tg:-unreadable}) — dropped"; fi
-  done
+  # (twenty-eighth run, a1 DISS-C-002: two yq calls per element — about 4,000 spawns for a 999-entry list at every load — so
+  # every element's tag and value come from one yq pass, classified by one jq: a line per element, "<index> ok <hop>" or
+  # "<index> drop <tag>"; only a hop name or a tag ever reaches the shell)
+  local rows=""
+  # (an empty list is read as no rows — yq prints `[]` for an empty iteration in JSON mode, which is no element)
+  (( n == 0 )) || rows=$(yq -o=json -I=0 eval ".flatline_protocol.${1}.companion_chain.${2}[] | [tag, .]" "$CONFIG_FILE" 2>/dev/null \
+    | jq -rn '[inputs] | to_entries[]
+        | (.value[0] | if type == "string" and test("^[!A-Za-z0-9._/:-]{1,64}$") then . else "unreadable" end) as $tg
+        | if $tg == "!!str" and (.value[1] | type) == "string" and (.value[1] | test("^[A-Za-z0-9._/:-]{1,128}$"))
+          then "\(.key) ok \(.value[1])" else "\(.key) drop \($tg)" end' 2>/dev/null) || rows=""
+  if (( n > 0 )) && [[ "$(grep -c '' <<<"$rows")" != "$n" ]]; then
+    log "WARN: flatline_protocol.${1}.companion_chain.${2} could not be read — the default ${2} chain applies"; return 0
+  fi
+  while read -r i tg v; do
+    [[ -n "$i" ]] || continue
+    if [[ "$tg" == ok ]]; then out+="$v "
+    else log "WARN: flatline_protocol.${1}.companion_chain.${2}[$i] is not a hop name (${v:-unreadable}) — dropped"; fi
+  done <<<"$rows"
   # (twenty-seventh run, a1 DISS-C-001: an empty list, or one whose every element was dropped, is no operator chain — the
   # loader then applies the default, so say it for the list; `companion_voice: false` is the opt-out)
   [[ -n "$out" ]] || log "WARN: flatline_protocol.${1}.companion_chain.${2} is a list with no hop name — the default ${2} chain applies"
@@ -1468,6 +1480,7 @@ while i < len(text):
   fi
 
   local validated_findings="[]"
+  local _rsj=""
   local rejected_summary="[]"  # cycle-126 FR-2.2: every payload that still fails, summarised in the envelope
   local i=0
   local rejected_count=0
@@ -1704,7 +1717,13 @@ while i < len(text):
         # twelfth run, a1 C-003: the entry names the sidecar ROW — its index, and the raw payload's own title (the
         # normaliser's positional id only when the payload had none, marked title_derived) — so one triage bullet
         # maps to one row
-        rejected_summary=$(echo "$rejected_summary" | jq --arg fraw "${candidate:-$finding}" --arg raw "$finding" --argjson idx "$i" --arg r "${sidecar_reject_reason:-unknown-reason}" '
+        # (twenty-eighth run, a1 DISS-C-001: the payloads were passed on argv — one over MAX_ARG_STRLEN (128 KiB) failed jq with
+        # E2BIG and the row was dropped unsaid; they are read from files, and a summary jq that still fails is said and keeps a
+        # minimal row, so the summary always holds one row per rejected payload)
+        local _rsd=""
+        _rsd=$(mktemp -d "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-rejsum.XXXXXX" 2>/dev/null) || _rsd=""
+        if [[ -z "$_rsd" ]] || ! { printf '%s' "${candidate:-$finding}" > "$_rsd/f" && printf '%s' "$finding" > "$_rsd/o"; } 2>/dev/null \
+          || ! _rsj=$(echo "$rejected_summary" | jq --rawfile fraw "$_rsd/f" --rawfile raw "$_rsd/o" --argjson idx "$i" --arg r "${sidecar_reject_reason:-unknown-reason}" '
           (($fraw | try fromjson catch $fraw) | if type == "object" then . else {description: tojson} end) as $f
           | (($raw | try fromjson catch $raw) | if type == "object" then . else {} end) as $o
           | def nz: if . == "" then null else . end;
@@ -1719,7 +1738,14 @@ while i < len(text):
                    else ($f.stable_anchor // null) end),
           reason: $r,
           description_head: (($f.description // "") | tostring | .[0:160])
-        }]' 2>/dev/null || echo "$rejected_summary")
+        }]' 2>/dev/null); then
+          log "WARN: the rejected payload at index $i could not be summarised — its rejected_summary row carries the index and reason only"
+          _rsj=$(echo "$rejected_summary" | jq --argjson idx "$i" --arg r "${sidecar_reject_reason:-unknown-reason}" \
+            '. + [{index: $idx, severity: null, title: null, title_derived: false, anchor: null, reason: $r, description_head: null}]' 2>/dev/null) \
+            || _rsj="$rejected_summary"
+        fi
+        rejected_summary="$_rsj"
+        [[ -z "$_rsd" ]] || { command rm -f -- "$_rsd/f" "$_rsd/o"; rmdir -- "$_rsd"; } 2>/dev/null || true
       fi
     fi
     i=$((i + 1))
@@ -2215,18 +2241,30 @@ _extract_result_status() {
 # audit keeps its degraded rules) with a named failure class. Its rejected
 # payloads land in their own sidecar (`-companion` suffix), never the primary's.
 # =============================================================================
-_adv_family_of() {  # <model alias or id> → anthropic | openai | google | unknown
+_adv_family_of() {  # <model alias or id> → the model's VENDOR family: anthropic | openai | google | xai | cursor | … | unknown
+  # (twenty-eighth run, a2 DISS-C-004: the generated map's value is the PROVIDER, and a host is no family — a Bedrock-hosted
+  # Claude read `bedrock`, so its companion was the Anthropic chain and a Claude companion beside it was judged independent;
+  # a hosting provider, or a host prefix, yields the family the model id names)
   local m="$1" prov=""
+  if [[ "$m" =~ ^([A-Za-z0-9_-]+):(.+)$ ]]; then   # (a provider prefix: a family names itself, a host defers to the id — a bedrock id's `-v1:0` has dots before it)
+    case "${BASH_REMATCH[1]}" in
+      anthropic|openai|google) echo "${BASH_REMATCH[1]}"; return 0 ;;
+      *) m="${BASH_REMATCH[2]}" ;;
+    esac
+  fi
   if ! declare -p MODEL_PROVIDERS >/dev/null 2>&1; then
     # shellcheck source=generated-model-maps.sh
     [[ -f "$SCRIPT_DIR/generated-model-maps.sh" ]] && source "$SCRIPT_DIR/generated-model-maps.sh" 2>/dev/null || true
   fi
   if declare -p MODEL_PROVIDERS >/dev/null 2>&1; then prov="${MODEL_PROVIDERS[$m]:-}"; fi
+  case "$prov" in bedrock|"") prov="" ;; esac   # (a host: the id decides below)
   if [[ -z "$prov" ]]; then
     case "$m" in
-      anthropic:*|claude*|opus*|sonnet*|haiku*|fable*|tiny|cheap) prov="anthropic" ;;
-      openai:*|gpt-*|codex*|o[0-9]*) prov="openai" ;;
-      google:*|gemini*|agy*) prov="google" ;;
+      claude*|opus*|sonnet*|haiku*|fable*|tiny|cheap|*anthropic.claude*) prov="anthropic" ;;
+      gpt-*|codex*|o[0-9]*|*openai.gpt*) prov="openai" ;;
+      gemini*|agy*) prov="google" ;;
+      grok*) prov="xai" ;;
+      composer*|cursor*) prov="cursor" ;;
       *) prov="unknown" ;;
     esac
   fi
@@ -2303,7 +2341,7 @@ _adv_refuse_json() {  # <status> [key value]… → the envelope a --json caller
   local st="$1"; shift
   local -a kv=(); while (( $# >= 2 )); do kv+=(--arg "$1" "$2"); shift 2; done
   jq -n --arg t "${type:-}" --arg sid "${sprint_id:-}" --arg st "$st" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson sc "$(_adv_scope_json)" ${kv[@]+"${kv[@]}"} \
-    '{findings: [], metadata: ({type: $t, sprint_id: $sid, timestamp: $ts, status: $st, model: null, cost_usd: 0, scope: $sc} + ($ARGS.named | del(.t, .sid, .st, .ts)))}'
+    '{findings: [], metadata: ({type: $t, sprint_id: $sid, timestamp: $ts, status: $st, model: null, cost_usd: 0, scope: $sc} + ($ARGS.named | del(.t, .sid, .st, .ts, .sc)))}'   # (twenty-eighth run, a2 DISS-C-002: $ARGS.named holds --argjson bindings too)
 }
 _adv_scope_json() {  # [diff sha256] → metadata.scope {diff_range, diff_oids {base, head}, diff_sha256, run_tag} (nulls when absent); diff_range is main's
                      # (twenty-seventh run, a2 DISS-C-003: every envelope the script writes carries it, the refusal and the fallback record too)
@@ -2392,10 +2430,14 @@ _ADV_RUN_LOCK_DIR=""; _ADV_RUN_LOCK_OWNER=""
 _adv_proc_start() {  # <pid> → an environment-independent start token ("" when unknown): /proc starttime ticks, else a UTC/C lstart
   # (thirteenth run, a2 C-002: `ps -o lstart=` renders in the caller's TZ and locale — two runs launched from different
   # environments would compare different strings for the same live pid and one would demote the other's lock)
+  # (twenty-eighth regression, CMP-63 under load: the FORM is the host's, never a read's — a /proc read that failed fell back to
+  # lstart, and a reader whose read succeeded compared "t<ticks>" with it, judged a live holder recycled and took its lock over;
+  # and a reader comparing an lstart token from a holder on another form likewise. On a /proc host a failed read is "" — unknown)
   local st
-  if [[ -r "/proc/$1/stat" ]]; then
-    st=$(awk '{ n = split($0, a, ")"); split(a[n], f, " "); print f[20] }' "/proc/$1/stat" 2>/dev/null)   # field 22 of stat: starttime
-    [[ "$st" =~ ^[0-9]+$ ]] && { echo "t$st"; return 0; }
+  if [[ -r /proc/self/stat ]]; then
+    st=$(awk '{ n = split($0, a, ")"); split(a[n], f, " "); print f[20] }' "/proc/$1/stat" 2>/dev/null) || st=""   # field 22 of stat: starttime
+    [[ "$st" =~ ^[0-9]+$ ]] && echo "t$st"
+    return 0
   fi
   _adv_lstart_token "$1"
 }
@@ -2464,7 +2506,9 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       other=$(sed -n 1p "$pidf" 2>/dev/null || true); ostart=$(sed -n 2p "$pidf" 2>/dev/null || true)
       ostart=$(_adv_tok_word "$ostart")   # (a3 DISS-C-002: a holder that wrote a spaced lstart is compared as one word, like the reader's own)
       if [[ "$other" =~ ^[0-9]+$ ]] && _adv_pid_alive "$other"; then   # (nineteenth run, a2 C-002: a zombie answers kill -0 and keeps its start time — it is dead, as the reaper knows)
-        cur=$(_adv_proc_start "$other" 2>/dev/null || true)
+        # (twenty-eighth regression: read in the holder's own form — an lstart token another run wrote is compared with lstart)
+        if [[ -n "$ostart" && ! "$ostart" =~ ^t[0-9]+$ ]]; then cur=$(_adv_tok_word "$(_adv_lstart_token "$other")")
+        else cur=$(_adv_proc_start "$other" 2>/dev/null || true); fi
         if [[ -z "$ostart" || -z "$cur" || "$ostart" == "$cur" ]]; then
           error "another adversarial-review run for ${1##*/}/$2 is in progress (pid $other) — its envelope adversarial-$2.json and sidecars are single-writer; wait for it to finish"
           echo refuse; exit 0
@@ -2504,7 +2548,20 @@ _adv_release_run_lock() {
   # (thirteenth run, a3 C-006: only the run whose pid the token names releases it — belt and braces over the
   # variable, which a refused run never sets)
   [[ "${_ADV_RUN_LOCK_OWNER:-}" == "$BASHPID" && "$(sed -n 1p "$_ADV_RUN_LOCK_DIR/pid" 2>/dev/null)" == "$BASHPID" ]] || return 0   # (a subshell never releases the parent's lock)
-  command rm -f -- "$_ADV_RUN_LOCK_DIR/pid" 2>/dev/null; rmdir "$_ADV_RUN_LOCK_DIR" 2>/dev/null || true
+  # (twenty-eighth run, a2 DISS-C-001: the release ran outside the per-key takeover section — a taker that had seen this lock
+  # could read its pid file gone, find the name free, and rename AWAY a third run's lock made there a moment later; the release
+  # is inside the section, so a taker's judgement and rename see one lock throughout. A section held past the wait still
+  # releases — a run's lock never outlives it — and says so; without flock it releases as before, as the takeover runs then)
+  local _tl="${_ADV_RUN_LOCK_DIR%.lock.d}.takeover.lock" _rd="$_ADV_RUN_LOCK_DIR"
+  if command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1; then
+    (
+      if { exec 7>>"$_tl"; } 2>/dev/null && "${_ADV_FLOCK_BIN:-flock}" -w 5 7 2>/dev/null; then :
+      else log "WARN: the run lock $_rd is released unserialised — the takeover section was not had in 5 s"; fi
+      command rm -f -- "$_rd/pid" 2>/dev/null; rmdir "$_rd" 2>/dev/null || true
+    ) || true
+  else
+    command rm -f -- "$_rd/pid" 2>/dev/null; rmdir "$_rd" 2>/dev/null || true
+  fi
   _ADV_RUN_LOCK_DIR=""
 }
 # nineteenth run, a2 C-005: the test seams are honoured under the bats marker only — `_ADV_FLOCK_BIN=true` in a production
@@ -2537,10 +2594,12 @@ _adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max
     ct=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.connect_timeout // 10)] | .[0]' "$cat" 2>/dev/null)
     rt=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.read_timeout // 120)] | .[0]' "$cat" 2>/dev/null)
   fi
-  [[ "$ct" =~ ^[0-9]+(\.[0-9]+)?$ ]] || ct=10; ct=${ct%.*}; (( ct < 10 )) && ct=10
-  [[ "$rt" =~ ^[0-9]+(\.[0-9]+)?$ ]] || rt=120; rt=${rt%.*}; (( rt < 600 )) && rt=600
-  if [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-    local r=${v%.*}; (( r > _ADV_CLI_HOP_CEILING )) && r=$_ADV_CLI_HOP_CEILING; (( r > rt )) && rt=$r
+  # (twenty-eighth run, d DISS-C-001: each value read as cheval's float() reads it, rounded up — never a narrower parse)
+  ct=$(_adv_pos_ceil "$ct") || ct=10; (( ct < 10 )) && ct=10
+  rt=$(_adv_pos_ceil "$rt") || rt=600; (( rt < 600 )) && rt=600
+  local r
+  if r=$(_adv_pos_ceil "$v"); then
+    (( r > _ADV_CLI_HOP_CEILING )) && r=$_ADV_CLI_HOP_CEILING; (( r > rt )) && rt=$r
   fi
   # cheval's whole formula — max(connect, 10) + max(read, 600, headless_timeout_seconds) — whenever the catalog was read
   # (sixteenth run, a2 C-003: a connect_timeout above 10 s counts even under a 600 s read floor); the operator fallback
@@ -2746,7 +2805,8 @@ _companion_failure_class() {  # <last status> <last exit code> [diagnostic text]
       # round 1 (live re-run): cheval reports its own CLI-hop timeout ("claude -p timed out after
       # 610s") as PROVIDER_UNAVAILABLE / exit 1 — the diagnostic decides between the two classes
       if printf '%s' "$diag" | grep -qiE 'timed out|timeout'; then echo "timeout"
-      elif printf '%s' "$diag" | grep -qiE 'rate.?limit|RATE_LIMITED|429|quota'; then echo "quota"
+      # (twenty-eighth run, a3 DISS-C-002: 429 is a status code — a digit run in a duration or an id, 4290ms, is not one)
+      elif printf '%s' "$diag" | grep -qiE 'rate.?limit|RATE_LIMITED|(^|[^0-9])429([^0-9]|$)|quota'; then echo "quota"
       else echo "model_unavailable"; fi ;;
   esac
 }
@@ -2855,7 +2915,20 @@ _adv_companion_alive() {  # → 0 while the companion's pid is alive AND still t
   local _now; _now=$(_adv_proc_start "$_ADV_COMPANION_PID" 2>/dev/null) || _now=""
   [[ -z "${_ADV_COMPANION_START:-}" || -z "$_now" || "$_now" == "$_ADV_COMPANION_START" ]]
 }
-_adv_num_or() { if [[ "${1:-}" =~ ^[0-9]+$ ]]; then echo "$1"; else echo "$2"; fi; }   # a whole number, or the fallback (twelfth run, a3 C-003)
+_adv_num_or() { if [[ "${1:-}" =~ ^[0-9]+$ ]]; then echo "$1"; else echo "$2"; fi; }
+_adv_pos_ceil() {  # <raw> → a catalog timeout rounded UP to whole seconds, when it is a positive finite number in any form cheval's
+                   # usable_headless_timeout (float()) reads — an int, a decimal, an exponent, padded, quoted or digit-grouped with
+                   # `_` — capped at 15 digits; else return 1 (twenty-eighth run, d DISS-C-001: a `9e2` the adapter runs to 910 s
+                   # was the 610 s fallback here, and the companion was reaped mid-hop; rounding up keeps the cap at or above cheval's)
+  awk -v x="${1:-}" 'BEGIN {
+    gsub(/^[ \t]+|[ \t]+$/, "", x)
+    if (x !~ /^[+]?([0-9](_?[0-9])*(\.([0-9](_?[0-9])*)?)?|\.[0-9](_?[0-9])*)([eE][+-]?[0-9](_?[0-9])*)?$/) exit 1
+    gsub(/_/, "", x); v = x + 0
+    if (!(v > 0)) exit 1
+    if (v > 999999999999999) v = 999999999999999
+    c = int(v); if (c < v) c++
+    printf "%.0f\n", c }'
+}   # a whole number, or the fallback (twelfth run, a3 C-003)
 _ADV_QB_HOP=""; _ADV_QB_VAL=0   # the queue phase's lock bound, computed once per hop (eighth run, a2 C-003: not three yq calls a second)
 _companion_deadline_why() {  # <workdir> <started> <wait cap> <post budget> <queue allowance> → the reason once the companion's deadline has
                              # passed, "" while it has not. ONE model for the primary's shared-hop wait and main's post-walk wait
@@ -2892,7 +2965,7 @@ _adv_shared_hop_verdict() {  # <hop> <companion workdir> <companion start epoch>
   # already answered and is finishing (phase post / done, or a result on disk) is left to the post budget (fifteenth run,
   # a4 C-002). The decision travels as a stable token, the prose only for the log (a4 C-003; a3 C-006: a captured helper
   # cannot set a global).
-  local hop wd="$2" started="$3" cap="$4" post="${5:-60}" qallow="${6:-0}" fin phase cur hop_re why
+  local hop wd="$2" started="$3" cap="$4" post="${5:-60}" qallow="${6:-0}" fin phase cur why
   hop=$(_adv_hop_canon "$1")
   while _adv_companion_alive; do
     phase=$(cat "$wd/companion.phase" 2>/dev/null || true)
@@ -2930,9 +3003,15 @@ _adv_shared_hop_verdict() {  # <hop> <companion workdir> <companion start epoch>
   [[ -n "$_aid" ]] || _aid="$fin"
   # answered WITH it: a non-empty, valid result and the answering hop is this one (a3 C-001: a result on disk alone is not an answer)
   if [[ -s "$wd/companion.result.json" && "$(_adv_hop_canon "$_aid")" == "$hop" ]] && jq empty "$wd/companion.result.json" >/dev/null 2>&1; then printf 'skip\tanswered_with_it\tanswered with it'; return 0; fi
-  # (a3 C-005: ERE with the hop escaped — GNU BRE `\|` is a literal to ugrep, and a dot in gpt-5.5 is a dot)
-  hop_re=$(printf '%s' "$hop" | sed 's/[][\.*^$+?(){}|\\]/\\&/g')
-  if grep -Eq "^([a-z]+:)?${hop_re}:" "$wd/companion.attempts" 2>/dev/null; then printf 'run\tfailed_it\tfailed it'; return 0; fi
+  # (a3 C-005: the hop is compared as a literal; twenty-eighth run, a3 DISS-C-003: each row's name — the row less its last `:status`
+  # — goes through _adv_hop_canon, so any provider spelling the canonical rule strips, `Bedrock:` or `openai-compat:`, is the hop)
+  local _row _nm
+  if [[ -f "$wd/companion.attempts" && -r "$wd/companion.attempts" ]]; then
+    while IFS= read -r _row || [[ -n "$_row" ]]; do
+      _nm="${_row%:*}"; [[ "$_nm" != "$_row" && -n "$_nm" ]] || continue
+      if [[ "$(_adv_hop_canon "$_nm")" == "$hop" ]]; then printf 'run\tfailed_it\tfailed it'; return 0; fi
+    done < "$wd/companion.attempts"
+  fi
   printf 'run\tfinished_without_it\tfinished without it'
 }
 
@@ -3274,9 +3353,14 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # and none of the operator's presentation config — no colour, a/ b/ prefixes (twenty-fifth run, a4 DISS-C-002);
                      # a submodule is its short gitlink record, never its own files as top-level records (twenty-sixth run, a3 DISS-C-001);
                      # repo-root paths, a blank context line as " ", octal-quoted non-ASCII paths (twenty-seventh run, a3 DISS-C-002:
-                     # diff.relative / diff.suppressBlankEmpty / core.quotePath reshaped what the parsers read)
-  git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true \
-    diff --no-relative --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
+                     # diff.relative / diff.suppressBlankEmpty / core.quotePath reshaped what the parsers read); three lines of
+                     # context, unmerged hunks, git's default rename detection and order, a/ b/ under noprefix / mnemonicPrefix
+                     # (twenty-eighth run, a3 DISS-C-004); diff.relative pinned as config — a git < 2.28 ignores an unknown key
+                     # where it rejects the --no-relative flag (a3 DISS-C-001)
+  git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
+    -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true \
+    diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
+    --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
@@ -3310,7 +3394,8 @@ _adv_cleanup_on_exit() {
   if [[ "${LOA_ADVERSARIAL_KEEP_WORKDIR:-0}" == "1" ]]; then
     if [[ -n "${_ADVERSARIAL_WORKDIR:-}" ]]; then log "Workdir kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1): $_ADVERSARIAL_WORKDIR"; fi
   elif [[ -n "${_ADVERSARIAL_WORKDIR:-}" && -d "${_ADVERSARIAL_WORKDIR:-}" ]]; then
-    command rm -rf -- "$_ADVERSARIAL_WORKDIR"
+    # (twenty-eighth run, a4 DISS-C-001: guarded — an entry the rm cannot remove must not skip the lock release below)
+    command rm -rf -- "$_ADVERSARIAL_WORKDIR" 2>/dev/null || log "WARN: the workdir $_ADVERSARIAL_WORKDIR could not be removed — left behind"
   fi
   _adv_release_run_lock || true   # last: the a2a directory's critical section is held until its files are settled
   return 0
@@ -3702,8 +3787,17 @@ main() {
     fi
     # (twenty-seventh run, a4 DISS-C-001: every return of process_findings is 0 — a non-zero one is a job that died (a KILL, a
     # failed redirect): an unusable answer for this hop, as the walker reads its own pass, never an abort past the run lock)
-    _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-findings.out" process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files" || true
+    local _pf_rc=0
+    _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-findings.out" process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files" || _pf_rc=$?
     result=$(cat "$_ADVERSARIAL_WORKDIR/primary-findings.out" 2>/dev/null) || result=""
+    # (twenty-eighth run, a4 DISS-C-002: on the LAST hop that unusable answer is the run's result — an empty one reached the fold as
+    # a null primary (a companion-only "clean" envelope, the primary's failure unrecorded) or the writer as an empty envelope over
+    # the previous round's; it is this hop's malformed_response envelope, as process_findings writes for an unparseable answer)
+    if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$result"; then
+      result=$(jq -n --arg type "$type" --arg model "$try_model" --arg sid "$sprint_id" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg err "the findings pass ended without an answer (exit $_pf_rc)" \
+        '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid, timestamp: $ts, status: "malformed_response", degraded: false, error: $err}}')
+    fi
     status=$(_extract_result_status "$result")
     model_attempts+=("${try_model}:${status}")
 
@@ -3716,7 +3810,7 @@ main() {
 
   if [[ -z "$final_model" ]]; then
     # All models failed; final_model = last attempted (canonical for the failure record)
-    final_model="${fallback_chain[-1]}"
+    final_model="${fallback_chain[${#fallback_chain[@]}-1]}"
     log "Fallback chain exhausted — all ${#fallback_chain[@]} models returned malformed_response or api_failure"
   fi
 
@@ -3759,7 +3853,7 @@ main() {
     local primary_succeeded="$final_model"
     if (( ${#vq_attempt_files[@]} > 0 )); then
       local _psid
-      _psid=$(jq -r '(.voices_succeeded_ids // []) | if length > 0 then .[-1] else empty end' "${vq_attempt_files[-1]}" 2>/dev/null || true)
+      _psid=$(jq -r '(.voices_succeeded_ids // []) | if length > 0 then .[-1] else empty end' "${vq_attempt_files[${#vq_attempt_files[@]}-1]}" 2>/dev/null || true)
       [[ -n "$_psid" ]] && primary_succeeded="$_psid"
     fi
     # fifth run, C-003: a primary that never answered has no succeeded voice — its last FAILED hop is not
@@ -3777,7 +3871,8 @@ main() {
     fi
     # the hop the primary ceded (its last attempt was a shared-hop skip), for the fold's ceded / degraded distinction
     local _primary_ceded=""
-    [[ "${model_attempts[-1]:-}" == *:skipped_shared_with_companion ]] && _primary_ceded="${model_attempts[-1]%:*}"   # (the hop keeps a provider prefix: only the status suffix goes)
+    local _last_att=""; (( ${#model_attempts[@]} == 0 )) || _last_att="${model_attempts[${#model_attempts[@]}-1]}"   # (twenty-eighth run, a4 DISS-C-003: no negative subscript — bash < 4.3)
+    [[ "$_last_att" == *:skipped_shared_with_companion ]] && _primary_ceded="${_last_att%:*}"   # (the hop keeps a provider prefix: only the status suffix goes)
     _folded=$(_fold_companion "$result" "$companion_workdir" "$companion_family" "$companion_chain_csv" "$final_model" "$primary_succeeded" "$companion_shared_hops" "$primary_succeeded_ids" "$_primary_ceded" 2>>"$companion_workdir/fold.log") || _folded=""
     [[ -s "$companion_workdir/fold.log" ]] && cat "$companion_workdir/fold.log" >&2
     local _fold_ok="false"

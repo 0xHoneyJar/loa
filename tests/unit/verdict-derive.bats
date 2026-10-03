@@ -1042,9 +1042,12 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # (twenty-sixth run, c2d DISS-C-001: the reader's WHOLE tree, collected before any signal — a jq in a command substitution
     # is a grandchild that `pkill -P` never reached, and it stayed blocked on the FIFO after the unlink)
     _vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }
-    ( trap 'kill "$s" 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
+    # (twenty-eighth run, c2d DISS-C-001: and then the FIFO's write end is opened — a bounded writer — so an opener the tree walk
+    # missed (no pgrep on the host) is woken by EOF before the unlink: the regression path never leaks a blocked process)
+    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null
+      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
-    kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true
+    [[ -e "$d/fifo-expired" ]] || kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true   # (an expired watchdog finishes its wake)
     output=$(cat "$d/fifo-out")
     rm -f "$d/adversarial-review.json"
     # (the deadline is read from the watchdog's own marker: a reader whose blocked child was ended may exit with any status)
@@ -1129,5 +1132,21 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
             || { echo "$n: no single violation: $output"; return 1; }
         echo "$output" | jq -e --arg n "$n" '(.warnings // [] | map(select(test("review-" + $n + ".jsonl"))) | length) == 0' >/dev/null \
             || { echo "$n: a contradictory warning: $output"; return 1; }
+    done
+}
+
+@test "verdict-derive: an empty displaced.status or displaced.timestamp on a fallback record shifts no snapshot column — the other-gate refusal still holds (twenty-eighth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s31"; mkdir -p "$d"
+    {
+        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
+        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/auditor-sprint-feedback.md"
+    local disp
+    for disp in '{"findings":2,"status":"","timestamp":"2026-09-25T00:00:00Z"}' '{"findings":2,"status":"clean","timestamp":""}' '{"findings":2,"status":"","timestamp":""}'; do
+        jq -n --argjson dp "$disp" '{findings: [], metadata: {type: "review", status: "fallback", recorded_by: "record-fallback", displaced: $dp}}' > "$d/adversarial-review.json"
+        run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit --envelope "$d/adversarial-review.json"
+        [ "$status" -eq 1 ] || { echo "displaced $disp: rc $status: $output"; return 1; }
+        [[ "$output" == *"declares type review for gate audit"* ]] || { echo "displaced $disp: $output"; return 1; }
     done
 }

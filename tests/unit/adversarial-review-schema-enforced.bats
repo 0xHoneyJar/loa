@@ -14,6 +14,7 @@
 # =============================================================================
 
 setup() {
+    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)
     export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -30,7 +31,6 @@ setup() {
     CONF_ESCALATION_ENABLED="true"; CONF_SECONDARY_BUDGET=12000; CONF_MAX_FILE_LINES=500
     CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
-    SPRINT="sprint-fr7-$$"
     # repair must never run on the enforced branch — the stub leaves a canary
     # file that FR7-6 asserts absent (an echo to stderr cannot fail a test)
     REPAIR_CANARY="$TEST_DIR/repair-called-$$"
@@ -39,7 +39,11 @@ setup() {
 
 teardown() {
     local d
+    # (twenty-eighth run, c2e DISS-C-001: never without this suite's own sprint id — an empty SPRINT made the first path the a2a
+    # root itself, gitignored and unrecoverable; and every path is checked to be one of this suite's own)
+    [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-fr7-* && -n "${PROJECT_ROOT:-}" ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
+        [[ "$d" == */a2a/sprint-fr7-* ]] || continue
         if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     done
 }
@@ -203,4 +207,16 @@ SHIM
     [ "$(SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts" _adv_input_budget_for_model opus)" = "$_ANTHROPIC_DISPATCH_INPUT_BUDGET" ]
     # and an unsourceable maps file yields the default for a valid id (no silent indexed lookup)
     [ "$(SCRIPT_DIR="$bad_dir" _adv_input_budget_for_model opus)" = "$DEFAULT_PRIMARY_TOKEN_BUDGET" ]
+}
+
+@test "FR7-11: a teardown after a setup that failed before the sprint id was set never deletes the a2a root nor a foreign sprint (twenty-eighth run, c2e DISS-C-001)" {
+    local root="$TEST_DIR/fake-root" rc=0 s
+    mkdir -p "$root/grimoires/loa/a2a/sprint-1"; : > "$root/grimoires/loa/a2a/sprint-1/keep"
+    for s in "" "sprint-1" "x"; do
+        ( set -e; PROJECT_ROOT="$root"; SPRINT="$s"; [[ -n "$s" ]] || unset SPRINT; teardown ) 3>&- & wait $! || rc=$?
+        [ "$rc" -eq 0 ] || { echo "SPRINT='$s': the teardown failed (rc $rc)"; return 1; }
+        [ -e "$root/grimoires/loa/a2a/sprint-1/keep" ] || { echo "SPRINT='$s': the teardown deleted a record that is not its own"; return 1; }
+    done
+    # setup names the sprint before anything that can fail
+    [ "$(awk '/^setup\(\) \{/{getline; print; exit}' "$BATS_TEST_FILENAME")" = '    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)' ]
 }

@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(br sync *), Bash(br comments add *), Bash(br label add *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -24,6 +24,12 @@ capabilities:
         args: ["*"]
       - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
+      - command: "br"
+        args: ["sync", "*"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false
@@ -189,7 +195,7 @@ Cite OWASP/CWE for security issues and SDD sections for architecture concerns; q
 <workflow>
 ## Phase -1: Context Assessment
 
-`wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split). MEDIUM/LARGE: see `<parallel_execution>` below.
+`wc -l grimoires/loa/{prd,sdd,sprint}.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split). MEDIUM/LARGE: see `<parallel_execution>` below.
 
 ## Phase 1: Context Gathering
 
@@ -198,11 +204,11 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and include the output as advisory context (criteria, code primary); missing or empty is a no-op.
+5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and add the output as advisory context (the criteria and code stay primary); none is a no-op.
 
 ## Phase 2: Code Review
 
-Review the implementation, not the report: read every modified file; validate against the acceptance criteria; assess readability and conventions; read the tests and verify their assertions; check SDD alignment; audit security (see `resources/REFERENCE.md` §Security); check performance and resource use; run the two checks below.
+Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the two checks below.
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
@@ -222,7 +228,7 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 
 ## Phase 4: Decision Making
 
-**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. Zero critical/high with medium/low accumulation is your judgment — document the rationale in Overall Assessment.
+**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
 
 **Automatic CHANGES_REQUIRED**, regardless of other findings, when
 `reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
@@ -263,7 +269,7 @@ Before approving: `ls grimoires/loa/a2a/subagent-reports/documentation-coherence
 <subagent_report_check>
 ## Subagent Report Check
 
-Before approving, read the sprint's reports in `grimoires/loa/a2a/subagent-reports/`. Blocking verdicts: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. Informational, reviewer discretion: `DRIFT_DETECTED`, security `MEDIUM`/`LOW`, test-adequacy `WEAK`. No reports: `/validate` was not run (optional) — review manually, consider recommending it. Grep commands for blocking verdicts: `resources/REFERENCE.md` §Subagent Report Check.
+Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocking: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. `DRIFT_DETECTED`, security `MEDIUM`/`LOW` and test-adequacy `WEAK` are your discretion. No reports (`/validate` is optional): review manually. Grep commands: `resources/REFERENCE.md` §Subagent Report Check.
 </subagent_report_check>
 
 <checklists>
@@ -273,11 +279,11 @@ Complete checklists and the Red Flags list (private keys, SQL string concatenati
 <complexity_review>
 ## Complexity Review (Required)
 
-Review complexity every time (thresholds and tag meanings: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
+Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
 </complexity_review>
 
 <beads_workflow>
-When `br` is installed, see `resources/BEADS-WORKFLOW.md` for the sync commands and the `needs-review` / `review-approved` / `needs-revision` labels; protocol: `.claude/protocols/beads-integration.md`.
+With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
 
 <visual_communication>

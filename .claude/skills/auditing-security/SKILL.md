@@ -3,7 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync *), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *)
 # Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -17,6 +17,14 @@ capabilities:
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
       - command: ".claude/scripts/adversarial-review.sh"
+        args: ["*"]
+      - command: "br"
+        args: ["sync", "*"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
+      - command: ".claude/scripts/beads/log-discovered-issue.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -265,9 +273,7 @@ Complete checklists for the five categories (Security, Architecture, Code Qualit
 </checklists>
 
 <beads_workflow>
-## Beads Workflow (beads_rust)
-
-When `br` is installed: `br sync --import-only` at session start, `br sync --flush-only` at session end. Record the result — `br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"`, labelled `security`, `security-approved` or `security-blocked`. Log a discovered vulnerability as its own issue: `.claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [description]" bug 0`, then `br label add <new-issue-id> security`. Protocol: `.claude/protocols/beads-integration.md`.
+When `br` is installed, see `resources/BEADS-WORKFLOW.md` for the sync commands, the audit comment, the `security` / `security-approved` / `security-blocked` labels and logging a discovered vulnerability; protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
 
 <retrospective_postlude>

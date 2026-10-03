@@ -17,7 +17,7 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 
-**Failure must produce a record.** When `adversarial-review.json` is ABSENT after the script exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — record the failure with the script itself (a call this skill's allowlist holds; never a hand-written file):
+**Failure must produce a record.** The `adversarial-review-gate.sh` hook checks this file before any COMPLETED marker is written (when `flatline_protocol.code_review.enabled`): it must parse and carry `metadata.type` and `metadata.model` — a `--record-fallback` record names no model, so it never opens the gate: re-run the dissent before the audit completes the sprint (or the operator sets `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes). When `adversarial-review.json` is ABSENT after the script exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — record the failure with the script itself (a call this skill's allowlist holds; never a hand-written file):
 
 ```bash
 .claude/scripts/adversarial-review.sh --type review --sprint-id <sprint_id> --record-fallback failed --reason "<what happened>"

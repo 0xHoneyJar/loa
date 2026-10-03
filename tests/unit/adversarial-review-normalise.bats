@@ -50,7 +50,10 @@ setup() {
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
     # the trailer is an indented `main "$@"` in the BASH_SOURCE guard: `^main` matched nothing; `:` keeps the `then` non-empty (twentieth run, c2b C-001)
-    eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    local _src; _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"   # (twenty-eighth run, c2a DISS-C-001: the substitution is asserted)
+    grep -q ': main disabled for testing' <<<"$_src" || { echo "setup: the main trailer sed matched nothing" >&2; return 1; }
+    ! grep -Eq '^[[:space:]]*main "\$@"' <<<"$_src" || { echo "setup: a main \"\$@\" call survived the sed" >&2; return 1; }
+    eval "$_src"
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
     CONF_ENABLED="true"; CONF_MODEL="gpt-5.5-pro"; CONF_TIMEOUT=60; CONF_BUDGET_CENTS=150
@@ -169,7 +172,8 @@ _fixture_content() {  # all three fixtures as one findings document
     [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")" = "missing-severity" ]
     [ "$(jq -r '.metadata.rejected_summary[0].title' <<<"$result")" = "No severity here" ]
     [ "$(jq -r '.metadata.rejected_summary[0].anchor' <<<"$result")" = "x.sh:12" ]
-    [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
+    jq -e '.metadata.rejected_summary[0] | has("severity") and .severity == null' <<<"$result" >/dev/null   # (twenty-eighth run, c2a DISS-C-002: the key, not just a null read)
+    jq -e '.metadata.rejected_summary[0] as $e | ["severity","title","anchor","reason","description_head"] | all(. as $k | $e | has($k))' <<<"$result" >/dev/null
     [[ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" == "Something fails when the file is missing."* ]]
     sidecar="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}/adversarial-rejected-audit.jsonl"
     [ "$(grep -c '' "$sidecar")" = "1" ]   # not wc -l: BSD wc pads its count
@@ -318,7 +322,7 @@ DF
     [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
     [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "1" ]
     [ "$(jq -r '.metadata.rejected_summary[0].description_head' <<<"$result")" = '"just a string"' ]
-    [ "$(jq -r '.metadata.rejected_summary[0].severity' <<<"$result")" = "null" ]
+    jq -e '.metadata.rejected_summary[0] | has("severity") and .severity == null and has("anchor") and has("title")' <<<"$result" >/dev/null   # (twenty-eighth run, c2a DISS-C-002)
 }
 
 @test "NRM-12 a finding with no description at all (or an empty one) cannot derive a failure_mode: it is rejected with a named reason, never crashes the run (seventh run, c2 C-006)" {
@@ -602,7 +606,7 @@ DF
     # script in a subshell first — the production repair and its private callees are scanned too: twenty-seventh run, c2b
     # DISS-C-001)
     local out
-    out=$( eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    out=$( _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"; grep -q ': main disabled for testing' <<<"$_src" || { echo "the main trailer sed matched nothing"; exit 1; }; eval "$_src"
         local f g fns=" " clk; local -a todo=(process_findings)
         while (( ${#todo[@]} )); do
             f="${todo[0]}"; todo=("${todo[@]:1}")
@@ -837,7 +841,9 @@ DF
     # indented whole-line form every suite's setup sed disables — twenty-seventh run, c2b DISS-C-003)
     [ "$(grep -cE '(^|[^A-Za-z0-9_])main "\$@"' "$ADVERSARIAL_REVIEW")" = "1" ]
     grep -qE '^ +main "\$@"$' "$ADVERSARIAL_REVIEW"
-    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; body=$(sed -e "s/\\(^\\|[^A-Za-z0-9_]\\)main \"\\\$@\"/\\1: main disabled/g" .claude/scripts/adversarial-review.sh); if grep -Eq "(^|[^A-Za-z0-9_])main \"\\\$@\"" <<<"$body"; then echo MAIN-LIVE; exit 9; fi; eval "$body"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
+    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; body=$(sed -E -e "s/(^|[^A-Za-z0-9_])main \"\\\$@\"/\\1: main disabled/g" .claude/scripts/adversarial-review.sh); if grep -Eq "(^|[^A-Za-z0-9_])main \"\\\$@\"" <<<"$body"; then echo MAIN-LIVE; exit 9; fi; eval "$body"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
+    # (twenty-eighth run, c2b DISS-C-001: POSIX ERE via sed -E — a BRE `\|` is a GNU extension BSD sed reads as a literal bar)
+    [[ "$probe" != *'\|'* ]] || { echo "the probe's sed uses GNU-only BRE alternation"; return 1; }
     # no marker: the seams are dropped at load
     out=$(env -u BATS_TEST_FILENAME -u BATS_VERSION _ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
     [ "$out" = "[][][]" ]
@@ -923,7 +929,7 @@ DF
     local body unset_at eval_at
     body=$(declare -f setup)
     unset_at=$(grep -n 'unset .*LOA_ADVERSARIAL_CLI_HOP_TIMEOUT' <<<"$body" | head -n 1 | cut -d: -f1)
-    eval_at=$(grep -n 'eval "$(sed' <<<"$body" | head -n 1 | cut -d: -f1)
+    eval_at=$(grep -n 'eval "$_src"' <<<"$body" | head -n 1 | cut -d: -f1)
     [ -n "$unset_at" ] || { echo "setup never clears LOA_ADVERSARIAL_CLI_HOP_TIMEOUT"; return 1; }
     [ -n "$eval_at" ]
     (( unset_at < eval_at )) || { echo "the knobs are cleared at line $unset_at, after the script is sourced at $eval_at"; return 1; }
@@ -1044,12 +1050,61 @@ DF
     local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc s
     mkdir -p "$tgt" "$a2a"; : > "$tgt/keep"
     lnk="$a2a/${SPRINT}-lnk"; ln -s "$tgt" "$lnk"
+    # (twenty-eighth run, c2b DISS-C-002: a real directory under the same own-dir glob — its removal proves the link's path was a
+    # candidate, so the kept target is the link rule's doing and not a glob that never reached it)
+    mkdir -p "$a2a/${SPRINT}-real/sub"; : > "$a2a/${SPRINT}-real/sub/f"
     # (as bats runs it: errexit live — a subshell left of `||` would ignore it, so a background job is waited for)
     rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
     command rm -f -- "$lnk"
     [ "$rc" -eq 0 ] || { echo "a symlinked own-dir path failed the teardown (rc $rc)"; return 1; }
     [ -e "$tgt/keep" ]
+    [ ! -e "$a2a/${SPRINT}-real" ] || { echo "the sweep never reached the ${SPRINT}-* paths: the link leg proves nothing"; return 1; }
     for s in normalise companion schema-enforced; do
         if grep -qE 'if \[\[ -d "\$d" \]\]; then find' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s follows -d alone"; return 1; fi
+        # (twenty-eighth run, c1a DISS-C-001: any -d-only guard — the companion's kept-workdir sweep in a world-writable TMPDIR too)
+        if grep -nE -- '-d "\$d" *\]\]' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s: a sweep guards with -d alone"; return 1; fi
+    done
+}
+
+@test "NRM-43 a rejected payload larger than one argv string (MAX_ARG_STRLEN, 128 KiB) still gets its rejected_summary row — the summary never passes a payload on argv (twenty-eighth run, a1 DISS-C-001)" {
+    local big="$TEST_DIR/big-doc.json"
+    # 200 KB description, no severity: rejected; the envelope is built from a file (an --arg of the doc would itself E2BIG)
+    head -c 200000 /dev/zero | tr '\0' 'x' > "$TEST_DIR/desc.txt"
+    jq -nc --rawfile d "$TEST_DIR/desc.txt" '{findings: [{title: "Huge", category: "config", location: "x.sh:1", description: ("Fails. " + $d)}]}' > "$big"
+    env_json=$(jq -nc --rawfile c "$big" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "1" ]
+    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "1" ] || { echo "the rejected payload has no summary row"; return 1; }
+    [ "$(jq -r '.metadata.rejected_summary[0].title' <<<"$result")" = "Huge" ]
+    [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")" = "missing-severity" ]
+    [ "$(jq -r '.metadata.rejected_summary[0].description_head | length' <<<"$result")" = "160" ]
+    # no temp dir to read from: the row is still there (index and reason only) and that is said
+    result=$(_ADVERSARIAL_WORKDIR="" TMPDIR="$TEST_DIR/no-such-dir" process_findings "$env_json" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+    [ "$(jq -c '.metadata.rejected_summary | map({index, reason, title})' <<<"$result")" = '[{"index":0,"reason":"missing-severity","title":null}]' ]
+    grep -q 'the rejected payload at index 0 could not be summarised' "$TEST_DIR/err"
+}
+
+@test "NRM-44 the CLI hop bound reads every catalog timeout as cheval's adapter does — an exponent, a decimal, a padded or digit-grouped string — and never falls below cheval's own bound (twenty-eighth run, d DISS-C-001)" {
+    command -v yq >/dev/null 2>&1 || skip "yq is required"
+    python3 -c 'import yaml' 2>/dev/null || skip "PyYAML is required"
+    local cat="$TEST_DIR/cat-44.yaml" v ct rt b py
+    for v in 900 900.5 9e2 '"9e2"' '" 900 "' '"1_000"' 1.2e3 '".5e3"' 0 -5 '"x"' '"nan"' '"inf"' 99999 '"1__0"'; do
+        for ct in 10 30.5 '"3e1"'; do
+            for rt in 120 '"7e2"' 650.25; do
+                printf 'providers:\n  anthropic:\n    connect_timeout: %s\n    read_timeout: %s\n    models:\n      claude-headless:\n        headless_timeout_seconds: %s\n' "$ct" "$rt" "$v" > "$cat"
+                b=$(LOA_MODEL_CONFIG="$cat" _adv_cli_hop_bound claude-headless)
+                py=$(cd "$PROJECT_ROOT/.claude/adapters" && python3 -c '
+import sys, yaml
+from loa_cheval import types as t
+p = yaml.safe_load(open(sys.argv[1]))["providers"]["anthropic"]
+u = t.usable_headless_timeout(p["models"]["claude-headless"]["headless_timeout_seconds"])
+read = t.headless_read_floor(p["read_timeout"])
+if u is not None: read = max(read, min(u, t.HEADLESS_TIMEOUT_CEILING_SECONDS))
+print(t.headless_connect_floor(p["connect_timeout"]) + read)' "$cat")
+                # at or above cheval's own bound, by under one second per rounded term
+                python3 -c 'import sys; b, p = float(sys.argv[1]), float(sys.argv[2]); sys.exit(0 if p <= b < p + 2 else 1)' "$b" "$py" \
+                    || { echo "v=$v ct=$ct rt=$rt: the script bounds the hop at $b, cheval at $py"; return 1; }
+            done
+        done
     done
 }

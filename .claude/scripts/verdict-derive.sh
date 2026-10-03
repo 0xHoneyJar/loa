@@ -232,7 +232,10 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             | ([$kind, ($n | tostring), (if $has_list or $rs == null then ($has_list | tostring) else "type:" + ($rs | type) end),
                 (($dp.findings? // 0) | if type == "number" then tostring else "0" end),
                 (($dp.status? // "-") | tostring), (($dp.timestamp? // "-") | tostring),
-                (($md.type? // "-") | if type == "string" and length > 0 then . else "-" end)] | @tsv),
+                (($md.type? // "-") | if type == "string" and length > 0 then . else "-" end)]
+               # (twenty-eighth run, b1 DISS-C-001: tab is IFS whitespace — an empty column collapses into its neighbour and
+               # shifts every later one, so no column is ever empty)
+               | map(if . == "" then "-" else . end) | @tsv),
               (if $has_list then ($rs[] | if type == "string" then . else ("\u0001" + tojson) end) else empty end)' -- "$ENVELOPE_FILE" 2>/dev/null) || _snap=""
         if [[ -z "$_snap" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
