@@ -367,19 +367,54 @@ _sidecar_path() {
     [[ "$(jq -r '.anchor_status' <<<"$f")" == "valid" ]]
 }
 
-@test "C14: production derivation — a repair that rewrites the DERIVED failure_mode is a non-violated-field mutation" {
+@test "C14: production derivation — a repair that rewrites the DERIVED failure_mode keeps the finding with the derived value; the model's is discarded (twenty-seventh run, c2e DISS-C-003)" {
+    # the derived failure_mode is the normaliser's text, not the dissenter's — a model that rewrites it alongside the
+    # violated field mutated nothing the dissenter wrote; the finding is kept, the derived value (and its marker) restored
     unset LOA_ADVERSARIAL_NO_FM_DERIVATION
     _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-mutate-$$"
     _repair_finding_via_model() {
-        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up"'
+        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up" | del(.failure_mode_derived)'
     }
     local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "The token is never checked before use." ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode_derived')" == "true" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].description')" == "The token is never checked before use." ]]
+}
+
+@test "C14: a repair that rewrites a dissenter-STATED failure_mode is still a non-violated-field mutation — only derived fields are free (twenty-seventh run, c2e DISS-C-003)" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-stated-mutate-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up"'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use.","failure_mode":"a crash on the first request"}]}'
     local raw
     raw=$(_raw_envelope "$content")
     result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
     [[ "$(echo "$result" | jq '.findings | length')" == "0" ]]
     [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "1" ]]
     [[ "$(jq -r '.reject_reason' "$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")")" == "repair-mutated-nonviolated-field" ]]
+}
+
+@test "C14: a repair that rewrites the DERIVED id keeps the finding under the normaliser's id (twenty-seventh run, c2e DISS-C-003)" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-id-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .id = "MODEL-9"'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use.","failure_mode":"a crash"}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].id')" == "DISS-001" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "a crash" ]]
 }
 
 @test "C14: production derivation — a whitespace-only description derives nothing; the repaired description supplies the failure_mode" {
@@ -563,4 +598,8 @@ EOF
     # the RESOLVED lock directory, not just the input: a resolver cached at source time would leave the export inert
     # (twenty-second run, c2e DISS-C-001)
     [ "$(_adv_cli_lock_dir)" = "$TEST_DIR/loa-headless-locks-$(id -u)" ]
+    # no family's credential survives the scrub, and the scrub's provider list is the table's own (twenty-seventh run, c2e DISS-C-001)
+    local p
+    for p in anthropic openai google; do ! _adv_cred_present "$p" || { echo "a $p credential survived the scrub"; return 1; }; done
+    [ "$(declare -f _adv_cred_aliases | grep -oE '^ +[a-z]+\)' | tr -d ' )' | LC_ALL=C sort | tr '\n' ' ')" = "anthropic google openai " ]
 }

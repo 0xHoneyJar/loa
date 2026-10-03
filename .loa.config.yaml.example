@@ -1402,8 +1402,9 @@ flatline_protocol:
     # companion_voice {planned: false, reason: no_route} — on security_audit that is a
     # DEGRADED_SECURITY_REVIEW on every audit; set false where one voice is the host's shape.
     companion_voice: true
-    # Optional: replace the default companion chains (used as given; the CLI hop
-    # is planned only when its binary is on PATH; a hop this block's fallback_chain
+    # Optional: replace the default companion chains (used as given — no PATH filter:
+    # a CLI hop named here is planned even when its binary is absent, and fails as
+    # that hop; only the default chains plan the CLI hop when its binary is on PATH; a hop this block's fallback_chain
     # also holds stays in the chain and is listed under companion_voice.shared_hops —
     # independence is judged from the voices that actually answered:
     # companion_voice.independent, a same-family companion is not a second voice).

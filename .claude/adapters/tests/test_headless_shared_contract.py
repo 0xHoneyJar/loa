@@ -253,14 +253,18 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
     assert "p/y: headless_timeout_seconds 900 applies to CLI models only (kind: cli, or a *-headless provider) — ignored on this model (kind: http_api, provider type: anthropic)" in caplog.text
     # a model of a *-headless provider is a CLI model without a model-level kind (fourteenth run, d C-002)
     cfg2 = {"providers": {"g": {"type": "grok-headless", "endpoint": "", "auth": "none", "models": {"grok-headless": {"context_window": 1000, "headless_timeout_seconds": 800}}}}}
-    caplog.clear()
-    pg = cheval._build_provider_config("g", cfg2)
+    # (every build captures at the explicit level — under a stricter log_level ini an uncaptured build reads a silent loader
+    # as no warning: twenty-seventh run, c2e DISS-C-002)
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        caplog.clear()
+        pg = cheval._build_provider_config("g", cfg2)
     assert pg.models["grok-headless"].headless_timeout_seconds == 800.0
     assert caplog.text == ""
     # a provider with no `type:` is the openai adapter — never a headless one — so the gate's empty default and the
     # loader's "openai" default agree: the key is dropped, and no headless hop runs without it (twenty-first run, d C-002)
     cfg3 = {"providers": {"n": {"endpoint": "", "auth": "none", "models": {"m": {"context_window": 1000, "headless_timeout_seconds": 800}}}}}
-    pn = cheval._build_provider_config("n", cfg3)
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        pn = cheval._build_provider_config("n", cfg3)
     assert pn.type == "openai" and not pn.type.endswith("-headless")
     assert pn.models["m"].headless_timeout_seconds is None
     assert "n/m: headless_timeout_seconds 800 applies to CLI models only" in caplog.text
@@ -439,3 +443,16 @@ def test_loader_note_floor_is_the_read_timeout_the_config_carries():
                 "models": {"m": {"kind": "cli", "headless_timeout_seconds": 50}}}
         pc = cheval._build_provider_config("anthropic", {"providers": {"anthropic": prov}})
         assert pc.models["m"].headless_timeout_note == headless_timeout_note(50, 50, 50, floor=headless_read_floor(pc.read_timeout))
+
+
+def test_adapter_and_loader_clamp_to_one_live_ceiling(adapter_case, monkeypatch):
+    """Run 27, d DISS-C-001: the adapter reads the ceiling through the types module, never a `from … import` copy bound at
+    import — a rebound ceiling reaches the loader's clamp and the adapter's alike."""
+    import loa_cheval.types as types_mod
+    from loa_cheval.types import ModelConfig
+    adapter, _, _ = adapter_case
+    adapter.config.read_timeout = 600
+    adapter.config.connect_timeout = 10
+    monkeypatch.setattr(types_mod, "HEADLESS_TIMEOUT_CEILING_SECONDS", 1200.0)
+    assert types_mod.coerce_headless_timeout_seconds(3000) == 1200.0
+    assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=3000)) == 10.0 + 1200.0

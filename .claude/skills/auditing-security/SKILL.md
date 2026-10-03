@@ -167,7 +167,7 @@ Trace each flagged source forward to a sink or sanitizer (is the data validated/
 
 Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh` enforces it at `PreToolUse:Write`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
-Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 1: Systematic Audit
 

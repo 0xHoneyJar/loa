@@ -107,7 +107,7 @@ teardown() {
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
         [[ "$d" == */a2a/sprint-norm-* ]] || continue
-        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     done
     rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
 }
@@ -598,21 +598,33 @@ DF
     # $SECONDS), only the seam itself excepted (twenty-fifth run, c2b DISS-C-001)
     # (every function reachable from process_findings, a worklist to a fixed point — the seam's own body is not walked — and
     # `date` as a word: an identifier holding "date" before a printf '%s' is not a clock — twenty-sixth run, c2b DISS-C-002)
-    local f g fns=" " clk; local -a todo=(process_findings)
-    while (( ${#todo[@]} )); do
-        f="${todo[0]}"; todo=("${todo[@]:1}")
-        [[ "$fns" == *" $f "* ]] && continue
-        fns+="$f "; [[ "$f" == _adv_repair_now ]] && continue
-        for g in $(declare -f "$f" | tail -n +2 | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | LC_ALL=C sort -u); do
-            [[ "$fns" != *" $g "* ]] && declare -F "$g" >/dev/null 2>&1 && todo+=("$g")
+    # (the graph walked is the production one: setup and this case stub _repair_finding_via_model, so the walk re-loads the
+    # script in a subshell first — the production repair and its private callees are scanned too: twenty-seventh run, c2b
+    # DISS-C-001)
+    local out
+    out=$( eval "$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+        local f g fns=" " clk; local -a todo=(process_findings)
+        while (( ${#todo[@]} )); do
+            f="${todo[0]}"; todo=("${todo[@]:1}")
+            [[ "$fns" == *" $f "* ]] && continue
+            fns+="$f "; [[ "$f" == _adv_repair_now ]] && continue
+            for g in $(declare -f "$f" | tail -n +2 | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | LC_ALL=C sort -u); do
+                [[ "$fns" != *" $g "* ]] && declare -F "$g" >/dev/null 2>&1 && todo+=("$g")
+            done
         done
-    done
+        echo "FNS$fns"
+        for f in $fns; do
+            [[ "$f" == _adv_repair_now ]] && continue
+            clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
+            [ "$clk" = "0" ] || echo "CLOCK $f ($clk)"
+        done
+        declare -f _repair_finding_via_model | grep -qE 'REPAIR_CANARY|repair-calls' && echo "STUBBED" || true ) || { echo "the clock scan did not run"; return 1; }
+    if grep -q '^STUBBED' <<<"$out"; then echo "the walk saw the stub, not the production repair"; return 1; fi
+    output=$out
+    fns=$(grep '^FNS' <<<"$output"); fns=" ${fns#FNS}"
     [[ "$fns" == *" _adv_hop_charge "* && "$fns" == *" _adv_repair_now "* && "$fns" == *" _adv_cli_hop_bound "* ]]   # (the scan sees the budget helpers, and a callee's callee)
-    for f in $fns; do
-        [[ "$f" == _adv_repair_now ]] && continue
-        clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
-        [ "$clk" = "0" ] || { echo "$f reads the wall clock ($clk) outside the _adv_repair_now seam"; return 1; }
-    done
+    [[ "$fns" == *" _repair_finding_via_model "* ]]
+    if grep -q '^CLOCK ' <<<"$output"; then echo "reads the wall clock outside the _adv_repair_now seam: $(grep '^CLOCK ' <<<"$output" | tr '\n' ' ')"; return 1; fi
     # (the clock stays the test's for the rest of this case: none of the blocks below spends time)
     # the default budget is ADV_REPAIR_MAX_PER_RUN × timeout × 2, or one full CLI repair plus a timeout if that is more
     # (fourteenth run, a1 C-002: a CLI hop is bounded by cheval, not by the call timeout) — never spent by three
@@ -821,7 +833,11 @@ DF
     # the trailer is an indented `main "$@"` inside the BASH_SOURCE guard: the sed must match it (the old `"s/^main \"\\$@\"…"`
     # reached sed as `^main "\"` — `$@` expanded empty — and matched nothing), replace it with `:` (a comment would leave an
     # empty `then`), and the probe refuses to eval a body that still calls main (twentieth run, c2b C-001)
-    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; body=$(sed -e "s/^\\( *\\)main \"\\\$@\"\$/\\1: main disabled/" .claude/scripts/adversarial-review.sh); if grep -Eq "^ *main \"\\\$@\"" <<<"$body"; then echo MAIN-LIVE; exit 9; fi; eval "$body"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
+    # (unanchored, both: a one-line trailer `… && main "$@"` is disabled and refused too; and the script's one call is the
+    # indented whole-line form every suite's setup sed disables — twenty-seventh run, c2b DISS-C-003)
+    [ "$(grep -cE '(^|[^A-Za-z0-9_])main "\$@"' "$ADVERSARIAL_REVIEW")" = "1" ]
+    grep -qE '^ +main "\$@"$' "$ADVERSARIAL_REVIEW"
+    probe='cd "$1"; set --; PROJECT_ROOT=$PWD; source .claude/scripts/lib-content.sh; source .claude/scripts/compat-lib.sh; body=$(sed -e "s/\\(^\\|[^A-Za-z0-9_]\\)main \"\\\$@\"/\\1: main disabled/g" .claude/scripts/adversarial-review.sh); if grep -Eq "(^|[^A-Za-z0-9_])main \"\\\$@\"" <<<"$body"; then echo MAIN-LIVE; exit 9; fi; eval "$body"; printf "[%s][%s][%s]" "${_ADV_FLOCK_BIN:-}" "${_ADV_PGREP_BIN:-}" "${_ADV_LOCK_WAIT_CLI:-}"'
     # no marker: the seams are dropped at load
     out=$(env -u BATS_TEST_FILENAME -u BATS_VERSION _ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c "source /dev/stdin \"\$0\"" "$PROJECT_ROOT" <<<"$probe" 2>/dev/null)
     [ "$out" = "[][][]" ]
@@ -967,12 +983,13 @@ DF
     [ "$(_adv_cred_aliases google)" = "GOOGLE_API_KEY GEMINI_API_KEY" ]
     body=$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-normalise.bats")
     [ -n "$body" ]
-    for s in companion repair-loop; do
+    for s in normalise companion repair-loop; do   # (the call site in all three — normalise is the body's reference copy only: twenty-seventh run, c2b DISS-C-002)
         [ "$(sed -n '/^_scrub_cred_aliases() {/,/^}/p' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats")" = "$body" ]
         grep -q '^    _scrub_cred_aliases || return 1$' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"
         # (an `if`, never a mid-body `!`: bash exempts a negated pipeline from errexit, so only the last iteration counted —
         # twenty-sixth run, c2b DISS-C-001)
-        if grep -qF 'unset $(_adv_cred_aliases' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s still unsets the aliases by hand"; return 1; fi
+        # (a regex, so this file's own check line does not match itself)
+        if grep -qE 'unset \$\(_adv_cred_aliases' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s still unsets the aliases by hand"; return 1; fi
     done
 }
 
@@ -995,6 +1012,23 @@ DF
     [ "$(_repair_model_chain "gpt-5.5-pro")" = "$unpinned" ]
     run _adv_repair_pin_check
     [[ "$output" == *"ignored"* ]]
+    # a newline, CR or tab separates tokens like a space — never ends the pin early (twenty-seventh run, a1 DISS-C-003)
+    LOA_ADVERSARIAL_REPAIR_MODEL=$'tiny\nclaude-headless'
+    [ "$(_repair_chain_base "gpt-5.5-pro")" = "tiny claude-headless" ]
+    LOA_ADVERSARIAL_REPAIR_MODEL=$'tiny\r\n\tclaude-headless\n* a=b'
+    [ "$(_repair_chain_base "gpt-5.5-pro")" = "tiny claude-headless" ]
+    run _adv_repair_pin_check
+    [[ "$output" == *"token 3"* && "$output" == *"token 4"* ]]
+    # a whitespace-only pin is an empty array: both helpers expand it guarded (bash < 4.4 under set -u — twenty-seventh run,
+    # a1 DISS-C-004), and the check says the pin is ignored
+    LOA_ADVERSARIAL_REPAIR_MODEL=$' \n\t '
+    [ "$(_repair_model_chain "gpt-5.5-pro")" = "$unpinned" ]
+    run _adv_repair_pin_check
+    [[ "$output" == *"ignored"* ]]
+    local _f
+    for _f in _adv_repair_pin _adv_repair_pin_check; do
+        if declare -f "$_f" | grep -E '"\$\{!?_t\[@\]\}"' | grep -vqF '${_t[@]+'; then echo "$_f: unguarded _t expansion"; return 1; fi
+    done
     unset LOA_ADVERSARIAL_REPAIR_MODEL
     declare -f process_findings | grep -q '_adv_repair_pin_check'
 }
@@ -1004,4 +1038,18 @@ DF
     out=$( printf '%s' "$f" | _derive_failure_mode 0 )
     [ "$(jq -r '.failure_mode' <<<"$out")" = "A finding whose description never ends a sentence and runs on" ]
     [ "$(jq -r '.failure_mode_derived' <<<"$out")" = "true" ]
+}
+
+@test "NRM-42 the teardowns delete only real directories of their own: a symlink at an own-dir path is never followed nor fails the teardown — the sweep's rule, in every suite (twenty-seventh run, c2a DISS-C-002)" {
+    local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc s
+    mkdir -p "$tgt" "$a2a"; : > "$tgt/keep"
+    lnk="$a2a/${SPRINT}-lnk"; ln -s "$tgt" "$lnk"
+    # (as bats runs it: errexit live — a subshell left of `||` would ignore it, so a background job is waited for)
+    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    command rm -f -- "$lnk"
+    [ "$rc" -eq 0 ] || { echo "a symlinked own-dir path failed the teardown (rc $rc)"; return 1; }
+    [ -e "$tgt/keep" ]
+    for s in normalise companion schema-enforced; do
+        if grep -qE 'if \[\[ -d "\$d" \]\]; then find' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s follows -d alone"; return 1; fi
+    done
 }

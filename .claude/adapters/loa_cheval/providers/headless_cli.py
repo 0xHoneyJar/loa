@@ -16,8 +16,8 @@ from loa_cheval.providers.base import (
     ProviderAdapter, SubprocessOutputCapExceeded, build_headless_subprocess_env,
     enforce_context_window, run_subprocess_pgkill,
 )
+from loa_cheval import types as _types   # (the ceiling is read through the module: run 27, d DISS-C-001)
 from loa_cheval.types import (
-    HEADLESS_TIMEOUT_CEILING_SECONDS,
     headless_connect_floor,
     headless_read_floor,
     usable_headless_timeout,
@@ -176,7 +176,9 @@ class HeadlessCLIAdapter(ProviderAdapter):
         per_model = getattr(model_config, "headless_timeout_seconds", None)
         usable_value = usable_headless_timeout(per_model)   # (the loader's own predicate — fourteenth run, d C-001)
         if usable_value is not None:
-            value = min(usable_value, HEADLESS_TIMEOUT_CEILING_SECONDS)   # (the module constant the loader clamps to — no class copy, run 26 d DISS-C-002)
+            # (the types module's own binding, read at the call — the one the loader clamps to; no class copy (run 26 d DISS-C-002)
+            # and no import-time copy (run 27 d DISS-C-001))
+            value = min(usable_value, _types.HEADLESS_TIMEOUT_CEILING_SECONDS)
             if value > read:
                 read = value
             else:

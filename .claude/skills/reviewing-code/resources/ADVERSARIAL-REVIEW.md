@@ -8,25 +8,26 @@ Referenced from `reviewing-code/SKILL.md` Phase 2.5. Runs when
 **Steps**:
 1. Invoke adversarial review as the bare call the allowlist grants (`--diff-range`: the script runs the `git diff` itself):
    ```bash
-   .claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" \
-     --diff-range main...HEAD --context-file "$reviewer_concerns_file" --json
+   .claude/scripts/adversarial-review.sh --type review --sprint-id <sprint_id> \
+     --diff-range main...HEAD --context-file <concerns file> --json
    ```
 2. Read `grimoires/loa/a2a/{sprint_id}/adversarial-review.json` (Read tool) and parse its findings:
-   - If `findings` array is empty or invocation failed: log and continue to Phase 3
+   - If `findings` is empty: continue to Phase 3 — after triaging any rejected payloads (`rejected_summary` or sidecar rows) under `## Rejected dissent payloads`, which is mandatory either way
+   - If the invocation failed: record it (below) before Phase 3
    - If BLOCKING findings exist: incorporate into Phase 4 decision (forces CHANGES_REQUIRED)
    - If ADVISORY findings only: append as "Cross-Model Observations" section in feedback
 
 **Failure must produce a record.** When `adversarial-review.json` is ABSENT after the script exits — an aborted run leaves none: at start the script moves the previous round's envelope and sidecars aside as `.prev` and never restores them — record the failure with the script itself (a call this skill's allowlist holds; never a hand-written file):
 
 ```bash
-.claude/scripts/adversarial-review.sh --type review --sprint-id "$sprint_id" --record-fallback failed --reason "<what happened>"
+.claude/scripts/adversarial-review.sh --type review --sprint-id <sprint_id> --record-fallback failed --reason "<what happened>"
 ```
 
 before proceeding. Branch on the `status` line the script prints on stdout, never on exit 2 alone (exit 2 with no status line is a usage error, or a standing envelope that stderr names):
 
 - **An envelope stands after a run that took the run lock** — it is the script's own: triage it; never overwrite it.
 - **`failed`** (no envelope: the run aborted) — the call above writes `{"findings": [], "metadata": {"status": "failed", "reason": "<what happened>", "rejected_summary": [], "rejected_sidecars": []}}` under the per-(sprint, gate) run lock. It never writes over an envelope that stands (exit 2), unless the run died before its lock with no status on stdout: what stands is then the previous round's — add `--since <the time on the run's "run started" stderr line>` and an envelope older than that goes aside as `.prev`.
-- **`refused_concurrent_run`** (another run — a detached or backgrounded one — holds the run lock; nothing recorded, nothing moved; a `--record-fallback` made meanwhile is refused the same way) — wait until the holding run has exited: an envelope that then stands with a `metadata.timestamp` after your refusal is that run's: triage it as this round's dissent only when its `metadata.scope` is what you asked for (the same `diff_range`, `run_tag` null — a chunk driver's tagged run reviewed one chunk); otherwise, or when none stands, run again.
+- **`refused_concurrent_run`** (another run — a detached or backgrounded one — holds the run lock; nothing recorded, nothing moved; a `--record-fallback` made meanwhile is refused the same way) — wait until the holding run has exited: an envelope that then stands with a `metadata.timestamp` after your refusal is that run's: triage it as this round's dissent only when its `metadata.scope` is what you asked for (the same `diff_range` and `diff_oids` as your refusal's own `metadata.scope` — the commits, not just the ref names — and `run_tag` null: a chunk driver's tagged run reviewed one chunk); otherwise, or when none stands, run again.
 - **`workdir_unavailable`, `nothing_to_review`, `budget_exceeded`, `diff_range_failed`** (the range's `git diff` failed — e.g. a base ref a shallow clone lacks; written BEFORE the run lock; non-zero exit, stdout only; nothing moved aside, so any envelope at the path is the PREVIOUS run's and never this round's evidence) — record it: `--record-fallback <the status> --reason "<its stdout line>" --since <the run started time>` (it never displaces an envelope written after that) moves that envelope and its `adversarial-rejected-review*.jsonl` sidecars aside as `<name>.prev` (as a run does at start) before it writes, so `verdict-derive.sh` judges this round's record, not the last round's.
 
 A record names what it moved aside (`metadata.displaced`: status, timestamp, findings, rejected); `verdict-derive.sh` warns when that held findings. `verdict-derive.sh` never scans `.prev` files (they are the previous round's evidence, already triaged in that round's feedback) and reports `.prev` files with NO envelope as a `dissent_aborted` violation, which a fallback record clears; `rejected_sidecars: []` does not silence a canonical `adversarial-rejected-review*.jsonl` beside it — that is this run's own partial work, counted whether listed or not: triage its rows under `## Rejected dissent payloads`.
@@ -38,14 +39,14 @@ Do NOT silently skip — the gate hook has no way to distinguish "not attempted"
 |-----------------|-----------------|
 | `--sprint-id` | From SKILL invocation args, resolved via ledger |
 | `--diff-range` | `main...HEAD` (the script runs `git diff`) |
-| `--context-file` | Reviewer's Phase 2 concern notes |
+| `--context-file` | Reviewer's Phase 2 concern notes, written (Write tool) to `grimoires/loa/a2a/{sprint_id}/reviewer-concerns.md` |
 | `--model` | From `flatline_protocol.code_review.model` config |
 | `--budget` | From `flatline_protocol.code_review.budget_cents` config |
 | `--timeout` | From `flatline_protocol.code_review.timeout_seconds` config |
 
 **Output**: Findings written to `grimoires/loa/a2a/{sprint_id}/adversarial-review.json`
 
-**Failure mode**: If adversarial review is unavailable (timeout, API error, budget exceeded), proceed with single-model assessment and log warning. No DEGRADED marker for review (only audit).
+**Failure mode**: If adversarial review is unavailable (timeout, API error, budget exceeded), record it as above, then proceed with single-model assessment and log warning. No DEGRADED marker for review (only audit).
 
 ## Two voices and the rejected-payload contract (cycle-126 FR-2)
 

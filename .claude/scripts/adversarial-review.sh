@@ -593,15 +593,22 @@ _adv_repair_pin() {  # → the operator pin's hop-name tokens, space-joined ("" 
   # chain is iterated unquoted and space-joined into the _ADV_REPAIR_* maps, so a glob character or an `=` must never reach it;
   # `read -a` splits without pathname expansion
   local -a _t; local _v _o=""
-  read -ra _t <<<"${LOA_ADVERSARIAL_REPAIR_MODEL:-}"
-  for _v in "${_t[@]}"; do [[ "$_v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]] && _o="${_o:+$_o }$_v"; done
+  _adv_repair_pin_tokens
+  for _v in ${_t[@]+"${_t[@]}"}; do [[ "$_v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]] && _o="${_o:+$_o }$_v"; done
   printf '%s' "$_o"
+}
+_adv_repair_pin_tokens() {  # fills the CALLER's `_t` array with the pin's tokens — a space, tab, CR or newline separates them
+  # (twenty-seventh run, a1 DISS-C-003: `read -ra` stopped at the first newline, so a hop after it was neither kept nor said);
+  # read -d '' reads to the end and returns 1 there, which is not an error. The callers expand `_t` guarded: an empty array
+  # is unbound under set -u on bash < 4.4 (a1 DISS-C-004)
+  _t=()
+  IFS=$' \t\r\n' read -r -d '' -a _t <<<"${LOA_ADVERSARIAL_REPAIR_MODEL:-}" || true
 }
 _adv_repair_pin_check() {  # say each dropped pin token (by position, never raw) and an ignored pin; process_findings calls it
   [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]] || return 0
   local -a _t; local _i
-  read -ra _t <<<"$LOA_ADVERSARIAL_REPAIR_MODEL"
-  for _i in "${!_t[@]}"; do
+  _adv_repair_pin_tokens
+  for _i in ${_t[@]+"${!_t[@]}"}; do
     [[ "${_t[$_i]}" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]] \
       || log "WARN: LOA_ADVERSARIAL_REPAIR_MODEL token $(( _i + 1 )) is not a hop name ([A-Za-z0-9._/:-], 1-128 chars) — dropped"
   done
@@ -702,6 +709,9 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
     if [[ "$tg" == "!!str" && "$v" =~ ^[A-Za-z0-9._/:-]{1,128}$ ]]; then out+="$v "
     else log "WARN: flatline_protocol.${1}.companion_chain.${2}[$i] is not a hop name (${tg:-unreadable}) — dropped"; fi
   done
+  # (twenty-seventh run, a1 DISS-C-001: an empty list, or one whose every element was dropped, is no operator chain — the
+  # loader then applies the default, so say it for the list; `companion_voice: false` is the opt-out)
+  [[ -n "$out" ]] || log "WARN: flatline_protocol.${1}.companion_chain.${2} is a list with no hop name — the default ${2} chain applies"
   printf '%s' "${out% }"
 }
 _adv_repair_now() { date +%s; }   # the repair budget's clock — one reader, so a suite can drive the budget on its own clock (run 23, c2b DISS-C-001)
@@ -750,8 +760,12 @@ _repair_diff_ok() {
 
   # eighth run, a1 C-002: the derivation markers are the normaliser's, not the model's — a reply that
   # omits them (or a repair schema that forbids them) is still a repair of the violated field only
+  # (twenty-seventh run, c2e DISS-C-003: a field the normaliser derived — `<f>_derived: true` — is its text, not the
+  # dissenter's; a model that rewrites it mutated nothing the dissenter wrote, so it is free here and the caller restores it)
   jq -e -n --argjson orig "$original" --argjson rep "$repaired" --arg af "$allowed_field" '
-    ($orig | del(.[$af], .id_derived, .failure_mode_derived)) == ($rep | del(.[$af], .id_derived, .failure_mode_derived))
+    [("id", "failure_mode") | select($orig[. + "_derived"] == true) | [.]] as $free
+    | ($orig | del(.[$af], .id_derived, .failure_mode_derived) | delpaths($free))
+      == ($rep | del(.[$af], .id_derived, .failure_mode_derived) | delpaths($free))
   ' >/dev/null 2>&1
 }
 
@@ -1649,8 +1663,10 @@ while i < len(text):
           if _repair_diff_ok "$candidate" "$repaired" "$violated_field"; then
             # ninth run, a1 C-003: the derivation markers are provenance — an accepted repair carries the
             # original's markers whatever the model echoed back
-            repaired=$(jq -n --argjson o "$candidate" --argjson r "$repaired" \
-              '$r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))' 2>/dev/null || echo "$repaired")
+            # (twenty-seventh run, c2e DISS-C-003: and the derived values themselves — the model's rewrite of one is discarded)
+            repaired=$(jq -n --argjson o "$candidate" --argjson r "$repaired" --arg af "$violated_field" \
+              '$r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))
+               | reduce ("id", "failure_mode") as $k (.; if $o[$k + "_derived"] == true and $k != $af then .[$k] = $o[$k] else . end)' 2>/dev/null || echo "$repaired")
             # nineteenth run, a1 C-002: a repaired DESCRIPTION supplies the failure_mode the original could not (a whitespace-only
             # description derives nothing) — re-derived here, so the repair is not spent on a payload that stays empty
             if [[ "$violated_field" == "description" ]]; then
@@ -2286,8 +2302,17 @@ _adv_refuse_json() {  # <status> [key value]… → the envelope a --json caller
                       # twelfth run a3 C-004, thirteenth run a3 C-005); type / sprint_id are main's
   local st="$1"; shift
   local -a kv=(); while (( $# >= 2 )); do kv+=(--arg "$1" "$2"); shift 2; done
-  jq -n --arg t "${type:-}" --arg sid "${sprint_id:-}" --arg st "$st" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ${kv[@]+"${kv[@]}"} \
-    '{findings: [], metadata: ({type: $t, sprint_id: $sid, timestamp: $ts, status: $st, model: null, cost_usd: 0} + ($ARGS.named | del(.t, .sid, .st, .ts)))}'
+  jq -n --arg t "${type:-}" --arg sid "${sprint_id:-}" --arg st "$st" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson sc "$(_adv_scope_json)" ${kv[@]+"${kv[@]}"} \
+    '{findings: [], metadata: ({type: $t, sprint_id: $sid, timestamp: $ts, status: $st, model: null, cost_usd: 0, scope: $sc} + ($ARGS.named | del(.t, .sid, .st, .ts)))}'
+}
+_adv_scope_json() {  # [diff sha256] → metadata.scope {diff_range, diff_oids {base, head}, diff_sha256, run_tag} (nulls when absent); diff_range is main's
+                     # (twenty-seventh run, a2 DISS-C-003: every envelope the script writes carries it, the refusal and the fallback record too)
+  _adv_resolve_run_tag
+  jq -nc --arg dr "${diff_range:-}" --arg o "${_ADV_RANGE_OIDS:-}" --arg sha "${1:-}" --arg tag "${_ADV_RUN_TAG:-}" \
+    '{diff_range: (if $dr == "" then null else $dr end),
+      diff_oids: (if $o == "" then null else ($o | split(" ") | {base: .[0], head: .[1]}) end),
+      diff_sha256: (if $sha == "" then null else $sha end),
+      run_tag: (if $tag == "" then null else $tag end)}' 2>/dev/null || printf '{"diff_range":null,"diff_oids":null,"diff_sha256":null,"run_tag":null}'
 }
 _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the failed-run record the review / audit skill writes, done by the
                           # script under its run lock (twenty-third run, b2 DISS-C-001: the skills' allowlists hold no `mv`, and a
@@ -2326,8 +2351,11 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
     # that stands is the previous round's; `--since <the run's start>` shows it: a metadata.timestamp older than that, or none)
     if [[ -e "$env" || -L "$env" ]]; then
       local older="false"
-      if [[ -n "$since" && -f "$env" && ! -L "$env" ]] && ets=$(jq -r '.metadata.timestamp? // "" | strings' -- "$env" 2>/dev/null); then
-        if [[ -z "$ets" ]] || [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && "$ets" < "$since" ]]; then older="true"; fi
+      # (twenty-seventh run, a2 DISS-C-002: an envelope jq cannot parse has no timestamp either — it goes aside as `unreadable`,
+      # as the other statuses move it, rather than refusing the very --since the refusal names)
+      if [[ -n "$since" && -f "$env" && ! -L "$env" ]]; then
+        if ! ets=$(jq -r '.metadata.timestamp? // "" | strings' -- "$env" 2>/dev/null); then older="true"
+        elif [[ -z "$ets" ]] || [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && "$ets" < "$since" ]]; then older="true"; fi
       fi
       if [[ "$older" != "true" ]]; then
         error "an envelope stands at $env — a run wrote it; nothing is recorded over it (a run that died before its lock left the previous round's: pass --since <that run's start, UTC> to move an older one aside)"
@@ -2353,8 +2381,9 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
     done
   fi
   jq -n --arg t "$t" --arg sid "$sid" --arg st "$st" --arg r "$why" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson d "$displaced" \
+    --argjson sc "$(_adv_scope_json)" \
     '{findings: [], metadata: {type: $t, sprint_id: $sid, timestamp: $ts, status: $st, reason: $r, recorded_by: "record-fallback",
-      displaced: $d, rejected_summary: [], rejected_sidecars: []}}' > "$env.tmp.$$" && mv -f -- "$env.tmp.$$" "$env" \
+      displaced: $d, scope: $sc, rejected_summary: [], rejected_sidecars: []}}' > "$env.tmp.$$" && mv -f -- "$env.tmp.$$" "$env" \
     || { command rm -f -- "$env.tmp.$$"; error "cannot write $env"; return 2; }
   log "Recorded the $t fallback ($st) at $env"
   return 0
@@ -2500,13 +2529,13 @@ _adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
     # the hop must be LISTED by a provider (has(), never a `// default`: yq's alternative operator fires on an empty stream,
     # so the `// 10` below would read as catalog data for a hop no provider lists — round-1q dry run, CMP-22)
-    [[ "$(yq eval "[.providers[] | (.models // {}) | has(\"$hop\")] | any" "$cat" 2>/dev/null)" == "true" ]] && from_catalog="true"
+    [[ "$(_adv_hop="$hop" yq eval '[.providers[] | (.models // {}) | has(strenv(_adv_hop))] | any' "$cat" 2>/dev/null)" == "true" ]] && from_catalog="true"
   fi
   if [[ "$from_catalog" == "true" ]]; then
-    v=$(yq eval "[.providers[].models.\"$hop\".headless_timeout_seconds | select(. != null)] | .[0]" "$cat" 2>/dev/null)
+    v=$(_adv_hop="$hop" yq eval '[.providers[].models[strenv(_adv_hop)].headless_timeout_seconds | select(. != null)] | .[0]' "$cat" 2>/dev/null)
     # seventh run, chunk d C-002: the provider block's own timeouts are part of cheval's formula too
-    ct=$(yq eval "[.providers | to_entries[] | select(.value.models.\"$hop\" != null) | (.value.connect_timeout // 10)] | .[0]" "$cat" 2>/dev/null)
-    rt=$(yq eval "[.providers | to_entries[] | select(.value.models.\"$hop\" != null) | (.value.read_timeout // 120)] | .[0]" "$cat" 2>/dev/null)
+    ct=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.connect_timeout // 10)] | .[0]' "$cat" 2>/dev/null)
+    rt=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.read_timeout // 120)] | .[0]' "$cat" 2>/dev/null)
   fi
   [[ "$ct" =~ ^[0-9]+(\.[0-9]+)?$ ]] || ct=10; ct=${ct%.*}; (( ct < 10 )) && ct=10
   [[ "$rt" =~ ^[0-9]+(\.[0-9]+)?$ ]] || rt=120; rt=${rt%.*}; (( rt < 600 )) && rt=600
@@ -2571,8 +2600,10 @@ _adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alia
   # (twenty-fifth run, a3 C-001: ANY provider prefix — `bedrock:`, `xai:` as well as the three companion families — so a prefixed
   # and a bare spelling of one hop share one bound and one lock; a provider token has no dot, so a bedrock id's `-v1:0` stays)
   [[ "$m" =~ ^[A-Za-z0-9_-]+:(.+)$ ]] && m="${BASH_REMATCH[1]}"
+  # (twenty-seventh run, a2 DISS-C-001: every catalog lookup passes the name as data through strenv — a quote or an operator
+  # in a hop name is a key that is not there, never a parse error or an evaluated expression)
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
-    target=$(yq eval ".aliases.\"$m\"" "$cat" 2>/dev/null); [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
+    target=$(_adv_hop="$m" yq eval '.aliases[strenv(_adv_hop)]' "$cat" 2>/dev/null); [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
   fi
   echo "$m"
 }
@@ -2582,9 +2613,20 @@ _adv_cli_bin_for() {  # <model> → the CLI binary this hop can end up exec'ing 
   m=$(_adv_hop_canon "$1")   # twelfth run, a2 C-001: normalised BEFORE the *-headless test
   case "$m" in *-headless) echo "${m%-headless}"; return 0 ;; esac
   command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]] || { echo ""; return 0; }
-  hop=$(yq eval "[.providers[].models.\"$m\".fallback_chain // [] | .[] | select(test(\"-headless$\"))] | .[0]" "$cat" 2>/dev/null)
+  hop=$(_adv_hop="$m" yq eval '[.providers[].models[strenv(_adv_hop)].fallback_chain // [] | .[] | select(test("-headless$"))] | .[0]' "$cat" 2>/dev/null)
   [[ -n "$hop" && "$hop" != "null" ]] || { echo ""; return 0; }
   hop="${hop#*:}"; echo "${hop%-headless}"
+}
+_adv_hop_begins() {  # the hop's clock and its MODELINV window start now: the phase turns `hop` and, for the companion, the window
+                     # start is restamped — sub-second where date has %N (twenty-seventh run, a3 DISS-C-001: stamped before the CLI
+                     # queue, the window held a row the primary wrote on the same shared hop while the companion waited for its lock)
+  [[ -n "${_ADV_PHASE_FILE:-}" ]] && _adv_put_state "$_ADV_PHASE_FILE" hop
+  if [[ -n "${_ADV_HOP_START_FILE:-}" ]]; then
+    local _ts; _ts=$(date -u +%Y-%m-%dT%H:%M:%S.%NZ 2>/dev/null) || _ts=""
+    [[ "$_ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{9}Z$ ]] || _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    _adv_put_state "$_ADV_HOP_START_FILE" "$_ts"
+  fi
+  return 0
 }
 _adv_run_unlocked() {  # <reason> <cmd…> — run a CLI hop WITHOUT the per-binary lock: the reason is said once per run (a marker
                        # file the capture subshells share — a variable set inside $(...) is lost: fifteenth run, a3 C-002) and the
@@ -2602,7 +2644,7 @@ _adv_run_unlocked() {  # <reason> <cmd…> — run a CLI hop WITHOUT the per-bin
   if [[ "$said" != "true" ]]; then
     log "WARN: a *-headless hop runs unserialised — ${why} — two claude -p / codex calls may overlap on this host (KF-037)"
   fi
-  [[ -n "${_ADV_PHASE_FILE:-}" ]] && _adv_put_state "$_ADV_PHASE_FILE" hop
+  _adv_hop_begins
   "$@"
 }
 _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs under its binary's lock (fifth run: a lock
@@ -2635,7 +2677,7 @@ _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs 
           exit 124
         fi
         # sixth run, C-002: the hop's clock starts now, not while it queued for the lock
-        [[ -n "${_ADV_PHASE_FILE:-}" ]] && _adv_put_state "$_ADV_PHASE_FILE" hop
+        _adv_hop_begins
         "$@" 9>&-   # the child never inherits the lock fd: a lingering helper cannot keep the lock
       )
       ;;
@@ -2667,16 +2709,25 @@ _adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (ma
   printf '%s' "$out"
 }
 
-_companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] → the last message_redacted for that model in the window, or ""
-  local m="$1" since="$2" until="${3:-9999-12-31T23:59:59Z}" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
+_companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] [calling primitive] → the last message_redacted for that model in the window, or ""
+  local m="$1" since="$2" until="${3:-9999-12-31T23:59:59Z}" prim="${4:-adversarial-review}" ledger="${LOA_MODELINV_LOG_PATH:-$PROJECT_ROOT/.run/model-invoke.jsonl}"
   [[ -s "$ledger" ]] || { echo ""; return 0; }
   # (tenth run, c1 C-005: bounded by the companion's END too — a concurrent dissent's later row is not ours)
   # (twentieth run, a2 DISS-C-002: line by line — a torn append from a concurrent writer is skipped, never the end of the parse;
   # fractional seconds are dropped before the window test — "…:05.123Z" sorts before "…:05Z" as a string)
-  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg since "$since" --arg until "$until" '
-      fromjson? | ((.ts_utc? // "") | if type == "string" then sub("\\.[0-9]+"; "") else "" end) as $ts
-      | select(type == "object" and (.event_type // "") == "model.invoke.complete" and ($ts >= $since) and ($ts <= $until)
-             and ((.payload.calling_primitive // "adversarial-review") == "adversarial-review")
+  # (twenty-seventh run, a3 DISS-C-001: every stamp is compared at nanosecond width instead — a whole-second start opens at the
+  # second's first instant, a whole-second end closes at its last — so a sub-second hop start, taken when the CLI lock is
+  # acquired, excludes a row the primary wrote on the same shared hop in that second, before it released the lock; the
+  # gate's own calling_primitive is matched — the audit's rows are adversarial-audit)
+  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg since "$since" --arg until "$until" --arg prim "$prim" '
+      def ns($pad): if test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$") | not then null
+        elif test("\\.") then capture("^(?<a>[^.]+)\\.(?<f>[0-9]+)Z$") | .a + "." + ((.f + "000000000")[0:9]) + "Z"
+        else sub("Z$"; "." + $pad + "Z") end;
+      ($since | ns("000000000")) as $s | ($until | ns("999999999")) as $u |
+      fromjson? | ((.ts_utc? // "") | if type == "string" then ns("000000000") else null end) as $ts
+      | select(type == "object" and (.event_type // "") == "model.invoke.complete" and $ts != null and $s != null and $u != null
+             and ($ts >= $s) and ($ts <= $u)
+             and ((.payload.calling_primitive // $prim) == $prim)
              and (((.payload.models_requested // []) | if type == "array" then map(strings | (. == $m or endswith(":" + $m))) | any else false end)))
       | (.payload.models_failed // []) | if type == "array" then .[] else empty end | objects | .message_redacted // empty | strings' 2>/dev/null | tail -1 | cut -c1-300 || true
   # (twenty-first run, a2 DISS-C-002: the row's SHAPE is checked too — a non-string models_requested element or a non-object
@@ -2730,7 +2781,7 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
     if [[ -n "$(_adv_cli_bin_for "$m")" ]]; then _adv_put_state "$workdir/companion.phase" queue; else _adv_put_state "$workdir/companion.phase" hop; fi
     date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_started_iso" 2>/dev/null || true   # (the MODELINV lookup window is this hop, not the companion's lifetime — sixteenth run, a3 C-004)
     command rm -f -- "$workdir/companion.lockwait" "$workdir/companion.hop_ended_iso" 2>/dev/null   # (twenty-first run, a3 DISS-C-001: a hop starts with no end time — the previous hop's would invert the fold's MODELINV window and hide a mid-hop reap)
-    raw=$(_ADV_PHASE_FILE="$workdir/companion.phase" _ADV_LOCK_EXPIRED_FILE="$workdir/companion.lockwait" _adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
+    raw=$(_ADV_PHASE_FILE="$workdir/companion.phase" _ADV_HOP_START_FILE="$workdir/companion.hop_started_iso" _ADV_LOCK_EXPIRED_FILE="$workdir/companion.lockwait" _adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
     date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_ended_iso" 2>/dev/null || true
     [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
     _adv_put_state "$workdir/companion.phase" post   # the model answered: validation and repair round-trips get their own budget
@@ -2968,7 +3019,7 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     _since=$(cat "$workdir/companion.hop_started_iso" 2>/dev/null || cat "$workdir/companion.started_iso" 2>/dev/null || echo "1970-01-01T00:00:00Z")
     local _until; _until=$(cat "$workdir/companion.hop_ended_iso" 2>/dev/null || cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")
     [[ -s "$workdir/companion.hop_started_iso" && ! -s "$workdir/companion.hop_ended_iso" ]] && _until=$(cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")   # (reaped mid-hop: until the reap)
-    if [[ -n "$final" ]]; then _diag=$(_companion_ledger_message "$final" "$_since" "$_until") || _diag=""; fi
+    if [[ -n "$final" ]]; then _diag=$(_companion_ledger_message "$final" "$_since" "$_until" "adversarial-${type:-review}") || _diag=""; fi
     # 2) else the last line of the companion's log that is not a shim banner or the generic wrapper
     if [[ -z "$_diag" && -s "$workdir/companion.log" ]]; then
       _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -Ev 'model-invoke failed with exit code|^\[model-adapter:shim\]' | tail -1 | cut -c1-300) || _diag=""   # -E: ugrep reads \| as a literal; `|| _diag=""`: a log of shim lines alone must not abort (sixteenth run, a3 C-003)
@@ -3221,10 +3272,14 @@ _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap th
 }
 _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and the file-list reader parse: no external driver or textconv,
                      # and none of the operator's presentation config — no colour, a/ b/ prefixes (twenty-fifth run, a4 DISS-C-002);
-                     # a submodule is its short gitlink record, never its own files as top-level records (twenty-sixth run, a3 DISS-C-001)
-  git -C "$1" diff --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
+                     # a submodule is its short gitlink record, never its own files as top-level records (twenty-sixth run, a3 DISS-C-001);
+                     # repo-root paths, a blank context line as " ", octal-quoted non-ASCII paths (twenty-seventh run, a3 DISS-C-002:
+                     # diff.relative / diff.suppressBlankEmpty / core.quotePath reshaped what the parsers read)
+  git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true \
+    diff --no-relative --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
+_ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
 _adv_prev_files_drop() {  # the previous run's envelope and sidecars moved aside at start (`.prev`), one per line: dropped once THIS run's
                           # envelope stands — never restored (nineteenth run, b2 C-001: an aborted run leaves NO envelope at the path,
@@ -3245,7 +3300,9 @@ _adv_cleanup_on_exit() {
   # must never skip the workdir removal and the lock release below)
   _adv_reap_primary || true
   _adv_reap_companion || true
-  [[ -n "${_ADV_RANGE_DIFF:-}" ]] && command rm -f -- "$_ADV_RANGE_DIFF" 2>/dev/null
+  # (twenty-seventh run, a4 DISS-C-003: the last command of an && list is not errexit-exempt — an unlinkable temp file
+  # must not skip the workdir removal and the lock release below)
+  [[ -n "${_ADV_RANGE_DIFF:-}" ]] && { command rm -f -- "$_ADV_RANGE_DIFF" 2>/dev/null || true; }
   # (an aborted run restores nothing: the path holds no envelope, and the previous round's `.prev` files stay beside it — b2 C-001)
   # LOA_ADVERSARIAL_KEEP_WORKDIR keeps FILES for debugging, never processes: the companion tree is reaped on
   # every exit path (a background tree that outlived the run was round 1's first finding) — its partial
@@ -3309,7 +3366,15 @@ main() {
       [[ "$json_output" == "true" ]] && _adv_refuse_json workdir_unavailable tmpdir "${TMPDIR:-/tmp}"
       exit 2; }
     trap 'command rm -f -- "$_ADV_RANGE_DIFF"' EXIT
-    _adv_range_diff "$PROJECT_ROOT" "$diff_range" > "$_ADV_RANGE_DIFF" || {
+    # (twenty-seventh run, a4 DISS-C-002: the two sides are resolved once, BEFORE the diff, and the diff is taken between those
+    # commits — metadata.scope names what was reviewed, never only a ref name a later commit moves)
+    local _rb="" _rh="" _rr="$diff_range"
+    if _rb=$(git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${diff_range%%...*}^{commit}" 2>/dev/null) \
+       && _rh=$(git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${diff_range#*...}^{commit}" 2>/dev/null) \
+       && [[ "$_rb" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ && "$_rh" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then
+      _ADV_RANGE_OIDS="$_rb $_rh"; _rr="${_rb}...${_rh}"
+    fi
+    _adv_range_diff "$PROJECT_ROOT" "$_rr" > "$_ADV_RANGE_DIFF" || {
       error "git diff $diff_range failed"
       [[ "$json_output" == "true" ]] && _adv_refuse_json diff_range_failed range "$diff_range"
       exit 2; }
@@ -3635,7 +3700,9 @@ main() {
       vq_attempt_files+=("$vq_sidecar")
       vq_cleanup_files+=("$vq_sidecar")
     fi
-    _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-findings.out" process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files"
+    # (twenty-seventh run, a4 DISS-C-001: every return of process_findings is 0 — a non-zero one is a job that died (a KILL, a
+    # failed redirect): an unusable answer for this hop, as the walker reads its own pass, never an abort past the run lock)
+    _adv_run_interruptible "$_ADVERSARIAL_WORKDIR/primary-findings.out" process_findings "$raw_response" "$type" "$try_model" "$sprint_id" "$api_exit" "$diff_files" || true
     result=$(cat "$_ADVERSARIAL_WORKDIR/primary-findings.out" 2>/dev/null) || result=""
     status=$(_extract_result_status "$result")
     model_attempts+=("${try_model}:${status}")
@@ -3862,9 +3929,7 @@ main() {
   local _scope_sha="" _scoped=""
   _scope_sha=$( { sha256sum < "$diff_file" || shasum -a 256 < "$diff_file"; } 2>/dev/null | cut -c1-64) || _scope_sha=""
   [[ "$_scope_sha" =~ ^[0-9a-f]{64}$ ]] || _scope_sha=""
-  if _scoped=$(jq -c --arg dr "$diff_range" --arg sha "$_scope_sha" --arg tag "${_ADV_RUN_TAG:-}" \
-      '.metadata.scope = {diff_range: (if $dr == "" then null else $dr end), diff_sha256: (if $sha == "" then null else $sha end),
-        run_tag: (if $tag == "" then null else $tag end)}' <<<"$result" 2>/dev/null) && [[ -n "$_scoped" ]]; then
+  if _scoped=$(jq -c --argjson sc "$(_adv_scope_json "$_scope_sha")" '.metadata.scope = $sc' <<<"$result" 2>/dev/null) && [[ -n "$_scoped" ]]; then
     result="$_scoped"
   fi
 

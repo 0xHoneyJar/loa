@@ -170,7 +170,10 @@ YAML
                     # the guard travels with the writer (twenty-second run, c1a DISS-C-002): a fabricated row lands only in this test's
                     # own ledger, never in the repository's signed chain (KF-033)
                     [[ -n "${LOA_MODELINV_LOG_PATH:-}" && "$LOA_MODELINV_LOG_PATH" == "$T"/* ]] || { echo "stub: LOA_MODELINV_LOG_PATH is not test-scoped — no row written" >&2; return 98; }
-                    jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg msg "$ERRQUIET_LEDGER_MESSAGE" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
+                    # (at cheval's own precision — microseconds; the companion's window opens at a sub-second lock stamp, so a
+                    # whole-second row in the hop's first second sorts before it: round 1ab's regression, CMP-24)
+                    local _rts; _rts=$(date -u +%Y-%m-%dT%H:%M:%S.%6NZ); [[ "$_rts" == *N* ]] && _rts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                    jq -nc --arg ts "$_rts" --arg msg "$ERRQUIET_LEDGER_MESSAGE" '{schema_version:"1.1.0", primitive_id:"MODELINV", event_type:"model.invoke.complete", ts_utc:$ts,
                         payload:{models_requested:["anthropic:claude-headless"], models_succeeded:[], calling_primitive:"adversarial-review",
                                  models_failed:[{model:"anthropic:claude-headless", provider:"anthropic", error_class:"FALLBACK_EXHAUSTED", message_redacted:$msg}]}}' >> "$LOA_MODELINV_LOG_PATH"
                 fi
@@ -248,7 +251,7 @@ teardown() {
     _sweep_stale_suite_dirs "${OUT_DIR%/*}" sprint-comp
     for d in "$OUT_DIR" "$OUT_DIR"-*; do
         [[ "$d" == */a2a/sprint-comp-* ]] || continue
-        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     done
     rm -f -- "${OUT_DIR%/*}/.$SPRINT.owner"
     # a workdir a failing CMP-16 kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1) holds the raw diagnostic line — it never
@@ -1130,8 +1133,11 @@ PY
     printf '{"reject_reason":"live-companion"}\n' > "$OUT_DIR/adversarial-rejected-review-companion.jsonl"
     # the whole directory, not three names (twenty-sixth run, c1b DISS-C-002): a file the refused run created, removed or rewrote
     # under any name — a tagged sidecar, a marker — fails the leg
-    _cmp34_snap() { (cd "$OUT_DIR" && find . -mindepth 1 -printf '%p %y\n' | LC_ALL=C sort && find . -type f -exec sha256sum {} + | LC_ALL=C sort); }
-    seeded=$(_cmp34_snap)
+    # POSIX find types and cksum (no -printf, no sha256sum), pipefail, and a non-empty seed: a snapshot that failed cannot
+    # match itself vacuously (twenty-seventh run, c1b DISS-C-001)
+    _cmp34_snap() { (set -o pipefail; cd "$OUT_DIR" && for _t in f d l; do find . -type "$_t" | LC_ALL=C sort | sed "s/\$/ $_t/" || exit 1; done && find . -type f -exec cksum {} + | LC_ALL=C sort); }
+    seeded=$(_cmp34_snap) && [ -n "$seeded" ] || { echo "the CMP-34 snapshot failed or is empty" >&2; return 1; }
+    [[ "$seeded" == *"adversarial-review.json f"* ]]
     _cmp34_untouched() {
         [ "$(_cmp34_snap)" = "$seeded" ] || { echo "the refused run changed the live run's directory: $(diff <(printf '%s\n' "$seeded") <(_cmp34_snap))" >&2; return 1; }
         [ -z "$(ls -A "$OUT_DIR" | grep -E '\.prev$|moved-aside')" ] || { echo "the refused run moved files aside: $(ls -A "$OUT_DIR")" >&2; return 1; }
@@ -1701,9 +1707,12 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     mkdir -p "$T/rw"; printf 'quota_exhausted' > "$T/rw/companion.status"; printf 'done' > "$T/rw/companion.phase"; printf '6' > "$T/rw/companion.rc"
     printf 'claude-headless' > "$T/rw/companion.final"; printf '{"findings":[]}' > "$T/rw/companion.result.json"
     sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")
+    local p0=$_ADV_COMPANION_PID
     _adv_reap_companion_timed_out "$T/rw" "claude-headless"
     [ "$(cat "$T/rw/companion.status")" = "quota_exhausted" ]; [ "$(cat "$T/rw/companion.rc")" = "6" ]; [ -s "$T/rw/companion.result.json" ]
     [ -z "${_ADV_COMPANION_PID:-}" ]
+    # the pid is cleared, so the EXIT cleanup has nothing left to reap: the tree must really be gone (twenty-seventh run, c1b DISS-C-002)
+    sleep 0.3; if kill -0 "$p0" 2>/dev/null; then echo "pid $p0 still alive after the done-walker reap" >&2; return 1; fi
     # a helper that fails mid-reap (the /proc entry vanished) never aborts it under errexit: the tree still goes
     sleep 30 3>&- & p=$!; HOLDER_PIDS+=("$p"); _ADV_COMPANION_PID=$p; _ADV_COMPANION_START=$(_adv_proc_start "$p")
     _orig_proc_start=$(declare -f _adv_proc_start); _adv_proc_start() { return 1; }
@@ -2467,7 +2476,11 @@ $s" 300 2>/dev/null)
 
 @test "CMP-110 a second INT or TERM that lands while the EXIT trap cleans up never exits from inside it — the workdir is removed and the run lock released (twenty-second run, a4 DISS-C-004)" {
     local sig
-    for sig in INT TERM; do
+    for sig in TERM INT; do
+        # a detached run inherits SIGINT ignored, which a non-interactive bash cannot trap: the INT leg would pass whatever the
+        # cleanup masks — a visible skip, never a vacuous pass (twenty-seventh run, c1c DISS-C-003; the regression driver runs
+        # bats under env --default-signal=INT, so it is exercised there)
+        if [[ "$sig" == INT && -n "$(bash -c 'trap -p INT')" ]]; then skip "SIGINT is ignored here: the INT leg cannot be delivered (the TERM leg ran)"; fi
         command rm -f -- "$T/once"; mkdir -p "$T/wd-$sig"
         ( _ADVERSARIAL_WORKDIR="$T/wd-$sig"
           _adv_take_run_lock "$OUT_DIR" review
@@ -2527,11 +2540,13 @@ $s" 300 2>/dev/null)
     BEHAVIOUR[gpt-5.5-pro]=sleeper
     local mp start rc=0 i=0
     ( _run_main review ) >/dev/null 3>&- &
-    mp=$!
+    mp=$!; HOLDER_PIDS+=("$mp")   # (registered at once, and the reclaim bounded: twenty-seventh run, c1c DISS-C-004)
     while [[ ! -s "$T/sleeper.pid" ]] && (( i++ < 300 )); do sleep 0.05; done
     [ -s "$T/sleeper.pid" ]
     HOLDER_PIDS+=("$(cat "$T/sleeper.pid")")
     start=$SECONDS; kill -TERM "$mp"
+    i=0; while kill -0 "$mp" 2>/dev/null && (( i++ < 300 )); do sleep 0.05; done
+    if kill -0 "$mp" 2>/dev/null; then kill -KILL "$mp" 2>/dev/null || true; echo "the run outlived its TERM by 15 s (it waits for the hop)"; return 1; fi
     wait "$mp" || rc=$?
     [ "$rc" -eq 143 ]
     (( SECONDS - start < 12 )) || { echo "the run waited $(( SECONDS - start )) s for the hop"; return 1; }
@@ -2767,6 +2782,20 @@ $(mk_file README.md 780)" 300 2>/dev/null)
     run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; yq() { case \"\$*\" in *length*) return 1 ;; *) command yq \"\$@\" ;; esac; }; _adv_conf_chain_hops code_review anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" == *"companion_chain.anthropic could not be read"* ]]
+    # an explicitly empty list, or one whose every element was dropped, yields no hop: the default applies and that is said
+    # once for the list (twenty-seventh run, a1 DISS-C-001 — `companion_voice: false` is the opt-out, not `[]`)
+    local _l
+    for _l in '[]' '[{a: 1}, "bad hop"]'; do
+        _cfg_edit '      anthropic: [claude-headless]' "      anthropic: ${_l}"
+        run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; _adv_conf_chain_hops code_review anthropic"
+        [ "$status" -eq 0 ]
+        [[ "$output" == *"companion_chain.anthropic is a list with no hop name — the default anthropic chain applies"* ]] || { echo "$_l: $output"; return 1; }
+        [ "$(grep -c 'is a list with no hop name' <<<"$output")" -eq 1 ]
+        _cfg_edit "      anthropic: ${_l}" '      anthropic: [claude-headless]'
+    done
+    # a list that keeps a hop says nothing for the list
+    run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; _adv_conf_chain_hops code_review anthropic"
+    [ "$output" = "claude-headless" ]
     # control: an absent family list is the default, said by nobody
     run bash -c "$(declare -f _adv_conf_chain_hops log); CONFIG_FILE='$CONFIG_FILE'; _adv_conf_chain_hops code_review openai"
     [ "$status" -eq 0 ]
@@ -2881,19 +2910,26 @@ $doc" 300 2>/dev/null)
     [ "$rc" -eq 0 ]
     [ "$(jq -r '.metadata.status' "$env.prev")" = "reviewed" ]
     # (twenty-sixth run, b2 DISS-C-002: a pre-lock refusal's --since is the same age guard — CMP-146)
-    rc=0; ( main --type review --sprint-id "$SPRINT" --since 2026-10-02T12:00:00Z --diff-file /dev/null ) >/dev/null 2>&1 || rc=$?
+    # (an empty --diff-file is itself a nothing_to_review exit 2: the refusal must be the flag's own — twenty-seventh run, c1c DISS-C-001)
+    rc=0; ( main --type review --sprint-id "$SPRINT" --since 2026-10-02T12:00:00Z --diff-file /dev/null ) >"$T/out" 2>"$T/err" || rc=$?
     [ "$rc" -eq 2 ]   # (--since belongs to --record-fallback)
+    grep -qF -- '--since applies to --record-fallback only' "$T/err" || { echo "not the flag's refusal: $(cat "$T/out" "$T/err")"; return 1; }
+    if grep -q nothing_to_review "$T/out"; then echo "--since passed the parser"; return 1; fi
 }
 
 @test "CMP-128 --diff-range <base>...<head> has the script produce the diff itself (no external diff driver, no textconv) — the audit needs no git diff grant, whose --output / --no-index write and read any path; a range that is not ref names, or one beside --diff-file, is refused before git runs (twenty-fourth run, b2 DISS-C-001)" {
     git() {
-        if [[ "${1:-}" == "-C" && "${3:-}" == "diff" ]]; then echo "$*" >> "$T/git.log"; cat "$T/diff.patch"; return 0; fi
+        if [[ "${1:-}" == "-C" && " $* " == *" diff "* ]]; then echo "$*" >> "$T/git.log"; cat "$T/diff.patch"; return 0; fi
         command git "$@"
     }
     BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     result=$(main --type review --sprint-id "$SPRINT" --diff-range main...HEAD --json 2> "$T/stderr.log")
     [ "$(grep -c . "$T/git.log")" = "1" ]
-    grep -qx -- "-C $PROJECT_ROOT diff --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ main...HEAD --" "$T/git.log"
+    # (twenty-seventh run, a4 DISS-C-002: the diff is taken between the commits the range resolved to, and the scope names them)
+    local _b _h; _b=$(command git -C "$PROJECT_ROOT" rev-parse main); _h=$(command git -C "$PROJECT_ROOT" rev-parse HEAD)
+    grep -qx -- "-C $PROJECT_ROOT -c diff.suppressBlankEmpty=false -c core.quotePath=true diff --no-relative --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ ${_b}...${_h} --" "$T/git.log"
+    [ "$(jq -c '.metadata.scope.diff_oids' <<<"$result")" = "{\"base\":\"$_b\",\"head\":\"$_h\"}" ]
+    [ "$(jq -r '.metadata.scope.diff_range' <<<"$result")" = "main...HEAD" ]
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     if ls "${TMPDIR:-/tmp}"/adversarial-range-* 2>/dev/null | grep -q .; then
         for f in "${TMPDIR:-/tmp}"/adversarial-range-*; do [[ "$(cat "$f" 2>/dev/null)" != "$(cat "$T/diff.patch")" ]] || { echo "range diff $f left behind"; return 1; }; done
@@ -3057,9 +3093,16 @@ $doc" 300 2>/dev/null)
 @test "CMP-131 a run lock that cannot be made for a reason other than contention runs unguarded at once with that reason, and a takeover section that cannot be opened runs unguarded with its reason — neither is a busy refusal nor an unsettled race (twenty-fourth run, a2 C-002)" {
     lockdir=$(_adv_cli_lock_dir); mkdir -p -m 700 "$lockdir"
     # (1) mkdir of the lock dir fails EACCES (a read-only lock directory): unguarded at once, naming mkdir's error — never three rounds
-    chmod 500 "$lockdir"
-    rc=0; ( _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/ro.err" || rc=$?
-    chmod 700 "$lockdir"
+    # (mode bits do not bind uid 0, the uid of most CI containers: there the EACCES is mkdir's own, stubbed — twenty-seventh run,
+    # c1c DISS-C-002)
+    if [ "$(id -u)" -eq 0 ]; then
+        rc=0; ( mkdir() { if [[ "${*: -1}" == *.lock.d ]]; then echo "mkdir: cannot create directory '${*: -1}': Permission denied" >&2; return 1; fi; command mkdir "$@"; }
+                _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/ro.err" || rc=$?
+    else
+        chmod 500 "$lockdir"
+        rc=0; ( _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/ro.err" || rc=$?
+        chmod 700 "$lockdir"
+    fi
     [ "$rc" = "0" ]
     grep -q "run lock is not taken — the run lock .* cannot be created: .*[Pp]ermission denied" "$T/ro.err"
     if grep -q "did not settle" "$T/ro.err"; then echo "a non-contention mkdir failure was retried as a race"; return 1; fi
@@ -3132,7 +3175,7 @@ $doc" 300 2>/dev/null)
 
 @test "CMP-143 a --diff-range whose git diff fails, or whose temp file cannot be made, refuses with a JSON status under --json (diff_range_failed with the range / workdir_unavailable), and --record-fallback records diff_range_failed (twenty-sixth run, a4 DISS-C-001)" {
     git() {
-        if [[ "${1:-}" == "-C" && "${3:-}" == "diff" ]]; then echo "fatal: bad revision" >&2; return 128; fi
+        if [[ "${1:-}" == "-C" && " $* " == *" diff "* ]]; then echo "fatal: bad revision" >&2; return 128; fi
         command git "$@"
     }
     rc=0; result=$( main --type review --sprint-id "$SPRINT" --diff-range nosuch...HEAD --json 2>"$T/stderr.log" ) || rc=$?
@@ -3240,4 +3283,177 @@ $sib2" 300 2>/dev/null)
     local gc; gc=$(cat "$T/gc.pid"); [ -n "$gc" ]
     local i; for i in $(seq 1 20); do kill -0 "$gc" 2>/dev/null || break; sleep 0.1; done
     if kill -0 "$gc" 2>/dev/null; then kill -KILL "$gc"; echo "grandchild $gc outlived the bound"; return 1; fi
+}
+
+@test "CMP-150 a hop name reaches the catalog's yq expressions as data (strenv), never spliced into the expression: a quote in a name is looked up, not a parse error, and cannot inject a yq operator (twenty-seventh run, a2 DISS-C-001)" {
+    local cat="$T/quote-catalog.yaml"
+    cat > "$cat" <<'YAML'
+aliases:
+  'we"ird': 'anthropic:claude-headless'
+providers:
+  anthropic:
+    connect_timeout: 10
+    read_timeout: 120
+    models:
+      'odd"hop':
+        kind: cli
+        headless_timeout_seconds: 777
+        fallback_chain: ['claude-headless']
+YAML
+    [ "$(LOA_MODEL_CONFIG="$cat" _adv_hop_canon 'we"ird')" = "claude-headless" ]
+    [ "$(LOA_MODEL_CONFIG="$cat" _adv_cli_hop_bound 'odd"hop')" = "787" ]
+    [ "$(LOA_MODEL_CONFIG="$cat" _adv_cli_bin_for 'odd"hop')" = "claude" ]
+    # an injected operator is a key that is not there, never evaluated
+    printf 'secret-canary' > "$T/canary.txt"
+    local inj='x" | load_str("'"$T"'/canary.txt") | "'
+    [[ "$(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")" != *secret-canary* ]]
+    # no catalog yq expression in the script splices a shell variable inside a quoted key
+    if grep -nE 'yq eval "[^"]*\\"\$' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"; then echo "a hop name is spliced into a yq expression"; return 1; fi
+}
+
+@test "CMP-151 --record-fallback failed --since over an envelope that is not JSON moves it aside as unreadable — the error's own instruction works — and never over a parseable newer one (twenty-seventh run, a2 DISS-C-002)" {
+    mkdir -p "$OUT_DIR"
+    local env="$OUT_DIR/adversarial-review.json" rc
+    printf 'not json {\n' > "$env"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+    [ "$rc" -eq 0 ] || { echo "an unparseable envelope refused --since: $(cat "$T/err")"; return 1; }
+    [ "$(jq -r '.metadata.status' "$env")" = "failed" ]
+    [ "$(jq -r '.metadata.displaced.unreadable' "$env")" = "true" ]
+    [ "$(cat "$env.prev")" = "not json {" ]
+    # without --since it still refuses, and a parseable newer envelope still stands
+    command rm -f -- "$env.prev"; printf 'not json {\n' > "$env"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason r ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 2 ]; [ "$(cat "$env")" = "not json {" ]
+    printf '{"findings":[],"metadata":{"status":"reviewed","timestamp":"2026-10-02T12:30:00Z"}}\n' > "$env"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 2 ]; [ "$(jq -r '.metadata.status' "$env")" = "reviewed" ]
+}
+
+@test "CMP-152 the envelopes written outside process_findings carry metadata.scope too — the --record-fallback record and the --json refusal (diff_range / run_tag as given, diff_sha256 null: no diff was read) (twenty-seventh run, a2 DISS-C-003)" {
+    mkdir -p "$OUT_DIR"
+    local env="$OUT_DIR/adversarial-review.json" rc
+    command rm -f -- "$env"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback nothing_to_review --reason r ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 0 ]
+    [ "$(jq -c '.metadata.scope' "$env")" = '{"diff_range":null,"diff_oids":null,"diff_sha256":null,"run_tag":null}' ]
+    command rm -f -- "$env" "$env.prev"
+    rc=0; ( export LOA_ADVERSARIAL_RUN_TAG=chunk-a1; main --type review --sprint-id "$SPRINT" --diff-range main...HEAD --record-fallback diff_range_failed --reason r ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 0 ]
+    [ "$(jq -c '.metadata.scope' "$env")" = '{"diff_range":"main...HEAD","diff_oids":null,"diff_sha256":null,"run_tag":"chunk-a1"}' ]
+    local out; out=$(type=review sprint_id="$SPRINT"; diff_range="main...HEAD"; _ADV_RUN_TAG=""; _adv_refuse_json refused_concurrent_run)
+    [ "$(jq -c '.metadata.scope' <<<"$out")" = '{"diff_range":"main...HEAD","diff_oids":null,"diff_sha256":null,"run_tag":null}' ]
+    [ "$(jq -r '.metadata.status' <<<"$out")" = "refused_concurrent_run" ]
+}
+
+@test "CMP-153 a companion hop's MODELINV window opens when its CLI lock is acquired (sub-second where date has it), so a row the primary wrote on the same shared hop before releasing that lock is never read as the companion's; and the audit gate's own rows are found (twenty-seventh run, a3 DISS-C-001)" {
+    row() { jq -nc --arg ts "$1" --arg msg "$2" --arg p "${3:-adversarial-review}" '{event_type:"model.invoke.complete", ts_utc:$ts, payload:{models_requested:["anthropic:claude-headless"], calling_primitive:$p, models_failed:[{model:"anthropic:claude-headless", message_redacted:$msg}]}}'; }
+    [[ -n "$T" && "$LOA_MODELINV_LOG_PATH" == "$T/"* ]]
+    # the primary's row in the very second the companion took the lock is before a sub-second window start
+    { row 2026-10-01T10:00:05.300000Z primary-row; } > "$LOA_MODELINV_LOG_PATH"
+    [ -z "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05.400000000Z 2026-10-01T10:00:09Z)" ]
+    { row 2026-10-01T10:00:05.300000Z primary-row; row 2026-10-01T10:00:05.500000Z companion-row; } > "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05.400000000Z 2026-10-01T10:00:09Z)" = "companion-row" ]
+    # a whole-second start stays inclusive (the hop's first second), a whole-second end holds its last second
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:05Z)" = "companion-row" ]
+    # the audit gate's rows carry calling_primitive adversarial-audit
+    { row 2026-10-01T10:00:06Z audit-row adversarial-audit; } > "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z adversarial-audit)" = "audit-row" ]
+    [ -z "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z adversarial-review)" ]
+    # the window start is restamped at lock acquisition, on the locked and the unserialised path alike
+    local f="$T/hop_started_iso" out
+    echo 2000-01-01T00:00:00Z > "$f"
+    out=$(_ADV_HOP_START_FILE="$f" _adv_with_cli_lock claude-headless cat "$f")
+    [[ "$out" =~ ^20[2-9][0-9]-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{9})?Z$ ]] || { echo "locked path: $out"; return 1; }
+    echo 2000-01-01T00:00:00Z > "$f"
+    out=$(_ADV_FLOCK_BIN=/nonexistent/flock _ADV_HOP_START_FILE="$f" _adv_with_cli_lock claude-headless cat "$f" 2>/dev/null)
+    [[ "$out" =~ ^20[2-9][0-9]- ]] || { echo "unserialised path: $out"; return 1; }
+    # the walker publishes the stamp file to the hop, and the fold passes the gate's primitive
+    grep -q '_ADV_HOP_START_FILE="\$workdir/companion.hop_started_iso"' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"
+    grep -q '_companion_ledger_message "\$final" "\$_since" "\$_until" "adversarial-' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"
+}
+
+@test "CMP-154 --diff-range's diff takes no shape from the operator's diff.relative, diff.suppressBlankEmpty or core.quotePath — byte-identical to the unconfigured diff, from the root or a subdirectory (twenty-seventh run, a3 DISS-C-002)" {
+    local r="$T/shape" g=(-c user.email=t@t -c user.name=t) d
+    command git init -q "$r"; mkdir -p "$r/sub"
+    printf 'a\n\nb\n\nc\n' > "$r/top.txt"; printf 'x\n' > "$r/sub/in.txt"; printf 'n\n' > "$r/café.txt"
+    command git -C "$r" add -A; command git "${g[@]}" -C "$r" commit -q -m base
+    printf 'a\n\nB\n\nc\n' > "$r/top.txt"; printf 'y\n' > "$r/sub/in.txt"; printf 'm\n' > "$r/café.txt"
+    command git "${g[@]}" -C "$r" commit -qam head
+    local want_root want_sub; want_root=$(_adv_range_diff "$r" HEAD~1...HEAD); want_sub=$(_adv_range_diff "$r/sub" HEAD~1...HEAD)
+    grep -q '^ $' <<<"$want_root"; grep -q '"a/caf\\303\\251.txt"' <<<"$want_root"; grep -q '^diff --git a/top.txt' <<<"$want_sub"
+    command git -C "$r" config diff.relative true; command git -C "$r" config diff.suppressBlankEmpty true; command git -C "$r" config core.quotePath false
+    [ "$(_adv_range_diff "$r" HEAD~1...HEAD)" = "$want_root" ] || { echo "the root diff took the operator's config"; return 1; }
+    [ "$(_adv_range_diff "$r/sub" HEAD~1...HEAD)" = "$want_sub" ] || { echo "the subdirectory diff took diff.relative"; return 1; }
+}
+
+@test "CMP-155 a primary normalisation job that dies (a KILL, a failed redirect) is an unusable answer for that hop — the next hop, an envelope — never an abort past the run lock (twenty-seventh run, a4 DISS-C-001)" {
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    eval "_orig_$(declare -f _adv_run_interruptible)"
+    _adv_run_interruptible() {
+        if [[ "$1" == */primary-findings.out && ! -e "$T/killed-once" ]]; then : > "$T/killed-once"; command rm -f -- "$1"; return 137; fi
+        _orig__adv_run_interruptible "$@"
+    }
+    set +e; ( set -e; _run_main review > "$T/main.out" ); rc=$?; set -e; result=$(cat "$T/main.out")
+    [ -e "$T/killed-once" ]
+    jq -e '.metadata.status' <<<"$result" >/dev/null || { echo "no envelope (rc $rc): $(tail -5 "$T/stderr.log")"; return 1; }
+}
+
+@test "CMP-156 the exit cleanup removes the workdir even when the --diff-range temp file cannot be unlinked — the rm is not the errexit-live tail of an && list (twenty-seventh run, a4 DISS-C-003)" {
+    local ro="$T/ro" wd="$T/wd-156"
+    mkdir -p "$ro" "$wd"; : > "$ro/adversarial-range-x"; chmod 555 "$ro"
+    if command rm -f -- "$ro/adversarial-range-x" 2>/dev/null; then chmod 755 "$ro"; skip "rm in a read-only dir succeeds here (root)"; fi
+    set +e; ( set -e; _ADV_RANGE_DIFF="$ro/adversarial-range-x"; _ADVERSARIAL_WORKDIR="$wd"; _adv_cleanup_on_exit; echo returned > "$T/ret-156" ) 2>/dev/null; set -e
+    chmod 755 "$ro"
+    [ ! -d "$wd" ] || { echo "the workdir was left behind"; return 1; }
+    [ -s "$T/ret-156" ]
+}
+
+@test "CMP-157 metadata.scope names the commits a --diff-range resolved to (diff_oids) on the refusal and the envelope alike, and both resources adopt another run's envelope only on a scope equal to the refusal's own (twenty-seventh run, a4 DISS-C-002)" {
+    local b=1111111111111111111111111111111111111111 h=2222222222222222222222222222222222222222 out
+    out=$(type=review sprint_id="$SPRINT"; diff_range="main...HEAD"; _ADV_RANGE_OIDS="$b $h"; _ADV_RUN_TAG=""; _adv_refuse_json refused_concurrent_run)
+    [ "$(jq -c '.metadata.scope.diff_oids' <<<"$out")" = "{\"base\":\"$b\",\"head\":\"$h\"}" ]
+    local r; for r in reviewing-code auditing-security; do
+        grep -q 'refused_concurrent_run.*`diff_oids`' "$BATS_TEST_DIRNAME/../../.claude/skills/$r/resources/ADVERSARIAL-REVIEW.md" || { echo "$r adopts on the range string alone"; return 1; }
+    done
+}
+
+@test "CMP-158 the COMPLETED gate opens on a run's envelope and never on a --record-fallback record (no metadata.model): a failed dissent is recorded, never passed off as one (twenty-seventh run, b2 DISS-C-006)" {
+    local hook="$PROJECT_ROOT/.claude/hooks/safety/adversarial-review-gate.sh" cfg="$T/gate.yaml" rc
+    printf 'flatline_protocol:\n  code_review:\n    enabled: true\n' > "$cfg"
+    _gate() { printf '{"tool_name":"Write","tool_input":{"file_path":"%s/COMPLETED"}}' "$OUT_DIR" \
+        | env -u LOA_ADVERSARIAL_REVIEW_ENFORCE LOA_CONFIG_PATH_OVERRIDE="$cfg" bash "$hook" 2>/dev/null; }
+    mkdir -p "$OUT_DIR"; command rm -f -- "$OUT_DIR/adversarial-review.json"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason r ) >/dev/null 2>&1 || rc=$?
+    [ "$rc" -eq 0 ]; [ "$(jq -r '.metadata.status' "$OUT_DIR/adversarial-review.json")" = "failed" ]
+    rc=0; _gate || rc=$?
+    [ "$rc" -eq 2 ] || { echo "a fallback record opened the gate (rc $rc)"; return 1; }
+    command rm -f -- "$OUT_DIR"/adversarial-review.json*
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    _run_main review >/dev/null
+    [ "$(jq -r '.metadata.model // empty' "$OUT_DIR/adversarial-review.json")" != "" ]
+    rc=0; _gate || rc=$?
+    [ "$rc" -eq 0 ] || { echo "a run's envelope did not open the gate (rc $rc)"; return 1; }
+    # the audit resource states what the hook checks
+    local res="$PROJECT_ROOT/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md"
+    ! grep -q 'checks that this file exists, not its contents' "$res"
+    grep -q 'never opens the gate' "$res"
+}
+
+@test "CMP-159 the shipped docs say what the code does: an empty or failed dissent still triages its rejected payloads, an operator companion_chain is not PATH-filtered, the review/audit invariants row names the dissent's side effects, and no_route degrades every audit (twenty-seventh run, b2 DISS-C-001/003/004/005)" {
+    local root="$PROJECT_ROOT" r
+    for r in reviewing-code auditing-security; do
+        ! grep -q 'invocation failed: log and continue' "$root/.claude/skills/$r/resources/ADVERSARIAL-REVIEW.md" || { echo "$r: a failed run skips its record"; return 1; }
+    done
+    grep -q '^   - If `findings` is empty.*`## Rejected dissent payloads`' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
+    grep -q -- '--sprint-id <sprint_id>' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
+    ! grep -q 'reviewer_concerns_file' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
+    ! grep -q 'used as given; the CLI hop' "$root/.loa.config.yaml.example"
+    grep -q 'no PATH filter' "$root/.loa.config.yaml.example"
+    grep -q '^| Sprint review/audit .*adversarial-review\.sh' "$root/.claude/rules/skill-invariants.md"
+    ! grep -q 'so audits do not turn degraded by default' "$root/CHANGELOG.md"
+    grep -q 'no_route.*DEGRADED_SECURITY_REVIEW.*companion_voice: false' "$root/CHANGELOG.md"
+    # an operator chain really is used as given: a CLI hop whose binary is absent stays planned
+    _adv_cli_present() { return 1; }
+    [ "$(CONF_COMPANION_CHAIN_ANTHROPIC="opus claude-headless"; _companion_chain anthropic)" = "opus claude-headless" ]
+    [[ " $(CONF_COMPANION_CHAIN_ANTHROPIC=""; _companion_chain anthropic) " != *" claude-headless "* ]]
 }

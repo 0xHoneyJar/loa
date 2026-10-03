@@ -231,13 +231,20 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             | (if $md.recorded_by? == "record-fallback" and ($md.displaced? | type) == "object" then $md.displaced else null end) as $dp
             | ([$kind, ($n | tostring), (if $has_list or $rs == null then ($has_list | tostring) else "type:" + ($rs | type) end),
                 (($dp.findings? // 0) | if type == "number" then tostring else "0" end),
-                (($dp.status? // "-") | tostring), (($dp.timestamp? // "-") | tostring)] | @tsv),
+                (($dp.status? // "-") | tostring), (($dp.timestamp? // "-") | tostring),
+                (($md.type? // "-") | if type == "string" and length > 0 then . else "-" end)] | @tsv),
               (if $has_list then ($rs[] | if type == "string" then . else ("\u0001" + tojson) end) else empty end)' -- "$ENVELOPE_FILE" 2>/dev/null) || _snap=""
         if [[ -z "$_snap" ]]; then
             violations+=("dissent envelope $ENVELOPE_FILE is not parseable JSON — the rejected-payload contract cannot be checked; repair the envelope or re-run the dissent")
             return 0
         fi
-        { IFS=$'\t' read -r kind n has_list dfind dstat dts; listed=$(cat); } <<<"$_snap"
+        { IFS=$'\t' read -r kind n has_list dfind dstat dts etype; listed=$(cat); } <<<"$_snap"
+        # twenty-seventh run, c2c DISS-C-001: an envelope that declares the other gate's type (an explicit --envelope at
+        # adversarial-review.json for the audit gate) is never judged against that gate's rejected set — it is the violation
+        if [[ -n "${etype:-}" && "$etype" != "-" && "$etype" != "$GATE" ]]; then
+            violations+=("dissent envelope $ENVELOPE_FILE declares type $etype for gate $GATE — name this gate's envelope (adversarial-$GATE.json) or re-run the dissent")
+            return 0
+        fi
         # twenty-fourth run, b2 DISS-C-002: a fallback record that moved an envelope with findings aside — legitimate when that
         # was the previous round's, never when it was this round's dissent: said, for the reviewer to confirm
         [[ "${dfind:-0}" =~ ^[1-9][0-9]*$ ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") is a --record-fallback record that displaced an envelope with $dfind findings (status ${dstat:--}, timestamp ${dts:--}; now .prev) — confirm it was the previous round's, not this round's dissent")

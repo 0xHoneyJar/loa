@@ -37,7 +37,7 @@ code outside `/implement`") mechanical for review skills rather than prose-only.
 | Skill class | `disallowed-tools` | Why |
 |-------------|--------------------|-----|
 | Pure-review (`write_files: false`, no report artifacts) | `Write`, `Edit`, `NotebookEdit` | Never writes anything — remove the write tools outright |
-| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit` | Write STATE-zone feedback/checkmarks/COMPLETED markers and run the allowed verdict check; System remains `none` and App remains `read` |
+| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit` | Write STATE-zone feedback/checkmarks/COMPLETED markers, run the allowed verdict check and run `adversarial-review.sh` (forks the provider CLIs, appends the `.run` cost and MODELINV ledgers, moves the previous round's a2a envelope aside as `.prev`, writes the new one; review also runs `qmd-context-query.sh`); System remains `none` and App remains `read` |
 | Report-authoring review (`red-teaming`, `bridgebuilder-review`; `write_files: true`) | `NotebookEdit`, `Bash(git add/commit/push *)` | Legitimately write STATE-zone reports/vision/lore, so `Write` is retained; app-code prevention is governed by **zones**, and the implementation-only git mutations are removed |
 
 **`REVIEW_WRITE_EXCEPTIONS`** (in `validate-skill-capabilities.sh`):

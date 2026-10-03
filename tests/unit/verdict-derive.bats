@@ -393,6 +393,29 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     [ "$status" -eq 0 ]
 }
 
+@test "verdict-derive: an envelope whose metadata.type is the other gate's is its own violation — never judged against that gate's rejected set (twenty-seventh run, c2c DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s3t"; mkdir -p "$d"
+    {
+        echo "# audit"; echo; echo "APPROVED - LET'S FUCKING GO"; echo
+        echo '<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"excluded_confirmed":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    } > "$d/auditor-sprint-feedback.md"
+    _vd_envelope "$d/adversarial-review.json" '[{"severity":"LOW","title":"t","anchor":null,"reason":"missing-category","description_head":"x"}]' review
+    run "$SCRIPT" --file "$d/auditor-sprint-feedback.md" --gate audit --envelope "$d/adversarial-review.json"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"declares type review for gate audit"* ]]
+    [[ "$output" != *"Rejected dissent payloads"* ]]
+    run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --envelope \"$d/adversarial-review.json\" --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '(.violations | length) == 1 and (.violations[0] | test("declares type review for gate audit"))' >/dev/null
+    # the matching gate reads the same envelope as before
+    _vd_approved_review "$d/engineer-feedback.md"
+    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --envelope "$d/adversarial-review.json"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Rejected dissent payloads"* ]]
+    [[ "$output" != *"declares type"* ]]
+}
+
 @test "verdict-derive: the contract fails closed — an explicit --envelope that is missing is a usage error (1); an envelope that is not JSON is a violation (1) (sprint-248 review, chunk b)" {
     skip_if_no_jq
     d="${TEST_TMPDIR}/s5"; mkdir -p "$d"
@@ -1083,17 +1106,25 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
 
 @test "verdict-derive: an unlisted sidecar that cannot be read — a directory, a dangling symlink, an unreadable file — beside an FR-2 envelope is one violation and never also a 'rows are counted' warning (twenty-sixth run, b1 DISS-C-002)" {
     skip_if_no_jq
-    d="${TEST_TMPDIR}/s27"; mkdir -p "$d"
+    # (its own slot — s27 is the FIFO case's, which leaves adversarial-review.json a symlink: twenty-seventh run, c2d DISS-C-002)
+    d="${TEST_TMPDIR}/s30"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
     mkdir "$d/adversarial-rejected-review-dir.jsonl"
     ln -s "$d/nowhere" "$d/adversarial-rejected-review-dangling.jsonl"
     printf '{"x":1}\n' > "$d/adversarial-rejected-review-unread.jsonl"; chmod 000 "$d/adversarial-rejected-review-unread.jsonl"
+    # probed: a uid that reads mode-000 files (root) would count the row — the unread leg is then dropped, never asserted
+    # (the dir / dangling legs still run; the unread case alone is s10b's, probed the same way: twenty-seventh run, c2d DISS-C-001)
+    local legs="dir dangling unread"
+    if [[ -r "$d/adversarial-rejected-review-unread.jsonl" ]]; then
+        rm -f "$d/adversarial-rejected-review-unread.jsonl"; legs="dir dangling"
+        echo "# unread leg dropped: this uid reads mode-000 files" >&3
+    fi
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
-    chmod 600 "$d/adversarial-rejected-review-unread.jsonl"
+    [[ -e "$d/adversarial-rejected-review-unread.jsonl" ]] && chmod 600 "$d/adversarial-rejected-review-unread.jsonl"
     [ "$status" -eq 1 ]
     local n
-    for n in dir dangling unread; do
+    for n in $legs; do
         echo "$output" | jq -e --arg n "$n" '(.violations | map(select(test("review-" + $n + ".jsonl is not (a regular file|readable)"))) | length) == 1' >/dev/null \
             || { echo "$n: no single violation: $output"; return 1; }
         echo "$output" | jq -e --arg n "$n" '(.warnings // [] | map(select(test("review-" + $n + ".jsonl"))) | length) == 0' >/dev/null \
