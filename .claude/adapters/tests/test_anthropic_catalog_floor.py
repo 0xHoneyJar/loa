@@ -249,6 +249,11 @@ def test_advisor_tier_points_at_opus_5():
     bb_models = cfg["run_bridge"]["bridgebuilder"]["multi_model"]["models"]
     # 2026-10-01 operator directive (2fb4f9f2): the BB anthropic voice is Fable 5.1 through the CLI
     assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-headless"]
+    # …and the alias is a floor check only through what it dispatches: the catalog's cli_model for it sits on the floor too
+    # (cycle-126 thirty-first run, e1 DISS-C-003 — `fable`/`opus`/`sonnet` are the CLI's own current-generation aliases)
+    with CATALOG.open() as fh:
+        cli_model = (yaml.safe_load(fh)["providers"]["anthropic"]["models"]["claude-headless"].get("extra") or {}).get("cli_model")
+    assert cli_model in {"fable", "opus", "sonnet", "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5"}, cli_model
     assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
     assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()

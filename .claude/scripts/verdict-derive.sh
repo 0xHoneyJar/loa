@@ -134,10 +134,17 @@ if [[ -z "$FILE" || -z "$GATE" ]]; then
     usage_error "--file and --gate are required"
 fi
 [[ "$GATE" == "review" || "$GATE" == "audit" ]] || usage_error "--gate must be 'review' or 'audit' (got: $GATE)"
-[[ -f "$FILE" ]] || usage_error "file not found: $FILE"
+# (thirty-first run, b1 DISS-C-001: --file and --review-file are named like --envelope — a path that exists is never "not found")
+if [[ ! -f "$FILE" ]]; then
+    [[ -e "$FILE" ]] && usage_error "file is not a regular file: $FILE"
+    usage_error "file not found: $FILE"
+fi
 if [[ -n "$REVIEW_FILE" ]]; then
     [[ "$GATE" == "audit" ]] || usage_error "--review-file applies to --gate audit only"
-    [[ -f "$REVIEW_FILE" ]] || usage_error "review file not found: $REVIEW_FILE"
+    if [[ ! -f "$REVIEW_FILE" ]]; then
+        [[ -e "$REVIEW_FILE" ]] && usage_error "review file is not a regular file: $REVIEW_FILE"
+        usage_error "review file not found: $REVIEW_FILE"
+    fi
 fi
 # sprint-248 review (chunk b C-002): an explicit envelope that is not a regular file is a usage
 # error, like --review-file — never a warning that --json consumers ignore

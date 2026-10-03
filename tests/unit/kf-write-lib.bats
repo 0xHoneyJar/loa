@@ -200,6 +200,25 @@ EOF
   grep -qE '^\| \[KF-003\]\(#kf-003-beads_rust-migration-thing\)' "$F"
 }
 
+@test "kf-write new: Index anchor keeps one hyphen per space around stripped punctuation (GitHub never collapses them)" {
+  # cycle-126 thirty-first run, e2b DISS-C-001: `A / b` slugs to `a--b` on GitHub; the collapsed `a-b` link never resolved
+  run bash "$KFW" new --file "$F" --title "PROVIDER_UNAVAILABLE / exit 1 — cheval's note" --status OPEN --quiet
+  [ "$status" -eq 0 ]
+  grep -qE '^\| \[KF-003\]\(#kf-003-provider_unavailable--exit-1--chevals-note\)' "$F" || { grep 'KF-003' "$F"; return 1; }
+}
+
+@test "kf-write: every Index link in the shipped ledger names its entry's GitHub heading anchor" {
+  # (cycle-126 thirty-first run, e2b DISS-C-001: nine rows the collapsing slug wrote, and three hand-made ones, linked nowhere)
+  python3 - "$PROJECT_ROOT/grimoires/loa/known-failures.md" <<'PY'
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+heads = {h.split(":")[0]: re.sub(r"[^a-z0-9_ -]", "", h.lower()).replace(" ", "-") for h in re.findall(r"^## (KF-\d+: .*)$", s, re.M)}
+bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
+print("Index links that resolve to no heading:", bad) if bad else None
+sys.exit(1 if bad else 0)
+PY
+}
+
 @test "kf-write new: can create the FIRST entry in an empty-Index ledger" {
   local G; G="$(mktemp)"
   printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G"

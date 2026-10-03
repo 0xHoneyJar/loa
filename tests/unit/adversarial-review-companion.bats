@@ -1518,10 +1518,16 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     bash -c 'sleep 30 & sleep 30 & wait' 3>&- & root=$!
     # a bounded poll until both children are forked, never a fixed wait (twenty-second run, c1b DISS-C-001): the baseline below is the whole tree
     local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$root" | wc -w)" -ge 3 ] && break; sleep 0.1; done
+    HOLDER_PIDS+=("$root")
     with=$(_adv_tree_pids "$root" | sort -n | tr '\n' ' ')
     # the WHOLE tree is a teardown holder (sixteenth run, c1c C-001: a TERM to the root alone frees its children first) — registered
-    # before the assertion below can fail (twenty-eighth run, c1b DISS-C-004)
-    HOLDER_PIDS+=("$root"); for p in $with; do HOLDER_PIDS+=("$p"); done
+    # before the assertion below can fail (twenty-eighth run, c1b DISS-C-004), but only a pid ps itself names as the root's own
+    # child: the walker is what this test checks, and a walker that over-matched must be a red, never a teardown that signals
+    # another process (thirty-first run, c1b DISS-C-001)
+    for p in $with; do
+        [[ "$p" == "$root" ]] && continue
+        [ "$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')" = "$root" ] && HOLDER_PIDS+=("$p")
+    done
     [ "$(printf '%s' "$with" | wc -w)" -eq 3 ]
     # the seam is observable (c1c C-003): a shadow pgrep first in PATH answers nothing, so an enumeration that ignored the
     # seam would return the root alone — asserted — while the ps walker returns the whole tree
@@ -3062,6 +3068,7 @@ $doc" 300 2>/dev/null)
     grep -qE '_adv_run_interruptible "[^"]*" _adv_shared_hop_verdict ' "$ADVERSARIAL_REVIEW"
     # (2) a token that no longer matches: the pid was reused, nothing is signalled
     sleep 30 3>&- & local p=$!; HOLDER_PIDS+=("$p")
+    local _orig_kt; _orig_kt=$(declare -f _adv_kill_tree); [ -n "$_orig_kt" ]
     _adv_kill_tree() { echo "signalled $1" >> "$T/kt.log"; echo "$1=x"; }
     _ADV_PRIMARY_PID=$p; _ADV_PRIMARY_START="t1"; LOA_ADVERSARIAL_REAP_GRACE_SECONDS=0 _adv_reap_primary
     [ ! -s "$T/kt.log" ]; [ -z "${_ADV_PRIMARY_PID:-}" ]; [ -z "${_ADV_PRIMARY_START:-}" ]
@@ -3080,8 +3087,10 @@ $doc" 300 2>/dev/null)
     LOA_ADVERSARIAL_REAP_GRACE_SECONDS=0 _adv_reap_primary
     [ ! -s "$T/kt.log" ]
     _ADV_PRIMARY_FORKING=""; _ADV_PRIMARY_BANG=""
-    # (4) _adv_run_interruptible publishes and clears the token with the pid
-    unset -f _adv_kill_tree
+    # (4) _adv_run_interruptible publishes and clears the token with the pid — under the script's own _adv_kill_tree, restored,
+    # never deleted (thirty-first run, c1c DISS-C-001: `unset -f` removed the sourced helper outright)
+    eval "$_orig_kt"
+    [ "$(declare -f _adv_kill_tree)" = "$_orig_kt" ]
     _adv_run_interruptible "$T/ri.out" true
     [ -z "${_ADV_PRIMARY_PID:-}" ]; [ -z "${_ADV_PRIMARY_START:-}" ]; [ -z "${_ADV_PRIMARY_FORKING:-}" ]
 }
@@ -3120,7 +3129,9 @@ $doc" 300 2>/dev/null)
 }
 
 @test "CMP-133 a takeover in the last round is followed by a mkdir that takes the key — a freed lock is never run unguarded as an unsettled race (twenty-fifth run, a2 C-001)" {
-    lockdir=$(_adv_cli_lock_dir); mkdir -p -m 700 "$lockdir"
+    lockdir=$(_adv_cli_lock_dir)
+    [[ -n "$T" && "$lockdir" == "$T/"* ]] || { echo "the CLI lock dir $lockdir is not under the test directory"; return 1; }   # (thirty-first run, c1c DISS-C-002: before any mutation of it)
+    mkdir -p -m 700 "$lockdir"
     sleep 0 3>&- & dead=$!; wait "$dead" 2>/dev/null || true
     # every one of the first three mkdirs of the run lock loses to a dead run's lock re-created in front of it: three takeovers
     mkdir() {
@@ -3143,7 +3154,9 @@ $doc" 300 2>/dev/null)
 }
 
 @test "CMP-131 a run lock that cannot be made for a reason other than contention runs unguarded at once with that reason, and a takeover section that cannot be opened runs unguarded with its reason — neither is a busy refusal nor an unsettled race (twenty-fourth run, a2 C-002)" {
-    lockdir=$(_adv_cli_lock_dir); mkdir -p -m 700 "$lockdir"
+    lockdir=$(_adv_cli_lock_dir)
+    [[ -n "$T" && "$lockdir" == "$T/"* ]] || { echo "the CLI lock dir $lockdir is not under the test directory"; return 1; }   # (thirty-first run, c1c DISS-C-002: before any mutation of it)
+    mkdir -p -m 700 "$lockdir"
     # (1) mkdir of the lock dir fails EACCES (a read-only lock directory): unguarded at once, naming mkdir's error — never three rounds
     # (mode bits do not bind uid 0, the uid of most CI containers: there the EACCES is mkdir's own, stubbed — twenty-seventh run,
     # c1c DISS-C-002)
@@ -3176,7 +3189,7 @@ $doc" 300 2>/dev/null)
     local a="$T/a2a" d1 d2
     ( : ) & d1=$!; wait "$d1"
     ( : ) & d2=$!; wait "$d2"
-    mkdir -p "$a/sprint-comp-$d1" "$a/sprint-comp-$d2/x" "$a/sprint-comp-$d2-companion" "$a/sprint-comp-$d2.reap-$d1/y" "$a/sprint-comp-$$-z"
+    mkdir -p "$a/sprint-comp-$d1" "$a/sprint-comp-$d2/x" "$a/sprint-comp-$d2-companion" "$a/sprint-comp-$d2.reap-$d1/y" "$a/sprint-comp-$$-z" "$a/sprint-comp-$$/w"
     : > "$a/.sprint-comp-$d2.owner"; : > "$a/.sprint-comp-$$.owner"
     _sweep_stale_suite_dirs "$a" sprint-comp
     [ -d "$a/sprint-comp-$d1" ]                      # no marker: a real sprint of that name is never touched
@@ -3184,7 +3197,9 @@ $doc" 300 2>/dev/null)
     [ -d "$a/sprint-comp-$d2-companion" ]             # a sibling the marker does not name stays (twenty-ninth run, c1a DISS-001)
     [ ! -e "$a/sprint-comp-$d2.reap-$d1" ]            # a dead sweeper's leftover is finished
     [ ! -e "$a/.sprint-comp-$d2.owner" ]              # the marker goes with its directory
-    [ -d "$a/sprint-comp-$$-z" ]                       # a live owner's directory stays
+    [ -d "$a/sprint-comp-$$-z" ]                       # a live owner's sibling stays
+    [ -d "$a/sprint-comp-$$/w" ]                       # …and the directory its marker names (thirty-first run, c1c DISS-C-003: the sibling
+                                                       # alone stays by the sibling rule, whatever the owner's liveness)
     [ -e "$a/.sprint-comp-$$.owner" ]
     # setup marks this suite's own sprint directory
     [ -f "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner" ]
@@ -3198,7 +3213,9 @@ $doc" 300 2>/dev/null)
 }
 
 @test "CMP-141 a run that loses the race to create the per-user lock directory still takes its run lock — the directory is re-tested after a failed mkdir, as the CLI lock does, never declared unguarded (twenty-sixth run, a2 DISS-C-001)" {
-    lockdir=$(_adv_cli_lock_dir); command rm -f -- "$lockdir"/run-*.lock.d/pid 2>/dev/null || true
+    lockdir=$(_adv_cli_lock_dir)
+    [[ -n "$T" && "$lockdir" == "$T/"* ]] || { echo "the CLI lock dir $lockdir is not under the test directory"; return 1; }   # (thirty-first run, c1c DISS-C-002: before any mutation of it)
+    command rm -f -- "$lockdir"/run-*.lock.d/pid 2>/dev/null || true
     rmdir "$lockdir"/run-*.lock.d 2>/dev/null || true; rmdir "$lockdir" 2>/dev/null || true
     [ ! -e "$lockdir" ]
     # the losing racer: another run's mkdir lands first, so this run's `mkdir -m 700 <lockdir>` fails with EEXIST
@@ -3969,6 +3986,20 @@ YAML
     grep -q '^Binary files' <<<"$(_adv_range_diff "$r" HEAD~1...HEAD)"
 }
 
+@test "CMP-189 --diff-range's diff carries three lines of context whatever GIT_DIFF_OPTS the operator exported — git lets it override -U — and the caller's own GIT_DIFF_OPTS is left as it was (thirty-first run, a4 DISS-C-001)" {
+    local r="$T/diffopts"
+    _cmp_git init -q "$r"; printf '1\n2\n3\n4\n5\n6\n7\n' > "$r/f"; _cmp_git -C "$r" add f; _cmp_git -C "$r" commit -q -m base
+    printf '1\n2\n3\nX\n5\n6\n7\n' > "$r/f"; _cmp_git -C "$r" commit -qam head
+    [ "$(_adv_range_diff "$r" HEAD~1...HEAD | grep -c '^ ')" = "6" ]   # the positive control
+    local v
+    for v in -u0 -u --unified=0 -u1; do
+        [ "$(GIT_DIFF_OPTS="$v" _adv_range_diff "$r" HEAD~1...HEAD | grep -c '^ ')" = "6" ] || { echo "GIT_DIFF_OPTS=$v"; return 1; }
+    done
+    export GIT_DIFF_OPTS=-u0
+    _adv_range_diff "$r" HEAD~1...HEAD >/dev/null
+    [ "$GIT_DIFF_OPTS" = "-u0" ]; unset GIT_DIFF_OPTS
+}
+
 @test "CMP-187 a previous round's file that cannot be moved aside refuses the run before it reviews anything — never a stale envelope or sidecar read as this run's — and the refusal releases the run lock (thirtieth run, a4 DISS-C-001)" {
     mkdir -p "$OUT_DIR"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", timestamp: "2026-01-01T00:00:00Z"}}' > "$OUT_DIR/adversarial-review.json"
@@ -4033,4 +4064,17 @@ PY
     # the shared integrity step reads the config natively — never a yq call no review skill may run
     grep -q '`yq ' "$PROJECT_ROOT/.claude/data/skill-includes/integrity_precheck.md" && { echo "integrity_precheck still prescribes yq"; return 1; }
     true
+}
+
+@test "CMP-190 the CHANGELOG states the contracts that ship, not superseded ones: a pre-run-lock status is recorded with --record-fallback (no hand-made .prev recipe), the repair chain ends at the voice that answered, the rejected_summary row is the full key set, and a sidecar newer than a pre-FR-2 envelope counts (thirty-first run, e2a DISS-C-001/002)" {
+    local cl="$PROJECT_ROOT/CHANGELOG.md"
+    ! grep -q 'move the stale envelope and sidecars aside as `.prev` and write the fallback' "$cl" || { echo "the retired hand-written fallback recipe"; return 1; }
+    ! grep -q 'goes to `tiny` with an Anthropic credential present, else `claude-headless`' "$cl" || { echo "a repair chain without its last hop"; return 1; }
+    grep -q 'the voice that answered, so an OpenAI-only host without `claude` repairs through its own primary' "$cl"
+    ! grep -q '(`{severity, title, anchor, reason, description_head}`)' "$cl" || { echo "a five-key rejected_summary row"; return 1; }
+    grep -q '`{index, severity, title, title_derived, anchor, reason, description_head}`' "$cl"
+    ! grep -q 'counts no sidecar rows, so historical sprints' "$cl" || { echo "an unconditional legacy pass"; return 1; }
+    grep -q 'a sidecar newer than it (a run that died after writing rows) counts' "$cl"
+    # the key set named is the one the script writes
+    grep -q "index: \$idx, severity: null, title: null, title_derived: false, anchor: null, reason: \$r, description_head: null" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
 }

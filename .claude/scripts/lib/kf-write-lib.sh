@@ -52,10 +52,11 @@ die(){ echo "kf-write: $*" >&2; exit 1; }
 san1(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//'; }
 # Table cell: single-line + escape the column delimiter so it can't break the table.
 cell(){ san1 "${1-}" | sed -E 's/\|/\\|/g'; }
-# GitHub-style heading anchor (lowercase; keep [a-z0-9_-] + space; spaces->hyphen).
+# GitHub-style heading anchor (lowercase; keep [a-z0-9_-] + space; EACH space->hyphen — GitHub
+# never collapses them, so `a / b` is `a--b`: cycle-126).
 # Underscores are KEPT — GitHub's algorithm preserves them and the existing Index
 # links rely on it (e.g. #kf-005-beads_rust-021-...).
-gh_anchor(){ printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr -s ' ' | tr ' ' '-'; }
+gh_anchor(){ printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr ' ' '-'; }
 
 # NB: grep can legitimately match nothing; with `set -o pipefail` the pipe then
 # returns non-zero, so every grep-in-substitution is guarded with `|| true`.

@@ -717,6 +717,35 @@ class TestPromptTransport:
         # `-p` is a flag; with no positional prompt claude reads the prompt from stdin
         assert inv.command[inv.command.index("-p") + 1] == "--output-format"
 
+    def test_a_lone_surrogate_prompt_walks_and_reaps_its_child(self, tmp_path, monkeypatch):
+        """Thirty-first run, e1 DISS-C-002: the comment above, pinned — a prompt stdin cannot encode is a hop failure that
+        walks the chain (ProviderUnavailableError, never a raw UnicodeEncodeError), and the child spawned before the encode is
+        reaped at once, never left on an unwritten pipe until the hop's deadline."""
+        import time as _t
+        from loa_cheval.types import ProviderUnavailableError
+        fake = tmp_path / "fake-claude"
+        pidf = tmp_path / "child.pid"
+        fake.write_text("#!/bin/sh\necho $$ > " + str(pidf) + "\nexec sleep 30\n")
+        fake.chmod(0o755)
+        monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        t0 = _t.monotonic()
+        with pytest.raises(ProviderUnavailableError):
+            adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
+        assert _t.monotonic() - t0 < 10
+        deadline = _t.monotonic() + 5
+        while pidf.exists() and _t.monotonic() < deadline:
+            pid = int(pidf.read_text().strip() or 0)
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            _t.sleep(0.1)
+        else:
+            if pidf.exists():
+                os.kill(int(pidf.read_text().strip()), 9)
+                pytest.fail("the spawned claude outlived a prompt that could not be encoded")
+
     def test_the_argv_bound_is_gone(self):
         import loa_cheval.providers.claude_headless_adapter as m
         assert not hasattr(m, "_ARGV_PROMPT_MAX_BYTES")

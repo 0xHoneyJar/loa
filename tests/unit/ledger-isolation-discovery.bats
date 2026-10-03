@@ -42,7 +42,7 @@
 # =============================================================================
 
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
@@ -178,7 +178,7 @@ _in_known_uncovered() {
 
 @test "DS-4: positive control — synthetic uncovered spawners are flagged" {
     cat > "$CONTROL_DIR/spawner.bats" <<'EOF'
-setup() { export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"; CHEVAL="$PROJECT_ROOT/.claude/adapters/cheval.py"; }
+setup() { export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"; CHEVAL="$PROJECT_ROOT/.claude/adapters/cheval.py"; }
 @test "x" {
     run python3 "$CHEVAL" --agent flatline-reviewer --prompt hi --mock-fixture-dir "$FIX"
 }
@@ -209,7 +209,7 @@ EOF
 
 @test "DS-5: negative control — mentions, dry-runs, greps, titles, fakes and covered spawners are not flagged" {
     cat > "$CONTROL_DIR/dry-run-only.bats" <<'EOF'
-setup() { export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"; CHEVAL="$PROJECT_ROOT/.claude/adapters/cheval.py"; }
+setup() { export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"; CHEVAL="$PROJECT_ROOT/.claude/adapters/cheval.py"; }
 @test "cheval.py resolves opus" {
     run python3 "$CHEVAL" --agent reviewing-code --prompt x --dry-run
     [[ -f "$PROJECT_ROOT/.claude/scripts/model-adapter.sh" ]]
@@ -225,7 +225,7 @@ FAKE
 EOF
     cat > "$CONTROL_DIR/covered.bats" <<'EOF'
 setup() {
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     TMP_DIR="$(mktemp -d)"
     export LOA_MODELINV_LOG_PATH="$TMP_DIR/model-invoke.jsonl"
     export LOA_COST_LEDGER_PATH="$TMP_DIR/cost-ledger.jsonl"

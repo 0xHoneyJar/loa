@@ -767,8 +767,18 @@ EOF
 
 @test "e3 DISS-C-001: no per-test path falls back to a mktemp dir no teardown removes" {
     local f
-    for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash; do
+    # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
+    for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
+             tests/unit/adversarial-review-schema-enforced.bats tests/unit/adversarial-review-verdict-quality.bats; do
         if grep -n 'BATS_TEST_TMPDIR[:]-' "$PROJECT_ROOT/$f"; then echo "$f falls back past BATS_TEST_TMPDIR"; return 1; fi
-        grep -q 'BATS_TEST_TMPDIR:?' "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
+        # (anchored on the guard statement itself, so this line's own pattern never satisfies it — thirty-first run, e3 DISS-C-002)
+        grep -qE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
     done
+    # …and no suite anywhere keeps the per-test XDG_RUNTIME_DIR's mktemp fallback (thirty-first run, e3 DISS-C-001: seventeen
+    # more setups carried it); the bracket keeps this line from matching itself
+    if grep -rn 'loa-xdg-[X]XXXXX' "$PROJECT_ROOT/tests"; then echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; fi
+    # the anchored leg is not vacuous: a copy of this file without its guard is caught
+    local cp="$BATS_TEST_TMPDIR/no-guard.bats"
+    grep -vE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$PROJECT_ROOT/tests/unit/adversarial-review.bats" > "$cp"
+    ! grep -qE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$cp"
 }

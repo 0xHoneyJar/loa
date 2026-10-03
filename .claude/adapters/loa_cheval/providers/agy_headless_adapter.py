@@ -11,7 +11,11 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
   - **Invocation** — `agy -p "<prompt>" --model "<label>" --sandbox --dangerously-skip-permissions`
     with stdin closed (the helper keeps stdin on DEVNULL). `-p` takes the prompt on **argv**
     (no `--prompt-file` flag exists → the gemini ARG_MAX cliff persists unchanged; the
-    `gemini-api` HTTP fallback covers oversized diffs).
+    `gemini-api` HTTP fallback covers oversized diffs). An argv prompt is also readable by
+    every local user through /proc/<pid>/cmdline and `ps` for the life of the hop — the
+    exposure claude-headless closed by moving to stdin (cycle-126); agy cannot follow while
+    its stdin must stay closed (below), so on a shared host the Gemini voice's prompt (the
+    redacted diff) is visible to other local users (cycle-126 thirty-first run, e1 DISS-C-001).
   - **--model** takes a **human-readable label** from `agy models` (e.g. "Gemini 3.1 Pro (High)"),
     NOT an API id — supplied via `extra.cli_model`.
   - **Output** — **PLAIN TEXT** (no JSON, no `--output-format`). So `_build_result` reads stdout

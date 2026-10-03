@@ -385,17 +385,20 @@ _validate_finding_reason() {
   fi
   local valid_categories='["injection","authz","data-loss","null-safety","concurrency","type-error","resource-leak","error-handling","spec-violation","performance","secrets","xss","ssrf","deserialization","crypto","info-disclosure","rate-limiting","input-validation","config","other"]'
 
+  # (thirty-first run, a2 DISS-C-002: the reason quotes the bad value — and reaches the rejected_summary row, the log line
+  # and the repair prompt — so the quote is a capped, control-free excerpt; the sidecar keeps the whole payload)
   echo "$finding" | jq -r --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
+    def got: tostring | gsub("[\u0000-\u001f\u007f]"; " ") | .[0:32];
     if (.id // null) == null or (.id | type) != "string" then
       "missing-or-non-string-id"
     elif (.severity // null) == null then
       "missing-severity"
     elif ((.severity | IN($sevs[])) | not) then
-      "severity-not-in-enum (got: \(.severity // "null"))"
+      "severity-not-in-enum (got: \(.severity // "null" | got))"
     elif (.category // null) == null then
       "missing-category"
     elif ((.category | IN($cats[])) | not) then
-      "category-not-in-enum (got: \(.category // "null"))"
+      "category-not-in-enum (got: \(.category // "null" | got))"
     elif (.description // null) == null or (.description | type) != "string" or (.description | gsub("\\s"; "") | length) == 0 then
       "missing-or-empty-description"
     elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | gsub("\\s"; "") | length) == 0 then
@@ -1649,18 +1652,24 @@ while i < len(text):
           if _adv_repair_hop_shared_now "$_rm" "$model"; then continue; fi
           [[ -n "$_rcf" ]] && : > "$_rcf"
           [[ -n "$_rcf" ]] && command rm -f -- "$_rcf.lockwait" 2>/dev/null
-          _any_hop_started="true"
           local _hop_started; _hop_started=$(_adv_repair_now)
           if repaired=$(_ADV_REPAIR_RC_FILE="$_rcf" _ADV_LOCK_EXPIRED_FILE="${_rcf:+$_rcf.lockwait}" _ADV_LOCK_WAIT="${CONF_TIMEOUT:-60}" _ADV_LOCK_WAIT_CLI="${CONF_TIMEOUT:-60}" _adv_with_cli_lock "$_rm" _repair_finding_via_model "$candidate" "$type" "$reject_reason" "$_rm" "${CONF_TIMEOUT:-60}") \
-             && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _adv_repair_note_secs "$_rm" $(( $(_adv_repair_now) - _hop_started )); _repair_ok="true"; break; fi
+             && [[ -n "$repaired" ]] && echo "$repaired" | jq empty >/dev/null 2>&1; then _adv_repair_note_secs "$_rm" $(( $(_adv_repair_now) - _hop_started )); _any_hop_started="true"; _repair_ok="true"; break; fi
           repaired=""
           # seventeenth run, a1 C-002 / eighteenth run, a1 C-003: a duration is noted only for a hop that produced a usable
           # reply (the success branch above) — a hop that never RAN (its CLI lock was not acquired within the wait) or that
           # failed fast says nothing about how long a completed attempt takes, and a short note would let the wall-budget
           # guard admit a hop it cannot afford
+          # (thirty-first run, a1 DISS-C-001: a hop that never ran asked no model — like a pre-empted or shared hop it is not
+          # an attempt, so a payload whose every hop waited out its lock spends no ADV_REPAIR_MAX_PER_RUN slot; named once)
           if [[ -n "$_rcf" && -e "$_rcf.lockwait" ]]; then
             command rm -f -- "$_rcf.lockwait" 2>/dev/null
             log "Repair hop $_rm never ran (its CLI lock was not acquired within ${CONF_TIMEOUT:-60}s) — no duration noted"
+            if [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && ! grep -qxF "${_rm}:lock_wait" "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; then
+              echo "${_rm}:lock_wait" >> "$_ADV_REPAIR_SKIP_FILE"
+            fi
+          else
+            _any_hop_started="true"
           fi
           # eleventh run, a1 C-003: the hop's own exit code (empty when the lock timed out or the reply was unusable
           # — neither retires a hop); an EXPLICIT auth / quota failure does, for this run's remaining repairs.
@@ -1675,7 +1684,7 @@ while i < len(text):
         # fifteenth run, a2 C-001: every hop pre-empted → no model was asked: a budget exhaustion, not an attempt, and
         # no ADV_REPAIR_MAX_PER_RUN slot spent
         # (twentieth run, a1 DISS-C-002: only a hop pre-empted by the budget makes it an exhaustion — a chain that was empty or
-        # whose every hop the companion held is repair_skipped_no_hop)
+        # whose every hop the companion held, or whose every hop waited out its CLI lock, is repair_skipped_no_hop)
         if [[ "$_any_hop_started" != "true" ]]; then
           repair_attempted="false"; repairs_used=$((repairs_used - 1))
           if [[ "$_budget_skip" == "true" ]]; then repair_budget_exhausted=$((repair_budget_exhausted + 1)); else repair_skipped_no_hop=$((repair_skipped_no_hop + 1)); fi
@@ -1745,7 +1754,7 @@ while i < len(text):
           (($o.title | ttl) // ($o.id | sid)) as $own | (($f.title | ttl) // ($f.id | sid)) as $norm
           | . + [{
           index: $idx,
-          severity: ($f.severity // null),
+          severity: ($f.severity | if . == null then null elif type == "string" then clean(32) | nz else tojson | clean(32) end),   # (thirty-first run, a2 DISS-C-002: an invalid severity is the model text itself)
           title: ($own // $norm),
           title_derived: ($own == null and $norm != null),
           anchor: ((if ($f.anchor // null) != null then $f.anchor
@@ -3417,11 +3426,12 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # or a submodule's ignore says, and no global attributes file turning text hunks into "Binary files differ" — the
                      # repository's own .gitattributes still applies (twenty-ninth run, a3 DISS-C-003); nor the system-wide
                      # gitattributes (GIT_ATTR_NOSYSTEM) — `.git/info/attributes` is the repository's own, and applies like
-                     # .gitattributes (thirtieth run, a3 DISS-C-002)
-  GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
+                     # .gitattributes (thirtieth run, a3 DISS-C-002); nor an exported GIT_DIFF_OPTS, which git lets override -U
+                     # (thirty-first run, a4 DISS-C-001: `-u0` left no context line) — unset in a subshell, the caller keeps its own
+  ( unset GIT_DIFF_OPTS; GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
     -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
-    --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" --
+    --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" -- )
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)

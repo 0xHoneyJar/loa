@@ -1202,6 +1202,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # a second real entry after the fence is counted: consistent
     printf '```\n- quoted\n```\n- DISS-b (LOW, y.sh:2) — triaged: not a defect.\n' | _fb
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ] || { echo "two real (status $status): $output"; return 1; }   # (the exit code is the gate too — thirty-first run, c2d DISS-C-001)
     echo "$output" | jq -e '.consistent == true' >/dev/null || { echo "two real: $output"; return 1; }
 }
 
@@ -1216,4 +1217,19 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     chmod 644 "$d/adversarial-review.json"
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.consistent == false and (.violations | map(select(test("is not readable"))) | length == 1) and (.violations | map(select(test("not parseable"))) | length == 0)' >/dev/null || { echo "$output"; return 1; }
+}
+
+@test "verdict-derive: a --file or --review-file that exists but is not a regular file is named as what it is — never 'not found', like --envelope (thirty-first run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s31b1"; mkdir -p "$d/adir"
+    _vd_approved_review "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/adir\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e --arg p "$d/adir" '.usage_error == true and .violations == ["file is not a regular file: \($p)"]' >/dev/null || { echo "$output"; return 1; }
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate audit --review-file \"$d/adir\" --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e --arg p "$d/adir" '.usage_error == true and .violations == ["review file is not a regular file: \($p)"]' >/dev/null || { echo "$output"; return 1; }
+    # a missing path is still "not found"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate audit --review-file \"$d/nope.md\" --json 2>/dev/null"
+    echo "$output" | jq -e --arg p "$d/nope.md" '.violations == ["review file not found: \($p)"]' >/dev/null || { echo "$output"; return 1; }
 }

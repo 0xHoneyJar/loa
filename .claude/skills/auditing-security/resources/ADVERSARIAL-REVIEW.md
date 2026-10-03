@@ -178,7 +178,8 @@ this block are kept byte-identical (CMP-138 fails on any drift).
   credential) → `claude-headless` (with the binary on PATH) → the voice that answered, always last, one bounded attempt
   each (by canonical name: a prefixed answering voice is not appended twice); a hop that failed with an explicit auth /
   quota code is retired for the run's remaining repairs, the answering voice never; a repair skips a hop the companion is
-  running at that moment (`repair_hops_skipped` names it, once) and waits for a CLI lock only its own timeout; the run's
+  running at that moment (`repair_hops_skipped` names it, once) and waits for a CLI lock only its own timeout (a hop
+  whose wait expires never ran: named `<hop>:lock_wait`, once, and no repair slot is spent); the run's
   repairs share a wall-clock budget (`LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS`, default 5 × timeout × 2 or twice the heaviest hop's charge
   (below) plus a timeout if that is more; a hop whose estimate — twice its last observed duration, at least the timeout,
   at most its bound — exceeds what is left is not started and is named `<hop>:over_budget`; spent, the rest are rejected

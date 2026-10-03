@@ -171,7 +171,9 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
     else:
         assert prompt in args
         assert calls[1]["stdin"] == ""
-    if name in ("codex", "cursor", "grok"):
+    # (claude too — a cwd in the reviewed tree hands it that tree's CLAUDE.md and project hooks: cycle-126 thirty-first run,
+    # c2e DISS-C-003)
+    if name in ("codex", "cursor", "grok", "claude"):
         assert calls[1]["cwd"] != str(tmp_path)
         assert not Path(calls[1]["cwd"]).exists()
 

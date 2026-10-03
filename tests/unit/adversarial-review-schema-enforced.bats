@@ -15,12 +15,14 @@
 
 setup() {
     SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)
-    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d "${TMPDIR:-/tmp}/loa-xdg-XXXXXX")}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
+    FR7_OWN_DIRS=()          # the suffixed a2a directories a test makes, for teardown (thirty-first run, c2e DISS-C-001)
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirty-first run, c2e DISS-C-002)
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="$BATS_TEST_TMPDIR"
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
@@ -45,6 +47,15 @@ teardown() {
     # this test's directory only — never a sibling it did not make (twenty-ninth run, c2a; as c1a DISS-001)
     d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
     if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
+    # …and each suffixed directory the test registered: a name of this id, one path component, a real directory (thirty-first run,
+    # c2e DISS-C-001)
+    local n
+    for n in "${FR7_OWN_DIRS[@]}"; do
+        [[ "$n" == "$SPRINT"-* && "$n" != */* && "$n" != *..* ]] || continue
+        d="$PROJECT_ROOT/grimoires/loa/a2a/$n"
+        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    done
+    return 0
 }
 
 _env() {  # <content> [schema_enforced] [stop_reason]
@@ -172,6 +183,7 @@ SHIM
         typ=$(jq -r '._type // "review"' "$f")
         raw_u=$(jq -c 'del(._case, ._type, ._expect)' "$f")
         raw_e=$(jq -c 'del(._case, ._type, ._expect) + {schema_enforced: true}' "$f")
+        FR7_OWN_DIRS+=("${fsprint}-u" "${fsprint}-e")   # teardown removes exactly these (thirty-first run, c2e DISS-C-001)
         result_u=$(process_findings "$raw_u" "$typ" "m" "${fsprint}-u" "0" "")
         result_e=$(process_findings "$raw_e" "$typ" "m" "${fsprint}-e" "0" "")
         [ "$(jq -r '.metadata.status' <<<"$result_u")" = "$(jq -r '._expect.unenforced' "$f")" ] \
@@ -192,6 +204,14 @@ SHIM
         fi
     done
     [ "$n" = "11" ]
+    # every directory of this run's id the loop left is one teardown will remove (thirty-first run, c2e DISS-C-001: the
+    # suffixed per-fixture directories leaked into the live a2a after the sibling rule narrowed teardown to the exact id)
+    # (read-only, and through find: NRM-42 bans the a2a sibling glob in these suites outright)
+    local d own
+    while IFS= read -r d; do
+        own=0; for f in "${FR7_OWN_DIRS[@]}"; do [[ "${d##*/}" == "$f" ]] && own=1; done
+        [ "$own" = 1 ] || { echo "an unregistered directory: ${d##*/}"; return 1; }
+    done < <(find "$PROJECT_ROOT/grimoires/loa/a2a" -mindepth 1 -maxdepth 1 -name "${SPRINT}-*")
 }
 
 @test "slice-C MEDIUM: a model id carrying a command substitution never executes it, even when the maps file is unsourceable" {
@@ -226,6 +246,16 @@ SHIM
     mkdir -p "$a/sprint-fr7-probe/sub" "$a/sprint-fr7-probe-x"; : > "$a/sprint-fr7-probe/sub/f"; : > "$a/sprint-fr7-probe-x/keep"
     rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe; teardown ) 3>&- & wait $! || rc=$?
     [ "$rc" -eq 0 ] && [ ! -e "$a/sprint-fr7-probe" ] && [ -e "$a/sprint-fr7-probe-x/keep" ] || { echo "the own directory or a sibling (rc $rc)"; return 1; }
+    # the directories a test registered are removed — only names of this id, never a link, never an unregistered sibling
+    # (thirty-first run, c2e DISS-C-001)
+    mkdir -p "$a/sprint-fr7-probe-a-u/s" "$a/sprint-fr7-probe-b-u"; : > "$a/sprint-fr7-probe-a-u/s/f"; : > "$a/sprint-fr7-probe-b-u/keep"
+    ln -s "$a/sprint-1" "$a/sprint-fr7-probe-l"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe
+            FR7_OWN_DIRS=(sprint-fr7-probe-a-u sprint-fr7-probe-l sprint-1 "sprint-fr7-probe-../sprint-1" sprint-fr7-probe-gone); teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] || { echo "the registered-directory teardown failed (rc $rc)"; return 1; }
+    [ ! -e "$a/sprint-fr7-probe-a-u" ]
+    [ -e "$a/sprint-fr7-probe-b-u/keep" ] && [ -L "$a/sprint-fr7-probe-l" ] && [ -e "$a/sprint-1/keep" ] || { echo "a name not its own was removed"; return 1; }
+    command rm -f -- "$a/sprint-fr7-probe-l"
     # setup names the sprint before anything that can fail
     [ "$(awk '/^setup\(\) \{/{getline; print; exit}' "$BATS_TEST_FILENAME")" = '    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)' ]
 }

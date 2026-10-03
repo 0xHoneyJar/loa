@@ -1434,7 +1434,8 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
     budget_cents: 150
-    companion_voice: true        # cycle-126 FR-2.1: see code_review
+    companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
+                                 # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape
   stable_anchors:
     required: true               # Demote anchorless high-severity findings
     preferred_format: "symbol"   # symbol | hunk_header | line_number

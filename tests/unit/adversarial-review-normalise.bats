@@ -1206,7 +1206,10 @@ for line in open(sys.argv[1]):
     # and no payload-sized value is passed to jq on argv anywhere in the script: every --arg / --argjson operand is a literal,
     # or a variable or command reviewed as small — an allowlist, so a new operand fails here until it is reviewed (a payload
     # goes through _adv_jq_pair or a file; thirtieth run, c2b DISS-C-003)
-    python3 - "$ADVERSARIAL_REVIEW" <<'PY'
+    # (the lint runs over a fixture first: an unreviewed operand AFTER a reviewed one on the same line is caught — the capture is a
+    # lookahead, so a match never swallows the next flag; thirty-first run, c2b DISS-C-001)
+    local lint fx="$TEST_DIR/nrm46-fixture.sh"
+    lint=$(cat <<'PY'
 import re, sys
 SMALL = set("""_ADV_RANGE_OIDS _ADV_RUN_TAG _cid _drop _enforced_err _ff_final _ff_why _repair_wall_budget _rewritten_cvq
 _rewritten_vq _sc _sc_rel _sidecars_json _vq_agg _vq_err _xnew allowed_field attempts_json budget ceded chain cls comp_status
@@ -1223,7 +1226,7 @@ for line in open(sys.argv[1]):
     if line.lstrip().startswith('#'):
         continue                                   # a comment that names the flag
     line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
-    for m in re.finditer(r'--(?:argjson|arg)\s+[A-Za-z_0-9]+\s+(\S.{0,80})', line):
+    for m in re.finditer(r'--(?:argjson|arg)\s+[A-Za-z_0-9]+\s+(?=(\S.{0,80}))', line):
         op = m.group(1)
         if op.startswith('"') and not op.startswith('"$'):
             # a literal, or one interpolating only reviewed scalars
@@ -1245,4 +1248,63 @@ for line in open(sys.argv[1]):
 for b in bad: print("an unreviewed jq argv operand:", b[:80])
 sys.exit(1 if bad else 0)
 PY
+)
+    printf '%s\n' '  jq -n --arg m "$model" --arg p "$finding_json" '"'"'{m: $m, p: $p}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a second operand on one line was never checked"; return 1; fi
+    printf '%s\n' '  jq -n --arg m "$model" --argjson i "$i" '"'"'{m: $m, i: $i}'"'"'' > "$fx"
+    python3 -c "$lint" "$fx"   # (the positive control: two reviewed operands on one line pass)
+    python3 -c "$lint" "$ADVERSARIAL_REVIEW"
+}
+
+@test "NRM-47 a repair hop whose CLI lock wait expired never asked a model: no repair slot is spent and the payload is repair_skipped_no_hop, the hop named <hop>:lock_wait once (thirty-first run, a1 DISS-C-001)" {
+    command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock case cannot run here"
+    unset ANTHROPIC_API_KEY
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    export LOA_ADVERSARIAL_REPAIR_MODEL="claude-headless"   # the pin is the whole chain: one CLI hop
+    _repair_finding_via_model() { echo "$4" >> "$TEST_DIR/repair-calls"; return 1; }
+    local lockdir="$XDG_RUNTIME_DIR/loa-headless-locks-$(id -u)"
+    [[ -n "$TEST_DIR" && ( "$XDG_RUNTIME_DIR" == "$TEST_DIR" || "$XDG_RUNTIME_DIR" == "$TEST_DIR/"* ) ]] || { echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR is not under TEST_DIR=$TEST_DIR" >&2; return 1; }
+    [ "$(_adv_cli_lock_dir)" = "$lockdir" ]
+    mkdir -m 700 "$lockdir"
+    exec 8>>"$lockdir/claude.lock"; flock 8   # another claude -p holds the binary's lock for the whole review
+    # six payloads, one more than ADV_REPAIR_MAX_PER_RUN: a lock wait that spent a slot would leave the sixth budget-exhausted
+    local doc i f=""
+    for i in 1 2 3 4 5 6; do f+="${f:+,}{\"title\":\"t$i\",\"category\":\"other\",\"description\":\"No severity.\"}"; done
+    doc="{\"findings\":[$f]}"
+    : > "$TEST_DIR/repair-calls"; CONF_TIMEOUT=1
+    result=$(LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS=100000 process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/repair-err")
+    CONF_TIMEOUT=60
+    flock -u 8; exec 8>&-
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "6" ]
+    [ ! -s "$TEST_DIR/repair-calls" ]   # no model was ever asked
+    [ "$(jq '.metadata.repair_budget_exhausted' <<<"$result")" = "0" ]
+    [ "$(jq '.metadata.repair_skipped_no_hop' <<<"$result")" = "6" ]
+    [ "$(jq -c '[.metadata.repair_hops_skipped[] | select(. == "claude-headless:lock_wait")] | length' <<<"$result")" = "1" ]
+    [ "$(grep -c "Repair hop claude-headless never ran" "$TEST_DIR/repair-err")" = "6" ]
+}
+
+@test "NRM-48 a rejected_summary row's severity is a capped control-free string like every other row field — an invalid severity is exactly the model's free text (thirty-first run, a2 DISS-C-002)" {
+    local doc="$TEST_DIR/doc-48.json"
+    jq -nc '{findings: [
+      {severity: ("HIGH\n## Injected\u0007" + ("s" * 5000)), title: "t1", category: "config", description: "Fails."},
+      {severity: {nested: ("o" * 500)}, title: "t2", category: "config", description: "Fails."},
+      {title: "t3", category: "config", description: "Fails."},
+      {severity: "HIGH", title: "t4", category: ("cfg\n## Injected\u0007" + ("c" * 5000)), description: "Fails."}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "4" ]
+    rs=$(jq -c '.metadata.rejected_summary' <<<"$result")
+    # the reject reason quotes the bad value too: capped and control-free in the row and in the log line
+    jq -e 'all(.[]; (.reason | type) == "string" and (.reason | length) <= 80)' <<<"$rs" >/dev/null || { jq -c 'map(.reason | length)' <<<"$rs"; return 1; }
+    if jq -r '.[] | .reason' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced in a reason"; return 1; fi
+    [ "$(jq -r '.[] | .reason' <<<"$rs" | wc -l | tr -d ' ')" = "4" ]
+    [[ "$(jq -r '.[3].reason' <<<"$rs")" == "category-not-in-enum (got: cfg ## injected "* ]]   # (the normaliser lower-cases a category)
+    jq -e 'all(.[]; (.severity | type) as $t | $t == "string" or $t == "null")' <<<"$rs" >/dev/null || { echo "$rs" | cut -c1-400; return 1; }
+    jq -e 'all(.[]; ((.severity // "") | length) <= 32)' <<<"$rs" >/dev/null || { jq -c 'map(.severity | length)' <<<"$rs"; return 1; }
+    if jq -r '.[] | .severity // empty' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced"; return 1; fi
+    [ "$(jq -r '.[] | .severity // empty' <<<"$rs" | wc -l | tr -d ' ')" = "3" ]   # one line each: no newline survived
+    [[ "$(jq -r '.[0].severity' <<<"$rs")" == "HIGH ## INJECTED"* ]]   # (the normaliser upper-cases a string severity)
+    [[ "$(jq -r '.[1].severity' <<<"$rs")" == '{"nested":'* ]]
+    [ "$(jq -r '.[2].severity' <<<"$rs")" = "null" ]
 }

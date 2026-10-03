@@ -24,6 +24,8 @@ Design notes (sibling of codex / gemini headless):
   - Permission mode is `plan` (read-only) as defense in depth, even with
     `--tools ""`.
   - `--no-session-persistence` keeps each call hermetic. No on-disk state.
+  - The CLI runs in an isolated empty cwd: the caller's tree's CLAUDE.md,
+    project settings and hooks never enter the call (cycle-126).
   - **DO NOT pass `--bare`**: it strips OAuth and forces ANTHROPIC_API_KEY,
     which defeats the subscription-auth purpose of this adapter.
   - **System-prompt overhead**: by default, Claude Code injects ~14K tokens
@@ -51,6 +53,7 @@ import logging
 import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
+import tempfile
 import threading
 import time
 from contextlib import contextmanager
@@ -227,8 +230,17 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     @contextmanager
     def _prepare_invocation(self, request, model_config, prompt):
-        """Stdin transport, at every size: the prompt never touches argv."""
-        yield CLIInvocation(self._build_command(request, model_config, None), {"input": prompt}, time.monotonic())
+        """Stdin transport, at every size: the prompt never touches argv — and an isolated empty cwd, as its siblings: claude
+        discovers CLAUDE.md, project settings and their hooks from its cwd, and the caller's cwd is the tree under review, so a
+        reviewed branch would shape its own reviewer's context (cycle-126 thirty-first run, c2e DISS-C-003). A creation OSError
+        propagates unchanged, as cursor's."""
+        command = self._build_command(request, model_config, None)
+        workspace = tempfile.mkdtemp(prefix="loa-claude-ws-")
+        started_at = time.monotonic()
+        try:
+            yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
 
     def _build_command(
         self,
