@@ -1039,6 +1039,8 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # a script that opened the FIFO would block forever — portable, no timeout(1) on macOS (run 23, c2d DISS-C-001)
     # (twenty-fourth run, c2d DISS-C-001: the deadline is on the READER — a one-shot writer bounded only a single open; a watchdog
     # kills the script after 15 s whatever it blocks on (and says so in a marker), and its TERM trap takes its own sleep with it)
+    # (thirty-second run, c2d DISS-C-001: 60 s, VD_FIFO_DEADLINE to override — a correct reader on a loaded host is never taken
+    # for the blocked one; the green path never waits on the deadline)
     "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json >"$d/fifo-out" 2>/dev/null 3>&- & local reader=$!
     # (twenty-fifth run, c2d DISS-C-001: the watchdog ends the reader's children first — a child blocked in open() on the FIFO
     # would outlive a TERM to its parent, reparented and blocked for good — and the FIFO goes on both paths)
@@ -1049,7 +1051,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # writer — thirtieth run, c2d DISS-C-001)
     # (twenty-eighth run, c2d DISS-C-001: and then the FIFO's write end is opened — a bounded writer — so an opener the tree walk
     # missed (no pgrep on the host) is woken by EOF before the unlink: the regression path never leaks a blocked process)
-    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep 15 & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null || :
+    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep "${VD_FIFO_DEADLINE:-60}" & s=$!; wait "$s"; : > "$d/fifo-expired"; kill -TERM $(_vd_tree "$reader") 2>/dev/null || :
       { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null || : ) >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     [[ -e "$d/fifo-expired" ]] || kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true   # (an expired watchdog finishes its wake)
@@ -1232,4 +1234,31 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # a missing path is still "not found"
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate audit --review-file \"$d/nope.md\" --json 2>/dev/null"
     echo "$output" | jq -e --arg p "$d/nope.md" '.violations == ["review file not found: \($p)"]' >/dev/null || { echo "$output"; return 1; }
+}
+
+@test "verdict-derive: no awk program uses a POSIX character class — a pre-1.3.4 mawk (Debian 10 / Ubuntu 18.04 default awk) reads [[:space:]] as a plain bracket, so no triage bullet or Observations entry would ever match (thirty-second run, b1 DISS-C-001)" {
+    # every line of the script that carries a [[: class is a sed / grep / bash test line, never an awk program line
+    local bad
+    bad=$(awk '/awk[ ]+\x27/ {inawk = 1} inawk && /\[\[:/ {print NR": "$0} inawk && /\x27/ && !/awk[ ]+\x27/ {inawk = 0} inawk && /awk[ ]+\x27.*\x27/ {inawk = 0}' < "$SCRIPT")
+    [ -z "$bad" ] || { echo "$bad"; return 1; }
+    # the class-free spellings still count a tab-separated bullet and a tab-indented Observations entry
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s32b1"; mkdir -p "$d"
+    _vd_envelope "$d/adversarial-review.json" '[{"index":0,"title":"a"}]'
+    local trailer='<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    printf 'All good\n\n## Rejected dissent payloads\n\n-\tDISS-a (MEDIUM, x.sh:1) — triaged: not a defect.\n\n%s\n' "$trailer" > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ] || { echo "tab bullet: $output"; return 1; }
+}
+
+@test "verdict-derive: a contract heading quoted inside a code fence is not the section — a file with no real section gets the missing-section repair, never 'holds 0 triage lines' (thirty-second run, b1 DISS-C-002)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s32b2"; mkdir -p "$d"
+    _vd_envelope "$d/adversarial-review.json" '[{"index":0,"title":"a"}]'
+    local trailer='<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+    printf 'All good\n\n```markdown\n## Rejected dissent payloads\n```\n\n%s\n' "$trailer" > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ] || { echo "status $status: $output"; return 1; }
+    echo "$output" | jq -e '.violations | map(select(test("has no .## Rejected dissent payloads. section"))) | length == 1' >/dev/null || { echo "$output"; return 1; }
+    echo "$output" | jq -e '.violations | map(select(test("holds 0 top-level triage line"))) | length == 0' >/dev/null
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -197,6 +198,8 @@ HEADLESS_TIMEOUT_CEILING_SECONDS: float = 3600.0
 # The load-time reports are made ONCE per process per (where, value): a chain walk rebuilds the provider config per
 # hop, which would otherwise repeat the same line for every hop (twelfth run, d C-002).
 _HEADLESS_TIMEOUT_REPORTED: set = set()
+# (thirty-second run, d DISS-C-002: the check and the add are one step — two threads never both report a key)
+_HEADLESS_TIMEOUT_REPORT_LOCK = threading.Lock()
 
 
 def reset_headless_timeout_reports() -> None:
@@ -207,9 +210,10 @@ def reset_headless_timeout_reports() -> None:
 def report_headless_timeout_once(key: tuple, message: str, *args: Any) -> None:
     """Log `message` at WARNING on the config logger unless `key` was reported before in this process."""
     import logging
-    if key in _HEADLESS_TIMEOUT_REPORTED:
-        return
-    _HEADLESS_TIMEOUT_REPORTED.add(key)
+    with _HEADLESS_TIMEOUT_REPORT_LOCK:
+        if key in _HEADLESS_TIMEOUT_REPORTED:
+            return
+        _HEADLESS_TIMEOUT_REPORTED.add(key)
     logging.getLogger("loa_cheval.config").warning(message, *args)
 
 

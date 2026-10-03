@@ -25,7 +25,8 @@ Design notes (sibling of codex / gemini headless):
     `--tools ""`.
   - `--no-session-persistence` keeps each call hermetic. No on-disk state.
   - The CLI runs in an isolated empty cwd: the caller's tree's CLAUDE.md,
-    project settings and hooks never enter the call (cycle-126).
+    project settings and hooks never enter the call (cycle-126) — one stable
+    private directory, no ancestor another user can write.
   - **DO NOT pass `--bare`**: it strips OAuth and forces ANTHROPIC_API_KEY,
     which defeats the subscription-auth purpose of this adapter.
   - **System-prompt overhead**: by default, Claude Code injects ~14K tokens
@@ -53,7 +54,6 @@ import logging
 import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
-import tempfile
 import threading
 import time
 from contextlib import contextmanager
@@ -61,7 +61,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.metering.pricing import cli_cost_micro_usd
-from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -232,15 +232,14 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     def _prepare_invocation(self, request, model_config, prompt):
         """Stdin transport, at every size: the prompt never touches argv — and an isolated empty cwd, as its siblings: claude
         discovers CLAUDE.md, project settings and their hooks from its cwd, and the caller's cwd is the tree under review, so a
-        reviewed branch would shape its own reviewer's context (cycle-126 thirty-first run, c2e DISS-C-003). A creation OSError
-        propagates unchanged, as cursor's."""
+        reviewed branch would shape its own reviewer's context (cycle-126 thirty-first run, c2e DISS-C-003). It reads every
+        ancestor's CLAUDE.md too, so the cwd sits under a private base, never a world-writable /tmp; and it is one stable
+        directory — Claude Code keys project state by cwd, one key, never one per hop (thirty-second run, e1 DISS-C-001 /
+        DISS-C-002). A creation OSError propagates unchanged, as cursor's."""
         command = self._build_command(request, model_config, None)
-        workspace = tempfile.mkdtemp(prefix="loa-claude-ws-")
+        workspace = private_workspace("loa-claude-ws")
         started_at = time.monotonic()
-        try:
-            yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
-        finally:
-            shutil.rmtree(workspace, ignore_errors=True)
+        yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
 
     def _build_command(
         self,

@@ -29,7 +29,8 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
-    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && : > "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"   # this suite's own: the stale sweep deletes only marked dirs
+    # this suite's own: the stale sweep deletes only marked dirs; the marker holds this process's start, so a recycled pid is not it
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && _sweep_start "$$" > "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
     TEST_DIR="${BATS_TEST_TMPDIR:-}"; NORM_OWN_TMP=""
@@ -77,13 +78,33 @@ setup() {
 # rename claims a directory, so concurrent teardowns never race one delete (twenty-fourth run, c2a DISS-C-001); a `.reap-<q>`
 # a dead sweeper left is finished here, and the marker goes with its owner's last directory.
 _sweep_alive() { kill -0 "$1" 2>/dev/null || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]; }
+# (thirty-second run, c2a DISS-C-001: a pid alone outlives its owner — once a killed run's pid is reused, its directory was live
+# for good. The marker holds the owner's start token; a live pid whose start differs is another process. An unknown token on
+# either side — an older marker, a host with neither /proc nor ps — keeps the pid-only answer: never a live run's directory)
+_sweep_start() {  # <pid> → /proc starttime, else a C/UTC lstart; "" when unknown
+    local st
+    if [[ -r "/proc/$1/stat" ]]; then
+        st=$(awk '{ n = split($0, a, ")"); split(a[n], f, " "); print f[20] }' "/proc/$1/stat" 2>/dev/null) || st=""
+        [[ "$st" =~ ^[0-9]+$ ]] && echo "t$st"
+        return 0
+    fi
+    LC_ALL=C TZ=UTC0 ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' || true
+}
+_sweep_owner_alive() {  # <pid> <marker>
+    local want now
+    _sweep_alive "$1" || return 1
+    want=$(head -n1 -- "$2" 2>/dev/null) || want=""
+    [[ -n "$want" ]] || return 0
+    now=$(_sweep_start "$1")
+    [[ -z "$now" || "$now" == "$want" ]]
+}
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
     local a2a="$1" pre="$2" m p d q left
     for m in "$a2a"/."$pre"-[0-9]*.owner; do
         [[ -f "$m" && ! -L "$m" ]] || continue
         p=${m##*/."$pre"-}; p=${p%.owner}
         [[ "$p" =~ ^[0-9]+$ ]] || continue
-        _sweep_alive "$p" && continue
+        _sweep_owner_alive "$p" "$m" && continue
         left=0
         for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do   # (one directory per marker, never a sibling — twenty-ninth run, c2a)
             [[ -e "$d" || -L "$d" ]] || continue
@@ -112,6 +133,10 @@ teardown() {
     d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
     if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
+    # (thirty-second run, c2b DISS-C-003: the one sibling a test registered — that exact path, a real directory, this suite's shape)
+    d="${NORM_SIB_DIR:-}"
+    if [[ "$d" == "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}-sib" && -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    return 0
 }
 _fake_repair_clock() {  # the repair budget reads _adv_repair_now: a file this test advances, never the wall clock (run 23, c2b DISS-C-001)
     echo 1000 > "$TEST_DIR/clock"
@@ -1050,6 +1075,7 @@ DF
     [[ "$output" == *"ignored"* ]]
     local _f
     for _f in _adv_repair_pin _adv_repair_pin_check; do
+        declare -F "$_f" >/dev/null || { echo "$_f is not defined: the guard check would be vacuous (thirty-second run, c2b DISS-C-002)"; return 1; }
         if declare -f "$_f" | grep -E '"\$\{!?_t\[@\]\}"' | grep -vqF '${_t[@]+'; then echo "$_f: unguarded _t expansion"; return 1; fi
     done
     unset LOA_ADVERSARIAL_REPAIR_MODEL
@@ -1078,8 +1104,11 @@ DF
     [ -e "$tgt/keep" ]
     # (twenty-eighth run, c2b DISS-C-002: a real own directory is removed — the path was a candidate, so the kept target is the
     # link rule's doing; twenty-ninth run, c2a: a real sibling <sprint>-x the suite never made stays, as c1a DISS-001 ruled)
+    # (thirty-second run, c2b DISS-C-003: the sibling this test makes is named for the real teardown BEFORE it exists, so an
+    # interrupted test never leaves it; the teardown under test runs without that name — a sibling it never made)
+    NORM_SIB_DIR="$a2a/${SPRINT}-sib"
     mkdir -p "$a2a/$SPRINT/sub" "$a2a/${SPRINT}-sib/sub"; : > "$a2a/$SPRINT/sub/f"; : > "$a2a/${SPRINT}-sib/sub/f"
-    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    rc=0; ( set -e; NORM_SIB_DIR=""; teardown ) 3>&- & wait $! || rc=$?
     : > "$a2a/.$SPRINT.owner"
     [ -e "$a2a/${SPRINT}-sib/sub/f" ] || { echo "teardown deleted a sibling it never made"; return 1; }
     find "$a2a/${SPRINT}-sib" -mindepth 1 -delete; rmdir "$a2a/${SPRINT}-sib"
@@ -1156,8 +1185,8 @@ for line in open(sys.argv[1]):
 @test "NRM-45 a rejected_summary row is a bounded, typed surface: a title is a capped control-free string, an explicit id stands in for one only when it is a safe token, and an anchor is always a capped string (twenty-ninth run, a1 DISS-C-002)" {
     local doc="$TEST_DIR/doc-45.json"
     jq -nc '{findings: [
-      {title: ("Long\u0007\u001b[31m" + ("t" * 5000)), category: "config", location: ["x.sh", 1], description: "Fails."},
-      {id: ("bad id\u0007" + ("i" * 300)), category: "config", location: {file: ("f\u0001" + ("p" * 2000)), anchor: "a"}, description: "Fails."}
+      {title: ("Long\u0007\u001b[31m\n## Injected\t" + ("t" * 5000)), category: "config", location: ["x.sh", 1], description: "Fails.\n## Injected\tthere"},
+      {id: ("bad id\u0007" + ("i" * 300)), category: "config", location: {file: ("f\u0001\n- x\t" + ("p" * 2000)), anchor: "a"}, description: "Fails."}
     ]}' > "$doc"
     env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
     result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
@@ -1167,6 +1196,9 @@ for line in open(sys.argv[1]):
     jq -e 'all(.[]; ((.title | type) as $t | $t == "string" or $t == "null") and ((.anchor | type) as $a | $a == "string" or $a == "null"))' <<<"$rs" >/dev/null || { echo "$rs" | cut -c1-400; return 1; }
     jq -e 'all(.[]; ((.title // "") | length) <= 160 and ((.anchor // "") | length) <= 256)' <<<"$rs" >/dev/null || { jq -c 'map({t: (.title|length), a: (.anchor|length)})' <<<"$rs"; return 1; }
     if jq -r '.[] | .title, .anchor, .description_head' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced"; return 1; fi
+    # (thirty-second run, c2b DISS-C-001: a newline or tab is a control character too — read from the values, never jq -r lines)
+    jq -e 'all(.[]; [.title, .anchor, .description_head][] | strings | test("[\u0000-\u001f\u007f]") | not)' <<<"$rs" >/dev/null \
+      || { echo "a newline or tab surfaced: $(jq -c 'map([.title, .anchor, .description_head] | map(strings | .[0:40]))' <<<"$rs")"; return 1; }
     [[ "$(jq -r '.[0].title' <<<"$rs")" == Long* ]]
     [ "$(jq -r '.[0].title_derived' <<<"$rs")" = "false" ]
     [ "$(jq -r '.[0].anchor' <<<"$rs")" = '["x.sh",1]' ]
@@ -1307,4 +1339,76 @@ PY
     [[ "$(jq -r '.[0].severity' <<<"$rs")" == "HIGH ## INJECTED"* ]]   # (the normaliser upper-cases a string severity)
     [[ "$(jq -r '.[1].severity' <<<"$rs")" == '{"nested":'* ]]
     [ "$(jq -r '.[2].severity' <<<"$rs")" = "null" ]
+}
+
+@test "NRM-49 a long model-written description costs linear time: the non-blank checks, the derived failure_mode and the rejected_summary row never run a whole-string gsub (thirty-second run, a1 DISS-C-001: 54 s for one 300 KB description on jq 1.7)" {
+    local doc="$TEST_DIR/doc-49.json"
+    # ~120 KB, 40,000-run descriptions: one valid, one derivable (no failure_mode), one rejected (no severity) whose description is
+    # newlines — the control-character clean's matches — and one rejected for a 100,000-newline severity (the quoted excerpt)
+    jq -nc '("ab " * 40000) as $d | {findings: [
+      {id: "DISS-001", severity: "ADVISORY", category: "other", description: $d, failure_mode: ("fm " * 40000), anchor: "x.sh:1"},
+      {id: "DISS-002", severity: "ADVISORY", category: "other", description: ("Short head. " + $d), anchor: "x.sh:1"},
+      {title: "t3", category: "other", description: ("ab\n" * 40000)},
+      {id: "DISS-004", severity: ("x\n" * 100000), category: "other", description: "d", failure_mode: "f", anchor: "x.sh:1"}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    local t0=$SECONDS
+    result=$(process_findings "$env_json" "review" "m" "$SPRINT" "0" "x.sh")
+    local took=$(( SECONDS - t0 ))
+    [ "$took" -lt 15 ] || { echo "process_findings took ${took}s over four long payloads"; return 1; }
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    [ "$(jq -r '.findings[] | select(.id == "DISS-002") | .failure_mode' <<<"$result")" = "Short head. ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab" ] \
+      || { jq -r '.findings[] | select(.id == "DISS-002") | .failure_mode' <<<"$result" | cut -c1-240; return 1; }
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "2" ]
+    [ "$(jq -r '.metadata.rejected_summary[0].description_head | length' <<<"$result")" = "160" ]
+    [[ "$(jq -r '.metadata.rejected_summary[1].reason' <<<"$result")" == "severity-not-in-enum (got: X X X X "* ]] || { jq -c '.metadata.rejected_summary[1]' <<<"$result" | cut -c1-300; return 1; }
+    # the rewritten predicates keep their meaning: blank (any whitespace, incl. a lone newline) is empty, one visible char is not
+    run validate_finding '{"id":"a","severity":"ADVISORY","category":"other","description":" \n\t ","failure_mode":"x"}' review
+    [ "$status" -ne 0 ]
+    run validate_finding '{"id":"a","severity":"ADVISORY","category":"other","description":" x ","failure_mode":"\n"}' review
+    [ "$status" -ne 0 ]
+    run validate_finding '{"id":"a","severity":"ADVISORY","category":"other","description":" x ","failure_mode":" y"}' review
+    [ "$status" -eq 0 ]
+}
+
+@test "NRM-50 a marker records its owner's start token, so a killed run whose pid was recycled is still swept — a live pid with another start is not the owner; a matching or unknown token stays live (thirty-second run, c2a DISS-C-001)" {
+    local a="$TEST_DIR/a2a" p tok
+    # setup's own marker names this test's process and its start
+    tok=$(_sweep_start "$$")
+    [ -n "$tok" ] || skip "no start token on this host"
+    [ "$(cat "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner")" = "$tok" ]
+    sleep 30 3>&- & p=$!; NORM_HOLDER_PIDS+=("$p")
+    mkdir -p "$a/sprint-norm-$p/x"
+    # the pid is alive but its start is not the marker's: the owner died and the pid was reused
+    printf 't1\n' > "$a/.sprint-norm-$p.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ ! -e "$a/sprint-norm-$p" ] || { echo "a recycled pid kept the dead owner's directory"; return 1; }
+    [ ! -e "$a/.sprint-norm-$p.owner" ]
+    # the owner itself (its own token), and a marker with no token (an older suite's), stay live
+    mkdir -p "$a/sprint-norm-$p/x"
+    _sweep_start "$p" > "$a/.sprint-norm-$p.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$p/x" ]
+    : > "$a/.sprint-norm-$p.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$p/x" ]
+}
+
+@test "NRM-51 a sibling directory NRM-42 makes is removed by the real teardown when the test stops before its own cleanup — exactly that path, a real directory, this suite's shape (thirty-second run, c2b DISS-C-003)" {
+    local a2a="$PROJECT_ROOT/grimoires/loa/a2a"
+    [[ "$SPRINT" =~ ^sprint-norm-[0-9]+$ ]] || { echo "SPRINT '$SPRINT' is not this suite's own id"; return 1; }
+    NORM_SIB_DIR="$a2a/${SPRINT}-sib"; mkdir -p "$NORM_SIB_DIR/sub"; : > "$NORM_SIB_DIR/sub/f"
+    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ]
+    [ ! -e "$NORM_SIB_DIR" ] || { echo "the registered sibling was left behind"; find "$NORM_SIB_DIR" -mindepth 1 -delete; rmdir "$NORM_SIB_DIR"; return 1; }
+    # a link or a path of another shape is never followed nor deleted
+    mkdir -p "$TEST_DIR/tgt"; : > "$TEST_DIR/tgt/keep"; ln -s "$TEST_DIR/tgt" "$a2a/${SPRINT}-sib"
+    NORM_SIB_DIR="$a2a/${SPRINT}-sib"; rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    command rm -f -- "$a2a/${SPRINT}-sib"
+    [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/tgt/keep" ]
+    mkdir -p "$TEST_DIR/other"; : > "$TEST_DIR/other/keep"
+    NORM_SIB_DIR="$TEST_DIR/other"; rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/other/keep" ]
+    NORM_SIB_DIR=""
+    : > "$a2a/.$SPRINT.owner"
 }

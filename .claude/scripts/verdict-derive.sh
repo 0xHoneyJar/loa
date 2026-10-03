@@ -341,21 +341,23 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     need="$n"; source="metadata.rejected_summary"
     if (( rows > n )); then need="$rows"; source="the adversarial-rejected-${GATE}*.jsonl sidecar rows beside it"; fi
     (( need > 0 )) || return 0
-    if ! grep -qE '^## Rejected dissent payloads' -- "$FILE"; then
+    local lines found
+    # top-level bullets only (column 0): a sub-bullet under one entry is not a second triage line
+    # (stdin, not `-- "$FILE"`: mawk treats `--` as a file name)
+    # (thirtieth run, b1 DISS-C-001: a bullet inside a code fence, or under a later H1, is not a triage line — padded, the count
+    # passed a section short of an entry; no interval expressions — mawk has none)
+    # (thirty-second run, b1 DISS-C-001: no POSIX class either — a pre-1.3.4 mawk has none; b1 DISS-C-002: the section is found
+    # by the same fence-aware pass that counts it — a heading quoted in a fence is not the section)
+    read -r found lines < <(awk '/^ ? ? ?(```|~~~)/{f = !f; next} f{next} /^##? /{inside = ($0 ~ /^## Rejected dissent payloads/); if (inside) s = 1} inside && /^([-*+]|[0-9]+\.)[ \t]/ {c++} END{print s+0, c+0}' < "$FILE") || true
+    if (( ! ${found:-0} )); then
         local where
         if [[ -f "$ENVELOPE_FILE" ]]; then where="the dissent envelope $(basename -- "$ENVELOPE_FILE") carries"
         else where="no dissent envelope $(basename -- "$ENVELOPE_FILE") beside this file, but its sidecar(s) hold"; fi
         violations+=("$where $need schema-rejected payload(s) ($source) but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)")
         return 0
     fi
-    local lines
-    # top-level bullets only (column 0): a sub-bullet under one entry is not a second triage line
-    # (stdin, not `-- "$FILE"`: mawk treats `--` as a file name)
-    # (thirtieth run, b1 DISS-C-001: a bullet inside a code fence, or under a later H1, is not a triage line — padded, the count
-    # passed a section short of an entry; no interval expressions — mawk has none)
-    lines=$(awk '/^ ? ? ?(```|~~~)/{f = !f; next} f{next} /^##? /{inside = ($0 ~ /^## Rejected dissent payloads/)} inside && /^([-*+]|[0-9]+\.)[[:space:]]/ {c++} END{print c+0}' < "$FILE")
-    if (( lines < need )); then
-        violations+=("'## Rejected dissent payloads' holds $lines top-level triage line(s) but $source carries $need rejected payload(s) — one top-level bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
+    if (( ${lines:-0} < need )); then
+        violations+=("'## Rejected dissent payloads' holds ${lines:-0} top-level triage line(s) but $source carries $need rejected payload(s) — one top-level bullet per entry (title, severity, anchor, reason → real defect counted under the matching heading, or why it is not one)")
     fi
 }
 
@@ -382,13 +384,13 @@ t_excluded_confirmed=0
 observations_scan() {
     awk '
         /^## / { in_obs = ($0 ~ /^## Observations/) ; next }
-        in_obs && ($0 ~ /^[[:space:]]*([-*+]|[0-9]+\.)[[:space:]]/ || $0 ~ /^\|/ || $0 ~ /^\*\*/) {
+        in_obs && ($0 ~ /^[ \t]*([-*+]|[0-9]+\.)[ \t]/ || $0 ~ /^\|/ || $0 ~ /^\*\*/) {
             lc = tolower($0)
-            crit = ($0 ~ /(^|[^A-Za-z])CRITICAL([^A-Za-z]|$)/ || lc ~ /severity:[[:space:]]*critical/)
-            high = ($0 ~ /(^|[^A-Za-z])HIGH([^A-Za-z]|$)/ || lc ~ /severity:[[:space:]]*high/)
+            crit = ($0 ~ /(^|[^A-Za-z])CRITICAL([^A-Za-z]|$)/ || lc ~ /severity:[ \t]*critical/)
+            high = ($0 ~ /(^|[^A-Za-z])HIGH([^A-Za-z]|$)/ || lc ~ /severity:[ \t]*high/)
             if (crit) { c++ }
             else if (high) {
-                if (lc ~ /speculative/ && lc ~ /confidence:[[:space:]]*low/) ok++; else bad++
+                if (lc ~ /speculative/ && lc ~ /confidence:[ \t]*low/) ok++; else bad++   # (no POSIX class: thirty-second run, b1 DISS-C-001)
             }
         }
         END { printf "%d %d %d\n", c + 0, ok + 0, bad + 0 }

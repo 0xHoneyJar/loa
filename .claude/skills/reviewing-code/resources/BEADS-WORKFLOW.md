@@ -15,9 +15,10 @@ br sync --import-only
 # Add review comment to task
 br comments add <task-id> "REVIEW: [verdict] - grimoires/loa/a2a/sprint-N/engineer-feedback.md"
 
-# Mark task status based on review outcome
-# If approved / if changes required
+# Mark task status based on review outcome — exactly one of:
+# If approved
 br label add <task-id> review-approved
+# If changes required
 br label add <task-id> needs-revision
 ```
 

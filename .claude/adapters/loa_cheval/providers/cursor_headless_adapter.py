@@ -49,7 +49,7 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace_base
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -162,7 +162,7 @@ class CursorHeadlessAdapter(HeadlessCLIAdapter):
         # Cursor counts latency after workspace creation; creation OSError
         # propagates unchanged. Prompt stays on stdin, with an isolated cwd.
         command = self._build_command(request, model_config)
-        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-")
+        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-", dir=private_workspace_base())
         started_at = time.monotonic()
         try:
             yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)

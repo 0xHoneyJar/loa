@@ -21,7 +21,8 @@ Design notes:
     when an agent binding genuinely needs gemini-cli's MCP tool surface.
   - Approval mode locked to `plan` (read-only, no shell exec, no file edits).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
-    invocation cwd isn't in gemini-cli's trusted-folders allowlist.
+    invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
+    an isolated empty directory, never the reviewed tree (cycle-126).
   - Auth posture: prefer file-based (`~/.gemini/settings.json` set via interactive
     first-run). The CLI also accepts GEMINI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI /
     GOOGLE_GENAI_USE_GCA — we don't manage those, just surface them on validate.
@@ -41,9 +42,12 @@ import logging
 import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
+import tempfile
+import time
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace_base
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -109,6 +113,19 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
         return run_subprocess_pgkill(command, **kwargs)
+
+    @contextmanager
+    def _prepare_invocation(self, request, model_config, prompt):
+        """An isolated empty cwd under the private base, as its siblings: gemini-cli reads GEMINI.md and `.gemini/` from its
+        cwd, and `--skip-trust` trusts that directory — the caller's cwd is the tree under review, so a reviewed branch would
+        shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first."""
+        command = self._build_command(request, model_config, prompt)
+        workspace = tempfile.mkdtemp(prefix="loa-gemini-ws-", dir=private_workspace_base())
+        started_at = time.monotonic()
+        try:
+            yield CLIInvocation(command, {"cwd": workspace}, started_at)
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
 
     def _finish_completion(
         self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
@@ -184,7 +201,8 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         policies = extra.get("gemini_policies")
         if isinstance(policies, list):
             for path in policies:
-                cmd.extend(["--policy", str(path)])
+                # (resolved against the caller's directory — the CLI runs in an isolated cwd: e2a DISS-C-004)
+                cmd.extend(["--policy", os.path.abspath(str(path))])
 
         # Forward additional gemini CLI flags an operator may need but we
         # haven't promoted to first-class fields (e.g., experimental ACP,

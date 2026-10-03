@@ -1433,7 +1433,7 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
-    budget_cents: 150
+    budget_cents: 150            # Max cost per dissent call (each voice ≤ this — two voices, up to twice this per audit)
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape
   stable_anchors:

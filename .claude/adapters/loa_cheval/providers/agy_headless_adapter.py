@@ -42,10 +42,11 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from typing import Any, Dict, List
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -118,6 +119,12 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
             acquire_slot as _acquire_slot,
         )
 
+        # (an isolated empty cwd under the private base, as its siblings: the caller's cwd is the reviewed tree, whose GEMINI.md
+        # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks)
+        try:
+            workspace = tempfile.mkdtemp(prefix="loa-agy-ws-", dir=private_workspace_base())
+        except OSError as exc:
+            raise ProviderUnavailableError(self.provider, f"agy -p workspace unavailable: {exc}") from exc
         start = time.monotonic()
         try:
             with _acquire_slot(self.provider, n_slots=n_slots):
@@ -134,6 +141,7 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                         # agy is OAuth-authed; the gemini env-strip is a no-op for it
                         # (agy ignores GOOGLE_API_KEY/GEMINI_API_KEY). Kept for parity.
                         env=build_headless_subprocess_env(),
+                        cwd=workspace,
                     )
                 except subprocess.TimeoutExpired:
                     # the catalog bound's note, as the base adapter appends it (twenty-second run, d DISS-C-002)
@@ -181,6 +189,8 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                 f"exhausted after {exc.waited_seconds:.1f}s "
                 f"(n_slots={exc.n_slots})",
             ) from exc
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
 
         latency_ms = int((time.monotonic() - start) * 1000)
 

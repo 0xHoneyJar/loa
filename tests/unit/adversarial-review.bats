@@ -767,18 +767,34 @@ EOF
 
 @test "e3 DISS-C-001: no per-test path falls back to a mktemp dir no teardown removes" {
     local f
+    # the guard is a statement that requires BATS_TEST_TMPDIR — `: "${…:?…}"` or an assignment `[export ]X="${…:?…}"` — anchored
+    # on the statement, so these lines' own patterns never satisfy it (thirty-first run, e3 DISS-C-002; thirty-second run, e3 DISS-C-002)
+    _e3_guarded() { grep -qE '^[[:space:]]*(: |(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=)"\$\{BATS_TEST_TMPDIR:\?' "$1"; }
+    # a mktemp XDG_RUNTIME_DIR in any suite or helper, never a doc or fixture (thirty-second run, e3 DISS-C-003); the bracket
+    # keeps this line from matching itself
+    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR[=].*mktemp' "$1"; }
     # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
     for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
              tests/unit/adversarial-review-schema-enforced.bats tests/unit/adversarial-review-verdict-quality.bats; do
         if grep -n 'BATS_TEST_TMPDIR[:]-' "$PROJECT_ROOT/$f"; then echo "$f falls back past BATS_TEST_TMPDIR"; return 1; fi
-        # (anchored on the guard statement itself, so this line's own pattern never satisfies it — thirty-first run, e3 DISS-C-002)
-        grep -qE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
+        _e3_guarded "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
     done
     # …and no suite anywhere keeps the per-test XDG_RUNTIME_DIR's mktemp fallback (thirty-first run, e3 DISS-C-001: seventeen
     # more setups carried it); the bracket keeps this line from matching itself
-    if grep -rn 'loa-xdg-[X]XXXXX' "$PROJECT_ROOT/tests"; then echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; fi
-    # the anchored leg is not vacuous: a copy of this file without its guard is caught
-    local cp="$BATS_TEST_TMPDIR/no-guard.bats"
-    grep -vE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$PROJECT_ROOT/tests/unit/adversarial-review.bats" > "$cp"
-    ! grep -qE '^[[:space:]]*: "\$\{BATS_TEST_TMPDIR:\?' "$cp"
+    if _e3_xdg_fallback "$PROJECT_ROOT/tests"; then echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; fi
+    # …nor any adversarial-review suite a per-test TEST_DIR one (thirty-second run, c2a DISS-C-002: three setups kept it, with no
+    # teardown that removes it; the normalise and companion suites own and sweep theirs); the bracket keeps this line from matching itself
+    if grep -n 'BATS_TEST_TMPDIR[:][-][$](mktemp' "$PROJECT_ROOT"/tests/unit/adversarial-review*.bats; then echo "an adversarial-review suite falls back to an unswept mktemp TEST_DIR"; return 1; fi
+    # neither check is vacuous (thirty-second run, e3 DISS-C-001: the old leg grepped out a pattern, then found it absent):
+    # the guard check tells a guarded setup — in either statement form — from one that only mentions the guard
+    local fx="$BATS_TEST_TMPDIR/e3-fx"; mkdir -p "$fx"
+    printf 'setup() {\n    : "${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"; _e3_guarded "$fx/a.bats"
+    printf 'setup() {\n    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"; _e3_guarded "$fx/a.bats"
+    printf 'setup() {\n    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"\n    # : "${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"
+    if _e3_guarded "$fx/a.bats"; then echo "a guard only mentioned in a comment passed"; return 1; fi
+    # (explicit ifs: a mid-test `! cmd` never fails a bats test)
+    # …and the fallback check catches any mktemp XDG_RUNTIME_DIR in a suite or helper, whatever its template, never prose
+    printf '# export XDG_RUNTIME_DIR%s"$(mktemp -d)"\n' '=' > "$fx/notes.md"
+    if _e3_xdg_fallback "$fx"; then echo "a doc tripped the fallback check"; return 1; fi
+    printf '    export XDG_RUNTIME_DIR%s"$(mktemp -d /tmp/other.XXXX)"\n' '=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
 }

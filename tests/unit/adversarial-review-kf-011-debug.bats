@@ -15,7 +15,7 @@ setup() {
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"   # no mktemp fallback no teardown removes (thirty-second run, c2a DISS-C-002)
 
     # Sandbox the sprint dir so we don't pollute the real grimoires tree.
     # The sidecar is written under $PROJECT_ROOT/grimoires/loa/a2a/$sprint_id,

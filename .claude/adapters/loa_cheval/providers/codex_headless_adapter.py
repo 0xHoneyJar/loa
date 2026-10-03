@@ -53,7 +53,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace_base
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -176,7 +176,7 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
         started_at = time.monotonic()
         try:
             try:
-                workspace = tempfile.mkdtemp(prefix="loa-codex-ws-")
+                workspace = tempfile.mkdtemp(prefix="loa-codex-ws-", dir=private_workspace_base())
             except OSError as exc:
                 raise ProviderUnavailableError(
                     self.provider,

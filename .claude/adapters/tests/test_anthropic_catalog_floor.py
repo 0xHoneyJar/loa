@@ -253,7 +253,8 @@ def test_advisor_tier_points_at_opus_5():
     # (cycle-126 thirty-first run, e1 DISS-C-003 — `fable`/`opus`/`sonnet` are the CLI's own current-generation aliases)
     with CATALOG.open() as fh:
         cli_model = (yaml.safe_load(fh)["providers"]["anthropic"]["models"]["claude-headless"].get("extra") or {}).get("cli_model")
-    assert cli_model in {"fable", "opus", "sonnet", "claude-fable-5-1", "claude-opus-5", "claude-sonnet-5"}, cli_model
+    # (thirty-second run, e1 DISS-C-003: the directive is Fable 5.1 — `opus`/`sonnet` passed a downgrade with the suite green)
+    assert cli_model in {"fable", "claude-fable-5-1"}, cli_model
     assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
     assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()

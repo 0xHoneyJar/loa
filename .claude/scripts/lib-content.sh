@@ -297,7 +297,10 @@ prepare_content() {
     done <<< "$sorted_manifest"
     if (( lower )); then
       (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
-      (( others > 0 )) && reserve=$(( reserve - marker_est - 1 ))
+      if (( others > 0 )); then reserve=$(( reserve - marker_est - 1 ))
+      # (thirty-second run, b1 DISS-001: with no sibling to protect the capped view kept its whole share and its marker went on top —
+      # over the budget wherever the marker outweighs the quarter left; the view and its marker never exceed the budget)
+      elif (( reserve > max_tokens - marker_est - 1 )); then reserve=$(( max_tokens - marker_est - 1 )); fi
     else
       reserve=$(( reserve - marker_est - 1 ))
     fi

@@ -288,13 +288,15 @@ _now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (mac
 # ref, depth 1) or a fork whose default branch is not main has no refs/heads/main (twenty-ninth run, c1c DISS-C-004)
 # a scratch repository the suite builds is the suite's own: no global or system config reaches its init, add or commit —
 # commit.gpgsign, core.hooksPath, init.templateDir, commit.template (thirtieth run, c1c DISS-C-003)
-_cmp_git() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@"; }
+# (thirty-second run, c1a DISS-C-002: a git < 2.32 ignores GIT_CONFIG_GLOBAL — HOME and XDG_CONFIG_HOME point at no config too)
+_cmp_git() { HOME=/nonexistent/loa-cmp-home XDG_CONFIG_HOME=/nonexistent/loa-cmp-home GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@"; }
 # sha256 hex of stdin — sha256sum, else shasum -a 256 (BSD / macOS), as the script falls back (thirtieth run, c1c DISS-C-002)
 _cmp_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v shasum >/dev/null 2>&1; then shasum -a 256; else return 1; fi; }
 _cmp_base_ref() { if command git -C "$PROJECT_ROOT" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; then echo main; else echo HEAD; fi; }
 _need_flock() { command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock cases cannot run here"; }
 # portable in-place literal substitution (first occurrence) — no GNU-only `sed -i`
-_cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); assert a in s, a; open(p,"w").write(s.replace(a,b,1))' "$CONFIG_FILE" "$1" "$2"; }
+# (thirty-second run, c1a DISS-C-001: an explicit exit, never an assert — PYTHONOPTIMIZE strips asserts, and an unmatched edit passed)
+_cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); a in s or sys.exit("_cfg_edit: no match for " + repr(a)); open(p,"w").write(s.replace(a,b,1))' "$CONFIG_FILE" "$1" "$2"; }
 
 _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/diff.patch" --json 2> "$T/stderr.log"; }
 
@@ -1536,9 +1538,17 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
     [ "$(printf '%s' "$shadow" | wc -w)" -eq 1 ]   # (-eq: BSD wc pads its count — twenty-eighth run, c1b DISS-C-001)
     without=$( PATH="$T/shadowbin:$PATH"; hash -r; _ADV_PGREP_BIN=/nonexistent/pgrep _adv_tree_pids "$root" | sort -n | tr '\n' ' ' )
     [ "$with" = "$without" ]
+    # (thirty-second run, c1b DISS-C-001: every pid the walker returned is the root or one of its own children — an over-match is a
+    # red here, and the closing signal goes only to that verified set, never to a stranger the walker named)
+    local verified="$root"
+    for p in $with; do
+        [[ "$p" == "$root" ]] && continue
+        [ "$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')" = "$root" ] || { echo "the walker named pid $p, not a child of $root" >&2; kill "$root" 2>/dev/null; return 1; }
+        verified+=" $p"
+    done
     # signalled as a whole, children with the parent — never the root first
     # shellcheck disable=SC2086
-    kill $with 2>/dev/null || true
+    kill $verified 2>/dev/null || true
 }
 
 @test "CMP-54 past the wait cap a companion that already ANSWERED and is finishing (phase post) is not reaped by the primary's shared-hop branch: the primary cedes, the post budget governs, one CLI run (fifteenth run, a4 C-002)" {
@@ -2993,8 +3003,13 @@ $doc" 300 2>/dev/null)
     local bad rc
     # (twenty-sixth run, a4 DISS-C-003: exactly <base>...<head> — a two-dot range is a different diff, and no side holds `..`)
     for bad in --output=x -main...HEAD 'main...HEAD --output=x' 'main;id' 'main...' '' main..HEAD 'a...b..c' 'a..b...c' 'a....b'; do
-        rc=0; ( main --type review --sprint-id "$SPRINT" --diff-range "$bad" --json ) >/dev/null 2>&1 || rc=$?
+        rc=0; ( main --type review --sprint-id "$SPRINT" --diff-range "$bad" --json ) >/dev/null 2>"$T/bad.err" || rc=$?
         [ "$rc" -eq 2 ] || { echo "'$bad': rc $rc"; return 1; }
+        # (thirty-second run, c1c DISS-C-003: the refusal is the parser's — an empty value is no range at all — never a later
+        # failure of rev-parse or the diff, which an rc of 2 alone cannot tell apart)
+        if [[ -z "$bad" ]]; then grep -q 'Missing --diff-file' "$T/bad.err" || { echo "'': $(cat "$T/bad.err")"; return 1; }
+        else grep -q -- '--diff-range: expected <base>...<head> (ref names only)' "$T/bad.err" || { echo "'$bad': $(cat "$T/bad.err")"; return 1; }; fi
+        ! grep -qE 'git diff .* failed|diff_range_failed' "$T/bad.err" || { echo "'$bad' reached git: $(cat "$T/bad.err")"; return 1; }
     done
     rc=0; ( main --type review --sprint-id "$SPRINT" --diff-range main...HEAD --diff-file "$T/diff.patch" --json ) >/dev/null 2>&1 || rc=$?
     [ "$rc" -eq 2 ]
@@ -3208,7 +3223,9 @@ $doc" 300 2>/dev/null)
 @test "CMP-140 a holder left stopped by a failed assertion is ended by teardown, never left with a pending TERM (twenty-fifth run, c1b DISS-C-003)" {
     sleep 30 3>&- & q=$!; HOLDER_PIDS=("$q"); kill -STOP "$q"
     _end_holders
-    sleep 0.5; if kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; then kill -CONT "$q"; kill -KILL "$q"; echo "a stopped holder outlived _end_holders" >&2; return 1; fi
+    # (a bounded poll, never a fixed 0.5 s: a TERM'd process on a loaded host can take longer to exit — round 1ag's regression)
+    local i; for i in $(seq 1 50); do { kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; } || break; sleep 0.1; done
+    if kill -0 "$q" 2>/dev/null && [[ "$(ps -o stat= -p "$q" 2>/dev/null)" != Z* ]]; then kill -CONT "$q"; kill -KILL "$q"; echo "a stopped holder outlived _end_holders by 5 s" >&2; return 1; fi
     HOLDER_PIDS=()
 }
 
@@ -3220,9 +3237,11 @@ $doc" 300 2>/dev/null)
     [ ! -e "$lockdir" ]
     # the losing racer: another run's mkdir lands first, so this run's `mkdir -m 700 <lockdir>` fails with EEXIST
     rc=0
-    ( mkdir() { if [[ "$1" == "-m" ]]; then command mkdir "$@"; return 1; fi; command mkdir "$@"; }
+    ( mkdir() { if [[ "$1" == "-m" ]]; then command mkdir "$@"; : > "$T/race.fired"; return 1; fi; command mkdir "$@"; }
       _adv_take_run_lock "$OUT_DIR" review; printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/race.dir" ) 2>"$T/race.err" || rc=$?
     [ "$rc" = "0" ]
+    # (thirty-second run, c1c DISS-C-002: the race was simulated — a lock-dir mkdir of another shape would pass untested)
+    [ -e "$T/race.fired" ] || { echo "the losing-racer stub never fired: no mkdir -m ran"; return 1; }
     if grep -q "run lock is not taken" "$T/race.err"; then echo "the race loser ran unguarded: $(cat "$T/race.err")"; return 1; fi
     lockd=$(cat "$T/race.dir"); [ -n "$lockd" ]; [ -d "$lockd" ]   # two statements: a failed left operand of && never fails a test (thirtieth run, c1c DISS-C-001)
     command rm -f -- "$lockd/pid"; rmdir "$lockd" 2>/dev/null || true
@@ -3514,7 +3533,7 @@ YAML
     [ "$rc" -eq 0 ] || { echo "a run's envelope did not open the gate (rc $rc)"; return 1; }
     # the audit resource states what the hook checks
     local res="$PROJECT_ROOT/.claude/skills/auditing-security/resources/ADVERSARIAL-REVIEW.md"
-    ! grep -q 'checks that this file exists, not its contents' "$res"
+    ! grep -q 'checks that this file exists, not its contents' "$res" || { echo "the audit resource says the hook checks existence only"; return 1; }
     grep -q 'never opens the gate' "$res"
 }
 
@@ -3525,11 +3544,11 @@ YAML
     done
     grep -q '^   - If `findings` is empty.*`## Rejected dissent payloads`' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
     grep -q -- '--sprint-id <sprint_id>' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
-    ! grep -q 'reviewer_concerns_file' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md"
-    ! grep -q 'used as given; the CLI hop' "$root/.loa.config.yaml.example"
+    ! grep -q 'reviewer_concerns_file' "$root/.claude/skills/reviewing-code/resources/ADVERSARIAL-REVIEW.md" || { echo "the review resource names a removed flag"; return 1; }
+    ! grep -q 'used as given; the CLI hop' "$root/.loa.config.yaml.example" || { echo "the config example says an operator chain is PATH-filtered"; return 1; }
     grep -q 'no PATH filter' "$root/.loa.config.yaml.example"
     grep -q '^| Sprint review/audit .*adversarial-review\.sh' "$root/.claude/rules/skill-invariants.md"
-    ! grep -q 'so audits do not turn degraded by default' "$root/CHANGELOG.md"
+    ! grep -q 'so audits do not turn degraded by default' "$root/CHANGELOG.md" || { echo "the CHANGELOG says no_route keeps audits clean"; return 1; }
     grep -q 'no_route.*DEGRADED_SECURITY_REVIEW.*companion_voice: false' "$root/CHANGELOG.md"
     # an operator chain really is used as given: a CLI hop whose binary is absent stays planned
     _adv_cli_present() { return 1; }
@@ -4077,4 +4096,186 @@ PY
     grep -q 'a sidecar newer than it (a run that died after writing rows) counts' "$cl"
     # the key set named is the one the script writes
     grep -q "index: \$idx, severity: null, title: null, title_derived: false, anchor: null, reason: \$r, description_head: null" "$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
+}
+
+@test "CMP-191 --record-fallback names the remedy that applies: failed --since over a newer envelope says it is another run's (never 'pass --since' again), and an envelope path that is not a regular file is refused with its own remedy on every status — never an unclearable --since loop, never a record moved into a directory (thirty-second run, a2 DISS-C-001)" {
+    mkdir -p "$OUT_DIR"
+    local env="$OUT_DIR/adversarial-review.json" rc st
+    printf '{"findings":[],"metadata":{"status":"reviewed","timestamp":"2026-10-02T12:30:00Z"}}\n' > "$env"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ]
+    grep -q "another run's: triage it" "$T/err" || { cat "$T/err"; return 1; }
+    ! grep -q 'pass --since' "$T/err" || { echo "the remedy already taken is prescribed again: $(cat "$T/err")"; return 1; }
+    [ "$(jq -r '.metadata.status' "$env")" = "reviewed" ]
+    # a symlink (dangling) and a directory at the envelope path: no run writes either — refused, named, left as found
+    command rm -f -- "$env"; ln -s "$T/nowhere.json" "$env"
+    for st in failed workdir_unavailable; do
+        rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback "$st" --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+        [ "$rc" -eq 2 ] || { echo "$st over a symlink: rc $rc"; return 1; }
+        grep -q "is not a regular file" "$T/err" || { echo "$st: $(cat "$T/err")"; return 1; }
+        ! grep -q 'pass --since' "$T/err" || { echo "$st over a symlink names --since as the remedy"; return 1; }
+        [ -L "$env" ] && [ ! -e "$T/nowhere.json" ]
+    done
+    command rm -f -- "$env"; mkdir "$env"
+    for st in failed nothing_to_review; do
+        rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback "$st" --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+        [ "$rc" -eq 2 ] || { echo "$st over a directory: rc $rc"; return 1; }
+        grep -q "is not a regular file" "$T/err" || { echo "$st: $(cat "$T/err")"; return 1; }
+        [ -z "$(ls -A "$env")" ] || { echo "$st wrote into the directory: $(ls -A "$env")"; return 1; }
+    done
+    rmdir -- "$env"
+}
+
+@test "CMP-192 a companion reaped while it still queued for the CLI lock never sent its request: it is lock_wait, as the walker classes the same event, never a provider timeout; one reaped on its hop stays wait_timeout (thirty-second run, a3 DISS-C-001)" {
+    local ph
+    for ph in queue hop; do
+        mkdir -p "$T/q-$ph"; printf '%s' "$ph" > "$T/q-$ph/companion.phase"; printf 'claude-headless' > "$T/q-$ph/companion.current"
+        sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")
+        _adv_reap_companion_timed_out "$T/q-$ph" "claude-headless" 2>/dev/null
+        [ "$(cat "$T/q-$ph/companion.rc")" = "124" ]
+        [ "$(cat "$T/q-$ph/companion.final")" = "claude-headless" ]
+    done
+    [ "$(cat "$T/q-queue/companion.status")" = "lock_wait" ]
+    [ "$(_companion_failure_class "$(cat "$T/q-queue/companion.status")" 124)" = "lock_wait" ]
+    [ "$(cat "$T/q-hop/companion.status")" = "wait_timeout" ]
+    [ "$(_companion_failure_class "$(cat "$T/q-hop/companion.status")" 124)" = "timeout" ]
+}
+
+@test "CMP-193 a reviewer killed between _adv_kill_tree's STOP and CONT passes never leaves the tree stopped: a detached watchdog resumes it, so a frozen claude -p never holds the per-binary lock for good (thirty-second run, a3 DISS-C-003)" {
+    sleep 30 3>&- & local victim=$!; HOLDER_PIDS+=("$victim")
+    # the token pass runs while the tree is frozen; the stub KILLs the shell running _adv_kill_tree right there
+    _adv_pid_tokens() { kill -KILL "$KT_SHELL"; sleep 5; }
+    ( KT_SHELL=$BASHPID; _adv_kill_tree "$victim" TERM tokens ) >/dev/null 2>&1 3>&- || true
+    [[ "$(ps -o stat= -p "$victim")" == T* ]] || { echo "the stub never ran inside the freeze: $(ps -o stat= -p "$victim")"; return 1; }
+    local i; for i in $(seq 1 60); do [[ "$(ps -o stat= -p "$victim")" == T* ]] || break; sleep 0.1; done
+    [[ "$(ps -o stat= -p "$victim")" != T* ]] || { echo "pid $victim is still stopped after 6 s"; kill -CONT "$victim"; return 1; }
+    kill -0 "$victim"   # resumed, not killed: the signal pass never ran
+    # the normal path is unchanged: the tree is signalled and resumed at once, and nothing waits on the watchdog
+    sleep 30 3>&- & local v2=$!; HOLDER_PIDS+=("$v2")
+    local t0=$SECONDS out; out=$(_adv_kill_tree "$v2" TERM)
+    [ "$out" = "$v2" ]; [ $(( SECONDS - t0 )) -lt 2 ]
+    sleep 0.3; ! kill -0 "$v2" 2>/dev/null
+}
+
+@test "CMP-194 a symlink, directory or other node at the envelope path refuses the run before it reviews anything, with its own remedy — never a two-voice run whose envelope is lost into a directory or written through a link (thirty-second run, a4 DISS-C-001)" {
+    mkdir -p "$OUT_DIR"
+    BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
+    local env="$OUT_DIR/adversarial-review.json" kind
+    for kind in dangling link dir; do
+        command rm -f -- "$env"; [[ -d "$env" ]] && rmdir -- "$env"
+        case "$kind" in
+            dangling) ln -s "$T/nowhere-194.json" "$env" ;;
+            link) printf '{"findings":[]}' > "$T/elsewhere-194.json"; ln -s "$T/elsewhere-194.json" "$env" ;;
+            dir) mkdir "$env" ;;
+        esac
+        : > "$T/stderr.log"
+        rc=0; result=$(_run_main review) || rc=$?
+        [ "$rc" = 2 ] || { echo "$kind: rc $rc: $result"; return 1; }
+        [ "$(jq -r '.metadata.status + " " + .metadata.path' <<<"$result")" = "workdir_unavailable grimoires/loa/a2a/$SPRINT/adversarial-review.json" ] || { echo "$kind: $result"; return 1; }
+        grep -q 'is not a regular file' "$T/stderr.log" || { echo "$kind: $(cat "$T/stderr.log")"; return 1; }
+        [ ! -e "$env.prev" ] && [ ! -L "$env.prev" ]
+        case "$kind" in
+            dangling) [ -L "$env" ] && [ ! -e "$T/nowhere-194.json" ] ;;
+            link) [ -L "$env" ] && [ "$(cat "$T/elsewhere-194.json")" = '{"findings":[]}' ] ;;
+            dir) [ -d "$env" ] && [ -z "$(ls -A "$env")" ] ;;
+        esac
+    done
+    rmdir -- "$env"
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ] || { jq -c .metadata <<<"$result"; return 1; }
+}
+
+@test "CMP-195 a hop job whose output redirect never happened reads as an empty answer on every hop — never the previous hop's file (thirty-second run, a4 DISS-C-002)" {
+    local f="$T/hop-195.out"
+    printf 'previous hop answer' > "$f"
+    chmod a-w "$f"   # the job's redirect cannot open it: the job never writes this hop's answer
+    rc=0; _adv_run_interruptible "$f" printf 'this hop' 2>/dev/null || rc=$?
+    local got; got=$(cat "$f" 2>/dev/null) || got=""
+    [[ "$got" != "previous hop answer" ]] || { echo "the previous hop's file was read as this hop's answer"; return 1; }
+    # the normal path: the job's stdout is the answer
+    _adv_run_interruptible "$f" printf 'second hop'
+    [ "$(cat "$f")" = "second hop" ]
+}
+
+@test "CMP-196 a partial view with lower-priority rows behind it and no sibling at its tier stays inside the budget with its marker: the three-quarter cap never leaves the marker uncharged (thirty-second run, b1 DISS-001)" {
+    mk() { local p=$1 n=$2 h l; printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n' "$p" "$p" "$p" "$p"; for h in $(seq 1 "$n"); do printf '@@ -%d,3 +%d,3 @@\n' "$h" "$h"; for l in 1 2 3; do printf '+line %d of hunk %d with some padding text here\n' "$l" "$h"; done; done; }
+    mk1() { local p=$1 l; printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1,300 +1,300 @@\n' "$p" "$p" "$p" "$p"; for l in $(seq 1 300); do printf '+line %d with some padding text here\n' "$l"; done; }
+    local big mt out kind
+    # (a budget the marker alone fills — under ~50 tokens — stays the pinned marker-only floor, CMP-44)
+    for kind in hunks onehunk; do
+    if [[ "$kind" == hunks ]]; then big="$(mk src/auth/login.ts 400)"; else big="$(mk1 src/auth/login.ts)"; fi
+    big+=$'\n'"$(mk docs/readme.md 3)"
+    for mt in 60 80 100 120 140 160 200 400 1000; do
+        out=$(prepare_content "$big" "$mt" 2>/dev/null)
+        out=${out%%$'\n'"--- TRUNCATED:"*}   # (the omitted-files footer is a notice after the budgeted content — not charged, as before)
+        [ "$(estimate_tokens "$out")" -le "$mt" ] || { echo "$kind budget $mt: $(estimate_tokens "$out") tokens sent"; return 1; }
+        [[ "$out" == *"--- PARTIAL: src/auth/login.ts"* ]] || { echo "$kind budget $mt: no partial marker"; return 1; }
+    done
+    done
+    big="$(mk src/auth/login.ts 400)"$'\n'"$(mk docs/readme.md 3)"
+    # the cap still keeps a quarter for the lower rows at a working budget: the view is no larger than three quarters plus its marker
+    out=$(prepare_content "$big" 4000 2>/dev/null)
+    [ "$(estimate_tokens "${out%%--- PARTIAL*}")" -le 3000 ]
+}
+
+@test "CMP-197 the suite's harness helpers keep their guarantees on any host: an unmatched _cfg_edit fails under PYTHONOPTIMIZE (an assert is stripped there), and _cmp_git never reads the operator's ~/.gitconfig on a git that ignores GIT_CONFIG_GLOBAL (< 2.32) (thirty-second run, c1a DISS-C-001 / DISS-C-002)" {
+    printf 'a: 1\n' > "$CONFIG_FILE.197"
+    local CONFIG_FILE="$CONFIG_FILE.197" rc
+    rc=0; PYTHONOPTIMIZE=1 _cfg_edit 'no-such-text' 'x' 2>/dev/null || rc=$?
+    [ "$rc" -ne 0 ] || { echo "an unmatched _cfg_edit passed under PYTHONOPTIMIZE"; return 1; }
+    [ "$(cat "$CONFIG_FILE")" = "a: 1" ]
+    PYTHONOPTIMIZE=1 _cfg_edit 'a: 1' 'a: 2'; [ "$(cat "$CONFIG_FILE")" = "a: 2" ]
+    # a git older than 2.32 ignores GIT_CONFIG_GLOBAL: modelled by a git on PATH that drops it before the real one runs
+    local real; real=$(command -v git)
+    mkdir -p "$T/oldgit" "$T/home197"
+    printf '#!/usr/bin/env bash\nunset GIT_CONFIG_GLOBAL\nexec %q "$@"\n' "$real" > "$T/oldgit/git"; chmod +x "$T/oldgit/git"
+    printf '[loatest]\n\tleak = yes\n' > "$T/home197/.gitconfig"
+    local got
+    got=$(HOME="$T/home197" PATH="$T/oldgit:$PATH" _cmp_git config --get loatest.leak 2>/dev/null) || true
+    [ -z "$got" ] || { echo "the operator's ~/.gitconfig reached the scratch repo: loatest.leak=$got"; return 1; }
+    # (the model is faithful: the same git reads it when the helper's isolation is bypassed)
+    [ "$(HOME="$T/home197" PATH="$T/oldgit:$PATH" GIT_CONFIG_GLOBAL=/dev/null git config --get loatest.leak)" = "yes" ]
+}
+
+@test "CMP-198 a prescribed beads step is never read as two unconditional commands: each br label add in the review resource sits under its own condition comment; the CHANGELOG's FR-2 bullet never says the fallback record applies 'only' when no envelope stands (thirty-second run, e2b DISS-C-005 / e2a DISS-C-001)" {
+    run python3 - "$PROJECT_ROOT/.claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md" <<'PY'
+import re, sys
+bad = []
+for block in re.findall(r'```bash\n(.*?)```', open(sys.argv[1]).read(), re.S):
+    lines = block.splitlines()
+    for i, l in enumerate(lines):
+        if l.startswith('br label add '):
+            prev = lines[i - 1] if i else ''
+            if not re.match(r'#\s*If\b', prev):
+                bad.append(f'`{l}` has no condition comment directly above it (got: {prev!r})')
+print('\n'.join(bad)); sys.exit(1 if bad else 0)
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [ "$(grep -c '^br label add ' "$PROJECT_ROOT/.claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md")" -eq 2 ]
+    ! grep -q "fallback record applies only then" "$PROJECT_ROOT/CHANGELOG.md" || { echo "the FR-2 bullet contradicts its own --since rule"; return 1; }
+    grep -q 'the review skill.s fallback record applies then, and after a pre-run-lock status' "$PROJECT_ROOT/CHANGELOG.md"
+}
+
+@test "CMP-199 no assertion in the dissent suites is a bare mid-test negation: bats' errexit ignores a \`! cmd\`, so one that is not a test's last command never fails it — each is explicit (thirty-second run, e3 DISS-C-001: found by its mutation proof)" {
+    cat > "$T/neg-lint.py" <<'PY'
+import re, sys
+bad = []
+for f in sys.argv[1:]:
+    L = open(f).read().split('\n'); intest = False
+    for i, l in enumerate(L):
+        if l.startswith('@test'): intest = True; continue
+        if intest and l.startswith('}'): intest = False; continue
+        if not (intest and re.match(r'\s*! ', l)) or '||' in l or l.rstrip().endswith(('\\', '|', '&&')): continue
+        j = i + 1
+        while j < len(L) and (not L[j].strip() or L[j].strip().startswith('#')): j += 1
+        if j < len(L) and not L[j].startswith('}'): bad.append(f'{f}:{i + 1}: {l.strip()}')
+print('\n'.join(bad)); sys.exit(1 if bad else 0)
+PY
+    run python3 "$T/neg-lint.py" "$PROJECT_ROOT"/tests/unit/adversarial-review*.bats "$PROJECT_ROOT"/tests/unit/verdict-derive*.bats "$PROJECT_ROOT/tests/unit/kf-write-lib.bats"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    # the lint is not vacuous: a fixture with one mid-test negation is caught, a last-command one and an explicit one are not
+    printf '@test "x" {\n    ! false\n    true\n}\n' > "$T/neg-a.bats"
+    printf '@test "y" {\n    ! false || { echo no; return 1; }\n    true\n    ! false\n}\n' > "$T/neg-b.bats"
+    run python3 "$T/neg-lint.py" "$T/neg-a.bats" "$T/neg-b.bats"
+    [ "$status" -eq 1 ]; [[ "$output" == *"neg-a.bats:2:"* ]]; [[ "$output" != *"neg-b.bats"* ]]
 }

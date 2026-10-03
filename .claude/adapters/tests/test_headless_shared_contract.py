@@ -2,10 +2,13 @@
 
 import logging
 import json
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+from loa_cheval.providers import headless_cli
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -173,9 +176,16 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
         assert calls[1]["stdin"] == ""
     # (claude too — a cwd in the reviewed tree hands it that tree's CLAUDE.md and project hooks: cycle-126 thirty-first run,
     # c2e DISS-C-003)
-    if name in ("codex", "cursor", "grok", "claude"):
-        assert calls[1]["cwd"] != str(tmp_path)
+    # (gemini and agy too — gemini-cli reads GEMINI.md and .gemini/ from its cwd, and `--skip-trust` trusted the reviewed tree:
+    # thirty-second run, e2a DISS-C-004)
+    assert calls[1]["cwd"] != str(tmp_path)
+    # (cycle-126 thirty-second run, e1 DISS-C-001: every isolated cwd sits under the private base — never under a /tmp any
+    # local user can write a CLAUDE.md into; claude's is one stable directory, one project key — e1 DISS-C-002)
+    if name in ("codex", "cursor", "grok", "gemini", "agy"):
         assert not Path(calls[1]["cwd"]).exists()
+        assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
+    elif name == "claude":
+        assert calls[1]["cwd"] == headless_cli.private_workspace("loa-claude-ws")
 
 
 def test_complete_bounds_the_hop_by_its_model(adapter_case, tmp_path, monkeypatch):
@@ -468,3 +478,32 @@ def test_adapter_and_loader_clamp_to_one_live_ceiling(adapter_case, monkeypatch)
     monkeypatch.setattr(types_mod, "HEADLESS_TIMEOUT_CEILING_SECONDS", 1200.0)
     assert types_mod.coerce_headless_timeout_seconds(3000) == 1200.0
     assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=3000)) == 10.0 + 1200.0
+
+
+def test_report_gate_is_once_across_threads(caplog, monkeypatch):
+    """Thirty-second run, d DISS-C-002: the once-per-process gate is one check-and-add — two threads building the same
+    provider config never both see the key absent and both warn (the window is widened here, as a loaded host widens it)."""
+    import threading
+    import time
+    from loa_cheval import types as _types
+
+    class _SlowSet(set):
+        def __contains__(self, item):
+            hit = set.__contains__(self, item)
+            time.sleep(0.05)
+            return hit
+
+    monkeypatch.setattr(_types, "_HEADLESS_TIMEOUT_REPORTED", _SlowSet())
+    barrier = threading.Barrier(8)
+
+    def _report():
+        barrier.wait()
+        _types.report_headless_timeout_once(("threads/x: ", 900), "raced %s", "once")
+
+    caplog.set_level("WARNING", logger="loa_cheval.config")
+    threads = [threading.Thread(target=_report) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert [r.getMessage() for r in caplog.records if r.name == "loa_cheval.config"] == ["raced once"]

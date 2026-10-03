@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
+import os
 import shutil
+import stat
 import subprocess
+import tempfile
 import time
 from abc import abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter, SubprocessOutputCapExceeded, build_headless_subprocess_env,
@@ -26,6 +30,87 @@ from loa_cheval.types import (
     ConfigError,
     ProviderUnavailableError,
 )
+
+
+# --- the isolated cwd's private base (cycle-126 thirty-second run, e1 DISS-C-001 / DISS-C-002) -------------------------
+# claude reads CLAUDE.md from every ancestor of its cwd, so an isolated cwd under a world-writable /tmp let any local user
+# plant /tmp/CLAUDE.md into the reviewer's context. The base is a directory whose every ancestor no other user can write.
+
+_TRUSTED_ABOVE: Optional[str] = None   # a test hook only (the suite's private root and its ancestors are not judged)
+
+
+def _dir_trustworthy(st) -> bool:
+    """A directory no other user can write into: owned by root or this uid, never other-writable, and group-writable only
+    for this process's own group (a user-private group — the Debian/Ubuntu default for ~/.cache)."""
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid not in (0, os.getuid()):
+        return False
+    if st.st_mode & stat.S_IWOTH:
+        return False
+    return not (st.st_mode & stat.S_IWGRP) or st.st_gid == os.getgid()
+
+
+def _chain_private(path: str) -> bool:
+    """`path` (resolved) and every directory above it are trustworthy; a missing one is not."""
+    stop = set()
+    if _TRUSTED_ABOVE:
+        t = os.path.realpath(_TRUSTED_ABOVE)
+        while True:
+            stop.add(t)
+            if os.path.dirname(t) == t:
+                break
+            t = os.path.dirname(t)
+    p = os.path.realpath(path)
+    while p not in stop:
+        try:
+            if not _dir_trustworthy(os.stat(p)):
+                return False
+        except OSError:
+            return False
+        if os.path.dirname(p) == p:
+            break
+        p = os.path.dirname(p)
+    return True
+
+
+def private_workspace_base() -> str:
+    """The directory the headless CLIs' isolated cwds live in: $XDG_RUNTIME_DIR, else the temporary directory (a per-user
+    one on macOS, or a private $TMPDIR), else ~/.cache/loa — the first whose every ancestor no other user can write.
+    None → OSError (fail closed: a hop never runs where another user's CLAUDE.md is on its discovery path)."""
+    if not hasattr(os, "getuid"):
+        return tempfile.gettempdir()
+    tried = []
+    xdg = os.environ.get("XDG_RUNTIME_DIR", "")
+    for cand in ([xdg] if os.path.isabs(xdg) else []) + [tempfile.gettempdir()]:
+        if os.path.isdir(cand) and _chain_private(cand):
+            return os.path.realpath(cand)
+        tried.append(cand)
+    home = os.path.expanduser("~")
+    if os.path.isabs(home) and os.path.isdir(home) and _chain_private(home):
+        base = os.path.join(os.path.realpath(home), ".cache", "loa")
+        os.makedirs(base, mode=0o700, exist_ok=True)
+        if _chain_private(base):
+            return base
+        tried.append(base)
+    else:
+        tried.append(os.path.join(home, ".cache", "loa"))
+    raise OSError(errno.EACCES, "no private directory for a headless CLI's working directory — each candidate has an "
+                  "ancestor another user can write into: " + ", ".join(tried) + " (set XDG_RUNTIME_DIR to a 0700 directory)")
+
+
+def private_workspace(name: str) -> str:
+    """A stable working directory `<base>/<name>` only this uid can write. A stable cwd is one Claude Code project key,
+    never one left behind per hop (e1 DISS-C-002). A symlink, another owner or an open mode at the path → OSError."""
+    path = os.path.join(private_workspace_base(), name)
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    st = os.lstat(path)
+    if (not stat.S_ISDIR(st.st_mode) or (hasattr(os, "getuid") and st.st_uid != os.getuid())
+            or st.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+        raise OSError(errno.EEXIST, f"{path} is not a private directory of this user (a symlink, another owner, or "
+                      "writable by others): remove it")
+    return path
 
 
 @dataclass

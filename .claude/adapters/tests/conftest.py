@@ -11,6 +11,8 @@ either — the hygiene tripwire only scans ``.run/``. A test that wants the
 config fallback ``monkeypatch.delenv``s the variable (test_cli_reported_cost).
 """
 
+import os
+
 import pytest
 
 _LEDGER_ENV = {
@@ -40,3 +42,15 @@ def _reset_headless_timeout_gate():
     """The once-per-process headless_timeout_seconds report gate is module state: reset it around every test,
     so a key one test seeds never silences a warning another test asserts (run 23, c2e DISS-C-001)."""
     yield from _reset_gate_around()
+
+
+@pytest.fixture(autouse=True)
+def _private_headless_workspace(monkeypatch, tmp_path_factory):
+    """The headless CLIs' private working directory is this test's own, never the operator's per-user one (cycle-126
+    thirty-second run, e1 DISS-C-001): the base is a 0700 root of the suite's, and the ancestors above it — pytest's
+    temporary tree, under /tmp — are not judged."""
+    from loa_cheval.providers import headless_cli
+    root = tmp_path_factory.mktemp("headless-ws")
+    os.chmod(root, 0o700)
+    monkeypatch.setattr(headless_cli, "_TRUSTED_ABOVE", str(root.resolve()), raising=False)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(root))

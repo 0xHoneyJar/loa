@@ -199,8 +199,9 @@ class TestCommandConstruction:
         # Two --policy flags in order
         policy_indices = [i for i, v in enumerate(cmd) if v == "--policy"]
         assert len(policy_indices) == 2
-        assert cmd[policy_indices[0] + 1] == "./.gemini/policy-a.json"
-        assert cmd[policy_indices[1] + 1] == "./.gemini/policy-b.json"
+        # resolved against the caller's directory: the CLI runs in an isolated cwd (thirty-second run, e2a DISS-C-004)
+        assert cmd[policy_indices[0] + 1] == os.path.abspath("./.gemini/policy-a.json")
+        assert cmd[policy_indices[1] + 1] == os.path.abspath("./.gemini/policy-b.json")
 
     def test_extra_flags_pass_through(self):
         adapter = GeminiHeadlessAdapter(

@@ -360,8 +360,8 @@ validate_finding() {
     (.id | type) == "string" and
     (.severity | IN($sevs[])) and
     (.category | IN($cats[])) and
-    (.description | type) == "string" and (.description | gsub("\\s"; "") | length) > 0 and
-    (.failure_mode | type) == "string" and (.failure_mode | gsub("\\s"; "") | length) > 0
+    (.description | type) == "string" and (.description | test("\\S")) and
+    (.failure_mode | type) == "string" and (.failure_mode | test("\\S"))
   ' > /dev/null 2>&1
 }
 
@@ -388,7 +388,8 @@ _validate_finding_reason() {
   # (thirty-first run, a2 DISS-C-002: the reason quotes the bad value — and reaches the rejected_summary row, the log line
   # and the repair prompt — so the quote is a capped, control-free excerpt; the sidecar keeps the whole payload)
   echo "$finding" | jq -r --argjson sevs "$valid_severities" --argjson cats "$valid_categories" '
-    def got: tostring | gsub("[\u0000-\u001f\u007f]"; " ") | .[0:32];
+    # (a jq gsub is quadratic in the length of the string — slice first, then clean: thirty-second run, a1 DISS-C-001)
+    def got: tostring | .[0:32] | gsub("[\u0000-\u001f\u007f]"; " ");
     if (.id // null) == null or (.id | type) != "string" then
       "missing-or-non-string-id"
     elif (.severity // null) == null then
@@ -399,9 +400,9 @@ _validate_finding_reason() {
       "missing-category"
     elif ((.category | IN($cats[])) | not) then
       "category-not-in-enum (got: \(.category // "null" | got))"
-    elif (.description // null) == null or (.description | type) != "string" or (.description | gsub("\\s"; "") | length) == 0 then
+    elif (.description // null) == null or (.description | type) != "string" or (.description | test("\\S") | not) then
       "missing-or-empty-description"
-    elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | gsub("\\s"; "") | length) == 0 then
+    elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | test("\\S") | not) then
       "missing-or-empty-failure_mode"
     else
       ""
@@ -541,10 +542,12 @@ _derive_failure_mode() {
           | .id_derived = true
      else . end)
     # a non-string id or failure_mode is missing, so derivable (twenty-third run, a1 DISS-C-003)
-    | if ((.failure_mode | type) != "string" or (.failure_mode | gsub("\\s"; "") | length) == 0)
-         and (.description | type) == "string" and (.description | gsub("\\s"; "") | length) > 0
+    # (test("\\S"), never a whole-string gsub: a jq gsub is quadratic and the description is model text, unbounded — a 300 KB
+    # one took 54 s on jq 1.7; the derived text is at most 200 characters, so only the head is collapsed — thirty-second run, a1 DISS-C-001)
+    | if ((.failure_mode | type) != "string" or (.failure_mode | test("\\S") | not))
+         and (.description | type) == "string" and (.description | test("\\S"))
       then
-        (.description | gsub("\\s+"; " ")) as $d
+        (.description | .[0:4000] | gsub("\\s+"; " ")) as $d
         | ($d | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)) as $s
         # eighth run, a1 C-003: "e.g." / "1." / "Approx." are not sentences — below 20 characters use the head
         | (if ($s | length) < 20 then $d else $s end | .[0:200]) as $fm
@@ -1748,7 +1751,7 @@ while i < len(text):
           # (twenty-ninth run, a1 DISS-C-002: the row is a surface of an untrusted payload — a title is a capped string with
           # no control character, an id stands in for one only as a safe token (the rule the renumbering above applies), and an
           # anchor of any type is a capped string)
-          def clean($n): gsub("[\u0000-\u001f\u007f]"; " ") | .[0:$n];
+          def clean($n): .[0:$n] | gsub("[\u0000-\u001f\u007f]"; " ");   # (sliced first: gsub is quadratic — thirty-second run, a1 DISS-C-001)
           def ttl: if type == "string" then clean(160) | nz else null end;
           def sid: if type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else null end;
           (($o.title | ttl) // ($o.id | sid)) as $own | (($f.title | ttl) // ($f.id | sid)) as $norm
@@ -2402,6 +2405,12 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
     _adv_refuse_json refused_concurrent_run
     return 2
   fi
+  # (thirty-second run, a2 DISS-C-001: a run writes its envelope as a regular file; a symlink, directory or other node at the path
+  # was put there by hand — no --since can clear it, and a directory would take the record inside it: refused with its remedy)
+  if [[ -L "$env" || ( -e "$env" && ! -f "$env" ) ]]; then
+    error "$env is not a regular file (a symlink, directory or other node — no run writes one): remove it, then record"
+    return 2
+  fi
   # (twenty-fourth run, b2 DISS-C-002: the record says what it moves aside — a regular envelope is moved on every path that
   # gets past the refusals below — so a reviewer and verdict-derive can read what the fallback replaced)
   if [[ -f "$env" && ! -L "$env" ]]; then
@@ -2425,7 +2434,11 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
         # statuses move it, never a refusal whose remedy is the --since already passed)
         elif [[ -z "$ets" || ! "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ || "$ets" < "$since" ]]; then older="true"; fi
       fi
-      if [[ "$older" != "true" ]]; then
+      if [[ "$older" != "true" && -n "$since" ]]; then
+        # (thirty-second run, a2 DISS-C-001: the --since was passed — the envelope is newer than the run, so the remedy is not --since)
+        error "an envelope written after this run started (${ets:-?}, since $since) stands at $env — another run's: triage it; nothing is recorded over it"
+        return 2
+      elif [[ "$older" != "true" ]]; then
         error "an envelope stands at $env — a run wrote it; nothing is recorded over it (a run that died before its lock left the previous round's: pass --since <that run's start, UTC> to move an older one aside)"
         return 2
       fi
@@ -3259,8 +3272,13 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   # the freeze (cheval exec'ing claude -p at that instant) is signalled too, never left holding the per-binary lock
   local p="$1" sig="${2:-TERM}" pids x more toks=""
   pids=$(_adv_tree_pids "$p")
+  # (thirty-second run, a3 DISS-C-003: a reviewer KILLed between the STOP and CONT passes left the tree stopped — a frozen
+  # claude -p holding its binary's lock for good, which no takeover reclaims, since a stopped process is alive. A detached
+  # watchdog, holding no descriptor of ours, resumes each frozen pid after a few seconds; on the normal path its CONT is a no-op)
+  _adv_cont_watchdog "$pids"
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
   more=$(_adv_tree_pids "$p"); pids=$(printf '%s\n%s\n' "$pids" "$more" | grep -v '^$' | sort -un)
+  [[ -n "$more" ]] && _adv_cont_watchdog "$pids"
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
   [[ "${3:-}" == "tokens" ]] && { toks=$(_adv_pid_tokens "$pids" 2>/dev/null) || toks=""; }
   for x in $pids; do kill "-$sig" "$x" 2>/dev/null || true; done
@@ -3271,6 +3289,11 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   else
     printf '%s\n' $pids
   fi
+}
+_adv_cont_watchdog() {  # <pids> — resume them in ${_ADV_CONT_WATCHDOG_SECONDS:-3} s from a process that outlives this shell
+  [[ -n "$1" ]] || return 0
+  ( trap '' HUP; sleep "${_ADV_CONT_WATCHDOG_SECONDS:-3}"; for x in $1; do kill -CONT "$x" 2>/dev/null; done ) </dev/null >/dev/null 2>&1 3>&- 9>&- &
+  disown $! 2>/dev/null || true
 }
 _adv_pid_alive() {  # <pid> → 0 when the process exists and is not a zombie
   kill -0 "$1" 2>/dev/null || return 1
@@ -3365,6 +3388,9 @@ _adv_run_interruptible() {  # <out file> <command…> — `out=$(command)` as a 
   local _out="$1" _rc=0; shift
   # (twenty-fifth run, a4 DISS-C-003: the job is the pid AND its start token, as the companion is — a pid freed by `wait` and
   # reused before it is cleared is never signalled; a signal between the fork and the publish reaps the new $!, never an older job)
+  # (thirty-second run, a4 DISS-C-002: the file is reused across hops — removed first, so a job whose redirect never happened
+  # (a refused fork, an unopenable file) leaves no file, which reads as an empty answer, never the previous hop's)
+  command rm -f -- "$_out" 2>/dev/null || true
   _ADV_PRIMARY_BANG="${!:-}"; _ADV_PRIMARY_FORKING=1
   ( "$@" || exit $? ) > "$_out" &   # (`||`: errexit stays off inside, as it was in the substitution)
   _ADV_PRIMARY_PID=$!; _ADV_PRIMARY_FORKING=""
@@ -3404,8 +3430,11 @@ _adv_reap_companion_timed_out() {  # <companion workdir> <chain csv> — reap th
   # and exit code (an auth / quota class at the cap boundary is not a timeout)
   # (eighteenth run, a3 C-003: whether or not a tree was signalled — a walker at `done` had finished its bookkeeping, and the
   # only thing left to signal was an exiting shell)
-  if [[ -s "$1/companion.status" && "$(cat "$1/companion.phase" 2>/dev/null)" == "done" ]]; then return 0; fi
-  printf 'wait_timeout' > "$1/companion.status"
+  local _rph; _rph=$(cat "$1/companion.phase" 2>/dev/null || true)
+  if [[ -s "$1/companion.status" && "$_rph" == "done" ]]; then return 0; fi
+  # (thirty-second run, a3 DISS-C-001: a walker reaped in `queue` never got the CLI lock, so its request was never sent — the
+  # walker's own class for that event, lock_wait, never a provider timeout)
+  if [[ "$_rph" == "queue" ]]; then printf 'lock_wait' > "$1/companion.status"; else printf 'wait_timeout' > "$1/companion.status"; fi
   # the hop that was in flight (sixth run, C-001), else the chain's first hop
   if [[ -s "$1/companion.final" ]]; then :
   elif [[ -s "$1/companion.current" ]]; then cp -f "$1/companion.current" "$1/companion.final"
@@ -3437,8 +3466,11 @@ _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
 _ADV_PREV_FILES=""; _ADV_ENVELOPE_WRITTEN="false"   # (newline-delimited: a PROJECT_ROOT with a space is one path — nineteenth run, a2 C-003)
 _adv_move_aside() {  # <repo-relative path> → 0 when nothing stands there or it moved aside as `.prev` (listed for the drop); 1 when a
-                     # file stands there and could not move — it would be read as THIS run's (thirtieth run, a4 DISS-C-001)
-  [[ -f "$PROJECT_ROOT/$1" ]] || return 0
+                     # file stands there and could not move — it would be read as THIS run's (thirtieth run, a4 DISS-C-001); 2 when
+                     # a symlink, directory or other node stands there (thirty-second run, a4 DISS-C-001: no run writes one, and the
+                     # run would have spent both voices before its envelope was lost into a directory or written through a link)
+  [[ -L "$PROJECT_ROOT/$1" || -e "$PROJECT_ROOT/$1" ]] || return 0
+  [[ ! -L "$PROJECT_ROOT/$1" && -f "$PROJECT_ROOT/$1" ]] || return 2
   if mv -f -- "$PROJECT_ROOT/$1" "$PROJECT_ROOT/$1.prev" 2>/dev/null && [[ ! -e "$PROJECT_ROOT/$1" ]]; then
     _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$1"; return 0
   fi
@@ -3766,9 +3798,15 @@ main() {
   local _env_rel="grimoires/loa/a2a/${sprint_id}/adversarial-${type}.json" _ma
   local -a _ma_set=("$_env_rel")   # (its own statement: a compound value in the same `local` expands before _env_rel is set)
   [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]] && _ma_set+=("${_run_sidecars[@]}")
+  local _ma_rc
   for _ma in "${_ma_set[@]}"; do
-    _adv_move_aside "$_ma" && continue
+    _ma_rc=0; _adv_move_aside "$_ma" || _ma_rc=$?
+    [[ "$_ma_rc" == 0 ]] && continue
+    if [[ "$_ma_rc" == 2 ]]; then
+      error "$_ma is not a regular file (a symlink, directory or other node — no run writes one); nothing was reviewed: remove it, then run again"
+    else
     error "the previous round's $_ma could not be moved aside as $_ma.prev — it would read as this run's; nothing was reviewed (make grimoires/loa/a2a/${sprint_id} writable and run again)"
+    fi
     [[ "$json_output" == "true" ]] && _adv_refuse_json workdir_unavailable path "$_ma"
     exit 2
   done

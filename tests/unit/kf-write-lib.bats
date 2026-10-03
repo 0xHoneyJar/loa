@@ -207,16 +207,36 @@ EOF
   grep -qE '^\| \[KF-003\]\(#kf-003-provider_unavailable--exit-1--chevals-note\)' "$F" || { grep 'KF-003' "$F"; return 1; }
 }
 
-@test "kf-write: every Index link in the shipped ledger names its entry's GitHub heading anchor" {
-  # (cycle-126 thirty-first run, e2b DISS-C-001: nine rows the collapsing slug wrote, and three hand-made ones, linked nowhere)
-  python3 - "$PROJECT_ROOT/grimoires/loa/known-failures.md" <<'PY'
+# The ledger link lint: every Index row's anchor is its heading's GitHub slug — the heading read as the library's grammar reads
+# it (one or more blanks after `##`, trailing blanks trimmed) and slugged as GitHub does (a Unicode letter is kept, punctuation
+# dropped, one hyphen per space): cycle-126 thirty-second run, e2c DISS-C-002
+_kf_link_lint() {
+  python3 - "$1" <<'PY'
 import re, sys
 s = open(sys.argv[1], encoding="utf-8").read()
-heads = {h.split(":")[0]: re.sub(r"[^a-z0-9_ -]", "", h.lower()).replace(" ", "-") for h in re.findall(r"^## (KF-\d+: .*)$", s, re.M)}
+heads = {h.split(":")[0]: re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
+         for h in re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
 print("Index links that resolve to no heading:", bad) if bad else None
 sys.exit(1 if bad else 0)
 PY
+}
+
+@test "kf-write: every Index link in the shipped ledger names its entry's GitHub heading anchor" {
+  # (cycle-126 thirty-first run, e2b DISS-C-001: nine rows the collapsing slug wrote, and three hand-made ones, linked nowhere)
+  _kf_link_lint "$PROJECT_ROOT/grimoires/loa/known-failures.md"
+}
+
+@test "kf-write: the ledger link lint reads headings as the library and GitHub do — two blanks after ##, a trailing blank, a Unicode letter (thirty-second run, e2c DISS-C-002)" {
+  local G="$BATS_TEST_TMPDIR/lint.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-two-blanks) | OPEN | x | 1 |' '| [KF-041](#kf-041-trailing-blank) | OPEN | x | 1 |' \
+    '| [KF-042](#kf-042-café-timeout--retry) | OPEN | x | 1 |' '' '##  KF-040: Two blanks' '' '## KF-041: Trailing blank  ' '' '## KF-042: Café timeout — retry' > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  # the ASCII-stripped slug GitHub never emits is a broken link
+  sed -i 's/#kf-042-café-timeout--retry/#kf-042-caf-timeout--retry/' "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-042* ]]
 }
 
 @test "kf-write new: can create the FIRST entry in an empty-Index ledger" {
