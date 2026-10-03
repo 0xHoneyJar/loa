@@ -426,7 +426,8 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # …and it is the usage-error class under --json, not a contract violation — the two share exit 1 (run 23, c2c DISS-C-002)
     run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --envelope \"$d/nope.json\" --json 2>/dev/null"
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.consistent == false and .usage_error == true and .violations == ["envelope file not found: \($ARGS.positional[0])"]' --args "$d/nope.json" >/dev/null
+    # (--arg, never jq 1.6's --args/$ARGS: verdict-derive itself runs on jq 1.5 — twenty-ninth run, c2c DISS-C-001)
+    echo "$output" | jq -e --arg p "$d/nope.json" '.consistent == false and .usage_error == true and .violations == ["envelope file not found: \($p)"]' >/dev/null
     printf 'not json' > "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
@@ -1149,4 +1150,30 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
         [ "$status" -eq 1 ] || { echo "displaced $disp: rc $status: $output"; return 1; }
         [[ "$output" == *"declares type review for gate audit"* ]] || { echo "displaced $disp: $output"; return 1; }
     done
+    # the snapshot columns themselves, same gate: the displaced warning names each value where it stands, an empty one as `-`
+    # (twenty-ninth run, c2d DISS-C-001: the refusal above proves only the type column)
+    local want
+    for disp in '{"findings":2,"status":"","timestamp":"2026-09-25T00:00:00Z"}|status -, timestamp 2026-09-25T00:00:00Z' \
+                '{"findings":2,"status":"clean","timestamp":""}|status clean, timestamp -' '{"findings":2,"status":"","timestamp":""}|status -, timestamp -'; do
+        want=${disp#*|}; disp=${disp%%|*}
+        jq -n --argjson dp "$disp" '{findings: [], metadata: {type: "audit", status: "fallback", recorded_by: "record-fallback", displaced: $dp, rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-audit.json"
+        run bash -c "\"$SCRIPT\" --file \"$d/auditor-sprint-feedback.md\" --gate audit --envelope \"$d/adversarial-audit.json\" --json 2>/dev/null"
+        echo "$output" | jq -e --arg w "displaced an envelope with 2 findings ($want; now .prev)" '[.warnings[] | select(contains($w))] | length == 1' >/dev/null \
+            || { echo "displaced $disp: want '$want': $output"; return 1; }
+        echo "$output" | jq -e '[.violations[] | select(test("declares type"))] | length == 0' >/dev/null || { echo "same gate refused: $output"; return 1; }
+    done
+}
+
+@test "verdict-derive: --json is one schema — a usage error and a checked file publish the same keys, usage_error on both (twenty-ninth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s32"; mkdir -p "$d"
+    printf 'All good\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0}} -->\n' > "$d/engineer-feedback.md"
+    run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    local ok_keys; ok_keys=$(echo "$output" | jq -c 'keys')
+    echo "$output" | jq -e '.usage_error == false' >/dev/null || { echo "checked: $output"; return 1; }
+    run bash -c "\"$SCRIPT\" --file \"$d/nope.md\" --gate review --json 2>/dev/null"
+    [ "$status" -eq 1 ]
+    [ "$(echo "$output" | jq -c 'keys')" = "$ok_keys" ] || { echo "usage error keys $(echo "$output" | jq -c keys) vs $ok_keys"; return 1; }
+    echo "$output" | jq -e '.usage_error == true and .excluded == 0 and .excluded_confirmed == 0 and .envelope == null and .envelope_explicit == false' >/dev/null
 }

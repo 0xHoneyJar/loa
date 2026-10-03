@@ -40,8 +40,11 @@ setup() {
         # function set (same pre-source pattern as adversarial-review.bats).
         echo "source \"$repo_root/.claude/scripts/compat-lib.sh\""
         cat ext.sh
+        # (the filter's appends go through _adv_jq_pair — payloads on stdin, never argv: twenty-ninth run, a1 DISS-C-003)
+        sed -n '/^_adv_jq_pair() {/,/^}/p' "$script_path"
     } > filter-fns.sh
     source filter-fns.sh
+    [ "$(type -t _adv_jq_pair)" = function ] || { echo "setup: _adv_jq_pair was not extracted" >&2; return 1; }
 }
 
 teardown() {

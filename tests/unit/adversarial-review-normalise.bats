@@ -85,7 +85,7 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
         [[ "$p" =~ ^[0-9]+$ ]] || continue
         _sweep_alive "$p" && continue
         left=0
-        for d in "$a2a/$pre-$p" "$a2a/$pre-$p"-* "$a2a/$pre-$p".reap-*; do
+        for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do   # (one directory per marker, never a sibling — twenty-ninth run, c2a)
             [[ -e "$d" || -L "$d" ]] || continue
             [[ -d "$d" && ! -L "$d" ]] || { left=1; continue; }
             if [[ "$d" == *.reap-* ]]; then
@@ -108,10 +108,9 @@ teardown() {
     if [[ -n "${NORM_OWN_TMP:-}" && -d "$NORM_OWN_TMP" && "$(basename "$NORM_OWN_TMP")" == tmp.* ]]; then find "$NORM_OWN_TMP" -mindepth 1 -delete; rmdir "$NORM_OWN_TMP"; fi
     _sweep_stale_suite_dirs "$PROJECT_ROOT"/grimoires/loa/a2a sprint-norm
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
-    for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
-        [[ "$d" == */a2a/sprint-norm-* ]] || continue
-        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
-    done
+    # this test's directory only — never a sibling it did not make (twenty-ninth run, c2a; as c1a DISS-001)
+    d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
+    if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
 }
 _fake_repair_clock() {  # the repair budget reads _adv_repair_now: a file this test advances, never the wall clock (run 23, c2b DISS-C-001)
@@ -607,24 +606,41 @@ DF
     # DISS-C-001)
     local out
     out=$( _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"; grep -q ': main disabled for testing' <<<"$_src" || { echo "the main trailer sed matched nothing"; exit 1; }; eval "$_src"
-        local f g fns=" " clk; local -a todo=(process_findings)
-        while (( ${#todo[@]} )); do
-            f="${todo[0]}"; todo=("${todo[@]:1}")
-            [[ "$fns" == *" $f "* ]] && continue
-            fns+="$f "; [[ "$f" == _adv_repair_now ]] && continue
-            for g in $(declare -f "$f" | tail -n +2 | grep -oE '[A-Za-z_][A-Za-z0-9_]*' | LC_ALL=C sort -u); do
-                [[ "$fns" != *" $g "* ]] && declare -F "$g" >/dev/null 2>&1 && todo+=("$g")
+        local fns
+        _nrm22_walk() {  # <root> → the space-padded set of functions reachable from it (the seam's body is not walked)
+            local f g; local -a todo=("$1"); fns=" "
+            while (( ${#todo[@]} )); do
+                f="${todo[0]}"; todo=("${todo[@]:1}")
+                [[ "$fns" == *" $f "* ]] && continue
+                fns+="$f "; [[ "$f" == _adv_repair_now ]] && continue
+                # (any name bash accepts for a function — a::b, a.b, a-b — as well as identifier words: twenty-ninth run, c2b DISS-C-001)
+                for g in $(declare -f "$f" | tail -n +2 | grep -oE '[A-Za-z_][A-Za-z0-9_:.-]*|[A-Za-z_][A-Za-z0-9_]*' | LC_ALL=C sort -u); do
+                    [[ "$fns" != *" $g "* ]] && declare -F "$g" >/dev/null 2>&1 && todo+=("$g")
+                done
             done
-        done
+        }
+        _nrm22_clocks() {  # the functions of $fns that read a raw clock
+            local f clk
+            for f in $fns; do
+                [[ "$f" == _adv_repair_now ]] && continue
+                # (SECONDS as a word: $SECONDS, a bare `SECONDS=0` reset, `(( SECONDS - t ))` — twenty-ninth run, c2b DISS-C-001)
+                clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|(^|[^A-Za-z0-9_])SECONDS([^A-Za-z0-9_]|$)') || true
+                [ "$clk" = "0" ] || echo "CLOCK $f ($clk)"
+            done
+        }
+        # the scan's own negative pin: a reset, an arithmetic read, behind a callee whose name is no identifier word
+        _nrm22_x() { _nrm22::reset; _nrm22.read; _nrm22-tick; }
+        _nrm22::reset() { SECONDS=0; }; _nrm22.read() { (( SECONDS > 1 )); }; _nrm22-tick() { let "t = SECONDS"; }
+        _nrm22_walk _nrm22_x
+        echo "PIN$(_nrm22_clocks | tr '\n' ' ')"
+        _nrm22_walk process_findings
         echo "FNS$fns"
-        for f in $fns; do
-            [[ "$f" == _adv_repair_now ]] && continue
-            clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|\$\{?SECONDS') || true
-            [ "$clk" = "0" ] || echo "CLOCK $f ($clk)"
-        done
+        _nrm22_clocks
         declare -f _repair_finding_via_model | grep -qE 'REPAIR_CANARY|repair-calls' && echo "STUBBED" || true ) || { echo "the clock scan did not run"; return 1; }
     if grep -q '^STUBBED' <<<"$out"; then echo "the walk saw the stub, not the production repair"; return 1; fi
     output=$out
+    pin=$(grep '^PIN' <<<"$output")
+    [[ "$pin" == *"CLOCK _nrm22::reset "* && "$pin" == *"CLOCK _nrm22.read "* && "$pin" == *"CLOCK _nrm22-tick "* ]] || { echo "the scan misses a clock spelling or a callee name: $pin"; return 1; }
     fns=$(grep '^FNS' <<<"$output"); fns=" ${fns#FNS}"
     [[ "$fns" == *" _adv_hop_charge "* && "$fns" == *" _adv_repair_now "* && "$fns" == *" _adv_cli_hop_bound "* ]]   # (the scan sees the budget helpers, and a callee's callee)
     [[ "$fns" == *" _repair_finding_via_model "* ]]
@@ -965,11 +981,12 @@ DF
     local a="$TEST_DIR/a2a" d1 d2
     ( : ) & d1=$!; wait "$d1"
     ( : ) & d2=$!; wait "$d2"
-    mkdir -p "$a/sprint-norm-$d1" "$a/sprint-norm-$d2/x" "$a/sprint-norm-$d2.reap-$d1"
+    mkdir -p "$a/sprint-norm-$d1" "$a/sprint-norm-$d2/x" "$a/sprint-norm-$d2-x" "$a/sprint-norm-$d2.reap-$d1"
     : > "$a/.sprint-norm-$d2.owner"
     _sweep_stale_suite_dirs "$a" sprint-norm
     [ -d "$a/sprint-norm-$d1" ]
     [ ! -e "$a/sprint-norm-$d2" ]
+    [ -d "$a/sprint-norm-$d2-x" ]                     # a sibling the marker does not name stays (twenty-ninth run, c2a)
     [ ! -e "$a/sprint-norm-$d2.reap-$d1" ]
     [ ! -e "$a/.sprint-norm-$d2.owner" ]
     [ -f "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner" ]
@@ -1049,20 +1066,30 @@ DF
 @test "NRM-42 the teardowns delete only real directories of their own: a symlink at an own-dir path is never followed nor fails the teardown — the sweep's rule, in every suite (twenty-seventh run, c2a DISS-C-002)" {
     local a2a="$PROJECT_ROOT/grimoires/loa/a2a" lnk tgt="$TEST_DIR/link-target" rc s
     mkdir -p "$tgt" "$a2a"; : > "$tgt/keep"
-    lnk="$a2a/${SPRINT}-lnk"; ln -s "$tgt" "$lnk"
-    # (twenty-eighth run, c2b DISS-C-002: a real directory under the same own-dir glob — its removal proves the link's path was a
-    # candidate, so the kept target is the link rule's doing and not a glob that never reached it)
-    mkdir -p "$a2a/${SPRINT}-real/sub"; : > "$a2a/${SPRINT}-real/sub/f"
+    # (the link sits AT the own-dir path — the one path teardown deletes; twenty-ninth run, c2a: a sibling is never a candidate)
+    if [[ -d "$a2a/$SPRINT" && ! -L "$a2a/$SPRINT" ]]; then find "$a2a/$SPRINT" -mindepth 1 -delete; rmdir "$a2a/$SPRINT"; fi
+    lnk="$a2a/$SPRINT"; ln -s "$tgt" "$lnk"
     # (as bats runs it: errexit live — a subshell left of `||` would ignore it, so a background job is waited for)
     rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
     command rm -f -- "$lnk"
     [ "$rc" -eq 0 ] || { echo "a symlinked own-dir path failed the teardown (rc $rc)"; return 1; }
     [ -e "$tgt/keep" ]
-    [ ! -e "$a2a/${SPRINT}-real" ] || { echo "the sweep never reached the ${SPRINT}-* paths: the link leg proves nothing"; return 1; }
+    # (twenty-eighth run, c2b DISS-C-002: a real own directory is removed — the path was a candidate, so the kept target is the
+    # link rule's doing; twenty-ninth run, c2a: a real sibling <sprint>-x the suite never made stays, as c1a DISS-001 ruled)
+    mkdir -p "$a2a/$SPRINT/sub" "$a2a/${SPRINT}-sib/sub"; : > "$a2a/$SPRINT/sub/f"; : > "$a2a/${SPRINT}-sib/sub/f"
+    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    : > "$a2a/.$SPRINT.owner"
+    [ -e "$a2a/${SPRINT}-sib/sub/f" ] || { echo "teardown deleted a sibling it never made"; return 1; }
+    find "$a2a/${SPRINT}-sib" -mindepth 1 -delete; rmdir "$a2a/${SPRINT}-sib"
+    [ "$rc" -eq 0 ]
+    [ ! -e "$a2a/$SPRINT" ] || { echo "teardown never reached its own directory: the link leg proves nothing"; return 1; }
     for s in normalise companion schema-enforced; do
         if grep -qE 'if \[\[ -d "\$d" \]\]; then find' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s follows -d alone"; return 1; fi
         # (twenty-eighth run, c1a DISS-C-001: any -d-only guard — the companion's kept-workdir sweep in a world-writable TMPDIR too)
         if grep -nE -- '-d "\$d" *\]\]' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s: a sweep guards with -d alone"; return 1; fi
+        # (twenty-ninth run, c2a: no teardown or sweep globs a sibling of its own sprint directory)
+        # (an a2a sprint path or the sweep's <prefix>-<pid>; the companion's TMPDIR adversarial-<sprint>-* are mktemp's own workdirs)
+        if grep -nE 'a2a/\$\{?SPRINT\}?"-\*|\$pre-\$p"-\*' "$BATS_TEST_DIRNAME/adversarial-review-$s.bats"; then echo "$s: a sibling glob"; return 1; fi
     done
 }
 
@@ -1087,24 +1114,93 @@ DF
 @test "NRM-44 the CLI hop bound reads every catalog timeout as cheval's adapter does — an exponent, a decimal, a padded or digit-grouped string — and never falls below cheval's own bound (twenty-eighth run, d DISS-C-001)" {
     command -v yq >/dev/null 2>&1 || skip "yq is required"
     python3 -c 'import yaml' 2>/dev/null || skip "PyYAML is required"
-    local cat="$TEST_DIR/cat-44.yaml" v ct rt b py
+    local cat v ct rt b py i=0 n
+    # (the 135 catalogs are written first and cheval's bound for all of them is read by ONE python3 — never two interpreters per
+    # case: twenty-ninth run, c2b DISS-C-002)
+    : > "$TEST_DIR/cats-44"
     for v in 900 900.5 9e2 '"9e2"' '" 900 "' '"1_000"' 1.2e3 '".5e3"' 0 -5 '"x"' '"nan"' '"inf"' 99999 '"1__0"'; do
         for ct in 10 30.5 '"3e1"'; do
             for rt in 120 '"7e2"' 650.25; do
+                cat="$TEST_DIR/cat-44-$(( i++ )).yaml"
                 printf 'providers:\n  anthropic:\n    connect_timeout: %s\n    read_timeout: %s\n    models:\n      claude-headless:\n        headless_timeout_seconds: %s\n' "$ct" "$rt" "$v" > "$cat"
-                b=$(LOA_MODEL_CONFIG="$cat" _adv_cli_hop_bound claude-headless)
-                py=$(cd "$PROJECT_ROOT/.claude/adapters" && python3 -c '
-import sys, yaml
-from loa_cheval import types as t
-p = yaml.safe_load(open(sys.argv[1]))["providers"]["anthropic"]
-u = t.usable_headless_timeout(p["models"]["claude-headless"]["headless_timeout_seconds"])
-read = t.headless_read_floor(p["read_timeout"])
-if u is not None: read = max(read, min(u, t.HEADLESS_TIMEOUT_CEILING_SECONDS))
-print(t.headless_connect_floor(p["connect_timeout"]) + read)' "$cat")
-                # at or above cheval's own bound, by under one second per rounded term
-                python3 -c 'import sys; b, p = float(sys.argv[1]), float(sys.argv[2]); sys.exit(0 if p <= b < p + 2 else 1)' "$b" "$py" \
-                    || { echo "v=$v ct=$ct rt=$rt: the script bounds the hop at $b, cheval at $py"; return 1; }
+                printf '%s\tv=%s ct=%s rt=%s\n' "$cat" "$v" "$ct" "$rt" >> "$TEST_DIR/cats-44"
             done
         done
     done
+    (cd "$PROJECT_ROOT/.claude/adapters" && python3 -c '
+import sys, yaml
+from loa_cheval import types as t
+for line in open(sys.argv[1]):
+    path = line.split("\t", 1)[0]
+    p = yaml.safe_load(open(path))["providers"]["anthropic"]
+    u = t.usable_headless_timeout(p["models"]["claude-headless"]["headless_timeout_seconds"])
+    read = t.headless_read_floor(p["read_timeout"])
+    if u is not None: read = max(read, min(u, t.HEADLESS_TIMEOUT_CEILING_SECONDS))
+    print(t.headless_connect_floor(p["connect_timeout"]) + read)' "$TEST_DIR/cats-44") > "$TEST_DIR/py-44"
+    [ "$(grep -c '' "$TEST_DIR/py-44")" = "$i" ] || { echo "cheval's bounds: $(grep -c '' "$TEST_DIR/py-44") of $i"; return 1; }
+    n=0
+    while IFS=$'\t' read -r cat v <&5 && read -r py <&6; do
+        b=$(LOA_MODEL_CONFIG="$cat" _adv_cli_hop_bound claude-headless)
+        # at or above cheval's own bound, by under one second per rounded term
+        awk -v b="$b" -v p="$py" 'BEGIN { exit !(b ~ /^[0-9]+$/ && p + 0 <= b + 0 && b + 0 < p + 2) }' \
+            || { echo "$v: the script bounds the hop at $b, cheval at $py"; return 1; }
+        n=$(( n + 1 ))
+    done 5< "$TEST_DIR/cats-44" 6< "$TEST_DIR/py-44"
+    [ "$n" = "$i" ]
+}
+
+@test "NRM-45 a rejected_summary row is a bounded, typed surface: a title is a capped control-free string, an explicit id stands in for one only when it is a safe token, and an anchor is always a capped string (twenty-ninth run, a1 DISS-C-002)" {
+    local doc="$TEST_DIR/doc-45.json"
+    jq -nc '{findings: [
+      {title: ("Long\u0007\u001b[31m" + ("t" * 5000)), category: "config", location: ["x.sh", 1], description: "Fails."},
+      {id: ("bad id\u0007" + ("i" * 300)), category: "config", location: {file: ("f\u0001" + ("p" * 2000)), anchor: "a"}, description: "Fails."}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.metadata.rejected_summary | length' <<<"$result")" = "2" ]
+    rs=$(jq -c '.metadata.rejected_summary' <<<"$result")
+    # every title and anchor is a string or null, at most 160 / 256 characters, with no control character
+    jq -e 'all(.[]; ((.title | type) as $t | $t == "string" or $t == "null") and ((.anchor | type) as $a | $a == "string" or $a == "null"))' <<<"$rs" >/dev/null || { echo "$rs" | cut -c1-400; return 1; }
+    jq -e 'all(.[]; ((.title // "") | length) <= 160 and ((.anchor // "") | length) <= 256)' <<<"$rs" >/dev/null || { jq -c 'map({t: (.title|length), a: (.anchor|length)})' <<<"$rs"; return 1; }
+    if jq -r '.[] | .title, .anchor, .description_head' <<<"$rs" | LC_ALL=C grep -q $'[\x01-\x08\x0b-\x1f\x7f]'; then echo "a control character surfaced"; return 1; fi
+    [[ "$(jq -r '.[0].title' <<<"$rs")" == Long* ]]
+    [ "$(jq -r '.[0].title_derived' <<<"$rs")" = "false" ]
+    [ "$(jq -r '.[0].anchor' <<<"$rs")" = '["x.sh",1]' ]
+    # the unsafe explicit id never surfaces: the row's title is the normaliser's id, marked derived
+    if jq -r '.[1].title' <<<"$rs" | grep -q 'bad id'; then echo "the raw unsafe id surfaced"; return 1; fi
+    [[ "$(jq -r '.[1].title' <<<"$rs")" =~ ^DISS-([A-Z]-)?[0-9]+$ ]] || { jq -r '.[1].title' <<<"$rs"; return 1; }
+    [ "$(jq -r '.[1].title_derived' <<<"$rs")" = "true" ]
+}
+
+@test "NRM-46 no payload-sized value reaches jq on argv: a review whose findings total over one argv string (MAX_ARG_STRLEN, 128 KiB), one finding over it, and a repair of a payload over it all complete (twenty-ninth run, a1 DISS-C-003)" {
+    head -c 3000 /dev/zero | tr '\0' 'x' > "$TEST_DIR/d3k.txt"
+    head -c 200000 /dev/zero | tr '\0' 'y' > "$TEST_DIR/d200k.txt"
+    # sixty findings of 3 KB: each is small, the set is not
+    jq -nc --rawfile d "$TEST_DIR/d3k.txt" '{findings: [range(60) as $k | {title: "many \($k)", severity: "LOW", category: "other", location: "x.sh:\($k + 1)", description: ("Fails. " + $d)}]}' > "$TEST_DIR/many.json"
+    env_json=$(jq -nc --rawfile c "$TEST_DIR/many.json" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err-many")
+    [ "$(jq '.findings | length' <<<"$result")" = "60" ] || { echo "sixty findings over 128 KiB in all: $(jq '.findings | length' <<<"$result" 2>&1)"; tail -3 "$TEST_DIR/err-many"; return 1; }
+    # one finding of 200 KB
+    jq -nc --rawfile d "$TEST_DIR/d200k.txt" '{findings: [{title: "huge", severity: "LOW", category: "other", location: "x.sh:1", description: ("Fails. " + $d)}]}' > "$TEST_DIR/one.json"
+    env_json=$(jq -nc --rawfile c "$TEST_DIR/one.json" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err-one")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ] || { echo "one 200 KB finding: $(jq '.findings | length' <<<"$result" 2>&1)"; tail -3 "$TEST_DIR/err-one"; return 1; }
+    [ "$(jq -r '.findings[0].description | length' <<<"$result")" -gt 200000 ]
+    # a 200 KB payload missing its severity, repaired by the model changing that field only: the repair is accepted
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-none"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    _repair_finding_via_model() { printf '%s' "$1" | jq -c '. + {severity: "LOW"}'; }
+    jq -nc --rawfile d "$TEST_DIR/d200k.txt" '{findings: [{title: "huge", category: "other", location: "x.sh:1", description: ("Fails. " + $d)}]}' > "$TEST_DIR/rep.json"
+    env_json=$(jq -nc --rawfile c "$TEST_DIR/rep.json" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err-rep") || { cut -c1-300 "$TEST_DIR/err-rep" | tail -5; return 1; }
+    [ "$(jq '.metadata.repaired_count' <<<"$result")" = "1" ] || { echo "a 200 KB repair: repaired_count $(jq '.metadata.repaired_count' <<<"$result" 2>&1)"; tail -3 "$TEST_DIR/err-rep"; return 1; }
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq -r '.findings[0].severity' <<<"$result")" = "LOW" ]
+    # the helper reads exactly two values — one short or one over is an error, never a misread pair
+    [ "$(_adv_jq_pair '[1]' '2' '$a + [$b]' -c)" = "[1,2]" ]
+    if _adv_jq_pair '[1]' '' '$a' >/dev/null 2>&1; then echo "one value read as a pair"; return 1; fi
+    if _adv_jq_pair '[1]' '2 3' '$a' >/dev/null 2>&1; then echo "three values read as a pair"; return 1; fi
+    # and no payload-sized variable is passed to jq on argv anywhere in the script
+    if grep -nE -- '--(argjson|arg|rawfile) [A-Za-z_]+ "\$(finding|finding_json|candidate|repaired|original|validated|validated_findings|accepted_finding|filtered|rejected_summary|raw|raw_response|content|result|merged)"' "$ADVERSARIAL_REVIEW"; then
+        echo "a payload passed on argv"; return 1
+    fi
 }

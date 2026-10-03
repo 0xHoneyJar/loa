@@ -119,8 +119,12 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert coerce_headless_timeout_seconds(7200, where="p/m: ") == 3600.0
         assert "p/m: headless_timeout_seconds 7200 clamped to 3600s" in caplog.text
         assert caplog.text.count("headless_timeout_seconds") == 1
-    # no headless subclass overrides the base timeout (d C-004)
-    assert "_compute_timeout" not in type(adapter).__dict__
+    # no headless subclass overrides the base timeout (d C-004) — nor any intermediate class between it and the base, the MRO
+    # walked as the ceiling check above walks it (twenty-ninth run, c2e DISS-C-002)
+    from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+    mro = type(adapter).__mro__
+    assert HeadlessCLIAdapter in mro and "_compute_timeout" in vars(HeadlessCLIAdapter)
+    assert [k.__name__ for k in mro[:mro.index(HeadlessCLIAdapter)] if "_compute_timeout" in vars(k)] == []
 
 
 def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
@@ -305,7 +309,10 @@ def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
     assert headless_timeout_note(None, None, None) is None
     assert headless_timeout_note(900, 900, 900.0) is None                       # applied as written
     assert headless_timeout_note("900", "900", 900.0) is None                   # a quoted number applies as written
-    assert headless_timeout_note(900, None, None) == "catalog headless_timeout_seconds 900 not applied: CLI models only"
+    # a value the CLI-only gate dropped carries no note: only a headless adapter reads one, and a dropped model never runs on
+    # one — the loader's WARNING is that case's report (twenty-ninth run, d DISS-C-001)
+    assert headless_timeout_note(900, None, None) is None
+    assert headless_timeout_note("15m", None, None) is None
     assert headless_timeout_note("15m", "15m", None) == "catalog headless_timeout_seconds '15m' ignored: not a positive finite number of seconds"
     assert headless_timeout_note(True, True, None) == "catalog headless_timeout_seconds True ignored: not a positive finite number of seconds"
     assert headless_timeout_note(7200, 7200, 3600.0) == "catalog headless_timeout_seconds 7200 clamped to 3600s"
@@ -327,7 +334,10 @@ def test_headless_timeout_note_is_durable(caplog, tmp_path, monkeypatch):
     assert pc.models["bad"].headless_timeout_seconds is None
     assert pc.models["big"].headless_timeout_note == "catalog headless_timeout_seconds 7200 clamped to 3600s"
     assert pc.models["big"].headless_timeout_seconds == 3600.0
-    assert pc.models["http"].headless_timeout_note == "catalog headless_timeout_seconds 900 not applied: CLI models only"
+    # a value dropped on a non-CLI model: no note (no headless adapter reads it), the loader's WARNING is its report
+    # (twenty-ninth run, d DISS-C-001)
+    assert pc.models["http"].headless_timeout_note is None and pc.models["http"].headless_timeout_seconds is None
+    assert "p/http: headless_timeout_seconds 900 applies to CLI models only" in caplog.text
     # a positive value the read floor overrides is not applied either — it says so (nineteenth run, d C-001)
     assert pc.models["low"].headless_timeout_note == "catalog headless_timeout_seconds 300 at or below the 600s read floor: the floor applies"
     assert pc.models["low"].headless_timeout_seconds == 300.0

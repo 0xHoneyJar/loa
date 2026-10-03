@@ -12,7 +12,7 @@ br sync --import-only  # Import latest state from JSONL
 ### Recording Review Feedback
 ```bash
 # Add review comment to task
-br comments add <task-id> "REVIEW: [feedback summary]"
+br comments add <task-id> "REVIEW: [verdict] - grimoires/loa/a2a/sprint-N/engineer-feedback.md"
 
 # Mark task status based on review outcome
 br label add <task-id> review-approved     # If approved
@@ -30,3 +30,6 @@ br label add <task-id> needs-revision       # If changes required
 ```bash
 br sync --flush-only  # Export SQLite → JSONL before commit
 ```
+
+### Agent Teams
+A teammate runs no `br` command: it reports the result to the lead via SendMessage, and the lead runs it. A comment carries the verdict and the feedback file's path only — never finding text or code.

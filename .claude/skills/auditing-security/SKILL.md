@@ -3,7 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync *), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *)
 # Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -19,7 +19,9 @@ capabilities:
       - command: ".claude/scripts/adversarial-review.sh"
         args: ["*"]
       - command: "br"
-        args: ["sync", "*"]
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
       - command: "br"
         args: ["comments", "add", "*"]
       - command: "br"
@@ -157,7 +159,7 @@ Read the actual implementation (never documentation alone) and cross-reference t
 
 ## Phase 0: Prerequisites Check
 
-Sprint audit: `grimoires/loa/a2a/sprint-N/` exists and its `engineer-feedback.md` says "All good"; otherwise STOP: "Sprint must be approved by senior lead before security audit". Deployment audit: `grimoires/loa/deployment/` exists; read `deployment-report.md` for context if present. Codebase audit: no prerequisites.
+Sprint audit: `grimoires/loa/a2a/sprint-N/` exists and its `engineer-feedback.md` says "All good"; otherwise STOP: "Sprint must be approved by senior lead before security audit". With `flatline_protocol.code_review.enabled: true`, its `adversarial-review.json` must carry `metadata.model` (the gate's `COMPLETED` check); otherwise STOP: re-run the review's Phase 2.5. Deployment audit: `grimoires/loa/deployment/` exists; read `deployment-report.md` for context if present. Codebase audit: no prerequisites.
 
 ## Phase 0.5: Scope Analysis
 
@@ -255,7 +257,7 @@ Score each dimension 1–5 per `resources/RUBRICS.md` (Security weighted highest
 <structured_output>
 ## Structured JSONL Output
 
-Alongside the markdown report, write machine-parseable findings to `grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl` per the schema in `resources/OUTPUT-SCHEMA.md`. Each `reasoning_trace` states what was analyzed, the triggering pattern, the evidence chain from input to vulnerability, and the scoring rationale; append a summary record after the findings.
+Alongside the markdown report, write machine-parseable findings to `grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl` per `resources/OUTPUT-SCHEMA.md` (the schema, each `reasoning_trace`, the closing summary record).
 </structured_output>
 
 <communication_style>
@@ -273,7 +275,7 @@ Complete checklists for the five categories (Security, Architecture, Code Qualit
 </checklists>
 
 <beads_workflow>
-When `br` is installed, see `resources/BEADS-WORKFLOW.md` for the sync commands, the audit comment, the `security` / `security-approved` / `security-blocked` labels and logging a discovered vulnerability; protocol: `.claude/protocols/beads-integration.md`.
+With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the audit comment, the `security*` labels, a discovered vulnerability).
 </beads_workflow>
 
 <retrospective_postlude>

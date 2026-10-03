@@ -42,10 +42,9 @@ teardown() {
     # (twenty-eighth run, c2e DISS-C-001: never without this suite's own sprint id — an empty SPRINT made the first path the a2a
     # root itself, gitignored and unrecoverable; and every path is checked to be one of this suite's own)
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-fr7-* && -n "${PROJECT_ROOT:-}" ]] || return 0
-    for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
-        [[ "$d" == */a2a/sprint-fr7-* ]] || continue
-        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
-    done
+    # this test's directory only — never a sibling it did not make (twenty-ninth run, c2a; as c1a DISS-001)
+    d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
+    if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
 }
 
 _env() {  # <content> [schema_enforced] [stop_reason]
@@ -217,6 +216,16 @@ SHIM
         [ "$rc" -eq 0 ] || { echo "SPRINT='$s': the teardown failed (rc $rc)"; return 1; }
         [ -e "$root/grimoires/loa/a2a/sprint-1/keep" ] || { echo "SPRINT='$s': the teardown deleted a record that is not its own"; return 1; }
     done
+    # its own id reaches the delete: a link there is never followed, a sibling never taken, the real directory removed
+    # (twenty-ninth run, c2e DISS-C-001: the legs above all stop at the id guard)
+    local a="$root/grimoires/loa/a2a"
+    ln -s "$a/sprint-1" "$a/sprint-fr7-probe"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] && [ -e "$a/sprint-1/keep" ] && [ -L "$a/sprint-fr7-probe" ] || { echo "a link at the own path (rc $rc)"; return 1; }
+    command rm -f -- "$a/sprint-fr7-probe"
+    mkdir -p "$a/sprint-fr7-probe/sub" "$a/sprint-fr7-probe-x"; : > "$a/sprint-fr7-probe/sub/f"; : > "$a/sprint-fr7-probe-x/keep"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] && [ ! -e "$a/sprint-fr7-probe" ] && [ -e "$a/sprint-fr7-probe-x/keep" ] || { echo "the own directory or a sibling (rc $rc)"; return 1; }
     # setup names the sprint before anything that can fail
     [ "$(awk '/^setup\(\) \{/{getline; print; exit}' "$BATS_TEST_FILENAME")" = '    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)' ]
 }

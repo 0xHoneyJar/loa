@@ -182,8 +182,9 @@ class ModelConfig:
     # here is the EFFECTIVE one — coerce_headless_timeout_seconds clamps it to HEADLESS_TIMEOUT_CEILING_SECONDS
     # at load, so every reader (the adapter, adversarial-review.sh's wait cap) sees the same bound.
     headless_timeout_seconds: Optional[float] = None
-    # sixteenth run, d C-001: when the raw catalog value was NOT applied as written (dropped on a non-CLI model, unusable,
-    # or clamped) the loader's verdict in one line. The load-time WARNING is one-shot on stderr, which the dissent path
+    # sixteenth run, d C-001: when the raw catalog value was NOT applied as written (unusable, clamped, or under the read
+    # floor) the loader's verdict in one line — a value dropped on a non-CLI model has none: no headless adapter ever reads
+    # that model's config, so its report is the load-time WARNING alone (twenty-ninth run, d DISS-C-001). The load-time WARNING is one-shot on stderr, which the dissent path
     # discards; the adapter appends this to its timeout error instead, so the MODELINV row and the companion diagnostic
     # say why the hop ran on the 600 s floor. None when there was no value or it applied as written.
     headless_timeout_note: Optional[str] = None
@@ -273,11 +274,11 @@ def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float], floo
     """One durable line when a catalog `headless_timeout_seconds` was NOT applied as written (sixteenth run, d C-001):
     `raw` is the catalog value, `gated` what the CLI-only gate let through, `effective` what the coercion stored, `floor`
     the provider's read floor (max(read_timeout, 600)) — a value at or below it is not applied either: the floor wins
-    (nineteenth run, d C-001). None when there was no value, or it applied as written."""
-    if raw is None:
+    (nineteenth run, d C-001). None when there was no value, or it applied as written — and when the CLI-only gate dropped
+    it: only a headless adapter reads the note, and a dropped model never runs on one, so the loader's one-shot WARNING is
+    that case's report (twenty-ninth run, d DISS-C-001)."""
+    if raw is None or gated is None:
         return None
-    if gated is None:
-        return f"catalog headless_timeout_seconds {raw!r} not applied: CLI models only"
     if effective is None:
         return f"catalog headless_timeout_seconds {raw!r} ignored: not a positive finite number of seconds"
     usable = usable_headless_timeout(raw)

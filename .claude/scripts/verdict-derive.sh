@@ -100,9 +100,11 @@ TRAILER_CANON='^<!-- LOA-VERDICT \{.*\} -->$'
 usage_error() {  # <message>
     echo "Error: $1" >&2
     if [[ "${JSON_OUTPUT:-false}" == "true" ]]; then
+        # (twenty-ninth run, b1 DISS-C-001: emit_json's keys, in its order — one --json schema on every path)
         jq -n --arg e "$1" --arg f "${FILE:-}" --arg g "${GATE:-}" \
-          '{file: $f, gate: $g, trailer_found: false, verdict: null, counts: null, consistent: false,
-            usage_error: true, violations: [$e], warnings: [], exit_code: 1}'
+          '{file: $f, gate: $g, trailer_found: false, verdict: null, counts: null, excluded: 0, excluded_confirmed: 0,
+            consistent: false, usage_error: true, violations: [$e], warnings: [], envelope: null, envelope_explicit: false,
+            exit_code: 1}'
     fi
     exit 1
 }
@@ -418,7 +420,7 @@ emit_json() {
         '{file: $file, gate: $gate, trailer_found: $trailer_found,
           verdict: (if $verdict == "" then null else $verdict end),
           counts: $counts, excluded: $excluded, excluded_confirmed: $excluded_confirmed,
-          consistent: $consistent, violations: $violations, warnings: $warnings,
+          consistent: $consistent, usage_error: false, violations: $violations, warnings: $warnings,
           envelope: (if $envelope == "" then null else $envelope end), envelope_explicit: $envelope_explicit,
           exit_code: $exit_code}'
 }

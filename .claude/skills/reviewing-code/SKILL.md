@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(br sync *), Bash(br comments add *), Bash(br label add *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
 disallowed-tools:
   - NotebookEdit
@@ -25,7 +25,9 @@ capabilities:
       - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
       - command: "br"
-        args: ["sync", "*"]
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
       - command: "br"
         args: ["comments", "add", "*"]
       - command: "br"
@@ -204,7 +206,7 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and add the output as advisory context (the criteria and code stay primary); none is a no-op.
+5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only, no prose) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
@@ -273,7 +275,7 @@ Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocki
 </subagent_report_check>
 
 <checklists>
-Complete checklists and the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries): `resources/REFERENCE.md`.
+Complete checklists, the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and the optional Mermaid standards: `resources/REFERENCE.md`.
 </checklists>
 
 <complexity_review>
@@ -285,10 +287,6 @@ Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Compl
 <beads_workflow>
 With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
-
-<visual_communication>
-Mermaid diagrams are optional in feedback — standards and format: see `resources/REFERENCE.md` §Visual Communication.
-</visual_communication>
 
 <retrospective_postlude>
 <!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->

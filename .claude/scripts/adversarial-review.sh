@@ -435,8 +435,9 @@ _write_rejected_sidecar() {
 
   [[ -n "$sidecar_path" ]] || return 0
 
-  jq -nc \
-    --argjson f "$finding" \
+  # (twenty-ninth run, a1 DISS-C-003: the payload on stdin, never argv — one over MAX_ARG_STRLEN (128 KiB) failed jq with E2BIG
+  # and its sidecar row, the triage record, was dropped unsaid)
+  printf '%s' "$finding" | jq -nc \
     --arg r "${reject_reason:-unknown-reason}" \
     --argjson idx "$index" \
     --arg sid "$sprint_id" \
@@ -448,13 +449,21 @@ _write_rejected_sidecar() {
     --arg se "$schema_enforced" \
     --arg pp "$parse_path" \
     --arg sr "$stop_reason" \
-    '{ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}
+    'input as $f | {ts_utc: $ts, sprint_id: $sid, type: $t, model: $m, index: $idx, reject_reason: $r, payload: $f}
      + (if $ra == "" then {} else {repair_attempted: ($ra == "true")} end)
      + (if $rs == "" then {} else {repair_succeeded: ($rs == "true")} end)
      + (if $se == "" then {} else {schema_enforced: ($se == "true")} end)
      + (if $pp == "" then {} else {parse_path: $pp} end)
      + (if $sr == "" then {} else {stop_reason: $sr} end)' \
     >> "$sidecar_path" 2>/dev/null || true
+}
+
+# _adv_jq_pair <a json> <b json> <filter over $a and $b> [jq options…] — two payload-sized JSON values reach jq on stdin, never
+# argv: an argument over MAX_ARG_STRLEN (128 KiB) fails the exec with E2BIG (twenty-ninth run, a1 DISS-C-003 — a valid review whose
+# findings total over 128 KiB lost its envelope, a repair of a large payload read as a mutation). Exactly two values, or an error.
+_adv_jq_pair() {
+  local _a="$1" _b="$2" _flt="$3"; shift 3
+  printf '%s\n%s\n' "$_a" "$_b" | jq -n "$@" "[inputs] as \$_in | if (\$_in | length) != 2 then error(\"two values expected\") else (\$_in[0] as \$a | \$_in[1] as \$b | ($_flt)) end"
 }
 
 # =============================================================================
@@ -713,7 +722,9 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
         | (.value[0] | if type == "string" and test("^[!A-Za-z0-9._/:-]{1,64}$") then . else "unreadable" end) as $tg
         | if $tg == "!!str" and (.value[1] | type) == "string" and (.value[1] | test("^[A-Za-z0-9._/:-]{1,128}$"))
           then "\(.key) ok \(.value[1])" else "\(.key) drop \($tg)" end' 2>/dev/null) || rows=""
-  if (( n > 0 )) && [[ "$(grep -c '' <<<"$rows")" != "$n" ]]; then
+  # (twenty-ninth run, a1 DISS-C-001: `grep -c '' <<<""` is 1 — an empty read is no row, so a list of one whose pass failed is unreadable)
+  local _nr=0; [[ -z "$rows" ]] || _nr=$(grep -c '' <<<"$rows")
+  if (( n > 0 )) && [[ "$_nr" != "$n" ]]; then
     log "WARN: flatline_protocol.${1}.companion_chain.${2} could not be read — the default ${2} chain applies"; return 0
   fi
   while read -r i tg v; do
@@ -774,11 +785,12 @@ _repair_diff_ok() {
   # omits them (or a repair schema that forbids them) is still a repair of the violated field only
   # (twenty-seventh run, c2e DISS-C-003: a field the normaliser derived — `<f>_derived: true` — is its text, not the
   # dissenter's; a model that rewrites it mutated nothing the dissenter wrote, so it is free here and the caller restores it)
-  jq -e -n --argjson orig "$original" --argjson rep "$repaired" --arg af "$allowed_field" '
-    [("id", "failure_mode") | select($orig[. + "_derived"] == true) | [.]] as $free
+  _adv_jq_pair "$original" "$repaired" '
+    $a as $orig | $b as $rep
+    | [("id", "failure_mode") | select($orig[. + "_derived"] == true) | [.]] as $free
     | ($orig | del(.[$af], .id_derived, .failure_mode_derived) | delpaths($free))
       == ($rep | del(.[$af], .id_derived, .failure_mode_derived) | delpaths($free))
-  ' >/dev/null 2>&1
+  ' -e --arg af "$allowed_field" >/dev/null 2>&1
 }
 
 # _repair_finding_via_model <finding_json> <type> <violated_clause> <model> <timeout>
@@ -817,8 +829,8 @@ stated violation. Every other field MUST remain byte-identical to the
 input (do not add, remove, or rename any field).
 EOF
 
-  if ! jq -n --argjson f "$finding_json" --arg vc "$violated_clause" \
-      '{finding: $f, violated_clause: $vc}' > "$user_file" 2>/dev/null; then
+  if ! printf '%s' "$finding_json" | jq -n --arg vc "$violated_clause" \
+      'input as $f | {finding: $f, violated_clause: $vc}' > "$user_file" 2>/dev/null; then
     rm -rf "$workdir" 2>/dev/null || true
     return 1
   fi
@@ -1494,7 +1506,6 @@ while i < len(text):
   # twelfth run, a1 C-002: the run's repairs share a WALL-CLOCK budget too — up to three hops per payload, each bounded
   # by its own timeout or lock wait, no longer bounded the review's latency by ADV_REPAIR_MAX_PER_RUN alone
   local _repair_wall_started _repair_wall_budget _repair_wall_used=0 _rh _rb _rmax=0 _rmaxh=""
-  _repair_wall_budget=$(( ADV_REPAIR_MAX_PER_RUN * ${CONF_TIMEOUT:-60} * 2 ))
   # fourteenth run, a1 C-002: a CLI repair hop is bounded by cheval (headless_timeout_seconds + connect), not by the call
   # timeout — the default budget always fits one full CLI repair plus a timeout, and (below) a hop whose bound exceeds
   # what is left is not started
@@ -1508,12 +1519,7 @@ while i < len(text):
     _hb_memo+="$_rh $_rb"$'\n'
     (( _rb > _rmax )) && { _rmax=$_rb; _rmaxh="$_rh"; }
   done
-  # nineteenth run, a1 C-001: TWO full CLI repairs plus a timeout — with no duration noted for a failed hop (eighteenth run, a1
-  # C-003) one repair plus a timeout admitted a CLI hop only while under a minute had been spent: a one-repair cliff
-  (( _rmax * 2 + ${CONF_TIMEOUT:-60} > _repair_wall_budget )) && _repair_wall_budget=$(( _rmax * 2 + ${CONF_TIMEOUT:-60} ))
-  # (thirteenth run, a1 C-001: the operator knob is validated where it is read — a value that is not a whole number
-  # would break the arithmetic and then the envelope's --argjson; it is said once and the default applies)
-  [[ -n "${LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS:-}" ]] && _repair_wall_budget=$(_conf_uint "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$_repair_wall_budget" 1)   # (fifteenth run, a2 C-004: no leading zero — octal to bash)
+  _repair_wall_budget=$(_adv_repair_wall_for "$_rmax" "${CONF_TIMEOUT:-60}")
   # twenty-first run, a1 DISS-C-002: a pin below a hop's charge never admits that hop before it is observed — and a hop that is
   # never started is never observed — so it is said once, here, naming the heaviest hop (the per-hop line below is once per hop)
   if [[ -n "${LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS:-}" && -n "$_rmaxh" ]] && (( _repair_wall_budget < _rmax )) \
@@ -1588,7 +1594,7 @@ while i < len(text):
       # Run anchor validation
       local validated
       validated=$(validate_anchor "$candidate" "$type" "$diff_files")
-      validated_findings=$(echo "$validated_findings" | jq --argjson f "$validated" '. + [$f]')
+      validated_findings=$(_adv_jq_pair "$validated_findings" "$validated" '$a + [$b]')
     else
       local reject_reason
       reject_reason=$(_validate_finding_reason "$candidate" "$type")
@@ -1677,9 +1683,10 @@ while i < len(text):
             # ninth run, a1 C-003: the derivation markers are provenance — an accepted repair carries the
             # original's markers whatever the model echoed back
             # (twenty-seventh run, c2e DISS-C-003: and the derived values themselves — the model's rewrite of one is discarded)
-            repaired=$(jq -n --argjson o "$candidate" --argjson r "$repaired" --arg af "$violated_field" \
-              '$r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))
-               | reduce ("id", "failure_mode") as $k (.; if $o[$k + "_derived"] == true and $k != $af then .[$k] = $o[$k] else . end)' 2>/dev/null || echo "$repaired")
+            repaired=$(_adv_jq_pair "$candidate" "$repaired" \
+              '$a as $o | $b as $r | $r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))
+               | reduce ("id", "failure_mode") as $k (.; if $o[$k + "_derived"] == true and $k != $af then .[$k] = $o[$k] else . end)' \
+              --arg af "$violated_field" 2>/dev/null || echo "$repaired")
             # nineteenth run, a1 C-002: a repaired DESCRIPTION supplies the failure_mode the original could not (a whitespace-only
             # description derives nothing) — re-derived here, so the repair is not spent on a payload that stays empty
             if [[ "$violated_field" == "description" ]]; then
@@ -1707,7 +1714,7 @@ while i < len(text):
       fi
 
       if [[ "$repair_succeeded" == "true" ]]; then
-        validated_findings=$(echo "$validated_findings" | jq --argjson f "$accepted_finding" '. + [$f]')
+        validated_findings=$(_adv_jq_pair "$validated_findings" "$accepted_finding" '$a + [$b]')
         repaired_count=$((repaired_count + 1))
       else
         log "Rejected invalid finding at index $i: ${sidecar_reject_reason:-unknown-reason}"
@@ -1727,17 +1734,25 @@ while i < len(text):
           (($fraw | try fromjson catch $fraw) | if type == "object" then . else {description: tojson} end) as $f
           | (($raw | try fromjson catch $raw) | if type == "object" then . else {} end) as $o
           | def nz: if . == "" then null else . end;
-          . + [{
+          # (twenty-ninth run, a1 DISS-C-002: the row is a surface of an untrusted payload — a title is a capped string with
+          # no control character, an id stands in for one only as a safe token (the rule the renumbering above applies), and an
+          # anchor of any type is a capped string)
+          def clean($n): gsub("[\u0000-\u001f\u007f]"; " ") | .[0:$n];
+          def ttl: if type == "string" then clean(160) | nz else null end;
+          def sid: if type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else null end;
+          (($o.title | ttl) // ($o.id | sid)) as $own | (($f.title | ttl) // ($f.id | sid)) as $norm
+          | . + [{
           index: $idx,
           severity: ($f.severity // null),
-          title: (($o.title | nz) // ($o.id | nz) // ($f.title | nz) // ($f.id | nz) // null),
-          title_derived: (((($o.title | nz) // ($o.id | nz) // null) == null) and ((($f.title | nz) // ($f.id | nz) // null) != null)),
-          anchor: (if ($f.anchor // null) != null then $f.anchor
+          title: ($own // $norm),
+          title_derived: ($own == null and $norm != null),
+          anchor: ((if ($f.anchor // null) != null then $f.anchor
                    elif ($f.location | type) == "object" then "\($f.location.file // "")#\($f.location.anchor // "")"
                    elif ($f.location // null) != null then $f.location
-                   else ($f.stable_anchor // null) end),
+                   else ($f.stable_anchor // null) end)
+                   | if . == null then null else (if type == "string" then . else tojson end | clean(256)) end),
           reason: $r,
-          description_head: (($f.description // "") | tostring | .[0:160])
+          description_head: (($f.description // "") | tostring | clean(160))
         }]' 2>/dev/null); then
           log "WARN: the rejected payload at index $i could not be summarised — its rejected_summary row carries the index and reason only"
           _rsj=$(echo "$rejected_summary" | jq --argjson idx "$i" --arg r "${sidecar_reject_reason:-unknown-reason}" \
@@ -1781,22 +1796,20 @@ while i < len(text):
       repair_hops_skipped: (if $rhs == "" then [] else ($rhs | split(" ") | unique) end)}')
   [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && command rm -f -- "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; _ADV_REPAIR_SKIP_FILE=""
 
-  jq -n \
-    --argjson findings "$validated_findings" \
+  _adv_jq_pair "$validated_findings" "$rejected_summary" '$a as $findings | $b as $rejsum
+    | {findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
+      timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
+      latency_ms: $lat, status: "reviewed", degraded: false,
+      rejected_count: $rejc,
+      rejected_summary: $rejsum,
+      rejected_sidecar: (if $rejs == "" then null else $rejs end)} + $repairmeta)}' \
     --arg type "$type" --arg model "$model" --arg sid "$sprint_id" \
     --arg ts "$timestamp" \
     --argjson ti "$tokens_in" --argjson to "$tokens_out" \
     --argjson cost "$cost" --argjson lat "$latency" \
     --argjson rejc "$rejected_count" \
     --arg rejs "$rejected_sidecar_rel" \
-    --argjson rejsum "$rejected_summary" \
-    --argjson repairmeta "$repair_metadata_json" \
-    '{findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
-      timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,
-      latency_ms: $lat, status: "reviewed", degraded: false,
-      rejected_count: $rejc,
-      rejected_summary: $rejsum,
-      rejected_sidecar: (if $rejs == "" then null else $rejs end)} + $repairmeta)}'
+    --argjson repairmeta "$repair_metadata_json"
 }
 
 # =============================================================================
@@ -1918,17 +1931,16 @@ _apply_hallucination_filter() {
             downgrade_count=$((downgrade_count + 1))
         fi
 
-        filtered=$(echo "$filtered" | jq --argjson f "$finding" '. + [$f]')
+        filtered=$(_adv_jq_pair "$filtered" "$finding" '$a + [$b]')
         i=$((i + 1))
     done
 
     if [[ "$downgrade_count" -gt 0 ]]; then
         log "Hallucination filter downgraded $downgrade_count finding(s) to ADVISORY (#618 mitigation)"
-        result=$(echo "$result" | jq \
-            --argjson filtered "$filtered" \
-            --argjson downgraded "$downgrade_count" \
-            '.findings = $filtered
-             | .metadata.hallucination_filter = {applied: true, downgraded: $downgraded}')
+        result=$(_adv_jq_pair "$result" "$filtered" \
+            '$a | .findings = $b
+             | .metadata.hallucination_filter = {applied: true, downgraded: $downgraded}' \
+            --argjson downgraded "$downgrade_count")
     else
         result=$(echo "$result" | jq '.metadata.hallucination_filter = {applied: true, downgraded: 0}')
     fi
@@ -1980,7 +1992,7 @@ merge_findings() {
       category=$(echo "$finding" | jq -r '.category')
       fid=$(compute_finding_id "$anchor" "$category" "$i")
       finding=$(echo "$finding" | jq --arg fid "$fid" '. + {finding_id: $fid, source: "dissenter"}')
-      result=$(echo "$result" | jq --argjson f "$finding" '. + [$f]')
+      result=$(_adv_jq_pair "$result" "$finding" '$a + [$b]')
       i=$((i + 1))
     done
     echo "$result"
@@ -2052,7 +2064,7 @@ merge_findings() {
       fi
     else
       # New finding
-      merged=$(echo "$merged" | jq --argjson f "$finding" '. + [$f]')
+      merged=$(_adv_jq_pair "$merged" "$finding" '$a + [$b]')
     fi
     i=$((i + 1))
   done
@@ -2252,6 +2264,11 @@ _adv_family_of() {  # <model alias or id> → the model's VENDOR family: anthrop
       *) m="${BASH_REMATCH[2]}" ;;
     esac
   fi
+  # (twenty-ninth run, a2 DISS-C-001: a catalog alias names no family itself — `reviewer`, or an operator's alias of a Claude
+  # model, read `unknown`, drew the Anthropic companion and was judged independent of it — so it is resolved first, one level)
+  local _t=""
+  if [[ -z "${_ADV_FAM_ALIASED:-}" ]]; then _t=$(_adv_alias_target "$m"); fi
+  if [[ -n "$_t" && "$_t" != "$m" ]]; then _ADV_FAM_ALIASED=1 _adv_family_of "$_t"; return 0; fi
   if ! declare -p MODEL_PROVIDERS >/dev/null 2>&1; then
     # shellcheck source=generated-model-maps.sh
     [[ -f "$SCRIPT_DIR/generated-model-maps.sh" ]] && source "$SCRIPT_DIR/generated-model-maps.sh" 2>/dev/null || true
@@ -2393,7 +2410,9 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
       # as the other statuses move it, rather than refusing the very --since the refusal names)
       if [[ -n "$since" && -f "$env" && ! -L "$env" ]]; then
         if ! ets=$(jq -r '.metadata.timestamp? // "" | strings' -- "$env" 2>/dev/null); then older="true"
-        elif [[ -z "$ets" ]] || [[ "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ && "$ets" < "$since" ]]; then older="true"; fi
+        # (twenty-ninth run, a2 DISS-C-003: a timestamp that cannot be dated — not the canonical form — goes aside, as the other
+        # statuses move it, never a refusal whose remedy is the --since already passed)
+        elif [[ -z "$ets" || ! "$ets" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ || "$ets" < "$since" ]]; then older="true"; fi
       fi
       if [[ "$older" != "true" ]]; then
         error "an envelope stands at $env — a run wrote it; nothing is recorded over it (a run that died before its lock left the previous round's: pass --since <that run's start, UTC> to move an older one aside)"
@@ -2502,7 +2521,7 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       fi
       _w=0
       while [[ -d "$dir" && ! -s "$pidf" ]] && (( _w < 10 )) && (( $(date +%s) - $(_adv_mtime "$dir") < _g )); do sleep 0.2; _w=$((_w + 1)); done
-      [[ -d "$dir" ]] || { echo retry; exit 0; }   # (thirteenth run, a2 C-005: the holder released between our mkdir and the read — retry, never a false refusal)
+      [[ -d "$dir" ]] || { echo released; exit 0; }   # (thirteenth run, a2 C-005: the holder released between our mkdir and the read — retry, never a false refusal)
       other=$(sed -n 1p "$pidf" 2>/dev/null || true); ostart=$(sed -n 2p "$pidf" 2>/dev/null || true)
       ostart=$(_adv_tok_word "$ostart")   # (a3 DISS-C-002: a holder that wrote a spaced lstart is compared as one word, like the reader's own)
       if [[ "$other" =~ ^[0-9]+$ ]] && _adv_pid_alive "$other"; then   # (nineteenth run, a2 C-002: a zombie answers kill -0 and keeps its start time — it is dead, as the reaper knows)
@@ -2522,8 +2541,8 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       (( _unser )) && { echo busy; exit 0; }
       # a dead run's lock: renamed away (atomic), then removed; the loop's mkdir takes the key
       _stale="$dir.stale.$BASHPID.$RANDOM"
-      if mv -- "$dir" "$_stale" 2>/dev/null; then command rm -rf -- "$_stale" 2>/dev/null || true; fi
-      echo takeover
+      # (twenty-ninth run, a2 DISS-C-002: a rename that fails leaves the dead lock standing — said as `stuck`, never a takeover)
+      if mv -- "$dir" "$_stale" 2>/dev/null; then command rm -rf -- "$_stale" 2>/dev/null || true; echo takeover; else echo stuck; fi
     ) || _verdict="retry"
     [[ "$_verdict" == "refuse" ]] && return 1
     [[ "$_verdict" == "unopenable" ]] && { _adv_run_lock_unguarded "the takeover lock $_tl cannot be opened (a dead run's lock is not taken over unserialised)"; return 0; }
@@ -2534,6 +2553,14 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
     error "another taker holds the takeover of a dead run's lock for ${1##*/}/$2 — it is becoming the holder; wait for it to finish"
     return 1
   fi
+  # twenty-ninth run, a2 DISS-C-002: the last round's mkdir lost to a lock made AFTER round three freed the key (taken over, or
+  # released) — another run's, live by construction — so the run is refused as for a live holder; only a dead lock that could
+  # not be moved aside (or a section that could not judge) still runs unguarded
+  if [[ "$_verdict" == "takeover" || "$_verdict" == "released" ]]; then
+    error "another adversarial-review run for ${1##*/}/$2 took the lock as this one freed it — its envelope adversarial-$2.json and sidecars are single-writer; wait for it to finish"
+    return 1
+  fi
+  [[ "$_verdict" == "stuck" ]] && { _adv_run_lock_unguarded "a dead run's lock $dir could not be moved aside"; return 0; }
   _adv_run_lock_unguarded "a takeover of a dead run's lock did not settle in three rounds"
   return 0   # (a take-over race that would not settle: run unguarded rather than refuse)
 }
@@ -2653,17 +2680,22 @@ _companion_wait_cap() {  # <timeout_seconds> <hop>... → seconds
 # (and across concurrent dissents on the host); a lock that cannot be had within the hop's own
 # bound is not waited for any longer than that.
 _adv_cli_lock_dir() { echo "${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/loa-headless-locks-$(id -u 2>/dev/null || echo 0)"; }
+_adv_alias_target() {  # <name> → the catalog alias's raw target ("provider:id" or an id), or nothing
+  local cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" t=""
+  # (twenty-seventh run, a2 DISS-C-001: the name passes as data through strenv — a quote or an operator in it is a key that is not there)
+  if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
+    t=$(_adv_hop="$1" yq eval '.aliases[strenv(_adv_hop)]' "$cat" 2>/dev/null) || t=""
+    [[ -n "$t" && "$t" != "null" ]] && printf '%s' "$t"
+  fi
+  return 0
+}
 _adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alias resolved (thirteenth run, a2 C-001 — every
                     # reader of a hop's CLI nature and bound goes through this, so `anthropic:claude-headless` IS claude-headless)
   local m="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" target
   # (twenty-fifth run, a3 C-001: ANY provider prefix — `bedrock:`, `xai:` as well as the three companion families — so a prefixed
   # and a bare spelling of one hop share one bound and one lock; a provider token has no dot, so a bedrock id's `-v1:0` stays)
   [[ "$m" =~ ^[A-Za-z0-9_-]+:(.+)$ ]] && m="${BASH_REMATCH[1]}"
-  # (twenty-seventh run, a2 DISS-C-001: every catalog lookup passes the name as data through strenv — a quote or an operator
-  # in a hop name is a key that is not there, never a parse error or an evaluated expression)
-  if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
-    target=$(_adv_hop="$m" yq eval '.aliases[strenv(_adv_hop)]' "$cat" 2>/dev/null); [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
-  fi
+  target=$(_adv_alias_target "$m"); [[ -n "$target" ]] && m="${target#*:}"
   echo "$m"
 }
 _adv_cli_bin_for() {  # <model> → the CLI binary this hop can end up exec'ing ("" when none): the hop itself, or the first
@@ -2874,13 +2906,29 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
 
 # The companion's post-hop budget: every repair round-trip may cost a CLI hop's bound (the repair's
 # --timeout never reaches the adapter either), ADV_REPAIR_MAX_PER_RUN times, plus slack.
-_companion_post_budget() {  # <primary model> <timeout_seconds> → seconds
-  local t="$2" h b sum=0
+_adv_repair_wall_for() {  # <the heaviest repair hop's charge> <repair timeout> → the wall-clock budget a run's repairs share
+  local w=$(( ADV_REPAIR_MAX_PER_RUN * $2 * 2 ))
+  # nineteenth run, a1 C-001: TWO full CLI repairs plus a timeout — with no duration noted for a failed hop (eighteenth run, a1
+  # C-003) one repair plus a timeout admitted a CLI hop only while under a minute had been spent: a one-repair cliff
+  (( $1 * 2 + $2 > w )) && w=$(( $1 * 2 + $2 ))
+  # (thirteenth run, a1 C-001: the operator knob is validated where it is read — a value that is not a whole number
+  # would break the arithmetic and then the envelope's --argjson; it is said once and the default applies)
+  [[ -n "${LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS:-}" ]] && w=$(_conf_uint "LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS" "$w" 1)   # (fifteenth run, a2 C-004: no leading zero — octal to bash)
+  echo "$w"
+}
+_companion_post_budget() {  # <primary model> <repair timeout> → seconds
+  # twenty-ninth run, a3 DISS-C-001: the repairs are held to the repair wall budget — a hop starts only while its estimate fits
+  # what is left, and runs at most its charge — so the post-hop work is that budget plus one hop that overran its estimate;
+  # the chain × the per-run count was several times that, and the global ceiling carried it. A short chain keeps the product.
+  local t="$2" h b sum=0 hmax=0 bmax=0 wall
   for h in $(_repair_model_chain "$1"); do
     b=$(_adv_hop_charge "$h" "$t")   # (a2 C-002; nineteenth run, a2 C-001: the lock wait too; twentieth run, a3 DISS-C-003: validated)
-    sum=$(( sum + b ))
+    sum=$(( sum + b )); (( b > hmax )) && hmax=$b
   done
-  echo $(( sum * $(_adv_num_or "${ADV_REPAIR_MAX_PER_RUN:-5}" 5) + 60 ))
+  for h in $(_repair_chain_base "$1"); do b=$(_adv_hop_charge "$h" "$t"); (( b > bmax )) && bmax=$b; done
+  wall=$(_adv_repair_wall_for "$bmax" "$t" 2>/dev/null)   # (a bad pin is said by the repair loop, once)
+  sum=$(( sum * $(_adv_num_or "${ADV_REPAIR_MAX_PER_RUN:-5}" 5) )); (( sum > wall + hmax )) && sum=$(( wall + hmax ))
+  echo $(( sum + 60 ))
 }
 _adv_vq_dropped_matching() {  # <envelope> <space-separated ids> → the envelope's dropped voices (as recorded, one per line) that
                               # canonicalise to one of the ids; status 1 when none (twentieth run, a3 DISS-C-005: the pre-check
@@ -3356,11 +3404,13 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # diff.relative / diff.suppressBlankEmpty / core.quotePath reshaped what the parsers read); three lines of
                      # context, unmerged hunks, git's default rename detection and order, a/ b/ under noprefix / mnemonicPrefix
                      # (twenty-eighth run, a3 DISS-C-004); diff.relative pinned as config — a git < 2.28 ignores an unknown key
-                     # where it rejects the --no-relative flag (a3 DISS-C-001)
+                     # where it rejects the --no-relative flag (a3 DISS-C-001); every submodule's gitlink, whatever diff.ignoreSubmodules
+                     # or a submodule's ignore says, and no global attributes file turning text hunks into "Binary files differ" — the
+                     # repository's own .gitattributes still applies (twenty-ninth run, a3 DISS-C-003)
   git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
-    -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true \
+    -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
-    --no-color --no-ext-diff --no-textconv --submodule=short --src-prefix=a/ --dst-prefix=b/ "$2" --
+    --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" --
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
@@ -3716,7 +3766,7 @@ main() {
         companion_chain_csv="${companion_chain_str// /,}"
         # shellcheck disable=SC2086
         companion_wait_cap=$(_adv_num_or "${LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS:-$(_companion_wait_cap "$timeout" $companion_chain_str)}" "$(_adv_num_or "$(_companion_wait_cap "$timeout" $companion_chain_str)" 630)")   # (a3 C-003: an operator knob is validated)
-        companion_post_budget=$(_adv_num_or "$(_companion_post_budget "$model" "$timeout")" 60)
+        companion_post_budget=$(_adv_num_or "$(_companion_post_budget "$model" "${CONF_TIMEOUT:-60}")" 60)   # (the repairs' timeout — twenty-ninth run, a3 DISS-C-001)
         # the queue allowance of the global ceiling (twelfth run, a3 C-002), computed once here so the primary's shared-hop wait
         # and the post-walk wait share one deadline model (eighteenth run, a4 C-002)
         # shellcheck disable=SC2086
