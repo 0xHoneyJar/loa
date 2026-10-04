@@ -175,6 +175,8 @@ def private_workspace_base() -> str:
     def candidates():   # (thirty-sixth run, d DISS-C-001: the temporary directory read lazily — gettempdir() raises when none is
         if os.path.isabs(xdg):   # usable, and that never hides a private runtime dir or the home fallback)
             yield xdg
+        elif xdg:   # (seen and refused, named in the error that asks for it — thirty-eighth run, d DISS-C-002)
+            tried.append(f"{xdg} (XDG_RUNTIME_DIR is not an absolute path)")
         try:
             yield tempfile.gettempdir()
         except OSError as exc:
@@ -235,14 +237,63 @@ def private_workspace(name: str) -> str:
     return path
 
 
-_STALE_HOP_SECONDS = 86400   # (a day: the headless timeout is clamped to an hour per hop, so no live hop's directory is this old)
+# (a day; age is never liveness alone — a provider read_timeout above the ceiling is never lowered, a hop's slot wait ages its
+# directory, and a directory's mtime moves only with its entries — so a live hop holds hold_hop_workspace's lock and the sweep
+# never takes a locked directory: thirty-eighth run, d DISS-C-001)
+_STALE_HOP_SECONDS = 86400
+
+
+def hold_hop_workspace(path: str) -> Optional[int]:
+    """An fd holding a shared flock on a per-hop workspace for the hop's life: sweep_stale_hop_workspaces never takes a
+    directory whose lock is held, at any age; the kernel drops the lock with the process, so a killed hop's directory is still
+    swept. None where there is no flock (a host without fcntl). Never raises."""
+    try:
+        import fcntl
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
+    except (ImportError, OSError):
+        return None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return None
+    return fd
+
+
+def release_hop_workspace(fd: Optional[int]) -> None:
+    """Drop hold_hop_workspace's lock (after the workspace's rmtree). Never raises."""
+    if fd is not None:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+def _hop_workspace_held(path: str) -> bool:
+    """A live hop holds this workspace's lock (or it cannot be told — then it is kept)."""
+    try:
+        import fcntl
+    except ImportError:
+        return False   # (no flock: the age alone decides, as before)
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return True
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return False
+    except OSError:
+        return True
+    finally:
+        os.close(fd)
 
 
 def sweep_stale_hop_workspaces(base: str, prefix: str) -> None:
     """Remove this account's own per-hop workspaces `<base>/<prefix>XXXXXXXX` older than a day. A hop ended by SIGTERM or
     SIGKILL (the dissent reaper's tree kill) never runs its rmtree, and the home fallback — unlike /tmp or $XDG_RUNTIME_DIR — is
     swept by nothing else (cycle-126 thirty-seventh run, e1b DISS-C-004). Only a real directory of this uid whose name is the
-    prefix plus mkdtemp's eight characters; a symlink is never followed. Never raises."""
+    prefix plus mkdtemp's eight characters, and whose lock no live hop holds (thirty-eighth run, d DISS-C-001); a symlink is
+    never followed. Never raises."""
     try:
         names = os.listdir(base)
     except OSError:
@@ -257,7 +308,8 @@ def sweep_stale_hop_workspaces(base: str, prefix: str) -> None:
             st = os.lstat(path)
         except OSError:
             continue
-        if stat.S_ISDIR(st.st_mode) and st.st_mtime < cutoff and (not hasattr(os, "getuid") or st.st_uid == os.getuid()):
+        if (stat.S_ISDIR(st.st_mode) and st.st_mtime < cutoff and (not hasattr(os, "getuid") or st.st_uid == os.getuid())
+                and not _hop_workspace_held(path)):
             shutil.rmtree(path, ignore_errors=True)
 
 

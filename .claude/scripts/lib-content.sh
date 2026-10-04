@@ -135,6 +135,12 @@ _lc_next5() {  # <file> <bytes before> → the next five bytes, exact; nothing w
   # hunk cut before a run of suppressBlankEmpty context lines was counted whole; the caller appends a sentinel for the same reason)
   local n more
   n=$( { tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | head -c 5; printf x; } ) || n="x"; n="${n%x}"
+  # (thirty-eighth run, b1 DISS-C-001: nothing read while bytes remain — a vanished file, a failing tail — is a failed read, never
+  # the chunk's end: `?` is no hunk boundary, so the caller drops the incomplete hunk rather than count it whole)
+  if [[ -z "$n" ]]; then
+    more=$(LC_ALL=C wc -c < "$1" 2>/dev/null) || more=""; more="${more//[!0-9]/}"
+    [[ -n "$more" ]] && (( more <= $2 )) || n="?"
+  fi
   if [[ -n "$n" && -z "${n//$'\n'/}" ]]; then
     more=$(tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | LC_ALL=C tr -d '\n' | head -c 1 | LC_ALL=C wc -c) || true
     more="${more//[!0-9]/}"; (( ${more:-1} > 0 )) || n=""

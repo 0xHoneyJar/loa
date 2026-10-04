@@ -53,11 +53,17 @@ setup() {
 
 _jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extraction is the function's own: the next line is no
     # indented body; a blank or whitespace-only one is blank (thirty-fourth run, e3 DISS-C-001)
-    local _end _next
+    local _end _next _x
     _end="$(awk '/^_adv_jq_pair\(\) \{/{f=1} f && /^}/{print NR; exit}' "$1")"
-    _next="$(sed -n "$((${_end:-0} + 1))p" "$1")"
-    [[ -n "$_end" && ( -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* ) ]] \
+    # (a function that is not there is named so — thirty-eighth run, e3 DISS-C-001)
+    [[ -n "$_end" ]] || { echo "setup: _adv_jq_pair() not found in $1" >&2; return 1; }
+    _next="$(sed -n "$((_end + 1))p" "$1")"
+    [[ -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* ]] \
         || { echo "setup: _adv_jq_pair's extraction ended inside its body (line $_end)" >&2; return 1; }
+    # (the extracted text itself parses whole: a column-0 brace inside a quoted program or a heredoc, followed by a
+    # blank line, passes the next-line read but leaves an open quote or heredoc — thirty-eighth run, e3 DISS-C-002)
+    _x="$(sed -n '/^_adv_jq_pair() {/,/^}/p' "$1" | bash -n 2>&1)" \
+        || { echo "setup: _adv_jq_pair's extraction does not parse whole: ${_x:-bash -n failed}" >&2; return 1; }
 }
 
 teardown() {
@@ -335,6 +341,21 @@ _make_result() {
     _jq_pair_extracted_whole "$fx" 2>/dev/null || { echo "a whitespace-only line was read as an indented body"; return 1; }
     printf '_adv_jq_pair() {\n  :\n}\n  body\n}\n' > "$fx"
     if _jq_pair_extracted_whole "$fx" 2>/dev/null; then echo "an extraction that ended inside the body passed"; return 1; fi
+}
+
+@test "the _adv_jq_pair extraction check names a missing function as missing, and refuses a cut that a blank line hides — a column-0 brace inside a quoted program or a heredoc (thirty-eighth run, e3 DISS-C-001 / DISS-C-002)" {
+    local fx="$BATS_TEST_TMPDIR/jqpair38.sh" err
+    printf '_adv_jq_pair_renamed() {\n  :\n}\n' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a missing function passed"; return 1; }
+    [[ "$err" == *"_adv_jq_pair() not found in $fx"* ]] || { echo "the missing function was misnamed: $err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' "  jq -n '{" '}' '' "  '" '}' 'next' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a cut inside a quoted program passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' '  cat <<EOF' '}' '' 'EOF' '}' 'next' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a cut inside a heredoc passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' "  jq -n '{a: 1}'" '}' '' 'next' > "$fx"
+    _jq_pair_extracted_whole "$fx" || { echo "a whole extraction was refused"; return 1; }
 }
 
 @test "setup checks the _adv_jq_pair extraction before it sources it — a cut inside the body is named, never an opaque 'unexpected end of file' from source (thirty-sixth run, e3 DISS-C-003)" {

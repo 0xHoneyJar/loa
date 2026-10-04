@@ -1,5 +1,5 @@
 {
-  "_case": "negative-turned-derivable: missing id (the Sprint 1 audit sidecar shape) — cycle-126 FR-2.2: the unenforced path fills a positional id (id_derived) and accepts the finding; the enforced path still rejects it (category secrets is valid on the review path: validate_finding reads one category enum for both types)",
+  "_case": "negative-turned-derivable: missing id (the Sprint 1 audit sidecar shape) — cycle-126 FR-2.2: the unenforced path fills a positional id (id_derived) and accepts the finding; the enforced path still rejects it (the review wire shape but for its id — a review-enum category and an anchor, so only id derivation decides: thirty-eighth run, c2e DISS-C-001)",
   "_type": "review",
   "_expect": {
     "unenforced": "reviewed",
@@ -7,7 +7,7 @@
     "unenforced_findings": 1,
     "enforced_findings": 0
   },
-  "content": "{\"findings\":[{\"severity\":\"BLOCKING\",\"category\":\"secrets\",\"title\":\"Environment secret exposed\",\"description\":\"d\",\"failure_mode\":\"fm\"}]}",
+  "content": "{\"findings\":[{\"severity\":\"BLOCKING\",\"category\":\"data-loss\",\"anchor\":\"a.sh:f\",\"anchor_type\":\"function\",\"scope\":\"diff\",\"trigger_anchor\":null,\"cross_file_justification\":null,\"title\":\"Environment secret exposed\",\"description\":\"d\",\"failure_mode\":\"fm\",\"suggested_fix\":\"s\"}]}",
   "tokens_input": 10,
   "tokens_output": 5,
   "cost_usd": 0,

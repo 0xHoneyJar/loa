@@ -38,6 +38,18 @@ from loa_cheval.types import (
     RateLimitError,
 )
 
+@pytest.fixture(autouse=True)
+def _private_gemini_cwd(tmp_path, monkeypatch):
+    """The suite's own stand-in for the stable private cwd: never the host's $XDG_RUNTIME_DIR, temporary directory or
+    ~/.cache/loa, and nothing left outside tmp_path (cycle-126 thirty-eighth run, e1b DISS-C-004; the real base's choice is
+    test_headless_workspace.py's, under its isolated root)."""
+    def _ws(name):
+        p = tmp_path / "private-base" / name
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p)
+    monkeypatch.setattr("loa_cheval.providers.gemini_headless_adapter.private_workspace", _ws)
+
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -720,8 +732,13 @@ def test_a_lone_surrogate_prompt_is_counted_by_the_stdin_cap_and_walks_as_a_spaw
     fake.write_text("#!/bin/sh\nexec sleep 30\n")
     fake.chmod(0o755)
     monkeypatch.setenv("GEMINI_HEADLESS_BIN", str(fake))
-    with pytest.raises(ProviderUnavailableError):
+    # (thirty-eighth run, e1b DISS-C-004: the encode failure itself, fast — never another hop failure, never the read deadline)
+    import time as _t
+    t0 = _t.monotonic()
+    with pytest.raises(ProviderUnavailableError, match="codec can't encode") as ei:
         adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
+    assert _t.monotonic() - t0 < 10
+    assert isinstance(ei.value.__cause__, UnicodeEncodeError), repr(ei.value.__cause__)
 
 
 def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
@@ -758,3 +775,32 @@ def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
             adapter.complete(_make_request())
         assert mock_run.call_args.kwargs["env"]["GEMINI_SANDBOX"] == want, extra
         assert mock_run.call_args.kwargs["input"]
+
+
+def test_an_operator_sandbox_is_warned_and_bounds_the_argv_it_folds_the_prompt_into(monkeypatch, caplog):
+    """An operator --sandbox keeps gemini-cli's sandbox, which folds the stdin prompt into the sandbox child's -p argument: the
+    hop says so (a WARNING naming the exposure) and refuses, before any spawn and walkable, a prompt one argument cannot hold
+    (MAX_ARG_STRLEN, 128 KiB) — never an opaque exec failure (cycle-126 thirty-eighth run, e1b DISS-C-002)."""
+    import logging
+    from loa_cheval.types import ProviderUnavailableError
+    cfg = ModelConfig(extra={"gemini_extra_flags": ["--sandbox"]})
+    adapter = GeminiHeadlessAdapter(_make_config())
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.gemini_headless"):
+        with adapter._prepare_invocation(_make_request(), cfg, "small prompt") as inv:
+            assert inv.kwargs["input"] == "small prompt"
+    assert any("sandbox" in r.getMessage() and "argv" in r.getMessage() for r in caplog.records), caplog.text
+    for big in ("x" * (130 * 1024), "\u00e9" * (65 * 1024)):   # (bytes, never characters: two per é)
+        with pytest.raises(ProviderUnavailableError, match="sandbox"):
+            with adapter._prepare_invocation(_make_request(), cfg, big):
+                pass
+    # without a sandbox the same prompt rides stdin, unbounded but by the 8 MiB cap
+    with adapter._prepare_invocation(_make_request(), ModelConfig(), "x" * (130 * 1024)) as inv:
+        assert len(inv.kwargs["input"]) == 130 * 1024
+
+
+def test_the_end_of_options_token_ends_the_sandbox_reading(monkeypatch):
+    """yargs reads every token after `--` as positional: `-- --sandbox` asks gemini for no sandbox, so the hop's
+    GEMINI_SANDBOX=false still closes the ambient one (cycle-126 thirty-eighth run, e1b DISS-C-003)."""
+    from loa_cheval.providers.gemini_headless_adapter import _asks_sandbox
+    assert not _asks_sandbox(["--", "--sandbox"]) and not _asks_sandbox(["--", "-s"]) and not _asks_sandbox(["--", "-sd"])
+    assert _asks_sandbox(["--sandbox", "--", "x"]) and _asks_sandbox(["--sandbox", "--", "--no-sandbox"])

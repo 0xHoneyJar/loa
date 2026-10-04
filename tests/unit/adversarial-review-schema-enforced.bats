@@ -204,6 +204,13 @@ SHIM
         fi
     done
     [ "$n" = "11" ]
+    # (thirty-eighth run, c2e DISS-C-001: neg-missing-id is the review wire shape but for its id — every other required key, a
+    # review-enum category — so it tests id derivation alone, never a category or anchor laxity of validate_finding)
+    jq -e --slurpfile w "$PROJECT_ROOT/.claude/schemas/wire/dissent-review.wire.json" '(.content | fromjson | .findings[0]) as $x
+        | ($w[0] | [.. | objects | select(has("required") and (.required | index("failure_mode")))][0]) as $s
+        | ($x | has("id") | not) and ([$s.required[] | select(. != "id")] - ($x | keys) == [])
+        and ($x.category | IN($s.properties.category.enum[]))' "$corpus/kf004/neg-missing-id.json" >/dev/null \
+        || { echo "neg-missing-id is not the review wire shape but for its id"; return 1; }
     # every directory of this run's id the loop left is one teardown will remove (thirty-first run, c2e DISS-C-001: the
     # suffixed per-fixture directories leaked into the live a2a after the sibling rule narrowed teardown to the exact id)
     # (read-only, and through find: NRM-42 bans the a2a sibling glob in these suites outright)

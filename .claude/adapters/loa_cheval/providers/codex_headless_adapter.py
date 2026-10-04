@@ -54,7 +54,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.headless_cli import (
-    CLIInvocation, HeadlessCLIAdapter, private_workspace_base, sweep_stale_hop_workspaces,
+    CLIInvocation, HeadlessCLIAdapter, private_workspace_base, sweep_stale_hop_workspaces, hold_hop_workspace,
+    release_hop_workspace,
 )
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
@@ -175,12 +176,14 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
         # Codex counts workspace preparation in latency, and creation failure
         # is walkable. Cleanup covers command-building and subprocess errors.
         workspace = None
+        hold = None
         started_at = time.monotonic()
         try:
             try:
                 base = private_workspace_base()
                 sweep_stale_hop_workspaces(base, "loa-codex-ws-")   # (a killed hop's leftovers — thirty-seventh run, e1b DISS-C-004)
                 workspace = tempfile.mkdtemp(prefix="loa-codex-ws-", dir=base)
+                hold = hold_hop_workspace(workspace)   # (live: never swept — thirty-eighth run, d DISS-C-001)
             except OSError as exc:
                 raise ProviderUnavailableError(
                     self.provider,
@@ -191,6 +194,7 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
         finally:
             if workspace is not None:
                 shutil.rmtree(workspace, ignore_errors=True)
+            release_hop_workspace(hold)
 
     def _raise_spawn_error(self, exc):
         # Preserve Codex's existing raw OSError/ValueError contract.

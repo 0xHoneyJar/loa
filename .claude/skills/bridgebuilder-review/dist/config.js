@@ -110,8 +110,9 @@ export const PROVIDER_API_KEY_ENV = {
     google: "GOOGLE_API_KEY",
 };
 /** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
+// (case-sensitive, as cheval's alias lookup is — `Claude-Headless` resolves to nothing: thirty-eighth run, e4 DISS-C-002)
 export function isHeadlessModelId(modelId) {
-    return typeof modelId === "string" && /-headless$/i.test(modelId);
+    return typeof modelId === "string" && /-headless$/.test(modelId);
 }
 /**
  * Validate API keys for configured multi-model providers.

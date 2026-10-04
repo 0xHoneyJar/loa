@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MultiModelConfigSchema, validateApiKeys, PROVIDER_API_KEY_ENV } from "../config.js";
+import { MultiModelConfigSchema, validateApiKeys, PROVIDER_API_KEY_ENV, isHeadlessModelId } from "../config.js";
 
 describe("MultiModelConfigSchema", () => {
   it("returns defaults when parsed with empty object", () => {
@@ -158,6 +158,10 @@ describe("validateApiKeys", () => {
       assert.deepEqual(result.missing.map((m) => m.provider), ["anthropic", "mistral"]);
       assert.equal(result.missing[0].envVar, "ANTHROPIC_API_KEY");
       assert.ok(result.missing[1].envVar.includes("Unknown provider"));
+      // (cheval's aliases are case-sensitive: an id it would not resolve is no headless entry — thirty-eighth run, e4 DISS-C-002)
+      assert.equal(isHeadlessModelId("Claude-Headless"), false);
+      assert.equal(isHeadlessModelId("CODEX-HEADLESS"), false);
+      assert.equal(isHeadlessModelId("codex-headless"), true);
     } finally {
       if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = saved;

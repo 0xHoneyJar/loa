@@ -30,6 +30,7 @@ _claim_sprint_dir() {  # <dir> → 0 when nothing stands there or a leftover thi
     # (thirty-fifth run, c1a DISS-C-001: a marker written on another host or pid namespace is never ours — as the sweep judges it;
     # DISS-C-002: a leftover that cannot be cleared is a named failure, never a claimed, still-populated directory)
     if [[ -d "$d" && ! -L "$d" && -f "${d%/*}/.$SPRINT.owner" ]] && ! _sweep_foreign "${d%/*}/.$SPRINT.owner"; then
+        chmod u+w -- "$d" 2>/dev/null || true   # (CMP-187's chmod a-w on a killed run — the sweep's rule: thirty-eighth run, c1a DISS-C-001)
         find "$d" -mindepth 1 -delete && rmdir "$d" && return 0
         echo "setup: could not clear $d"; SPRINT=""; return 1
     fi
@@ -39,6 +40,16 @@ _claim_sprint_dir() {  # <dir> → 0 when nothing stands there or a leftover thi
         echo "setup: could not clear $d"; SPRINT=""; return 1
     fi
     echo "setup: $d stands and is not this suite's"; SPRINT=""; return 1
+}
+_place_marker() {  # <tmp> <marker> → 0 placed; 1 (named, SPRINT cleared) when a run on another host or pid namespace holds it
+    # (thirty-eighth run, c2a DISS-C-001: a host and its devcontainer over one checkout can hold one namespace-local pid at once —
+    # a rename over the marker gave both runs one sprint directory. A link never replaces: a marker that stands is replaced only
+    # when it was written HERE, where this pid is this run or a dead one of ours; no link support falls back to the rename)
+    ln -- "$1" "$2" 2>/dev/null && { rm -f -- "$1"; return 0; }
+    if [[ -e "$2" || -L "$2" ]] && _sweep_foreign "$2"; then
+        rm -f -- "$1"; echo "setup: $2 is held by a run of this suite on another host or pid namespace"; SPRINT=""; return 1
+    fi
+    mv -f -- "$1" "$2"
 }
 setup() {
     # the sprint id comes FIRST: teardown runs on any setup failure, and a delete target derived from
@@ -50,8 +61,9 @@ setup() {
     _claim_sprint_dir "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT" || return 1
     # this suite's own: the stale sweep deletes only marked dirs; the marker holds this process's start, so a recycled pid is not it
     # (written whole, by a rename — thirty-seventh run, c1a DISS-C-001: a marker with no where line is never ours)
-    local _om="$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner.tmp"
-    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && printf '%s\n%s\n' "$(_sweep_start "$$")" "$(_sweep_where)" > "$_om" && mv -f -- "$_om" "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
+    local _om="$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner.tmp" _mk="$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && printf '%s\n%s\n' "$(_sweep_start "$$")" "$(_sweep_where)" > "$_om" || return 1
+    _place_marker "$_om" "$_mk" || return 1
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
     TEST_DIR="${BATS_TEST_TMPDIR:-}"; NORM_OWN_TMP=""
@@ -132,8 +144,20 @@ _sweep_owner_alive() {  # <pid> <marker>
     now=$(_sweep_start "$1")
     [[ -z "$now" || "$now" == "$want" ]]
 }
+_sweep_reap_tag() {  # → "-<this process's start token>", or nothing when /proc gives none
+    local t; t=$(_sweep_start "$$"); [[ "$t" =~ ^t[0-9]+$ ]] && printf -- '-%s' "$t"; return 0
+}
+_sweep_reaper_alive() {  # <pid> <tag> → the sweeper that renamed a .reap-<pid>[-<tag>] still runs (an unknown token: the pid alone)
+    local now; _sweep_alive "$1" || return 1
+    [[ "$2" =~ ^t[0-9]+$ ]] || return 0
+    now=$(_sweep_start "$1")
+    [[ ! "$now" =~ ^t[0-9]+$ || "$now" == "$2" ]]
+}
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
-    local a2a="$1" pre="$2" m p d q left
+    local a2a="$1" pre="$2" m p d q qt rt left
+    # (thirty-eighth run, c2a DISS-C-002: a `.owner.tmp` lives between setup's printf and its link; one over a minute old is a
+    # crashed setup's, which no marker glob matches)
+    find "$a2a" -maxdepth 1 -type f -name ".$pre-[0-9]*.owner.tmp" -mmin +1 -delete 2>/dev/null || true
     for m in "$a2a"/."$pre"-[0-9]*.owner; do
         [[ -f "$m" && ! -L "$m" ]] || continue
         p=${m##*/."$pre"-}; p=${p%.owner}
@@ -147,11 +171,15 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
             if [[ -L "$d" && "$d" == "$a2a/$pre-$p" ]]; then rm -f -- "$d" 2>/dev/null || left=1; continue; fi
             [[ -d "$d" && ! -L "$d" ]] || { left=1; continue; }
             if [[ "$d" == *.reap-* ]]; then
-                q=${d##*.reap-}
-                if [[ ! "$q" =~ ^[0-9]+$ ]] || { [[ "$q" != "$$" ]] && _sweep_alive "$q"; }; then left=1; continue; fi
+                # (thirty-eighth run, c2a DISS-C-002: the sweeper's start token is in the name — a live process that reused
+                # its pid is not it, so its leftover and the marker are never kept for good)
+                q=${d##*.reap-}; qt=""
+                [[ "$q" == *-* ]] && { qt=${q#*-}; q=${q%%-*}; }
+                if [[ ! "$q" =~ ^[0-9]+$ ]] || { [[ "$q" != "$$" ]] && _sweep_reaper_alive "$q" "$qt"; }; then left=1; continue; fi
             else
-                mv -- "$d" "$d.reap-$$" 2>/dev/null || { left=1; continue; }
-                d="$d.reap-$$"
+                rt="$$$(_sweep_reap_tag)"
+                mv -- "$d" "$d.reap-$rt" 2>/dev/null || { left=1; continue; }
+                d="$d.reap-$rt"
             fi
             find "$d" -mindepth 1 -delete 2>/dev/null || true
             rmdir "$d" 2>/dev/null || left=1
@@ -695,13 +723,18 @@ DF
             for f in $fns; do
                 [[ "$f" == _adv_repair_now ]] && continue
                 # (SECONDS as a word: $SECONDS, a bare `SECONDS=0` reset, `(( SECONDS - t ))` — twenty-ninth run, c2b DISS-C-001)
-                clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|(^|[^A-Za-z0-9_])SECONDS([^A-Za-z0-9_]|$)') || true
+                # (jq's `now` as a word, and an interpreter's clock — python/perl/node/ruby with time/Date/clock in the same
+                # statement: thirty-eighth run, c2a DISS-C-003; nothing reachable from process_findings spells either today)
+                clk=$(declare -f "$f" | grep -cE 'EPOCH(SECONDS|REALTIME)|(^|[^A-Za-z0-9_])date[[:space:]][^|;]*%s|%\([^)]*\)T|(^|[^A-Za-z0-9_])SECONDS([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])now([^A-Za-z0-9_]|$)|(python3?|perl|node|ruby)[^|;]*(time|Date|clock)') || true
                 [ "$clk" = "0" ] || echo "CLOCK $f ($clk)"
             done
         }
         # the scan's own negative pin: a reset, an arithmetic read, behind a callee whose name is no identifier word
-        _nrm22_x() { _nrm22::reset; _nrm22.read; _nrm22-tick; }
+        _nrm22_x() { _nrm22::reset; _nrm22.read; _nrm22-tick; _nrm22_jq; _nrm22_jq2; _nrm22_py; _nrm22_pl; _nrm22_ok; }
         _nrm22::reset() { SECONDS=0; }; _nrm22.read() { (( SECONDS > 1 )); }; _nrm22-tick() { let "t = SECONDS"; }
+        _nrm22_jq() { jq -n now; }; _nrm22_jq2() { jq -n '{t: (now | floor)}'; }
+        _nrm22_py() { python3 -c 'import time; print(int(time.time()))'; }; _nrm22_pl() { perl -e 'print time'; }
+        _nrm22_ok() { echo "known nowhere: snow"; }
         _nrm22_walk _nrm22_x
         echo "PIN$(_nrm22_clocks | tr '\n' ' ')"
         _nrm22_walk process_findings
@@ -712,6 +745,8 @@ DF
     output=$out
     pin=$(grep '^PIN' <<<"$output")
     [[ "$pin" == *"CLOCK _nrm22::reset "* && "$pin" == *"CLOCK _nrm22.read "* && "$pin" == *"CLOCK _nrm22-tick "* ]] || { echo "the scan misses a clock spelling or a callee name: $pin"; return 1; }
+    [[ "$pin" == *"CLOCK _nrm22_jq "* && "$pin" == *"CLOCK _nrm22_jq2 "* && "$pin" == *"CLOCK _nrm22_py "* && "$pin" == *"CLOCK _nrm22_pl "* ]] || { echo "the scan misses jq's now or an interpreter clock: $pin"; return 1; }
+    [[ "$pin" != *"CLOCK _nrm22_ok "* ]] || { echo "a word containing now read as a clock: $pin"; return 1; }
     fns=$(grep '^FNS' <<<"$output"); fns=" ${fns#FNS}"
     [[ "$fns" == *" _adv_hop_charge "* && "$fns" == *" _adv_repair_now "* && "$fns" == *" _adv_cli_hop_bound "* ]]   # (the scan sees the budget helpers, and a callee's callee)
     [[ "$fns" == *" _repair_finding_via_model "* ]]
@@ -1337,6 +1372,8 @@ def quotes_ok(body):   # (thirty-seventh run, c2b DISS-C-001: quotes pair up and
         if any(c in re.sub(r'\$\{[^{}"\']*\}', '', q) for c in '(){}'):
             return False
     return True
+def ends(t):   # nothing of the operand follows (thirty-eighth run, c2b DISS-C-002: a tail after a closing quote is the operand too)
+    return t == '' or t[0] in ' \t;|&)' or t.rstrip() == '\\'
 def whole(o, quoted):   # the leading $( / $(( / ${ construct is balanced and is the whole operand (thirty-fifth run, c2b DISS-C-001)
     op_, cl = ('(', ')') if o[1] == '(' else ('{', '}')
     d = 0
@@ -1346,7 +1383,7 @@ def whole(o, quoted):   # the leading $( / $(( / ${ construct is balanced and is
             if not quotes_ok(o[:i]):
                 return False
             rest = o[i + 1:]
-            return rest.startswith('"') if quoted else (rest == '' or rest[0] in ' \t;|&)')
+            return (rest.startswith('"') and ends(rest[1:])) if quoted else ends(rest)
     return False
 bad = []
 lines = open(sys.argv[1], encoding='utf-8').read().split('\n')
@@ -1376,7 +1413,7 @@ for n, line in enumerate(lines):
         if op.startswith('"') and not op.startswith('"$'):
             # a literal, or one interpolating only reviewed scalars
             lit = op[1:].split('"', 1)[0]
-            if '$(' in lit or '`' in lit or any(v not in ok for v in re.findall(r'\$\{?([A-Za-z_0-9]+)', lit)):
+            if '$(' in lit or '`' in lit or any(v not in ok for v in re.findall(r'\$\{?([A-Za-z_0-9]+)', lit)) or not ends(op[len(lit) + 2:]):
                 bad.append(op)
             continue
         o = op[1:] if op.startswith('"') else op
@@ -1391,7 +1428,7 @@ for n, line in enumerate(lines):
         else:
             span = o.split('"', 1)[0] if op.startswith('"') else re.split(r'[\s;|&)]', o, maxsplit=1)[0]
             vs = re.findall(r'\$\{?([A-Za-z_0-9]+)', span)
-            if not vs or '$(' in span or any(v not in ok for v in vs):
+            if not vs or '$(' in span or any(v not in ok for v in vs) or (op.startswith('"') and not ends(o[len(span) + 1:])):
                 bad.append(op)
     for m in re.finditer(r'(?<![\w-])--(?:json)?args(?![\w-])(.*)', line):
         rest, k = m.group(1).strip(), n
@@ -1462,8 +1499,19 @@ PY
     _nrm46_caught "$fx" || { echo "an environment prefix to jq was never checked"; return 1; }
     printf '%s\n' '  jq -n '"'"'env.P'"'"'' > "$fx"
     _nrm46_caught "$fx" || { echo "a jq env read was never checked"; return 1; }
-    printf '%s\n' '_adv_refuse_json() {' '  if :; then' '    kv+=(--arg "$1" "$2")' '  fi' '}' '  jq -nc --arg ts "$(_adv_hop_canon "$m")" --arg c "$env" '"'"'{}'"'"' > "$env.tmp.$$"' > "$fx"
-    if python3 -c "$lint" "$fx" | grep -q 'env.tmp'; then echo "a \$env.tmp path read as a jq env read"; return 1; fi
+    printf '%s\n' '_adv_refuse_json() {' '  if :; then' '    kv+=(--arg "$1" "$2")' '  fi' '}' '  jq -nc --arg ts "$(_adv_hop_canon "$m")" --arg c "$model" '"'"'{}'"'"' > "$env.tmp.$$"' > "$fx"
+    # (thirty-eighth run, c2b DISS-C-001: every operand reviewed, so the lint must PASS the line — a grep of its output under
+    # pipefail was false whenever the lint exited 3, whatever the env rule did)
+    python3 -c "$lint" "$fx" || { echo "a \$env.tmp path read as a jq env read: $(python3 -c "$lint" "$fx" 2>&1)"; return 1; }
+    # (thirty-eighth run, c2b DISS-C-002: a reviewed quoted head with an unreviewed tail after its closing quote is read whole)
+    for x in '"$m"$finding_json' '"$m""$finding_json"' '"prefix"$finding_json' '"$(date +%s)"$finding_json' '"$(( n ))"$finding_json' '"${#a}"$finding_json'; do
+        printf '  jq -n --arg x %s %s\n' "$x" "'{x: \$x}'" > "$fx"
+        _nrm46_caught "$fx" || { echo "the tail after the closing quote of $x was never checked"; return 1; }
+    done
+    for x in '"$model"' '"prefix"' '"$(date +%s)"' '"$(( n ))"' '"${#a}"'; do
+        printf '  jq -n --arg x %s %s\n' "$x" "'{x: \$x}' > \"\$out\"" > "$fx"
+        python3 -c "$lint" "$fx" || { echo "a whole quoted operand $x was refused"; return 1; }
+    done
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"
 }
 
@@ -1592,7 +1640,7 @@ PY
     NORM_SIB_DIR="$TEST_DIR/other"; rc=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/other/keep" ]
     NORM_SIB_DIR=""
-    : > "$a2a/.$SPRINT.owner"
+    printf '%s\n%s\n' "$(_sweep_start "$$")" "$(_sweep_where)" > "$a2a/.$SPRINT.owner"   # (whole: thirty-eighth run, c2b DISS-C-003)
 }
 
 @test "NRM-52 a rejected_summary row and its reason quote carry no C1 control, Unicode line separator, bidi or zero-width format character — a row renders as the bytes it holds; other non-ASCII text stays (thirty-third run, a2 DISS-C-003)" {
@@ -1651,7 +1699,7 @@ PY
     [ "$status" -ne 0 ] && [[ "$output" == *"setup: $d stands and is not this suite's"* ]] || { echo "unmarked: status $status, $output"; return 1; }
     [ "$(cat "$d/keep")" = "theirs" ]
     grep -q '_claim_sprint_dir "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT" || return 1' <<<"$(sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME")"
-    _sweep_start "$$" > "$m"   # (ours again: teardown removes it with the directory)
+    printf '%s\n%s\n' "$(_sweep_start "$$")" "$(_sweep_where)" > "$a/.$SPRINT.owner"   # (ours again, whole — thirty-eighth run, c2b DISS-001)
 }
 
 @test "NRM-55 the stale sweep never deletes a live run's directory it cannot see: a kill -0 refused with EPERM is a live owner (hidepid), and a marker written on another host or pid namespace is never judged here; one of ours, dead, is still removed (thirty-fourth run, c2a DISS-C-001)" {
@@ -1701,7 +1749,7 @@ PY
         _sweep_stale_suite_dirs "$a" sprint-norm
         [ -e "$a/sprint-norm-$d/keep" ] || { echo "a $m marker's directory was deleted"; return 1; }
     done
-    grep -qE '> "\$_om" && mv -f -- "\$_om"' "$BATS_TEST_FILENAME" || { echo "setup's marker is not written by a rename"; return 1; }
+    grep -qE '> "\$_om" \|\| return 1$' "$BATS_TEST_FILENAME" && grep -qF '_place_marker "$_om" "$_mk" || return 1' "$BATS_TEST_FILENAME" || { echo "setup's marker is not written whole and then placed"; return 1; }
     grep -qxF -- "$(_sweep_where)" "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
 }
 
@@ -1722,4 +1770,84 @@ PY
     ( SPRINT="sprint-norm-$d"; _claim_sprint_dir "$a/sprint-norm-$d" ) >/dev/null && { echo "setup claimed another host's link"; return 1; }
     [ -L "$a/sprint-norm-$d" ] || { echo "another host's link was removed"; return 1; }
     command rm -f -- "$a/sprint-norm-$d" "$a/.sprint-norm-$d.owner"
+}
+
+@test "NRM-59 _adv_jq_pair reads exactly one value from each operand: an empty operand is never made up by two values in the other — the count is per operand, not of the joined stream (thirty-eighth run, a1 DISS-C-001)" {
+    local a b
+    for a in "''|'1 2'" "'1 2'|''" "''|''" "'1'|'2 3'" "'1 2'|'3'" "'1,2'|''" "'1]'|'[2'" "'1],[2'|'3'"; do
+        b=${a#*|}; a=${a%|*}; eval "a=$a; b=$b"
+        if _adv_jq_pair "$a" "$b" '[$a, $b]' -c >/dev/null 2>&1; then echo "operands [$a] [$b] read as a pair: $(_adv_jq_pair "$a" "$b" '[$a, $b]' -c 2>&1)"; return 1; fi
+    done
+    [ "$(_adv_jq_pair '[1]' '2' '$a + [$b]' -c)" = "[1,2]" ]
+    [ "$(_adv_jq_pair $'{"a":\n 1}\n' ' "x" ' '[$a, $b]' -c)" = '[{"a":1},"x"]' ]
+    [ "$(_adv_jq_pair 'null' 'false' '[$a, $b]' -c)" = '[null,false]' ]
+}
+
+@test "NRM-60 an id of whitespace only is a missing id: it is derived from the position like an absent one (both derivation branches), and without an index validate_finding refuses it as missing-or-non-string-id (thirty-eighth run, a1 DISS-C-002)" {
+    local f='{"id":" \t ","severity":"LOW","category":"other","description":"Something fails here.","failure_mode":"Fails."}' out
+    out=$( printf '%s' "$f" | _derive_failure_mode 4 )
+    [ "$(jq -r '.id' <<<"$out")" = "DISS-005" ] && [ "$(jq -r '.id_derived' <<<"$out")" = "true" ] || { echo "production: $out"; return 1; }
+    out=$( printf '%s' "$f" | LOA_ADVERSARIAL_NO_FM_DERIVATION=1 _derive_failure_mode 4 )
+    [ "$(jq -r '.id' <<<"$out")" = "DISS-005" ] && [ "$(jq -r '.id_derived' <<<"$out")" = "true" ] || { echo "seam: $out"; return 1; }
+    if validate_finding "$f" audit; then echo "a whitespace id validated"; return 1; fi
+    [ "$(_validate_finding_reason "$f" audit)" = "missing-or-non-string-id" ] || { echo "reason: $(_validate_finding_reason "$f" audit)"; return 1; }
+    # a stated id is kept, and stays valid
+    f='{"id":"X-1","severity":"LOW","category":"other","description":"Something fails here.","failure_mode":"Fails."}'
+    [ "$(printf '%s' "$f" | _derive_failure_mode 4 | jq -r '.id')" = "X-1" ]
+    validate_finding "$f" audit
+}
+
+@test "NRM-61 a marker is placed by a link that never replaces: one another host or pid namespace holds (the same namespace-local pid) refuses setup, named, SPRINT cleared and that marker untouched; one written here is replaced; none is placed (thirty-eighth run, c2a DISS-C-001)" {
+    local a="$TEST_DIR/a2a" om mk keep="$SPRINT"
+    mkdir -p "$a"; om="$a/.sprint-norm-77.owner.tmp"; mk="$a/.sprint-norm-77.owner"
+    _sweep_where > "$om"
+    _place_marker "$om" "$mk" || { echo "an absent marker was not placed"; return 1; }
+    [ ! -e "$om" ] && grep -qxF -- "$(_sweep_where)" "$mk" || { echo "placed: tmp $(ls -A "$a")"; return 1; }
+    printf 'where other-host pid:[1]\n' > "$mk"; _sweep_where > "$om"
+    run _place_marker "$om" "$mk"
+    [ "$status" -eq 1 ] && [[ "$output" == *"held by a run of this suite on another host or pid namespace"* ]] || { echo "status $status: $output"; return 1; }
+    [ "$(cat "$mk")" = "where other-host pid:[1]" ] && [ ! -e "$om" ] || { echo "another namespace's marker was replaced, or the tmp left"; return 1; }
+    printf 'where other-host pid:[1]\n' > "$om.x"
+    ( _place_marker "$om.x" "$mk" >/dev/null 2>&1; [ -z "$SPRINT" ] ) || { echo "a refusal kept SPRINT"; return 1; }
+    _sweep_where > "$mk"; _sweep_where > "$om"
+    _place_marker "$om" "$mk" || { echo "our own standing marker was not replaced"; return 1; }
+    [ "$SPRINT" = "$keep" ] || { echo "SPRINT changed"; return 1; }
+    # setup places its marker so, right after the claim
+    grep -q '_place_marker "$_om" "$_mk" || return 1' <<<"$(sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME")" || { echo "setup does not place its marker by _place_marker"; return 1; }
+    ! grep -q 'mv -f -- "$_om"' <<<"$(sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME")" || { echo "setup still renames over the marker"; return 1; }
+    # (thirty-eighth run, c2b DISS-001 / DISS-C-003: a marker a test writes at its own path is whole — a where-less one is never ours)
+    local _wl; _wl=$(grep -nE '> "[^"]*\.\$SPRINT\.owner"' "$BATS_TEST_FILENAME" | grep -v '_sweep_where' | grep -vF "grep -nE") || _wl=""
+    [ -z "$_wl" ] || { echo "a where-less own marker: $_wl"; return 1; }
+}
+
+@test "NRM-62 a .reap-<q> a dead sweeper left is judged by q's start token: a live process that reused q never keeps it; the sweeper itself (its token) and a tokenless one with a live q still do; a crashed setup's .owner.tmp over a minute old is removed, a fresh one kept (thirty-eighth run, c2a DISS-C-002)" {
+    local a="$TEST_DIR/a2a" d h tok
+    mkdir -p "$a"
+    ( : ) & d=$!; wait "$d"
+    sleep 30 3>&- & h=$!; NORM_HOLDER_PIDS=("$h")
+    tok=$(_sweep_start "$h")
+    [[ "$tok" =~ ^t[0-9]+$ ]] || skip "no /proc start token on this host"
+    # a sweeper's own name carries its token
+    [ "$(_sweep_reap_tag)" = "-$(_sweep_start "$$")" ] || { echo "reap tag '$(_sweep_reap_tag)'"; return 1; }
+    mkdir -p "$a/sprint-norm-$d.reap-$h-t1/x"; printf 't1\n%s\n' "$(_sweep_where)" > "$a/.sprint-norm-$d.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ ! -e "$a/sprint-norm-$d.reap-$h-t1" ] && [ ! -e "$a/.sprint-norm-$d.owner" ] || { echo "a recycled reaper pid kept the leftover: $(ls -A "$a")"; return 1; }
+    mkdir -p "$a/sprint-norm-$d.reap-$h-$tok/x"; printf 't1\n%s\n' "$(_sweep_where)" > "$a/.sprint-norm-$d.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$d.reap-$h-$tok/x" ] && [ -e "$a/.sprint-norm-$d.owner" ] || { echo "a live sweeper's directory was taken"; return 1; }
+    find "$a/sprint-norm-$d.reap-$h-$tok" -mindepth 1 -delete; rmdir "$a/sprint-norm-$d.reap-$h-$tok"
+    mkdir -p "$a/sprint-norm-$d.reap-$h/x"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$d.reap-$h/x" ] || { echo "a tokenless leftover of a live pid was taken"; return 1; }
+    find "$a/sprint-norm-$d.reap-$h" -mindepth 1 -delete; rmdir "$a/sprint-norm-$d.reap-$h"
+    # a sweep renames with its token
+    mkdir -p "$a/sprint-norm-$d/x"
+    ( mv() { command mv "$@"; printf '%s\n' "$3" >> "$TEST_DIR/a2a.mv"; }; _sweep_stale_suite_dirs "$a" sprint-norm )
+    grep -qxF -- "$a/sprint-norm-$d.reap-$$-$(_sweep_start "$$")" "$TEST_DIR/a2a.mv" || { echo "renamed to: $(cat "$TEST_DIR/a2a.mv" 2>/dev/null)"; return 1; }
+    [ ! -e "$a/sprint-norm-$d" ] && [ ! -e "$a/.sprint-norm-$d.owner" ] || { echo "the dead run's directory stayed"; return 1; }
+    # a crashed setup's tmp
+    : > "$a/.sprint-norm-$d.owner.tmp"; touch -d '-2 minutes' "$a/.sprint-norm-$d.owner.tmp"; : > "$a/.sprint-norm-$h.owner.tmp"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ ! -e "$a/.sprint-norm-$d.owner.tmp" ] && [ -e "$a/.sprint-norm-$h.owner.tmp" ] || { echo "tmp sweep: $(ls -A "$a")"; return 1; }
+    kill "$h" 2>/dev/null || true; wait "$h" 2>/dev/null || true
 }

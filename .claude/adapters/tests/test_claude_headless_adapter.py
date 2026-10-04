@@ -721,31 +721,45 @@ class TestPromptTransport:
         """Thirty-first run, e1 DISS-C-002: the comment above, pinned — a prompt stdin cannot encode is a hop failure that
         walks the chain (ProviderUnavailableError, never a raw UnicodeEncodeError), and the child spawned before the encode is
         reaped at once, never left on an unwritten pipe until the hop's deadline."""
+        import subprocess
         import time as _t
         from loa_cheval.types import ProviderUnavailableError
         fake = tmp_path / "fake-claude"
-        pidf = tmp_path / "child.pid"
-        fake.write_text("#!/bin/sh\necho $$ > " + str(pidf) + ".tmp && mv " + str(pidf) + ".tmp " + str(pidf) + "\nexec sleep 30\n")
+        fake.write_text("#!/bin/sh\nexec sleep 30\n")
         fake.chmod(0o755)
         monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
+        # (thirty-eighth run, e1 DISS-C-002: the child's pid is recorded where it is spawned, never by the child — a pid file
+        # the child had not yet written let a reap regression pass on exactly the fast-kill timing)
+        spawned = []
+        real_popen = subprocess.Popen
+
+        class _Recording(real_popen):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                spawned.append(self.pid)
+        monkeypatch.setattr(subprocess, "Popen", _Recording)
         adapter = ClaudeHeadlessAdapter(_make_config())
         t0 = _t.monotonic()
-        with pytest.raises(ProviderUnavailableError):
+        with pytest.raises(ProviderUnavailableError) as ei:
             adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
         assert _t.monotonic() - t0 < 10
-        deadline = _t.monotonic() + 5
-        while pidf.exists() and _t.monotonic() < deadline:
-            pid = int(pidf.read_text().strip())
-            assert pid > 0   # (never os.kill(0, …) — that is this process group)
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
-            _t.sleep(0.1)
-        else:
-            if pidf.exists():
-                os.kill(int(pidf.read_text().strip()), 9)
-                pytest.fail("the spawned claude outlived a prompt that could not be encoded")
+        chain, e = [], ei.value
+        while e is not None and len(chain) < 10:
+            chain.append(type(e).__name__)
+            e = e.__cause__ or e.__context__
+        assert "UnicodeEncodeError" in chain, chain   # (the encode path, never another failure)
+        assert len(spawned) == 1 and spawned[0] > 0, spawned   # (a spawn happened: never os.kill(0, …) — this process group)
+        pid = spawned[0]
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return   # (killed and waited for: the pid is gone, never a zombie)
+        os.kill(pid, 9)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+        pytest.fail("the spawned claude outlived a prompt that could not be encoded, or was never waited for")
 
     def test_the_argv_bound_is_gone(self):
         import loa_cheval.providers.claude_headless_adapter as m

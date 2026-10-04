@@ -104,12 +104,14 @@ gh_title_renders_raw(){
   # (CommonMark closes a backtick run only on one of equal length, and strips one space from each end of a span padded at both:
   # a run of two or more, or such a span, is refused, so the left-to-right single-backtick pairing below is CommonMark's —
   # thirty-seventh run, e2c DISS-C-001 / DISS-C-002)
+  # (a code span is punctuation to the underscores beside it — `a`_y_ opens emphasis on GitHub — so it becomes one placeholder,
+  # never nothing; and a backslash-escaped backtick opens no span, so a title holding one is refused: thirty-eighth run, e2c DISS-C-001)
   local cs=0
-  [[ "${1-}" != *'``'* ]] || cs=1
+  [[ "${1-}" != *'``'* && "${1-}" != *'\`'* ]] || cs=1
   printf '%s' "${1-}" | awk -F'`' '{ for (i = 2; i < NF; i += 2) if ($i ~ /^ / && $i ~ / $/ && $i ~ /[^ ]/) f = 1 } END { exit !f }' && cs=1
-  t="$(printf '%s' "${1-}" | sed -E 's/`[^`]*`//g')"
+  t="$(printf '%s' "${1-}" | sed -E "s/\`[^\`]*\`/'/g")"
   if [[ $cs -eq 1 || "$t" =~ $mk || "$t" =~ $em || "$t" =~ $cl ]]; then
-    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_, a closing #, a backtick run of two or more or a code span padded at both ends) — its heading anchor would match no Index link; rephrase it"
+    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_, a closing #, a backtick run of two or more, an escaped backtick or a code span padded at both ends) — its heading anchor would match no Index link; rephrase it"
   fi
 }
 
@@ -168,7 +170,9 @@ op_new(){
   # (the title's anchor is computed — and a title without one refused — before the lock and the trailing-newline repair: a refused
   # title never touches the ledger; thirty-fourth run, e2c DISS-001. "KF-NNN: t" slugs as "kf-nnn" + the slug of ": t")
   gh_title_renders_raw "$title"
-  local tail; tail="$(gh_anchor ": ${title}")"
+  # (the refusal inside the substitution reaches here by this check — never `local tail="$(…)"`, whose status is local's own:
+  # thirty-eighth run, e2c DISS-C-002)
+  local tail; tail="$(gh_anchor ": ${title}")" || exit 1
   with_lock
   ensure_trailing_nl "$f"
   local id anchor recur; id="$(next_kf_id "$f")"

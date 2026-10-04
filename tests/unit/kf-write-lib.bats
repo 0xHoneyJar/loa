@@ -237,10 +237,11 @@ def word(c):
 # (a heading GitHub renders as other text than it reads has no raw-text anchor: thirty-fifth run, e2c DISS-C-002)
 # (a backtick run of two or more, or a code span padded by a space at both ends, renders as other text: thirty-seventh run,
 # e2c DISS-C-001 / DISS-C-002 — the library's refusal; with single backticks only, left-to-right pairing is CommonMark's)
+# (a span is punctuation to its neighbours, never deleted, and an escaped backtick opens none: thirty-eighth run, e2c DISS-C-001)
 def rendered_differs(h):
-    t = re.sub(r"`[^`]*`", "", h)
+    t = re.sub(r"`[^`]*`", "'", h)
     p = h.split("`")
-    if "``" in h or any(c.startswith(" ") and c.endswith(" ") and c.strip(" ") for c in p[1:len(p) - 1:2]):
+    if "``" in h or "\\`" in h or any(c.startswith(" ") and c.endswith(" ") and c.strip(" ") for c in p[1:len(p) - 1:2]):
         return True
     return bool(re.search(r"\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);", t)
                 or re.search(r"(^|[^\w])_+[^_\s](.*[^_\s])?_+([^\w]|$)", t) or re.search(r"(^|\s)#+\s*$", t))
@@ -465,6 +466,31 @@ print(len(entries))
     run _kf_link_lint "$G"
     [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "'${h%%|*}' passed the lint: $output"; return 1; }
   done
+}
+
+@test "kf-write new: a code span is punctuation beside an underscore and a backslash-escaped backtick opens no span — x\`a\`_y_ and a \\\`_x_\` c render emphasis on GitHub, so both are refused before any write and the link lint names both; the anchor call site checks its own status (thirty-eighth run, e2c DISS-C-001 / DISS-C-002)" {
+  local G0="$BATS_TEST_TMPDIR/e2c38.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local before t; before="$(cksum < "$G0")"
+  for t in 'x`a`_y_' '_y_`a`x' 'a \`_x_` c' 'run `a`_b_ now'; do
+    run bash "$KFW" new --file "$G0" --title "$t" --status OPEN --quiet
+    [ "$status" -ne 0 ] || { echo "'$t' was written"; return 1; }
+    [[ "$output" == *renders* ]] || { echo "'$t': $output"; return 1; }
+    [ "$(cksum < "$G0")" = "$before" ] || { echo "'$t' changed the ledger"; return 1; }
+  done
+  # a span beside an intraword underscore pair, and spans joined by text, are rendered as written
+  run bash "$KFW" new --file "$G0" --title 'the `a`_b_c and [x]`y`(z) case' --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  run _kf_link_lint "$G0"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  local G="$BATS_TEST_TMPDIR/lint-cs38.md" h
+  for h in 'x`a`_y_|kf-040-xa_y_' 'a \`_x_` c|kf-040-a-_x_-c'; do
+    printf '%s\n' '# KF' '' '## Index' '' "| [KF-040](#${h#*|}) | OPEN | x | 1 |" '' "## KF-040: ${h%%|*}" > "$G"
+    run _kf_link_lint "$G"
+    [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "'${h%%|*}' passed the lint: $output"; return 1; }
+  done
+  # (DISS-C-002: a refusal raised inside the anchor substitution reaches the caller by the call site's own check, not by
+  # errexit on a bare assignment alone)
+  grep -qF 'tail="$(gh_anchor ": ${title}")" || exit 1' "$KFW" || { echo "the anchor call site leans on errexit"; return 1; }
 }
 
 @test "kf-write new: an underscore emphasis bounded by non-ASCII punctuation — “_x_”, —_x_— — is refused like an ASCII-bounded one: CommonMark reads Unicode punctuation as punctuation, so GitHub renders it as emphasis (thirty-sixth run, e2c DISS-C-001)" {

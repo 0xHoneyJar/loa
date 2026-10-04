@@ -432,3 +432,91 @@ def test_a_shared_group_is_refused_before_any_account_enumeration(monkeypatch):
     _private_group(monkeypatch)
     monkeypatch.setattr(pwd, "getpwall", lambda: calls.append(1) or [SimpleNamespace(pw_name="loa-me", pw_uid=os.getuid(), pw_gid=os.getgid())])
     assert hc._group_private(os.getgid()) is True and calls == [1]
+
+
+def test_a_live_hops_workspace_is_never_swept_however_old_it_reads(root):
+    """Age alone is no liveness: a provider read_timeout above the ceiling is never lowered, a hop's slot wait ages its
+    directory before its CLI starts, and a directory's mtime moves only when an entry is added or removed. Each live hop holds
+    a lock on its workspace and the sweep never takes a locked one, at any age (cycle-126 thirty-eighth run, d DISS-C-001)."""
+    import fcntl
+    import subprocess
+    import time as _t
+    from unittest.mock import patch
+    from loa_cheval.types import ProviderUnavailableError
+    from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
+    from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
+    from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
+    os.environ["HOME"] = str(_dir(root / "home", 0o700))
+    base = hc.private_workspace_base()
+    old = _t.time() - 30 * 86400
+    held = os.path.join(base, "loa-codex-ws-held_123")
+    os.mkdir(held, 0o700)
+    fd = hc.hold_hop_workspace(held)
+    assert fd is not None
+    os.utime(held, (old, old))
+    hc.sweep_stale_hop_workspaces(base, "loa-codex-ws-")
+    assert os.path.isdir(held), "a held workspace was swept"
+    hc.release_hop_workspace(fd)
+    hc.sweep_stale_hop_workspaces(base, "loa-codex-ws-")
+    assert not os.path.lexists(held), "a released stale workspace was kept"
+    for cls, kind, model in ((CodexHeadlessAdapter, "codex", "gpt-5.5"), (CursorHeadlessAdapter, "cursor", "composer-2"),
+                             (GrokHeadlessAdapter, "grok", "grok-4")):
+        prefix = f"loa-{kind}-ws-"
+        cfg = ProviderConfig(name=f"{kind}-headless", type=f"{kind}-headless", endpoint="", auth="", connect_timeout=1,
+                             read_timeout=1, models={model: ModelConfig(context_window=200000, extra={"cli_model": model})})
+        req = CompletionRequest(messages=[{"role": "user", "content": "ping"}], model=model, max_tokens=16)
+        seen = []
+
+        def _spawn(cmd, **kw):
+            cwd = kw["cwd"]
+            os.utime(cwd, (old, old))   # (a long slot wait, or a CLI that writes nothing to its cwd)
+            hc.sweep_stale_hop_workspaces(base, prefix)   # (a concurrent hop's sweep)
+            seen.append(os.path.isdir(cwd))
+            probe = os.open(cwd, os.O_RDONLY)
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                seen.append("unlocked")
+            except BlockingIOError:
+                pass
+            finally:
+                os.close(probe)
+            raise subprocess.TimeoutExpired(cmd, 1)
+        with patch(f"loa_cheval.providers.{kind}_headless_adapter.run_subprocess_pgkill", _spawn), \
+                pytest.raises(ProviderUnavailableError):
+            cls(cfg).complete(req)
+        assert seen == [True], (kind, seen)
+        assert not [n for n in os.listdir(base) if n.startswith(prefix)], (kind, os.listdir(base))
+
+
+def test_a_relative_runtime_dir_is_named_in_the_fail_closed_error(root, monkeypatch):
+    """The error ends 'set XDG_RUNTIME_DIR to a 0700 directory' — a relative one is seen and refused, never silently absent
+    from the list (cycle-126 thirty-eighth run, d DISS-C-002)."""
+    pub = _dir(root / "pub", 0o777)
+    os.environ["XDG_RUNTIME_DIR"] = "run-dir"
+    os.environ["HOME"] = str(pub / "h")
+    monkeypatch.setattr(hc.tempfile, "gettempdir", lambda: str(pub))
+    with pytest.raises(OSError, match=r"run-dir \(XDG_RUNTIME_DIR is not an absolute path\)"):
+        hc.private_workspace_base()
+
+
+def test_the_sweep_never_raises_when_a_concurrent_hop_takes_the_same_leftover(root, monkeypatch):
+    """Two hops sweep one base: an entry listed and then removed by the other — before the lstat, or under the rmtree — is
+    no error of this hop's, whose own workspace is still made (cycle-126 thirty-eighth run, e1 DISS-C-001: refuted — the sweep
+    never raised — and pinned)."""
+    import time as _t
+    os.environ["HOME"] = str(_dir(root / "home", 0o700))
+    base = hc.private_workspace_base()
+    old = _t.time() - 2 * 86400
+    raced = os.path.join(base, "loa-grok-ws-race_123")
+    os.mkdir(raced, 0o700)
+    open(os.path.join(raced, "prompt.txt"), "w").write("x")
+    os.utime(raced, (old, old))
+    real_listdir, real_rmtree = os.listdir, hc.shutil.rmtree
+    monkeypatch.setattr(hc.os, "listdir", lambda p: real_listdir(p) + ["loa-grok-ws-gone_456"])
+
+    def _other_hop_first(path, *a, **k):
+        real_rmtree(path, ignore_errors=True)   # (the other sweeper wins the race)
+        return real_rmtree(path, *a, **k)
+    monkeypatch.setattr(hc.shutil, "rmtree", _other_hop_first)
+    hc.sweep_stale_hop_workspaces(base, "loa-grok-ws-")
+    assert not os.path.lexists(raced)

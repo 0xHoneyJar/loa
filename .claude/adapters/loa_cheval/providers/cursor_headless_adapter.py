@@ -50,7 +50,8 @@ import time
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.headless_cli import (
-    CLIInvocation, HeadlessCLIAdapter, private_workspace_base, sweep_stale_hop_workspaces,
+    CLIInvocation, HeadlessCLIAdapter, private_workspace_base, sweep_stale_hop_workspaces, hold_hop_workspace,
+    release_hop_workspace,
 )
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
@@ -168,11 +169,13 @@ class CursorHeadlessAdapter(HeadlessCLIAdapter):
         base = private_workspace_base()
         sweep_stale_hop_workspaces(base, "loa-cursor-ws-")   # (a killed hop's leftovers — thirty-seventh run, e1b DISS-C-004)
         workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-", dir=base)
+        hold = hold_hop_workspace(workspace)   # (live: never swept — thirty-eighth run, d DISS-C-001)
         started_at = time.monotonic()
         try:
             yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
         finally:
             shutil.rmtree(workspace, ignore_errors=True)
+            release_hop_workspace(hold)
 
     def _raise_spawn_error(self, exc):
         if isinstance(exc, OSError):

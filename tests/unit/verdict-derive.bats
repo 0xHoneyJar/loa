@@ -647,6 +647,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     _vd_approved_review "$d/engineer-feedback.md" yes
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n' > "$d/adversarial-rejected-review.jsonl"
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-companion.jsonl"
+    touch -t 202001010000 "$d/adversarial-rejected-review-companion.jsonl"   # (older, forced — never write order on a coarse-mtime filesystem: thirty-eighth run, c2c DISS-C-001)
     jq -n --arg p "grimoires/loa/a2a/sprint-9/adversarial-rejected-review.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: [$p]}}' > "$d/adversarial-review.json"
     # one listed row + three unlisted rows against one bullet: the count violation names 4, the warning names the file
     run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json
@@ -687,6 +688,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     d="${TEST_TMPDIR}/s13"; mkdir -p "$d"
     _vd_approved_review "$d/engineer-feedback.md"
     printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review-old-chunk.jsonl"
+    touch -t 202001010000 "$d/adversarial-rejected-review-old-chunk.jsonl"   # (older, forced — never write order on a coarse-mtime filesystem: thirty-eighth run, c2c DISS-C-001)
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "clean", rejected_summary: [], rejected_sidecars: []}}' > "$d/adversarial-review.json"
     run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json
     [ "$status" -eq 1 ]
@@ -1323,6 +1325,8 @@ for line in src.split('\n'):
     for m in re.finditer(r'(?<![\w.-])(?:[gmn]?awk\b|"?\$\{?\w*AWK\w*)', code):   # (any variable named *AWK*: ${AWK_BIN} too)
         if 'AWK' in m.group(0):
             bad.append('a variable awk: ' + line.strip()); continue
+        if re.search(r'(?:\bcommand\s+-[vV]|\btype(?:\s+-[aftpP]+)*|\bhash|\bwhich)\s+$', code[:m.start()]):
+            continue                  # (a lookup's argument, never a program — thirty-eighth run, c2d DISS-C-001)
         i, skip = start + m.end(), False
         while True:                   # options: -v name=value, -F sep, -- (each one word, or a flag and its word)
             while i < len(src) and src[i] in ' \t': i += 1
@@ -1399,6 +1403,12 @@ PY
     # (the positive control: a class-free program, a comment naming one with a class, a grep line with a class)
     printf '%s\n' "  awk '/[ \\t]/ {print}' f" "  awk -F: '/a:b/ { x = \"[:\" }' f" "  # awk '/[[:space:]]/' is what mawk misreads" "  grep -q '[[:space:]]' f" > "$fx"
     python3 -c "$lint" "$fx" || { echo "the positive control was refused"; return 1; }
+    # (thirty-eighth run, c2d DISS-C-001: a lookup that names awk runs no program — command -v, type, hash, which)
+    printf '%s\n' "  command -v awk >/dev/null 2>&1 || exit 1" "  type -P gawk" "  hash mawk 2>/dev/null" "  which nawk || true" "  command -V awk; command -v gawk" > "$fx"
+    python3 -c "$lint" "$fx" || { echo "a lookup naming awk was read as a program: $(python3 -c "$lint" "$fx")"; return 1; }
+    printf '%s\n' '  command -v awk >/dev/null && awk "{print}" f' > "$fx"
+    rc=0; python3 -c "$lint" "$fx" >/dev/null || rc=$?
+    [ "$rc" -eq 3 ] || { echo "an awk after a lookup on its line went unread (exit $rc)"; return 1; }
     bad=$(python3 -c "$lint" "$SCRIPT") || { echo "$bad"; return 1; }
     # the class-free spellings still count a tab-separated bullet and a tab-indented Observations entry
     skip_if_no_jq
@@ -1487,6 +1497,14 @@ PY
     # …under a caller's GIT_DIR naming another repository too
     run env GIT_DIR=/nonexistent/loa-vd bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
     [ "$status" -eq 0 ] || { echo "a caller's GIT_DIR decided: $output"; return 1; }
+    # (thirty-eighth run, c2d DISS-C-004: a hook's GIT_WORK_TREE / GIT_INDEX_FILE, and the rest of git's repository set — an
+    # object directory, a ceiling above the a2a directory — never decide either)
+    local gv
+    for gv in GIT_WORK_TREE=/nonexistent/loa-wt GIT_INDEX_FILE=/nonexistent/loa-idx GIT_OBJECT_DIRECTORY=/nonexistent/loa-obj \
+              "GIT_CEILING_DIRECTORIES=$r" GIT_COMMON_DIR=/nonexistent/loa-common GIT_NAMESPACE=loa-other; do
+        run env "$gv" bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+        [ "$status" -eq 0 ] || { echo "a caller's ${gv%%=*} decided: $output"; return 1; }
+    done
     # a row appended since is a later run's: counted, with the newer warning
     printf '{"reject_reason":"new"}\n' >> "$d/adversarial-rejected-review.jsonl"
     run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
@@ -1499,12 +1517,49 @@ PY
     touch -t 202101010000 "$d/adversarial-rejected-review.jsonl"
     run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
     [ "$status" -eq 1 ] || { echo "an untracked newer sidecar went uncounted: $output"; return 1; }
+    # (thirty-eighth run, c2d DISS-C-003: staged is not committed — the index matching the file is no history; HEAD is)
+    g add a2a/adversarial-rejected-review.jsonl
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 0 ] || { echo "the committed bytes staged back read as a later run's: $output"; return 1; }
+    printf '{"reject_reason":"staged"}\n' >> "$d/adversarial-rejected-review.jsonl"
+    g add a2a/adversarial-rejected-review.jsonl
+    g diff --quiet -- a2a/adversarial-rejected-review.jsonl || { echo "the fixture was not staged"; return 1; }
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 1 ] || { echo "a staged, never-committed row read as history: $output"; return 1; }
+    jq -e '.violations[0] | test("3 schema-rejected payload")' >/dev/null <<<"$output" || { echo "$output"; return 1; }
 }
 
 @test "verdict-derive: the suite never re-parses a path as shell source — no bash -c program interpolates a variable, a checkout or tmpdir path is always an argument (thirty-sixth run, c2c DISS-C-002)" {
-    local hits
-    hits=$(grep -nE 'bash -c "([^"\\]|\\.)*\$' "$BATS_TEST_FILENAME" | grep -v '^[0-9]*:[[:space:]]*#' | grep -vF 'hits=$(grep' || true)
-    [ -z "$hits" ] || { echo "$(grep -c '' <<<"$hits") bash -c program(s) interpolate a variable, first: $(head -n 1 <<<"$hits")"; return 1; }
+    local hits sre f
+    # (thirty-eighth run, c2d DISS-C-002: sh as well as bash, a flag group ending in c (-lc, -ec), a double-quoted program with an
+    # expansion, a single-quoted one spliced with '"$v"' or '$v', a program on the continuation line, and eval with an expansion)
+    sre='(^|[^A-Za-z0-9_./-])(ba)?sh[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*c[A-Za-z]*[[:space:]]+'
+    _vd_shsrc() {  # <file> → the lines that hand a shell an interpolated program
+        { grep -nE "$sre"'"([^"\\]|\\.)*\$' "$1"
+          grep -nE "$sre'[^']*'(\"[^\"]*)?\\\$" "$1"
+          grep -nE "$sre"'\\$' "$1"
+          grep -nE '(^|[;&|({[:space:]])eval[[:space:]]+[^#]*\$' "$1"
+        } | grep -v '^[0-9]*:[[:space:]]*#' | grep -vF '_vd_shsrc' | grep -vF 'sre=' | grep -vF 'shsrc-fixture' || true
+    }
+    f="${TEST_TMPDIR}/shsrc-fixture.sh"
+    local -a shfx=(
+        'run bash -c "cd $d && ls"'           # shsrc-fixture
+        'sh -c "x $d"'                        # shsrc-fixture
+        'bash -lc "x $d"'                     # shsrc-fixture
+        'bash -e -c "x $d"'                   # shsrc-fixture
+        "run bash -c 'cd '\"\$d\"' && ls'"   # shsrc-fixture
+        "sh -c 'cd '\$d' && ls'"             # shsrc-fixture
+        $'bash -c \\\n  "x"'                # shsrc-fixture
+        'eval "x=$d"'                         # shsrc-fixture
+    )
+    for x in "${shfx[@]}"; do
+        printf '%s\n' "$x" > "$f"
+        [ -n "$(_vd_shsrc "$f")" ] || { echo "the lint missed: $x"; return 1; }
+    done
+    printf '%s\n' "run bash -c '\"\$1\" --file \"\$2\" --json' _ \"\$SCRIPT\" \"\$f\"" 'bash -c "echo ok"' "sh -c 'exit 0'" 'bashrc="$d"' > "$f"
+    [ -z "$(_vd_shsrc "$f")" ] || { echo "the lint refused a positional program or a constant one: $(_vd_shsrc "$f")"; return 1; }
+    hits=$(_vd_shsrc "$BATS_TEST_FILENAME")
+    [ -z "$hits" ] || { echo "$(grep -c '' <<<"$hits") shell program(s) interpolate a variable, first: $(head -n 1 <<<"$hits")"; return 1; }
     # the helper keeps stdout only and passes every word as an argument
     skip_if_no_jq   # (thirty-seventh run, c2d DISS-C-001: the grep half above needs no jq; this half reads it)
     local odd="${TEST_TMPDIR}/a \"b\" \$c \`d\`"; mkdir -p "$odd"; printf 'x\n' > "$odd/f.md"

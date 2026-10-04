@@ -80,7 +80,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.headless_cli import (
-    HeadlessCLIAdapter, private_workspace_base, cwd_vanished, sweep_stale_hop_workspaces,
+    HeadlessCLIAdapter, private_workspace_base, cwd_vanished, sweep_stale_hop_workspaces, hold_hop_workspace,
+    release_hop_workspace,
 )
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
@@ -209,12 +210,14 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         # prompt is written to a file INSIDE this workspace and passed via
         # --prompt-file — never argv (no ARG_MAX cliff, no flag-parsing surface).
         workspace: Optional[str] = None
+        hold: Optional[int] = None
         start = time.monotonic()
         try:
             try:
                 base = private_workspace_base()
                 sweep_stale_hop_workspaces(base, "loa-grok-ws-")   # (a killed hop's leftovers, its prompt file too — thirty-seventh run, e1b DISS-C-004)
                 workspace = tempfile.mkdtemp(prefix="loa-grok-ws-", dir=base)
+                hold = hold_hop_workspace(workspace)   # (live: never swept — thirty-eighth run, d DISS-C-001)
                 prompt_path = str(Path(workspace) / "prompt.txt")
                 # write_text on a fresh 0700 mkdtemp dir; UTF-8 explicit so a
                 # non-ASCII review diff round-trips intact.
@@ -282,6 +285,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         finally:
             if workspace is not None:
                 shutil.rmtree(workspace, ignore_errors=True)
+            release_hop_workspace(hold)
 
         latency_ms = int((time.monotonic() - start) * 1000)
         stdout = proc.stdout or ""

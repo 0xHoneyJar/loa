@@ -27,7 +27,9 @@ Design notes:
     tools.sandbox — verified on gemini-cli 0.41.2); only an operator `--sandbox` in `gemini_extra_flags` keeps a sandbox, and
     that exposure (thirty-fourth run, e1b DISS-C-001) — `--sandbox false`, `--sandbox=false` and `--no-sandbox` ask for
     none, read as yargs reads a boolean, the last flag winning (thirty-fifth run, e1b DISS-C-002) — `=<v>` is a sandbox only
-    for exactly `true`, a following token its value only when exactly true / false (thirty-sixth run, e1b DISS-C-001).
+    for exactly `true`, a following token its value only when exactly true / false (thirty-sixth run, e1b DISS-C-001), and
+    nothing after `--` an option; that sandbox is warned of and bounds the prompt to one argv string (thirty-eighth run, e1b
+    DISS-C-002/003).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
     invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
     an isolated empty directory, never the reviewed tree (cycle-126).
@@ -94,6 +96,8 @@ def _asks_sandbox(args) -> bool:
     DISS-C-002)."""
     want = False
     for i, a in enumerate(args):
+        if a == "--":
+            break   # (every later token is positional to yargs — thirty-eighth run, e1b DISS-C-003)
         if a in ("-s", "--sandbox"):
             want = not (i + 1 < len(args) and args[i + 1] == "false")
         elif a.startswith(("--sandbox=", "-s=")):
@@ -147,6 +151,8 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     # (the fixed `-p` text: headless mode, the prompt itself on stdin — e1b DISS-C-002)
     _ARGV_PROMPT = "Answer the request above."
     _STDIN_CAP = 8 * 1024 * 1024   # gemini-cli's MAX_STDIN_SIZE (UTF-16 code units of the decoded stdin)
+    # (a sandboxed run folds stdin into ONE argv string with the -p text: MAX_ARG_STRLEN less the -p text and a margin)
+    _SANDBOX_ARGV_CAP = 128 * 1024 - 4096
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
@@ -170,6 +176,16 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
                 self.provider, f"gemini -p reads at most 8 MiB of stdin and would truncate this {len(prompt)}-character prompt",
             )
         command = self._build_command(request, model_config, prompt)
+        if _asks_sandbox(command[1:]):
+            # (thirty-eighth run, e1b DISS-C-002: the operator's sandbox folds the prompt into the sandbox child's argv — said,
+            # and bounded before any spawn, never an opaque exec failure)
+            self._logger.warning("gemini-headless: gemini_extra_flags asks for a sandbox, which puts the prompt on the sandbox "
+                                 "child's argv (readable through /proc/<pid>/cmdline; one argument holds at most 128 KiB)")
+            if len(prompt.encode("utf-8", "surrogatepass")) > self._SANDBOX_ARGV_CAP:
+                raise ProviderUnavailableError(
+                    self.provider, f"gemini -p under the operator's sandbox would put this {len(prompt)}-character prompt on one "
+                    "argv string over 128 KiB (MAX_ARG_STRLEN): drop --sandbox from gemini_extra_flags",
+                )
         workspace = private_workspace("loa-gemini-ws")
         started_at = time.monotonic()
         yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)

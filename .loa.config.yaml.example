@@ -1391,10 +1391,12 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /review-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
-    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this; a malformed value fails closed
-                                 # as 0); the KF-004 repairs (≤ 5 findings per voice, each up to one call per repair-chain hop — three
-                                 # at most) are bounded by count and wall clock, not by this: each voice's repairs share a wall
-                                 # budget of 5 × the timeout × 2, never under two of the heaviest hop's charges plus a timeout —
+    budget_cents: 150            # Gate on ONE dissent call's pre-dispatch cost estimate, made once from the diff's size before any
+                                 # dispatch — not a spend ceiling (a malformed value fails closed as 0): fallback hops, the companion
+                                 # voice and the KF-004 repairs (≤ 5 findings per voice, each up to one call per repair-chain hop —
+                                 # three at most) are further calls it does not count; the repairs are bounded by count and wall
+                                 # clock: each voice's repairs share a wall budget of 5 × the timeout × 2, never under two of
+                                 # the heaviest hop's charges plus a timeout —
                                  # pinned by LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS (env only; a pin below a hop's charge is warned)
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
     # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
@@ -1442,9 +1444,9 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
-    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this — two voices, up
-                                 # to twice this per audit; a malformed value fails closed as 0; the KF-004 repairs are
-                                 # bounded by count and wall clock, not this — code_review's rule on THIS block's timeout_seconds,
+    budget_cents: 150            # Gate on ONE dissent call's pre-dispatch cost estimate, as code_review's — not a spend ceiling
+                                 # (a malformed value fails closed as 0): the second voice, fallback hops and the KF-004 repairs
+                                 # are further calls; the repairs are bounded by count and wall clock — code_review's rule on THIS block's timeout_seconds,
                                  # two of the heaviest hop's charges at least, pinned by LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS)
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true)

@@ -193,9 +193,12 @@ _rejected_rows_of() {  # <file> [listed] — adds the file's rejected rows to $r
 }
 _vd_committed() {  # <file> → 0 when git tracks it and its bytes are the committed ones: history, whatever mtime a checkout gave it —
     # git writes a directory's files in index order, so a sidecar can land a clock tick after its envelope (thirty-fifth run,
-    # e2a DISS-C-004); a caller's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE never name the repository; no git is no proof
+    # e2a DISS-C-004); a caller's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE never name the repository, nor the rest of git's
+    # repository and discovery set (thirty-eighth run, c2d DISS-C-004: a ceiling, an object directory, a namespace); no git is no proof
     command -v git >/dev/null 2>&1 || return 1
-    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+            GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_SHALLOW_FILE GIT_GRAFT_FILE \
+            GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(git rev-parse --local-env-vars 2>/dev/null)
       git -C "${1%/*}" ls-files --error-unmatch -- "${1##*/}" >/dev/null 2>&1 \
         && git -C "${1%/*}" diff --quiet HEAD -- "${1##*/}" >/dev/null 2>&1 )
 }
