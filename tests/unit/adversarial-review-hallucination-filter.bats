@@ -33,6 +33,10 @@ setup() {
     # section banner (Finding ID Computation).
     sed -n '/# Dissenter Hallucination Filter/,/# Finding ID Computation/p' "$script_path" > ext.sh
     # Provide the log() helper the filter depends on
+    # the extraction is whole — the column-0 `}` that ends the range is the function's own, the script line after it no
+    # indented body (thirty-third run, e3 DISS-C-004) — checked BEFORE the source, so a cut inside the body is named here and
+    # never surfaces as source's "unexpected end of file" (thirty-sixth run, e3 DISS-C-003)
+    _jq_pair_extracted_whole "$script_path"
     {
         echo 'log() { echo "[test] $*" >&2; }'
         # sprint-bug-208 (#1025): the filter now routes verdict-bearing jq
@@ -45,9 +49,6 @@ setup() {
     } > filter-fns.sh
     source filter-fns.sh
     [ "$(type -t _adv_jq_pair)" = function ] || { echo "setup: _adv_jq_pair was not extracted" >&2; return 1; }
-    # …and extracted whole: the column-0 `}` that ends the range is the function's own — the script line after it is no
-    # indented body (thirty-third run, e3 DISS-C-004)
-    _jq_pair_extracted_whole "$script_path"
 }
 
 _jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extraction is the function's own: the next line is no
@@ -334,4 +335,12 @@ _make_result() {
     _jq_pair_extracted_whole "$fx" 2>/dev/null || { echo "a whitespace-only line was read as an indented body"; return 1; }
     printf '_adv_jq_pair() {\n  :\n}\n  body\n}\n' > "$fx"
     if _jq_pair_extracted_whole "$fx" 2>/dev/null; then echo "an extraction that ended inside the body passed"; return 1; fi
+}
+
+@test "setup checks the _adv_jq_pair extraction before it sources it — a cut inside the body is named, never an opaque 'unexpected end of file' from source (thirty-sixth run, e3 DISS-C-003)" {
+    local f="$BATS_TEST_FILENAME" chk src
+    chk="$(grep -n '^    _jq_pair_extracted_whole "$script_path"$' "$f" | head -1 | cut -d: -f1)"
+    src="$(grep -n '^    source filter-fns.sh$' "$f" | head -1 | cut -d: -f1)"
+    [[ -n "$chk" && -n "$src" ]] || { echo "setup's check ($chk) or source ($src) not found"; return 1; }
+    (( chk < src )) || { echo "the extraction check (line $chk) runs after the source (line $src)"; return 1; }
 }

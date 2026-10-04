@@ -9,7 +9,12 @@ BB-602 additions: Tests for audit_filter_context, lookup_trust_scopes,
 invalidate_permissions_cache, and ARCHITECTURE_SUMMARY_MAX_CHARS constant.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (thirty-sixth run, c2e DISS-C-004: collects under importlib too)
 
 from loa_cheval.routing.context_filter import (
     ARCHITECTURE_SUMMARY_MAX_CHARS,

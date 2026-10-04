@@ -725,7 +725,7 @@ class TestPromptTransport:
         from loa_cheval.types import ProviderUnavailableError
         fake = tmp_path / "fake-claude"
         pidf = tmp_path / "child.pid"
-        fake.write_text("#!/bin/sh\necho $$ > " + str(pidf) + "\nexec sleep 30\n")
+        fake.write_text("#!/bin/sh\necho $$ > " + str(pidf) + ".tmp && mv " + str(pidf) + ".tmp " + str(pidf) + "\nexec sleep 30\n")
         fake.chmod(0o755)
         monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
         adapter = ClaudeHeadlessAdapter(_make_config())
@@ -735,7 +735,8 @@ class TestPromptTransport:
         assert _t.monotonic() - t0 < 10
         deadline = _t.monotonic() + 5
         while pidf.exists() and _t.monotonic() < deadline:
-            pid = int(pidf.read_text().strip() or 0)
+            pid = int(pidf.read_text().strip())
+            assert pid > 0   # (never os.kill(0, …) — that is this process group)
             try:
                 os.kill(pid, 0)
             except ProcessLookupError:

@@ -205,6 +205,13 @@ class TestCommandConstruction:
         assert cmd[policy_indices[0] + 1] == os.path.abspath("./.gemini/policy-a.json")
         assert cmd[policy_indices[1] + 1] == os.path.abspath("./.gemini/policy-b.json")
 
+    def test_a_home_relative_policy_path_is_expanded_before_the_cwd_moves(self):
+        # (thirty-sixth run, e1b DISS-C-003: `~/…` is the shell's, not gemini-cli's — abspath alone would make it
+        # <caller cwd>/~/…, a file that does not exist)
+        adapter = GeminiHeadlessAdapter(_make_config(extra={"gemini_policies": ["~/policies/p.toml"]}))
+        cmd = adapter._build_command(_make_request(), adapter.config.models["gemini-3-pro"], "x")
+        assert cmd[cmd.index("--policy") + 1] == os.path.join(os.path.expanduser("~"), "policies", "p.toml")
+
     def test_extra_flags_pass_through(self):
         adapter = GeminiHeadlessAdapter(
             _make_config(extra={"gemini_extra_flags": [["--allowed-tools", "read,grep"], "--list-extensions"]})
@@ -708,7 +715,14 @@ def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
     gemini_extra_flags keeps the operator's choice, the documented exposure (cycle-126 thirty-fourth run, e1b DISS-C-001)."""
     monkeypatch.setenv("GEMINI_SANDBOX", "docker")
     for extra, want in (({}, "false"), ({"gemini_extra_flags": ["--sandbox"]}, "docker"),
-                        ({"gemini_extra_flags": [["-s"]]}, "docker"), ({"gemini_extra_flags": ["--sandbox=podman"]}, "docker"),
+                        ({"gemini_extra_flags": [["-s"]]}, "docker"),
+                        # (thirty-sixth run, e1b DISS-C-001: yargs reads a boolean option's `=value` as `value === "true"`, exactly —
+                        # any other value, a sandbox command's name too, asks for none; a following token is its value only when
+                        # it is the literal true / false, case-sensitive, so `--sandbox FALSE` asks for one)
+                        ({"gemini_extra_flags": ["--sandbox=podman"]}, "false"), ({"gemini_extra_flags": ["--sandbox=0"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=1"]}, "false"), ({"gemini_extra_flags": ["--sandbox=TRUE"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox="]}, "false"), ({"gemini_extra_flags": ["-s=true"]}, "docker"),
+                        ({"gemini_extra_flags": ["--sandbox=true"]}, "docker"), ({"gemini_extra_flags": [["--sandbox", "FALSE"]]}, "docker"),
                         # (thirty-fifth run, e1b DISS-C-002: a flag that asks for NO sandbox — yargs reads a boolean's following
                         # literal — is never "the operator asked for one"; the last of several wins)
                         ({"gemini_extra_flags": [["--sandbox", "false"]]}, "false"), ({"gemini_extra_flags": [["-s", "false"]]}, "false"),

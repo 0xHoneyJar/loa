@@ -71,6 +71,9 @@ gh_anchor(){
   # Join_Control — so an Other_Number (², ½, ①) is dropped, and an Other_Alphabetic symbol (Ⓐ, 🄰 — the four So ranges of
   # PropList's Other_Alphabetic, which unicodedata cannot name) and ZWNJ/ZWJ are kept; checked against perl's \w codepoint
   # by codepoint)
+  # (thirty-sixth run, e2c DISS-C-002: the slug references disagree exactly there — perl's \w, Onigmo's \p{Word} and
+  # github-slugger split on Other_Number, ZWNJ/ZWJ and the Other_Alphabetic symbols, and Python's lower() alone applies
+  # Final_Sigma — so a title holding one, or any format character, has no settled anchor: refused, never guessed)
   local rc=0
   printf '%s' "${1-}" | python3 -c 'import sys, unicodedata
 try:
@@ -78,18 +81,24 @@ try:
 except UnicodeDecodeError:
     sys.exit(3)
 oa = ((0x24B6, 0x24E9), (0x1F130, 0x1F149), (0x1F150, 0x1F169), (0x1F170, 0x1F189))
+if (any(unicodedata.category(c) in ("No", "Cf") or any(a <= ord(c) <= b for a, b in oa) for c in h)
+        or h.lower() != "".join(c.lower() for c in h)):
+    sys.exit(4)
 def word(c):
     k = unicodedata.category(c)
     return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
 sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-").encode("utf-8"))' || rc=$?
   [[ $rc -ne 3 ]] || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
+  [[ $rc -ne 4 ]] || die "new: the title's GitHub heading anchor is not settled — it holds an Other_Number (², ½, ①), a format character (ZWJ, ZWNJ), an Other_Alphabetic symbol (Ⓐ) or a word-final capital sigma, on which GitHub's slug references disagree; rephrase it"
   [[ $rc -eq 0 ]] || die "new: python3 failed (exit $rc) computing the title's GitHub anchor"
 }
 # GitHub slugs a heading's RENDERED text: a title holding a link, an HTML tag, a character reference, an underscore emphasis
 # outside a code span or a closing # sequence renders as other text than it reads, so no raw-text slug is its anchor — refused
 # before any write, the title to be rephrased (thirty-fifth run, e2c DISS-C-002; the link lint names such a heading too)
 gh_title_renders_raw(){
-  local t nw=$'[^[:alnum:]_\x80-\xff]' ns='[^_[:space:]]'
+  # (a byte >= 0x80 beside an underscore counts as punctuation: “_x_” and —_x_— are emphasis on GitHub, and é_x_é is refused
+  # with them, conservatively — the writer at least as strict as the link lint: thirty-sixth run, e2c DISS-C-001)
+  local t nw=$'[^[:alnum:]_]' ns='[^_[:space:]]'
   local mk='\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);' cl='(^|[[:space:]])#+[[:space:]]*$'
   local em="(^|$nw)_+$ns(.*$ns)?_+($nw|$)"
   t="$(printf '%s' "${1-}" | sed -E 's/`[^`]*`//g')"

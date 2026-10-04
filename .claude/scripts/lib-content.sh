@@ -112,10 +112,10 @@ _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partia
   partial=$(head -c "$2" "$1")
   # twenty-third run, b1 DISS-C-001: whole lines first — a cut inside a line (a hunk header's first bytes included) drops that
   # line — then a hunk header (or the end) right after them means their last hunk is complete, and it is kept
-  nxt=$(tail -c +"$(( $(printf '%s' "$partial" | LC_ALL=C wc -c) + 1 ))" "$1" 2>/dev/null | head -c 5) || true
+  nxt=$(_lc_next5 "$1" "$(printf '%s' "$partial" | LC_ALL=C wc -c)"; printf x) || nxt="x"; nxt="${nxt%x}"
   if [[ -n "$nxt" && "$nxt" != $'\n'* ]]; then
     if [[ "$partial" == *$'\n'* ]]; then partial="${partial%$'\n'*}"; else partial=""; fi
-    nxt=$(tail -c +"$(( $(printf '%s' "$partial" | LC_ALL=C wc -c) + 1 ))" "$1" 2>/dev/null | head -c 5) || true
+    nxt=$(_lc_next5 "$1" "$(printf '%s' "$partial" | LC_ALL=C wc -c)"; printf x) || nxt="x"; nxt="${nxt%x}"
   fi
   if [[ -z "$nxt" || "$nxt" == $'\n@@ '* ]] && (( $(_lc_hunk_count "$partial") > 0 )); then
     printf '%s' "$partial" > "$3"; printf 'hunk'; return 0
@@ -129,6 +129,17 @@ _lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partia
     printf '%s' "$partial" > "$3"   # (whole lines already — twenty-third run, b1 DISS-C-001)
     printf 'mid'
   fi
+}
+_lc_next5() {  # <file> <bytes before> → the next five bytes, exact; nothing when only newlines are left (the chunk's own end)
+  # (thirty-sixth run, b1 DISS-C-001: a substitution strips trailing newlines — five empty lines after the cut read as the end, so a
+  # hunk cut before a run of suppressBlankEmpty context lines was counted whole; the caller appends a sentinel for the same reason)
+  local n more
+  n=$( { tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | head -c 5; printf x; } ) || n="x"; n="${n%x}"
+  if [[ -n "$n" && -z "${n//$'\n'/}" ]]; then
+    more=$(tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | LC_ALL=C tr -d '\n' | head -c 1 | LC_ALL=C wc -c) || true
+    more="${more//[!0-9]/}"; (( ${more:-1} > 0 )) || n=""
+  fi
+  printf '%s' "$n"
 }
 _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)
   # (twenty-first run, b1 DISS-C-001: the assignment itself is guarded — a plain-statement call under errexit, or a substitution

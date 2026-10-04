@@ -2871,7 +2871,10 @@ _companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] [call
   # second's first instant, a whole-second end closes at its last — so a sub-second hop start, taken when the CLI lock is
   # acquired, excludes a row the primary wrote on the same shared hop in that second, before it released the lock; the
   # gate's own calling_primitive is matched — the audit's rows are adversarial-audit)
-  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg since "$since" --arg until "$until" --arg prim "$prim" '
+  # (thirty-sixth run, a3 DISS-C-003: matched strictly — every adversarial call stamps it, so a row without one is another
+  # writer's; DISS-C-002: cheval writes provider:canonical-id, so the hop is compared canonically too — an alias or a host prefix)
+  local mc; mc=$(_adv_hop_canon "$m" 2>/dev/null) || mc=""; [[ -n "$mc" ]] || mc="$m"
+  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg mc "$mc" --arg since "$since" --arg until "$until" --arg prim "$prim" '
       def ns($pad): if test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$") | not then null
         elif test("\\.") then capture("^(?<a>[^.]+)\\.(?<f>[0-9]+)Z$") | .a + "." + ((.f + "000000000")[0:9]) + "Z"
         else sub("Z$"; "." + $pad + "Z") end;
@@ -2879,8 +2882,8 @@ _companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] [call
       fromjson? | ((.ts_utc? // "") | if type == "string" then ns("000000000") else null end) as $ts
       | select(type == "object" and (.event_type // "") == "model.invoke.complete" and $ts != null and $s != null and $u != null
              and ($ts >= $s) and ($ts <= $u)
-             and ((.payload.calling_primitive // $prim) == $prim)
-             and (((.payload.models_requested // []) | if type == "array" then map(strings | (. == $m or endswith(":" + $m))) | any else false end)))
+             and (.payload.calling_primitive == $prim)
+             and (((.payload.models_requested // []) | if type == "array" then map(strings | (. == $m or endswith(":" + $m) or sub("^[A-Za-z0-9_-]+:"; "") == $mc)) | any else false end)))
       | (.payload.models_failed // []) | if type == "array" then .[] else empty end | objects | .message_redacted // empty | strings' 2>/dev/null | tail -1 | cut -c1-300 || true
   # (twenty-first run, a2 DISS-C-002: the row's SHAPE is checked too — a non-string models_requested element or a non-object
   # models_failed element from another writer of the shared ledger is skipped; a jq exit 5 never becomes this function's status)
@@ -3137,6 +3140,9 @@ _adv_shared_hop_verdict() {  # <hop> <companion workdir> <companion start epoch>
   if [[ -f "$wd/companion.attempts" && -r "$wd/companion.attempts" ]]; then
     while IFS= read -r _row || [[ -n "$_row" ]]; do
       _nm="${_row%:*}"; [[ "$_nm" != "$_row" && -n "$_nm" ]] || continue
+      # (thirty-sixth run, a3 DISS-C-004: only a failure row is "failed it" — a success row whose answer is not the hop's, another
+      # inner model's or one since removed, finished without it)
+      case "${_row##*:}" in api_failure|malformed_response|lock_wait) ;; *) continue ;; esac
       if [[ "$(_adv_hop_canon "$_nm")" == "$hop" ]]; then printf 'run\tfailed_it\tfailed it'; return 0; fi
     done < "$wd/companion.attempts"
   fi
@@ -3551,6 +3557,11 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # (thirty-first run, a4 DISS-C-001: `-u0` left no context line) — unset in a subshell, the caller keeps its own
   ( unset GIT_DIFF_OPTS GIT_ATTR_SOURCE
     if _e=$(git -C "$1" hash-object -t tree /dev/null 2>/dev/null) && [[ -n "$_e" ]]; then export GIT_ATTR_SOURCE="$_e"; fi
+    # (thirty-sixth run, e2a DISS-C-002: a git before 2.40 ignores GIT_ATTR_SOURCE without a word — said, never silent)
+    _gv=$(git version 2>/dev/null) || _gv=""; _gv="${_gv#git version }"; _gv="${_gv%% *}"
+    if [[ ! "$_gv" =~ ^([0-9]+)\.([0-9]+) ]] || (( BASH_REMATCH[1] < 2 || (BASH_REMATCH[1] == 2 && BASH_REMATCH[2] < 40) )); then
+      log "WARN: git ${_gv:-unknown} reads no GIT_ATTR_SOURCE (git >= 2.40) — the reviewed tree's .gitattributes applies to the --diff-range diff, so a committed -diff line shows its hunks to neither voice"
+    fi
     GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
     -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \

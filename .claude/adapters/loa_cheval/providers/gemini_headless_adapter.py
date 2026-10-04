@@ -26,7 +26,8 @@ Design notes:
     stdin into the sandbox child's argv, so the hop runs with GEMINI_SANDBOX=false (it outranks --sandbox and settings.json's
     tools.sandbox — verified on gemini-cli 0.41.2); only an operator `--sandbox` in `gemini_extra_flags` keeps a sandbox, and
     that exposure (thirty-fourth run, e1b DISS-C-001) — `--sandbox false`, `--sandbox=false` and `--no-sandbox` ask for
-    none, read as yargs reads a boolean, the last flag winning (thirty-fifth run, e1b DISS-C-002).
+    none, read as yargs reads a boolean, the last flag winning (thirty-fifth run, e1b DISS-C-002) — `=<v>` is a sandbox only
+    for exactly `true`, a following token its value only when exactly true / false (thirty-sixth run, e1b DISS-C-001).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
     invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
     an isolated empty directory, never the reviewed tree (cycle-126).
@@ -49,12 +50,11 @@ import logging
 import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
-import tempfile
 import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace_base
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -87,13 +87,15 @@ _GEMINI_AUTH_ENV_VARS = (
 
 def _asks_sandbox(args) -> bool:
     """The operator's own flags ask for a sandbox, read as yargs reads a boolean: `-s` / `--sandbox` (a following literal
-    true / false is its value), `--sandbox=<v>`, `--no-sandbox`; the last one wins (thirty-fifth run, e1b DISS-C-002)."""
+    true / false is its value), `--sandbox=<v>`, `--no-sandbox`; the last one wins (thirty-fifth run, e1b DISS-C-002).
+    Exactly as gemini-cli 0.41.2 parses it: `=<v>` is `v === "true"`, and only the case-sensitive literals are consumed as a
+    following value (thirty-sixth run, e1b DISS-C-001)."""
     want = False
     for i, a in enumerate(args):
         if a in ("-s", "--sandbox"):
-            want = not (i + 1 < len(args) and args[i + 1].lower() == "false")
+            want = not (i + 1 < len(args) and args[i + 1] == "false")
         elif a.startswith(("--sandbox=", "-s=")):
-            want = a.split("=", 1)[1].lower() != "false"
+            want = a.split("=", 1)[1] == "true"
         elif a == "--no-sandbox":
             want = False
     return want
@@ -147,19 +149,18 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     def _prepare_invocation(self, request, model_config, prompt):
         """An isolated empty cwd under the private base, as its siblings: gemini-cli reads GEMINI.md and `.gemini/` from its
         cwd, and `--skip-trust` trusts that directory — the caller's cwd is the tree under review, so a reviewed branch would
-        shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first."""
+        shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first. One
+        stable directory, as claude's: gemini-cli registers each project root it starts in (~/.gemini/projects.json and a
+        ~/.gemini/tmp/<id>), so a directory per hop would leave one registration per hop (thirty-sixth run, e1b DISS-C-002)."""
         # (gemini-cli counts its cap in decoded string length — UTF-16 code units)
         if len(prompt.encode("utf-16-le")) // 2 >= self._STDIN_CAP:
             raise ProviderUnavailableError(
                 self.provider, f"gemini -p reads at most 8 MiB of stdin and would truncate this {len(prompt)}-character prompt",
             )
         command = self._build_command(request, model_config, prompt)
-        workspace = tempfile.mkdtemp(prefix="loa-gemini-ws-", dir=private_workspace_base())
+        workspace = private_workspace("loa-gemini-ws")
         started_at = time.monotonic()
-        try:
-            yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
-        finally:
-            shutil.rmtree(workspace, ignore_errors=True)
+        yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
 
     def _finish_completion(
         self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
@@ -236,7 +237,8 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         if isinstance(policies, list):
             for path in policies:
                 # (resolved against the caller's directory — the CLI runs in an isolated cwd: e2a DISS-C-004)
-                cmd.extend(["--policy", os.path.abspath(str(path))])
+                # (and `~/…` expanded first — thirty-sixth run, e1b DISS-C-003)
+                cmd.extend(["--policy", os.path.abspath(os.path.expanduser(str(path)))])
 
         # Forward additional gemini CLI flags an operator may need but we
         # haven't promoted to first-class fields (e.g., experimental ACP,

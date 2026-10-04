@@ -814,6 +814,7 @@ DF
     : > "$TEST_DIR/repair-calls"
     result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>/dev/null)
     [ "$(tr '\n' ' ' < "$TEST_DIR/repair-calls")" = "tiny claude-headless m " ]
+    [ "$(jq -c '.metadata.repair_hops_skipped' <<<"$result")" = '[]' ]   # (thirty-sixth run, c2b DISS-C-003: no skip named for a hop that ran)
     kill "$_ADV_COMPANION_PID" 2>/dev/null || true; wait "$_ADV_COMPANION_PID" 2>/dev/null || true   # (never the line that fails a passing test)
     _ADV_COMPANION_PID=""; companion_shared_hops=""; companion_workdir=""
     unset ANTHROPIC_API_KEY
@@ -1247,6 +1248,7 @@ for line in open(sys.argv[1], encoding="utf-8"):
 }
 
 @test "NRM-46 no payload-sized value reaches jq on argv: a review whose findings total over one argv string (MAX_ARG_STRLEN, 128 KiB), one finding over it, and a repair of a payload over it all complete (twenty-ninth run, a1 DISS-C-003)" {
+    command -v python3 >/dev/null 2>&1 || { echo "python3 is required for NRM-46's operand lint"; return 1; }   # (thirty-sixth run, c2b DISS-C-002)
     head -c 3000 /dev/zero | tr '\0' 'x' > "$TEST_DIR/d3k.txt"
     head -c 200000 /dev/zero | tr '\0' 'y' > "$TEST_DIR/d200k.txt"
     # sixty findings of 3 KB: each is small, the set is not
@@ -1289,7 +1291,7 @@ index last_error latency m match_idx model new_sev parse_path prim primary_final
 rejected_sidecar_rel repair_attempted repair_budget_exhausted repair_metadata_json repair_skipped_no_hop repair_succeeded
 repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason since sprint_id st stability stop_reason t timestamp
 tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
-api_exit_code _pf_rc""".split())
+api_exit_code _pf_rc mc""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
 # (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's
@@ -1363,36 +1365,38 @@ for n, line in enumerate(lines):
             if not one_positional(p):
                 bad.append('positional: ' + p)
 for b in bad: print("an unreviewed jq argv operand:", b[:80])
-sys.exit(1 if bad else 0)
+sys.exit(3 if bad else 0)
 PY
 )
+    # (thirty-sixth run, c2b DISS-C-002: a caught operand is the lint's own exit 3 — a crashed lint, or no interpreter, is never a catch)
+    _nrm46_caught() { local rc=0; python3 -c "$lint" "$1" || rc=$?; [ "$rc" -eq 3 ] || { echo "the lint exited $rc on $1 (3 = an operand caught)"; return 1; }; }
     printf '%s\n' '  jq -n --arg m "$model" --arg p "$finding_json" '"'"'{m: $m, p: $p}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a second operand on one line was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a second operand on one line was never checked"; return 1; }
     printf '%s\n' '  jq -n --arg m "$model" --argjson i "$i" '"'"'{m: $m, i: $i}'"'"'' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: two reviewed operands on one line pass)
     # (thirty-third run, c2b DISS-C-001: a second variable in one quoted operand, a dynamic name, an unreviewed positional)
     printf '%s\n' '  jq -n --arg m "$model$finding_json" '"'"'{m: $m}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a quoted operand's second variable was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a quoted operand's second variable was never checked"; return 1; }
     printf '%s\n' '  jq -n --arg m "${model}-${finding_json}" '"'"'{m: $m}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a braced second variable was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a braced second variable was never checked"; return 1; }
     printf '%s\n' '  kv+=(--arg "$name" "$finding_json")' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a dynamic name's operand was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a dynamic name's operand was never checked"; return 1; }
     printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --args \' '    "$finding_json"' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a --args positional was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a --args positional was never checked"; return 1; }
     printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --jsonargs "$finding_json"' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a same-line --jsonargs positional was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a same-line --jsonargs positional was never checked"; return 1; }
     printf '%s\n' '  jq -n --arg m "$model-$i" '"'"'{m: $m}'"'"' --jsonargs \' '    "$(estimate_tokens "$x")"' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: reviewed variables and a reviewed positional pass)
     # (thirty-fourth run, c2b DISS-C-001: a command substitution inside a quoted literal; $1 outside the two functions reviewed for
     # it; a second operand on a positional line; a variable past the eighty-first character of a quoted operand)
     printf '%s\n' '  jq -n --arg x "prefix$(cat "$payload_file")" '"'"'{x: $x}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a command substitution in a quoted literal was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a command substitution in a quoted literal was never checked"; return 1; }
     printf '%s\n' '_some_helper() {' '  jq -n --argjson f "$1" '"'"'{f: $f}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a positional parameter outside its reviewed functions was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a positional parameter outside its reviewed functions was never checked"; return 1; }
     printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --jsonargs \' '    "$(estimate_tokens "$x")" "$finding_json"' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a positional line's second operand was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a positional line's second operand was never checked"; return 1; }
     printf '%s\n' "  jq -n --arg m \"\$model-$(printf 'a%.0s' $(seq 1 90))\$finding_json\" '{m: \$m}'" > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a variable past the eighty-first character was never checked"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a variable past the eighty-first character was never checked"; return 1; }
     printf '%s\n' '_adv_refuse_json() {' '  local -a kv=(); while (( $# >= 2 )); do kv+=(--arg "$1" "$2"); shift 2; done' '}' \
                    '_adv_scope_json() {' '  jq -nc --arg sha "${1:-}" '"'"'{s: $sha}'"'"'' '}' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: $1 / $2 in the two functions reviewed for them)
@@ -1400,10 +1404,10 @@ PY
     # of it is read too; and a function's grant ends at its closing brace)
     for x in '"$(date +%s)-$finding_json"' '"$(( n ))$finding_json"' '"${#a}$finding_json"' '$(date +%s)$finding_json'; do
         printf '  jq -n --arg x %s %s\n' "$x" "'{x: \$x}'" > "$fx"
-        if python3 -c "$lint" "$fx"; then echo "the tail of $x was never checked"; return 1; fi
+        _nrm46_caught "$fx" || { echo "the tail of $x was never checked"; return 1; }
     done
     printf '%s\n' '_adv_scope_json() {' '  :' '}' '  jq -n --arg s "$1" '"'"'{s: $s}'"'"'' > "$fx"
-    if python3 -c "$lint" "$fx"; then echo "a function's positional grant leaked past its closing brace"; return 1; fi
+    _nrm46_caught "$fx" || { echo "a function's positional grant leaked past its closing brace"; return 1; }
     printf '%s\n' '  jq -n --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson n "$(( a + 1 ))" --argjson l "${#arr[@]}" '"'"'{}'"'"'' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: a whole-operand construct passes)
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"

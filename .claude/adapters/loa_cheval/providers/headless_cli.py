@@ -53,13 +53,18 @@ def _group_private(gid: int) -> bool:
         import pwd
         me = pwd.getpwuid(os.getuid()).pw_name
         group = grp.getgrgid(gid)
-        accounts = pwd.getpwall()
     except (ImportError, KeyError, OSError):
         return False
     # (thirty-fourth run, d DISS-C-001: getpwall() lists only the enumerable accounts — under sssd / LDAP, the local ones — and a
     # shared primary group lists no members, so their absence is no proof; a user-private group carries this account's name)
-    return (group.gr_name == me and all(m == me for m in group.gr_mem)
-            and all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts))
+    # (thirty-sixth run, d DISS-C-005: decided before the enumeration — getpwall() can walk a whole directory)
+    if group.gr_name != me or any(m != me for m in group.gr_mem):
+        return False
+    try:
+        accounts = pwd.getpwall()
+    except OSError:
+        return False
+    return all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts)
 
 
 def _acl_extended(path: str) -> bool:
@@ -155,12 +160,26 @@ def private_workspace_base() -> str:
     """The directory the headless CLIs' isolated cwds live in: $XDG_RUNTIME_DIR, else the temporary directory (a per-user
     one on macOS, or a private $TMPDIR), else ~/.cache/loa — the first whose every ancestor no other user can write, and
     that is inside no project tree (thirty-third run, d DISS-C-001). None → OSError (fail closed: a hop never runs where
-    another user's, or the reviewed tree's, CLAUDE.md is on its discovery path)."""
+    another user's, or the reviewed tree's, CLAUDE.md is on its discovery path). A host without POSIX ownership (Windows) has
+    no other-user check: there the temporary directory is refused only inside a project (thirty-sixth run, d DISS-C-004)."""
     if not hasattr(os, "getuid"):
-        return tempfile.gettempdir()
+        base = tempfile.gettempdir()
+        marker = _project_marker(base)
+        if marker is not None:
+            raise OSError(errno.EACCES, f"no private directory for a headless CLI's working directory — {base} is inside a "
+                          f"project: {marker} (set TMP/TEMP to a directory outside any project)")
+        return base
     tried = []
     xdg = os.environ.get("XDG_RUNTIME_DIR", "")
-    for cand in ([xdg] if os.path.isabs(xdg) else []) + [tempfile.gettempdir()]:
+
+    def candidates():   # (thirty-sixth run, d DISS-C-001: the temporary directory read lazily — gettempdir() raises when none is
+        if os.path.isabs(xdg):   # usable, and that never hides a private runtime dir or the home fallback)
+            yield xdg
+        try:
+            yield tempfile.gettempdir()
+        except OSError as exc:
+            tried.append(f"the temporary directory ({exc.strerror or exc})")
+    for cand in candidates():
         if os.path.isdir(cand) and _chain_private(cand):
             marker = _project_marker(cand)
             if marker is None:
@@ -170,16 +189,23 @@ def private_workspace_base() -> str:
         tried.append(cand)
     home = os.path.expanduser("~")
     if os.path.isabs(home) and os.path.isdir(home) and _chain_private(home):
-        base = os.path.join(os.path.realpath(home), ".cache", "loa")
+        cache = os.path.join(os.path.realpath(home), ".cache")
+        base = os.path.join(cache, "loa")
         try:
-            os.makedirs(base, mode=0o700, exist_ok=True)
+            # (thirty-sixth run, d DISS-C-003: each directory created 0700 itself — makedirs' mode is the leaf's alone, so under
+            # umask 000 an absent ~/.cache was made 0777 here, refused, and left world-writable)
+            for d in (cache, base):
+                try:
+                    os.mkdir(d, 0o700)
+                except FileExistsError:
+                    pass
         except OSError as exc:
             tried.append(f"{base} ({exc.strerror or exc})")
         else:
             marker = _project_marker(base)
             if _chain_private(base) and marker is None:
                 return base
-            tried.append(f"{base} (inside a project: {marker})" if marker else base)
+            tried.append(f"{base} (inside a project: {marker})" if marker else f"{base} (an ancestor another user can write into)")
     else:
         tried.append(os.path.join(home, ".cache", "loa"))
     raise OSError(errno.EACCES, "no private directory for a headless CLI's working directory — each candidate has an "

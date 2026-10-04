@@ -89,7 +89,7 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=100)) == 720.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=90000)) == 3620.0
         assert adapter._compute_timeout(ModelConfig(headless_timeout_seconds=900)) == 920.0
-        assert caplog.text == ""
+        assert _loa_messages(caplog) == []
     # the catalog loader coerces once (d C-002): typed float or None, one warning each; the ceiling is applied
     # THERE, so the stored field is the effective bound (tenth run, d C-001)
     from loa_cheval.types import HEADLESS_TIMEOUT_CEILING_SECONDS, coerce_headless_timeout_seconds, reset_headless_timeout_reports
@@ -104,7 +104,7 @@ def test_prompt_and_timeout_contract(adapter_case, caplog):
         assert coerce_headless_timeout_seconds("900") == 900.0
         assert coerce_headless_timeout_seconds(3600) == 3600.0
         assert coerce_headless_timeout_seconds(None) is None
-        assert caplog.text == ""
+        assert _loa_messages(caplog) == []
         assert coerce_headless_timeout_seconds(True, where="p/m: ") is None
         assert coerce_headless_timeout_seconds("15m", where="p/m: ") is None
         assert coerce_headless_timeout_seconds(-5, where="p/m: ") is None
@@ -182,16 +182,18 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
     assert calls[1]["cwd"] != str(tmp_path)
     # (cycle-126 thirty-second run, e1 DISS-C-001: every isolated cwd sits under the private base — never under a /tmp any
     # local user can write a CLAUDE.md into; claude's is one stable directory, one project key — e1 DISS-C-002)
-    if name in ("codex", "cursor", "grok", "gemini", "agy"):
+    if name in ("codex", "cursor", "grok", "agy"):
         assert not Path(calls[1]["cwd"]).exists()
         assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
-    elif name == "claude":
-        assert calls[1]["cwd"] == headless_cli.private_workspace("loa-claude-ws")
+    elif name in ("claude", "gemini"):
+        # (thirty-sixth run, e1b DISS-C-002: gemini-cli registers every project root it starts in — ~/.gemini/projects.json and
+        # a ~/.gemini/tmp/<id> each — so gemini too runs in one stable directory, never one per hop)
+        assert calls[1]["cwd"] == headless_cli.private_workspace(f"loa-{name}-ws")
         # (thirty-third run, c2e DISS-C-001: by the relation itself, not the helper's own answer — the stable directory sits
         # directly under the private base, and that base is the test's own 0700 root, never the temporary directory)
         assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
         assert headless_cli.private_workspace_base() == os.path.realpath(os.environ["XDG_RUNTIME_DIR"])
-        assert os.path.basename(calls[1]["cwd"]) == "loa-claude-ws"
+        assert os.path.basename(calls[1]["cwd"]) == f"loa-{name}-ws"
     else:
         # (thirty-fourth run, c2e DISS-C-003: an adapter added to the cases states its cwd contract — never a silent pass)
         pytest.fail(f"no isolated-cwd contract stated for {name}")
@@ -201,7 +203,9 @@ def test_no_private_base_is_a_provider_unavailable_hop(adapter_case, tmp_path, m
     """A refused workspace is the hop's typed failure — ProviderUnavailableError, so cheval walks on to the next hop — never a
     bare OSError that the chain's catch-all ends as API_ERROR; and the CLI is never started (thirty-third run, d DISS-C-004)."""
     adapter, name, _ = adapter_case
-    pub = Path(os.environ["XDG_RUNTIME_DIR"]) / "pub"
+    # (thirty-sixth run, c2e DISS-C-001: under tmp_path — a run without the redirecting conftest never leaves a 0777 directory
+    # in the operator's runtime dir, and each parametrized case has its own)
+    pub = tmp_path / "pub"
     pub.mkdir()
     os.chmod(pub, 0o777)
     (pub / "run").mkdir(mode=0o700)
@@ -216,6 +220,21 @@ def test_no_private_base_is_a_provider_unavailable_hop(adapter_case, tmp_path, m
     with pytest.raises(ProviderUnavailableError, match="no private directory"):
         adapter.complete(CompletionRequest(messages=[{"role": "user", "content": "ping"}], model="entry"))
     assert not marker.exists()
+
+
+def _loa_messages(caplog):
+    """The WARNING-or-above records loa_cheval's own loggers wrote — caplog's handler sits on the root logger, so caplog.text
+    holds every propagating library's too (thirty-sixth run, c2e DISS-C-003)."""
+    return [r.getMessage() for r in caplog.records if r.name == "loa_cheval" or r.name.startswith("loa_cheval.")]
+
+
+def _imports_before_insert(src):
+    """A module whose first top-level loa_cheval/cheval import precedes its own sys.path insert — or has none (thirty-sixth
+    run, c2e DISS-C-004). The insert is a top-level line, or the body of a top-level `if … not in sys.path:`."""
+    import re
+    ins = re.search(r"^(?:if [^\n]*:\n[ \t]+)?sys\.path\.insert\(", src, re.M)
+    imp = re.search(r"^(?:from|import) (?:loa_cheval|cheval)\b", src, re.M)
+    return bool(imp) and (not ins or imp.start() < ins.start())
 
 
 def _assert_suite_owned(path, tmp_path_factory):
@@ -340,7 +359,7 @@ def test_headless_timeout_seconds_is_cli_only(caplog):
         caplog.clear()
         pg = cheval._build_provider_config("g", cfg2)
     assert pg.models["grok-headless"].headless_timeout_seconds == 800.0
-    assert caplog.text == ""
+    assert _loa_messages(caplog) == []
     # a provider with no `type:` is the openai adapter — never a headless one — so the gate's empty default and the
     # loader's "openai" default agree: the key is dropped, and no headless hop runs without it (twenty-first run, d C-002)
     cfg3 = {"providers": {"n": {"endpoint": "", "auth": "none", "models": {"m": {"context_window": 1000, "headless_timeout_seconds": 800}}}}}
@@ -576,18 +595,30 @@ def test_report_gate_is_once_across_threads(caplog, monkeypatch):
     assert [r.getMessage() for r in caplog.records if r.name == "loa_cheval.config"] == ["raced once"]
 
 
+def test_the_silence_contract_reads_only_loa_cheval_records(caplog):
+    """A library's warning inside a silence block is not the contract's (thirty-sixth run, c2e DISS-C-003)."""
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.config"):
+        caplog.clear()
+        logging.getLogger("urllib3.connectionpool").warning("a library's own warning")
+        assert _loa_messages(caplog) == []
+        logging.getLogger("loa_cheval.config").warning("the contract's")
+        logging.getLogger("loa_cheval").warning("cheval's")
+        assert _loa_messages(caplog) == ["the contract's", "cheval's"]
+
+
 def test_no_test_module_imports_loa_cheval_before_its_path_insert():
     """A module that inserts the adapters directory on sys.path does so before its first loa_cheval import — one above it
     collects only while the tests/ package happens to put that directory on the path (pytest's default prepend mode), and
     fails under --import-mode=importlib or a direct run (cycle-126 thirty-fourth run, c2e DISS-001)."""
-    import re
-    late = []
-    for f in sorted(Path(__file__).resolve().parent.glob("*.py")):
-        s = f.read_text(encoding="utf-8")
-        ins = re.search(r"^sys\.path\.insert\(", s, re.M)
-        imp = re.search(r"^(?:from|import) loa_cheval\b", s, re.M)
-        if ins and imp and imp.start() < ins.start():
-            late.append(f.name)
+    # (thirty-sixth run, c2e DISS-C-004: a module with no insert of its own collects only by that same accident, and `import
+    # cheval` imports loa_cheval too; the `if … not in sys.path:` guarded insert is an insert)
+    for src, want in (("import cheval\n", True), ("from loa_cheval import x\nsys.path.insert(0, R)\n", True),
+                      ("sys.path.insert(0, R)\nimport cheval\n", False),
+                      ("if R not in sys.path:\n    sys.path.insert(0, R)\nfrom loa_cheval import x\n", False),
+                      ("def f():\n    sys.path.insert(0, R)\nfrom loa_cheval import x\n", True), ("import os\n", False)):
+        assert _imports_before_insert(src) is want, src
+    late = [f.name for f in sorted(Path(__file__).resolve().parent.glob("*.py"))
+            if _imports_before_insert(f.read_text(encoding="utf-8"))]
     assert late == []
 
 

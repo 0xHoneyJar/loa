@@ -10,7 +10,12 @@ import os
 import stat
 from types import SimpleNamespace
 
+import sys
+from pathlib import Path
+
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # (thirty-sixth run, c2e DISS-C-004: collects under importlib too)
 
 from loa_cheval.providers import headless_cli as hc
 from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
@@ -314,3 +319,64 @@ def test_a_missing_cwd_is_named_by_the_spawn_error_itself_never_a_later_stat(tmp
             n += 1
             assert m.group(1).endswith(", exc"), f"{f.name}: {m.group(0)} never hands over the spawn error"
     assert n >= 3
+
+
+def test_a_temporary_directory_that_cannot_be_found_never_hides_the_runtime_dir(root, monkeypatch):
+    """tempfile.gettempdir() raises when no temporary directory is usable — a private $XDG_RUNTIME_DIR is still chosen, and
+    without one the home fallback is, the failure named (thirty-sixth run, d DISS-C-001)."""
+    def none():
+        raise FileNotFoundError(2, "No usable temporary directory found")
+    monkeypatch.setattr(hc.tempfile, "gettempdir", none)
+    os.environ["XDG_RUNTIME_DIR"] = str(_dir(root / "run", 0o700))
+    assert hc.private_workspace_base() == os.path.realpath(root / "run")
+    del os.environ["XDG_RUNTIME_DIR"]
+    os.environ["HOME"] = str(_dir(root / "home", 0o700))
+    assert hc.private_workspace_base() == os.path.realpath(root / "home" / ".cache" / "loa")
+    os.environ["HOME"] = str(_dir(root / "pubhome", 0o777))
+    with pytest.raises(OSError, match="the temporary directory .No usable temporary directory found"):
+        hc.private_workspace_base()
+
+
+def test_the_home_fallback_creates_every_directory_it_needs_private_whatever_the_umask(root):
+    """os.makedirs' mode is the leaf's alone: under umask 000 an absent ~/.cache was created 0777 by this very function, then
+    refused — and left world-writable for every later run; a refused fallback names why (thirty-sixth run, d DISS-C-003)."""
+    home = _dir(root / "home", 0o700)
+    os.environ["HOME"] = str(home)
+    old = os.umask(0)
+    try:
+        assert hc.private_workspace_base() == os.path.realpath(home / ".cache" / "loa")
+    finally:
+        os.umask(old)
+    for d in (home / ".cache", home / ".cache" / "loa"):
+        assert stat.S_IMODE(os.stat(d).st_mode) & 0o077 == 0, d
+    os.chmod(home / ".cache", 0o777)
+    with pytest.raises(OSError, match="loa .an ancestor another user can write into"):
+        hc.private_workspace_base()
+
+
+def test_without_posix_ownership_the_base_is_still_never_inside_a_project(root, monkeypatch):
+    """A host without getuid has no other-user check, but a TMP/TEMP inside the reviewed tree still puts its project files on
+    the CLI's discovery path — refused (thirty-sixth run, d DISS-C-004)."""
+    repo = _dir(root / "repo", 0o755)
+    (repo / ".git").mkdir()
+    monkeypatch.setattr(hc.tempfile, "gettempdir", lambda: str(_dir(repo / ".tmp", 0o777)))
+    monkeypatch.delattr(os, "getuid")
+    with pytest.raises(OSError, match="inside a project"):
+        hc.private_workspace_base()
+    monkeypatch.setattr(hc.tempfile, "gettempdir", lambda: str(_dir(root / "win", 0o777)))
+    assert hc.private_workspace_base() == str(root / "win")
+
+
+def test_a_shared_group_is_refused_before_any_account_enumeration(monkeypatch):
+    """getpwall() walks the whole account directory (sssd / LDAP with enumeration): a group whose name or members already
+    rule it out is refused without it, and a user-private group enumerates once (thirty-sixth run, d DISS-C-005)."""
+    import pwd
+    calls = []
+    for kw in ({"name": "users"}, {"members": ["someone"]}):
+        _private_group(monkeypatch, **kw)
+        monkeypatch.setattr(pwd, "getpwall", lambda: calls.append(1) or [])
+        assert hc._group_private(os.getgid()) is False
+    assert calls == []
+    _private_group(monkeypatch)
+    monkeypatch.setattr(pwd, "getpwall", lambda: calls.append(1) or [SimpleNamespace(pw_name="loa-me", pw_uid=os.getuid(), pw_gid=os.getgid())])
+    assert hc._group_private(os.getgid()) is True and calls == [1]

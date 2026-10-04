@@ -243,6 +243,12 @@ found = re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)
 heads = {h.split(":")[0]: "".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-") for h in found}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
 bad += [h.split(":")[0] for h in found if rendered_differs(h)]
+# (a heading whose anchor the slug references disagree on — Other_Number, a format character, an Other_Alphabetic symbol, a
+# context-dependent lowercase — has no settled anchor: thirty-sixth run, e2c DISS-C-002, the library's refusal)
+def unsettled(h):
+    return (any(unicodedata.category(c) in ("No", "Cf") or any(a <= ord(c) <= b for a, b in oa) for c in h)
+            or h.lower() != "".join(c.lower() for c in h))
+bad += [h.split(":")[0] for h in found if unsettled(h)]
 print("Index links that resolve to no heading:", bad) if bad else None
 sys.exit(1 if bad else 0)
 PY
@@ -354,11 +360,11 @@ print(len(entries))
   [ "$output" -eq 3 ]
 }
 
-@test "kf-write new: the anchor keeps what GitHub's word class keeps — an Other_Alphabetic circled letter and ZWJ/ZWNJ kept, an Other_Number (², ½, ①) and a symbol dropped — and the link lint agrees (thirty-fifth run, e2c DISS-C-001)" {
+@test "kf-write new: the anchor keeps what GitHub's word class keeps — a titlecase and a modifier letter, a letter number, a non-ASCII digit and a connector kept, a symbol dropped — and the link lint agrees (thirty-fifth run, e2c DISS-C-001; the ambiguous characters are refused since the thirty-sixth run, e2c DISS-C-002)" {
   local t want
   local G0="$BATS_TEST_TMPDIR/e2c35.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
-  t="$(printf 'O(n\302\262) \302\275 \342\221\240 \342\222\266 \360\237\204\260 a\342\200\215b c\342\200\214d \307\205 \312\260 \342\205\253 \331\243 x\342\200\277y \342\230\205')"
-  want="$(printf 'kf-001-on---\342\223\220-\360\237\204\260-a\342\200\215b-c\342\200\214d-\307\206-\312\260-\342\205\273-\331\243-x\342\200\277y-')"
+  t="$(printf 'O(n) \307\205 \312\260 \342\205\253 \331\243 x\342\200\277y \342\230\205')"
+  want="$(printf 'kf-001-on-\307\206-\312\260-\342\205\273-\331\243-x\342\200\277y-')"
   # (GitHub's slug: lowercase, drop all but \p{Word} — Alphabetic, Mark, Decimal_Number, Connector_Punctuation, Join_Control —
   # hyphen and space; perl's \w is that class, so a perl present re-derives the expectation)
   if command -v perl >/dev/null 2>&1; then
@@ -410,4 +416,41 @@ print(len(entries))
   printf '%s\n' '```' 'x' '```' '' '| [KF-042](#nowhere) | OPEN | x | 1 |' > "$BATS_TEST_TMPDIR/lint-after.md"
   run _kf_link_lint "$BATS_TEST_TMPDIR/lint-after.md"
   [ "$status" -eq 1 ] && [[ "$output" == *KF-042* ]] || { echo "a row after a closed fence went unread: $output"; return 1; }
+}
+
+@test "kf-write new: a title whose GitHub anchor the references disagree on — an Other_Number (², ½, ①), a format character (ZWJ, ZWNJ), an Other_Alphabetic symbol (Ⓐ, 🄰), a word-final capital sigma — is refused before any write, and the link lint names such a heading (thirty-sixth run, e2c DISS-C-002)" {
+  local G0="$BATS_TEST_TMPDIR/e2c36.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local before t; before="$(cksum < "$G0")"
+  for t in "$(printf 'O(n\302\262) growth')" "$(printf 'half \302\275 done')" "$(printf 'step \342\221\240')" "$(printf 'a\342\200\215b')" \
+           "$(printf 'c\342\200\214d')" "$(printf 'circled \342\222\266')" "$(printf 'squared \360\237\204\260')" "$(printf '\316\237\316\224\316\237\316\243 timeout')"; do
+    run bash "$KFW" new --file "$G0" --title "$t" --status OPEN --quiet
+    [ "$status" -ne 0 ] || { echo "'$t' was written"; return 1; }
+    [[ "$output" == *"not settled"* ]] || { echo "'$t': $output"; return 1; }
+    [ "$(cksum < "$G0")" = "$before" ] || { echo "'$t' changed the ledger"; return 1; }
+  done
+  # a capital sigma that is not word-final lowercases the same either way, and is kept
+  run bash "$KFW" new --file "$G0" --title "$(printf '\316\243\316\237\316\246\316\231\316\221 retry')" --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  run _kf_link_lint "$G0"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  local G="$BATS_TEST_TMPDIR/lint-amb.md"
+  printf '%s\n' '# KF' '' '## Index' '' "$(printf '| [KF-040](#kf-040-on) | OPEN | x | 1 |')" '' "$(printf '## KF-040: O(n\302\262)')" > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "a heading with an ambiguous character passed the lint: $output"; return 1; }
+}
+
+@test "kf-write new: an underscore emphasis bounded by non-ASCII punctuation — “_x_”, —_x_— — is refused like an ASCII-bounded one: CommonMark reads Unicode punctuation as punctuation, so GitHub renders it as emphasis (thirty-sixth run, e2c DISS-C-001)" {
+  local G0="$BATS_TEST_TMPDIR/e2c36b.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local before t; before="$(cksum < "$G0")"
+  for t in "$(printf 'the \342\200\234_quoted_\342\200\235 word')" "$(printf 'a \342\200\224_dash_\342\200\224 aside')" "$(printf '\302\253_g_\302\273')"; do
+    run bash "$KFW" new --file "$G0" --title "$t" --status OPEN --quiet
+    [ "$status" -ne 0 ] || { echo "'$t' was written"; return 1; }
+    [[ "$output" == *renders* ]] || { echo "'$t': $output"; return 1; }
+    [ "$(cksum < "$G0")" = "$before" ] || { echo "'$t' changed the ledger"; return 1; }
+  done
+  # the lint names the heading the writer now refuses
+  local G="$BATS_TEST_TMPDIR/lint-uq.md"
+  printf '%s\n' '# KF' '' '## Index' '' "$(printf '| [KF-040](#kf-040-the-\342\200\234_quoted_\342\200\235-word) | OPEN | x | 1 |' | sed 's/\xe2\x80\x9c//; s/\xe2\x80\x9d//')" '' "$(printf '## KF-040: the \342\200\234_quoted_\342\200\235 word')" > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "the lint passed a Unicode-bounded emphasis: $output"; return 1; }
 }

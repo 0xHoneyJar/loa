@@ -177,8 +177,9 @@ YAML
                 grep -q "the primary waits for the companion to settle" "$T/stderr.log" 2>/dev/null || { echo "stub: the primary never waited on the shared hop within the barrier" >&2; : > "$T/marker-barrier-expired"; return 99; }
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
-                : > "$T/marker-slow-spawned"   # (twenty-fourth run, c1a DISS-C-002: CMP-14 tells a cap that fired first from a reaper regression)
-                bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"   # only the reaper can end it (eighth run, c1 C-002)
+                # (twenty-fourth run, c1a DISS-C-002: CMP-14 tells a cap that fired first from a reaper regression — thirty-sixth run, c1a
+                # DISS-C-001: the marker is written by the pid that becomes the hung sleep, so it proves that process existed)
+                bash -c ': > "$1"; exec -a "$0" sleep 300' "loa-cmp14-hung-$$" "$T/marker-slow-spawned"   # only the reaper can end it (eighth run, c1 C-002)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
             errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger —
@@ -275,6 +276,9 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
 }
 teardown() {
     local d
+    # (thirty-sixth run, c1b DISS-C-001: a test's stand-in for a command outlives its body — bats runs teardown in the same shell — so
+    # none reaches the sweep below; CMP-236 lints that every command a test defines is named here)
+    unset -f cat cp date git kill mkdir mv ps sha256sum shasum sort yq 2>/dev/null || true
     # a PID-scoped stub the reaper under test failed to end never outlives the test (seventh run, c1 C-007)
     pkill -KILL -f "loa-cmp(14|30)-[a-z]+-$$"'( |$)' 2>/dev/null || true   # (anchored: pid 1234 never matches a sibling's 12345 — twentieth run, c1a DISS-C-001)
     # an out-of-band lock holder a failed assertion left behind (twelfth run, c1 C-002)
@@ -2245,12 +2249,11 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     _adv_companion_alive() { return 0; }
     printf 'post' > "$companion_workdir/companion.phase"; printf 'hop-a' > "$companion_workdir/companion.current"
     # the walker moves from hop-a (post) to hop-b (queue) between the first read of current and the read of phase
-    local real_cat; real_cat=$(command -v cat)
-    cat() {
+    cat() {   # (the real one through command — a test-local path is unbound in teardown: thirty-sixth run, c1b DISS-C-001)
         if [[ "${1:-}" == "$companion_workdir/companion.current" && ! -e "$T/moved" ]]; then
-            "$real_cat" "$@"; : > "$T/moved"; printf 'hop-b' > "$companion_workdir/companion.current"; printf 'queue' > "$companion_workdir/companion.phase"; return 0
+            command cat "$@"; : > "$T/moved"; printf 'hop-b' > "$companion_workdir/companion.current"; printf 'queue' > "$companion_workdir/companion.phase"; return 0
         fi
-        "$real_cat" "$@"
+        command cat "$@"
     }
     _ADV_REPAIR_SKIP_FILE="$T/skips"; : > "$_ADV_REPAIR_SKIP_FILE"
     if _adv_repair_hop_shared_now hop-a answering-x; then echo "hop-a was called shared from hop-b's phase"; return 1; fi
@@ -2320,7 +2323,7 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     {
         jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:01Z", payload:{models_requested:[1, {"a":2}, "anthropic:claude-headless"], models_failed:["a string", 3, {message_redacted:"odd-row"}]}}'
         jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:02Z", payload:{models_requested:"claude-headless", models_failed:{message_redacted:"x"}}}'
-        jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:03Z", payload:{models_requested:["anthropic:claude-headless"], models_failed:[{message_redacted:"mine"}]}}'
+        jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:03Z", payload:{models_requested:["anthropic:claude-headless"], calling_primitive:"adversarial-review", models_failed:[{message_redacted:"mine"}]}}'
         jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:04Z", payload:{models_requested:[null], models_failed:[[1]]}}'
     } > "$LOA_MODELINV_LOG_PATH"
     set -o pipefail
@@ -3285,8 +3288,10 @@ $doc" 300 2>/dev/null)
     # the losing racer: another run's mkdir lands first, so this run's `mkdir -m 700 <lockdir>` fails with EEXIST
     rc=0
     ( mkdir() { if [[ "$1" == "-m" ]]; then command mkdir "$@"; : > "$T/race.fired"; return 1; fi; command mkdir "$@"; }
-      _adv_take_run_lock "$OUT_DIR" review; printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/race.dir" ) 2>"$T/race.err" || rc=$?
+      _adv_take_run_lock "$OUT_DIR" review; printf '%s' "$?" > "$T/race.rc"; printf '%s' "$_ADV_RUN_LOCK_DIR" > "$T/race.dir" ) 2>"$T/race.err" || rc=$?
     [ "$rc" = "0" ]
+    # (thirty-sixth run, c1c DISS-C-001: the subshell's status is its last printf's — the lock call's own is recorded)
+    [ "$(cat "$T/race.rc")" = "0" ] || { echo "the race loser's lock call returned $(cat "$T/race.rc")"; return 1; }
     # (thirty-second run, c1c DISS-C-002: the race was simulated — a lock-dir mkdir of another shape would pass untested)
     [ -e "$T/race.fired" ] || { echo "the losing-racer stub never fired: no mkdir -m ran"; return 1; }
     if grep -q "run lock is not taken" "$T/race.err"; then echo "the race loser ran unguarded: $(cat "$T/race.err")"; return 1; fi
@@ -3362,6 +3367,8 @@ $(mk_hunk 100)"
 $big
 $sib2" 300 2>/dev/null)
     [[ "$out" == *"diff --git a/s1.sh b/s1.sh"* && "$out" == *"diff --git a/s2.sh b/s2.sh"* && "$out" == *"--- PARTIAL: big.sh"* ]]
+    # (thirty-sixth run, c1c DISS-C-002: an estimate that no longer goes through the stub leaves no log — never a vacuous "no duplicate")
+    [ -s "$T/est.log" ] && (( $(grep -c '' "$T/est.log") >= 3 )) || { echo "the estimate stub fired $(grep -c '' "$T/est.log" 2>/dev/null || echo 0) times"; return 1; }
     dup=$(sort "$T/est.log" | uniq -d)
     [ -z "$dup" ] || { echo "content estimated more than once ($(sort "$T/est.log" | uniq -c | sort -rn | head -3 | tr '\n' ' '))"; return 1; }
 }
@@ -3445,8 +3452,17 @@ YAML
     for inj in 'x" // load_str("'"$T"'/canary.txt") // "' 'x", load_str("'"$T"'/canary.txt"), "'; do
         [ "$(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")" = "$inj" ] || { echo "injected: $(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")"; return 1; }
     done
-    # no catalog yq expression in the script splices a shell variable inside a quoted key
-    if grep -nE 'yq eval "[^"]*\\"\$' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"; then echo "a hop name is spliced into a yq expression"; return 1; fi
+    # no yq expression in the script splices a shell variable but the fixed config tokens (thirty-sixth run, c1c DISS-C-007: every
+    # yq call — `yq e`, `yq eval`, a bare `yq '…'` — and every quoting shape, single-quote concatenation and an unquoted key included)
+    _cmp_yq_splices() {
+        grep -nE '\byq( +(e|eval))?( +-[A-Za-z-]+)* +['"'"'".]' "$1" | grep -vE '^[0-9]+:[[:space:]]*#' \
+            | sed -E 's/\$\(/(/g; s/="\$[^"]*"/=V/g; s/ "\$[A-Za-z_]+"/ FILE/g; s/\$\{(1|2|config_key|_ccf|type\/\/-\/_)\}//g; s/\$DEFAULT_[A-Z_]+//g; s/strenv\([A-Za-z_]+\)//g' \
+            | grep -E '\$[A-Za-z_{]' || true
+    }
+    printf '%s\n' "  x=\$(yq e '.a[\"'\"\$n\"'\"]' \"\$f\")" "  y=\$(yq '.aliases.\$name' \"\$c\")" "  z=\$(yq eval \".aliases.\${hop}\" \"\$c\")" > "$T/yq150"
+    [ "$(_cmp_yq_splices "$T/yq150" | grep -c '')" = "3" ] || { echo "the lint misses a splice shape: $(_cmp_yq_splices "$T/yq150")"; return 1; }
+    local sp; sp=$(_cmp_yq_splices "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh")
+    [ -z "$sp" ] || { echo "a shell variable is spliced into a yq expression: $sp"; return 1; }
 }
 
 @test "CMP-151 --record-fallback failed --since over an envelope that is not JSON moves it aside as unreadable — the error's own instruction works — and never over a parseable newer one (twenty-seventh run, a2 DISS-C-002)" {
@@ -3645,16 +3661,18 @@ YAML
     wait "$sec" 2>/dev/null || true
     # a section held past the release's wait: the lock is still released (a dead run's lock must never outlive it), and that is said
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"; [ -d "$lockd" ]
-    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section2"; exec sleep 12 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
+    # (thirty-sixth run, c1c DISS-C-003: the holder outlasts the bound by far, and the bound the 5 s wait — a loaded host's stall is
+    # not a red, a release that waited for the holder still is)
+    ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" 7; : > "$T/in-section2"; exec sleep 40 ) 3>&- & HOLDER_PIDS+=("$!"); sec=$!
     for _ in $(seq 1 50); do [ -e "$T/in-section2" ] && break; sleep 0.1; done; [ -e "$T/in-section2" ]
     t0=$(date +%s)
     _adv_release_run_lock 2>"$T/rel-err"
-    (( $(date +%s) - t0 <= 8 ))
+    (( $(date +%s) - t0 <= 20 )) || { echo "the release took $(( $(date +%s) - t0 )) s: it waited for the holder"; return 1; }
     [ ! -d "$lockd" ]
     grep -q 'released unserialised' "$T/rel-err"
     kill "$sec" 2>/dev/null || true
     # (thirty-third run, c1c DISS-C-001: the holder that was ended is the one holding the section — a forked sleep kept fd 7,
-    # and the flock with it, for the rest of its 12 s after the test ended)
+    # and the flock with it, for the rest of its sleep after the test ended)
     wait "$sec" 2>/dev/null || true
     ( exec 7>>"$tl"; "${_ADV_FLOCK_BIN:-flock}" -n 7 ) 3>&- || { echo "the takeover section is still held after its holder was ended"; return 1; }
 }
@@ -3768,7 +3786,12 @@ YAML
 }
 
 @test "CMP-169 no negative array subscript in the script — bash < 4.3 rejects \${a[-1]} (twenty-eighth run, a4 DISS-C-003)" {
-    run grep -nE '\$\{[A-Za-z_][A-Za-z0-9_]*\[-[0-9]' "$ADVERSARIAL_REVIEW"
+    # (thirty-sixth run, c1c DISS-C-005: the subscript itself — ${#a[-1]}, ${!a[-1]}, ${a[ -1]}, ${a[-$n]}, a[-1]=x, (( a[-1] )) —
+    # not only the ${name[- prefix)
+    local re='[A-Za-z_][A-Za-z0-9_]*\[[[:space:]]*-[[:space:]]*[0-9$]'
+    printf '%s\n' 'x=${#a[-1]}' 'x=${!a[-1]}' 'x=${a[ -1]}' 'x=${a[-$n]}' 'a[-1]=x' '(( a[-1] ))' > "$T/neg169"
+    [ "$(grep -cE "$re" "$T/neg169")" = "6" ] || { echo "the lint misses a negative-subscript shape"; return 1; }
+    run grep -nE "$re" "$ADVERSARIAL_REVIEW"
     [ "$status" -eq 1 ] || { echo "$output"; return 1; }
 }
 
@@ -3801,7 +3824,8 @@ YAML
 
 @test "CMP-171 the kept-workdir sweep in TMPDIR never follows nor fails on a symlink at a workdir path — the suite's one link rule (twenty-eighth run, c1a DISS-C-001)" {
     local tgt="$T/link-171" lnk="${TMPDIR:-/tmp}/adversarial-${SPRINT}-lnk171" rc=0
-    mkdir -p "$tgt"; : > "$tgt/keep"; ln -s "$tgt" "$lnk"
+    # (thirty-sixth run, c1c DISS-C-004: a link an interrupted run left at this pid-scoped name is replaced, never an EEXIST)
+    mkdir -p "$tgt"; : > "$tgt/keep"; if [[ -L "$lnk" ]]; then command rm -f -- "$lnk"; fi; ln -s "$tgt" "$lnk"
     ( set -e; CMP_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     command rm -f -- "$lnk"
     [ "$rc" -eq 0 ] || { echo "a symlinked workdir path failed the teardown (rc $rc)"; return 1; }
@@ -3973,7 +3997,10 @@ YAML
     grep -qx '+b' <<<"$out"
     # …nor does the repository's own .gitattributes, since the thirty-fifth run (e2a DISS-C-002, CMP-231: attributes are read from
     # the empty tree on git >= 2.40); .git/info/attributes, the operator's own, still applies (CMP-186)
-    _cmp_git version | awk '{split($3, v, "."); exit !(v[1] > 2 || (v[1] == 2 && v[2] >= 40))}' || return 0
+    # (thirty-sixth run, c1c DISS-C-006: an old git is a skip the run shows; a version that cannot be read is a red, never a pass)
+    local gv; gv=$(_cmp_git version) || { echo "git version failed"; return 1; }
+    [[ "$gv" =~ ^git\ version\ ([0-9]+)\.([0-9]+) ]] || { echo "unreadable git version: $gv"; return 1; }
+    (( BASH_REMATCH[1] > 2 || (BASH_REMATCH[1] == 2 && BASH_REMATCH[2] >= 40) )) || skip "git < 2.40 reads no attributes from the empty tree"
     printf '*.txt -diff\n' > "$r/.gitattributes"
     grep -qx '+b' <<<"$(_adv_range_diff "$r" HEAD~1...HEAD)" || { echo "the tree's own .gitattributes hid the hunk"; return 1; }
 }
@@ -4796,9 +4823,12 @@ PY
         while IFS= read -r l; do
             for name in ${l#*unset -f}; do
                 n=$(( n + 1 ))
+                # (thirty-sixth run, regression: teardown's `unset -f … 2>/dev/null || true` read `||` as a name, and `^||\(\)`
+                # matched every line — the operand list ends at an operator or a redirection, and only a name is ever a pattern)
+                [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "${f##*/}: the lint read '$name' as a function name"; return 1; }
                 if grep -qE "^${name}\(\) *\{" "$ADVERSARIAL_REVIEW"; then echo "${f##*/}: unset -f $name deletes the script's own function"; return 1; fi
             done
-        done < <(grep -E '^[[:space:]]+unset -f ' "$f" | sed 's/[;#].*//')
+        done < <(grep -E '^[[:space:]]+unset -f ' "$f" | sed -E 's/[0-9]*[;#|&<>].*//')
         if grep -vE '^[[:space:]]*#' "$f" | grep -qE '(^|[^[:alnum:]_-])tac[[:space:]]*\|'; then echo "${f##*/}: tac is GNU-only"; return 1; fi
     done
     [ "$n" -ge 8 ]
@@ -4819,4 +4849,121 @@ PY
     grep -qx 'caller:HEAD' <<<"$out" || { echo "the caller's GIT_ATTR_SOURCE changed: $out"; return 1; }
     printf '*.txt -diff\n' > "$r/.git/info/attributes"
     grep -q '^Binary files a/t.txt and b/t.txt differ' <<<"$(_adv_range_diff "$r" HEAD~1...HEAD)" || { echo ".git/info/attributes no longer applies"; return 1; }
+}
+
+@test "CMP-232 a failed companion's MODELINV lookup reads only its own gate's rows for its own hop: a row with no calling_primitive is another writer's; an aliased or provider-prefixed hop finds cheval's provider:canonical-id row; a near-miss id is not the hop (thirty-sixth run, a3 DISS-C-002 / DISS-C-003)" {
+    [[ -n "$T" && "$LOA_MODELINV_LOG_PATH" == "$T/"* ]] || { echo "the ledger is not test-scoped"; return 1; }
+    row() { jq -nc --arg ts "$1" --arg msg "$2" --arg m "$3" --arg p "${4-adversarial-review}" '{event_type:"model.invoke.complete", ts_utc:$ts, payload:({models_requested:[$m], models_failed:[{model:$m, message_redacted:$msg}]} + (if $p == "-" then {} else {calling_primitive:$p} end))}'; }
+    # another writer's row — no calling_primitive — inside the window, for the same model, is not this voice's
+    row 2026-10-01T10:00:06Z foreign anthropic:claude-headless - > "$LOA_MODELINV_LOG_PATH"
+    [ -z "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" ] || { echo "a row without calling_primitive was read as this voice's"; return 1; }
+    row 2026-10-01T10:00:07Z ours anthropic:claude-headless >> "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "ours" ] || { echo "the gate's own row was not read"; return 1; }
+    # cheval writes provider:canonical-id — an alias hop and a host-prefixed hop are that id too
+    local cat="$T/cat232.yaml"
+    printf '%s\n' 'aliases:' "  myopus: 'anthropic:claude-opus-5'" 'providers:' '  anthropic:' '    models:' '      claude-opus-5: {}' > "$cat"
+    row 2026-10-01T10:00:06Z opus-row anthropic:claude-opus-5 > "$LOA_MODELINV_LOG_PATH"
+    local m
+    for m in myopus bedrock:claude-opus-5 anthropic:claude-opus-5 claude-opus-5; do
+        [ "$(LOA_MODEL_CONFIG="$cat" _companion_ledger_message "$m" 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "opus-row" ] || { echo "hop $m missed its canonical row"; return 1; }
+    done
+    for m in claude-opus opus-5 claude-opus-5-x; do
+        [ -z "$(LOA_MODEL_CONFIG="$cat" _companion_ledger_message "$m" 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" ] || { echo "near-miss $m read the row"; return 1; }
+    done
+}
+
+@test "CMP-233 a shared hop is failed_it only on a failure row (api_failure, malformed_response, lock_wait): a success row for the hop whose answer is not the hop's — another inner model answered, or the result is gone — is finished_without_it, never a failure the companion did not have (thirty-sixth run, a3 DISS-C-004)" {
+    _ADV_COMPANION_PID=""
+    mkdir -p "$T/vw233"; printf 'done' > "$T/vw233/companion.phase"; printf 'gpt-5.5' > "$T/vw233/companion.final"
+    rm -f "$T/vw233/companion.result.json" "$T/vw233/companion.vq"
+    local row
+    for row in 'gpt-5.5:reviewed' 'openai:gpt-5.5:clean' 'gpt-5.5:degraded'; do
+        printf 'opus:api_failure\n%s\n' "$row" > "$T/vw233/companion.attempts"
+        [ "$(_adv_shared_hop_verdict gpt-5.5 "$T/vw233" 0 10 | cut -f1,2)" = "$(printf 'run\tfinished_without_it')" ] || { echo "success row $row read as a failure"; return 1; }
+    done
+    for row in 'gpt-5.5:api_failure' 'gpt-5.5:malformed_response' 'openai:gpt-5.5:lock_wait'; do
+        printf '%s\nopus:reviewed\n' "$row" > "$T/vw233/companion.attempts"
+        [ "$(_adv_shared_hop_verdict gpt-5.5 "$T/vw233" 0 10 | cut -f1,2)" = "$(printf 'run\tfailed_it')" ] || { echo "failure row $row not read as failed_it"; return 1; }
+    done
+}
+
+@test "CMP-234 a byte cut followed by a run of empty lines (suppressBlankEmpty context) and more of the hunk is not the chunk's end: the incomplete hunk is dropped, never counted whole; a chunk that ends in empty lines is still its end (thirty-sixth run, b1 DISS-C-001)" {
+    printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n@@ -5,8 +5,8 @@\n-c\n+d\n\n\n\n\n\n x\n' > "$T/chunk234"
+    local two how n full
+    two=$(printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n@@ -5,8 +5,8 @@\n-c\n+d\n' | wc -c)
+    for n in "$two" $(( two - 1 )) $(( two + 2 )); do
+        how=$(_lc_cut_partial "$T/chunk234" "$n" "$T/part234")
+        [ "$how" = hunk ] || { echo "cut at $n: $how"; return 1; }
+        [ "$(_lc_hunk_count "$(cat "$T/part234")")" -eq 1 ] || { echo "cut at $n kept the incomplete hunk"; return 1; }
+    done
+    full=$(wc -c < "$T/chunk234")
+    how=$(_lc_cut_partial "$T/chunk234" "$full" "$T/part234")
+    [ "$how" = hunk ] && [ "$(_lc_hunk_count "$(cat "$T/part234")")" -eq 2 ] || { echo "the whole chunk lost a hunk"; return 1; }
+    # a chunk whose last hunk ends in empty lines: the cut before them is its end
+    printf 'diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1 +1 @@\n-a\n+b\n@@ -5 +5 @@\n-c\n+d\n\n\n\n\n\n\n' > "$T/chunk234b"
+    for n in "$two" $(( two - 1 )); do
+        how=$(_lc_cut_partial "$T/chunk234b" "$n" "$T/part234")
+        [ "$how" = hunk ] && [ "$(_lc_hunk_count "$(cat "$T/part234")")" -eq 2 ] || { echo "cut at $n before the trailing empty lines dropped a hunk"; return 1; }
+    done
+}
+
+@test "CMP-235 both budget_cents comments name the knob that bounds the KF-004 repairs — LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS, the wall-clock budget the script reads — never only a count an operator cannot tune (thirty-sixth run, b2 DISS-C-001)" {
+    local ex="$PROJECT_ROOT/.loa.config.yaml.example" blk
+    blk=$(sed -n '/^  code_review:$/,/^  stable_anchors:$/p' "$ex")
+    [ -n "$blk" ]
+    [ "$(grep -c 'LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS' <<<"$blk")" -ge 2 ] || { echo "a budget_cents comment does not name the repair wall budget"; return 1; }
+    grep -q 'two of the heaviest hop' <<<"$blk" || { echo "the default wall budget is not stated"; return 1; }
+    # the knob is the script's
+    grep -q 'LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS' "$ADVERSARIAL_REVIEW"
+    [ "$(_adv_repair_wall_for 900 60)" = "$(( 900 * 2 + 60 ))" ]
+    [ "$(_adv_repair_wall_for 10 60)" = "$(( ADV_REPAIR_MAX_PER_RUN * 60 * 2 ))" ]
+}
+
+@test "CMP-236 a test's stand-in for a command (cat, sort, kill, mkdir…) never reaches teardown: teardown's first statement unsets every command name a test defines, and CMP-90's cat calls the real one through command, never an unbound local (thirty-sixth run, c1b DISS-C-001)" {
+    local f="$BATS_TEST_FILENAME" names n t first
+    names=$(awk '/^[ \t]+[A-Za-z_][A-Za-z0-9_]*\(\) *\{/ { sub(/^[ \t]+/, ""); sub(/\(\).*/, ""); print }' "$f" | LC_ALL=C sort -u)
+    [ -n "$names" ]
+    first=$(awk '/^teardown\(\) *\{/ { go = 1; next } go && /^[ \t]+(local |#)/ { next } go { print; exit }' "$f")
+    [[ "$first" == *"unset -f "* ]] || { echo "teardown does not start by unsetting the stand-ins: $first"; return 1; }
+    local seen=0
+    for n in $names; do
+        t=$(env -i PATH="$PATH" bash --norc --noprofile -c "type -t $n" 2>/dev/null) || t=""
+        [[ "$t" == file || "$t" == builtin ]] || continue
+        seen=$(( seen + 1 ))
+        [[ " $first " == *" $n "* ]] || { echo "teardown never unsets the test's stand-in for $n"; return 1; }
+    done
+    (( seen >= 10 )) || { echo "the lint found only $seen stand-ins"; return 1; }
+    ! grep -qF "real_cat=\$(command -v" "$f" || { echo "CMP-90 still calls cat through a test-local path"; return 1; }
+}
+
+@test "CMP-237 --diff-range on a git older than 2.40 says the reviewed tree's .gitattributes still applies — GIT_ATTR_SOURCE is ignored there without a word, so a committed -diff line would hide its hunks from both voices silently; a git that reads it, and the diff itself, are unchanged (thirty-sixth run, e2a DISS-C-002)" {
+    local r="$T/oldgit" sh="$T/oldgit-bin" out err real
+    real=$(command -v git)
+    _cmp_git init -q "$r"; printf 'a\n' > "$r/t.txt"; _cmp_git -C "$r" add .; _cmp_git -C "$r" commit -q -m base
+    printf 'b\n' >> "$r/t.txt"; _cmp_git -C "$r" commit -q -am head
+    mkdir -p "$sh"
+    printf '#!/bin/sh\n[ "$1" = version ] && { echo "git version %s"; exit 0; }\nexec %q "$@"\n' '2.39.5 (Apple Git-154)' "$real" > "$sh/git"; chmod +x "$sh/git"
+    err=$( { out=$(PATH="$sh:$PATH" _adv_range_diff "$r" HEAD~1...HEAD); } 2>&1 )
+    grep -q 'WARN: git 2.39.5 reads no GIT_ATTR_SOURCE' <<<"$err" || { echo "no warning on an old git: $err"; return 1; }
+    out=$(PATH="$sh:$PATH" _adv_range_diff "$r" HEAD~1...HEAD 2>/dev/null)
+    grep -qx '+b' <<<"$out" || { echo "the diff changed: $out"; return 1; }
+    grep -q WARN <<<"$out" && { echo "the warning reached the diff: $out"; return 1; }
+    # an unreadable version is said too — never taken as new enough
+    printf '#!/bin/sh\n[ "$1" = version ] && { echo "git version unknown"; exit 0; }\nexec %q "$@"\n' "$real" > "$sh/git"
+    err=$(PATH="$sh:$PATH" _adv_range_diff "$r" HEAD~1...HEAD 2>&1 >/dev/null)
+    grep -q 'WARN: git unknown reads no GIT_ATTR_SOURCE' <<<"$err" || { echo "an unparsed version passed silently: $err"; return 1; }
+    for v in 2.40.0 2.47.1 3.0.0; do
+        printf '#!/bin/sh\n[ "$1" = version ] && { echo "git version %s"; exit 0; }\nexec %q "$@"\n' "$v" "$real" > "$sh/git"
+        err=$(PATH="$sh:$PATH" _adv_range_diff "$r" HEAD~1...HEAD 2>&1 >/dev/null)
+        [ -z "$err" ] || { echo "git $v warned: $err"; return 1; }
+    done
+}
+
+@test "CMP-238 the FR-2 CHANGELOG bullet states every headless adapter's prompt transport and what runs without flock (thirty-sixth run, e2a DISS-C-001 / DISS-C-003)" {
+    local cl; cl=$(sed -n '/^- \*\*Two voices, nothing dropped\*\*/p' "$PROJECT_ROOT/CHANGELOG.md")
+    [ -n "$cl" ] || { echo "no FR-2 bullet"; return 1; }
+    grep -qF 'codex and cursor read the prompt on stdin, grok from a prompt file inside its private workspace' <<<"$cl" || { echo "codex/cursor/grok transport unstated"; return 1; }
+    grep -qF 'without flock the run lock is still taken (mkdir)' <<<"$cl" || { echo "the no-flock lock unstated"; return 1; }
+    grep -qF 'claude'"'"'s and gemini'"'"'s are each one stable directory' <<<"$cl" || { echo "gemini's stable cwd unstated"; return 1; }
+    grep -qF 'a git older than 2.40 ignores it, which is said once as a WARN' <<<"$cl" || { echo "the old-git behaviour unstated"; return 1; }
 }
