@@ -214,12 +214,35 @@ _kf_link_lint() {
   python3 - "$1" <<'PY'
 import re, sys, unicodedata
 s = open(sys.argv[1], encoding="utf-8").read()
-# (a fenced block renders no heading and no link — a fenced example never shadows a real one: thirty-third run, e2c DISS-C-003)
-s = re.sub(r"^(```|~~~).*?^\1[ \t]*$", "", s, flags=re.M | re.S)
-# (GitHub's slugger keeps letters, marks, numbers and connector punctuation — a combining mark too: thirty-fourth run, e2c DISS-C-001)
-heads = {h.split(":")[0]: "".join(c for c in h.lower() if c in "- " or unicodedata.category(c)[0] in "LMN" or unicodedata.category(c) == "Pc").replace(" ", "-")
-         for h in re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)}
+# (a fenced block renders no heading and no link — a fenced example never shadows a real one: thirty-third run, e2c DISS-C-003;
+# read as CommonMark does — an opener indented up to three spaces, a closer of its character at least as long with nothing
+# after it, an unclosed fence running to the end, a backtick opener with no backtick in its info string: thirty-fifth run)
+keep, fence = [], None
+for line in s.split("\n"):
+    m = re.match(r" {0,3}(`{3,}|~{3,})(.*)$", line)
+    if fence is None:
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence = m.group(1)
+        else:
+            keep.append(line)
+    elif m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence) and not m.group(2).strip():
+        fence = None
+s = "\n".join(keep)
+# (GitHub's slugger keeps \p{Word} — letters, marks, numbers but no Other_Number, connector punctuation, Other_Alphabetic
+# symbols, ZWNJ/ZWJ: thirty-fourth run e2c DISS-C-001, thirty-fifth run e2c DISS-C-001 — the library's rule)
+oa = ((0x24B6, 0x24E9), (0x1F130, 0x1F149), (0x1F150, 0x1F169), (0x1F170, 0x1F189))
+def word(c):
+    k = unicodedata.category(c)
+    return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
+# (a heading GitHub renders as other text than it reads has no raw-text anchor: thirty-fifth run, e2c DISS-C-002)
+def rendered_differs(h):
+    t = re.sub(r"`[^`]*`", "", h)
+    return bool(re.search(r"\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);", t)
+                or re.search(r"(^|[^\w])_+[^_\s](.*[^_\s])?_+([^\w]|$)", t) or re.search(r"(^|\s)#+\s*$", t))
+found = re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)
+heads = {h.split(":")[0]: "".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-") for h in found}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
+bad += [h.split(":")[0] for h in found if rendered_differs(h)]
 print("Index links that resolve to no heading:", bad) if bad else None
 sys.exit(1 if bad else 0)
 PY
@@ -329,4 +352,62 @@ print(len(entries))
 "
   [ "$status" -eq 0 ]
   [ "$output" -eq 3 ]
+}
+
+@test "kf-write new: the anchor keeps what GitHub's word class keeps — an Other_Alphabetic circled letter and ZWJ/ZWNJ kept, an Other_Number (², ½, ①) and a symbol dropped — and the link lint agrees (thirty-fifth run, e2c DISS-C-001)" {
+  local t want
+  local G0="$BATS_TEST_TMPDIR/e2c35.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  t="$(printf 'O(n\302\262) \302\275 \342\221\240 \342\222\266 \360\237\204\260 a\342\200\215b c\342\200\214d \307\205 \312\260 \342\205\253 \331\243 x\342\200\277y \342\230\205')"
+  want="$(printf 'kf-001-on---\342\223\220-\360\237\204\260-a\342\200\215b-c\342\200\214d-\307\206-\312\260-\342\205\273-\331\243-x\342\200\277y-')"
+  # (GitHub's slug: lowercase, drop all but \p{Word} — Alphabetic, Mark, Decimal_Number, Connector_Punctuation, Join_Control —
+  # hyphen and space; perl's \w is that class, so a perl present re-derives the expectation)
+  if command -v perl >/dev/null 2>&1; then
+    local p; p="$(printf '%s' "KF-001: $t" | perl -CSD -Mfeature=unicode_strings -ne '$_ = lc; s/[^\w\- ]//g; s/ /-/g; print')"
+    [ "$p" = "$want" ] || { echo "the fixture's expectation is not perl's \\w slug: $p"; return 1; }
+  fi
+  run bash "$KFW" new --file "$G0" --title "$t" --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF "| [KF-001](#$want) | OPEN" "$G0" || { grep 'KF-001' "$G0"; return 1; }
+  run _kf_link_lint "$G0"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  # the lint refuses the slug that kept the Other_Number
+  local G="$BATS_TEST_TMPDIR/lint-no.md"
+  printf '%s\n' '# KF' '' '## Index' '' "$(printf '| [KF-040](#kf-040-on\302\262) | OPEN | x | 1 |')" '' "$(printf '## KF-040: O(n\302\262)')" > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "an Other_Number kept in the anchor passed the lint: $output"; return 1; }
+}
+
+@test "kf-write new: a title GitHub renders differently from its raw text — a link, an HTML tag, a character reference, an underscore emphasis outside a code span, a closing # sequence — is refused before any write, and the link lint names such a heading (thirty-fifth run, e2c DISS-C-002)" {
+  local G0="$BATS_TEST_TMPDIR/e2c35.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local F="$G0" before t; before="$(cksum < "$F")"
+  for t in 'see [the docs](http://x) here' 'an <b>html</b> tag' 'a &amp; b' 'a &#38; b' 'the _emph_ word' '_a_ alone' 'closing hashes ##'; do
+    run bash "$KFW" new --file "$F" --title "$t" --status OPEN --quiet
+    [ "$status" -ne 0 ] || { echo "'$t' was written"; return 1; }
+    [[ "$output" == *renders* ]] || { echo "'$t': $output"; return 1; }
+    [ "$(cksum < "$F")" = "$before" ] || { echo "'$t' changed the ledger"; return 1; }
+  done
+  # an identifier's underscores, a code span, a lone ampersand, an inner # are text GitHub renders as written
+  run bash "$KFW" new --file "$F" --title 'ledger-lib _write_ledger accepts `_x_` & C# input' --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF '| [KF-001](#kf-001-ledger-lib-_write_ledger-accepts-_x_--c-input) | OPEN' "$F" || { grep 'KF-001' "$F"; return 1; }
+  run _kf_link_lint "$F"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  local G="$BATS_TEST_TMPDIR/lint-rendered.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-see-the-docshttpx) | OPEN | x | 1 |' '' '## KF-040: See [the docs](http://x)' > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "a heading with a link passed the lint: $output"; return 1; }
+}
+
+@test "kf-write: the ledger link lint reads fences as CommonMark does — an opener indented up to three spaces, a closer at least as long as its opener, an unclosed fence running to the end (thirty-fifth run, e2c DISS-C-003)" {
+  local G="$BATS_TEST_TMPDIR/lint-cm.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-real) | OPEN | x | 1 |' '' '## KF-040: Real' '' \
+    '````md' '```' '## KF-040: Inside a four-backtick fence' '```' '````' '' \
+    '   ~~~' '## KF-040: Inside an indented fence' '   ~~~' '' \
+    '```' '| [KF-041](#nowhere) | OPEN | x | 1 |' '## KF-040: Inside an unclosed fence' > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  # a heading after a closed fence is read again
+  printf '%s\n' '```' 'x' '```' '' '| [KF-042](#nowhere) | OPEN | x | 1 |' > "$BATS_TEST_TMPDIR/lint-after.md"
+  run _kf_link_lint "$BATS_TEST_TMPDIR/lint-after.md"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-042* ]] || { echo "a row after a closed fence went unread: $output"; return 1; }
 }

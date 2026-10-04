@@ -251,7 +251,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                         f"grok {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
-                    if cwd_vanished(workspace):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                    if cwd_vanished(workspace, exc):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
                         raise ProviderUnavailableError(
                             self.provider, f"grok working directory {workspace} vanished before the CLI started: {exc}",
                         ) from exc

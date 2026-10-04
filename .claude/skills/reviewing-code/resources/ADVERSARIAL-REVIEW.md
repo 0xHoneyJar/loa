@@ -134,8 +134,10 @@ this block are kept byte-identical (CMP-138 fails on any drift).
   envelope may be stale — re-run; older: an earlier run's rows that were never folded — triage them or remove the file; a
   chunk driver clears the directory's rejected set at the start of a round). Without an envelope, or without that field,
   every `adversarial-rejected-<gate>*.jsonl` beside the envelope's place counts. A pre-FR-2 envelope (no metadata at all,
-  or a metadata without a `rejected_summary` key and without any FR-2 marker) counts none of the rows as old as itself,
-  with a warning — historical sprints keep their verdicts — but a sidecar NEWER than it counts. Rows whose repair succeeded
+  or a metadata without a `rejected_summary` key and without any FR-2 marker — `rejected_sidecars`, `companion_voice`;
+  never `rejected_count`, which the writer before cycle-126 set too) counts none of the rows as old as itself, with a
+  warning — historical sprints keep their verdicts — but a sidecar NEWER than it counts (one git tracks with its committed
+  bytes is history, whatever mtime a checkout gave it). Rows whose repair succeeded
   never count; a trailer-less file is held to the contract too; the same section with one top-level bullet per payload
   clears it in every case.
 - **Wait cap and reaping (`failure_class: timeout`).** The second voice is reaped on INT/TERM/EXIT (one cleanup trap for

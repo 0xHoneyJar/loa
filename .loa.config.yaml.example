@@ -1404,7 +1404,8 @@ flatline_protocol:
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     # A host with no route to the other family (no key, its CLI not on PATH) records
     # companion_voice {planned: false, reason: no_route} — on security_audit that is a
-    # DEGRADED_SECURITY_REVIEW on every audit; set false where one voice is the host's shape.
+    # DEGRADED_SECURITY_REVIEW on every audit; set false where one voice is the host's shape
+    # (an absent key is true: a config that predates the key runs two voices).
     companion_voice: true
     # Optional: replace the default companion chains (used as given — no PATH filter:
     # a CLI hop named here is planned even when its binary is absent, and fails as
@@ -1421,8 +1422,10 @@ flatline_protocol:
     # FR-2.4: `tiny` when an Anthropic key is present → `claude-headless` when the
     # binary is on PATH → the voice that answered, always last) before rejection
     # (schema-enforced payloads never enter the loop):
-    # a normalization pre-pass (case-fold severity/category + whitespace
-    # trim only, no synonym mapping) runs first; if the finding still
+    # a normalization pre-pass runs first — severity/category case-folded and
+    # trimmed (no synonym mapping); a missing failure_mode is derived from the
+    # description's first sentence (failure_mode_derived) and a missing id from
+    # the position (DISS-NNN, id_derived), with no model call; if the finding still
     # fails, only the offending finding JSON + the violated validation
     # clause are sent back to the model. The repaired finding must be
     # byte-identical to the original on every field except the one(s) it
@@ -1441,7 +1444,7 @@ flatline_protocol:
                                  # to twice this per audit; a malformed value fails closed as 0; the KF-004 repairs are
                                  # bounded by count and wall clock, not this)
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
-                                 # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape
+                                 # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true)
   stable_anchors:
     required: true               # Demote anchorless high-severity findings
     preferred_format: "symbol"   # symbol | hunk_header | line_number

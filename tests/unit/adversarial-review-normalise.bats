@@ -27,7 +27,12 @@ _claim_sprint_dir() {  # <dir> → 0 when nothing stands there or a leftover thi
     # run on a reused pid left this very path, setup's marker claimed it, and the stale sweep, seeing a live owner, never cleared it
     local d="$1"
     [[ -e "$d" || -L "$d" ]] || return 0
-    if [[ -d "$d" && ! -L "$d" && -f "${d%/*}/.$SPRINT.owner" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; return 0; fi
+    # (thirty-fifth run, c1a DISS-C-001: a marker written on another host or pid namespace is never ours — as the sweep judges it;
+    # DISS-C-002: a leftover that cannot be cleared is a named failure, never a claimed, still-populated directory)
+    if [[ -d "$d" && ! -L "$d" && -f "${d%/*}/.$SPRINT.owner" ]] && ! _sweep_foreign "${d%/*}/.$SPRINT.owner"; then
+        find "$d" -mindepth 1 -delete && rmdir "$d" && return 0
+        echo "setup: could not clear $d"; SPRINT=""; return 1
+    fi
     echo "setup: $d stands and is not this suite's"; SPRINT=""; return 1
 }
 setup() {
@@ -87,7 +92,7 @@ setup() {
 # rename claims a directory, so concurrent teardowns never race one delete (twenty-fourth run, c2a DISS-C-001); a `.reap-<q>`
 # a dead sweeper left is finished here, and the marker goes with its owner's last directory.
 _sweep_alive() {
-    local e; e=$(kill -0 "$1" 2>&1) && return 0
+    local e; e=$(LC_ALL=C; kill -0 "$1" 2>&1) && return 0   # (EPERM's text in the C locale — thirty-fifth run, c1a DISS-C-003)
     [[ "$e" == *"not permitted"* ]] || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]
 }
 # (thirty-fourth run, c2a DISS-C-001: a pid means nothing on another host or in another pid namespace — two runs over one
@@ -1303,6 +1308,15 @@ def one_positional(p):   # exactly one "$(estimate_tokens …)" on the line, its
         if ch == ')' and d == 0:
             return p[i + 1:].rstrip('\\').strip() == '"'
     return False
+def whole(o, quoted):   # the leading $( / $(( / ${ construct is balanced and is the whole operand (thirty-fifth run, c2b DISS-C-001)
+    op_, cl = ('(', ')') if o[1] == '(' else ('{', '}')
+    d = 0
+    for i, ch in enumerate(o):
+        d += ch == op_; d -= ch == cl
+        if ch == cl and d == 0:
+            rest = o[i + 1:]
+            return rest.startswith('"') if quoted else (rest == '' or rest[0] in ' \t;|&)')
+    return False
 bad = []
 lines = open(sys.argv[1], encoding='utf-8').read().split('\n')
 fn = ""
@@ -1310,6 +1324,8 @@ for n, line in enumerate(lines):
     fm = re.match(r'([A-Za-z_][A-Za-z0-9_]*)\(\) *\{', line)
     if fm:
         fn = fm.group(1)
+    elif line.startswith('}'):
+        fn = ""                                    # (a function's grant ends at its closing brace)
     ok = SMALL | POS_OK.get(fn, set())
     if line.lstrip().startswith('#'):
         continue                                   # a comment that names the flag
@@ -1328,9 +1344,10 @@ for n, line in enumerate(lines):
         if not o.startswith('$'):
             bad.append(op)
         elif o.startswith('$((') or o.startswith('${#'):
-            pass                                   # arithmetic, a length
+            if not whole(o, op.startswith('"')):   # arithmetic, a length — the whole operand
+                bad.append(op)
         elif o.startswith('$('):
-            if not o[2:].lstrip().startswith(CMDS):
+            if not o[2:].lstrip().startswith(CMDS) or not whole(o, op.startswith('"')):
                 bad.append(op)
         else:
             span = o.split('"', 1)[0] if op.startswith('"') else re.split(r'[\s;|&)]', o, maxsplit=1)[0]
@@ -1379,6 +1396,16 @@ PY
     printf '%s\n' '_adv_refuse_json() {' '  local -a kv=(); while (( $# >= 2 )); do kv+=(--arg "$1" "$2"); shift 2; done' '}' \
                    '_adv_scope_json() {' '  jq -nc --arg sha "${1:-}" '"'"'{s: $sha}'"'"'' '}' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: $1 / $2 in the two functions reviewed for them)
+    # (thirty-fifth run, c2b DISS-C-001: an operand that only BEGINS with an arithmetic, a length or a reviewed command — the rest
+    # of it is read too; and a function's grant ends at its closing brace)
+    for x in '"$(date +%s)-$finding_json"' '"$(( n ))$finding_json"' '"${#a}$finding_json"' '$(date +%s)$finding_json'; do
+        printf '  jq -n --arg x %s %s\n' "$x" "'{x: \$x}'" > "$fx"
+        if python3 -c "$lint" "$fx"; then echo "the tail of $x was never checked"; return 1; fi
+    done
+    printf '%s\n' '_adv_scope_json() {' '  :' '}' '  jq -n --arg s "$1" '"'"'{s: $s}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a function's positional grant leaked past its closing brace"; return 1; fi
+    printf '%s\n' '  jq -n --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson n "$(( a + 1 ))" --argjson l "${#arr[@]}" '"'"'{}'"'"'' > "$fx"
+    python3 -c "$lint" "$fx"   # (the positive control: a whole-operand construct passes)
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"
 }
 
@@ -1568,7 +1595,10 @@ PY
 }
 
 @test "NRM-55 the stale sweep never deletes a live run's directory it cannot see: a kill -0 refused with EPERM is a live owner (hidepid), and a marker written on another host or pid namespace is never judged here; one of ours, dead, is still removed (thirty-fourth run, c2a DISS-C-001)" {
-    local a="$PROJECT_ROOT/grimoires/loa/a2a" dead
+    # (thirty-fifth run, c2b DISS-C-003: the sweep legs run in this test's own a2a — never fixtures in the real one, which no
+    # teardown registers; setup's own marker is still checked where setup writes it)
+    local a="$TEST_DIR/a2a" dead
+    mkdir -p "$a"
     dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
     if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
     # EPERM: the pid is invisible to ps and /proc, and kill -0 says "not permitted" — alive
@@ -1582,5 +1612,5 @@ PY
     _sweep_stale_suite_dirs "$a" sprint-norm
     [ ! -e "$a/sprint-norm-$dead" ] && [ ! -e "$a/.sprint-norm-$dead.owner" ] || { echo "our own dead run's directory was kept"; return 1; }
     # setup writes the where line
-    [ "$(sed -n 2p "$a/.$SPRINT.owner")" = "$(_sweep_where)" ] && [[ "$(_sweep_where)" == "where "* ]]
+    [ "$(sed -n 2p "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner")" = "$(_sweep_where)" ] && [[ "$(_sweep_where)" == "where "* ]]
 }

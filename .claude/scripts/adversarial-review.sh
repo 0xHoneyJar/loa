@@ -2400,6 +2400,15 @@ _adv_prev_dest_ok() {  # <path> → 0 when <path>.prev is absent or a regular fi
   error "$1.prev is not a regular file (a symlink, directory or other node — no run writes one); nothing was recorded: remove it, then run again"
   return 1
 }
+_adv_prev_dests_ok() {  # <path>… → 0 when every regular file among them has a .prev that is absent or a regular file — checked for ALL
+                        # before any moves (thirty-fifth run, a2 DISS-C-002: a later sidecar's refusal came after the envelope had gone)
+  local _p
+  for _p in "$@"; do
+    [[ -f "$_p" && ! -L "$_p" ]] || continue
+    _adv_prev_dest_ok "$_p" || return 1
+  done
+  return 0
+}
 _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the failed-run record the review / audit skill writes, done by the
                           # script under its run lock (twenty-third run, b2 DISS-C-001: the skills' allowlists hold no `mv`, and a
                           # Write-tool fallback can neither move the previous round's files aside nor see a live run)
@@ -2459,9 +2468,9 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
         error "an envelope stands at $env — a run wrote it; nothing is recorded over it (a run that died before its lock left the previous round's: pass --since <that run's start, UTC> to move an older one aside)"
         return 2
       fi
+      _adv_prev_dests_ok "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl || return 2
       for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
         [[ -f "$sc" && ! -L "$sc" ]] || continue
-        _adv_prev_dest_ok "$sc" || return 2
         mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
       done
     fi
@@ -2474,9 +2483,9 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
       error "an envelope written after this run started ($ets, since $since) stands at $env — another run's: triage it; nothing is recorded over it"
       return 2
     fi
+    _adv_prev_dests_ok "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl || return 2
     for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
       [[ -f "$sc" && ! -L "$sc" ]] || continue
-      _adv_prev_dest_ok "$sc" || return 2
       mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
     done
   fi
@@ -3449,7 +3458,9 @@ _adv_reap_companion_inner() {  # <pid> — the reap itself; every helper is guar
   done
   log "Companion voice: still alive ${_grace}s after TERM — KILL"
   # (a3 C-006: re-collected before KILL — whatever the tree forked while it was being asked to leave goes with it)
-  for _x in $_pids; do _adv_pid_alive "$_x" && { _fresh=$(_adv_tree_pids "$_x"); _pids=$(printf '%s\n%s\n' "$_pids" "$_fresh" | grep -v '^$' | sort -un); }; done
+  # (thirty-fifth run, a3 DISS-C-001: $_pids is one space-joined line — split into words before the merge, as the primary reaper does,
+  # so a sort -u keeping another line of an equal-key run never drops the pids that line carried)
+  for _x in $_pids; do _adv_pid_alive "$_x" && { _fresh=$(_adv_tree_pids "$_x"); _pids=$(printf '%s\n%s\n' "$_pids" "$_fresh" | tr ' ' '\n' | grep -v '^$' | LC_ALL=C sort -un); }; done
   for _x in $_pids; do [[ " $_ADV_REAP_TREE_TOKENS" == *" $_x="* ]] || _ADV_REAP_TREE_TOKENS+="$(_adv_pid_tokens "$_x" 2>/dev/null || true)"; done
   for _x in $_pids; do _adv_kill_same "$_x" "$_ADV_REAP_TREE_TOKENS"; done
   return 0
@@ -3531,11 +3542,16 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # (twenty-eighth run, a3 DISS-C-004); diff.relative pinned as config — a git < 2.28 ignores an unknown key
                      # where it rejects the --no-relative flag (a3 DISS-C-001); every submodule's gitlink, whatever diff.ignoreSubmodules
                      # or a submodule's ignore says, and no global attributes file turning text hunks into "Binary files differ" — the
-                     # repository's own .gitattributes still applies (twenty-ninth run, a3 DISS-C-003); nor the system-wide
+                     # repository's own .gitattributes still applied (twenty-ninth run, a3 DISS-C-003) until the thirty-fifth run
+                     # (e2a DISS-C-002: a committed `*.sh -diff` hid every shell hunk from both voices as "Binary files differ")
+                     # — attributes are read from the empty tree (GIT_ATTR_SOURCE, git >= 2.40; an older git ignores it), git's
+                     # content check alone calls a NUL file binary, and an inherited GIT_ATTR_SOURCE is dropped; nor the system-wide
                      # gitattributes (GIT_ATTR_NOSYSTEM) — `.git/info/attributes` is the repository's own, and applies like
                      # .gitattributes (thirtieth run, a3 DISS-C-002); nor an exported GIT_DIFF_OPTS, which git lets override -U
                      # (thirty-first run, a4 DISS-C-001: `-u0` left no context line) — unset in a subshell, the caller keeps its own
-  ( unset GIT_DIFF_OPTS; GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
+  ( unset GIT_DIFF_OPTS GIT_ATTR_SOURCE
+    if _e=$(git -C "$1" hash-object -t tree /dev/null 2>/dev/null) && [[ -n "$_e" ]]; then export GIT_ATTR_SOURCE="$_e"; fi
+    GIT_ATTR_NOSYSTEM=1 git -C "$1" -c diff.suppressBlankEmpty=false -c core.quotePath=true -c diff.relative=false \
     -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
     --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" -- )
@@ -3595,7 +3611,7 @@ _adv_cleanup_on_exit() {
 
 main() {
   local type="" sprint_id="" diff_file="" diff_range="" context_file="" model="" budget="" timeout=""
-  local dry_run="false" json_output="true" record_fallback="" fallback_reason="" fallback_since=""
+  local dry_run="false" json_output="true" record_fallback="" fallback_reason="" fallback_since="" _rf_given="" _reason_given="" _since_given=""
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -3610,9 +3626,9 @@ main() {
       --timeout)    timeout="$2"; shift 2 ;;
       --dry-run)    dry_run="true"; shift ;;
       --json)       json_output="true"; shift ;;
-      --record-fallback) record_fallback="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
-      --reason)     fallback_reason="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
-      --since)      fallback_since="${2:-}"; shift; [[ $# -gt 0 ]] && shift ;;
+      --record-fallback) record_fallback="${2:-}"; _rf_given=1; shift; [[ $# -gt 0 ]] && shift ;;
+      --reason)     fallback_reason="${2:-}"; _reason_given=1; shift; [[ $# -gt 0 ]] && shift ;;
+      --since)      fallback_since="${2:-}"; _since_given=1; shift; [[ $# -gt 0 ]] && shift ;;
       *)            error "Unknown option: $1"; exit 2 ;;
     esac
   done
@@ -3623,8 +3639,12 @@ main() {
     error "Invalid --type: $type (must be review or audit)"; exit 2
   fi
   if [[ -z "$sprint_id" ]]; then error "Missing --sprint-id"; exit 2; fi
+  # (thirty-fifth run, a4 DISS-C-002: a flag's presence, never its value, decides — an empty --record-fallback, or a --reason
+  # without it, is a usage error, never a dropped value and a full review in place of the record)
+  if [[ -n "$_rf_given" && -z "$record_fallback" ]]; then error "--record-fallback needs a status"; exit 2; fi
+  if [[ -z "$_rf_given" && -n "$_reason_given" ]]; then error "--reason applies to --record-fallback only"; exit 2; fi
   if [[ -n "$record_fallback" ]]; then local _rf=0; _adv_record_fallback "$type" "$sprint_id" "$record_fallback" "$fallback_reason" "$fallback_since" || _rf=$?; exit "$_rf"; fi
-  if [[ -n "$fallback_since" ]]; then error "--since applies to --record-fallback only"; exit 2; fi
+  if [[ -n "$_since_given" ]]; then error "--since applies to --record-fallback only"; exit 2; fi
   # twenty-fourth run, a2 DISS-C-001: the skills cannot run `date` — a run that dies before it writes any record names its start
   # here, as the --since its `--record-fallback failed` needs
   log "adversarial review run started $(date -u +%Y-%m-%dT%H:%M:%SZ) (if it leaves no record: --record-fallback failed --since <this time>)"
@@ -3880,6 +3900,15 @@ main() {
   local -a _ma_set=("$_env_rel")   # (its own statement: a compound value in the same `local` expands before _env_rel is set)
   [[ -z "${LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE:-}" ]] && _ma_set+=("${_run_sidecars[@]}")
   local _ma_rc
+  # (thirty-fifth run, a2 DISS-C-002: every source and destination shape is checked before the first move — a later sidecar's
+  # refusal never comes after the envelope has gone; a mv that fails at mv time is still the rc 1 class below)
+  for _ma in "${_ma_set[@]}"; do
+    [[ -L "$PROJECT_ROOT/$_ma" || -e "$PROJECT_ROOT/$_ma" ]] || continue
+    [[ ! -L "$PROJECT_ROOT/$_ma" && -f "$PROJECT_ROOT/$_ma" && ! -L "$PROJECT_ROOT/$_ma.prev" && ( ! -e "$PROJECT_ROOT/$_ma.prev" || -f "$PROJECT_ROOT/$_ma.prev" ) ]] && continue
+    error "$_ma or $_ma.prev is not a regular file (a symlink, directory or other node — no run writes one); nothing was reviewed: remove it, then run again"
+    [[ "$json_output" == "true" ]] && _adv_refuse_json workdir_unavailable path "$_ma"
+    exit 2
+  done
   for _ma in "${_ma_set[@]}"; do
     _ma_rc=0; _adv_move_aside "$_ma" || _ma_rc=$?
     [[ "$_ma_rc" == 0 ]] && continue
@@ -3972,7 +4001,13 @@ main() {
         model_attempts+=("${try_model}:skipped_shared_with_companion")
         continue
       fi
-      log "Model $try_model is a hop the companion shares, and the companion ${_sh_reason:-finished without it} — the primary runs it"
+      # (thirty-fifth run, a4 DISS-C-001: a wait job that wrote nothing — killed, an unwritable file — is no verdict, said as one;
+      # the hop is never ceded without a positive skip, and the fold handles a duplicate voice)
+      if [[ -z "$_sh_verdict" ]]; then
+        log "Model $try_model is a hop the companion shares, and no verdict on it came back (the wait wrote none) — the primary runs it"
+      else
+        log "Model $try_model is a hop the companion shares, and the companion ${_sh_reason:-finished without it} — the primary runs it"
+      fi
     fi
     # Allocate per-attempt sidecar path under the adversarial workdir so
     # parallel adversarial-review invocations don't collide.

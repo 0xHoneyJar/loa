@@ -708,7 +708,14 @@ def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
     gemini_extra_flags keeps the operator's choice, the documented exposure (cycle-126 thirty-fourth run, e1b DISS-C-001)."""
     monkeypatch.setenv("GEMINI_SANDBOX", "docker")
     for extra, want in (({}, "false"), ({"gemini_extra_flags": ["--sandbox"]}, "docker"),
-                        ({"gemini_extra_flags": [["-s"]]}, "docker"), ({"gemini_extra_flags": ["--sandbox=podman"]}, "docker")):
+                        ({"gemini_extra_flags": [["-s"]]}, "docker"), ({"gemini_extra_flags": ["--sandbox=podman"]}, "docker"),
+                        # (thirty-fifth run, e1b DISS-C-002: a flag that asks for NO sandbox — yargs reads a boolean's following
+                        # literal — is never "the operator asked for one"; the last of several wins)
+                        ({"gemini_extra_flags": [["--sandbox", "false"]]}, "false"), ({"gemini_extra_flags": [["-s", "false"]]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=false"]}, "false"), ({"gemini_extra_flags": ["--no-sandbox"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=FALSE"]}, "false"), ({"gemini_extra_flags": [["--sandbox", "true"]]}, "docker"),
+                        ({"gemini_extra_flags": ["--sandbox", "--no-sandbox"]}, "false"),
+                        ({"gemini_extra_flags": ["--no-sandbox", "--sandbox"]}, "docker")):
         adapter = GeminiHeadlessAdapter(_make_config(extra=extra) if extra else _make_config())
         with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)

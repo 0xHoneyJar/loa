@@ -62,15 +62,29 @@ def _group_private(gid: int) -> bool:
             and all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts))
 
 
-def _dir_trustworthy(st) -> bool:
+def _acl_extended(path: str) -> bool:
+    """`path` carries a POSIX access ACL: its group bits are then the mask over named users and groups, never the owning
+    group's own (thirty-fifth run, d DISS-C-004). A filesystem without xattrs carries none; any other failure is no proof.
+    (macOS ACLs are not POSIX xattrs and Python has no os.listxattr there — not judged.)"""
+    if not hasattr(os, "listxattr"):
+        return False
+    try:
+        return "system.posix_acl_access" in os.listxattr(path)
+    except OSError as exc:
+        return exc.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP)
+
+
+def _dir_trustworthy(st, path: Optional[str] = None) -> bool:
     """A directory no other user can write into: owned by root or this uid, never other-writable, and group-writable only
     for this process's own group when no other account is in it (a user-private group — the Debian/Ubuntu default for
-    ~/.cache)."""
+    ~/.cache) and no access ACL makes those bits a mask over other accounts' grants."""
     if not stat.S_ISDIR(st.st_mode) or st.st_uid not in (0, os.getuid()):
         return False
     if st.st_mode & stat.S_IWOTH:
         return False
-    return not (st.st_mode & stat.S_IWGRP) or (st.st_gid == os.getgid() and _group_private(st.st_gid))
+    if not st.st_mode & stat.S_IWGRP:
+        return True
+    return st.st_gid == os.getgid() and _group_private(st.st_gid) and not (path and _acl_extended(path))
 
 
 def _trusted_stop() -> set:
@@ -127,7 +141,7 @@ def _chain_private(path: str) -> bool:
     p = os.path.realpath(path)
     while p not in stop:
         try:
-            if not _dir_trustworthy(os.stat(p)):
+            if not _dir_trustworthy(os.stat(p), p):
                 return False
         except OSError:
             return False
@@ -195,11 +209,18 @@ def private_workspace(name: str) -> str:
     return path
 
 
-def cwd_vanished(cwd: Optional[str]) -> bool:
+def cwd_vanished(cwd: Optional[str], exc: Optional[BaseException] = None) -> bool:
     """A FileNotFoundError at exec names a missing cwd as it names a missing binary: the cwd is gone — logind clears
     $XDG_RUNTIME_DIR at the last logout, perhaps while the hop waited for a slot — so the failure is the hop's, walkable,
-    never 'CLI not found' (thirty-third run, e1 DISS-C-002)."""
-    return bool(cwd) and not os.path.isdir(cwd)
+    never 'CLI not found' (thirty-third run, e1 DISS-C-002). The spawn error names the path itself — CPython sets filename
+    to the cwd when the child's chdir failed, to the executable when exec did — so a stable workspace a concurrent hop
+    re-created since is still this cause (thirty-fifth run, d DISS-C-002); with no filename the stat decides."""
+    if not cwd:
+        return False
+    named = getattr(exc, "filename", None)
+    if named is not None:
+        return os.fsdecode(named) == cwd
+    return not os.path.isdir(cwd)
 
 
 @dataclass
@@ -263,7 +284,7 @@ class HeadlessCLIAdapter(ProviderAdapter):
                         ) from exc
                     except FileNotFoundError as exc:
                         _cwd = invocation.kwargs.get("cwd")
-                        if cwd_vanished(_cwd):
+                        if cwd_vanished(_cwd, exc):
                             raise ProviderUnavailableError(
                                 self.provider, f"{self._command_label} working directory {_cwd} vanished before the CLI "
                                 f"started: {exc}",

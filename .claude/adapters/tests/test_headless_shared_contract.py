@@ -218,7 +218,13 @@ def test_no_private_base_is_a_provider_unavailable_hop(adapter_case, tmp_path, m
     assert not marker.exists()
 
 
-def test_a_workspace_that_vanished_before_exec_is_a_walkable_hop(adapter_case, tmp_path, monkeypatch):
+def _assert_suite_owned(path, tmp_path_factory):
+    """`path`, resolved, lies inside pytest's base temporary tree (thirty-fifth run, c2e DISS-C-001)."""
+    base = str(tmp_path_factory.getbasetemp().resolve())
+    assert os.path.realpath(path).startswith(base + os.sep), f"outside the suite's temporary tree: {path}"
+
+
+def test_a_workspace_that_vanished_before_exec_is_a_walkable_hop(adapter_case, tmp_path, tmp_path_factory, monkeypatch):
     """Popen raises FileNotFoundError for a missing cwd as for a missing binary: a workspace removed between its creation and the
     exec (logind clearing $XDG_RUNTIME_DIR while the hop waited for a slot) is this hop's ProviderUnavailableError — never
     'CLI not found on PATH', a ConfigError that ends the chain (thirty-third run, e1 DISS-C-002)."""
@@ -237,6 +243,7 @@ def test_a_workspace_that_vanished_before_exec_is_a_walkable_hop(adapter_case, t
             # (thirty-fourth run, c2e DISS-C-001: only a cwd directly under the private base — the hop's own workspace — is
             # removed; any other is a failure here, never a recursive delete of a project or the suite's cwd)
             assert os.path.dirname(os.path.realpath(cwd)) == headless_cli.private_workspace_base(), f"not a hop workspace: {cwd}"
+            _assert_suite_owned(cwd, tmp_path_factory)   # (and the base is the suite's, never the operator's — thirty-fifth run, c2e)
             shutil.rmtree(cwd)
             removed.append(cwd)
         return real(*args, **kwargs)
@@ -582,3 +589,13 @@ def test_no_test_module_imports_loa_cheval_before_its_path_insert():
         if ins and imp and imp.start() < ins.start():
             late.append(f.name)
     assert late == []
+
+
+def test_a_workspace_delete_is_refused_outside_the_suite_tree(tmp_path_factory, tmp_path):
+    """The vanished-workspace test deletes a hop's cwd only inside pytest's own temporary tree: a base the conftest never
+    redirected (--noconftest, another rootdir) is the operator's real runtime dir, whose loa-claude-ws is the live cwd of every
+    claude -p hop — never removed (cycle-126 thirty-fifth run, c2e DISS-C-001)."""
+    _assert_suite_owned(str(tmp_path / "ws"), tmp_path_factory)
+    for outside in ("/run/user/1000/loa-claude-ws", os.path.expanduser("~/.cache/loa/loa-claude-ws"), "/"):
+        with pytest.raises(AssertionError, match="outside the suite"):
+            _assert_suite_owned(outside, tmp_path_factory)

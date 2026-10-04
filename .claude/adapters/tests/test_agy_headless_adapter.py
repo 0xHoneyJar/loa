@@ -302,3 +302,13 @@ class TestLive:
     def test_real_gemini_dispatch(self):
         res = _adapter().complete(_req(content="Reply with exactly: GEMINI-OK"))
         assert "GEMINI-OK" in res.content
+
+
+def test_the_module_doc_states_the_argv_prompt_as_unprobed():
+    """The argv prompt stays because a stdin prompt for `-p` was never probed — never because stdin "must stay closed":
+    communicate() writes the prompt and closes the pipe, so a later read sees EOF exactly as on DEVNULL (cycle-126
+    thirty-fifth run, e1 DISS-C-001)."""
+    import loa_cheval.providers.agy_headless_adapter as agy
+    doc = " ".join(agy.__doc__.split())
+    assert "cannot follow while its stdin must stay closed" not in doc
+    assert "never probed" in doc and "EOF" in doc and "communicate()" in doc

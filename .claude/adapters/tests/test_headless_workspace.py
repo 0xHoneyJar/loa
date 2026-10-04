@@ -128,6 +128,12 @@ def test_a_base_inside_a_project_tree_is_never_chosen(root, monkeypatch):
     # work tree does
     (home / ".claude").mkdir()
     (home / "CLAUDE.md").write_text("mine\n")
+    # (thirty-fifth run, e1b DISS-C-001: every CLI's own home state — ~/.gemini, ~/.codex's auth, ~/.cursor — is the user's too:
+    # the home exemption is every project file's, never claude's alone)
+    for marker in (".gemini", ".codex", ".cursor"):
+        (home / marker).mkdir()
+    for marker in ("GEMINI.md", "AGENTS.md", ".mcp.json", ".cursorrules"):
+        (home / marker).write_text("mine\n")
     assert hc.private_workspace_base() == fallback
     (home / ".git").mkdir()
     # (thirty-fourth run, d DISS-C-002: a dotfiles ~/.git is the user's own unless the reviewed tree is that work tree — from a
@@ -254,3 +260,57 @@ def test_claude_runs_without_the_stable_project_keys_auto_memory(monkeypatch):
                                                env={"PATH": "/bin", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0"})
     assert seen and seen[0]["env"]["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
     assert seen[0]["env"]["PATH"] == "/bin"
+
+
+def test_a_group_writable_directory_with_an_access_acl_is_never_trusted(monkeypatch, tmp_path):
+    """On a directory carrying a POSIX access ACL the group bits are the mask over its named users and groups, never the owning
+    group's own: a `setfacl -m u:other:rwx` grant reads as g+w of a user-private group — never trusted (cycle-126 thirty-fifth
+    run, d DISS-C-004)."""
+    import errno
+    import shutil
+    import subprocess
+    _private_group(monkeypatch)
+    d = _dir(tmp_path / "acl", 0o775)
+    assert hc._dir_trustworthy(os.stat(d), str(d))            # no ACL: a user-private group's g+w stands
+    real = _dir(tmp_path / "real-acl", 0o700)
+    if shutil.which("setfacl") and subprocess.run(["setfacl", "-m", "u:nobody:rwx", str(real)],
+                                                  capture_output=True).returncode == 0:
+        assert not hc._dir_trustworthy(os.stat(real), str(real))   # (a real named-user grant, where the filesystem has ACLs)
+    monkeypatch.setattr(hc.os, "listxattr", lambda p: ["system.posix_acl_access"], raising=False)
+    assert not hc._dir_trustworthy(os.stat(d), str(d))
+    monkeypatch.setattr(hc, "_TRUSTED_ABOVE", str(tmp_path.resolve()))
+    assert not hc._chain_private(str(d))                      # (the walk hands each directory's path to the test)
+    os.chmod(d, 0o755)
+    assert hc._dir_trustworthy(os.stat(d), str(d))            # a mask without w: no named entry can write
+    os.chmod(d, 0o775)
+    def unsupported(p):
+        raise OSError(errno.ENOTSUP, "no xattrs here")
+    monkeypatch.setattr(hc.os, "listxattr", unsupported, raising=False)
+    assert hc._dir_trustworthy(os.stat(d), str(d))            # a filesystem without xattrs carries no ACL
+    def denied(p):
+        raise OSError(errno.EACCES, "denied")
+    monkeypatch.setattr(hc.os, "listxattr", denied, raising=False)
+    assert not hc._dir_trustworthy(os.stat(d), str(d))        # any other failure is no proof
+
+
+def test_a_missing_cwd_is_named_by_the_spawn_error_itself_never_a_later_stat(tmp_path):
+    """CPython's spawn error names the path that failed — the cwd when the child's chdir did, the executable when exec did — so a
+    stable workspace a concurrent hop re-created since is still a vanished cwd, never 'CLI not found' (cycle-126 thirty-fifth
+    run, d DISS-C-002); with no filename the stat decides; every caller hands the error over."""
+    import pathlib
+    import re
+    ws = str(_dir(tmp_path / "ws", 0o700))                    # (it exists again by the time the error is read)
+    assert hc.cwd_vanished(ws, FileNotFoundError(2, "No such file or directory", ws))
+    assert not hc.cwd_vanished(ws, FileNotFoundError(2, "No such file or directory", "/no/such/bin"))
+    gone = str(tmp_path / "gone")
+    assert hc.cwd_vanished(gone) and hc.cwd_vanished(gone, FileNotFoundError(2, "no filename"))
+    assert not hc.cwd_vanished(ws, FileNotFoundError(2, "no filename"))
+    assert not hc.cwd_vanished(None, FileNotFoundError(2, "x", "/no/such/bin"))
+    n = 0
+    for f in pathlib.Path(hc.__file__).parent.glob("*.py"):
+        for m in re.finditer(r"cwd_vanished\(([^)]*)\)", f.read_text(encoding="utf-8")):
+            if m.group(1).startswith("cwd:"):
+                continue
+            n += 1
+            assert m.group(1).endswith(", exc"), f"{f.name}: {m.group(0)} never hands over the spawn error"
+    assert n >= 3

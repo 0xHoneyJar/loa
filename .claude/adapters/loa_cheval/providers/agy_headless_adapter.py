@@ -13,9 +13,12 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     (no `--prompt-file` flag exists → the gemini ARG_MAX cliff persists unchanged; the
     `gemini-api` HTTP fallback covers oversized diffs). An argv prompt is also readable by
     every local user through /proc/<pid>/cmdline and `ps` for the life of the hop — the
-    exposure claude-headless closed by moving to stdin (cycle-126); agy cannot follow while
-    its stdin must stay closed (below), so on a shared host the Gemini voice's prompt (the
-    redacted diff) is visible to other local users (cycle-126 thirty-first run, e1 DISS-C-001).
+    exposure claude-headless closed by moving to stdin (cycle-126). A stdin prompt would not
+    break the closed-stdin fix — communicate() writes the prompt and closes the pipe, so a later
+    tool-permission read sees EOF as on DEVNULL — but whether agy reads a `-p` prompt from stdin
+    was never probed (T4.1 ran argv only; no agy on the cycle-126 host), so on a shared host the
+    Gemini voice's prompt (the redacted diff) stays visible to other local users until the T4.1
+    probe is re-run with one (cycle-126 thirty-first run, e1 DISS-C-001; thirty-fifth run, e1).
   - **--model** takes a **human-readable label** from `agy models` (e.g. "Gemini 3.1 Pro (High)"),
     NOT an API id — supplied via `extra.cli_model`.
   - **Output** — **PLAIN TEXT** (no JSON, no `--output-format`). So `_build_result` reads stdout
@@ -161,7 +164,7 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                         f"agy -p {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
-                    if cwd_vanished(workspace):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                    if cwd_vanished(workspace, exc):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
                         raise ProviderUnavailableError(
                             self.provider, f"agy -p working directory {workspace} vanished before the CLI started: {exc}",
                         ) from exc

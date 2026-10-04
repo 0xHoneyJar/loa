@@ -67,15 +67,35 @@ gh_anchor(){
   command -v python3 >/dev/null 2>&1 || die "new: a non-ASCII title needs python3 for its GitHub anchor"
   # (thirty-fourth run, e2c DISS-C-001: GitHub's slugger keeps every letter, mark, number and connector punctuation — a
   # combining mark (an NFD accent) too, which \w drops; DISS-C-002: only a decode failure is a non-UTF-8 title)
+  # (thirty-fifth run, e2c DISS-C-001: GitHub keeps \p{Word} — Alphabetic, Mark, Decimal_Number, Connector_Punctuation,
+  # Join_Control — so an Other_Number (², ½, ①) is dropped, and an Other_Alphabetic symbol (Ⓐ, 🄰 — the four So ranges of
+  # PropList's Other_Alphabetic, which unicodedata cannot name) and ZWNJ/ZWJ are kept; checked against perl's \w codepoint
+  # by codepoint)
   local rc=0
   printf '%s' "${1-}" | python3 -c 'import sys, unicodedata
 try:
     h = sys.stdin.buffer.read().decode("utf-8")
 except UnicodeDecodeError:
     sys.exit(3)
-sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or unicodedata.category(c)[0] in "LMN" or unicodedata.category(c) == "Pc").replace(" ", "-").encode("utf-8"))' || rc=$?
+oa = ((0x24B6, 0x24E9), (0x1F130, 0x1F149), (0x1F150, 0x1F169), (0x1F170, 0x1F189))
+def word(c):
+    k = unicodedata.category(c)
+    return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
+sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-").encode("utf-8"))' || rc=$?
   [[ $rc -ne 3 ]] || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
   [[ $rc -eq 0 ]] || die "new: python3 failed (exit $rc) computing the title's GitHub anchor"
+}
+# GitHub slugs a heading's RENDERED text: a title holding a link, an HTML tag, a character reference, an underscore emphasis
+# outside a code span or a closing # sequence renders as other text than it reads, so no raw-text slug is its anchor — refused
+# before any write, the title to be rephrased (thirty-fifth run, e2c DISS-C-002; the link lint names such a heading too)
+gh_title_renders_raw(){
+  local t nw=$'[^[:alnum:]_\x80-\xff]' ns='[^_[:space:]]'
+  local mk='\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);' cl='(^|[[:space:]])#+[[:space:]]*$'
+  local em="(^|$nw)_+$ns(.*$ns)?_+($nw|$)"
+  t="$(printf '%s' "${1-}" | sed -E 's/`[^`]*`//g')"
+  if [[ "$t" =~ $mk || "$t" =~ $em || "$t" =~ $cl ]]; then
+    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_ or a closing #) — its heading anchor would match no Index link; rephrase it"
+  fi
 }
 
 # NB: grep can legitimately match nothing; with `set -o pipefail` the pipe then
@@ -132,6 +152,7 @@ op_new(){
   fi
   # (the title's anchor is computed — and a title without one refused — before the lock and the trailing-newline repair: a refused
   # title never touches the ledger; thirty-fourth run, e2c DISS-001. "KF-NNN: t" slugs as "kf-nnn" + the slug of ": t")
+  gh_title_renders_raw "$title"
   local tail; tail="$(gh_anchor ": ${title}")"
   with_lock
   ensure_trailing_nl "$f"

@@ -25,7 +25,8 @@ Design notes:
     DISS-C-002). gemini-cli truncates stdin past 8 MiB, so a larger prompt is refused, walkable. A sandboxed run re-injects
     stdin into the sandbox child's argv, so the hop runs with GEMINI_SANDBOX=false (it outranks --sandbox and settings.json's
     tools.sandbox — verified on gemini-cli 0.41.2); only an operator `--sandbox` in `gemini_extra_flags` keeps a sandbox, and
-    that exposure (thirty-fourth run, e1b DISS-C-001).
+    that exposure (thirty-fourth run, e1b DISS-C-001) — `--sandbox false`, `--sandbox=false` and `--no-sandbox` ask for
+    none, read as yargs reads a boolean, the last flag winning (thirty-fifth run, e1b DISS-C-002).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
     invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
     an isolated empty directory, never the reviewed tree (cycle-126).
@@ -84,6 +85,20 @@ _GEMINI_AUTH_ENV_VARS = (
 )
 
 
+def _asks_sandbox(args) -> bool:
+    """The operator's own flags ask for a sandbox, read as yargs reads a boolean: `-s` / `--sandbox` (a following literal
+    true / false is its value), `--sandbox=<v>`, `--no-sandbox`; the last one wins (thirty-fifth run, e1b DISS-C-002)."""
+    want = False
+    for i, a in enumerate(args):
+        if a in ("-s", "--sandbox"):
+            want = not (i + 1 < len(args) and args[i + 1].lower() == "false")
+        elif a.startswith(("--sandbox=", "-s=")):
+            want = a.split("=", 1)[1].lower() != "false"
+        elif a == "--no-sandbox":
+            want = False
+    return want
+
+
 class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `gemini -p` (non-interactive).
 
@@ -124,7 +139,7 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         # Keep the provider's subprocess seam available to callers and tests.
         # (thirty-fourth run, e1b DISS-C-001: an ambient sandbox — GEMINI_SANDBOX, or tools.sandbox in the user's settings —
         # would fold the stdin prompt into argv; "false" closes both unless the operator's own flags ask for one)
-        if not any(a in ("-s", "--sandbox") or a.startswith("--sandbox=") for a in command[1:]):
+        if not _asks_sandbox(command[1:]):
             kwargs["env"] = {**(kwargs["env"] if kwargs.get("env") is not None else os.environ), "GEMINI_SANDBOX": "false"}
         return run_subprocess_pgkill(command, **kwargs)
 

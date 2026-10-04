@@ -61,9 +61,11 @@ Options:
                       adversarial-rejected-<gate>*.jsonl beside the envelope (with a warning naming it: an
                       earlier run's rows that were never folded); without an envelope, or without that field,
                       every adversarial-rejected-<gate>*.jsonl beside it counts; a pre-FR-2 envelope (no
-                      metadata.rejected_summary key and none of rejected_sidecars, rejected_count or
-                      companion_voice) counts none of the rows as old as itself, while a sidecar newer than it
-                      counts, with a warning; one top-level bullet per rejected payload
+                      metadata.rejected_summary key and none of rejected_sidecars or companion_voice —
+                      rejected_count is no marker, the writer before cycle-126 set it too) counts none of the
+                      rows as old as itself, while a sidecar newer than it counts, with a warning
+                      (one git tracks with its committed bytes is history, whatever mtime a checkout
+                      gave it); one top-level bullet per rejected payload
                       under '## Rejected dissent payloads'; a missing explicit path is a usage error (exit 1).
                       A moved-aside adversarial-<gate>.json.prev or adversarial-rejected-<gate>*.jsonl.prev
                       with no envelope is a violation (dissent_aborted: the run never wrote its envelope).
@@ -189,6 +191,19 @@ _rejected_rows_of() {  # <file> [listed] — adds the file's rejected rows to $r
     (( ${c:-0} > 0 )) && rows=$(( rows + c ))
     return 0
 }
+_vd_committed() {  # <file> → 0 when git tracks it and its bytes are the committed ones: history, whatever mtime a checkout gave it —
+    # git writes a directory's files in index order, so a sidecar can land a clock tick after its envelope (thirty-fifth run,
+    # e2a DISS-C-004); a caller's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE never name the repository; no git is no proof
+    command -v git >/dev/null 2>&1 || return 1
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+      git -C "${1%/*}" ls-files --error-unmatch -- "${1##*/}" >/dev/null 2>&1 \
+        && git -C "${1%/*}" diff --quiet HEAD -- "${1##*/}" >/dev/null 2>&1 )
+}
+_vd_listed() {  # <name> <listed…> → 0 when name is one of them, compared exactly
+    local _n="$1" _x; shift
+    for _x in "$@"; do [[ "$_x" == "$_n" ]] && return 0; done
+    return 1
+}
 rejected_summary_check() {  # appends a violation when the contract is broken; silent otherwise
     # cycle-126 FR-2.3 (SDD D-2.3), hardened over sprint-248's live review runs:
     #   * the envelope's metadata.rejected_summary and the rejected-payload sidecar rows both count
@@ -225,7 +240,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     if [[ -f "$ENVELOPE_FILE" ]]; then
         # eighth run, chunk b C-003: the summary's REAL type (null → the empty array; `false` is a boolean), and a
         # metadata that is not an object gets its own message; an envelope with no metadata at all, or a metadata WITHOUT
-        # a rejected_summary key and without any FR-2 marker (rejected_sidecars / rejected_count / companion_voice), is
+        # a rejected_summary key and without any FR-2 marker (rejected_sidecars / companion_voice — thirty-fifth run, e2a DISS-C-004:
+        # not rejected_count, which every envelope since #832 carries, so two committed pre-FR-2 audit sprints read INCONSISTENT), is
         # a pre-FR-2 envelope — its sidecar rows are not counted (twelfth run, b C-005: historical sprints keep their
         # verdicts; thirteenth run, b C-001 / C-002); one jq read — a snapshot, never four
         # reads of a file a running dissent may be rewriting (b C-003); a non-string entry of rejected_sidecars is
@@ -236,7 +252,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
             (if .metadata == null then "legacy"
              elif (.metadata | type) != "object" then "metadata:" + (.metadata | type)
              elif (.metadata | has("rejected_summary") | not)
-                  and ((.metadata | (has("rejected_sidecars") or has("rejected_count") or has("companion_voice"))) | not) then "legacy"
+                  and ((.metadata | (has("rejected_sidecars") or has("companion_voice"))) | not) then "legacy"
              elif .metadata.rejected_summary == null then "array" else (.metadata.rejected_summary | type) end) as $kind
             | (if ($kind | startswith("metadata:")) then {} else (.metadata // {}) end) as $md
             | ((($md.rejected_summary // []) | if type == "array" then length else 0 end)) as $n
@@ -282,7 +298,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                 [[ -f "$_lf" && ! -s "$_lf" ]] && continue          # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — nineteenth run, b1 C-003)
                 # (twentieth run, c2d C-002: a non-regular entry has no age to split on — `-nt` is false for a dangling link — so it is judged here)
                 if [[ ! -f "$_lf" ]]; then _rejected_rows_of "$_lf"; continue; fi
-                if [[ "$_lf" -nt "$ENVELOPE_FILE" ]]; then _newer_files+="${_newer_files:+, }$(basename -- "$_lf")"; _rejected_rows_of "$_lf"
+                if [[ "$_lf" -nt "$ENVELOPE_FILE" ]] && ! _vd_committed "$_lf"; then _newer_files+="${_newer_files:+, }$(basename -- "$_lf")"; _rejected_rows_of "$_lf"
                 else _legacy_files+="${_legacy_files:+, }$(basename -- "$_lf")"; fi
             done
             [[ -n "$_legacy_files" ]] && warnings+=("dissent envelope $(basename -- "$ENVELOPE_FILE") predates the rejected-payload contract (no metadata.rejected_summary) — the sidecar rows beside it ($_legacy_files) are not counted; re-run the dissent to bring them under the contract")
@@ -304,7 +320,9 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     if [[ "$has_list" == "true" ]]; then
         # a listed sidecar is resolved beside the envelope only (never an arbitrary path from the envelope), and only
         # a sidecar NAME is counted — a non-string entry or a sibling that is no sidecar is a violation (b C-004)
-        local listed_names=" " _bn
+        # (thirty-fifth run, b1 DISS-C-001: membership is an exact compare over an array — a space-joined string let a listed name
+        # holding a space and another sidecar's name mask that sidecar as a substring)
+        local -a listed_names=() ; local _bn
         while IFS= read -r f; do
             [[ -n "$f" ]] || continue
             if [[ "$f" == $'\001'* ]]; then
@@ -320,8 +338,8 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
                 violations+=("dissent envelope $(basename -- "$ENVELOPE_FILE") lists $_bn in metadata.rejected_sidecars, which is not an adversarial-rejected-$GATE*.jsonl sidecar — repair the envelope or re-run the dissent")
                 continue
             fi
-            [[ "$listed_names" == *" $_bn "* ]] && continue   # (thirteenth run, b C-003: listed twice, counted once)
-            listed_names+="$_bn "
+            _vd_listed "$_bn" ${listed_names[@]+"${listed_names[@]}"} && continue   # (thirteenth run, b C-003: listed twice, counted once)
+            listed_names+=("$_bn")
             _rejected_rows_of "$envdir/$_bn" listed
         done <<<"$listed"
         # eighth / tenth run, chunk b C-001: a non-empty sidecar the envelope does not list is never silent and never
@@ -333,7 +351,7 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
         for u in "$envdir"/adversarial-rejected-"$GATE"*.jsonl; do
             [[ -e "$u" || -L "$u" ]] || continue                    # (the literal pattern of a no-match glob)
             [[ -f "$u" && ! -s "$u" ]] && continue                  # (an empty regular file counts nothing; anything else is judged by _rejected_rows_of — b1 C-003)
-            [[ "$listed_names" == *" $(basename -- "$u") "* ]] && continue
+            _vd_listed "$(basename -- "$u")" ${listed_names[@]+"${listed_names[@]}"} && continue
             _rejected_rows_of "$u"
             [[ -f "$u" && -r "$u" ]] || continue                    # (its violation says the rows cannot be triaged — no "counted" warning beside it — twenty-sixth run, b1 DISS-C-002)
             if [[ "$u" -nt "$ENVELOPE_FILE" ]]; then

@@ -792,7 +792,7 @@ EOF
         case "${s##*/}" in
             adversarial-review-companion.bats) own=CMP_OWN_TMP ;;
             adversarial-review-normalise.bats) own=NORM_OWN_TMP ;;
-            *) if grep -nE 'BATS_TEST_TMPDIR[:]?[-][^}]*mktemp' "$s"; then echo "${s##*/} falls back to an unswept mktemp TEST_DIR"; return 1; fi; continue ;;
+            *) _e3_none grep -nE 'BATS_TEST_TMPDIR[:]?[-][^}]*mktemp' "$s" || { echo "${s##*/} falls back to an unswept mktemp TEST_DIR (or is unreadable: thirty-fifth run, e3 DISS-C-002)"; return 1; }; continue ;;
         esac
         grep -qE "find \"[$]$own\" -mindepth 1 -delete; rmdir \"[$]$own\"" "$s" || { echo "${s##*/} no longer sweeps its own fallback"; return 1; }
     done
@@ -816,9 +816,10 @@ EOF
     if _e3_xdg_fallback "$fx"; then echo "a one-line setup's own mktemp tripped the fallback check"; return 1; fi
     # …and a grep that errors is never "no match" (thirty-fourth run, e3 DISS-C-002: exit 2 — an unreadable file — read as clean,
     # even beside a real match): only exit 1 passes
+    # (as root no file is unreadable: only that leg is left out, never the test — a skip reported every check that ran as
+    # skipped: thirty-fifth run, e3 DISS-C-001)
     printf '    export XDG_RUNTIME_DIR%s"$(mktemp -d)"\n' '=' > "$fx/a.bats"; : > "$fx/b.bats"; chmod 000 "$fx/b.bats"
-    if [ -r "$fx/b.bats" ]; then chmod 644 "$fx/b.bats"; skip "running as root: an unreadable file cannot be made"; fi
-    if _e3_none _e3_xdg_fallback "$fx" >/dev/null 2>&1; then chmod 644 "$fx/b.bats"; echo "a grep error beside a match passed"; return 1; fi
+    if [ ! -r "$fx/b.bats" ] && _e3_none _e3_xdg_fallback "$fx" >/dev/null 2>&1; then chmod 644 "$fx/b.bats"; echo "a grep error beside a match passed"; return 1; fi
     chmod 644 "$fx/b.bats"; rm -f "$fx/a.bats"
     if _e3_none _e3_xdg_fallback "$fx/missing" >/dev/null 2>&1; then echo "a grep error passed"; return 1; fi
     _e3_none _e3_xdg_fallback "$fx"

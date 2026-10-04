@@ -66,8 +66,10 @@ skip_if_no_jq() {
     run "$SCRIPT" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
-    [[ "$output" == *"none of rejected_sidecars, rejected_count or"* ]]   # legacy = no rejected_summary AND no FR-2 marker
+    [[ "$output" == *"none of rejected_sidecars or"* ]]   # legacy = no rejected_summary AND no FR-2 marker
+    [[ "$output" != *"rejected_sidecars, rejected_count"* ]]   # (rejected_count is no marker — thirty-fifth run, e2a DISS-C-004)
     [[ "$output" == *"a sidecar newer than it"*"counts, with a warning"* ]]
+    [[ "$output" == *"git tracks with its committed bytes"* ]]
 }
 
 # =============================================================================
@@ -908,7 +910,8 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     echo "$output" | jq -e '.consistent == true and (.warnings | length) == 1 and (.warnings[0] | test("predates the rejected-payload contract"))' >/dev/null
     # …but an envelope carrying any FR-2 marker is under the contract even without rejected_summary — the documented
     # fallback envelope of a failed dissent never grandfathers orphaned rows (thirteenth run, b C-002)
-    for shape in '{status: "failed", reason: "x", rejected_summary: []}' '{status: "failed", reason: "x", rejected_count: 0}' '{status: "failed", rejected_sidecars: []}' '{status: "failed", companion_voice: {planned: false}}'; do
+    # (thirty-fifth run, e2a DISS-C-004: rejected_count is no marker — every envelope since #832 carries it, pre-FR-2 ones too)
+    for shape in '{status: "failed", reason: "x", rejected_summary: []}' '{status: "failed", rejected_sidecars: []}' '{status: "failed", companion_voice: {planned: false}}'; do
         jq -n "{findings: [], metadata: $shape}" > "$d/adversarial-review.json"
         run bash -c "\"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json 2>/dev/null"
         [ "$status" -eq 1 ]
@@ -1257,7 +1260,10 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # every line of the script that carries a [[: class is a sed / grep / bash test line, never an awk program line
     # (thirty-third run, c2d DISS-C-001: every awk program — after -v / -F options, spliced across '"'"', spanning lines — and an
     # awk the lint cannot read (-f, a variable program or binary) is refused; a comment naming awk is never a program)
-    local bad lint fx="${TEST_TMPDIR}/awk-lint-fixture.sh"
+    local bad lint fx="${TEST_TMPDIR}/awk-lint-fixture.sh" rc
+    # (thirty-fifth run, c2d DISS-C-001: a host without a working python3 is a skip, never ten vacuous refusals and a misleading
+    # "positive control refused")
+    python3 -c '' 2>/dev/null || skip "python3 not available"
     lint=$(cat <<'PY'
 import re, sys
 src = open(sys.argv[1], encoding='utf-8').read()
@@ -1323,6 +1329,12 @@ for line in src.split('\n'):
                 prog += "'"; j = k + 5; continue
             if src.startswith("'\\''", k):     # …and the '\'' spelling of one (thirty-fourth run, c2d DISS-C-001)
                 prog += "'"; j = k + 4; continue
+            if src[k + 1:k + 2] == '"':          # a '"…"' splice ('"$v"'): the program goes on (thirty-fifth run, c2d DISS-C-002)
+                e = k + 2
+                while e < len(src) and src[e] != '"':
+                    e += 2 if src[e] == '\\' else 1
+                if src[e + 1:e + 2] == "'":
+                    prog += src[k + 2:e]; j = e + 2; continue
             break
         if '[[:' in prog:
             bad.append('a POSIX class in the awk program at: ' + line.strip()[:80])
@@ -1340,11 +1352,14 @@ PY
              'awk -F'"'"'[[:space:]]+'"'"' '"'"'{print $1}'"'"' f' \
              $'awk \'/a\'\\\'\'b/ {x = 1} /[[:space:]]/ {y = 1}\' f' \
              'echo " # " | awk '"'"'/[[:space:]]/'"'"' f' \
-             '"${AWK_BIN}" '"'"'/x/'"'"' f'; do
+             '"${AWK_BIN}" '"'"'/x/'"'"' f' \
+             $'awk \'/x/ { y = "\'"$v"\'" } /[[:space:]]/\' f'; do
+        # (thirty-fifth run, c2d DISS-C-002: a class after a '"$var"' splice — the program goes on past it)
         # (thirty-fourth run, c2d DISS-C-001: a class in a -v / -F value, a program spliced with '\'', an awk after a quoted " # ",
         # a variable named *AWK*)
         printf '%s\n' "$f" > "$fx"
-        if python3 -c "$lint" "$fx" >/dev/null; then echo "the lint passed a fixture it must refuse: $f"; return 1; fi
+        rc=0; python3 -c "$lint" "$fx" >/dev/null || rc=$?
+        [ "$rc" -eq 1 ] || { echo "the lint did not refuse (exit $rc, not 1) a fixture it must refuse: $f"; return 1; }
     done
     # (the positive control: a class-free program, a comment naming one with a class, a grep line with a class)
     printf '%s\n' "  awk '/[ \\t]/ {print}' f" "  # awk '/[[:space:]]/' is what mawk misreads" "  grep -q '[[:space:]]' f" > "$fx"
@@ -1399,4 +1414,52 @@ PY
     [ "$status" -eq 1 ] || { echo "status $status: $output"; return 1; }
     echo "$output" | jq -e '(.violations | map(select(test("malformed entry"))) | length) == 2' >/dev/null || { echo "$output"; return 1; }
     echo "$output" | jq -e '(.violations | map(select(test("lists engineer-feedback.md"))) | length) == 0' >/dev/null || { echo "$output"; return 1; }
+}
+
+@test "verdict-derive: a listed rejected_sidecars name holding a space and another sidecar's name never masks that sidecar — membership is exact, so the real file's rows are counted and it is named as unlisted (thirty-fifth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    d="${TEST_TMPDIR}/s-space"; mkdir -p "$d"
+    _vd_approved_review "$d/engineer-feedback.md" yes
+    : > "$d/adversarial-rejected-review x adversarial-rejected-review.jsonl"
+    printf '{"reject_reason":"stale"}\n{"reject_reason":"stale"}\n' > "$d/adversarial-rejected-review.jsonl"
+    jq -n --arg p "adversarial-rejected-review x adversarial-rejected-review.jsonl" '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: [], rejected_sidecars: [$p]}}' > "$d/adversarial-review.json"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 1 ] || { echo "exit $status: $output"; return 1; }
+    echo "$output" | jq -e '(.violations | map(select(test("2 rejected payload"))) | length) == 1
+        and (.warnings | map(select(test("adversarial-rejected-review\\.jsonl beside the envelope is not listed"))) | length) == 1' >/dev/null || { echo "$output"; return 1; }
+}
+
+@test "verdict-derive: an envelope as the writer before cycle-126 shaped it (rejected_count and a singular rejected_sidecar, since #832) is pre-FR-2, and a sidecar git tracks with its committed bytes is history whatever a checkout's write order made its mtime — a row appended since is a later run's and counts (thirty-fifth run, e2a DISS-C-004)" {
+    skip_if_no_jq
+    command -v git >/dev/null 2>&1 || skip "git not available"
+    local r="${TEST_TMPDIR}/s35" d g
+    d="$r/a2a"; mkdir -p "$d"
+    g() { HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -C "$r" -c user.email=t@t -c user.name=t "$@"; }
+    g init -q
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0, rejected_count: 2,
+        rejected_sidecar: "grimoires/loa/a2a/x/adversarial-rejected-review.jsonl", schema_enforced: false}}' > "$d/adversarial-review.json"
+    printf '{"reject_reason":"old"}\n{"reject_reason":"old"}\n' > "$d/adversarial-rejected-review.jsonl"
+    touch -t 201901010000 "$d/adversarial-rejected-review.jsonl"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 0 ] || { echo "the pre-cycle-126 shape is not legacy: $output"; return 1; }
+    echo "$output" | jq -e '.consistent == true and (.warnings | any(test("predates the rejected-payload contract")))' >/dev/null || { echo "$output"; return 1; }
+    # committed; then a checkout writes the envelope first and the sidecar a clock tick later
+    g add -A; g commit -q -m history
+    touch -t 202001010000 "$d/adversarial-review.json"; touch -t 202101010000 "$d/adversarial-rejected-review.jsonl"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 0 ] || { echo "a committed sidecar read as a later run's: $output"; return 1; }
+    # …under a caller's GIT_DIR naming another repository too
+    run env GIT_DIR=/nonexistent/loa-vd bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 0 ] || { echo "a caller's GIT_DIR decided: $output"; return 1; }
+    # a row appended since is a later run's: counted, with the newer warning
+    printf '{"reject_reason":"new"}\n' >> "$d/adversarial-rejected-review.jsonl"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 1 ] || { echo "a modified sidecar went uncounted: $output"; return 1; }
+    echo "$output" | jq -e '(.violations[0] | test("3 schema-rejected payload")) and (.warnings | any(test("is newer than it.*rows are counted")))' >/dev/null || { echo "$output"; return 1; }
+    # …and an untracked one newer than the envelope, as before
+    g restore -- a2a/adversarial-rejected-review.jsonl; g rm -q --cached a2a/adversarial-rejected-review.jsonl
+    touch -t 202101010000 "$d/adversarial-rejected-review.jsonl"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 1 ] || { echo "an untracked newer sidecar went uncounted: $output"; return 1; }
 }
