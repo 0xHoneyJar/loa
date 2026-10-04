@@ -22,6 +22,14 @@ _scrub_cred_aliases() {  # unset every credential alias the probe recognises, fr
     for v in "${names[@]}"; do unset "$v"; done
 }
 
+_claim_sprint_dir() {  # <dir> → 0 when nothing stands there or a leftover this suite MARKED was emptied and removed; 1 (named,
+    # SPRINT cleared so teardown touches nothing) when an unmarked node stands there — thirty-fourth run, c1a DISS-C-001: a crashed
+    # run on a reused pid left this very path, setup's marker claimed it, and the stale sweep, seeing a live owner, never cleared it
+    local d="$1"
+    [[ -e "$d" || -L "$d" ]] || return 0
+    if [[ -d "$d" && ! -L "$d" && -f "${d%/*}/.$SPRINT.owner" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; return 0; fi
+    echo "setup: $d stands and is not this suite's"; SPRINT=""; return 1
+}
 setup() {
     # the sprint id comes FIRST: teardown runs on any setup failure, and a delete target derived from
     # an unset id would be the a2a root (fourth run, chunk c C-001)
@@ -29,8 +37,9 @@ setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
+    _claim_sprint_dir "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT" || return 1
     # this suite's own: the stale sweep deletes only marked dirs; the marker holds this process's start, so a recycled pid is not it
-    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && _sweep_start "$$" > "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
+    mkdir -p "$PROJECT_ROOT/grimoires/loa/a2a" && printf '%s\n%s\n' "$(_sweep_start "$$")" "$(_sweep_where)" > "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES="$PROJECT_ROOT/tests/fixtures/dissent-rejected"
     TEST_DIR="${BATS_TEST_TMPDIR:-}"; NORM_OWN_TMP=""
@@ -77,7 +86,18 @@ setup() {
 # sees it — `kill -0` also fails with EPERM for a LIVE process of another uid (twenty-fourth run, c1a DISS-C-001). The
 # rename claims a directory, so concurrent teardowns never race one delete (twenty-fourth run, c2a DISS-C-001); a `.reap-<q>`
 # a dead sweeper left is finished here, and the marker goes with its owner's last directory.
-_sweep_alive() { kill -0 "$1" 2>/dev/null || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]; }
+_sweep_alive() {
+    local e; e=$(kill -0 "$1" 2>&1) && return 0
+    [[ "$e" == *"not permitted"* ]] || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]
+}
+# (thirty-fourth run, c2a DISS-C-001: a pid means nothing on another host or in another pid namespace — two runs over one
+# checkout from a devcontainer and its host — so a marker records where it was written, and only a marker written HERE is
+# judged; and kill -0's EPERM is a live process of another uid even when hidepid keeps ps and /proc from seeing it)
+_sweep_where() { printf 'where %s %s\n' "$(uname -n 2>/dev/null)" "$(readlink /proc/self/ns/pid 2>/dev/null)"; }
+_sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one
+    local w; w=$(grep -m1 '^where ' -- "$1" 2>/dev/null) || return 1
+    [[ "$w" != "$(_sweep_where)" ]]
+}
 # (thirty-second run, c2a DISS-C-001: a pid alone outlives its owner — once a killed run's pid is reused, its directory was live
 # for good. The marker holds the owner's start token; a live pid whose start differs is another process. An unknown token on
 # either side — an older marker, a host with neither /proc nor ps — keeps the pid-only answer: never a live run's directory)
@@ -104,6 +124,7 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
         [[ -f "$m" && ! -L "$m" ]] || continue
         p=${m##*/."$pre"-}; p=${p%.owner}
         [[ "$p" =~ ^[0-9]+$ ]] || continue
+        _sweep_foreign "$m" && continue
         _sweep_owner_alive "$p" "$m" && continue
         left=0
         for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do   # (one directory per marker, never a sibling — twenty-ninth run, c2a)
@@ -281,21 +302,23 @@ _fixture_content() {  # all three fixtures as one findings document
 }
 
 @test "NRM-8 credential presence never materialises the value: an xtrace'd check echoes no secret (review C-008)" {
-    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-x"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    # (thirty-fourth run, c2a DISS-C-002: every path here carries a quote — a checkout under "Merlin's Mac" is a path the probes
+    # must pass as data, never a parse error that skips the very check)
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-x'q"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     printf 'ANTHROPIC_API_KEY="dotenv-secret-value-xyz-987"\n' > "$LOA_ADVERSARIAL_ENV_DIR/.env.local"
-    run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT=$(printf %q "$PROJECT_ROOT"); LOA_ADVERSARIAL_ENV_DIR=$(printf %q "$LOA_ADVERSARIAL_ENV_DIR"); BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"dotenv-secret-value-xyz-987"* ]]
     # the exported-variable path too (seventh run, c2 C-003): the probe never expands the value
     # (the value enters through the environment, not the traced script — an `export` line would trace itself)
     # …hermetic like the first probe (twentieth run, c2a C-001): the dotenv seam points at an EMPTY directory, so only the
     # environment branch can answer — the inherited env-x above (or a host .env.local) would otherwise say "present" for it
-    mkdir -p "$TEST_DIR/env-empty"
-    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    mkdir -p "$TEST_DIR/env-empty'q"
+    ANTHROPIC_API_KEY=env-secret-value-123 run bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT=$(printf %q "$PROJECT_ROOT"); LOA_ADVERSARIAL_ENV_DIR=$(printf %q "$TEST_DIR/env-empty'q"); BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 0 ]
     [[ "$output" != *"env-secret-value-123"* ]]
     # the inverse under the same prelude: no variable, no dotenv — absent, so the branch is proven both ways
-    run env $(printf -- '-u %s ' $(_adv_cred_aliases anthropic)) bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$TEST_DIR/env-empty'; BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
+    run env $(printf -- '-u %s ' $(_adv_cred_aliases anthropic)) bash -xc "$(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT=$(printf %q "$PROJECT_ROOT"); LOA_ADVERSARIAL_ENV_DIR=$(printf %q "$TEST_DIR/env-empty'q"); BATS_TEST_FILENAME=x; _adv_cred_present anthropic"
     [ "$status" -eq 1 ]
 }
 
@@ -407,9 +430,9 @@ DF
 }
 
 @test "NRM-16 credential presence resolves per alias with override precedence: an empty GOOGLE_API_KEY never hides a GEMINI_API_KEY assigned in the same or a lower source; every alias assigned empty at its deciding source disables (ninth run a1 C-005; tenth run c2 C-001)" {
-    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-g"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-g'q"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"   # (a quote in the path: thirty-fourth run, c2a DISS-C-002)
     _probe() {  # <env assignments…> — runs the probe in a shell with only the named Google variables (the operator's shell may export one)
-        bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $1; $(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT='$PROJECT_ROOT'; LOA_ADVERSARIAL_ENV_DIR='$LOA_ADVERSARIAL_ENV_DIR'; BATS_TEST_FILENAME=x; _adv_cred_present google"
+        bash -c "unset GOOGLE_API_KEY GEMINI_API_KEY; $1; $(declare -f _adv_cred_aliases _adv_cred_present); PROJECT_ROOT=$(printf %q "$PROJECT_ROOT"); LOA_ADVERSARIAL_ENV_DIR=$(printf %q "$LOA_ADVERSARIAL_ENV_DIR"); BATS_TEST_FILENAME=x; _adv_cred_present google"
     }
     _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY="present-never-printed"'                       # env: one alias empty, the other set → present
     rc=0; _probe 'export GOOGLE_API_KEY="" GEMINI_API_KEY=""' || rc=$?; [ "$rc" = "1" ]              # env: both empty → disabled
@@ -1103,9 +1126,10 @@ DF
     # test never leaves the link; the teardown under test runs without that name, so the leg still proves a link is never followed)
     lnk="$a2a/$SPRINT"; NORM_OWN_LINK="$lnk"; ln -s "$tgt" "$lnk"
     # (as bats runs it: errexit live — a subshell left of `||` would ignore it, so a background job is waited for)
-    rc=0; ( set -e; NORM_OWN_LINK=""; teardown ) 3>&- & wait $! || rc=$?
+    # (each mid-test teardown keeps the bats < 1.4 own tmp directory, which holds the link target — thirty-fourth run, c2b DISS-C-003)
+    rc=0; ( set -e; NORM_OWN_TMP=""; NORM_OWN_LINK=""; teardown ) 3>&- & wait $! || rc=$?
     [ -L "$lnk" ] || { echo "the unregistered link was removed or followed"; return 1; }
-    rc2=0; ( set -e; teardown ) 3>&- & wait $! || rc2=$?
+    rc2=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc2=$?
     [ "$rc2" -eq 0 ] && [ ! -L "$lnk" ] || { echo "the registered own link outlived the teardown (rc $rc2)"; command rm -f -- "$lnk"; return 1; }
     [ -e "$tgt/keep" ] || { echo "removing the registered link followed it"; return 1; }
     NORM_OWN_LINK=""
@@ -1117,7 +1141,7 @@ DF
     # interrupted test never leaves it; the teardown under test runs without that name — a sibling it never made)
     NORM_SIB_DIR="$a2a/${SPRINT}-sib"
     mkdir -p "$a2a/$SPRINT/sub" "$a2a/${SPRINT}-sib/sub"; : > "$a2a/$SPRINT/sub/f"; : > "$a2a/${SPRINT}-sib/sub/f"
-    rc=0; ( set -e; NORM_SIB_DIR=""; teardown ) 3>&- & wait $! || rc=$?
+    rc=0; ( set -e; NORM_OWN_TMP=""; NORM_SIB_DIR=""; teardown ) 3>&- & wait $! || rc=$?
     : > "$a2a/.$SPRINT.owner"
     [ -e "$a2a/${SPRINT}-sib/sub/f" ] || { echo "teardown deleted a sibling it never made"; return 1; }
     find "$a2a/${SPRINT}-sib" -mindepth 1 -delete; rmdir "$a2a/${SPRINT}-sib"
@@ -1173,9 +1197,9 @@ from loa_cheval.types import ModelConfig, ProviderConfig
 from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
 logging.disable(logging.CRITICAL)
 # (the adapter own bound, called — not its terms recomposed here: thirtieth run, c2b DISS-C-002)
-for line in open(sys.argv[1]):
+for line in open(sys.argv[1], encoding="utf-8"):
     path = line.split("\t", 1)[0]
-    p = yaml.safe_load(open(path))["providers"]["anthropic"]
+    p = yaml.safe_load(open(path, encoding="utf-8"))["providers"]["anthropic"]
     a = ClaudeHeadlessAdapter(ProviderConfig(name="anthropic", type="claude-headless", endpoint="", auth="",
                                              connect_timeout=p["connect_timeout"], read_timeout=p["read_timeout"]))
     print(a._compute_timeout(ModelConfig(headless_timeout_seconds=p["models"]["claude-headless"]["headless_timeout_seconds"])))' "$TEST_DIR/cats-44") > "$TEST_DIR/py-44"
@@ -1263,22 +1287,41 @@ tokens_in tokens_out try_model type until valid_categories valid_severities viol
 api_exit_code _pf_rc""".split())
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
+# (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's
+# dynamic --arg "$1" "$2", _adv_scope_json's sha — never anywhere)
+SMALL -= {"1", "2"}
+POS_OK = {"_adv_refuse_json": {"2"}, "_adv_scope_json": {"1"}}
 CMDS = ("[[", "date ", "_adv_hop_canon ", "_adv_scope_json", "_companion_drop_reason ", "printf '%s\\n' \"${model_attempts[@]}\" |")
 # (a positional operand of --args / --jsonargs: the dry run's two token counts — thirty-third run, c2b DISS-C-001)
 POSITIONAL = ('"$(estimate_tokens ',)
+def one_positional(p):   # exactly one "$(estimate_tokens …)" on the line, its parens balanced, nothing after it
+    if not p.startswith(POSITIONAL):
+        return False
+    d = 0
+    for i, ch in enumerate(p):
+        d += ch == '('; d -= ch == ')'
+        if ch == ')' and d == 0:
+            return p[i + 1:].rstrip('\\').strip() == '"'
+    return False
 bad = []
-lines = open(sys.argv[1]).read().split('\n')
+lines = open(sys.argv[1], encoding='utf-8').read().split('\n')
+fn = ""
 for n, line in enumerate(lines):
+    fm = re.match(r'([A-Za-z_][A-Za-z0-9_]*)\(\) *\{', line)
+    if fm:
+        fn = fm.group(1)
+    ok = SMALL | POS_OK.get(fn, set())
     if line.lstrip().startswith('#'):
         continue                                   # a comment that names the flag
     line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
     # (thirty-third run, c2b DISS-C-001: a name is any word — a dynamic --arg "$1" "$2" is checked too — and every variable a
     # quoted operand interpolates, not the first one alone)
-    for m in re.finditer(r'--(?:argjson|arg)\s+\S+\s+(?=(\S.{0,80}))', line):
+    for m in re.finditer(r'--(?:argjson|arg)\s+\S+\s+(?=(\S.*))', line):   # (the whole rest: a long operand's tail is read too)
         op = m.group(1)
         if op.startswith('"') and not op.startswith('"$'):
             # a literal, or one interpolating only reviewed scalars
-            if any(v not in SMALL for v in re.findall(r'\$\{?([A-Za-z_0-9]+)', op[1:].split('"', 1)[0])):
+            lit = op[1:].split('"', 1)[0]
+            if '$(' in lit or '`' in lit or any(v not in ok for v in re.findall(r'\$\{?([A-Za-z_0-9]+)', lit)):
                 bad.append(op)
             continue
         o = op[1:] if op.startswith('"') else op
@@ -1292,7 +1335,7 @@ for n, line in enumerate(lines):
         else:
             span = o.split('"', 1)[0] if op.startswith('"') else re.split(r'[\s;|&)]', o, maxsplit=1)[0]
             vs = re.findall(r'\$\{?([A-Za-z_0-9]+)', span)
-            if not vs or '$(' in span or any(v not in SMALL for v in vs):
+            if not vs or '$(' in span or any(v not in ok for v in vs):
                 bad.append(op)
     for m in re.finditer(r'(?<![\w-])--(?:json)?args(?![\w-])(.*)', line):
         rest, k = m.group(1).strip(), n
@@ -1300,7 +1343,7 @@ for n, line in enumerate(lines):
             bad.append(m.group(0)); continue
         while lines[k].rstrip().endswith('\\') and k + 1 < len(lines):
             k += 1; p = lines[k].strip()
-            if not p.startswith(POSITIONAL):
+            if not one_positional(p):
                 bad.append('positional: ' + p)
 for b in bad: print("an unreviewed jq argv operand:", b[:80])
 sys.exit(1 if bad else 0)
@@ -1323,6 +1366,19 @@ PY
     if python3 -c "$lint" "$fx"; then echo "a same-line --jsonargs positional was never checked"; return 1; fi
     printf '%s\n' '  jq -n --arg m "$model-$i" '"'"'{m: $m}'"'"' --jsonargs \' '    "$(estimate_tokens "$x")"' > "$fx"
     python3 -c "$lint" "$fx"   # (the positive control: reviewed variables and a reviewed positional pass)
+    # (thirty-fourth run, c2b DISS-C-001: a command substitution inside a quoted literal; $1 outside the two functions reviewed for
+    # it; a second operand on a positional line; a variable past the eighty-first character of a quoted operand)
+    printf '%s\n' '  jq -n --arg x "prefix$(cat "$payload_file")" '"'"'{x: $x}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a command substitution in a quoted literal was never checked"; return 1; fi
+    printf '%s\n' '_some_helper() {' '  jq -n --argjson f "$1" '"'"'{f: $f}'"'"'' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a positional parameter outside its reviewed functions was never checked"; return 1; fi
+    printf '%s\n' '  jq -n '"'"'$ARGS.positional'"'"' --jsonargs \' '    "$(estimate_tokens "$x")" "$finding_json"' > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a positional line's second operand was never checked"; return 1; fi
+    printf '%s\n' "  jq -n --arg m \"\$model-$(printf 'a%.0s' $(seq 1 90))\$finding_json\" '{m: \$m}'" > "$fx"
+    if python3 -c "$lint" "$fx"; then echo "a variable past the eighty-first character was never checked"; return 1; fi
+    printf '%s\n' '_adv_refuse_json() {' '  local -a kv=(); while (( $# >= 2 )); do kv+=(--arg "$1" "$2"); shift 2; done' '}' \
+                   '_adv_scope_json() {' '  jq -nc --arg sha "${1:-}" '"'"'{s: $sha}'"'"'' '}' > "$fx"
+    python3 -c "$lint" "$fx"   # (the positive control: $1 / $2 in the two functions reviewed for them)
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"
 }
 
@@ -1415,7 +1471,7 @@ PY
     # setup's own marker names this test's process and its start
     tok=$(_sweep_start "$$")
     [ -n "$tok" ] || skip "no start token on this host"
-    [ "$(cat "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner")" = "$tok" ]
+    [ "$(head -n1 "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner")" = "$tok" ]   # (line 2 is where it was written — thirty-fourth run, c2a)
     sleep 30 3>&- & p=$!; NORM_HOLDER_PIDS+=("$p")
     mkdir -p "$a/sprint-norm-$p/x"
     # the pid is alive but its start is not the marker's: the owner died and the pid was reused
@@ -1437,16 +1493,16 @@ PY
     local a2a="$PROJECT_ROOT/grimoires/loa/a2a"
     [[ "$SPRINT" =~ ^sprint-norm-[0-9]+$ ]] || { echo "SPRINT '$SPRINT' is not this suite's own id"; return 1; }
     NORM_SIB_DIR="$a2a/${SPRINT}-sib"; mkdir -p "$NORM_SIB_DIR/sub"; : > "$NORM_SIB_DIR/sub/f"
-    rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    rc=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     [ "$rc" -eq 0 ]
     [ ! -e "$NORM_SIB_DIR" ] || { echo "the registered sibling was left behind"; find "$NORM_SIB_DIR" -mindepth 1 -delete; rmdir "$NORM_SIB_DIR"; return 1; }
     # a link or a path of another shape is never followed nor deleted
     mkdir -p "$TEST_DIR/tgt"; : > "$TEST_DIR/tgt/keep"; ln -s "$TEST_DIR/tgt" "$a2a/${SPRINT}-sib"
-    NORM_SIB_DIR="$a2a/${SPRINT}-sib"; rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    NORM_SIB_DIR="$a2a/${SPRINT}-sib"; rc=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     command rm -f -- "$a2a/${SPRINT}-sib"
     [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/tgt/keep" ]
     mkdir -p "$TEST_DIR/other"; : > "$TEST_DIR/other/keep"
-    NORM_SIB_DIR="$TEST_DIR/other"; rc=0; ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    NORM_SIB_DIR="$TEST_DIR/other"; rc=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     [ "$rc" -eq 0 ]; [ -e "$TEST_DIR/other/keep" ]
     NORM_SIB_DIR=""
     : > "$a2a/.$SPRINT.owner"
@@ -1467,4 +1523,64 @@ PY
       || { jq -c '[.. | strings | select(test("[\u0080-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"))]' <<<"$rs"; return 1; }
     [[ "$(jq -r '.[0].title' <<<"$rs")" == "café  gnp.exe  ok"* ]] || { jq -r '.[0].title' <<<"$rs"; return 1; }
     [[ "$(jq -r '.[1].reason' <<<"$rs")" == "category-not-in-enum (got: cfg  x"* ]] || { jq -r '.[1].reason' <<<"$rs"; return 1; }
+}
+
+@test "NRM-53 the failure_mode derivation window starts at the description's first visible character — a long whitespace prefix still derives its first sentence in linear time, and a dissenter's own *_derived markers are dropped before the normaliser decides (thirty-fourth run, a1 DISS-C-001)" {
+    local doc="$TEST_DIR/doc-53.json"
+    # DISS-001: 5,000 leading spaces (the old 4,000-character window saw only whitespace and derived " ");
+    # DISS-002: 300,000 leading whitespace characters, mixed (linear: one anchored strip, never a whole-string gsub);
+    # DISS-003: a dissenter that claims its own failure_mode and id were derived
+    jq -nc '{findings: [
+      {id: "DISS-001", severity: "ADVISORY", category: "other", description: ((" " * 5000) + "The token is dropped on retry. More detail."), anchor: "x.sh:1"},
+      {id: "DISS-002", severity: "ADVISORY", category: "other", description: ((" \n\t" * 100000) + "The lock is never released. Then more."), anchor: "x.sh:1"},
+      {id: "DISS-003", severity: "ADVISORY", category: "other", description: "d", failure_mode: "stated by the dissenter", anchor: "x.sh:1",
+       failure_mode_derived: true, id_derived: true}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    local t0=$SECONDS
+    result=$(process_findings "$env_json" "review" "m" "$SPRINT" "0" "x.sh")
+    local took=$(( SECONDS - t0 ))
+    [ "$took" -lt 15 ] || { echo "process_findings took ${took}s over a 300,000-character whitespace prefix"; return 1; }
+    [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ] || { jq -c '.metadata.rejected_summary' <<<"$result" | cut -c1-300; return 1; }
+    [ "$(jq '.metadata.repaired_count // 0' <<<"$result")" = "0" ] || { echo "a repair was spent on a derivable payload"; return 1; }
+    [ "$(jq -r '.findings[] | select(.id == "DISS-001") | .failure_mode' <<<"$result")" = "The token is dropped on retry." ] \
+      || { jq -c '.findings[] | select(.id == "DISS-001") | .failure_mode' <<<"$result"; return 1; }
+    [ "$(jq -r '.findings[] | select(.id == "DISS-002") | .failure_mode' <<<"$result")" = "The lock is never released." ] \
+      || { jq -c '.findings[] | select(.id == "DISS-002") | .failure_mode' <<<"$result"; return 1; }
+    [ "$(jq -r '.findings[] | select(.id == "DISS-001") | .failure_mode_derived' <<<"$result")" = "true" ]
+    # the markers are the normaliser's provenance: a dissenter that claims them claims nothing
+    [ "$(jq -c '.findings[] | select(.id == "DISS-003") | [.failure_mode, .failure_mode_derived, .id_derived]' <<<"$result")" = '["stated by the dissenter",null,null]' ] \
+      || { jq -c '.findings[] | select(.id == "DISS-003")' <<<"$result"; return 1; }
+}
+
+@test "NRM-54 setup never inherits a directory standing at this test's sprint path: marked → emptied and removed; unmarked → refused and left (thirty-fourth run, c1a DISS-C-001)" {
+    local a="$PROJECT_ROOT/grimoires/loa/a2a" d m
+    d="$a/$SPRINT"; m="$a/.$SPRINT.owner"
+    mkdir -p "$d"; printf 'stale' > "$d/adversarial-rejected-audit.jsonl"
+    _claim_sprint_dir "$d"
+    [ ! -e "$d" ] || { echo "a marked leftover was inherited: $(ls -A "$d")"; return 1; }
+    command rm -f -- "$m"; mkdir -p "$d"; printf 'theirs' > "$d/keep"
+    run _claim_sprint_dir "$d"
+    [ "$status" -ne 0 ] && [[ "$output" == *"setup: $d stands and is not this suite's"* ]] || { echo "unmarked: status $status, $output"; return 1; }
+    [ "$(cat "$d/keep")" = "theirs" ]
+    sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME" | grep -q '_claim_sprint_dir "$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT" || return 1'
+    _sweep_start "$$" > "$m"   # (ours again: teardown removes it with the directory)
+}
+
+@test "NRM-55 the stale sweep never deletes a live run's directory it cannot see: a kill -0 refused with EPERM is a live owner (hidepid), and a marker written on another host or pid namespace is never judged here; one of ours, dead, is still removed (thirty-fourth run, c2a DISS-C-001)" {
+    local a="$PROJECT_ROOT/grimoires/loa/a2a" dead
+    dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
+    # EPERM: the pid is invisible to ps and /proc, and kill -0 says "not permitted" — alive
+    ( kill() { echo "bash: kill: ($2) - Operation not permitted" >&2; return 1; }; _sweep_alive "$dead" ) || { echo "an EPERM owner was judged dead"; return 1; }
+    ! _sweep_alive "$dead" || { echo "pid $dead judged alive"; return 1; }
+    # a marker that records where it was written: elsewhere → left; here → swept
+    mkdir -p "$a/sprint-norm-$dead"; printf 't1\nwhere other-host pid:[1]\n' > "$a/.sprint-norm-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$dead" ] || { echo "another namespace's directory was deleted"; return 1; }
+    printf 't1\n%s\n' "$(_sweep_where)" > "$a/.sprint-norm-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ ! -e "$a/sprint-norm-$dead" ] && [ ! -e "$a/.sprint-norm-$dead.owner" ] || { echo "our own dead run's directory was kept"; return 1; }
+    # setup writes the where line
+    [ "$(sed -n 2p "$a/.$SPRINT.owner")" = "$(_sweep_where)" ] && [[ "$(_sweep_where)" == "where "* ]]
 }

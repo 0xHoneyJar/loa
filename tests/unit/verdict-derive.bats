@@ -285,6 +285,13 @@ EOF
 
 # --- cycle-126 Sprint 2 (PRD FR-2.3, SDD D-2.3): the rejected-payload contract ---------------
 
+_vd_contract_violation() {  # <feedback file> <violation substring> — a contract violation, never the usage-error class: the two
+    # share exit 1, and the --json consumers branch on usage_error (thirty-fourth run, c2c DISS-C-002)
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$1"
+    [ "$status" -eq 1 ] || { echo "exit $status, not 1"; return 1; }
+    echo "$output" | jq -e --arg s "$2" '.consistent == false and .usage_error == false and .trailer_found == true and .verdict == "APPROVED"
+        and (.violations | map(select(contains($s))) | length) == 1' >/dev/null || { echo "not a contract violation naming '$2': $output"; return 1; }
+}
 _vd_approved_review() {  # <file> [with_section]
     {
         echo "All good"; echo
@@ -435,6 +442,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"not parseable"* ]]
+    _vd_contract_violation "$d/engineer-feedback.md" "is not parseable JSON"
 }
 
 @test "verdict-derive: a usage error under --json is a result object (consistent false, usage_error true, exit 1), never an empty stdout (sprint-248 review r2, chunk b C-002)" {
@@ -457,10 +465,12 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"of type string"* ]]
+    _vd_contract_violation "$d/engineer-feedback.md" "rejected_summary of type string"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", rejected_summary: 0}}' > "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"of type number"* ]]
+    _vd_contract_violation "$d/engineer-feedback.md" "rejected_summary of type number"
 }
 
 @test "verdict-derive: only top-level bullets count as triage lines — one entry with two sub-bullets does not cover two payloads (C-003)" {
@@ -789,10 +799,12 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"of type boolean"* ]]
+    _vd_contract_violation "$d/engineer-feedback.md" "rejected_summary of type boolean"
     jq -n '{findings: [], metadata: ["not", "an", "object"]}' > "$d/adversarial-review.json"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"metadata of type array"* ]]
+    _vd_contract_violation "$d/engineer-feedback.md" "metadata of type array"
     rm -f "$d/adversarial-review.json"
     printf '{"reject_reason":"missing-severity","payload":{"description":"the model wrote \\"repair_succeeded\\": true in its text"}}\nnot json at all\n{"reject_reason":"x","repair_succeeded":true}\n' > "$d/adversarial-rejected-review.jsonl"
     # …and the literal `"repair_succeeded":true` bytes on the line, at a NESTED level, are not the top-level field either: a
@@ -1248,7 +1260,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     local bad lint fx="${TEST_TMPDIR}/awk-lint-fixture.sh"
     lint=$(cat <<'PY'
 import re, sys
-src = open(sys.argv[1]).read()
+src = open(sys.argv[1], encoding='utf-8').read()
 bad = []
 def word(s, i):                       # one shell word from i: unquoted text with '…' and "…" segments
     j = i
@@ -1259,13 +1271,25 @@ def word(s, i):                       # one shell word from i: unquoted text wit
         else:
             j += 1
     return j
+def strip_comment(l):                # (thirty-fourth run, c2d DISS-C-001: an unquoted # at a word start begins a comment — a " # "
+    q, n = None, 0                    # inside quotes never hides the awk after it)
+    while n < len(l):
+        ch = l[n]
+        if q:
+            if ch == q: q = None
+            elif ch == '\\' and q == '"': n += 1
+        elif ch in "'\"": q = ch
+        elif ch == '\\': n += 1
+        elif ch == '#' and (n == 0 or l[n - 1].isspace()): return l[:n]
+        n += 1
+    return l
 pos = 0
 for line in src.split('\n'):
     start, pos = pos, pos + len(line) + 1
     if line.lstrip().startswith('#'):
         continue
-    code = re.split(r'\s#\s', line, maxsplit=1)[0]
-    for m in re.finditer(r'(?<![\w.-])(?:[gmn]?awk\b|"?\$\{?AWK\b)', code):
+    code = strip_comment(line)
+    for m in re.finditer(r'(?<![\w.-])(?:[gmn]?awk\b|"?\$\{?\w*AWK\w*)', code):   # (any variable named *AWK*: ${AWK_BIN} too)
         if 'AWK' in m.group(0):
             bad.append('a variable awk: ' + line.strip()); continue
         i, skip = start + m.end(), False
@@ -1274,13 +1298,15 @@ for line in src.split('\n'):
             if src.startswith('-f', i):
                 bad.append('awk -f, a program the lint cannot read: ' + line.strip()); skip = True; break
             if src[i:i + 1] == '-':
-                flag_end = word(src, i)
+                flag_end, opt = word(src, i), i
                 if flag_end - i == 2 and src[i + 1] in 'vF':
                     i = flag_end
                     while i < len(src) and src[i] in ' \t': i += 1
                     i = word(src, i)
                 else:
                     i = flag_end
+                if '[[:' in src[opt:i]:      # (a -v regex value or an -F separator is an awk ERE too — thirty-fourth run, c2d)
+                    bad.append('a POSIX class in an awk option value: ' + line.strip()[:80])
                 continue
             break
         if skip:
@@ -1295,6 +1321,8 @@ for line in src.split('\n'):
             prog += src[j:k]
             if src.startswith("'\"'\"'", k):   # a spliced quote: the program goes on
                 prog += "'"; j = k + 5; continue
+            if src.startswith("'\\''", k):     # …and the '\'' spelling of one (thirty-fourth run, c2d DISS-C-001)
+                prog += "'"; j = k + 4; continue
             break
         if '[[:' in prog:
             bad.append('a POSIX class in the awk program at: ' + line.strip()[:80])
@@ -1307,7 +1335,14 @@ PY
              'awk -F'"'"'\t'"'"' '"'"'/[[:digit:]]/'"'"' f' \
              $'awk \'\n  /a\'"\'"\'b/ {x = 1}\n  /[[:space:]]/ {y = 1}\n\' f' \
              'awk -f prog.awk f' \
-             '"$AWK" '"'"'/x/'"'"' f'; do
+             '"$AWK" '"'"'/x/'"'"' f' \
+             'awk -v re='"'"'[[:space:]]'"'"' '"'"'$0 ~ re'"'"' f' \
+             'awk -F'"'"'[[:space:]]+'"'"' '"'"'{print $1}'"'"' f' \
+             $'awk \'/a\'\\\'\'b/ {x = 1} /[[:space:]]/ {y = 1}\' f' \
+             'echo " # " | awk '"'"'/[[:space:]]/'"'"' f' \
+             '"${AWK_BIN}" '"'"'/x/'"'"' f'; do
+        # (thirty-fourth run, c2d DISS-C-001: a class in a -v / -F value, a program spliced with '\'', an awk after a quoted " # ",
+        # a variable named *AWK*)
         printf '%s\n' "$f" > "$fx"
         if python3 -c "$lint" "$fx" >/dev/null; then echo "the lint passed a fixture it must refuse: $f"; return 1; fi
     done

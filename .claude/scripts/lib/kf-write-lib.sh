@@ -65,13 +65,17 @@ gh_anchor(){
     return 0
   fi
   command -v python3 >/dev/null 2>&1 || die "new: a non-ASCII title needs python3 for its GitHub anchor"
-  printf '%s' "${1-}" | python3 -c 'import re, sys
+  # (thirty-fourth run, e2c DISS-C-001: GitHub's slugger keeps every letter, mark, number and connector punctuation — a
+  # combining mark (an NFD accent) too, which \w drops; DISS-C-002: only a decode failure is a non-UTF-8 title)
+  local rc=0
+  printf '%s' "${1-}" | python3 -c 'import sys, unicodedata
 try:
     h = sys.stdin.buffer.read().decode("utf-8")
 except UnicodeDecodeError:
-    sys.exit(1)
-sys.stdout.buffer.write(re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-").encode("utf-8"))' \
-    || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
+    sys.exit(3)
+sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or unicodedata.category(c)[0] in "LMN" or unicodedata.category(c) == "Pc").replace(" ", "-").encode("utf-8"))' || rc=$?
+  [[ $rc -ne 3 ]] || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
+  [[ $rc -eq 0 ]] || die "new: python3 failed (exit $rc) computing the title's GitHub anchor"
 }
 
 # NB: grep can legitimately match nothing; with `set -o pipefail` the pipe then
@@ -126,11 +130,14 @@ op_new(){
     have_attempt=1
     [[ -n "$ae" ]] || die "new: --attempt-evidence is REQUIRED for an Attempts row (commit SHA / PR# / run ID)"
   fi
+  # (the title's anchor is computed — and a title without one refused — before the lock and the trailing-newline repair: a refused
+  # title never touches the ledger; thirty-fourth run, e2c DISS-001. "KF-NNN: t" slugs as "kf-nnn" + the slug of ": t")
+  local tail; tail="$(gh_anchor ": ${title}")"
   with_lock
   ensure_trailing_nl "$f"
   local id anchor recur; id="$(next_kf_id "$f")"
   recur="$(san1 "${A[recur]-1}")"; recur="${recur:-1}"
-  anchor="$(gh_anchor "${id}: ${title}")"
+  anchor="$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')${tail}"
   if grep -qiE "^##[[:space:]]+KF-[0-9]+: $(printf '%s' "$title" | sed -E 's/[.[\*^$(){}+?|/]/\\&/g')$" "$f"; then
     die "new: an entry titled \"$title\" already exists — refusing to duplicate"
   fi

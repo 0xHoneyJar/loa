@@ -22,8 +22,10 @@ Design notes:
   - Approval mode locked to `plan` (read-only, no shell exec, no file edits).
   - The prompt rides stdin (gemini-cli joins piped stdin before the `-p` text), never argv: an argv prompt is readable by any
     local user through /proc/<pid>/cmdline and one argument over 128 KiB fails at exec (cycle-126 thirty-third run, e1b
-    DISS-C-002). gemini-cli truncates stdin past 8 MiB, so a larger prompt is refused, walkable. An operator `--sandbox` in
-    `gemini_extra_flags` re-injects stdin into the sandbox child's argv.
+    DISS-C-002). gemini-cli truncates stdin past 8 MiB, so a larger prompt is refused, walkable. A sandboxed run re-injects
+    stdin into the sandbox child's argv, so the hop runs with GEMINI_SANDBOX=false (it outranks --sandbox and settings.json's
+    tools.sandbox — verified on gemini-cli 0.41.2); only an operator `--sandbox` in `gemini_extra_flags` keeps a sandbox, and
+    that exposure (thirty-fourth run, e1b DISS-C-001).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
     invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
     an isolated empty directory, never the reviewed tree (cycle-126).
@@ -120,6 +122,10 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
+        # (thirty-fourth run, e1b DISS-C-001: an ambient sandbox — GEMINI_SANDBOX, or tools.sandbox in the user's settings —
+        # would fold the stdin prompt into argv; "false" closes both unless the operator's own flags ask for one)
+        if not any(a in ("-s", "--sandbox") or a.startswith("--sandbox=") for a in command[1:]):
+            kwargs["env"] = {**(kwargs["env"] if kwargs.get("env") is not None else os.environ), "GEMINI_SANDBOX": "false"}
         return run_subprocess_pgkill(command, **kwargs)
 
     @contextmanager

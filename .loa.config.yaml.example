@@ -1391,13 +1391,16 @@ flatline_protocol:
     enabled: false               # Opt-in: enable for /review-sprint
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60          # Per-call timeout
-    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this); the KF-004
-                                 # repairs (≤ 5 per voice, one finding each) are bounded by count and wall clock, not by this
+    budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this; a malformed value fails closed
+                                 # as 0); the KF-004 repairs (≤ 5 findings per voice, each up to one call per repair-chain hop — three
+                                 # at most) are bounded by count and wall clock, not by this
     # cycle-126 FR-2.1: a second, independent chain from the OTHER provider
     # family (Anthropic primary → gpt-5.5 → codex-headless — gpt-5.5-pro is left to
-    # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI, unknown — → opus → claude-headless;
+    # companion_chain.openai, see KF-002; any other primary — OpenAI, Google, xAI — → opus → claude-headless;
     # companion_chain reads only its anthropic / openai keys) runs in parallel and both envelopes
-    # aggregate (voices_planned 2). Credential presence only decides where
+    # aggregate (voices_planned 2). A primary of unknown family (an id no catalog entry or name rule places) gets
+    # that companion too, but it is never judged independent — counted_as duplicate_voice, not a second voice
+    # (on security_audit a DEGRADED_SECURITY_REVIEW): list the model in the catalog, or set false. Credential presence only decides where
     # the companion chain starts (no key → the CLI hop). Set false to run one voice.
     # A host with no route to the other family (no key, its CLI not on PATH) records
     # companion_voice {planned: false, reason: no_route} — on security_audit that is a
@@ -1435,7 +1438,8 @@ flatline_protocol:
     model: "gpt-5.3-codex"      # Dissenter model
     timeout_seconds: 60
     budget_cents: 150            # Cap on a dissent call's pre-dispatch cost estimate (each voice ≤ this — two voices, up
-                                 # to twice this per audit; the KF-004 repairs are bounded by count and wall clock, not this)
+                                 # to twice this per audit; a malformed value fails closed as 0; the KF-004 repairs are
+                                 # bounded by count and wall clock, not this)
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape
   stable_anchors:

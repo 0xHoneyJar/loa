@@ -24,6 +24,14 @@ _scrub_cred_aliases() {  # unset every credential alias the probe recognises, fr
     for v in "${names[@]}"; do unset "$v"; done
 }
 
+_claim_sprint_dir() {  # <dir> → 0 when nothing stands there or a leftover this suite MARKED was emptied and removed; 1 (named,
+    # SPRINT cleared so teardown touches nothing) when an unmarked node stands there — thirty-fourth run, c1a DISS-C-001: a crashed
+    # run on a reused pid left this very path, setup's marker claimed it, and the stale sweep, seeing a live owner, never cleared it
+    local d="$1"
+    [[ -e "$d" || -L "$d" ]] || return 0
+    if [[ -d "$d" && ! -L "$d" && -f "${d%/*}/.$SPRINT.owner" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; return 0; fi
+    echo "setup: $d stands and is not this suite's"; SPRINT=""; return 1
+}
 setup() {
     # the sprint id and its directory come FIRST: teardown runs on any setup failure, and a delete
     # target derived from an unset id would be the a2a root (fourth run, chunk c C-001)
@@ -32,7 +40,8 @@ setup() {
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     OUT_DIR="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
-    mkdir -p "${OUT_DIR%/*}" && : > "${OUT_DIR%/*}/.$SPRINT.owner"   # this suite's own: the stale sweep deletes only marked dirs
+    _claim_sprint_dir "$OUT_DIR" || return 1
+    mkdir -p "${OUT_DIR%/*}" && _sweep_where > "${OUT_DIR%/*}/.$SPRINT.owner"   # this suite's own: the stale sweep deletes only marked dirs
     T="${BATS_TEST_TMPDIR:-}"; CMP_OWN_TMP=""
     if [[ -z "$T" ]]; then T="$(mktemp -d)"; CMP_OWN_TMP="$T"; fi   # bats < 1.4: our own directory, removed in teardown (sixteenth run, c2a C-003)
     # the two ledgers the script appends to are the TEST's, by construction (sixteenth run, c1b C-002: KF-033 is this suite
@@ -221,13 +230,25 @@ YAML
 # rename claims a directory, so concurrent teardowns never race one delete (twenty-fourth run, c2a DISS-C-001); a `.reap-<q>`
 # a dead sweeper left is finished here, and the marker goes with its owner's directory. A marker names ONE directory: a sibling
 # <prefix>-<pid>-x is never this suite's (it makes none) and is never deleted (twenty-ninth run, c1a DISS-001).
-_sweep_alive() { kill -0 "$1" 2>/dev/null || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]; }
+_sweep_alive() {
+    local e; e=$(kill -0 "$1" 2>&1) && return 0
+    [[ "$e" == *"not permitted"* ]] || ps -p "$1" >/dev/null 2>&1 || [[ -d "/proc/$1" ]]
+}
+# (thirty-fourth run, c2a DISS-C-001: a pid means nothing on another host or in another pid namespace — two runs over one
+# checkout from a devcontainer and its host — so a marker records where it was written, and only a marker written HERE is
+# judged; and kill -0's EPERM is a live process of another uid even when hidepid keeps ps and /proc from seeing it)
+_sweep_where() { printf 'where %s %s\n' "$(uname -n 2>/dev/null)" "$(readlink /proc/self/ns/pid 2>/dev/null)"; }
+_sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one
+    local w; w=$(grep -m1 '^where ' -- "$1" 2>/dev/null) || return 1
+    [[ "$w" != "$(_sweep_where)" ]]
+}
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
     local a2a="$1" pre="$2" m p d q left
     for m in "$a2a"/."$pre"-[0-9]*.owner; do
         [[ -f "$m" && ! -L "$m" ]] || continue
         p=${m##*/."$pre"-}; p=${p%.owner}
         [[ "$p" =~ ^[0-9]+$ ]] || continue
+        _sweep_foreign "$m" && continue
         _sweep_alive "$p" && continue
         left=0
         for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do
@@ -304,7 +325,7 @@ _cmp_base_ref() { if command git -C "$PROJECT_ROOT" rev-parse -q --verify refs/h
 _need_flock() { command -v flock >/dev/null 2>&1 || skip "flock not installed (macOS): the lock cases cannot run here"; }
 # portable in-place literal substitution (first occurrence) — no GNU-only `sed -i`
 # (thirty-second run, c1a DISS-C-001: an explicit exit, never an assert — PYTHONOPTIMIZE strips asserts, and an unmatched edit passed)
-_cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p).read(); a in s or sys.exit("_cfg_edit: no match for " + repr(a)); open(p,"w").write(s.replace(a,b,1))' "$CONFIG_FILE" "$1" "$2"; }
+_cfg_edit() { python3 -c 'import sys; p,a,b=sys.argv[1:4]; s=open(p, encoding="utf-8").read(); a in s or sys.exit("_cfg_edit: no match for " + repr(a)); open(p, "w", encoding="utf-8").write(s.replace(a,b,1))' "$CONFIG_FILE" "$1" "$2"; }
 
 _run_main() { main --type "${1:-review}" --sprint-id "$SPRINT" --diff-file "$T/diff.patch" --json 2> "$T/stderr.log"; }
 
@@ -535,8 +556,8 @@ _await_tree() { local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$1" | 
 @test "CMP-13 an operator companion_chain on the block is used as given, before presence or defaults (C-011)" {
     export ANTHROPIC_API_KEY="sk-ant-presence-only-never-printed"
     python3 - "$CONFIG_FILE" <<'PY'
-import sys; p=sys.argv[1]; s=open(p).read()
-s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [claude-headless]\n      openai: [codex-headless]\n", 1); open(p,"w").write(s)
+import sys; p=sys.argv[1]; s=open(p, encoding="utf-8").read()
+s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [claude-headless]\n      openai: [codex-headless]\n", 1); open(p, "w", encoding="utf-8").write(s)
 PY
     result=$(_run_main review)
     [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "claude-headless" ]
@@ -1083,8 +1104,8 @@ YAML
 @test "CMP-32 the INV-5 exclusion is symmetric: a companion attempt that dropped a voice the primary answered with is excluded, verdict quality still aggregates, and an aggregator failure would be named on the envelope (eighth run, a2 C-004)" {
     # an operator chain whose first hop is the primary's own CLI: the companion's codex-headless attempt fails, then claude-headless answers
     python3 - "$CONFIG_FILE" <<'PY'
-import sys; p=sys.argv[1]; s=open(p).read()
-s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [codex-headless, claude-headless]\n", 1); open(p,"w").write(s)
+import sys; p=sys.argv[1]; s=open(p, encoding="utf-8").read()
+s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [codex-headless, claude-headless]\n", 1); open(p, "w", encoding="utf-8").write(s)
 PY
     BEHAVIOUR[gpt-5.5-pro]=walked:codex-headless
     BEHAVIOUR[codex-headless]=unavailable-companion-only
@@ -1873,7 +1894,10 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 @test "CMP-67 a run-lock holder that is a zombie is dead, as the reaper knows: its lock is taken over (nineteenth run, a2 C-002)" {
     _need_flock   # the takeover runs under the per-key flock section, as CMP-63 says (thirty-third run, c1b DISS-C-001)
     bash -c 'sleep 0.05 & echo $! > "$1/zpid"; exec sleep 30' _ "$T" 3>&- & HOLDER_PIDS+=("$!")
-    sleep 0.4; z=$(cat "$T/zpid")
+    # a bounded poll, never a fixed wait before a skip: a loaded host must not drop the only zombie-holder check (thirty-fourth run,
+    # c1b DISS-C-004)
+    local _i; for _i in $(seq 1 50); do [[ -s "$T/zpid" && "$(ps -o stat= -p "$(cat "$T/zpid")" 2>/dev/null)" == Z* ]] && break; sleep 0.1; done
+    z=$(cat "$T/zpid")
     [[ "$(ps -o stat= -p "$z" 2>/dev/null)" == Z* ]] || skip "no zombie could be staged on this host"
     _adv_take_run_lock "$OUT_DIR" review; lockd="$_ADV_RUN_LOCK_DIR"
     printf '%s\n%s\n' "$z" "$(_adv_proc_start "$z")" > "$lockd/pid"; _ADV_RUN_LOCK_DIR=""   # the zombie "holds" it, token and all
@@ -3410,8 +3434,12 @@ YAML
     [ "$(LOA_MODEL_CONFIG="$cat" _adv_cli_bin_for 'odd"hop')" = "claude" ]
     # an injected operator is a key that is not there, never evaluated
     printf 'secret-canary' > "$T/canary.txt"
-    local inj='x" | load_str("'"$T"'/canary.txt") | "'
-    [[ "$(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")" != *secret-canary* ]]
+    # (thirty-fourth run, c1c DISS-C-001: a payload that keeps the file's text — `| "` piped the canary into an empty string, so a
+    # spliced lookup passed too; `//` carries it out, and the name must come back as itself: a key that is not there)
+    local inj
+    for inj in 'x" // load_str("'"$T"'/canary.txt") // "' 'x", load_str("'"$T"'/canary.txt"), "'; do
+        [ "$(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")" = "$inj" ] || { echo "injected: $(LOA_MODEL_CONFIG="$cat" _adv_hop_canon "$inj")"; return 1; }
+    done
     # no catalog yq expression in the script splices a shell variable inside a quoted key
     if grep -nE 'yq eval "[^"]*\\"\$' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh"; then echo "a hop name is spliced into a yq expression"; return 1; fi
 }
@@ -3649,8 +3677,12 @@ YAML
     [ "$(_adv_family_of bedrock:amazon.nova-pro-v1:0)" != "anthropic" ]
     # every generated provider value is a vendor or the one host the family reader sets aside — a new host
     # (vertex, azure) must be taught to _adv_family_of before it ships (thirtieth run, a2 C-001, refuted and pinned)
-    local bad
-    bad=$(bash -c 'declare -A MODEL_IDS=() MODEL_PROVIDERS=(); source "$1" >/dev/null 2>&1 || exit 3; printf "%s\n" "${MODEL_PROVIDERS[@]}"' _ "$BATS_TEST_DIRNAME/../../.claude/scripts/generated-model-maps.sh" | sort -u | grep -vxE 'anthropic|openai|google|xai|cursor|bedrock') || true
+    # (thirty-fourth run, c1c DISS-C-002: the values are read on their own first — an unsourceable map or an empty / renamed array
+    # is a red, never an empty `bad` behind the grep's `|| true`)
+    local bad vals vrc=0
+    vals=$(bash -c 'declare -A MODEL_IDS=() MODEL_PROVIDERS=(); source "$1" >/dev/null 2>&1 || exit 3; (( ${#MODEL_PROVIDERS[@]} > 0 )) || exit 4; printf "%s\n" "${MODEL_PROVIDERS[@]}"' _ "$BATS_TEST_DIRNAME/../../.claude/scripts/generated-model-maps.sh") || vrc=$?
+    [ "$vrc" = 0 ] && [ -n "$vals" ] || { echo "the generated provider map could not be read (rc $vrc)"; return 1; }
+    bad=$(printf '%s\n' "$vals" | sort -u | grep -vxE 'anthropic|openai|google|xai|cursor|bedrock') || true
     [ -z "$bad" ] || { echo "unhandled provider values: $bad"; return 1; }
 }
 
@@ -3762,7 +3794,7 @@ YAML
 @test "CMP-171 the kept-workdir sweep in TMPDIR never follows nor fails on a symlink at a workdir path — the suite's one link rule (twenty-eighth run, c1a DISS-C-001)" {
     local tgt="$T/link-171" lnk="${TMPDIR:-/tmp}/adversarial-${SPRINT}-lnk171" rc=0
     mkdir -p "$tgt"; : > "$tgt/keep"; ln -s "$tgt" "$lnk"
-    ( set -e; teardown ) 3>&- & wait $! || rc=$?
+    ( set -e; CMP_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     command rm -f -- "$lnk"
     [ "$rc" -eq 0 ] || { echo "a symlinked workdir path failed the teardown (rc $rc)"; return 1; }
     [ -e "$tgt/keep" ]
@@ -3969,7 +4001,7 @@ YAML
 @test "CMP-183 the suite's own helpers hold to its bash floor and its delete rule: teardown removes this test's sprint directory only, never a sibling sprint-comp-<pid>-x; no negative array subscript; the timeout branch's tree expansion is set -u safe when the tree came back empty (twenty-ninth run, c1a DISS-001 / DISS-C-001 / DISS-C-002)" {
     local f="$PROJECT_ROOT/tests/unit/adversarial-review-companion.bats" sib="$OUT_DIR-sib183" rc=0
     mkdir -p "$OUT_DIR" "$sib"; : > "$sib/keep"
-    ( teardown ) 3>&- & wait $! || rc=$?
+    ( CMP_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?
     [ -e "$sib/keep" ] || { echo "teardown deleted a sibling it never made"; return 1; }
     find "$sib" -mindepth 1 -delete; rmdir "$sib"
     [ "$rc" -eq 0 ]
@@ -4076,7 +4108,7 @@ WORDS = r'(?:find|ls|wc|yq|jq|mkdir|source|cat|grep|git|br|xargs|tail|head|sed|a
 SPAN = re.compile(r'`((?:\.claude/scripts/|' + WORDS + r' )[^`]*)`')
 bad = []
 for s in ('reviewing-code', 'auditing-security'):
-    text = open(f'{root}/.claude/skills/{s}/SKILL.md').read()
+    text = open(f'{root}/.claude/skills/{s}/SKILL.md', encoding='utf-8').read()
     _, fm, body = text.split('---\n', 2)
     meta = yaml.safe_load(fm)
     grants = [g.strip()[5:-1] for g in meta['allowed-tools'].split(', ') if g.strip().startswith('Bash(')]
@@ -4085,7 +4117,7 @@ for s in ('reviewing-code', 'auditing-security'):
     cap_cmds = {c['command'] for c in caps['allowed']}
     spans = SPAN.findall(body)
     # the beads resource: its backticked commands and every command line of a bash block, as written
-    res = open(f'{root}/.claude/skills/{s}/resources/BEADS-WORKFLOW.md').read()
+    res = open(f'{root}/.claude/skills/{s}/resources/BEADS-WORKFLOW.md', encoding='utf-8').read()
     spans += [x for x in SPAN.findall(res) if x.startswith(('br ', '.claude/scripts/'))]
     for block in re.findall(r'```bash\n(.*?)```', res, re.S):
         spans += [l for l in block.splitlines() if l.strip() and not l.lstrip().startswith('#')]
@@ -4263,7 +4295,7 @@ PY
     run python3 - "$PROJECT_ROOT/.claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md" <<'PY'
 import re, sys
 bad = []
-for block in re.findall(r'```bash\n(.*?)```', open(sys.argv[1]).read(), re.S):
+for block in re.findall(r'```bash\n(.*?)```', open(sys.argv[1], encoding='utf-8').read(), re.S):
     lines = block.splitlines()
     for i, l in enumerate(lines):
         if l.startswith('br label add '):
@@ -4283,7 +4315,7 @@ PY
 import re, sys
 bad = []
 for f in sys.argv[1:]:
-    L = open(f).read().split('\n'); intest = False
+    L = open(f, encoding='utf-8').read().split('\n'); intest = False
     for i, l in enumerate(L):
         if l.startswith('@test'): intest = True; continue
         if intest and l.startswith('}'): intest = False; continue
@@ -4422,4 +4454,216 @@ PY
     grep -q 'shares the anthropic headless circuit breaker with the dissent companion' "$cfg" || { echo "the shared breaker is not stated"; return 1; }
     # (the caps themselves are the operator's spend decision — this round names them, never raises them)
     [ "$(yq '.spiral.harness.implement_budget_usd' "$cfg")" = "5" ] || { echo "the implement cap moved"; return 1; }
+}
+
+@test "CMP-209 kill_tree starts a second CONT watchdog only for a descendant the re-collection found, and for that pid alone — a tree that did not grow gets one watchdog (thirty-fourth run, a3 DISS-C-003)" {
+    _adv_cont_watchdog() { [[ -n "$1" ]] || return 0; printf '%s|\n' "$(echo $1)" >> "$T/wd-calls"; }
+    sleep 30 3>&- & local v=$!; HOLDER_PIDS+=("$v")
+    _adv_kill_tree "$v" TERM >/dev/null
+    [ "$(cat "$T/wd-calls")" = "$v|" ] || { echo "watchdogs: $(cat "$T/wd-calls")"; return 1; }
+    # a descendant forked between the first collection and the freeze: the second watchdog carries it, not the whole tree again
+    : > "$T/wd-calls"
+    sleep 30 3>&- & local u=$!; HOLDER_PIDS+=("$u")
+    sleep 30 3>&- & local w=$!; HOLDER_PIDS+=("$w")
+    _adv_tree_pids() { echo "$1"; if [[ -e "$T/second-209" ]]; then echo "$w"; fi; : > "$T/second-209"; }
+    _adv_kill_tree "$u" TERM >/dev/null
+    [ "$(cat "$T/wd-calls")" = "$(printf '%s|\n%s|' "$u" "$w")" ] || { echo "watchdogs: $(cat "$T/wd-calls")"; return 1; }
+}
+
+@test "CMP-210 a queue-phase bound lookup that failed is never cached and never reaps: the strict hop bound prints nothing on a failed catalog read, the tick decides nothing, and the next tick's good read is cached (thirty-fourth run, a3 DISS-C-002)" {
+    export LOA_MODEL_CONFIG="$T/cat-210.yaml"
+    printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 900\n    models:\n      claude-headless: {}\n' > "$LOA_MODEL_CONFIG"
+    [ "$(_adv_cli_hop_bound claude-headless strict)" = "910" ]
+    [ "$(_adv_cli_hop_bound not-listed-headless strict)" = "$_ADV_CLI_HOP_TIMEOUT" ]   # (not listed is an answer: the fallback)
+    yq() { return 1; }
+    run _adv_cli_hop_bound claude-headless strict
+    [ "$status" -ne 0 ] && [ -z "$output" ] || { echo "strict over a failed has(): status $status, '$output'"; return 1; }
+    [ "$(_adv_cli_hop_bound claude-headless)" = "$_ADV_CLI_HOP_TIMEOUT" ]   # (the non-strict callers keep their fallback)
+    yq() { case "$*" in *read_timeout*) return 1 ;; *) command yq "$@" ;; esac; }
+    run _adv_cli_hop_bound claude-headless strict
+    [ "$status" -ne 0 ] && [ -z "$output" ] || { echo "strict over a failed read_timeout read: status $status, '$output'"; return 1; }
+    # the deadline: 700 s into the queue phase, under the 910 + 30 bound — a failed read must not reap at the 640 s fallback
+    yq() { return 1; }
+    local now; now=$(date +%s); mkdir -p "$T/dq210"
+    echo queue > "$T/dq210/companion.phase"; touch -d "@$(( now - 700 ))" "$T/dq210/companion.phase"
+    echo claude-headless > "$T/dq210/companion.current"
+    _ADV_QB_HOP=""; _ADV_QB_VAL=0; local whyq=""
+    _companion_deadline_why "$T/dq210" $(( now - 800 )) 10 60 2000 whyq
+    [ -z "$whyq" ] || { echo "a failed bound lookup reaped: $whyq"; return 1; }
+    [ -z "$_ADV_QB_HOP" ] || { echo "a failed bound lookup was cached for $_ADV_QB_HOP ($_ADV_QB_VAL)"; return 1; }
+    unset -f yq
+    _companion_deadline_why "$T/dq210" $(( now - 800 )) 10 60 2000 whyq
+    [ -z "$whyq" ] && [ "$_ADV_QB_HOP" = "claude-headless" ] && [ "$_ADV_QB_VAL" = "940" ] \
+      || { echo "good read: why '$whyq', cache $_ADV_QB_HOP=$_ADV_QB_VAL"; return 1; }
+    touch -d "@$(( now - 945 ))" "$T/dq210/companion.phase"
+    _companion_deadline_why "$T/dq210" $(( now - 1000 )) 10 60 2000 whyq
+    [ "$whyq" = "phase 'queue' deadline: 940s from the phase start" ] || { echo "past the bound: '$whyq'"; return 1; }
+}
+
+@test "CMP-211 a companion gone before its fork token was read is recorded as exited — a later process on that pid is neither the live companion nor reaped — and the fork site records the token through that rule (thirty-fourth run, a3 DISS-C-001)" {
+    ( exit 0 ) & local d=$!; wait "$d" || true
+    [ "$(_adv_fork_token "$d")" = "exited" ]
+    sleep 30 3>&- & local v=$!; HOLDER_PIDS+=("$v")
+    [ -n "$(_adv_fork_token "$v")" ] && [ "$(_adv_fork_token "$v")" = "$(_adv_proc_start "$v")" ]
+    # a host where no token can be read: a live child is "" (the pid alone decides) ...
+    _adv_proc_start() { return 1; }
+    [ -z "$(_adv_fork_token "$v")" ]
+    # ... and the pid of a child recorded exited, now another process's (its token unreadable too), is neither alive nor reaped
+    _ADV_COMPANION_PID="$v"; _ADV_COMPANION_START="exited"
+    ! _adv_companion_alive || { echo "a recycled pid was the live companion"; return 1; }
+    _adv_reap_companion_inner "$v"
+    _ADV_COMPANION_PID="$v"; _ADV_COMPANION_START="exited"; _adv_reap_companion 2> "$T/reap-211.err"
+    grep -q "exited before its start token was read" "$T/reap-211.err" || { cat "$T/reap-211.err"; return 1; }   # (the outer reaper's own check: nothing published for a trap to KILL)
+    kill -0 "$v" && [[ "$(ps -o stat= -p "$v")" != T* ]] || { echo "the recycled pid $v was signalled"; return 1; }
+    [ -z "$_ADV_COMPANION_PID" ]
+    grep -qF '_ADV_COMPANION_START=$(_adv_fork_token "$companion_pid")' "$ADVERSARIAL_REVIEW"
+}
+
+@test "CMP-212 a .prev destination that is a directory or a symlink is refused (2) before anything moves — the envelope never lands inside a directory, never follows a link, and is never listed for a drop that cannot remove it; a regular .prev is replaced (thirty-fourth run, a4 DISS-C-002)" {
+    local rel="grimoires/loa/a2a/$SPRINT/adversarial-review.json" rc
+    mkdir -p "$OUT_DIR"; printf 'env' > "$PROJECT_ROOT/$rel"
+    mkdir "$PROJECT_ROOT/$rel.prev"
+    _ADV_PREV_FILES=""; rc=0; _adv_move_aside "$rel" || rc=$?
+    [ "$rc" = 2 ] || { echo "rc $rc; .prev: $(ls -A "$PROJECT_ROOT/$rel.prev")"; return 1; }
+    [ "$(cat "$PROJECT_ROOT/$rel")" = "env" ] && [ -z "$(ls -A "$PROJECT_ROOT/$rel.prev")" ] && [ -z "$_ADV_PREV_FILES" ]
+    rmdir "$PROJECT_ROOT/$rel.prev"
+    mkdir "$T/elsewhere-212"; ln -s "$T/elsewhere-212" "$PROJECT_ROOT/$rel.prev"
+    rc=0; _adv_move_aside "$rel" || rc=$?
+    [ "$rc" = 2 ] && [ -z "$(ls -A "$T/elsewhere-212")" ] && [ "$(cat "$PROJECT_ROOT/$rel")" = "env" ] || { echo "rc $rc through a link"; return 1; }
+    command rm -f -- "$PROJECT_ROOT/$rel.prev"
+    printf 'older' > "$PROJECT_ROOT/$rel.prev"
+    rc=0; _adv_move_aside "$rel" || rc=$?
+    [ "$rc" = 0 ] && [ "$(cat "$PROJECT_ROOT/$rel.prev")" = "env" ] && [ ! -e "$PROJECT_ROOT/$rel" ]
+    # the refusal names both nodes
+    grep -qF 'error "$_ma or $_ma.prev is not a regular file' "$ADVERSARIAL_REVIEW"
+}
+
+@test "CMP-213 --record-fallback never moves an envelope or sidecar into a .prev directory or through a .prev link: refused (2), named, the file left where it stands, on both move paths (thirty-fourth run, a4 DISS-C-002)" {
+    mkdir -p "$OUT_DIR"
+    local env="$OUT_DIR/adversarial-review.json" rc st
+    for st in failed workdir_unavailable; do
+        printf '{"findings":[],"metadata":{"status":"reviewed","timestamp":"2026-10-02T11:00:00Z"}}\n' > "$env"
+        mkdir "$env.prev"
+        rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback "$st" --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+        [ "$rc" -eq 2 ] || { echo "$st over a .prev directory: rc $rc"; cat "$T/err"; return 1; }
+        grep -q "adversarial-review.json.prev is not a regular file" "$T/err" || { echo "$st: $(cat "$T/err")"; return 1; }
+        [ -z "$(ls -A "$env.prev")" ] && [ "$(jq -r '.metadata.timestamp' "$env")" = "2026-10-02T11:00:00Z" ] || { echo "$st moved it: $(ls -A "$env.prev")"; return 1; }
+        rmdir -- "$env.prev"
+    done
+    mkdir "$T/elsewhere-213"; ln -s "$T/elsewhere-213" "$env.prev"
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --since 2026-10-02T12:00:00Z --reason r ) >/dev/null 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ] && [ -z "$(ls -A "$T/elsewhere-213")" ] || { echo "through a .prev link: rc $rc, $(ls -A "$T/elsewhere-213")"; return 1; }
+    command rm -f -- "$env.prev" "$env"
+}
+
+@test "CMP-214 the three-quarter cap bounds the partial view itself — siblings at its tier first, whole; the view next; the lower rows get what both leave, nothing once the siblings take over a quarter — and the comment says so, not that a quarter is kept for the lower rows (thirty-fourth run, b1 DISS-C-001)" {
+    mk() { local p=$1 n=$2 h l; printf 'diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n' "$p" "$p" "$p" "$p"; for h in $(seq 1 "$n"); do printf '@@ -%d,3 +%d,3 @@\n' "$h" "$h"; for l in 1 2 3; do printf '+line %d of hunk %d with some padding text here\n' "$l" "$h"; done; done; }
+    local out sib
+    sib="$(mk src/auth/a.ts 20)"
+    [ "$(estimate_tokens "$sib")" -gt 1000 ]   # (over a quarter of the 4000-token budget)
+    out=$(prepare_content "$sib"$'\n'"$(mk src/auth/login.ts 400)"$'\n'"$(mk docs/readme.md 3)" 4000 2>/dev/null)
+    [[ "$out" == *"diff --git a/src/auth/a.ts"* && "$out" != *"--- PARTIAL: src/auth/a.ts"* ]]           # the sibling, whole
+    [[ "$out" == *"--- PARTIAL: src/auth/login.ts"* ]]                                                  # the view, at its tier
+    [[ "$out" != *"diff --git a/docs/readme.md"* && "$out" == *"--- TRUNCATED: 1 lower-priority file(s) omitted"* ]]
+    # with no sibling the cap leaves the quarter the lower row fits in
+    out=$(prepare_content "$(mk src/auth/login.ts 400)"$'\n'"$(mk docs/readme.md 3)" 4000 2>/dev/null)
+    [[ "$out" == *"diff --git a/docs/readme.md"* ]]
+    local lc="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    ! grep -q 'the cap keeps a quarter for the rows ranked BELOW the top file' "$lc" || { echo "the old comment stands"; return 1; }
+    grep -q 'the cap bounds the VIEW' "$lc"
+}
+
+@test "CMP-215 the config example states the shipped rules: a primary of unknown family gets a companion that is never counted as a second voice (duplicate_voice), a malformed budget_cents fails closed, and a repaired finding can take one call per repair-chain hop — never 'one finding each' read as one call (thirty-fourth run, b2 DISS-C-001 / DISS-C-003)" {
+    local ex="$PROJECT_ROOT/.loa.config.yaml.example" blk
+    blk=$(sed -n '/^  code_review:$/,/^  stable_anchors:$/p' "$ex")
+    [ -n "$blk" ]
+    grep -q 'unknown family' <<<"$blk" && grep -q 'duplicate_voice' <<<"$blk" || { echo "the unknown-family companion is not said to be a duplicate voice"; return 1; }
+    ! grep -q 'xAI, unknown' <<<"$blk" || { echo "unknown is still listed among the second-voice primaries"; return 1; }
+    [ "$(grep -c 'malformed value fails closed' <<<"$blk")" -ge 2 ] || { echo "both budget_cents comments must say a malformed value fails closed"; return 1; }
+    ! grep -q 'one finding each' <<<"$blk" || { echo "the repair count still reads as one call per finding"; return 1; }
+    grep -q 'one call per repair-chain hop' <<<"$blk"
+    # the rules themselves: the 5-repair cap and the unknown-family judgement
+    grep -q '^readonly ADV_REPAIR_MAX_PER_RUN=5$' "$ADVERSARIAL_REVIEW"
+    [ "$(_adv_family_of my-proxy-model)" = "unknown" ]
+}
+
+@test "CMP-216 setup never inherits a directory already standing at this test's sprint path: a marked one (a crashed run on a reused pid) is emptied and removed before the marker is written; an unmarked one is refused, named, and left for teardown not to touch (thirty-fourth run, c1a DISS-C-001)" {
+    local m="${OUT_DIR%/*}/.$SPRINT.owner"
+    mkdir -p "$OUT_DIR"; printf 'stale' > "$OUT_DIR/adversarial-review.json.prev"
+    _claim_sprint_dir "$OUT_DIR"
+    [ ! -e "$OUT_DIR" ] || { echo "a marked leftover was inherited: $(ls -A "$OUT_DIR")"; return 1; }
+    command rm -f -- "$m"; mkdir -p "$OUT_DIR"; printf 'theirs' > "$OUT_DIR/keep"
+    run _claim_sprint_dir "$OUT_DIR"
+    [ "$status" -ne 0 ] && [[ "$output" == *"setup: $OUT_DIR stands and is not this suite's"* ]] || { echo "unmarked: status $status, $output"; return 1; }
+    [ "$(cat "$OUT_DIR/keep")" = "theirs" ] && [ ! -e "$m" ]
+    # the normalise suite's setup carries the same guard
+    grep -q "stands and is not this suite's" "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats"
+    # setup claims the directory through it, before the marker is written
+    sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME" | grep -A1 '_claim_sprint_dir "$OUT_DIR" || return 1' | grep -q 'SPRINT.owner"' || { echo "setup does not claim before the marker"; return 1; }
+    : > "$m"   # (ours again: teardown removes it with the directory)
+}
+
+@test "CMP-217 a pgrep that fails for a reason of its own (exit 2 / 3: a bad option, an internal error) never reads as 'no children' — the ps walker answers then; exit 1 (no match) is still the answer (thirty-fourth run, c1b DISS-C-001)" {
+    bash -c 'sleep 30 & sleep 30 & wait' 3>&- & local root=$! _i st got
+    for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$root" | wc -w)" -ge 3 ] && break; sleep 0.1; done
+    HOLDER_PIDS+=("$root")
+    local with; with=$(_adv_tree_pids "$root" | sort -n | tr '\n' ' ')
+    for p in $with; do [[ "$p" != "$root" && "$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')" == "$root" ]] && HOLDER_PIDS+=("$p"); done
+    [ "$(printf '%s' "$with" | wc -w)" -eq 3 ]
+    mkdir -p "$T/failbin"
+    for st in 2 3; do
+        printf '#!/bin/sh\necho "pgrep: invalid option" >&2\nexit %s\n' "$st" > "$T/failbin/pgrep"; chmod +x "$T/failbin/pgrep"
+        got=$(_ADV_PGREP_BIN="$T/failbin/pgrep" _adv_tree_pids "$root" | sort -n | tr '\n' ' ')
+        [ "$got" = "$with" ] || { echo "pgrep exit $st: '$got', not the tree '$with'"; return 1; }
+    done
+    printf '#!/bin/sh\nexit 1\n' > "$T/failbin/pgrep"
+    [ "$(_ADV_PGREP_BIN="$T/failbin/pgrep" _adv_tree_pids "$root" | wc -w)" -eq 1 ]   # (no match: the root alone)
+}
+
+@test "CMP-218 the companion suite's sweep never deletes a live run's directory it cannot see: an EPERM owner is alive, a marker from another host or pid namespace is left; one of ours, dead, is removed (thirty-fourth run, c2a DISS-C-001, as NRM-55)" {
+    local a="${OUT_DIR%/*}" dead
+    dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
+    ( kill() { echo "bash: kill: ($2) - Operation not permitted" >&2; return 1; }; _sweep_alive "$dead" ) || { echo "an EPERM owner was judged dead"; return 1; }
+    mkdir -p "$a/sprint-comp-$dead"; printf 'where other-host pid:[1]\n' > "$a/.sprint-comp-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-comp
+    [ -d "$a/sprint-comp-$dead" ] || { echo "another namespace's directory was deleted"; return 1; }
+    _sweep_where > "$a/.sprint-comp-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-comp
+    [ ! -e "$a/sprint-comp-$dead" ] && [ ! -e "$a/.sprint-comp-$dead.owner" ] || { echo "our own dead run's directory was kept"; return 1; }
+    [ "$(cat "$a/.$SPRINT.owner")" = "$(_sweep_where)" ]
+}
+
+@test "CMP-219 a teardown a test runs mid-test never removes that test's own tmp directory: every mid-test teardown in the dissent suites clears the bats < 1.4 own-tmp name first, so a later check on a file under it tests the teardown, not the harness (thirty-fourth run, c2b DISS-C-003)" {
+    local f n=0 l
+    for f in "$PROJECT_ROOT/tests/unit/adversarial-review-companion.bats" "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats"; do
+        while IFS= read -r l; do
+            n=$(( n + 1 ))
+            [[ "$l" == *'( set -e; '*'_OWN_TMP=""; '*'teardown )'* || "$l" == *'( '*'_OWN_TMP=""; '*'teardown )'* ]] || { echo "${f##*/}: $l"; return 1; }
+        done < <(grep -E '\( .*teardown \)' "$f" | grep -vE '^\s*#')
+    done
+    [ "$n" -ge 8 ]
+}
+
+@test "CMP-220 every Python open() in the dissent suites names encoding='utf-8': under a C / POSIX locale with UTF-8 mode off (Python 3.6, the old-mawk platforms these lints name) open() decodes ASCII and a lint dies on the scripts' first em-dash, a traceback in place of its verdict (thirty-fourth run, c2d DISS-C-002)" {
+    local f l n=0
+    # the failure is real here: a C locale with UTF-8 mode and coercion off decodes ASCII
+    run env LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 python3 -c 'import io, sys; io.open(sys.argv[1]).read()' "$ADVERSARIAL_REVIEW"
+    [ "$status" -ne 0 ] && [[ "$output" == *UnicodeDecodeError* ]] || skip "this python3 decodes UTF-8 under LC_ALL=C"
+    run env LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 python3 -c 'import sys; open(sys.argv[1], encoding="utf-8").read()' "$ADVERSARIAL_REVIEW"
+    [ "$status" -eq 0 ]
+    for f in "$PROJECT_ROOT"/tests/unit/adversarial-review-*.bats "$PROJECT_ROOT/tests/unit/verdict-derive.bats"; do
+        while IFS= read -r l; do
+            n=$(( n + 1 ))
+            [[ "$l" == *"encoding="* ]] || { echo "${f##*/}: $l"; return 1; }
+        done < <(grep -E '(^|[^.[:alnum:]_])open\(' "$f" | grep -vE '^[[:space:]]*#' | grep -vE 'os\.open|fdopen')
+    done
+    [ "$n" -ge 10 ]
+}
+
+@test "CMP-221 the audit's discovered-vulnerability bead names its criterion only: the flushed .beads JSONL is committed, so a title naming the file tells every reader of a public repo where an unpatched weakness lives before the fix lands — the location stays in the feedback file (thirty-fourth run, e2b DISS-C-003)" {
+    local r="$PROJECT_ROOT/.claude/skills/auditing-security/resources/BEADS-WORKFLOW.md" t
+    t=$(grep -o 'log-discovered-issue.sh "<sprint-epic-id>" "[^"]*"' "$r") || { echo "no discovered-issue step"; return 1; }
+    [[ "$t" == *'"Security: <criterion>'* && "$t" == *auditor-sprint-feedback.md* ]] || { echo "$t"; return 1; }
+    [[ "$t" != *'<file>'* && "$t" != *'<anchor>'* && "$t" != *'<location>'* ]] || { echo "the title names where: $t"; return 1; }
 }

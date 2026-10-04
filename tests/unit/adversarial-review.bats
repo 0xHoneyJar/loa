@@ -774,6 +774,7 @@ EOF
     # keeps this line from matching itself
     # — the mktemp inside the assignment's own value, never a later statement on the line (thirty-third run, e3 DISS-C-003)
     _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR[=][^;[:space:]]*mktemp' "$1"; }
+    _e3_none() { local rc=0; "$@" || rc=$?; [ "$rc" -eq 1 ]; }   # (no match, and no error: thirty-fourth run, e3 DISS-C-002)
     # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
     for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
              tests/unit/adversarial-review-schema-enforced.bats tests/unit/adversarial-review-verdict-quality.bats; do
@@ -782,7 +783,7 @@ EOF
     done
     # …and no suite anywhere keeps the per-test XDG_RUNTIME_DIR's mktemp fallback (thirty-first run, e3 DISS-C-001: seventeen
     # more setups carried it); the bracket keeps this line from matching itself
-    if _e3_xdg_fallback "$PROJECT_ROOT/tests"; then echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; fi
+    _e3_none _e3_xdg_fallback "$PROJECT_ROOT/tests" || { echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; }
     # …nor any adversarial-review suite a per-test TEST_DIR one (thirty-second run, c2a DISS-C-002: three setups kept it, with no
     # teardown that removes it; the normalise and companion suites own and sweep theirs); the bracket keeps this line from matching itself
     # (thirty-third run, e3 DISS-C-003: those two are exempt by name, never by spelling, and their sweep is what is checked)
@@ -796,7 +797,7 @@ EOF
         grep -qE "find \"[$]$own\" -mindepth 1 -delete; rmdir \"[$]$own\"" "$s" || { echo "${s##*/} no longer sweeps its own fallback"; return 1; }
     done
     # (thirty-third run, e3 DISS-C-001: the guard's message names the version it needs — a bats < 1.4 run IS under bats)
-    if grep -rn --include='*.bats' --include='*.bash' 'must run under bat[s]' "$PROJECT_ROOT/tests"; then echo "a guard's message misnames a bats < 1.4 run as not under bats"; return 1; fi
+    _e3_none grep -rn --include='*.bats' --include='*.bash' 'must run under bat[s]' "$PROJECT_ROOT/tests" || { echo "a guard's message misnames a bats < 1.4 run as not under bats"; return 1; }
     # neither check is vacuous (thirty-second run, e3 DISS-C-001: the old leg grepped out a pattern, then found it absent):
     # the guard check tells a guarded setup — in either statement form — from one that only mentions the guard
     local fx="$BATS_TEST_TMPDIR/e3-fx"; mkdir -p "$fx"
@@ -813,4 +814,12 @@ EOF
     # …and a one-line setup whose mktemp is another statement's is no fallback (thirty-third run, e3 DISS-C-003)
     printf 'setup() { export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR:?x}"; TMP_DIR="$(mktemp -d)"; }\n' '=' > "$fx/a.bats"
     if _e3_xdg_fallback "$fx"; then echo "a one-line setup's own mktemp tripped the fallback check"; return 1; fi
+    # …and a grep that errors is never "no match" (thirty-fourth run, e3 DISS-C-002: exit 2 — an unreadable file — read as clean,
+    # even beside a real match): only exit 1 passes
+    printf '    export XDG_RUNTIME_DIR%s"$(mktemp -d)"\n' '=' > "$fx/a.bats"; : > "$fx/b.bats"; chmod 000 "$fx/b.bats"
+    if [ -r "$fx/b.bats" ]; then chmod 644 "$fx/b.bats"; skip "running as root: an unreadable file cannot be made"; fi
+    if _e3_none _e3_xdg_fallback "$fx" >/dev/null 2>&1; then chmod 644 "$fx/b.bats"; echo "a grep error beside a match passed"; return 1; fi
+    chmod 644 "$fx/b.bats"; rm -f "$fx/a.bats"
+    if _e3_none _e3_xdg_fallback "$fx/missing" >/dev/null 2>&1; then echo "a grep error passed"; return 1; fi
+    _e3_none _e3_xdg_fallback "$fx"
 }

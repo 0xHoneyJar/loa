@@ -699,3 +699,19 @@ def test_a_prompt_over_gemini_stdin_cap_is_a_walkable_hop_never_truncated():
         with pytest.raises(ProviderUnavailableError, match="8 MiB"):
             adapter.complete(_make_request(messages=[{"role": "user", "content": "x" * (8 * 1024 * 1024)}]))
     mock_run.assert_not_called()
+
+
+def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
+    """gemini-cli's GEMINI_SANDBOX outranks --sandbox, which outranks settings.json's tools.sandbox, and a sandboxed run re-execs
+    with the piped stdin folded into the child's -p argument — back on argv, readable through /proc/<pid>/cmdline and over 128
+    KiB an exec failure. The hop runs with GEMINI_SANDBOX=false, which closes both ambient sources; only an operator --sandbox in
+    gemini_extra_flags keeps the operator's choice, the documented exposure (cycle-126 thirty-fourth run, e1b DISS-C-001)."""
+    monkeypatch.setenv("GEMINI_SANDBOX", "docker")
+    for extra, want in (({}, "false"), ({"gemini_extra_flags": ["--sandbox"]}, "docker"),
+                        ({"gemini_extra_flags": [["-s"]]}, "docker"), ({"gemini_extra_flags": ["--sandbox=podman"]}, "docker")):
+        adapter = GeminiHeadlessAdapter(_make_config(extra=extra) if extra else _make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        assert mock_run.call_args.kwargs["env"]["GEMINI_SANDBOX"] == want, extra
+        assert mock_run.call_args.kwargs["input"]

@@ -38,9 +38,10 @@ from loa_cheval.types import (
 
 _TRUSTED_ABOVE: Optional[str] = None   # a test hook only (the suite's private root and its ancestors are not judged)
 
-# the files claude (and gemini) load from a cwd's project — never at or above an isolated cwd (thirty-third run, d DISS-C-001 /
-# DISS-C-003)
-_PROJECT_FILES = ("CLAUDE.md", "CLAUDE.local.md", ".claude", ".mcp.json")
+# the files a headless CLI loads from a cwd's project — never at or above an isolated cwd (thirty-third run, d DISS-C-001 /
+# DISS-C-003): claude's, and gemini's, codex's and cursor's (thirty-fourth run, d DISS-C-004)
+_PROJECT_FILES = ("CLAUDE.md", "CLAUDE.local.md", ".claude", ".mcp.json", "GEMINI.md", ".gemini", "AGENTS.md",
+                  "AGENTS.override.md", ".codex", ".cursor", ".cursorrules")
 
 
 def _group_private(gid: int) -> bool:
@@ -51,11 +52,14 @@ def _group_private(gid: int) -> bool:
         import grp
         import pwd
         me = pwd.getpwuid(os.getuid()).pw_name
-        members = grp.getgrgid(gid).gr_mem
+        group = grp.getgrgid(gid)
         accounts = pwd.getpwall()
     except (ImportError, KeyError, OSError):
         return False
-    return all(m == me for m in members) and all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts)
+    # (thirty-fourth run, d DISS-C-001: getpwall() lists only the enumerable accounts — under sssd / LDAP, the local ones — and a
+    # shared primary group lists no members, so their absence is no proof; a user-private group carries this account's name)
+    return (group.gr_name == me and all(m == me for m in group.gr_mem)
+            and all(a.pw_gid != gid or a.pw_uid == os.getuid() for a in accounts))
 
 
 def _dir_trustworthy(st) -> bool:
@@ -82,6 +86,17 @@ def _trusted_stop() -> set:
     return stop
 
 
+def _work_tree_of(path: str) -> Optional[str]:
+    """The nearest directory at or above `path` (resolved) that holds a .git: the work tree a process there runs in."""
+    p = os.path.realpath(path)
+    while True:
+        if os.path.lexists(os.path.join(p, ".git")):
+            return p
+        if os.path.dirname(p) == p:
+            return None
+        p = os.path.dirname(p)
+
+
 def _project_marker(path: str) -> Optional[str]:
     """The first project file at or above `path` (resolved) that a CLI started below it would load: a .git — a work tree, the
     reviewed one — or a CLAUDE.md / CLAUDE.local.md / .claude / .mcp.json anywhere but the home directory, whose are the
@@ -90,8 +105,14 @@ def _project_marker(path: str) -> Optional[str]:
     home = os.path.realpath(os.path.expanduser("~"))
     stop = _trusted_stop()
     p = os.path.realpath(path)
+    # (thirty-fourth run, d DISS-C-002: a dotfiles ~/.git is the user's own unless the reviewed tree — this process's cwd — is
+    # that work tree; refusing it everywhere left a host with no runtime dir no headless voice at all)
+    try:
+        home_reviewed = _work_tree_of(os.getcwd()) == home
+    except OSError:
+        home_reviewed = True                  # (a cwd that cannot be read is no proof it is elsewhere)
     while p not in stop:
-        for n in (".git",) + (() if p == home else _PROJECT_FILES):
+        for n in (() if p == home else _PROJECT_FILES) + ((".git",) if p != home or home_reviewed else ()):
             if os.path.lexists(os.path.join(p, n)):
                 return os.path.join(p, n)
         if os.path.dirname(p) == p:

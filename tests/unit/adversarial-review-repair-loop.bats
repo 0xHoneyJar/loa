@@ -387,6 +387,25 @@ _sidecar_path() {
     [[ "$(echo "$result" | jq -r '.findings[0].description')" == "The token is never checked before use." ]]
 }
 
+@test "C14: a repair OF the derived failure_mode (it failed validation) is the model's text — the derived marker is not carried onto it (thirty-fourth run, a1 DISS-C-001)" {
+    # the derivation as it was before the window fix: a blank-headed description derived a whitespace-only failure_mode, marked
+    # derived — validate_finding rejects it on failure_mode and the repair rewrites exactly that field
+    _derive_failure_mode() { jq 'if (.failure_mode | type) != "string" then .failure_mode = " " | .failure_mode_derived = true else . end'; }
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-of-derived-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.failure_mode = "the model states the failure"'
+    }
+    local content='{"findings":[{"id":"DISS-001","severity":"ADVISORY","category":"other","description":"The token is never checked before use."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "the model states the failure" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode_derived')" == "null" ]] \
+      || { echo "the derived marker survived the model's rewrite of that field"; return 1; }
+}
+
 @test "C14: a repair that rewrites a dissenter-STATED failure_mode is still a non-violated-field mutation — only derived fields are free (twenty-seventh run, c2e DISS-C-003)" {
     unset LOA_ADVERSARIAL_NO_FM_DERIVATION
     _REPAIR_TEST_SPRINT="sprint-c14-repair-stated-mutate-$$"

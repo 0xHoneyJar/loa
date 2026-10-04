@@ -289,8 +289,11 @@ prepare_content() {
     local marker_est
     marker_est=$(estimate_tokens "--- PARTIAL: ${top_path} shown up to the token budget (999 of 999 hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---")
     reserve=$(( max_tokens - others ))
-    # twenty-fourth run, b1 DISS-C-001: the cap keeps a quarter for the rows ranked BELOW the top file — with none, the quarter
-    # went unspent and the file the review is about was shown shorter; uncapped, the marker comes out of the view's own share
+    # twenty-fourth run, b1 DISS-C-001: with rows ranked BELOW the top file, the cap bounds the VIEW at three quarters of the budget —
+    # with none, the quarter went unspent and the file the review is about was shown shorter; uncapped, the marker comes out of the
+    # view's own share. (Thirty-fourth run, b1 DISS-C-001: it is a cap on the view, not a quarter kept for the lower rows — the
+    # siblings at its tier come first, whole, then the view; the lower rows get what both leave, nothing once the siblings take a
+    # quarter or more. CMP-214 pins the order.)
     local lower=0
     while IFS=$'\t' read -r o_pri o_path o_idx; do
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && "$o_pri" -gt "$top_pri" ]] && { lower=1; break; }

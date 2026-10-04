@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from loa_cheval.providers import headless_cli
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from loa_cheval.providers import headless_cli   # (after the path insert — thirty-fourth run, c2e DISS-001)
 
 from loa_cheval.providers.agy_headless_adapter import AgyHeadlessAdapter
 from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
@@ -192,6 +192,9 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
         assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
         assert headless_cli.private_workspace_base() == os.path.realpath(os.environ["XDG_RUNTIME_DIR"])
         assert os.path.basename(calls[1]["cwd"]) == "loa-claude-ws"
+    else:
+        # (thirty-fourth run, c2e DISS-C-003: an adapter added to the cases states its cwd contract — never a silent pass)
+        pytest.fail(f"no isolated-cwd contract stated for {name}")
 
 
 def test_no_private_base_is_a_provider_unavailable_hop(adapter_case, tmp_path, monkeypatch):
@@ -227,13 +230,20 @@ def test_a_workspace_that_vanished_before_exec_is_a_walkable_hop(adapter_case, t
     binary.chmod(0o755)
     monkeypatch.setenv(f"{name.upper()}_HEADLESS_BIN", str(binary))
     real = subprocess.Popen
+    removed = []
     def vanish(*args, **kwargs):
-        if kwargs.get("cwd"):
-            shutil.rmtree(kwargs["cwd"])
+        cwd = kwargs.get("cwd")
+        if cwd:
+            # (thirty-fourth run, c2e DISS-C-001: only a cwd directly under the private base — the hop's own workspace — is
+            # removed; any other is a failure here, never a recursive delete of a project or the suite's cwd)
+            assert os.path.dirname(os.path.realpath(cwd)) == headless_cli.private_workspace_base(), f"not a hop workspace: {cwd}"
+            shutil.rmtree(cwd)
+            removed.append(cwd)
         return real(*args, **kwargs)
     monkeypatch.setattr(subprocess, "Popen", vanish)
     with pytest.raises(ProviderUnavailableError, match="vanished"):
         adapter.complete(CompletionRequest(messages=[{"role": "user", "content": "ping"}], model="entry"))
+    assert len(removed) == 1
 
 
 def test_complete_bounds_the_hop_by_its_model(adapter_case, tmp_path, monkeypatch):
@@ -549,9 +559,26 @@ def test_report_gate_is_once_across_threads(caplog, monkeypatch):
         _types.report_headless_timeout_once(("threads/x: ", 900), "raced %s", "once")
 
     caplog.set_level("WARNING", logger="loa_cheval.config")
-    threads = [threading.Thread(target=_report) for _ in range(8)]
+    threads = [threading.Thread(target=_report, daemon=True) for _ in range(8)]
     for t in threads:
         t.start()
     for t in threads:
         t.join(10)
+    # (thirty-fourth run, c2e DISS-C-002: a gate that deadlocks the losers is a failure, never one message and seven hung threads)
+    assert [t for t in threads if t.is_alive()] == []
     assert [r.getMessage() for r in caplog.records if r.name == "loa_cheval.config"] == ["raced once"]
+
+
+def test_no_test_module_imports_loa_cheval_before_its_path_insert():
+    """A module that inserts the adapters directory on sys.path does so before its first loa_cheval import — one above it
+    collects only while the tests/ package happens to put that directory on the path (pytest's default prepend mode), and
+    fails under --import-mode=importlib or a direct run (cycle-126 thirty-fourth run, c2e DISS-001)."""
+    import re
+    late = []
+    for f in sorted(Path(__file__).resolve().parent.glob("*.py")):
+        s = f.read_text(encoding="utf-8")
+        ins = re.search(r"^sys\.path\.insert\(", s, re.M)
+        imp = re.search(r"^(?:from|import) loa_cheval\b", s, re.M)
+        if ins and imp and imp.start() < ins.start():
+            late.append(f.name)
+    assert late == []

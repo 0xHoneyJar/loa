@@ -510,8 +510,10 @@ _adv_jq_pair() {
 _normalize_finding_for_validation() {
   local finding="$1"
   local index="${2:-}"
+  # (thirty-fourth run, a1 DISS-C-001: the *_derived markers are the normaliser's provenance — a dissenter's own are dropped first)
   echo "$finding" | jq '
-    (if has("severity") and (.severity | type) == "string"
+    del(.id_derived, .failure_mode_derived)
+    | (if has("severity") and (.severity | type) == "string"
      then .severity |= (gsub("^\\s+|\\s+$"; "") | ascii_upcase)
      else . end)
     | (if has("category") and (.category | type) == "string"
@@ -550,7 +552,9 @@ _derive_failure_mode() {
     | if ((.failure_mode | type) != "string" or (.failure_mode | test("\\S") | not))
          and (.description | type) == "string" and (.description | test("\\S"))
       then
-        (.description | .[0:4000] | gsub("\\s+"; " ")) as $d
+        # (thirty-fourth run, a1 DISS-C-001: the window starts at the first visible character — the gate tests the whole
+        # description, so a long whitespace head must never leave the window blank; the \\A strip is one anchored match)
+        (.description | sub("\\A\\s+"; "") | .[0:4000] | gsub("\\s+"; " ")) as $d
         | ($d | (capture("^(?<s>.*?[.!?])(\\s|$)").s // .)) as $s
         # eighth run, a1 C-003: "e.g." / "1." / "Approx." are not sentences — below 20 characters use the head
         | (if ($s | length) < 20 then $d else $s end | .[0:200]) as $fm
@@ -1701,8 +1705,9 @@ while i < len(text):
             # ninth run, a1 C-003: the derivation markers are provenance — an accepted repair carries the
             # original's markers whatever the model echoed back
             # (twenty-seventh run, c2e DISS-C-003: and the derived values themselves — the model's rewrite of one is discarded)
+            # (thirty-fourth run, a1 DISS-C-001: but never the violated field's — its repaired text is the model's, not derived)
             repaired=$(_adv_jq_pair "$candidate" "$repaired" \
-              '$a as $o | $b as $r | $r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true)))
+              '$a as $o | $b as $r | $r | del(.id_derived, .failure_mode_derived) + ($o | {id_derived, failure_mode_derived} | with_entries(select(.value == true and .key != ($af + "_derived"))))
                | reduce ("id", "failure_mode") as $k (.; if $o[$k + "_derived"] == true and $k != $af then .[$k] = $o[$k] else . end)' \
               --arg af "$violated_field" 2>/dev/null || echo "$repaired")
             # nineteenth run, a1 C-002: a repaired DESCRIPTION supplies the failure_mode the original could not (a whitespace-only
@@ -2389,6 +2394,12 @@ _adv_scope_json() {  # [diff sha256] → metadata.scope {diff_range, diff_oids {
       diff_sha256: (if $sha == "" then null else $sha end),
       run_tag: (if $tag == "" then null else $tag end)}' 2>/dev/null || printf '{"diff_range":null,"diff_oids":null,"diff_sha256":null,"run_tag":null}'
 }
+_adv_prev_dest_ok() {  # <path> → 0 when <path>.prev is absent or a regular file (thirty-fourth run, a4 DISS-C-002: mv into a directory, or through
+                       # a link to one, moved the file INTO it, the drop's rm -f never removed it, and the skill's .prev reading met a directory)
+  [[ ! -L "$1.prev" && ( ! -e "$1.prev" || -f "$1.prev" ) ]] && return 0
+  error "$1.prev is not a regular file (a symlink, directory or other node — no run writes one); nothing was recorded: remove it, then run again"
+  return 1
+}
 _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the failed-run record the review / audit skill writes, done by the
                           # script under its run lock (twenty-third run, b2 DISS-C-001: the skills' allowlists hold no `mv`, and a
                           # Write-tool fallback can neither move the previous round's files aside nor see a live run)
@@ -2450,6 +2461,7 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
       fi
       for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
         [[ -f "$sc" && ! -L "$sc" ]] || continue
+        _adv_prev_dest_ok "$sc" || return 2
         mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
       done
     fi
@@ -2464,6 +2476,7 @@ _adv_record_fallback() {  # <type> <sprint id> <status> <reason> [since] → the
     fi
     for sc in "$env" "$dir"/adversarial-rejected-"${t}"*.jsonl; do
       [[ -f "$sc" && ! -L "$sc" ]] || continue
+      _adv_prev_dest_ok "$sc" || return 2
       mv -f -- "$sc" "$sc.prev" || { error "cannot move $sc aside"; return 2; }
     done
   fi
@@ -2636,20 +2649,26 @@ _adv_cli_hop_timeout_load() {  # LOA_ADVERSARIAL_CLI_HOP_TIMEOUT → _ADV_CLI_HO
   return 0
 }
 _adv_cli_hop_timeout_load
-_adv_cli_hop_bound() {  # <hop> → seconds the CLI adapter allows this hop: max(connect,10) + max(read,600,headless_timeout_seconds)
-  local hop cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v="" ct="" rt=""
+_adv_cli_hop_bound() {  # <hop> [strict] → seconds the CLI adapter allows this hop: max(connect,10) + max(read,600,headless_timeout_seconds)
+  # (thirty-fourth run, a3 DISS-C-002: with `strict`, a catalog read that FAILED prints nothing and returns 1 — only a listed or
+  # not-listed answer decides; a caller that caches the bound must never latch the fallback over a yq hiccup)
+  local hop cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v="" ct="" rt="" strict="${2:-}" listed
   hop=$(_adv_hop_canon "$1")   # (thirteenth run, a2 C-001: the catalog is read under the canonical id)
   local from_catalog="false"
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
     # the hop must be LISTED by a provider (has(), never a `// default`: yq's alternative operator fires on an empty stream,
     # so the `// 10` below would read as catalog data for a hop no provider lists — round-1q dry run, CMP-22)
-    [[ "$(_adv_hop="$hop" yq eval '[.providers[] | (.models // {}) | has(strenv(_adv_hop))] | any' "$cat" 2>/dev/null)" == "true" ]] && from_catalog="true"
+    listed=$(_adv_hop="$hop" yq eval '[.providers[] | (.models // {}) | has(strenv(_adv_hop))] | any' "$cat" 2>/dev/null) || listed=""
+    case "$listed" in true) from_catalog="true" ;; false) ;; *) [[ "$strict" != "strict" ]] || return 1 ;; esac
   fi
   if [[ "$from_catalog" == "true" ]]; then
-    v=$(_adv_hop="$hop" yq eval '[.providers[].models[strenv(_adv_hop)].headless_timeout_seconds | select(. != null)] | .[0]' "$cat" 2>/dev/null)
+    v=$(_adv_hop="$hop" yq eval '[.providers[].models[strenv(_adv_hop)].headless_timeout_seconds | select(. != null)] | .[0]' "$cat" 2>/dev/null) \
+      || { [[ "$strict" != "strict" ]] || return 1; v=""; }
     # seventh run, chunk d C-002: the provider block's own timeouts are part of cheval's formula too
-    ct=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.connect_timeout // 10)] | .[0]' "$cat" 2>/dev/null)
-    rt=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.read_timeout // 120)] | .[0]' "$cat" 2>/dev/null)
+    ct=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.connect_timeout // 10)] | .[0]' "$cat" 2>/dev/null) \
+      || { [[ "$strict" != "strict" ]] || return 1; ct=""; }
+    rt=$(_adv_hop="$hop" yq eval '[.providers | to_entries[] | select(.value.models[strenv(_adv_hop)] != null) | (.value.read_timeout // 120)] | .[0]' "$cat" 2>/dev/null) \
+      || { [[ "$strict" != "strict" ]] || return 1; rt=""; }
   fi
   # (twenty-eighth run, d DISS-C-001: each value read as cheval's float() reads it, rounded up — never a narrower parse)
   ct=$(_adv_pos_ceil "$ct") || ct=10; (( ct < 10 )) && ct=10
@@ -2993,11 +3012,19 @@ _adv_inv5_rewrite() {  # <envelope> <space-separated ids> <out> — the envelope
       | .single_voice_call = (.voices_planned == 1))' "$1" > "$3" 2>/dev/null && [[ -s "$3" ]] && jq -e 'type == "object"' "$3" >/dev/null 2>&1   # (the aggregator's invariant: a one-voice envelope says so)
 }
 _adv_mtime() { [[ -e "$1" ]] || { echo 0; return 0; }; stat -c %Y -- "$1" 2>/dev/null || stat -f %m -- "$1" 2>/dev/null || date +%s; }   # (0 for a missing path — thirteenth run, a2 C-005)
+_adv_fork_token() {  # <pid> → a just-forked child's start token; "" when it cannot be read but the child lives (the pid alone then decides);
+                     # "exited" when the child is already gone — no process's token equals it, so a pid recycled after an early exit is
+                     # never taken for the companion (thirty-fourth run, a3 DISS-C-001)
+  local t; t=$(_adv_proc_start "$1" 2>/dev/null) || t=""
+  if [[ -z "$t" ]] && ! _adv_pid_alive "$1"; then t="exited"; fi
+  printf '%s' "$t"
+}
 _adv_companion_alive() {  # → 0 while the companion's pid is alive AND still the process forked at the launch (sixteenth run, a1 C-003:
                           # one liveness rule — the reaper's — for the repair skip and the shared-hop verdict too)
   # (twenty-first run, a3 DISS-C-003: _adv_pid_alive, not kill -0 — a walker that died un-waited is a zombie, which kill -0 answers
   # for; the shared-hop wait would sleep on it until its phase budget ran out)
   [[ -n "${_ADV_COMPANION_PID:-}" ]] && _adv_pid_alive "$_ADV_COMPANION_PID" || return 1
+  [[ "${_ADV_COMPANION_START:-}" != "exited" ]] || return 1   # (thirty-fourth run, a3 DISS-C-001: gone at the fork — its pid is another's)
   # (a4 C-001: a token that could not be read — at the fork or now — falls back to the pid alone: treating it as dead would let
   # main skip its deadline loop and block in `wait` on a hung child, the sixth run's eight-hour hang)
   local _now; _now=$(_adv_proc_start "$_ADV_COMPANION_PID" 2>/dev/null) || _now=""
@@ -3026,7 +3053,7 @@ _companion_deadline_why() {  # <workdir> <started> <wait cap> <post budget> <que
                              # (a3 C-003: a vanished phase file or a yq hiccup never aborts main or reaps a healthy companion).
   # nineteenth run, a3 C-001: with a sixth argument the verdict is written INTO that variable (printf -v) — both callers run
   # the helper in their own shell, so the queue-bound cache below holds (one yq per hop, not one a second)
-  local wd="$1" started="$2" cap="$3" post="$4" qallow="$5" outvar="${6:-}" phase pstart budget cur now _dl_why=""   # (its own name: a caller passing `_why` must not be shadowed)
+  local wd="$1" started="$2" cap="$3" post="$4" qallow="$5" outvar="${6:-}" phase pstart budget cur now _dl_why="" _qb   # (its own name: a caller passing `_why` must not be shadowed)
   now=$(date +%s)
   phase=$(cat "$wd/companion.phase" 2>/dev/null || echo hop)
   if [[ -f "$wd/companion.phase" ]]; then pstart=$(_adv_num_or "$(_adv_mtime "$wd/companion.phase")" "$started"); else pstart=$started; fi
@@ -3036,11 +3063,15 @@ _companion_deadline_why() {  # <workdir> <started> <wait cap> <post budget> <que
     queue)
       cur=$(cat "$wd/companion.current" 2>/dev/null || echo x-headless)
       [[ -n "$cur" ]] || cur=x-headless   # (twenty-fifth run, a3 C-002: an empty file is the missing one's fallback bound — never the cache's initial key and a 0 s budget)
-      if [[ "$cur" != "$_ADV_QB_HOP" ]]; then _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( $(_adv_num_or "$(_adv_cli_hop_bound "$cur")" 610) + 30 )); fi
-      budget=$_ADV_QB_VAL ;;
+      # (thirty-fourth run, a3 DISS-C-002: only a bound the catalog ANSWERED is cached — a failed read decides nothing this tick,
+      # the global ceiling still holds, and the next tick reads again; a latched 610 + 30 reaped a companion inside its 910 s wait)
+      if [[ "$cur" != "$_ADV_QB_HOP" ]] && _qb=$(_adv_cli_hop_bound "$cur" strict 2>/dev/null) && [[ "$_qb" =~ ^[0-9]+$ ]]; then
+        _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( _qb + 30 ))
+      fi
+      if [[ "$cur" == "$_ADV_QB_HOP" ]]; then budget=$_ADV_QB_VAL; else budget=""; fi ;;
     *) budget=$cap ;;
   esac
-  if (( now - pstart >= budget )); then _dl_why="phase '$phase' deadline: ${budget}s from the phase start"
+  if [[ -n "$budget" ]] && (( now - pstart >= budget )); then _dl_why="phase '$phase' deadline: ${budget}s from the phase start"
   elif (( now >= started + cap + qallow + post )); then _dl_why="global ceiling: $(( cap + qallow + post ))s from the fork"; fi
   if [[ -n "$outvar" ]]; then printf -v "$outvar" '%s' "$_dl_why"; else printf '%s' "$_dl_why"; fi
   return 0
@@ -3271,10 +3302,14 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
 _ADV_COMPANION_PID=""
 _adv_tree_pids() {  # <pid> → the process and every descendant, one per line (collected BEFORE any signal:
                     # once the parent dies its children are re-parented and pgrep -P can no longer find them)
-  local p="$1" c
+  local p="$1" c kids rc
   echo "$p"
   if command -v "${_ADV_PGREP_BIN:-pgrep}" >/dev/null 2>&1; then
-    for c in $("${_ADV_PGREP_BIN:-pgrep}" -P "$p" 2>/dev/null); do _adv_tree_pids "$c"; done
+    rc=0; kids=$("${_ADV_PGREP_BIN:-pgrep}" -P "$p" 2>/dev/null) || rc=$?
+    # (thirty-fourth run, c1b DISS-C-001: exit 1 is pgrep's "no match"; any other failure is pgrep's own — the ps walker answers,
+    # never "no children", which left an orphaned claude -p holding the per-binary lock)
+    (( rc <= 1 )) || kids=$(ps -eo pid=,ppid= 2>/dev/null | awk -v pp="$p" '$2 == pp { print $1 }')
+    for c in $kids; do _adv_tree_pids "$c"; done
   else
     # fifteenth run, a3 C-004: without pgrep the children come from ps — an orphaned claude -p would otherwise keep the
     # per-binary lock for its lifetime after a reap
@@ -3286,7 +3321,7 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
                     # a pid tokenised after TERM may already be free, and another process's token then licensed its KILL)
   # sixteenth run, a3 C-006: the tree is collected again after STOP — a descendant forked between the first collection and
   # the freeze (cheval exec'ing claude -p at that instant) is signalled too, never left holding the per-binary lock
-  local p="$1" sig="${2:-TERM}" pids x more toks=""
+  local p="$1" sig="${2:-TERM}" pids x more new toks=""
   pids=$(_adv_tree_pids "$p")
   # (thirty-second run, a3 DISS-C-003: a reviewer KILLed between the STOP and CONT passes left the tree stopped — a frozen
   # claude -p holding its binary's lock for good, which no takeover reclaims, since a stopped process is alive. A detached
@@ -3296,8 +3331,11 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   local _ADV_CONT_WD=""
   _adv_cont_watchdog "$pids"
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
-  more=$(_adv_tree_pids "$p"); pids=$(printf '%s\n%s\n' "$pids" "$more" | grep -v '^$' | sort -un)
-  [[ -n "$more" ]] && _adv_cont_watchdog "$pids"
+  # (thirty-fourth run, a3 DISS-C-003: the re-collection always holds $p — the second watchdog is for the pids it ADDED, and only them)
+  more=$(_adv_tree_pids "$p")
+  new=$(printf '%s\n--\n%s\n' "$pids" "$more" | awk '$0 == "--" { m = 1; next } !m { s[$0] = 1; next } $0 != "" && !($0 in s) && !d[$0]++')
+  pids=$(printf '%s\n%s\n' "$pids" "$more" | grep -v '^$' | LC_ALL=C sort -un)
+  _adv_cont_watchdog "$new"
   for x in $pids; do kill -STOP "$x" 2>/dev/null || true; done
   [[ "${3:-}" == "tokens" ]] && { toks=$(_adv_pid_tokens "$pids" 2>/dev/null) || toks=""; }
   for x in $pids; do kill "-$sig" "$x" 2>/dev/null || true; done
@@ -3361,6 +3399,11 @@ _adv_reap_companion() {
   fi
   # (twenty-first run, a3 DISS-C-006: the bare pid and its fork-time token are published BEFORE the slow probes — a trap that
   # re-enters while they run KILLs the companion if it is still the process forked, instead of finding an empty tree)
+  # (thirty-fourth run, a3 DISS-C-001: a companion gone before its fork token was read left no tree of ours — its pid is another's)
+  if [[ "${_ADV_COMPANION_START:-}" == "exited" ]]; then
+    log "Companion voice: the companion exited before its start token was read — pid $_ADV_COMPANION_PID is not signalled"
+    _ADV_COMPANION_PID=""; return 0
+  fi
   _ADV_REAP_TREE_PIDS="$_ADV_COMPANION_PID"; _ADV_REAP_TREE_TOKENS="$_ADV_COMPANION_PID=$(_adv_tok_word "${_ADV_COMPANION_START:-}") "
   _ADV_REAP_IN_PROGRESS="true"
   _adv_reap_companion_inner "$_ADV_COMPANION_PID" || true
@@ -3379,7 +3422,7 @@ _adv_reap_companion_inner() {  # <pid> — the reap itself; every helper is guar
   # fifteenth run, a3 C-003: a pid recycled by another process is not the companion — the start token recorded at
   # the fork must still match before anything is signalled
   _now_start=$(_adv_proc_start "$_pid" 2>/dev/null) || _now_start=""
-  if [[ -n "${_ADV_COMPANION_START:-}" && -n "$_now_start" && "$_now_start" != "$_ADV_COMPANION_START" ]]; then
+  if [[ "${_ADV_COMPANION_START:-}" == "exited" ]] || [[ -n "${_ADV_COMPANION_START:-}" && -n "$_now_start" && "$_now_start" != "$_ADV_COMPANION_START" ]]; then
     log "Companion voice: pid $_pid now belongs to another process (start token changed) — nothing to reap"
     return 0
   fi
@@ -3506,6 +3549,9 @@ _adv_move_aside() {  # <repo-relative path> → 0 when nothing stands there or i
                      # run would have spent both voices before its envelope was lost into a directory or written through a link)
   [[ -L "$PROJECT_ROOT/$1" || -e "$PROJECT_ROOT/$1" ]] || return 0
   [[ ! -L "$PROJECT_ROOT/$1" && -f "$PROJECT_ROOT/$1" ]] || return 2
+  # (thirty-fourth run, a4 DISS-C-002: the destination too — mv into a directory, or through a link to one, moved the envelope INTO
+  # it, the drop's rm -f never removed it, and the skill's .prev reading met a directory)
+  [[ ! -L "$PROJECT_ROOT/$1.prev" && ( ! -e "$PROJECT_ROOT/$1.prev" || -f "$PROJECT_ROOT/$1.prev" ) ]] || return 2
   if mv -f -- "$PROJECT_ROOT/$1" "$PROJECT_ROOT/$1.prev" 2>/dev/null && [[ ! -e "$PROJECT_ROOT/$1" ]]; then
     _ADV_PREV_FILES="${_ADV_PREV_FILES:+$_ADV_PREV_FILES$'\n'}$PROJECT_ROOT/$1"; return 0
   fi
@@ -3838,7 +3884,7 @@ main() {
     _ma_rc=0; _adv_move_aside "$_ma" || _ma_rc=$?
     [[ "$_ma_rc" == 0 ]] && continue
     if [[ "$_ma_rc" == 2 ]]; then
-      error "$_ma is not a regular file (a symlink, directory or other node — no run writes one); nothing was reviewed: remove it, then run again"
+      error "$_ma or $_ma.prev is not a regular file (a symlink, directory or other node — no run writes one); nothing was reviewed: remove it, then run again"
     else
     error "the previous round's $_ma could not be moved aside as $_ma.prev — it would read as this run's; nothing was reviewed (make grimoires/loa/a2a/${sprint_id} writable and run again)"
     fi
@@ -3889,7 +3935,7 @@ main() {
           companion_pid=$!
           _ADV_COMPANION_PID="$companion_pid"   # (twenty-second run, a4 DISS-C-001: published before the next fork — a signal in that window reaps it)
           companion_started=$(date +%s)
-          _ADV_COMPANION_START=$(_adv_proc_start "$companion_pid" 2>/dev/null) || _ADV_COMPANION_START=""   # (nineteenth run, a4 C-001: a child gone in the fork window never aborts main — an unreadable token falls back to the pid alone)
+          _ADV_COMPANION_START=$(_adv_fork_token "$companion_pid") || _ADV_COMPANION_START=""   # (nineteenth run, a4 C-001: a child gone in the fork window never aborts main — an unreadable token of a LIVE child falls back to the pid alone; thirty-fourth run, a3 DISS-C-001: a gone one is "exited")
         else
           # twelfth run, a3 C-006: a local setup failure is never attributed to the provider — no fork, a named reason;
           # fourteenth run, a3 C-004: nothing is shared with a companion that never started

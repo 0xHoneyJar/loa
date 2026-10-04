@@ -212,11 +212,12 @@ EOF
 # dropped, one hyphen per space): cycle-126 thirty-second run, e2c DISS-C-002
 _kf_link_lint() {
   python3 - "$1" <<'PY'
-import re, sys
+import re, sys, unicodedata
 s = open(sys.argv[1], encoding="utf-8").read()
 # (a fenced block renders no heading and no link — a fenced example never shadows a real one: thirty-third run, e2c DISS-C-003)
 s = re.sub(r"^(```|~~~).*?^\1[ \t]*$", "", s, flags=re.M | re.S)
-heads = {h.split(":")[0]: re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
+# (GitHub's slugger keeps letters, marks, numbers and connector punctuation — a combining mark too: thirty-fourth run, e2c DISS-C-001)
+heads = {h.split(":")[0]: "".join(c for c in h.lower() if c in "- " or unicodedata.category(c)[0] in "LMN" or unicodedata.category(c) == "Pc").replace(" ", "-")
          for h in re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
 print("Index links that resolve to no heading:", bad) if bad else None
@@ -274,6 +275,35 @@ PY
   [ "$status" -ne 0 ] || { echo "a non-UTF-8 title was written"; return 1; }
   [[ "$output" == *UTF-8* ]] || { echo "$output"; return 1; }
   [ "$(cksum < "$G")" = "$before" ] || { echo "the ledger changed"; return 1; }
+}
+
+@test "kf-write new: a non-UTF-8 title is refused before the ledger is touched even when it lacks its final newline (thirty-fourth run, e2c DISS-001)" {
+  local G="$BATS_TEST_TMPDIR/nonl.md"
+  printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---' > "$G"
+  local before; before="$(cksum < "$G")"
+  run bash "$KFW" new --file "$G" --title "$(printf 'bad \377 byte')" --status OPEN --quiet
+  [ "$status" -ne 0 ] || { echo "a non-UTF-8 title was written"; return 1; }
+  [ "$(cksum < "$G")" = "$before" ] || { echo "the ledger changed on a refused title"; return 1; }
+}
+
+@test "kf-write new: a python3 that fails for another reason is named, never reported as a non-UTF-8 title (thirty-fourth run, e2c DISS-C-002)" {
+  local bin="$BATS_TEST_TMPDIR/bin"; mkdir -p "$bin"
+  printf '#!/bin/sh\necho "ModuleNotFoundError: No module named encodings" >&2\nexit 1\n' > "$bin/python3"; chmod +x "$bin/python3"
+  run env PATH="$bin:$PATH" bash "$KFW" new --file "$F" --title "Café timeout" --status OPEN --quiet
+  [ "$status" -ne 0 ] || { echo "a broken python3 wrote an entry"; return 1; }
+  [[ "$output" != *"not valid UTF-8"* && "$output" == *python3* ]] || { echo "$output"; return 1; }
+}
+
+@test "kf-write new: a combining mark is kept in the anchor, as GitHub's slugger keeps every letter, mark, number and connector (thirty-fourth run, e2c DISS-C-001)" {
+  local t; t="$(printf 'Nai\314\210ve retry\342\200\277x')"   # (NFD i + U+0308, and U+203F a connector punctuation)
+  run bash "$KFW" new --file "$F" --title "$t" --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF "| [KF-003](#kf-003-$(printf 'nai\314\210ve-retry\342\200\277x')) |" "$F" || { grep 'KF-003' "$F"; return 1; }
+  _kf_link_lint "$F" || { echo "the lint disagrees with the writer"; return 1; }
+  # the lint refuses the mark-stripped anchor the old rule wrote
+  local G="$BATS_TEST_TMPDIR/nfd.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-naive-retry) | OPEN | x | 1 |' '' "## KF-040: $(printf 'Nai\314\210ve retry')" > "$G"
+  ! _kf_link_lint "$G" >/dev/null || { echo "a mark-stripped anchor passed the lint"; return 1; }
 }
 
 @test "kf-write new: can create the FIRST entry in an empty-Index ledger" {

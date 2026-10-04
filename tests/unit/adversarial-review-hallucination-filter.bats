@@ -47,10 +47,15 @@ setup() {
     [ "$(type -t _adv_jq_pair)" = function ] || { echo "setup: _adv_jq_pair was not extracted" >&2; return 1; }
     # …and extracted whole: the column-0 `}` that ends the range is the function's own — the script line after it is no
     # indented body (thirty-third run, e3 DISS-C-004)
+    _jq_pair_extracted_whole "$script_path"
+}
+
+_jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extraction is the function's own: the next line is no
+    # indented body; a blank or whitespace-only one is blank (thirty-fourth run, e3 DISS-C-001)
     local _end _next
-    _end="$(awk '/^_adv_jq_pair\(\) \{/{f=1} f && /^}/{print NR; exit}' "$script_path")"
-    _next="$(sed -n "$((_end + 1))p" "$script_path")"
-    [[ -n "$_end" && ( -z "$_next" || "$_next" != [[:space:]]* ) ]] \
+    _end="$(awk '/^_adv_jq_pair\(\) \{/{f=1} f && /^}/{print NR; exit}' "$1")"
+    _next="$(sed -n "$((${_end:-0} + 1))p" "$1")"
+    [[ -n "$_end" && ( -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* ) ]] \
         || { echo "setup: _adv_jq_pair's extraction ended inside its body (line $_end)" >&2; return 1; }
 }
 
@@ -321,4 +326,12 @@ _make_result() {
     # Finding actually downgraded
     [ "$(echo "$filtered" | jq -r '.findings[0].severity')" = "ADVISORY" ]
     [ "$(echo "$filtered" | jq -r '.findings[0].category')" = "MODEL_ARTEFACT_SUSPECTED" ]
+}
+
+@test "the _adv_jq_pair extraction check reads a whitespace-only line after the closing brace as blank, and still refuses an indented body (thirty-fourth run, e3 DISS-C-001)" {
+    local fx="$BATS_TEST_TMPDIR/jqpair.sh"
+    printf '_adv_jq_pair() {\n  :\n}\n   \t\nnext\n' > "$fx"
+    _jq_pair_extracted_whole "$fx" 2>/dev/null || { echo "a whitespace-only line was read as an indented body"; return 1; }
+    printf '_adv_jq_pair() {\n  :\n}\n  body\n}\n' > "$fx"
+    if _jq_pair_extracted_whole "$fx" 2>/dev/null; then echo "an extraction that ended inside the body passed"; return 1; fi
 }
