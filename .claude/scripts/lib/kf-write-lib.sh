@@ -101,9 +101,15 @@ gh_title_renders_raw(){
   local t nw=$'[^[:alnum:]_]' ns='[^_[:space:]]'
   local mk='\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);' cl='(^|[[:space:]])#+[[:space:]]*$'
   local em="(^|$nw)_+$ns(.*$ns)?_+($nw|$)"
+  # (CommonMark closes a backtick run only on one of equal length, and strips one space from each end of a span padded at both:
+  # a run of two or more, or such a span, is refused, so the left-to-right single-backtick pairing below is CommonMark's —
+  # thirty-seventh run, e2c DISS-C-001 / DISS-C-002)
+  local cs=0
+  [[ "${1-}" != *'``'* ]] || cs=1
+  printf '%s' "${1-}" | awk -F'`' '{ for (i = 2; i < NF; i += 2) if ($i ~ /^ / && $i ~ / $/ && $i ~ /[^ ]/) f = 1 } END { exit !f }' && cs=1
   t="$(printf '%s' "${1-}" | sed -E 's/`[^`]*`//g')"
-  if [[ "$t" =~ $mk || "$t" =~ $em || "$t" =~ $cl ]]; then
-    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_ or a closing #) — its heading anchor would match no Index link; rephrase it"
+  if [[ $cs -eq 1 || "$t" =~ $mk || "$t" =~ $em || "$t" =~ $cl ]]; then
+    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_, a closing #, a backtick run of two or more or a code span padded at both ends) — its heading anchor would match no Index link; rephrase it"
   fi
 }
 

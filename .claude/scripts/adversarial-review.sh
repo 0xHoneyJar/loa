@@ -725,7 +725,7 @@ _adv_conf_chain_hops() {  # <config key> <family> → the family list's hop name
   if [[ ! "$n" =~ ^[0-9]+$ ]]; then
     log "WARN: flatline_protocol.${1}.companion_chain.${2} could not be read — the default ${2} chain applies"; return 0
   elif [[ ! "$n" =~ ^[0-9]{1,3}$ ]]; then
-    log "WARN: flatline_protocol.${1}.companion_chain.${2} has ${n} entries (at most 999 are read) — the default ${2} chain applies"; return 0
+    log "WARN: flatline_protocol.${1}.companion_chain.${2} has ${n} entries (a list over 999 entries is ignored) — the default ${2} chain applies"; return 0
   fi
   # (twenty-eighth run, a1 DISS-C-002: two yq calls per element — about 4,000 spawns for a 999-entry list at every load — so
   # every element's tag and value come from one yq pass, classified by one jq: a line per element, "<index> ok <hop>" or
@@ -1631,7 +1631,12 @@ while i < len(text):
         local repaired="" _rm _repair_ok="false" _rcf="" _hrc=""
         # fourth run, chunk c C-008: tiny first when a credential is present, claude-headless when it is not
         # or when tiny fails — one attempt per hop, the round-trip stays bounded
-        _rcf=$(mktemp "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair-rc.XXXXXX" 2>/dev/null) || _rcf=""
+        # (thirty-seventh run, a1 DISS-C-001: without the status file no hop's exit code or lock wait is read — every hop counts
+        # as an attempt, the bound only tighter, and an auth/quota failure retires nothing — so it is said, never silent)
+        _rcf=$(mktemp "${_ADVERSARIAL_WORKDIR:-${TMPDIR:-/tmp}}/adv-repair-rc.XXXXXX" 2>/dev/null) || {
+          _rcf=""
+          log "WARN: the repair status file could not be created — each repair hop counts as an attempt and an auth or quota failure retires no hop"
+        }
         local _any_hop_started="false" _budget_skip="false"
         for _rm in $(_repair_model_chain "$model"); do
           # fourteenth run, a1 C-002: a hop whose real bound exceeds what is left of the wall budget is not started —
@@ -2874,7 +2879,9 @@ _companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] [call
   # (thirty-sixth run, a3 DISS-C-003: matched strictly — every adversarial call stamps it, so a row without one is another
   # writer's; DISS-C-002: cheval writes provider:canonical-id, so the hop is compared canonically too — an alias or a host prefix)
   local mc; mc=$(_adv_hop_canon "$m" 2>/dev/null) || mc=""; [[ -n "$mc" ]] || mc="$m"
-  tail -n 400 -- "$ledger" 2>/dev/null | jq -R -r --arg m "$m" --arg mc "$mc" --arg since "$since" --arg until "$until" --arg prim "$prim" '
+  # (thirty-seventh run, a3 DISS-C-002: every cheval caller appends to this ledger — the scan is the last 20000 lines narrowed to
+  # those naming the gate's primitive, never the last 400 of all writers; jq still matches the field exactly)
+  tail -n 20000 -- "$ledger" 2>/dev/null | grep -F -- "$prim" | jq -R -r --arg m "$m" --arg mc "$mc" --arg since "$since" --arg until "$until" --arg prim "$prim" '
       def ns($pad): if test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$") | not then null
         elif test("\\.") then capture("^(?<a>[^.]+)\\.(?<f>[0-9]+)Z$") | .a + "." + ((.f + "000000000")[0:9]) + "Z"
         else sub("Z$"; "." + $pad + "Z") end;
@@ -3232,7 +3239,10 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     _since=$(cat "$workdir/companion.hop_started_iso" 2>/dev/null || cat "$workdir/companion.started_iso" 2>/dev/null || echo "1970-01-01T00:00:00Z")
     local _until; _until=$(cat "$workdir/companion.hop_ended_iso" 2>/dev/null || cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")
     [[ -s "$workdir/companion.hop_started_iso" && ! -s "$workdir/companion.hop_ended_iso" ]] && _until=$(cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")   # (reaped mid-hop: until the reap)
-    if [[ -n "$final" ]]; then _diag=$(_companion_ledger_message "$final" "$_since" "$_until" "adversarial-${type:-review}") || _diag=""; fi
+    # (thirty-seventh run, a3 DISS-C-001: a last hop that never got its CLI lock sent no request — its window is the lock wait,
+    # when the holder, the primary on the same shared hop, wrote its own rows — so the companion's log alone speaks for it)
+    local _lastrow; _lastrow=$(tail -n 1 "$workdir/companion.attempts" 2>/dev/null || true)
+    if [[ -n "$final" && "${_lastrow##*:}" != lock_wait ]]; then _diag=$(_companion_ledger_message "$final" "$_since" "$_until" "adversarial-${type:-review}") || _diag=""; fi
     # 2) else the last line of the companion's log that is not a shim banner or the generic wrapper
     if [[ -z "$_diag" && -s "$workdir/companion.log" ]]; then
       _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -Ev 'model-invoke failed with exit code|^\[model-adapter:shim\]' | tail -1 | cut -c1-300) || _diag=""   # -E: ugrep reads \| as a literal; `|| _diag=""`: a log of shim lines alone must not abort (sixteenth run, a3 C-003)

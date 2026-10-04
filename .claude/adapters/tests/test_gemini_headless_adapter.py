@@ -708,6 +708,22 @@ def test_a_prompt_over_gemini_stdin_cap_is_a_walkable_hop_never_truncated():
     mock_run.assert_not_called()
 
 
+def test_a_lone_surrogate_prompt_is_counted_by_the_stdin_cap_and_walks_as_a_spawn_failure(tmp_path, monkeypatch):
+    """A prompt holding a lone surrogate (json.loads yields one from a `\\udXXX` escape) is counted by the stdin-cap guard,
+    never raised on there: the guard ran before the base's spawn seam, so a raw UnicodeEncodeError escaped the hop. It now
+    walks as the stdin encode's typed hop failure, as claude's does (cycle-126 thirty-seventh run, e1b DISS-C-001)."""
+    from loa_cheval.types import ProviderUnavailableError
+    adapter = GeminiHeadlessAdapter(_make_config())
+    with adapter._prepare_invocation(_make_request(), ModelConfig(), "a\ud800b") as inv:
+        assert inv.kwargs["input"] == "a\ud800b"
+    fake = tmp_path / "fake-gemini"
+    fake.write_text("#!/bin/sh\nexec sleep 30\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("GEMINI_HEADLESS_BIN", str(fake))
+    with pytest.raises(ProviderUnavailableError):
+        adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
+
+
 def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
     """gemini-cli's GEMINI_SANDBOX outranks --sandbox, which outranks settings.json's tools.sandbox, and a sandboxed run re-execs
     with the piped stdin folded into the child's -p argument — back on argv, readable through /proc/<pid>/cmdline and over 128
@@ -729,7 +745,13 @@ def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
                         ({"gemini_extra_flags": ["--sandbox=false"]}, "false"), ({"gemini_extra_flags": ["--no-sandbox"]}, "false"),
                         ({"gemini_extra_flags": ["--sandbox=FALSE"]}, "false"), ({"gemini_extra_flags": [["--sandbox", "true"]]}, "docker"),
                         ({"gemini_extra_flags": ["--sandbox", "--no-sandbox"]}, "false"),
-                        ({"gemini_extra_flags": ["--no-sandbox", "--sandbox"]}, "docker")):
+                        ({"gemini_extra_flags": ["--no-sandbox", "--sandbox"]}, "docker"),
+                        # (thirty-seventh run, e1b DISS-C-002: yargs' short-option groups set every letter — `-sd` and `-ds` ask for
+                        # a sandbox; the group's last letter takes an `=value` or a following literal)
+                        ({"gemini_extra_flags": ["-sd"]}, "docker"), ({"gemini_extra_flags": ["-ds"]}, "docker"),
+                        ({"gemini_extra_flags": ["-ds=true"]}, "docker"), ({"gemini_extra_flags": ["-ds=false"]}, "false"),
+                        ({"gemini_extra_flags": [["-ds", "false"]]}, "false"), ({"gemini_extra_flags": [["-sd", "false"]]}, "docker"),
+                        ({"gemini_extra_flags": ["-sd", "--no-sandbox"]}, "false"), ({"gemini_extra_flags": ["-d"]}, "false")):
         adapter = GeminiHeadlessAdapter(_make_config(extra=extra) if extra else _make_config())
         with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
             mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)

@@ -773,12 +773,16 @@ EOF
     # a mktemp XDG_RUNTIME_DIR in any suite or helper, never a doc or fixture (thirty-second run, e3 DISS-C-003); the bracket
     # keeps this line from matching itself
     # — the mktemp inside the assignment's own value, never a later statement on the line (thirty-third run, e3 DISS-C-003)
-    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR[=][^;[:space:]]*mktemp' "$1"; }
+    # (thirty-seventh run, e3 DISS-C-002: to the statement's end, so a spaced substitution or default is read too; an indirection
+    # through another variable is past a line lint — a suite that owns one sweeps it, as the companion suite's CMP_OWN_TMP)
+    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR[=][^;]*mktemp' "$1"; }
+    # (and the per-file check reads the colon-less `-` default as the case-branch check below does: thirty-seventh run, e3 DISS-C-002)
+    _e3_tmpdir_fallback() { grep -nE '[{]BATS_TEST_TMPDIR[:]?[-]' "$1"; }
     _e3_none() { local rc=0; "$@" || rc=$?; [ "$rc" -eq 1 ]; }   # (no match, and no error: thirty-fourth run, e3 DISS-C-002)
     # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
     for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
              tests/unit/adversarial-review-schema-enforced.bats tests/unit/adversarial-review-verdict-quality.bats; do
-        if grep -n 'BATS_TEST_TMPDIR[:]-' "$PROJECT_ROOT/$f"; then echo "$f falls back past BATS_TEST_TMPDIR"; return 1; fi
+        _e3_none _e3_tmpdir_fallback "$PROJECT_ROOT/$f" || { echo "$f falls back past BATS_TEST_TMPDIR (or is unreadable)"; return 1; }
         _e3_guarded "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
     done
     # …and no suite anywhere keeps the per-test XDG_RUNTIME_DIR's mktemp fallback (thirty-first run, e3 DISS-C-001: seventeen
@@ -823,4 +827,13 @@ EOF
     chmod 644 "$fx/b.bats"; rm -f "$fx/a.bats"
     if _e3_none _e3_xdg_fallback "$fx/missing" >/dev/null 2>&1; then echo "a grep error passed"; return 1; fi
     _e3_none _e3_xdg_fallback "$fx"
+    # …and a spaced substitution or a spaced default is still the assignment's own mktemp (thirty-seventh run, e3 DISS-C-002)
+    printf '    export XDG_RUNTIME_DIR%s"$( mktemp -d )"\n' '=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    printf '    export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR%s- $(mktemp -d)}"\n' '=' ':' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    rm -f "$fx/a.bats"
+    # …and the per-file fallback check reads BATS_TEST_TMPDIR's colon-less dash default as the case-branch check does, never a path
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' '-' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' ':-' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    printf '    TEST_DIR="$BATS_TEST_TMPDIR-x"\n' > "$fx/c.bats"
+    if _e3_tmpdir_fallback "$fx/c.bats"; then echo "a plain path tripped the per-file fallback check"; return 1; fi
 }

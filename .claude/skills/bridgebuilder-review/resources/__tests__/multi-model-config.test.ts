@@ -141,6 +141,29 @@ describe("validateApiKeys", () => {
     assert.ok(result.missing[0].envVar.includes("Unknown provider"));
   });
 
+  it("a *-headless entry needs no API key: cheval's CLI hop authenticates itself (cycle-126 thirty-seventh run, e2b DISS-C-003)", () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const config = MultiModelConfigSchema.parse({
+        enabled: true,
+        models: [
+          { provider: "anthropic", model_id: "claude-headless" },
+          { provider: "anthropic", model_id: "claude-opus-5" },
+          { provider: "mistral", model_id: "mistral-headless" },
+        ],
+      });
+      const result = validateApiKeys(config);
+      assert.deepEqual(result.valid, [{ provider: "anthropic", modelId: "claude-headless" }]);
+      assert.deepEqual(result.missing.map((m) => m.provider), ["anthropic", "mistral"]);
+      assert.equal(result.missing[0].envVar, "ANTHROPIC_API_KEY");
+      assert.ok(result.missing[1].envVar.includes("Unknown provider"));
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+
   it("returns empty lists for no models", () => {
     const config = MultiModelConfigSchema.parse({ enabled: true });
     const result = validateApiKeys(config);

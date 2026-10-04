@@ -29,9 +29,11 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     it (clean output, exit 0, zero ANSI). `--sandbox` keeps it terminal-restricted (the
     read-only analog of gemini's `--approval-mode plan`); never `--dangerously-skip-permissions`
     alone on a review path.
-  - **cwd** — an isolated empty directory per hop (cycle-126). Not yet probed live there (no agy on the cycle-126 host): a
-    folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a walkable
-    non-zero exit or ends at the catalog timeout — never a hang; re-run the T4.1 gate probe before re-enabling agy.
+  - **cwd** — one stable private directory, `loa-agy-ws`, as gemini's (cycle-126): agy is gemini-cli's successor, which
+    registers every project root it starts in, so a directory per hop left one orphan state entry per hop and made every
+    hop a never-seen directory (thirty-seventh run, e1 DISS-C-001). Not yet probed live there (no agy on the cycle-126
+    host): a folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a
+    walkable non-zero exit or ends at the catalog timeout — never a hang; re-run the T4.1 gate probe before re-enabling agy.
   - **Auth** — agy is **OAuth**-authed on host (`agy models` → exit 0; no API-key flag; creds in
     an OAuth store, not `GOOGLE_API_KEY`). The gemini env-strip is a no-op for agy; we keep
     `build_headless_subprocess_env()` (harmless — agy ignores the stripped vars).
@@ -48,11 +50,10 @@ import logging
 import os
 import shutil
 import subprocess
-import tempfile
 import time
 from typing import Any, Dict, List
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base, cwd_vanished
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace, cwd_vanished
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -126,9 +127,10 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
         )
 
         # (an isolated empty cwd under the private base, as its siblings: the caller's cwd is the reviewed tree, whose GEMINI.md
-        # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks)
+        # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks;
+        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001)
         try:
-            workspace = tempfile.mkdtemp(prefix="loa-agy-ws-", dir=private_workspace_base())
+            workspace = private_workspace("loa-agy-ws")
         except OSError as exc:
             raise ProviderUnavailableError(self.provider, f"agy -p workspace unavailable: {exc}") from exc
         start = time.monotonic()
@@ -199,8 +201,6 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                 f"exhausted after {exc.waited_seconds:.1f}s "
                 f"(n_slots={exc.n_slots})",
             ) from exc
-        finally:
-            shutil.rmtree(workspace, ignore_errors=True)
 
         latency_ms = int((time.monotonic() - start) * 1000)
 

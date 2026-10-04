@@ -63,6 +63,8 @@ export declare const MultiModelConfigSchema: z.ZodObject<{
 export declare function loadMultiModelConfig(): MultiModelConfig;
 /** Environment variable to API key mapping for multi-model providers. */
 export declare const PROVIDER_API_KEY_ENV: Record<string, string>;
+/** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
+export declare function isHeadlessModelId(modelId: string): boolean;
 /**
  * Validate API keys for configured multi-model providers.
  * Returns available and missing provider lists.

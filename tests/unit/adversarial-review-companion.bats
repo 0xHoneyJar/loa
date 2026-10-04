@@ -46,7 +46,9 @@ setup() {
     export PROJECT_ROOT
     OUT_DIR="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
     _claim_sprint_dir "$OUT_DIR" || return 1
-    mkdir -p "${OUT_DIR%/*}" && _sweep_where > "${OUT_DIR%/*}/.$SPRINT.owner"   # this suite's own: the stale sweep deletes only marked dirs
+    # this suite's own: the stale sweep deletes only marked dirs — written whole, by a rename (thirty-seventh run, c1a DISS-C-001)
+    local _om="${OUT_DIR%/*}/.$SPRINT.owner.tmp"
+    mkdir -p "${OUT_DIR%/*}" && _sweep_where > "$_om" && mv -f -- "$_om" "${OUT_DIR%/*}/.$SPRINT.owner"
     T="${BATS_TEST_TMPDIR:-}"; CMP_OWN_TMP=""
     if [[ -z "$T" ]]; then T="$(mktemp -d)"; CMP_OWN_TMP="$T"; fi   # bats < 1.4: our own directory, removed in teardown (sixteenth run, c2a C-003)
     # the two ledgers the script appends to are the TEST's, by construction (sixteenth run, c1b C-002: KF-033 is this suite
@@ -244,8 +246,10 @@ _sweep_alive() {
 # checkout from a devcontainer and its host — so a marker records where it was written, and only a marker written HERE is
 # judged; and kill -0's EPERM is a live process of another uid even when hidepid keeps ps and /proc from seeing it)
 _sweep_where() { printf 'where %s %s\n' "$(uname -n 2>/dev/null)" "$(readlink /proc/self/ns/pid 2>/dev/null)"; }
-_sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one
-    local w; w=$(grep -m1 '^where ' -- "$1" 2>/dev/null) || return 1
+_sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one, or none at all
+    # (thirty-seventh run, c1a DISS-C-001: a marker with no where line — empty from a crash between create and write, another
+    # host's mid-write, or an older format — cannot be verified as this host's, so it is never ours to delete)
+    local w; w=$(grep -m1 '^where ' -- "$1" 2>/dev/null) || return 0
     [[ "$w" != "$(_sweep_where)" ]]
 }
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
@@ -267,6 +271,7 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
                 mv -- "$d" "$d.reap-$$" 2>/dev/null || { left=1; continue; }
                 d="$d.reap-$$"
             fi
+            chmod u+w -- "$d" 2>/dev/null || true   # (a dead run of ours killed inside CMP-187's chmod a-w — thirty-seventh run, c1c DISS-C-003)
             find "$d" -mindepth 1 -delete 2>/dev/null || true
             rmdir "$d" 2>/dev/null || left=1
         done
@@ -288,7 +293,9 @@ teardown() {
     [[ -n "${SPRINT:-}" && -n "${OUT_DIR:-}" && "$OUT_DIR" == */grimoires/loa/a2a/sprint-comp-* ]] || { _unknown_behaviour_said "$_unk"; return; }
     _sweep_stale_suite_dirs "${OUT_DIR%/*}" sprint-comp
     # this test's directory only — never a sibling it did not make (twenty-ninth run, c1a DISS-001)
-    if [[ -d "$OUT_DIR" && ! -L "$OUT_DIR" ]]; then find "$OUT_DIR" -mindepth 1 -delete; rmdir "$OUT_DIR"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
+    # (thirty-seventh run, c1c DISS-C-003: CMP-187 makes it unwritable — a test killed before its restore leaves it so; ours, so the
+    # write bit comes back before it is emptied)
+    if [[ -d "$OUT_DIR" && ! -L "$OUT_DIR" ]]; then chmod u+w -- "$OUT_DIR" 2>/dev/null || true; find "$OUT_DIR" -mindepth 1 -delete; rmdir "$OUT_DIR"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     rm -f -- "${OUT_DIR%/*}/.$SPRINT.owner"
     # a workdir a failing CMP-16 kept (LOA_ADVERSARIAL_KEEP_WORKDIR=1) holds the raw diagnostic line — it never
     # outlives the test (eleventh run, c1 C-003)
@@ -2112,8 +2119,10 @@ $(mk_file d.md "$n")" 300 2>/dev/null)
     sleep 30 3>&- & _ADV_COMPANION_PID=$!; HOLDER_PIDS+=("$_ADV_COMPANION_PID"); _ADV_COMPANION_START=$(_adv_proc_start "$_ADV_COMPANION_PID")
     printf 'post' > "$wd/companion.phase"; printf 'opus' > "$wd/companion.current"
     printf '{"voices_succeeded_ids":["claude-headless"]}' > "$wd/vq1.json"; printf '%s\n' "$wd/vq1.json" > "$wd/companion.vq"
+    t0=$(_now_ms)   # (sampled before the writer: the wait is bounded from below — thirty-seventh run, c1b DISS-C-001, as CMP-61)
     ( sleep 1.5; printf '{"findings":[]}' > "$wd/companion.result.json"; printf 'opus' > "$wd/companion.final"; printf 'done' > "$wd/companion.phase" ) 3>&- &
     out=$(_adv_shared_hop_verdict claude-headless "$wd" "$(date +%s)" 600 600)
+    (( $(_now_ms) - t0 >= 1400 )) || { echo "the verdict ceded to a companion still in post after $(( $(_now_ms) - t0 )) ms"; return 1; }
     [ "$(cut -f2 <<<"$out")" = "answered_with_it" ]
     kill "$_ADV_COMPANION_PID" 2>/dev/null || true; _ADV_COMPANION_PID=""
 }
@@ -3251,7 +3260,7 @@ $doc" 300 2>/dev/null)
     ( : ) & d1=$!; wait "$d1"
     ( : ) & d2=$!; wait "$d2"
     mkdir -p "$a/sprint-comp-$d1" "$a/sprint-comp-$d2/x" "$a/sprint-comp-$d2-companion" "$a/sprint-comp-$d2.reap-$d1/y" "$a/sprint-comp-$$-z" "$a/sprint-comp-$$/w"
-    : > "$a/.sprint-comp-$d2.owner"; : > "$a/.sprint-comp-$$.owner"
+    _sweep_where > "$a/.sprint-comp-$d2.owner"; _sweep_where > "$a/.sprint-comp-$$.owner"   # (ours: a where-less marker never is — CMP-242)
     _sweep_stale_suite_dirs "$a" sprint-comp
     [ -d "$a/sprint-comp-$d1" ]                      # no marker: a real sprint of that name is never touched
     [ ! -e "$a/sprint-comp-$d2" ]
@@ -3456,11 +3465,14 @@ YAML
     # yq call — `yq e`, `yq eval`, a bare `yq '…'` — and every quoting shape, single-quote concatenation and an unquoted key included)
     _cmp_yq_splices() {
         grep -nE '\byq( +(e|eval))?( +-[A-Za-z-]+)* +['"'"'".]' "$1" | grep -vE '^[0-9]+:[[:space:]]*#' \
-            | sed -E 's/\$\(/(/g; s/="\$[^"]*"/=V/g; s/ "\$[A-Za-z_]+"/ FILE/g; s/\$\{(1|2|config_key|_ccf|type\/\/-\/_)\}//g; s/\$DEFAULT_[A-Z_]+//g; s/strenv\([A-Za-z_]+\)//g' \
+            | sed -E 's/\$\(/(/g; s/="\$[^"]*"/=V/g; s/(\byq( +(e|eval))?( +-[A-Za-z-]+)* +)"\$([A-Za-z_]+)"/\1EXPR=$\5 /; s/ "\$[A-Za-z_]+"/ FILE/g; s/\.flatline_protocol\.\$\{1\}\.companion_chain\.\$\{2\} //; s/\$\{(config_key|_ccf|type\/\/-\/_)\}//g; s/\$DEFAULT_[A-Z_]+//g; s/strenv\([A-Za-z_]+\)//g' \
             | grep -E '\$[A-Za-z_{]' || true
     }
     printf '%s\n' "  x=\$(yq e '.a[\"'\"\$n\"'\"]' \"\$f\")" "  y=\$(yq '.aliases.\$name' \"\$c\")" "  z=\$(yq eval \".aliases.\${hop}\" \"\$c\")" > "$T/yq150"
-    [ "$(_cmp_yq_splices "$T/yq150" | grep -c '')" = "3" ] || { echo "the lint misses a splice shape: $(_cmp_yq_splices "$T/yq150")"; return 1; }
+    # (thirty-seventh run, c1c DISS-C-002: an expression assembled into a variable first, and a positional splice anywhere but
+    # the one helper whose arguments are the gate's own config key and a literal family)
+    printf '%s\n' "  w=\$(yq e \"\$expr\" \"\$cfg\")" "  v=\$(yq eval \".aliases.\${1}\" \"\$c\")" >> "$T/yq150"
+    [ "$(_cmp_yq_splices "$T/yq150" | grep -c '')" = "5" ] || { echo "the lint misses a splice shape: $(_cmp_yq_splices "$T/yq150")"; return 1; }
     local sp; sp=$(_cmp_yq_splices "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh")
     [ -z "$sp" ] || { echo "a shell variable is spliced into a yq expression: $sp"; return 1; }
 }
@@ -4123,6 +4135,7 @@ YAML
         rc=0; result=$(_run_main review) || rc=$?
         chmod u+w "$OUT_DIR"
         [ "$rc" = 2 ] || { echo "rc $rc: $result"; return 1; }
+        ! compgen -G "$(_adv_cli_lock_dir)/run-*.lock.d" >/dev/null || { echo "the refusal left its run lock: $(compgen -G "$(_adv_cli_lock_dir)/run-*.lock.d")"; return 1; }   # (thirty-seventh run, c1c DISS-C-001)
         [ "$(jq -r '.metadata.status + " " + .metadata.path' <<<"$result")" = "workdir_unavailable grimoires/loa/a2a/$SPRINT/adversarial-review.json" ]
         [ "$(cat "$OUT_DIR/adversarial-review.json")" = "$prev_env" ]; [ ! -e "$OUT_DIR/adversarial-review.json.prev" ]
         grep -q 'could not be moved aside' "$T/stderr.log"
@@ -4134,7 +4147,9 @@ YAML
     unset -f mv
     [ "$rc" = 2 ] || { echo "rc $rc: $result"; return 1; }
     [ "$(jq -r '.metadata.status + " " + .metadata.path' <<<"$result")" = "workdir_unavailable grimoires/loa/a2a/$SPRINT/adversarial-rejected-review.jsonl" ]
-    # the lock is released: the next run reviews
+    # the lock is released — no lock directory stands (a later run would take over a dead holder's lock, so a review alone
+    # proves nothing; thirty-seventh run, c1c DISS-C-001) — and the next run reviews
+    ! compgen -G "$(_adv_cli_lock_dir)/run-*.lock.d" >/dev/null || { echo "the refusal left its run lock: $(compgen -G "$(_adv_cli_lock_dir)/run-*.lock.d")"; return 1; }
     command rm -f -- "$OUT_DIR/adversarial-rejected-review.jsonl"
     result=$(_run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ] || { jq -c .metadata <<<"$result"; return 1; }
@@ -4640,7 +4655,7 @@ PY
     # the normalise suite's setup carries the same guard
     grep -q "stands and is not this suite's" "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats"
     # setup claims the directory through it, before the marker is written
-    sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME" | grep -A1 '_claim_sprint_dir "$OUT_DIR" || return 1' | grep -q 'SPRINT.owner"' || { echo "setup does not claim before the marker"; return 1; }
+    grep -q 'SPRINT.owner"$' <<<"$(grep -A3 '_claim_sprint_dir "$OUT_DIR" || return 1' <<<"$(sed -n '/^setup() {/,/^}/p' "$BATS_TEST_FILENAME")")" || { echo "setup does not claim before the marker"; return 1; }
     : > "$m"   # (ours again: teardown removes it with the directory)
 }
 
@@ -4710,6 +4725,29 @@ PY
     t=$(grep -o 'log-discovered-issue.sh "<sprint-epic-id>" "[^"]*"' "$r") || { echo "no discovered-issue step"; return 1; }
     [[ "$t" == *'"Security: <criterion>'* && "$t" == *auditor-sprint-feedback.md* ]] || { echo "$t"; return 1; }
     [[ "$t" != *'<file>'* && "$t" != *'<anchor>'* && "$t" != *'<location>'* ]] || { echo "the title names where: $t"; return 1; }
+}
+
+@test "CMP-244 the audit resource labels a result as the review twin does: security always, then exactly one of security-approved / security-blocked, each its own command under its own condition — 'labelled security, security-approved or security-blocked' read as one label of three (thirty-seventh run, e2b DISS-C-004)" {
+    local r="$PROJECT_ROOT/.claude/skills/auditing-security/resources/BEADS-WORKFLOW.md"
+    ! grep -q 'labelled `security`, `security-approved` or `security-blocked`' "$r" || { echo "the one-of-three wording is back"; return 1; }
+    run python3 - "$r" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding='utf-8').read()
+bad = []
+blocks = re.findall(r'```bash\n(.*?)```', text, re.S)
+lines = [l for b in blocks for l in b.splitlines()]
+labels = [(i, l) for i, l in enumerate(lines) if l.startswith('br label add <task-id> ')]
+got = [l.split()[-1] for _, l in labels]
+if got != ['security', 'security-approved', 'security-blocked']:
+    bad.append(f'labels {got}')
+for i, l in labels[1:]:
+    if not re.match(r'#\s*If\b', lines[i - 1]):
+        bad.append(f'`{l}` has no condition comment directly above it')
+if not any('exactly one of' in l for l in lines):
+    bad.append('no "exactly one of" for the verdict labels')
+print('\n'.join(bad)); sys.exit(1 if bad else 0)
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "CMP-222 a later file's .prev that is a directory refuses before ANYTHING moves — the envelope stays at its path, on --record-fallback (both statuses) and at a run's start; a refusal that says nothing was recorded or reviewed has moved nothing (thirty-fifth run, a2 DISS-C-002)" {
@@ -4794,7 +4832,7 @@ PY
     [ "$status" -ne 0 ] && [[ "$output" == *"is not this suite's"* ]] || { echo "foreign marker: status $status, $output"; return 1; }
     [ "$(cat "$OUT_DIR/keep")" = "theirs" ] || { echo "another namespace's directory was emptied"; return 1; }
     # the normalise suite's claim carries the same guard
-    sed -n '/^_claim_sprint_dir() {/,/^}/p' "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats" | grep -q '_sweep_foreign'
+    grep -q '_sweep_foreign' <<<"$(sed -n '/^_claim_sprint_dir() {/,/^}/p' "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats")"
     command rm -f -- "$OUT_DIR/keep"; _sweep_where > "$m"   # (ours again: teardown removes both)
 }
 
@@ -4804,7 +4842,7 @@ PY
     run _claim_sprint_dir "$OUT_DIR"
     chmod 700 "$OUT_DIR/ro"
     [ "$status" -ne 0 ] && [[ "$output" == *"setup: could not clear $OUT_DIR"* ]] || { echo "status $status, $output"; return 1; }
-    sed -n '/^_claim_sprint_dir() {/,/^}/p' "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats" | grep -qF 'could not clear'
+    grep -qF 'could not clear' <<<"$(sed -n '/^_claim_sprint_dir() {/,/^}/p' "$PROJECT_ROOT/tests/unit/adversarial-review-normalise.bats")"
     SPRINT="sprint-comp-$$"   # (the refusal cleared it; teardown removes the directory and marker)
 }
 
@@ -4964,6 +5002,81 @@ PY
     [ -n "$cl" ] || { echo "no FR-2 bullet"; return 1; }
     grep -qF 'codex and cursor read the prompt on stdin, grok from a prompt file inside its private workspace' <<<"$cl" || { echo "codex/cursor/grok transport unstated"; return 1; }
     grep -qF 'without flock the run lock is still taken (mkdir)' <<<"$cl" || { echo "the no-flock lock unstated"; return 1; }
-    grep -qF 'claude'"'"'s and gemini'"'"'s are each one stable directory' <<<"$cl" || { echo "gemini's stable cwd unstated"; return 1; }
+    grep -qF 'claude'"'"'s, gemini'"'"'s and agy'"'"'s are each one stable directory' <<<"$cl" || { echo "gemini's or agy's stable cwd unstated (agy since the thirty-seventh run, e1 DISS-C-001)"; return 1; }
     grep -qF 'a git older than 2.40 ignores it, which is said once as a WARN' <<<"$cl" || { echo "the old-git behaviour unstated"; return 1; }
+}
+
+@test "CMP-239 an over-long companion_chain list is said to be ignored whole — the WARN never implies its first 999 entries are read (thirty-seventh run, a1 DISS-C-003)" {
+    printf '%s\n' 'flatline_protocol:' '  code_review:' '    companion_chain:' '      openai:' > "$T/c239.yaml"
+    local i; for i in $(seq 1 1000); do printf '        - hop%d\n' "$i"; done >> "$T/c239.yaml"
+    local out; out=$(CONFIG_FILE="$T/c239.yaml" _adv_conf_chain_hops code_review openai 2>&1)
+    [[ "$out" == *"has 1000 entries"* && "$out" == *"a list over 999 entries is ignored"* ]] || { echo "out: $out"; return 1; }
+    [[ "$out" != *"at most 999 are read"* && "$out" != *hop1* ]] || { echo "out: $out"; return 1; }
+}
+
+@test "CMP-240 a companion whose last hop never got its CLI lock sent no request on it: its diagnostic is never the MODELINV row the lock holder (the primary, on the same shared hop) wrote during that wait — a hop that ran still reads its own row (thirty-seventh run, a3 DISS-C-001)" {
+    [[ -n "$T" && "$LOA_MODELINV_LOG_PATH" == "$T/"* ]] || { echo "the ledger is not test-scoped"; return 1; }
+    jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:10Z", payload:{models_requested:["anthropic:claude-headless"], calling_primitive:"adversarial-review", models_failed:[{model:"anthropic:claude-headless", message_redacted:"the primary hop row"}]}}' > "$LOA_MODELINV_LOG_PATH"
+    local p='{"findings":[],"metadata":{"type":"review","status":"reviewed","model":"gpt-5.5-pro","cost_usd":0,"tokens_input":0,"tokens_output":0,"rejected_summary":[],"rejected_count":0}}'
+    local row out le
+    for row in lock_wait api_failure; do
+        local wd="$T/fold240-$row"; mkdir -p "$wd"
+        printf 'claude-headless' > "$wd/companion.final"; printf 'claude-headless:%s\n' "$row" > "$wd/companion.attempts"
+        printf 'api_failure' > "$wd/companion.status"; printf '1' > "$wd/companion.rc"
+        printf '2026-10-01T10:00:00Z' > "$wd/companion.hop_started_iso"; printf '2026-10-01T10:00:20Z' > "$wd/companion.hop_ended_iso"
+        printf 'claude-headless: the CLI lock was not acquired within 900s\n' > "$wd/companion.log"
+        out=$(_fold_companion "$p" "$wd" anthropic claude-headless gpt-5.5-pro gpt-5.5-pro "" "gpt-5.5-pro" "" 2>"$T/fold240-err")
+        [ "$(jq -r '.metadata.companion_voice.status' <<<"$out")" = "failed" ] || { echo "the fold did not fail the companion"; return 1; }
+        le=$(grep -F 'Companion voice diagnostic' "$T/fold240-err" || true)
+        if [[ "$row" == lock_wait ]]; then
+            [[ "$le" != *"primary hop row"* && "$le" == *"CLI lock was not acquired"* ]] || { echo "a lock_wait hop read the holder's row, not its own log: $le"; return 1; }
+        else
+            [[ "$le" == *"primary hop row"* ]] || { echo "a hop that ran lost its own row: $le"; return 1; }
+        fi
+    done
+}
+
+@test "CMP-241 the MODELINV lookup finds this gate's row behind hundreds of other writers' rows: the scan is bounded by the primitive, not by the last 400 lines of a ledger every cheval caller appends to (thirty-seventh run, a3 DISS-C-002)" {
+    [[ -n "$T" && "$LOA_MODELINV_LOG_PATH" == "$T/"* ]] || { echo "the ledger is not test-scoped"; return 1; }
+    jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:06Z", payload:{models_requested:["anthropic:claude-headless"], calling_primitive:"adversarial-review", models_failed:[{message_redacted:"ours"}]}}' > "$LOA_MODELINV_LOG_PATH"
+    local one; one=$(jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:30Z", payload:{models_requested:["openai:gpt-5.5"], calling_primitive:"flatline-review", models_failed:[]}}')
+    local i; for i in $(seq 1 600); do printf '%s\n' "$one"; done >> "$LOA_MODELINV_LOG_PATH"
+    [ "$(_companion_ledger_message claude-headless 2026-10-01T10:00:05Z 2026-10-01T10:00:09Z)" = "ours" ] || { echo "the row behind 600 others was not found"; return 1; }
+}
+
+@test "CMP-242 a marker that records no where line is never ours to delete: an empty one (a crash between create and write, or another host's mid-write) or a legacy one leaves its directory to the sweep and refuses setup's claim; setup's own marker is written whole, by a rename (thirty-seventh run, c1a DISS-C-001)" {
+    local a="$T/a2a" dead m
+    mkdir -p "$a"
+    dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
+    for m in empty legacy; do
+        mkdir -p "$a/sprint-comp-$dead"; : > "$a/sprint-comp-$dead/keep"
+        if [[ "$m" == empty ]]; then : > "$a/.sprint-comp-$dead.owner"; else printf 'owner %s\n' "$dead" > "$a/.sprint-comp-$dead.owner"; fi
+        _sweep_stale_suite_dirs "$a" sprint-comp
+        [ -e "$a/sprint-comp-$dead/keep" ] || { echo "a $m marker's directory was deleted"; return 1; }
+        ( SPRINT="sprint-comp-$dead"; _claim_sprint_dir "$a/sprint-comp-$dead" ) >/dev/null && { echo "setup claimed a directory under a $m marker"; return 1; }
+        [ -e "$a/sprint-comp-$dead/keep" ] || { echo "the claim emptied a $m marker's directory"; return 1; }
+    done
+    grep -qE '_sweep_where > "\$_om" && mv -f -- "\$_om"' "$BATS_TEST_FILENAME" || { echo "setup's marker is not written by a rename"; return 1; }
+    [ "$(cat "${OUT_DIR%/*}/.$SPRINT.owner")" = "$(_sweep_where)" ]
+}
+
+@test "CMP-243 a sprint directory a test left unwritable (CMP-187's chmod a-w, killed before its restore) is still removed: teardown and the stale sweep give their own directory back its write bit before they empty it (thirty-seventh run, c1c DISS-C-003)" {
+    [[ "$(id -u)" != 0 ]] || skip "root writes through a 555 directory"
+    local a="$T/a2a" dead rc
+    mkdir -p "$a"
+    dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
+    mkdir -p "$a/sprint-comp-$dead"; : > "$a/sprint-comp-$dead/adversarial-review.json"; chmod a-w "$a/sprint-comp-$dead"
+    _sweep_where > "$a/.sprint-comp-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-comp
+    [ -d "$a/sprint-comp-$dead" ] && chmod -R u+w "$a" 2>/dev/null
+    [ ! -e "$a/sprint-comp-$dead" ] && [ ! -e "$a/sprint-comp-$dead.reap-$$" ] || { echo "the sweep left an unwritable directory of ours"; return 1; }
+    mkdir -p "$OUT_DIR"; : > "$OUT_DIR/adversarial-review.json"; chmod a-w "$OUT_DIR"
+    rc=0; ( set -e; CMP_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?   # (a job: errexit is off on the left of `||`)
+    [ -d "$OUT_DIR" ] && chmod u+w "$OUT_DIR"
+    [ ! -e "$OUT_DIR" ] || { echo "teardown left an unwritable directory of its own (rc $rc)"; return 1; }
+    [ "$rc" -eq 0 ] || { echo "teardown failed: rc $rc"; return 1; }
+    # no mid-test teardown in the dissent suites runs as the left side of `||` — there `set -e` is silently off
+    ! grep -nE 'teardown \) *\|\|' "$BATS_TEST_FILENAME" "$BATS_TEST_DIRNAME/adversarial-review-normalise.bats" || { echo "a mid-test teardown runs with errexit off"; return 1; }
 }

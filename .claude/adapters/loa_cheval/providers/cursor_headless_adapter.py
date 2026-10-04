@@ -49,7 +49,9 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace_base
+from loa_cheval.providers.headless_cli import (
+    CLIInvocation, HeadlessCLIAdapter, private_workspace_base, sweep_stale_hop_workspaces,
+)
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -163,7 +165,9 @@ class CursorHeadlessAdapter(HeadlessCLIAdapter):
         # is the base complete()'s ProviderUnavailableError (thirty-third run,
         # d DISS-C-004). Prompt stays on stdin, with an isolated cwd.
         command = self._build_command(request, model_config)
-        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-", dir=private_workspace_base())
+        base = private_workspace_base()
+        sweep_stale_hop_workspaces(base, "loa-cursor-ws-")   # (a killed hop's leftovers — thirty-seventh run, e1b DISS-C-004)
+        workspace = tempfile.mkdtemp(prefix="loa-cursor-ws-", dir=base)
         started_at = time.monotonic()
         try:
             yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)

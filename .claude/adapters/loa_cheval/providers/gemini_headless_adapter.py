@@ -89,7 +89,9 @@ def _asks_sandbox(args) -> bool:
     """The operator's own flags ask for a sandbox, read as yargs reads a boolean: `-s` / `--sandbox` (a following literal
     true / false is its value), `--sandbox=<v>`, `--no-sandbox`; the last one wins (thirty-fifth run, e1b DISS-C-002).
     Exactly as gemini-cli 0.41.2 parses it: `=<v>` is `v === "true"`, and only the case-sensitive literals are consumed as a
-    following value (thirty-sixth run, e1b DISS-C-001)."""
+    following value (thirty-sixth run, e1b DISS-C-001). A short-option group (`-sd`, `-ds=true`) sets each of its letters, as
+    yargs' short-option-groups do; its last letter takes the `=value` or the following literal (thirty-seventh run, e1b
+    DISS-C-002)."""
     want = False
     for i, a in enumerate(args):
         if a in ("-s", "--sandbox"):
@@ -98,6 +100,15 @@ def _asks_sandbox(args) -> bool:
             want = a.split("=", 1)[1] == "true"
         elif a == "--no-sandbox":
             want = False
+        elif len(a) > 2 and a[0] == "-" and a[1] != "-":
+            letters, eq, value = a[1:].partition("=")
+            if letters.isalpha() and "s" in letters:
+                if letters[-1] != "s":
+                    want = True
+                elif eq:
+                    want = value == "true"
+                else:
+                    want = not (i + 1 < len(args) and args[i + 1] == "false")
     return want
 
 
@@ -152,8 +163,9 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first. One
         stable directory, as claude's: gemini-cli registers each project root it starts in (~/.gemini/projects.json and a
         ~/.gemini/tmp/<id>), so a directory per hop would leave one registration per hop (thirty-sixth run, e1b DISS-C-002)."""
-        # (gemini-cli counts its cap in decoded string length — UTF-16 code units)
-        if len(prompt.encode("utf-16-le")) // 2 >= self._STDIN_CAP:
+        # (gemini-cli counts its cap in decoded string length — UTF-16 code units; a lone surrogate is one unit, counted here, and
+        # stdin's own encode fails it as the base's typed spawn error: thirty-seventh run, e1b DISS-C-001)
+        if len(prompt.encode("utf-16-le", "surrogatepass")) // 2 >= self._STDIN_CAP:
             raise ProviderUnavailableError(
                 self.provider, f"gemini -p reads at most 8 MiB of stdin and would truncate this {len(prompt)}-character prompt",
             )

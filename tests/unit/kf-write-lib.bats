@@ -235,8 +235,13 @@ def word(c):
     k = unicodedata.category(c)
     return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
 # (a heading GitHub renders as other text than it reads has no raw-text anchor: thirty-fifth run, e2c DISS-C-002)
+# (a backtick run of two or more, or a code span padded by a space at both ends, renders as other text: thirty-seventh run,
+# e2c DISS-C-001 / DISS-C-002 — the library's refusal; with single backticks only, left-to-right pairing is CommonMark's)
 def rendered_differs(h):
     t = re.sub(r"`[^`]*`", "", h)
+    p = h.split("`")
+    if "``" in h or any(c.startswith(" ") and c.endswith(" ") and c.strip(" ") for c in p[1:len(p) - 1:2]):
+        return True
     return bool(re.search(r"\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);", t)
                 or re.search(r"(^|[^\w])_+[^_\s](.*[^_\s])?_+([^\w]|$)", t) or re.search(r"(^|\s)#+\s*$", t))
 found = re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)
@@ -439,6 +444,29 @@ print(len(entries))
   [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "a heading with an ambiguous character passed the lint: $output"; return 1; }
 }
 
+@test "kf-write new: a title with a backtick run of two or more, or a code span padded by a space at both ends, is refused before any write — CommonMark pairs backtick runs by length and strips that padding, so the raw slug is no anchor — and the link lint names such a heading (thirty-seventh run, e2c DISS-C-001 / DISS-C-002)" {
+  local G0="$BATS_TEST_TMPDIR/e2c37.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local before t; before="$(cksum < "$G0")"
+  for t in 'x ``` _a_ ` y' 'a ``b`` c' 'run ` x ` now' 'pad `  two  ` spans'; do
+    run bash "$KFW" new --file "$G0" --title "$t" --status OPEN --quiet
+    [ "$status" -ne 0 ] || { echo "'$t' was written"; return 1; }
+    [[ "$output" == *renders* ]] || { echo "'$t': $output"; return 1; }
+    [ "$(cksum < "$G0")" = "$before" ] || { echo "'$t' changed the ledger"; return 1; }
+  done
+  # one-sided padding, an all-space span, a lone backtick and the space between two spans are rendered as written
+  run bash "$KFW" new --file "$G0" --title 'the `_x_` and `y ` and ` ` then `a` x `b` or a lone ` tick' --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  grep -qF '| [KF-001](#kf-001-the-_x_-and-y--and---then-a-x-b-or-a-lone--tick) | OPEN' "$G0" || { grep 'KF-001' "$G0"; return 1; }
+  run _kf_link_lint "$G0"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  local G="$BATS_TEST_TMPDIR/lint-cs.md" h
+  for h in 'run ` x ` now|kf-040-run--x--now' 'a ``b`` c|kf-040-a-b-c'; do
+    printf '%s\n' '# KF' '' '## Index' '' "| [KF-040](#${h#*|}) | OPEN | x | 1 |" '' "## KF-040: ${h%%|*}" > "$G"
+    run _kf_link_lint "$G"
+    [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "'${h%%|*}' passed the lint: $output"; return 1; }
+  done
+}
+
 @test "kf-write new: an underscore emphasis bounded by non-ASCII punctuation — “_x_”, —_x_— — is refused like an ASCII-bounded one: CommonMark reads Unicode punctuation as punctuation, so GitHub renders it as emphasis (thirty-sixth run, e2c DISS-C-001)" {
   local G0="$BATS_TEST_TMPDIR/e2c36b.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
   local before t; before="$(cksum < "$G0")"
@@ -450,7 +478,13 @@ print(len(entries))
   done
   # the lint names the heading the writer now refuses
   local G="$BATS_TEST_TMPDIR/lint-uq.md"
-  printf '%s\n' '# KF' '' '## Index' '' "$(printf '| [KF-040](#kf-040-the-\342\200\234_quoted_\342\200\235-word) | OPEN | x | 1 |' | sed 's/\xe2\x80\x9c//; s/\xe2\x80\x9d//')" '' "$(printf '## KF-040: the \342\200\234_quoted_\342\200\235 word')" > "$G"
+  # (the anchor is the heading's slug as written — the curly quotes dropped — so only the rendered-text leg can fail it; no GNU-only
+  # sed \xHH: thirty-seventh run, e2c DISS-C-003)
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-the-_quoted_-word) | OPEN | x | 1 |' '' "$(printf '## KF-040: the \342\200\234_quoted_\342\200\235 word')" > "$G"
+  local C="$BATS_TEST_TMPDIR/lint-uq-ok.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-the-quoted-word) | OPEN | x | 1 |' '' "$(printf '## KF-040: the \342\200\234quoted\342\200\235 word')" > "$C"
+  run _kf_link_lint "$C"
+  [ "$status" -eq 0 ] || { echo "the control (no emphasis) failed the lint, so the anchor rule is not what the fixture assumes: $output"; return 1; }
   run _kf_link_lint "$G"
   [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "the lint passed a Unicode-bounded emphasis: $output"; return 1; }
 }

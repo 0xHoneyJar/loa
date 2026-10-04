@@ -1,5 +1,5 @@
 {
-  "_case": "negative-turned-derivable: missing id (the Sprint 1 audit sidecar shape) — cycle-126 FR-2.2: the unenforced path fills a positional id (id_derived) and accepts the finding; the enforced path still rejects it",
+  "_case": "negative-turned-derivable: missing id (the Sprint 1 audit sidecar shape) — cycle-126 FR-2.2: the unenforced path fills a positional id (id_derived) and accepts the finding; the enforced path still rejects it (category secrets is valid on the review path: validate_finding reads one category enum for both types)",
   "_type": "review",
   "_expect": {
     "unenforced": "reviewed",

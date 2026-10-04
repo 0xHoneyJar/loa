@@ -83,6 +83,7 @@ setup() {
     # host, so no case charges or queues behind a real hop (the KF-037 contention class)
     _scrub_cred_aliases || return 1
     unset LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS _ADV_REPAIR_DEAD_HOPS LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION   # (thirty-seventh run, c2e DISS-C-001: the derivation seam too)
     export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
     export LOA_ADVERSARIAL_CLI_PROBE=none
     export XDG_RUNTIME_DIR="$TEST_DIR"
@@ -459,7 +460,7 @@ _sidecar_path() {
     local f
     f=$(echo "$result" | jq -c '.findings[0]')
     [[ "$(jq -r '.id' <<<"$f")" == "DISS-007" ]]
-    [[ "$(jq -r '.id_derived // "absent"' <<<"$f")" == "absent" ]]
+    [[ "$(jq -r 'has("id_derived")' <<<"$f")" == "false" ]]   # (thirty-seventh run, c2e DISS-C-003: `//` reads a false marker as absent)
     [[ "$(jq -r '.severity' <<<"$f")" == "ADVISORY" ]]
     [[ "$(jq -r '.failure_mode' <<<"$f")" == "The lock is released twice on the error path." ]]
     [[ "$(jq -r '.failure_mode_derived' <<<"$f")" == "true" ]]

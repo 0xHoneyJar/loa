@@ -79,7 +79,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace_base, cwd_vanished
+from loa_cheval.providers.headless_cli import (
+    HeadlessCLIAdapter, private_workspace_base, cwd_vanished, sweep_stale_hop_workspaces,
+)
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -210,7 +212,9 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         start = time.monotonic()
         try:
             try:
-                workspace = tempfile.mkdtemp(prefix="loa-grok-ws-", dir=private_workspace_base())
+                base = private_workspace_base()
+                sweep_stale_hop_workspaces(base, "loa-grok-ws-")   # (a killed hop's leftovers, its prompt file too — thirty-seventh run, e1b DISS-C-004)
+                workspace = tempfile.mkdtemp(prefix="loa-grok-ws-", dir=base)
                 prompt_path = str(Path(workspace) / "prompt.txt")
                 # write_text on a fresh 0700 mkdtemp dir; UTF-8 explicit so a
                 # non-ASCII review diff round-trips intact.

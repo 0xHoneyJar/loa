@@ -182,10 +182,13 @@ def test_local_cli_health_and_complete(adapter_case, tmp_path, monkeypatch):
     assert calls[1]["cwd"] != str(tmp_path)
     # (cycle-126 thirty-second run, e1 DISS-C-001: every isolated cwd sits under the private base — never under a /tmp any
     # local user can write a CLAUDE.md into; claude's is one stable directory, one project key — e1 DISS-C-002)
-    if name in ("codex", "cursor", "grok", "agy"):
+    if name in ("codex", "cursor", "grok"):
         assert not Path(calls[1]["cwd"]).exists()
         assert os.path.dirname(os.path.realpath(calls[1]["cwd"])) == headless_cli.private_workspace_base()
-    elif name in ("claude", "gemini"):
+    elif name in ("claude", "gemini", "agy"):
+        # (thirty-seventh run, e1 DISS-C-001: agy is gemini-cli's successor and keys its state by project root as gemini does;
+        # the stable directory outlives the hop — a concurrent hop may be running in it — read before the helper re-creates it)
+        assert Path(calls[1]["cwd"]).is_dir(), f"{name}'s stable cwd was removed after the hop"
         # (thirty-sixth run, e1b DISS-C-002: gemini-cli registers every project root it starts in — ~/.gemini/projects.json and
         # a ~/.gemini/tmp/<id> each — so gemini too runs in one stable directory, never one per hop)
         assert calls[1]["cwd"] == headless_cli.private_workspace(f"loa-{name}-ws")

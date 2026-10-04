@@ -235,6 +235,32 @@ def private_workspace(name: str) -> str:
     return path
 
 
+_STALE_HOP_SECONDS = 86400   # (a day: the headless timeout is clamped to an hour per hop, so no live hop's directory is this old)
+
+
+def sweep_stale_hop_workspaces(base: str, prefix: str) -> None:
+    """Remove this account's own per-hop workspaces `<base>/<prefix>XXXXXXXX` older than a day. A hop ended by SIGTERM or
+    SIGKILL (the dissent reaper's tree kill) never runs its rmtree, and the home fallback — unlike /tmp or $XDG_RUNTIME_DIR — is
+    swept by nothing else (cycle-126 thirty-seventh run, e1b DISS-C-004). Only a real directory of this uid whose name is the
+    prefix plus mkdtemp's eight characters; a symlink is never followed. Never raises."""
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return
+    cutoff = time.time() - _STALE_HOP_SECONDS
+    for name in names:
+        if not (name.startswith(prefix) and len(name) == len(prefix) + 8
+                and all(c.isascii() and (c.isalnum() or c == "_") for c in name[len(prefix):])):
+            continue
+        path = os.path.join(base, name)
+        try:
+            st = os.lstat(path)
+        except OSError:
+            continue
+        if stat.S_ISDIR(st.st_mode) and st.st_mtime < cutoff and (not hasattr(os, "getuid") or st.st_uid == os.getuid()):
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def cwd_vanished(cwd: Optional[str], exc: Optional[BaseException] = None) -> bool:
     """A FileNotFoundError at exec names a missing cwd as it names a missing binary: the cwd is gone — logind clears
     $XDG_RUNTIME_DIR at the last logout, perhaps while the hop waited for a slot — so the failure is the hop's, walkable,
@@ -245,7 +271,8 @@ def cwd_vanished(cwd: Optional[str], exc: Optional[BaseException] = None) -> boo
         return False
     named = getattr(exc, "filename", None)
     if named is not None:
-        return os.fsdecode(named) == cwd
+        # (thirty-seventh run, d DISS-C-001: compared as paths — a pathlib.Path cwd, a trailing slash or a bytes name is the same)
+        return os.path.normpath(os.fsdecode(named)) == os.path.normpath(os.fsdecode(os.fspath(cwd)))
     return not os.path.isdir(cwd)
 
 
@@ -332,6 +359,9 @@ class HeadlessCLIAdapter(ProviderAdapter):
         except OSError as exc:
             # (thirty-third run, d DISS-C-004: a refused workspace — or a slot file — before the CLI ran is this hop's typed
             # failure, so the chain walks on; a bare OSError ended the walk as API_ERROR)
+            # (no context exit here raises OSError — every workspace rmtree is ignore_errors=True and _release_slot swallows its
+            # own — so this is never a cleanup failure over a finished run; a cleanup that can raise must catch its own:
+            # thirty-fifth / thirty-seventh run, d)
             raise ProviderUnavailableError(
                 self.provider, f"{self._command_label} could not prepare its run: {exc}",
             ) from exc

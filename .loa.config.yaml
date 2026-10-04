@@ -192,6 +192,8 @@ spiral:
     # (thirty-third run, e2b DISS-C-003) the caps below were sized for the sonnet executor / opus advisor split:
     # Fable 5.1 is 5x sonnet-5 and 2x opus-5 per token, and each cap is `claude -p --max-budget-usd` — a session that reaches it ends,
     # leaving partial work for the retry gate. Not raised here (a spend decision for the operator, NOTES 2026-10-03).
+    # (thirty-seventh run, e2b DISS-C-001) a phase whose need exceeds its cap hits it again on each of max_phase_retries' retries:
+    # up to (1 + max_phase_retries) x the cap spent before the gate fails — raise the cap, not the retries, when a phase ends on it.
     planning_budget_usd: 1 # Per-phase budget for PRD/SDD/Sprint
     implement_budget_usd: 5 # Budget for implementation session
     review_budget_usd: 2 # Budget for independent review session
@@ -318,6 +320,9 @@ flatline_protocol:
     # headless_timeout_seconds (900 s) — up to ~15 min per phase under contention (KF-037 / KF-038).
     # Its auth follows CLAUDE_HEADLESS_BIN (the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7), and it
     # shares the anthropic headless circuit breaker with the dissent companion: a rate limit on either opens it for both.
+    # (thirty-seventh run, e2b DISS-C-002) so a Flatline rate limit leaves a review that follows while the breaker is open
+    # single-voice: its companion is refused by the open breaker, the envelope reads companion_voice.status failed (not degraded),
+    # and nothing in the unattended harness re-runs it (KF-038) — read companion_voice before taking such a review as two-voice.
     primary: claude-headless
     # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
     # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks

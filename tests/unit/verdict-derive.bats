@@ -514,9 +514,13 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     _vd_envelope "$d/adversarial-review.json" '[]'
     printf '{"reject_reason":"missing-severity","payload":{"title":"a"}}\n{"reject_reason":"missing-category","payload":{"title":"b"}}\n' > "$d/adversarial-rejected-review-companion.jsonl"
     printf '{"reject_reason":"missing-severity","payload":{"title":"c"}}\n' > "$d/adversarial-rejected-review-a-chunk.jsonl"
+    # (thirty-seventh run, c2c DISS-C-001: the age relation is forced, never write order — an FR-2 envelope that lists no sidecars
+    # counts every one, newer or older, with no warning; the stale-envelope warning is the listing or pre-FR-2 envelope's)
+    touch -t 202101010000 "$d/adversarial-review.json"
+    touch -t 202201010000 "$d/adversarial-rejected-review-companion.jsonl" "$d/adversarial-rejected-review-a-chunk.jsonl"
     run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json
     [ "$status" -eq 1 ]
-    echo "$output" | jq -e '.consistent == false and (.violations[0] | test("3 schema-rejected payload") and test("sidecar rows")) and (.envelope | endswith("adversarial-review.json")) and .envelope_explicit == false' >/dev/null
+    echo "$output" | jq -e '.consistent == false and (.violations[0] | test("3 schema-rejected payload") and test("sidecar rows")) and (.envelope | endswith("adversarial-review.json")) and .envelope_explicit == false and (.warnings | length) == 0' >/dev/null
     # an audit gate does not count the review's sidecars — shown with a CONSISTENT audit file, so the exit code carries the
     # claim whatever the order of the checks (sixteenth run, c2c C-003)
     _vd_envelope "$d/adversarial-audit.json" '[]'
@@ -543,7 +547,11 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     } > "$d/engineer-feedback.md"
     run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json
     [ "$status" -eq 0 ]
-    echo "$output" | jq -e '.consistent == true and .envelope_explicit == false' >/dev/null
+    echo "$output" | jq -e '.consistent == true and .envelope_explicit == false and (.warnings | length) == 0' >/dev/null
+    touch -t 202001010000 "$d/adversarial-rejected-review-companion.jsonl" "$d/adversarial-rejected-review-a-chunk.jsonl"
+    run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.consistent == true and (.warnings | length) == 0' >/dev/null
     run _vd_quiet "$SCRIPT" --file "$d/engineer-feedback.md" --gate review --json --envelope "$d/adversarial-review.json"
     # the explicit path is a drop-in for the default sibling: same verdict, same envelope (twentieth run, c2c C-002)
     [ "$status" -eq 0 ]
@@ -1359,7 +1367,7 @@ for line in src.split('\n'):
         if CLASS.search(prog):
             bad.append('a POSIX class in the awk program at: ' + line.strip()[:80])
 for b in bad: print(b)
-sys.exit(1 if bad else 0)
+sys.exit(3 if bad else 0)   # (thirty-seventh run, c2d DISS-C-002: 3, never 1 — an uncaught exception exits 1)
 PY
 )
     local f
@@ -1386,7 +1394,7 @@ PY
         # a variable named *AWK*)
         printf '%s\n' "$f" > "$fx"
         rc=0; python3 -c "$lint" "$fx" >/dev/null || rc=$?
-        [ "$rc" -eq 1 ] || { echo "the lint did not refuse (exit $rc, not 1) a fixture it must refuse: $f"; return 1; }
+        [ "$rc" -eq 3 ] || { echo "the lint did not refuse (exit $rc, not 3 — 1 is a crashed lint) a fixture it must refuse: $f"; return 1; }
     done
     # (the positive control: a class-free program, a comment naming one with a class, a grep line with a class)
     printf '%s\n' "  awk '/[ \\t]/ {print}' f" "  awk -F: '/a:b/ { x = \"[:\" }' f" "  # awk '/[[:space:]]/' is what mawk misreads" "  grep -q '[[:space:]]' f" > "$fx"
@@ -1498,6 +1506,7 @@ PY
     hits=$(grep -nE 'bash -c "([^"\\]|\\.)*\$' "$BATS_TEST_FILENAME" | grep -v '^[0-9]*:[[:space:]]*#' | grep -vF 'hits=$(grep' || true)
     [ -z "$hits" ] || { echo "$(grep -c '' <<<"$hits") bash -c program(s) interpolate a variable, first: $(head -n 1 <<<"$hits")"; return 1; }
     # the helper keeps stdout only and passes every word as an argument
+    skip_if_no_jq   # (thirty-seventh run, c2d DISS-C-001: the grep half above needs no jq; this half reads it)
     local odd="${TEST_TMPDIR}/a \"b\" \$c \`d\`"; mkdir -p "$odd"; printf 'x\n' > "$odd/f.md"
     run _vd_quiet "$SCRIPT" --file "$odd/f.md" --gate bogus --json
     [ "$status" -eq 1 ]

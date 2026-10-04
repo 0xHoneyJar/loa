@@ -23,7 +23,7 @@ import { summarizeReviewVerdict, type ReviewVerdict } from "./review-verdict.js"
 import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, validateApiKeys } from "../config.js";
+import { PROVIDER_API_KEY_ENV, isHeadlessModelId, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
 
@@ -183,8 +183,9 @@ export async function executeMultiModelReview(
 
   for (const entry of keyStatus.valid) {
     const envVar = PROVIDER_API_KEY_ENV[entry.provider];
-    const apiKey = envVar ? process.env[envVar] : undefined;
-    if (!apiKey) continue;
+    // (a headless entry is valid without a key — validateApiKeys — and cheval's CLI hop never reads one)
+    const apiKey = (envVar ? process.env[envVar] : undefined) ?? "";
+    if (!apiKey && !isHeadlessModelId(entry.modelId)) continue;
 
     const costRates = multiConfig.cost_rates?.[entry.provider];
     const adapter = createAdapter({

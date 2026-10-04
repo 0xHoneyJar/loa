@@ -109,6 +109,10 @@ export const PROVIDER_API_KEY_ENV = {
     openai: "OPENAI_API_KEY",
     google: "GOOGLE_API_KEY",
 };
+/** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
+export function isHeadlessModelId(modelId) {
+    return typeof modelId === "string" && /-headless$/i.test(modelId);
+}
 /**
  * Validate API keys for configured multi-model providers.
  * Returns available and missing provider lists.
@@ -122,7 +126,9 @@ export function validateApiKeys(config) {
             missing.push({ provider: model.provider, envVar: `Unknown provider: ${model.provider}` });
             continue;
         }
-        if (process.env[envVar]) {
+        // (a `*-headless` entry is a cheval CLI hop that authenticates itself — every voice dispatches through cheval — so
+        // it needs no key; the gate dropped the keyless host's claude-headless entry: cycle-126 thirty-seventh run, e2b DISS-C-003)
+        if (isHeadlessModelId(model.model_id) || process.env[envVar]) {
             valid.push({ provider: model.provider, modelId: model.model_id });
         }
         else {

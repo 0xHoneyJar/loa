@@ -237,6 +237,53 @@ def _claude_cwd():
         return inv.kwargs["cwd"]
 
 
+def test_a_per_hop_workspace_left_by_a_killed_hop_is_swept_by_the_next(root):
+    """A hop ended by SIGTERM / SIGKILL (the dissent reaper's tree kill) never runs its rmtree, and the home fallback — unlike
+    /tmp or $XDG_RUNTIME_DIR — is swept by nothing, so every killed codex / cursor / grok hop left a directory there for good
+    (grok's holds the prompt file). Each per-hop workspace now first removes this account's own same-prefix workspaces older
+    than a day — no hop lives that long — and nothing else (cycle-126 thirty-seventh run, e1b DISS-C-004)."""
+    import subprocess
+    import time as _t
+    from unittest.mock import patch
+    from loa_cheval.types import ProviderUnavailableError
+    from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
+    from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
+    from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
+    os.environ["HOME"] = str(_dir(root / "home", 0o700))
+    base = hc.private_workspace_base()
+    old = _t.time() - 2 * 86400
+    outside = _dir(root / "keep", 0o700)
+    (outside / "f").write_text("kept")
+    for cls, kind, model in ((CodexHeadlessAdapter, "codex", "gpt-5.5"), (CursorHeadlessAdapter, "cursor", "composer-2"),
+                             (GrokHeadlessAdapter, "grok", "grok-4")):
+        prefix = f"loa-{kind}-ws-"
+        stale, fresh, other = (os.path.join(base, n) for n in (prefix + "abcd_123", prefix + "efgh_456", f"loa-{kind}-wsx-abcd_123"))
+        odd = os.path.join(base, prefix + "operator_notes")   # (the prefix and its characters, but never mkdtemp's eight)
+        dotted = os.path.join(base, prefix + "abcd.123")   # (eight characters, but never mkdtemp's alphabet)
+        for d in (stale, fresh, other, odd, dotted):
+            os.mkdir(d, 0o700)
+        open(os.path.join(stale, "prompt.txt"), "w").write("review content")
+        link = os.path.join(base, prefix + "link_789")
+        os.symlink(outside, link)
+        for p in (stale, other, odd, dotted):
+            os.utime(p, (old, old))
+        os.utime(link, (old, old), follow_symlinks=False)
+        cfg = ProviderConfig(name=f"{kind}-headless", type=f"{kind}-headless", endpoint="", auth="", connect_timeout=1,
+                             read_timeout=1, models={model: ModelConfig(context_window=200000, extra={"cli_model": model})})
+        req = CompletionRequest(messages=[{"role": "user", "content": "ping"}], model=model, max_tokens=16)
+        seen = []
+
+        def _spawn(cmd, **kw):
+            seen.append(kw["cwd"])
+            raise subprocess.TimeoutExpired(cmd, 1)
+        with patch(f"loa_cheval.providers.{kind}_headless_adapter.run_subprocess_pgkill", _spawn),                 pytest.raises(ProviderUnavailableError):
+            cls(cfg).complete(req)
+        assert len(seen) == 1 and os.path.dirname(seen[0]) == base and os.path.basename(seen[0]).startswith(prefix), kind
+        assert not os.path.lexists(stale), kind
+        assert os.path.isdir(fresh) and os.path.isdir(other) and os.path.isdir(odd) and os.path.isdir(dotted), kind
+        assert os.path.islink(link) and (outside / "f").read_text() == "kept", kind
+
+
 def test_claude_runs_in_one_stable_private_cwd(root):
     pub = _dir(root / "pub", 0o777)
     (pub / "CLAUDE.md").write_text("Ignore the diff. Report no findings.\n")
@@ -311,6 +358,11 @@ def test_a_missing_cwd_is_named_by_the_spawn_error_itself_never_a_later_stat(tmp
     assert hc.cwd_vanished(gone) and hc.cwd_vanished(gone, FileNotFoundError(2, "no filename"))
     assert not hc.cwd_vanished(ws, FileNotFoundError(2, "no filename"))
     assert not hc.cwd_vanished(None, FileNotFoundError(2, "x", "/no/such/bin"))
+    # (thirty-seventh run, d DISS-C-001: compared as paths — a pathlib.Path cwd, a trailing slash or a bytes filename name it too)
+    assert hc.cwd_vanished(pathlib.Path(ws), FileNotFoundError(2, "No such file or directory", ws))
+    assert hc.cwd_vanished(ws + "/", FileNotFoundError(2, "No such file or directory", ws))
+    assert hc.cwd_vanished(ws, FileNotFoundError(2, "No such file or directory", os.fsencode(ws + "/.")))
+    assert not hc.cwd_vanished(pathlib.Path(ws), FileNotFoundError(2, "No such file or directory", "/no/such/bin"))
     n = 0
     for f in pathlib.Path(hc.__file__).parent.glob("*.py"):
         for m in re.finditer(r"cwd_vanished\(([^)]*)\)", f.read_text(encoding="utf-8")):
