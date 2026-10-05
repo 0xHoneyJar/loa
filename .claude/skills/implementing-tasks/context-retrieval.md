@@ -105,7 +105,7 @@ Execute searches based on task type:
    ```
 
 ### Phase 3: Tool Result Clearing
-After heavy searches (>20 results or >2000 tokens):
+After heavy searches (>20 results, or tokens above the single-search row for the session's context class: `.run/context-class`, the table in `.claude/protocols/tool-result-clearing.md`):
 
 1. **Extract high-signal findings** (max 10 files):
    - File path + line numbers

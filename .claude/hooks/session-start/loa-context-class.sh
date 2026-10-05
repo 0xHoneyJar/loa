@@ -29,9 +29,10 @@ CATALOG=""
 MODE="hook"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --root)    ROOT="${2:-}"; shift 2 ;;
-    --model)   MODEL="${2:-}"; shift 2 ;;
-    --catalog) CATALOG="${2:-}"; shift 2 ;;
+    # a value flag given last has no value: stop parsing (shift 2 would not move, and the loop would spin)
+    --root)    [[ $# -ge 2 ]] || break; ROOT="$2"; shift 2 ;;
+    --model)   [[ $# -ge 2 ]] || break; MODEL="$2"; shift 2 ;;
+    --catalog) [[ $# -ge 2 ]] || break; CATALOG="$2"; shift 2 ;;
     --line)    MODE="line"; shift ;;
     --json)    MODE="json"; shift ;;
     --show)    MODE="show"; shift ;;
@@ -67,7 +68,14 @@ fi
 
 # --- the session model: --model, else the payload's .model (when piped) -----
 if [[ -z "$MODEL" && ! -t 0 ]]; then
-  payload="$(timeout 2 cat 2>/dev/null || true)"
+  # timeout → gtimeout → bash's own read -t (compat-lib.sh run_with_timeout's order; never blocks)
+  if command -v timeout >/dev/null 2>&1; then
+    payload="$(timeout 2 cat 2>/dev/null || true)"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    payload="$(gtimeout 2 cat 2>/dev/null || true)"
+  else
+    payload=""; IFS= read -r -d '' -t 2 payload || true
+  fi
   if [[ -n "$payload" ]] && command -v jq >/dev/null 2>&1; then
     MODEL="$(printf '%s' "$payload" | jq -r '(.model // .model_id // .model_name // empty) | if type == "object" then (.id // .name // empty) else . end' 2>/dev/null || true)"
   fi

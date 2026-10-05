@@ -1,7 +1,7 @@
 # Recommended Claude Code Hooks for Loa
 
 Reference protocol. The full text lives at `.claude/protocols/reference/recommended-hooks.md` — read it on
-demand (it is outside the prompt budget); this stub keeps the old path and its anchors stable.
+demand (it is outside the prompt budget); this stub keeps the old path resolvable and the one section tests pin (§4).
 
 ### 4. Memory Injection Hook
 

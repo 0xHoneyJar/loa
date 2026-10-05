@@ -223,7 +223,7 @@ State outcomes plainly to the user (e.g. "Found 3 high-relevance files for authe
 
 ### Tool Result Clearing
 
-After logging `phase: "result"`, apply Tool Result Clearing if `result_count > 20` or `tokens_estimated > 2000`:
+After logging `phase: "result"`, apply Tool Result Clearing if `result_count > 20` or `tokens_estimated` exceeds the single-search row for the session's context class (`.run/context-class`; the table in `.claude/protocols/tool-result-clearing.md`):
 
 ```jsonl
 {

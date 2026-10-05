@@ -94,7 +94,7 @@ This is what lets `/run sprint-plan` survive context compaction during unattende
 | Level | Tokens | Trigger | Method |
 |-------|--------|---------|--------|
 | **1** | ≤ 20k | Default (all recoveries) | `notes-guard.sh read`: Blockers + newest Session Continuity + 3 newest Decision Logs, ≤ 68 KiB |
-| **2** | ~200-500 | Task needs historical context | `ck --hybrid` for specific decisions |
+| **2** | ~200-500 | Task needs historical context | `ck --hybrid` for specific decisions; without ck, `notes-guard.sh read --section <H>` |
 | **3** | Full | User explicit request only | `notes-guard.sh read --full` |
 
 **Level 1 Recovery** (default):
@@ -105,6 +105,8 @@ This is what lets `/run sprint-plan` survive context compaction during unattende
 **Level 2 Recovery** (on-demand):
 ```bash
 ck --hybrid "authentication decision" "${PROJECT_ROOT}/grimoires/loa/" --top-k 3 --jsonl
+# without ck: one NOTES.md section (`read --index` lists them; --file F for another ledger)
+"${PROJECT_ROOT}/.claude/scripts/notes-guard.sh" read --section "Decision Log"
 ```
 
 **Level 3 Recovery** (explicit):

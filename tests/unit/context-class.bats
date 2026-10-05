@@ -102,7 +102,7 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
   local p="$PROJECT_ROOT/.claude/protocols/tool-result-clearing.md" inc="$PROJECT_ROOT/.claude/data/skill-includes/context_discipline.md"
   grep -q '| Context Type | `standard` (≤ 200K) | `long` (≥ 1M, default) | Action |' "$p"
   grep -q 'LOA_CONTEXT_CLASS=standard' "$p"
-  grep -q '.run/context-class' "$inc"; grep -q 'tool-result-clearing.md' "$inc"
+  grep -q '.run/context-class' "$inc"; grep -qF '`.claude/protocols/tool-result-clearing.md`' "$inc"   # the full path, so protocol-refs-resolve sees it
   grep -q 'long 20K/50K/30K/150K, standard 2K/5K/3K/15K' "$inc"
   local fn; fn="$(sed -n '/^display_context_line() {/,/^}/p' "$PROJECT_ROOT/.claude/scripts/loa-status.sh")"
   [ -n "$fn" ]
@@ -112,4 +112,48 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
 display_context_line"
   [ "$status" -eq 0 ]
   [ "$output" = "  Context: standard (env; thresholds 2K/5K/3K/15K)" ]
+}
+
+@test "CC-10 a value flag given last (--model, --catalog, --root) never blocks: exit 0, class long" {
+  local f
+  for f in --model --catalog; do
+    rm -f "$T/.run/context-class"
+    run timeout 5 bash "$HOOK" --root "$T" "$f" < /dev/null
+    [ "$status" -eq 0 ]; [ "$(_class)" = "long" ]
+  done
+  rm -f "$T/.run/context-class"
+  run bash -c "cd '$T' && timeout 5 bash '$HOOK' --root < /dev/null"   # outside a repo the root is the cwd
+  [ "$status" -eq 0 ]; [ "$(_class)" = "long" ]
+}
+
+@test "CC-11 without a timeout binary on PATH the payload's .model is still read (Haiku 4.5 → standard)" {
+  local stub="$T/stub-bin" b bashbin
+  mkdir -p "$stub"
+  for b in bash cat jq yq git sed tr grep cut mkdir mktemp mv rm date dirname head; do
+    command -v "$b" >/dev/null 2>&1 && ln -s "$(command -v "$b")" "$stub/$b"
+  done
+  [ ! -e "$stub/timeout" ] && [ ! -e "$stub/gtimeout" ]
+  bashbin="$(command -v bash)"
+  run env PATH="$stub" "$bashbin" -c "printf '%s' '{\"model\":\"claude-haiku-4-5-20251001\"}' | '$bashbin' '$HOOK' --root '$T' --line"
+  [ "$status" -eq 0 ]
+  [ "$output" = "Context: standard (model, claude-haiku-4-5-20251001; thresholds 2K/5K/3K/15K)" ]
+  [ "$(_class)" = "standard" ]; [ "$(_basis)" = "model" ]
+}
+
+@test "CC-13 without a timeout binary an open stdin that never closes does not block the hook" {
+  local stub="$T/stub-bin" b bashbin
+  mkdir -p "$stub"
+  for b in bash cat jq yq git sed tr grep cut mkdir mktemp mv rm date dirname head sleep; do
+    command -v "$b" >/dev/null 2>&1 && ln -s "$(command -v "$b")" "$stub/$b"
+  done
+  bashbin="$(command -v bash)"
+  run timeout 15 env PATH="$stub" "$bashbin" -c "'$bashbin' '$HOOK' --root '$T' --line < <(sleep 30)"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Context: long (default"* ]]
+}
+
+@test "CC-12 no unqualified single-search threshold (a bare 2000) survives in the protocols or the retrieval guides" {
+  run grep -rnE 'tokens_estimated > 2000|>2000 tokens|> 2000 tokens' \
+    "$PROJECT_ROOT/.claude/protocols" "$PROJECT_ROOT/.claude/skills"/*/context-retrieval.md "$PROJECT_ROOT/.claude/skills"/*/impact-analysis.md
+  [ "$status" -eq 1 ] || { echo "$output"; false; }
 }
