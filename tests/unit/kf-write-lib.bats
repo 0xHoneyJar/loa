@@ -366,6 +366,24 @@ print(len(entries))
   [ "$output" -eq 3 ]
 }
 
+@test "kf-write new: a Unicode line separator (U+2028, U+2029, U+0085 NEL) or another C1 control is a space, never a line break the canonical reader splits into a phantom ## KF- heading (cycle-126 audit run 1, e2c DISS-C-001)" {
+  command -v python3 >/dev/null || skip "python3 not available"
+  local t
+  t="$(printf 'probe \342\200\250## KF-001: phantom \342\200\251## KF-002: two \302\205## KF-003: three \302\233x end')"
+  bash "$KFW" new --file "$F" --title "$t" --status OPEN --feature "$t" --symptom "$t" --quiet
+  ! LC_ALL=C grep -q "$(printf '\342\200[\250\251]')" "$F" || { echo "a U+2028/U+2029 byte reached the ledger"; return 1; }
+  ! LC_ALL=C grep -q "$(printf '\302[\200-\237]')" "$F" || { echo "a C1 control reached the ledger"; return 1; }
+  grep -qF '## KF-003: probe ## KF-001: phantom ## KF-002: two ## KF-003: three x end' "$F" || { grep -n 'KF-003' "$F"; return 1; }
+  run python3 -c '
+import sys, importlib.util
+spec=importlib.util.spec_from_file_location("kfal", sys.argv[1])
+m=importlib.util.module_from_spec(spec); sys.modules["kfal"]=m; spec.loader.exec_module(m)
+print(len(m.parse_known_failures(open(sys.argv[2], encoding="utf-8").read())))
+' "$PROJECT_ROOT/.claude/scripts/lib/kf-auto-link.py" "$F"
+  [ "$status" -eq 0 ] || { echo "the canonical reader failed: $output"; return 1; }
+  [ "$output" -eq 3 ]
+}
+
 @test "kf-write new: the anchor keeps what GitHub's word class keeps — a titlecase and a modifier letter, a letter number, a non-ASCII digit and a connector kept, a symbol dropped — and the link lint agrees (thirty-fifth run, e2c DISS-C-001; the ambiguous characters are refused since the thirty-sixth run, e2c DISS-C-002)" {
   local t want
   local G0="$BATS_TEST_TMPDIR/e2c35.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"

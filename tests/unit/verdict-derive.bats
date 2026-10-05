@@ -22,8 +22,11 @@ skip_if_no_jq() {
 _vd_git() {  # <repo> <git args…> — a fixture repository's git: no caller config, and none of a caller's repository environment
     # (thirty-ninth run, c2d DISS-C-001: a hook's GIT_DIR / GIT_INDEX_FILE or a dotfiles GIT_DIR + GIT_WORK_TREE would make
     # `git -C "$r" init` / `add -A` / `commit` act on the caller's repository — the set the script itself unsets)
-    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(command git rev-parse --local-env-vars 2>/dev/null)
-      HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -C "$1" -c user.email=t@t -c user.name=t "${@:2}" )
+    # (cycle-126 audit run 1, c2c DISS-C-002: nor a caller's GIT_TEMPLATE_DIR hooks, GIT_EXEC_PATH, or the XDG_CONFIG_HOME
+    # git/ignore and git/attributes git reads whatever GIT_CONFIG_GLOBAL says — hooks, excludes and attributes files pinned empty)
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE GIT_TEMPLATE_DIR GIT_EXEC_PATH $(command git rev-parse --local-env-vars 2>/dev/null)
+      HOME=/nonexistent XDG_CONFIG_HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -C "$1" -c user.email=t@t -c user.name=t \
+          -c core.hooksPath=/dev/null -c core.excludesFile=/dev/null -c core.attributesFile=/dev/null "${@:2}" )
 }
 _vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }   # <pid> → it and every descendant
 _vd_fifo_watchdog() {  # <reader pid> <fifo> <marker> — run in the background: past the deadline, mark, end the reader's tree, wake the FIFO
@@ -1565,9 +1568,13 @@ PY
     local hits sre f
     # (thirty-eighth run, c2d DISS-C-002: sh as well as bash, a flag group ending in c (-lc, -ec), a double-quoted program with an
     # expansion, a single-quoted one spliced with '"$v"' or '$v', a program on the continuation line, and eval with an expansion)
-    sre='(^|[^A-Za-z0-9_./-])(ba)?sh[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*c[A-Za-z]*[[:space:]]+'
+    # (cycle-126 audit run 1, c2d DISS-C-001: and zsh/dash/ksh/$SHELL, a -- ending the flag run, an unquoted program with an
+    # expansion, and an expansion spliced after a double-quoted program's closing quote)
+    sre='(^|[^A-Za-z0-9_./-])((ba|da|z|k)?sh|\$\{?SHELL\}?)[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*c[A-Za-z]*[[:space:]]+(--[[:space:]]+)?'
     _vd_shsrc() {  # <file> → the lines that hand a shell an interpolated program
         { grep -nE "$sre"'"([^"\\]|\\.)*\$' "$1"
+          grep -nE "$sre"'"([^"\\]|\\.)*"\$' "$1"
+          grep -nE "$sre"'[^'\''"[:space:]]*\$' "$1"
           grep -nE "$sre'[^']*'(\"[^\"]*)?\\\$" "$1"
           grep -nE "$sre"'\\$' "$1"
           grep -nE '(^|[;&|({[:space:]])eval[[:space:]]+[^#]*\$' "$1"
@@ -1583,12 +1590,17 @@ PY
         "sh -c 'cd '\$d' && ls'"             # shsrc-fixture
         $'bash -c \\\n  "x"'                # shsrc-fixture (refused whatever it holds: a line lint cannot read the next line's program)
         'eval "x=$d"'                         # shsrc-fixture
+        'zsh -c "x $d"'                       # shsrc-fixture (cycle-126 audit run 1, c2d DISS-C-001: any shell, -- in the flag run,
+        'bash -c -- "x $d"'                   # shsrc-fixture  an unquoted program, an expansion after the closing quote)
+        'bash -c x$d'                         # shsrc-fixture
+        'bash -c "x"$d'                       # shsrc-fixture
     )
     for x in "${shfx[@]}"; do
         printf '%s\n' "$x" > "$f"
         [ -n "$(_vd_shsrc "$f")" ] || { echo "the lint missed: $x"; return 1; }
     done
-    printf '%s\n' "run bash -c '\"\$1\" --file \"\$2\" --json' _ \"\$SCRIPT\" \"\$f\"" 'bash -c "echo ok"' "sh -c 'exit 0'" 'bashrc="$d"' > "$f"
+    printf '%s\n' "run bash -c '\"\$1\" --file \"\$2\" --json' _ \"\$SCRIPT\" \"\$f\"" 'bash -c "echo ok"' "sh -c 'exit 0'" 'bashrc="$d"' \
+        'bash -c -- "echo ok"' "zsh -c 'exit 0'" 'bash -c true' > "$f"
     [ -z "$(_vd_shsrc "$f")" ] || { echo "the lint refused a positional program or a constant one: $(_vd_shsrc "$f")"; return 1; }
     # (thirty-ninth run, c2e DISS-C-001: and the sibling verdict suite, which drives the same script)
     hits=$(_vd_shsrc "$BATS_TEST_FILENAME"; _vd_shsrc "$BATS_TEST_DIRNAME/verdict-observations-section.bats")
@@ -1640,6 +1652,18 @@ PY
         after=$(_vd_git "$o" rev-parse HEAD; _vd_git "$o" ls-files)
         [ "$after" = "$before" ] || { echo "a caller's ${gv%%=*}: the caller's repository changed"; return 1; }
     done
+    # (cycle-126 audit run 1, c2c DISS-C-002: nor a caller's GIT_TEMPLATE_DIR hook, nor an XDG_CONFIG_HOME git/ignore or attributes)
+    local t="${TEST_TMPDIR}/gx-tmpl" x="${TEST_TMPDIR}/gx-xdg" mk="${TEST_TMPDIR}/gx-hook-ran"
+    mkdir -p "$t/hooks" "$x/git"
+    printf '#!/bin/sh\n: > "%s"\nexit 1\n' "$mk" > "$t/hooks/pre-commit"; chmod +x "$t/hooks/pre-commit"
+    printf '*.md\n' > "$x/git/ignore"; printf '*.txt -text\n' > "$x/git/attributes"
+    for gv in "GIT_TEMPLATE_DIR=$t" "XDG_CONFIG_HOME=$x"; do
+        r="${TEST_TMPDIR}/gx2-${gv%%=*}"; mkdir -p "$r"
+        ( export "$gv"; _vd_git "$r" init -q; : > "$r/a.md"; : > "$r/b.txt"; _vd_git "$r" add -A; _vd_git "$r" commit -q -m fixture ) >/dev/null 2>&1 || true
+        [ ! -e "$mk" ] || { echo "a caller's ${gv%%=*}: its template hook ran in the fixture"; return 1; }
+        [ "$(_vd_git "$r" ls-files | tr '\n' ' ')" = "a.md b.txt " ] || { echo "a caller's ${gv%%=*}: the fixture holds $(_vd_git "$r" ls-files)"; return 1; }
+    done
+    [ -z "$(XDG_CONFIG_HOME="$x" _vd_git "$r" check-attr -a b.txt)" ] || { echo "a caller's XDG_CONFIG_HOME: its git/attributes applied"; return 1; }
     # every fixture git in the suite goes through it
     if grep -nE '^[[:space:]]*g\(\) \{ HOME=' "$BATS_TEST_FILENAME"; then echo "a fixture git that bypasses _vd_git"; return 1; fi
 }

@@ -49,7 +49,12 @@ log(){ [[ $QUIET -eq 0 ]] && echo "$@" >&2 || true; }
 die(){ echo "kf-write: $*" >&2; exit 1; }
 
 # Single-line scalar: strip control bytes, flatten whitespace, trim.
-san1(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//'; }
+# A C1 control (U+0080–U+009F, NEL among them) and U+2028/U+2029 are spaces too: str.splitlines() in the canonical reader
+# (kf-auto-link.py) breaks a line at each, so one in a title would open a phantom `## KF-` heading and fail the whole ledger.
+# Matched as their UTF-8 bytes under LC_ALL=C; neither lead byte (\xc2, \xe2) is ever a continuation (cycle-126 audit run 1,
+# e2c DISS-C-001)
+KF_ULB_RE="$(printf '\302[\200-\237]|\342\200[\250\251]')"
+san1(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E "s/${KF_ULB_RE}/ /g"' ; s/  +/ /g; s/^ //; s/ $//'; }
 # Table cell: single-line + escape the column delimiter so it can't break the table.
 cell(){ san1 "${1-}" | sed -E 's/\|/\\|/g'; }
 # GitHub-style heading anchor (lowercase; keep [a-z0-9_-] + space; EACH space->hyphen — GitHub

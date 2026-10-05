@@ -232,10 +232,13 @@ def private_workspace(name: str) -> str:
             st.st_uid != os.getuid() or st.st_mode & (stat.S_IWGRP | stat.S_IWOTH))):
         raise OSError(errno.EEXIST, f"{path} is not a private directory of this user (a symlink, another owner, or "
                       "writable by others): remove it")
-    # (one stable cwd for every hop: a project file left in it would be loaded by every later hop — thirty-third run, d DISS-C-003)
-    held = [n for n in _PROJECT_FILES + (".git",) if os.path.lexists(os.path.join(path, n))]
+    # (one stable cwd for every hop: anything left in it would be loaded by every later hop — thirty-third run, d DISS-C-003.
+    # Any entry, never a denylist of known project files: what a CLI loads from its cwd (.env, .agent/, .geminiignore …) is
+    # no list we can close, and agy runs --dangerously-skip-permissions there — cycle-126 audit run 1, e1 DISS-C-001)
+    held = sorted(os.listdir(path))
     if held:
-        raise OSError(errno.EEXIST, f"{path} holds {', '.join(held)} — a CLI started there would load it: remove it")
+        raise OSError(errno.EEXIST, f"{path} holds {', '.join(held)} left by an earlier process — the workspace must be "
+                      "empty, a later hop would start there and its CLI could load it: remove it")
     return path
 
 

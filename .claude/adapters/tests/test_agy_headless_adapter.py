@@ -323,3 +323,30 @@ def test_the_module_doc_states_the_argv_prompt_as_unprobed():
     doc = " ".join(agy.__doc__.split())
     assert "cannot follow while its stdin must stay closed" not in doc
     assert "never probed" in doc and "EOF" in doc and "communicate()" in doc
+
+
+def test_every_dispatch_warns_of_the_argv_prompt_once_per_process(monkeypatch, caplog):
+    """agy is not disabled — it is the gemini-headless class every stock Google chain ends in — and `-p` puts the whole prompt
+    on argv: the first dispatch WARNs, naming /proc/<pid>/cmdline and bd-ugmi; later dispatches in the process do not repeat
+    it (cycle-126 audit run 1, e1 DISS-001)."""
+    import logging
+    import loa_cheval.providers.agy_headless_adapter as agy
+    monkeypatch.setattr(agy, "_ARGV_PROMPT_WARNED", False, raising=False)
+    spawn = MagicMock(return_value=_completed(stdout="APPROVED"))
+    with patch(_WHICH, return_value="/usr/bin/agy"), patch(_PGKILL, spawn), \
+            caplog.at_level(logging.WARNING, logger="loa_cheval.providers.agy_headless"):
+        _adapter().complete(_req())
+        _adapter().complete(_req())
+    assert spawn.call_count == 2                              # the fake spawn ran both hops; no real CLI
+    warned = [r for r in caplog.records if "/proc/<pid>/cmdline" in r.getMessage()]
+    assert len(warned) == 1 and warned[0].levelno == logging.WARNING
+    assert "bd-ugmi" in warned[0].getMessage() and "argv" in warned[0].getMessage()
+
+
+def test_the_module_never_calls_agy_disabled():
+    """agy is reachable as gemini-headless on any host with agy installed — no comment may say it awaits re-enabling (cycle-126
+    audit run 1, e1 DISS-001)."""
+    import inspect
+    import loa_cheval.providers.agy_headless_adapter as agy
+    src = " ".join(inspect.getsource(agy).split())
+    assert "re-enabl" not in src and "NOT disabled" in src

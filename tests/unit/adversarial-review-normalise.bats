@@ -562,7 +562,7 @@ DF
     long1="$(printf 'x%.0s' $(seq 1 30))/1"; long2="$(printf 'x%.0s' $(seq 1 30))/2"
     [ "$(LOA_ADVERSARIAL_RUN_TAG="$long1" _adv_run_tag 2>/dev/null)" != "$(LOA_ADVERSARIAL_RUN_TAG="$long2" _adv_run_tag 2>/dev/null)" ]
     huge="$(printf 'y%.0s' $(seq 1 150))/1"
-    [[ "$(LOA_ADVERSARIAL_RUN_TAG="$huge" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{200}-152$ ]]
+    [[ "$(LOA_ADVERSARIAL_RUN_TAG="$huge" _adv_run_tag 2>/dev/null)" =~ ^h[0-9a-f]{200}-152-[0-9]+$ ]]   # (and the whole tag's cksum — NRM-67)
     # …and that branch is reachable under errexit, as process_findings calls it (fifteenth run, a2 C-003): a failing
     # digest pipeline never aborts the resolver
     # (the script's own option line, -u included, and nothing pre-seeded: the resolver reads its flag with a default — c2a C-002)
@@ -1392,6 +1392,21 @@ def whole(o, quoted):   # the leading $( / $(( / ${ construct is balanced and is
             rest = o[i + 1:]
             return (rest.startswith('"') and ends(rest[1:])) if quoted else ends(rest)
     return False
+def strip_comment(s):   # a trailing `  # ` comment, cut only outside quotes (audit run 1, c2b DISS-C-003: "b  # c" was cut inside)
+    q, i = None, 0
+    while i < len(s):
+        ch = s[i]
+        if ch == '\\' and q != "'":
+            i += 2; continue
+        if q is None:
+            if ch in '"\'':
+                q = ch
+            elif ch == '#' and s[i + 1:i + 2] == ' ' and re.search(r'\s{2,}$', s[:i]):
+                return s[:i].rstrip()
+        elif ch == q:
+            q = None
+        i += 1
+    return s
 bad = []
 lines = open(sys.argv[1], encoding='utf-8').read().split('\n')
 fn = ""
@@ -1408,7 +1423,7 @@ for n, line in enumerate(lines):
         fn = ""                                    # (a one-line body: the grant is this line's alone)
     if line.lstrip().startswith('#'):
         continue                                   # a comment that names the flag
-    line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
+    line = strip_comment(line)                     # and a trailing one
     # (c2b DISS-C-002: MAX_ARG_STRLEN bounds each envp string as it does each argv string — no value reaches jq by its environment)
     # (thirty-ninth run, c2b DISS-C-002: a jq env read anywhere — a program held in a variable reads $ENV on its own line — and a
     # prefix value quoted with a space in it)
@@ -1417,7 +1432,8 @@ for n, line in enumerate(lines):
         bad.append('environment: ' + line.strip())
     # (thirty-third run, c2b DISS-C-001: a name is any word — a dynamic --arg "$1" "$2" is checked too — and every variable a
     # quoted operand interpolates, not the first one alone)
-    for m in re.finditer(r'--(?:argjson|arg)\s+\S+\s+(?=(\S.*))', line):   # (the whole rest: a long operand's tail is read too)
+    # (audit run 1, c2b DISS-C-003: a quoted flag — "--arg" x "$payload" — is the flag too)
+    for m in re.finditer(r'["\']?--(?:argjson|arg)["\']?\s+\S+\s+(?=(\S.*))', line):   # (the whole rest: a long operand's tail is read too)
         op = m.group(1)
         if op.startswith('"') and not op.startswith('"$'):
             # a literal, or one interpolating only reviewed scalars
@@ -1529,6 +1545,13 @@ PY
         printf '  jq -n --arg x %s %s\n' "$x" "'{x: \$x}' > \"\$out\"" > "$fx"
         python3 -c "$lint" "$fx" || { echo "a whole quoted operand $x was refused"; return 1; }
     done
+    # (audit run 1, c2b DISS-C-003: a quoted flag, and a `  # ` inside a quoted operand that the comment strip cut at)
+    for efx in '  jq -n "--arg" x "$payload" .' "  jq -n '--argjson' x \"\$payload\" ." '  jq -n --arg a "b  # c" --arg y "$payload" .'; do
+        printf '%s\n' "$efx" > "$fx"
+        _nrm46_caught "$fx" || { echo "an operand never checked: $efx"; return 1; }
+    done
+    printf '%s\n' '  jq -n --arg a "b  # c" --arg m "$model" .  # a trailing comment naming --arg "$payload"' > "$fx"
+    python3 -c "$lint" "$fx" || { echo "a comment after reviewed quoted operands was read as code"; return 1; }   # (the positive control)
     python3 -c "$lint" "$ADVERSARIAL_REVIEW"
 }
 
@@ -1924,4 +1947,39 @@ PY
     _sweep_where > "${own%/*}/.$SPRINT.owner"   # (this test's own marker back, whole, for the real teardown)
     [ ! -e "$own" ] || { echo "teardown left an unwritable directory of its own (rc $rc)"; return 1; }
     [ "$rc" -eq 0 ] || { echo "teardown failed: rc $rc"; return 1; }
+}
+
+@test "NRM-66 a rejected_summary row and its reason quote carry no Arabic letter mark, Mongolian vowel separator, variation selector, interlinear annotation or Unicode tag character either — invisible tag-encoded text never rides a row (audit run 1, a2 DISS-C-002)" {
+    local doc="$TEST_DIR/doc-66.json"
+    jq -nc '{findings: [
+      {severity: "HIGH", title: "t؜A󠁁B️C᠎D￹E󠄀F", category: "nope", description: "Fails󠁿 here؜."},
+      {severity: "HIGH", title: "t2", category: "cfg؜󠁁x", description: "Fails."}
+    ]}' > "$doc"
+    env_json=$(jq -nc --rawfile c "$doc" '{content: $c, tokens_input: 10, tokens_output: 5, cost_usd: 0, latency_ms: 1, schema_enforced: false}')
+    result=$(process_findings "$env_json" "audit" "m" "$SPRINT" "0" "")
+    rs=$(jq -c '.metadata.rejected_summary' <<<"$result")
+    [ "$(jq 'length' <<<"$rs")" = "2" ] || { echo "$result" | cut -c1-600; return 1; }
+    # every string of the rows, as code points: none at U+061C, U+180E, U+FE00-FE0F, U+FFF9-FFFB or U+E0000 and above
+    jq -e '[.. | strings | explode[] | select(. == 1564 or . == 6158 or (. >= 65024 and . <= 65039) or (. >= 65529 and . <= 65531) or . >= 917504)] | length == 0' <<<"$rs" >/dev/null \
+      || { jq -c '[.. | strings | select(explode | any(. == 1564 or . >= 917504))]' <<<"$rs"; return 1; }
+    [ "$(jq -r '.[0].title' <<<"$rs")" = "t A B C D E F" ] || { jq -r '.[0].title' <<<"$rs"; return 1; }
+    [[ "$(jq -r '.[1].reason' <<<"$rs")" == "category-not-in-enum (got: cfg  x"* ]] || { jq -r '.[1].reason' <<<"$rs"; return 1; }
+}
+
+@test "NRM-67 with no digest tool on PATH, two run tags over 100 bytes that share their first 100 bytes and their length never share a sidecar name: the cut hex carries a POSIX cksum of the whole tag (audit run 1, c2a DISS-C-001)" {
+    local bin="$TEST_DIR/bin-nohash" t
+    mkdir -p "$bin"
+    for t in od tr cut cksum cat date head; do ln -sf "$(command -v "$t")" "$bin/$t"; done
+    [ ! -e "$bin/sha256sum" ]
+    [ ! -e "$bin/shasum" ]
+    one="$(printf 'x%.0s' $(seq 1 149))."; two="$(printf 'x%.0s' $(seq 1 149)),"
+    a=$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="$one"; _adv_run_tag 2>/dev/null )
+    b=$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="$two"; _adv_run_tag 2>/dev/null )
+    [[ "$a" =~ ^h[0-9a-f]{200}-150-[0-9]+$ ]] || { echo "a=$a"; return 1; }
+    [[ "$b" =~ ^h[0-9a-f]{200}-150-[0-9]+$ ]] || { echo "b=$b"; return 1; }
+    [ "$a" != "$b" ]
+    # the same tag twice is the same name (a deterministic checksum, never a random suffix)
+    [ "$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="$one"; _adv_run_tag 2>/dev/null )" = "$a" ]
+    # a tag within 100 bytes keeps its plain hex
+    [ "$( PATH="$bin"; LOA_ADVERSARIAL_RUN_TAG="c.1"; _adv_run_tag 2>/dev/null )" = "h632e31" ]
 }

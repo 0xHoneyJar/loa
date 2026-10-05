@@ -392,7 +392,8 @@ _validate_finding_reason() {
     # (a jq gsub is quadratic in the length of the string — slice first, then clean: thirty-second run, a1 DISS-C-001)
     # (thirty-third run, a2 DISS-C-003: C1 controls, the Unicode line separators and the bidi and zero-width format characters
     # too — a quote renders as the bytes it holds; the class is the one clean() uses below)
-    def got: tostring | .[0:32] | gsub("[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"; " ");
+    # (audit run 1, a2 DISS-C-002: and U+061C, U+180E, the variation selectors, U+FFF9-FFFB and the Tag block — invisible text)
+    def got: tostring | .[0:32] | gsub("[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufe00-\ufe0f\ufeff\ufff9-\ufffb\\x{E0000}-\\x{E007F}\\x{E0100}-\\x{E01EF}]"; " ");
     # (an id of whitespace only is missing, as a description or failure_mode of whitespace is: thirty-eighth run, a1 DISS-C-002)
     if (.id // null) == null or (.id | type) != "string" or (.id | test("\\S") | not) then
       "missing-or-non-string-id"
@@ -1770,7 +1771,9 @@ while i < len(text):
           # anchor of any type is a capped string)
           # (thirty-third run, a2 DISS-C-003: C1 controls, U+2028/U+2029 and the bidi and zero-width format characters too — a
           # right-to-left override or a zero-width space made a row render unlike its bytes; got() in the validator is the same class)
-          def clean($n): .[0:$n] | gsub("[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]"; " ");   # (sliced first: gsub is quadratic — thirty-second run, a1 DISS-C-001)
+          # (audit run 1, a2 DISS-C-002: U+061C, U+180E, U+FE00-FE0F, U+FFF9-FFFB and the Tag block U+E0000-E007F, U+E0100-E01EF too —
+          # tag characters carry invisible text)
+          def clean($n): .[0:$n] | gsub("[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufe00-\ufe0f\ufeff\ufff9-\ufffb\\x{E0000}-\\x{E007F}\\x{E0100}-\\x{E01EF}]"; " ");   # (sliced first: gsub is quadratic — thirty-second run, a1 DISS-C-001)
           def ttl: if type == "string" then clean(160) | nz else null end;
           def sid: if type == "string" and test("\\A[A-Za-z0-9._:-]{1,64}\\z") then . else null end;
           (($o.title | ttl) // ($o.id | sid)) as $own | (($f.title | ttl) // ($f.id | sid)) as $norm
@@ -2384,7 +2387,13 @@ _adv_resolve_run_tag() {  # sets _ADV_RUN_TAG for LOA_ADVERSARIAL_RUN_TAG: the t
   if [[ -z "$_h" ]]; then   # no digest tool: the raw tag hex-encoded, whole up to 100 bytes and its byte length beyond (twelfth run, c2 C-003;
                             # eighteenth run, a2 C-004: a 40-hex cut shared a name for tags that differed only after byte 20)
     _h=$(printf '%s' "$_rt" | od -An -v -tx1 2>/dev/null | tr -d ' \n') || _h=""   # (-v: od folds repeated lines into `*` — a run of sixteen equal bytes vanished)
-    if [[ -n "$_h" && ${#_h} -gt 200 ]]; then _h="${_h:0:200}-$(( ${#_h} / 2 ))"; fi
+    # (audit run 1, c2a DISS-C-001: and a POSIX cksum of the whole tag — the cut and the length alone named two tags sharing
+    # their first 100 bytes and their length as one file)
+    if [[ -n "$_h" && ${#_h} -gt 200 ]]; then
+      local _ck; _ck=$(printf '%s' "$_rt" | cksum 2>/dev/null | cut -d' ' -f1) || _ck=""
+      [[ "$_ck" =~ ^[0-9]+$ ]] || _ck="nocksum"
+      _h="${_h:0:200}-$(( ${#_h} / 2 ))-${_ck}"
+    fi
   fi
   [[ -n "$_h" ]] || _h="invalid"
   log "WARN: LOA_ADVERSARIAL_RUN_TAG is not [A-Za-z0-9_-]{1,64} — this run's sidecars carry the tag h${_h} instead (distinct raw tags never share a file)"
@@ -2857,7 +2866,8 @@ _adv_with_cli_lock() {  # <model> <cmd…> — run cmd; a *-headless model runs 
       # CLI hop (an HTTP alias, the repair's `tiny`) waits only as long as its own call timeout
       # (twelfth run, a1 C-002: a REPAIR through a CLI hop waits only its own timeout — _ADV_LOCK_WAIT_CLI — never a dissent hop's bound)
       case "$(_adv_hop_canon "$model")" in *-headless) wait_s="${_ADV_LOCK_WAIT_CLI:-$(_adv_cli_hop_bound "$model")}" ;; *) wait_s="${_ADV_LOCK_WAIT:-${CONF_TIMEOUT:-60}}" ;; esac
-      # sixth run, C-003: the directory is ours (0700, not a symlink) or we do not lock on it at all
+      # sixth run, C-003: the directory is a directory, not a symlink and owned by us (made 0700 when we create it; the mode of
+      # one that stands is not checked — audit run 1, a3 DISS-C-001) or we do not lock on it at all
       # twelfth run, a2 C-006: without flock the serialisation is OFF — said once, never silently (macOS ships none)
       if ! command -v "${_ADV_FLOCK_BIN:-flock}" >/dev/null 2>&1; then
         _adv_run_unlocked "flock is not installed (install util-linux flock, or run one dissent at a time)" "$@"; return $?
@@ -2941,7 +2951,8 @@ _companion_ledger_message() {  # <model> <since iso-8601> [until iso-8601] [call
              and ($ts >= $s) and ($ts <= $u)
              and (.payload.calling_primitive == $prim)
              and (((.payload.models_requested // []) | if type == "array" then map(strings | (. == $m or endswith(":" + $m) or sub("^[A-Za-z0-9_-]+:"; "") == $mc)) | any else false end)))
-      | (.payload.models_failed // []) | if type == "array" then .[] else empty end | objects | .message_redacted // empty | strings' 2>/dev/null | tail -1 | cut -c1-300 || true
+      | (.payload.models_failed // []) | if type == "array" then .[] else empty end | objects | .message_redacted // empty | strings' 2>/dev/null | tail -1 || true
+  # (audit run 1, a4a DISS-C-003: uncut — the fold cuts to 300 after its own redaction, never before it)
   # (twenty-first run, a2 DISS-C-002: the row's SHAPE is checked too — a non-string models_requested element or a non-object
   # models_failed element from another writer of the shared ledger is skipped; a jq exit 5 never becomes this function's status)
 }
@@ -3318,10 +3329,12 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     if [[ -n "$final" && "${_lastrow##*:}" != lock_wait && "$status" != lock_wait ]]; then _diag=$(_companion_ledger_message "$final" "$_since" "$_until" "adversarial-${type:-review}") || _diag=""; fi
     # 2) else the last line of the companion's log that is not a shim banner or the generic wrapper
     if [[ -z "$_diag" && -s "$workdir/companion.log" ]]; then
-      _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -Ev 'model-invoke failed with exit code|^\[model-adapter:shim\]' | tail -1 | cut -c1-300) || _diag=""   # -E: ugrep reads \| as a literal; `|| _diag=""`: a log of shim lines alone must not abort (sixteenth run, a3 C-003)
-      [[ -n "$_diag" ]] || _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | tail -1 | cut -c1-300) || _diag=""
+      _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | grep -Ev 'model-invoke failed with exit code|^\[model-adapter:shim\]' | tail -1) || _diag=""   # -E: ugrep reads \| as a literal; `|| _diag=""`: a log of shim lines alone must not abort (sixteenth run, a3 C-003)
+      [[ -n "$_diag" ]] || _diag=$(grep -v '^[[:space:]]*$' "$workdir/companion.log" | tail -1) || _diag=""
     fi
-    cls=$(_companion_failure_class "$status" "$rc" "$_diag")
+    # (audit run 1, a4a DISS-C-003: the line is cut to 300 only AFTER the redactor below — a key straddling column 300, cut first,
+    # fell under the masks' minimum lengths and its head reached stderr; the class reads the first 300 as before)
+    cls=$(_companion_failure_class "$status" "$rc" "$(printf '%s\n' "$_diag" | cut -c1-300)")
     local synth="$workdir/vq-companion-synthetic.json"
     # third run, C-001 (BLOCKING): a failed companion whose id is one of the primary's succeeded voices
     # (this host: a primary that fell through to claude-headless, a claude-headless companion that timed
@@ -3352,6 +3365,8 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
       # sk-… (Anthropic, OpenAI), xai-…, gsk_… and AIza… — masked whole, boundary-anchored
       last_error=$(printf '%s\n' "$last_error" | sed -E 's/(^|[^A-Za-z0-9])(sk|xai|gsk)[-_][A-Za-z0-9_-]{12,}/\1[REDACTED-KEY]/g; s/AIza[0-9A-Za-z_-]{20,}/[REDACTED-KEY]/g' | sed -n 1p) \
         || last_error="[diagnostic withheld: the redactor failed]"
+      # then the cut, and no control character: provider text bound for a terminal (audit run 1, a4a DISS-C-003)
+      last_error=$(printf '%s\n' "$last_error" | LC_ALL=C tr -d '\000-\010\013-\037\177' | cut -c1-300 | sed -n 1p) || last_error="[diagnostic withheld: the redactor failed]"
       # the redacted raw line is operator-facing (stderr); the envelope gets the allowlisted summary
       log "Companion voice diagnostic ($final): $last_error"
       last_error=$(_adv_error_summary "$last_error")
@@ -3748,6 +3763,9 @@ main() {
     error "Invalid --type: $type (must be review or audit)"; exit 2
   fi
   if [[ -z "$sprint_id" ]]; then error "Missing --sprint-id"; exit 2; fi
+  # (audit run 1, a5 DISS-C-002: the record-fallback's shape check, before every sink — the id names mktemp's template, the run
+  # lock, the move-aside and the envelope's directory, and a path in it walks out of TMPDIR and grimoires/loa/a2a/)
+  if ! [[ "$sprint_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ && "$sprint_id" != *..* ]]; then error "invalid --sprint-id (a plain name: [A-Za-z0-9][A-Za-z0-9._-]{0,127}, no ..)"; exit 2; fi
   # (thirty-fifth run, a4 DISS-C-002: a flag's presence, never its value, decides — an empty --record-fallback, or a --reason
   # without it, is a usage error, never a dropped value and a full review in place of the record)
   if [[ -n "$_rf_given" && -z "$record_fallback" ]]; then error "--record-fallback needs a status"; exit 2; fi

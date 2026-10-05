@@ -385,8 +385,10 @@ _now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (mac
 # (thirty-second run, c1a DISS-C-002: a git < 2.32 ignores GIT_CONFIG_GLOBAL — HOME and XDG_CONFIG_HOME point at no config too)
 # (thirty-ninth run, c2d DISS-C-001: and none of a caller's repository environment — a hook's GIT_DIR / GIT_INDEX_FILE, a dotfiles
 # GIT_WORK_TREE — so a fixture's init / add -A / commit never acts on the caller's repository)
-_cmp_git() { ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(command git rev-parse --local-env-vars 2>/dev/null)
-    HOME=/nonexistent/loa-cmp-home XDG_CONFIG_HOME=/nonexistent/loa-cmp-home GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@" ); }
+# (audit run 1, c2c DISS-C-002 twin: nor a caller's GIT_TEMPLATE_DIR or GIT_EXEC_PATH, and no hook at all — a template's
+# pre-commit hook ran in, and could stop, every fixture commit)
+_cmp_git() { ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE GIT_TEMPLATE_DIR GIT_EXEC_PATH $(command git rev-parse --local-env-vars 2>/dev/null)
+    HOME=/nonexistent/loa-cmp-home XDG_CONFIG_HOME=/nonexistent/loa-cmp-home GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always -c core.hooksPath=/dev/null "$@" ); }
 # sha256 hex of stdin — sha256sum, else shasum -a 256 (BSD / macOS), as the script falls back (thirtieth run, c1c DISS-C-002)
 _cmp_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v shasum >/dev/null 2>&1; then shasum -a 256; else return 1; fi; }
 _cmp_base_ref() { if command git -C "$PROJECT_ROOT" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; then echo main; else echo HEAD; fi; }
@@ -5692,6 +5694,14 @@ PY
         after=$(_cmp_git -C "$o" rev-parse HEAD; _cmp_git -C "$o" ls-files)
         [ "$after" = "$before" ] || { echo "a caller's ${gv%%=*}: the caller's repository changed"; return 1; }
     done
+    # (audit run 1, c2c DISS-C-002 twin: a caller's GIT_TEMPLATE_DIR copies its hooks into every fixture repository — a pre-commit
+    # hook that fails would stop the fixture's commit, and one that writes ran in it)
+    local tpl="$T/gx-template"; mkdir -p "$tpl/hooks"
+    printf '#!/bin/sh\n: > "%s/gx-hook-ran"\nexit 1\n' "$T" > "$tpl/hooks/pre-commit"; chmod +x "$tpl/hooks/pre-commit"
+    r="$T/gx-template-repo"
+    ( export GIT_TEMPLATE_DIR="$tpl"; _cmp_git init -q "$r" && : > "$r/fixture" && _cmp_git -C "$r" add -A && _cmp_git -C "$r" commit -q -m fixture ) >/dev/null 2>&1 \
+        || { echo "a caller's GIT_TEMPLATE_DIR: the fixture's commit failed"; return 1; }
+    [ ! -e "$T/gx-hook-ran" ] || { echo "a caller's template pre-commit hook ran in the fixture repository"; return 1; }
 }
 
 @test "CMP-272 a re-reviewed or re-audited task carries every round's verdict label (br label add never removes the other), so both beads resources name the latest verdict comment as the record and a verdict label as history, never as the current verdict (thirty-ninth run, e2b DISS-C-001)" {
@@ -5727,4 +5737,84 @@ PY
     result=$(_run_main review)
     [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
     [ "$(jq -r '.metadata | has("verdict_quality_error")' <<<"$result")" = "false" ]
+}
+
+@test "CMP-274 a raw tab in a diff --git header never reaches an array subscript: under set -euo pipefail a header path holding a tab and \$(…) runs nothing, and the other files are still ranked and included (audit run 1, b1 DISS-C-001)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-tab.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+T="$2"
+a=$(printf '+line %s\n' $(seq 1 60)); c=$(printf '+cine %s\n' $(seq 1 60)); docs=$(printf '+doc %s\n' $(seq 1 150))
+evil='x'$'\t''PATH[$(touch '"$T"'/pwned)]'
+d="diff --git a/src/a.sh b/src/a.sh
+@@ -1 +1,60 @@
+$a
+diff --git a/$evil b/x
+@@ -1 +1 @@
++hi
+diff --git a/src/c.sh b/src/c.sh
+@@ -1 +1,60 @@
+$c
+diff --git a/docs/d.md b/docs/d.md
+@@ -1 +1,150 @@
+$docs"
+out=$(prepare_content "$d" 500)   # (as adversarial-review.sh:1021 calls it: errexit is off inside the substitution)
+printf '%s' "$out"
+# and the memo itself refuses a subscript that is not a number, whatever its caller read (fix a, apart from the manifest order)
+_lc_tok=(); r=0; _lc_chunk_tok "$T" 'PATH[$(touch '"$T"'/pwned2)]' v || r=$?; echo "tok-rc=$r" >&2
+EOF
+    rc=0; out=$(bash "$T/lc-tab.sh" "$lib" "$T" 2>"$T/lc-tab.err") || rc=$?
+    [ ! -e "$T/pwned" ]
+    [ ! -e "$T/pwned2" ]
+    [ "$rc" = "0" ] || { cat "$T/lc-tab.err"; return 1; }
+    grep -qx 'tok-rc=1' "$T/lc-tab.err"
+    [[ "$out" == "diff --git a/src/a.sh b/src/a.sh"* ]]
+    [[ "$out" == *$'\ndiff --git a/src/c.sh b/src/c.sh'* ]]
+    [[ "$out" == *"+line 60"* && "$out" == *"+cine 60"* ]]
+    # the tab-bearing file is ranked as a path like any other (P2, after both P0 files) and shown whole
+    [[ "$out" == *"+cine 60"*"+hi"* ]]
+    [[ "$out" == *"--- PARTIAL: docs/d.md shown up to the token budget"* ]]
+}
+
+@test "CMP-275 main refuses a --sprint-id that is not a plain name — a path in it never reaches mktemp, the run lock, the move-aside or the envelope's directory: a usage error (exit 2) and nothing written (audit run 1, a5 DISS-C-002)" {
+    local esc="cmp275esc-$$" sid
+    mkdir -p "$T/tmp/adversarial-x"   # the pre-made directory that lets mktemp -d walk out of TMPDIR
+    for sid in "../$esc" "x/../../$esc" "x/../../../$esc" ".hidden" "a..b"; do
+        rc=0; result=$( export TMPDIR="$T/tmp"; main --type review --sprint-id "$sid" --diff-file "$T/diff.patch" --json 2> "$T/stderr.log" ) || rc=$?
+        [ "$rc" = "2" ] || { echo "sprint id $sid: rc=$rc"; cat "$T/stderr.log"; return 1; }
+        grep -q 'invalid --sprint-id' "$T/stderr.log"
+        [ -z "$result" ]
+    done
+    [ -z "$(find "$T" "$PROJECT_ROOT/grimoires" -maxdepth 4 -name "$esc*" -print -quit)" ]
+    [ -z "$(find "$T/tmp" -mindepth 1 -name 'adversarial-*' ! -name adversarial-x -print -quit)" ]
+    # and the record-fallback path keeps its own check behind it (a usage error before it, the same exit code)
+    rc=0; ( main --type review --sprint-id "../$esc" --record-fallback skipped --reason r 2> "$T/stderr.log" ) || rc=$?
+    [ "$rc" = "2" ]
+    grep -q 'invalid --sprint-id' "$T/stderr.log"
+    # a plain name still runs
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.final_model' <<<"$result")" = "gpt-5.5-pro" ]
+}
+
+@test "CMP-276 the companion diagnostic is redacted BEFORE it is cut to 300 characters and reaches stderr with no control character: a key straddling column 300 never shows even in part (audit run 1, a4a DISS-C-003)" {
+    wd="$T/cut"; mkdir -p "$wd"
+    printf 'claude-headless' > "$wd/companion.final"; printf 'api_failure' > "$wd/companion.status"; printf '1' > "$wd/companion.rc"
+    printf 'done' > "$wd/companion.phase"; : > "$wd/companion.attempts"; : > "$wd/companion.vq"
+    # a fake Google-shaped key, built in pieces (never one literal a secret scanner reads as a key), starting at column 285
+    local k="AI""za" body="" i
+    for i in 1 2 3 4 5 6 7 8; do body+="Fq${i}x"; done   # 32 key characters after the prefix
+    local pad; pad=$(printf 'p%.0s' $(seq 1 272))
+    printf '\033[31mboom: %s %s tail\n' "$pad" "$k$body" > "$wd/companion.log"
+    [ "$(head -1 "$wd/companion.log" | cut -c1-300 | grep -o "$k[A-Za-z0-9]*" | wc -c)" -gt 5 ]   # (the cut alone keeps part of the key)
+    set -o pipefail
+    local out rc=0
+    out=$(_fold_companion '{"findings":[],"metadata":{}}' "$wd" anthropic claude-headless gpt-5.5-pro gpt-5.5-pro 2>"$T/cut-err") || rc=$?
+    [ "$rc" = "0" ]
+    grep -q "Companion voice diagnostic (claude-headless): \[31mboom: ppp" "$T/cut-err" || { cat "$T/cut-err"; return 1; }
+    if grep -qF "$k" "$T/cut-err" || grep -qF "${body:0:8}" "$T/cut-err"; then echo "part of the key reached stderr"; cat "$T/cut-err"; return 1; fi
+    if grep -F 'Companion voice diagnostic' "$T/cut-err" | LC_ALL=C grep -q $'[\001-\010\013-\037\177]'; then echo "a control character reached stderr"; return 1; fi
+    [[ "$out" != *"$k"* && "$out" != *"${body:0:8}"* ]]
+    # the line is still cut: at most 300 characters after the prefix
+    [ "$(grep -F 'Companion voice diagnostic' "$T/cut-err" | sed 's/^.*Companion voice diagnostic (claude-headless): //' | wc -c)" -le 301 ]
 }

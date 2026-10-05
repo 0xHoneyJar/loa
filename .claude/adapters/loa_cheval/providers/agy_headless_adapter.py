@@ -33,7 +33,10 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     registers every project root it starts in, so a directory per hop left one orphan state entry per hop and made every
     hop a never-seen directory (thirty-seventh run, e1 DISS-C-001). Not yet probed live there (no agy on the cycle-126
     host): a folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a
-    walkable non-zero exit or ends at the catalog timeout — never a hang; re-run the T4.1 gate probe before re-enabling agy.
+    walkable non-zero exit or ends at the catalog timeout — never a hang. agy is NOT disabled: it is the registered
+    `gemini-headless` class, the terminal of every stock Google chain, dispatched on any host with `agy` installed — so
+    the T4.1 gate probe (bd-ugmi) is owed now, and the stable cwd refuses any entry a hop left (cycle-126 audit run 1,
+    e1 DISS-C-001); until then every dispatch WARNs once per process of the argv exposure (e1 DISS-001).
   - **Auth** — agy is **OAuth**-authed on host (`agy models` → exit 0; no API-key flag; creds in
     an OAuth store, not `GOOGLE_API_KEY`). The gemini env-strip is a no-op for agy; we keep
     `build_headless_subprocess_env()` (harmless — agy ignores the stripped vars).
@@ -50,6 +53,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from typing import Any, Dict, List
 
@@ -72,6 +76,10 @@ from loa_cheval.types import (
 )
 
 logger = logging.getLogger("loa_cheval.providers.agy_headless")
+# (agy is reachable as gemini-headless and puts the whole prompt on argv: said once per process on dispatch, never per hop —
+# cycle-126 audit run 1, e1 DISS-001; the dispatch itself is the maintainer's call)
+_ARGV_PROMPT_WARNED = False
+_ARGV_PROMPT_WARN_LOCK = threading.Lock()
 
 # agy CLI binary name (override via AGY_HEADLESS_BIN env var for testing)
 _AGY_BIN_DEFAULT = "agy"
@@ -128,13 +136,21 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
 
         # (an isolated empty cwd under the private base, as its siblings: the caller's cwd is the reviewed tree, whose GEMINI.md
         # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks;
-        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001; a GEMINI.md / .gemini planted there is refused
-        # by private_workspace's project-file check, never read — and the T4.1 re-probe must show --sandbox denies cwd writes
-        # before agy is re-enabled: thirty-ninth run, e1 DISS-C-001)
+        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001; any entry left there, not only a GEMINI.md /
+        # .gemini, is refused by private_workspace, never read — agy is live as gemini-headless, not disabled, and whether
+        # --sandbox denies cwd writes is bd-ugmi's open probe: thirty-ninth run, e1 DISS-C-001; cycle-126 audit run 1, e1 DISS-C-001)
         try:
             workspace = private_workspace("loa-agy-ws")
         except OSError as exc:
             raise ProviderUnavailableError(self.provider, f"agy -p workspace unavailable: {exc}") from exc
+        global _ARGV_PROMPT_WARNED
+        with _ARGV_PROMPT_WARN_LOCK:
+            warn_argv = not _ARGV_PROMPT_WARNED
+            _ARGV_PROMPT_WARNED = True
+        if warn_argv:
+            logger.warning("gemini-headless dispatches agy, which takes the whole prompt on argv (readable by every local "
+                           "account through /proc/<pid>/cmdline and ps for the life of the hop); no stdin transport until "
+                           "bead bd-ugmi's re-probe")
         start = time.monotonic()
         try:
             with _acquire_slot(self.provider, n_slots=n_slots):

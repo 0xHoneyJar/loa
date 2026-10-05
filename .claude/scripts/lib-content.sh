@@ -161,6 +161,8 @@ _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one numbe
 _lc_chunk_tok() {  # <temp dir> <chunk index> <outvar> → the chunk's estimate, counted once per prepare_content call: the memo is the
                   # caller's local `_lc_tok` array (twenty-sixth run, b1 DISS-C-001 — the candidate scan, the reservation scan and the
                   # include loop each re-read and re-counted every chunk); printf -v, so the memo survives (a `$(...)` would drop it)
+  # a subscript is arithmetic — `$(…)` in it runs: only a number is an index (audit run 1, b1 DISS-C-001)
+  [[ "$2" =~ ^[0-9]+$ ]] || return 1
   [[ -n "${_lc_tok[$2]:-}" ]] || _lc_tok[$2]=$(estimate_tokens "$(cat "$1/chunk_$2")")
   printf -v "$3" '%s' "${_lc_tok[$2]}"
 }
@@ -191,13 +193,15 @@ prepare_content() {
 
   local current_file="" current_content="" file_index=0
 
+  # manifest rows are `pri<TAB>idx<TAB>path`, read `read -r pri idx path`: the path takes the rest of the line, so a raw tab in a
+  # `diff --git` header never shifts its text into the index (audit run 1, b1 DISS-C-001)
   while IFS= read -r line; do
     if [[ "$line" =~ ^diff\ --git\ a/(.+)\ b/ ]]; then
       # Save previous file section
       if [[ -n "$current_file" ]]; then
         local pri
         pri=$(file_priority "$current_file")
-        printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+        printf '%d\t%d\t%s\n' "$pri" "$file_index" "$current_file" >> "$temp_dir/manifest"
         printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
         ((file_index++)) || true
       fi
@@ -212,7 +216,7 @@ prepare_content() {
   if [[ -n "$current_file" ]]; then
     local pri
     pri=$(file_priority "$current_file")
-    printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+    printf '%d\t%d\t%s\n' "$pri" "$file_index" "$current_file" >> "$temp_dir/manifest"
     printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
     ((file_index++)) || true
   fi
@@ -237,12 +241,13 @@ prepare_content() {
 
     # Filter manifest: remove excluded files
     local filtered_manifest=""
-    while IFS=$'\t' read -r priority filepath chunk_idx; do
+    while IFS=$'\t' read -r priority chunk_idx filepath; do
+      [[ "$chunk_idx" =~ ^[0-9]+$ ]] || continue
       if is_excluded "$filepath"; then
         ((scope_excluded++)) || true
         rm -f "$temp_dir/chunk_${chunk_idx}"
       else
-        filtered_manifest+="${priority}"$'\t'"${filepath}"$'\t'"${chunk_idx}"$'\n'
+        filtered_manifest+="${priority}"$'\t'"${chunk_idx}"$'\t'"${filepath}"$'\n'
       fi
     done < "$temp_dir/manifest"
     printf '%s' "$filtered_manifest" > "$temp_dir/manifest"
@@ -280,9 +285,9 @@ prepare_content() {
   # loop's own include rule up to its first omission
   local top_pri="" top_path="" top_idx="" top_partial_done=0 top_no_room=0 c_pri c_path c_idx c_tok c_run=0
   local -a _lc_tok=()
-  while IFS=$'\t' read -r c_pri c_path c_idx; do
+  while IFS=$'\t' read -r c_pri c_idx c_path; do
     [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
-    _lc_chunk_tok "$temp_dir" "$c_idx" c_tok
+    _lc_chunk_tok "$temp_dir" "$c_idx" c_tok || continue
     if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
     c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
@@ -292,10 +297,10 @@ prepare_content() {
     # file (fifteenth run, b1 C-002), and a lower-priority row never shrinks the view of the file the review is about
     # (sixteenth run, b1 C-001)
     local others=0 o_pri o_path o_idx o_tok reserve partial kept total how
-    while IFS=$'\t' read -r o_pri o_path o_idx; do
+    while IFS=$'\t' read -r o_pri o_idx o_path; do
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
       [[ "$o_pri" -le "$top_pri" ]] || continue
-      _lc_chunk_tok "$temp_dir" "$o_idx" o_tok
+      _lc_chunk_tok "$temp_dir" "$o_idx" o_tok || continue
       # what those rows take TOGETHER, by the main loop's greedy rule — two siblings that each fit but not side by side are not
       # reserved twice (twenty-second run, b1 DISS-C-001)
       (( others + o_tok <= max_tokens )) && others=$(( others + o_tok ))
@@ -312,7 +317,7 @@ prepare_content() {
     # siblings at its tier come first, whole, then the view; the lower rows get what both leave, nothing once the siblings take a
     # quarter or more. CMP-214 pins the order.)
     local lower=0
-    while IFS=$'\t' read -r o_pri o_path o_idx; do
+    while IFS=$'\t' read -r o_pri o_idx o_path; do
       [[ -n "$o_idx" && "$o_idx" != "$top_idx" && "$o_pri" -gt "$top_pri" ]] && { lower=1; break; }
     done <<< "$sorted_manifest"
     if (( lower )); then
@@ -347,8 +352,9 @@ prepare_content() {
     $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
   fi
 
-  while IFS=$'\t' read -r priority filepath chunk_idx; do
-    [[ -n "$chunk_idx" ]] || continue
+  while IFS=$'\t' read -r priority chunk_idx filepath; do
+    # (the pre-scans' guard: a row with no chunk file is never read — audit run 1, b1 DISS-C-001)
+    [[ -n "$chunk_idx" && -f "$temp_dir/chunk_${chunk_idx}" ]] || continue
     # the partial view sits at its own tier's place (twentieth run, b1 DISS-C-001), charged with its marker, always shown
     if [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]]; then
       output+="$partial_block"; current_tokens=$(( current_tokens + $(estimate_tokens "$partial_block") )); ((included++)) || true
@@ -357,7 +363,7 @@ prepare_content() {
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
     local chunk_tokens
-    _lc_chunk_tok "$temp_dir" "$chunk_idx" chunk_tokens
+    _lc_chunk_tok "$temp_dir" "$chunk_idx" chunk_tokens || continue
 
     if [[ $(( current_tokens + chunk_tokens )) -le $max_tokens ]]; then
       output+="$chunk_content"$'\n'

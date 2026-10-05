@@ -169,8 +169,24 @@ def test_the_stable_workspace_refuses_one_holding_a_project_file(root):
         with pytest.raises(OSError, match="holds " + marker.replace(".", r"\.")):
             hc.private_workspace("loa-claude-ws")
         (os.rmdir if os.path.isdir(p) else os.unlink)(p)
-    open(os.path.join(ws, "notes.txt"), "w").close()     # a file no CLI loads is no hazard
+    # (no file is known to be inert: what a CLI loads from its cwd is not a list we can close — cycle-126 audit run 1, e1 DISS-C-001)
+    open(os.path.join(ws, "notes.txt"), "w").close()
+    with pytest.raises(OSError, match=r"holds notes\.txt"):
+        hc.private_workspace("loa-claude-ws")
+    os.unlink(os.path.join(ws, "notes.txt"))
     assert hc.private_workspace("loa-claude-ws") == ws
+
+
+@pytest.mark.parametrize("entry", [".env", ".agent", ".antigravity", ".geminiignore", "rules.md"])
+def test_the_stable_workspace_refuses_any_entry_a_hop_left(root, entry):
+    """A stable cwd is shared by every later hop, and agy runs --dangerously-skip-permissions there: anything a hop left —
+    not only the named project files — is refused loudly, never loaded (cycle-126 audit run 1, e1 DISS-C-001)."""
+    os.environ["XDG_RUNTIME_DIR"] = str(_dir(root / "run", 0o700))
+    ws = hc.private_workspace("loa-agy-ws")
+    p = os.path.join(ws, entry)
+    os.mkdir(p) if entry.startswith(".a") else open(p, "w").close()
+    with pytest.raises(OSError, match="holds " + entry.replace(".", r"\.") + ".*must be empty"):
+        hc.private_workspace("loa-agy-ws")
 
 
 def test_without_posix_ownership_the_stable_workspace_skips_the_mode_test_too(root, monkeypatch):

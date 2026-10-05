@@ -826,12 +826,18 @@ hounfour:
     # Subscription-billed model IDs live entirely in `hounfour.providers`;
     # operators expose them to agent bindings via `aliases:` below.
 
-    # gemini-headless: routes through `gemini -p` for Google AI subscription auth.
-    # No api_key consumed — bills against the operator's personal Google account
-    # quota (free tier: 60 req/min · 1000 req/day) or Gemini Advanced subscription.
-    # Requires `gemini` CLI on PATH (npm install -g @google/gemini-cli) and a
-    # one-time interactive `gemini` run to populate ~/.gemini/settings.json with
-    # the OAuth tokens. Alternative: set GEMINI_API_KEY / GOOGLE_GENAI_USE_GCA.
+    # gemini-headless: routes through `agy -p` (the Antigravity CLI — the FR-5
+    # repoint, loa#1096; Google retired gemini-cli's individual Code Assist tier).
+    # No api_key consumed — agy is OAuth-authed against the operator's Antigravity
+    # subscription. Requires `agy` on PATH (or AGY_HEADLESS_BIN). Every stock
+    # Google chain ends in this terminal, so installing agy enables it. Each
+    # model entry needs `extra.cli_model`, an agy `--model` LABEL from `agy models`
+    # (e.g. "Gemini 3.1 Pro (High)"), not an api id; agy's argv is fixed, so the
+    # gemini_policies / gemini_extra_flags extras below are not read by it.
+    # SECURITY: `agy -p` takes the whole prompt (the redacted review diff) on
+    # argv, readable by every local account through /proc/<pid>/cmdline and `ps`
+    # for the life of the hop — cheval WARNs once per process on dispatch; a
+    # stdin transport waits on the bd-ugmi re-probe. Avoid it on a shared host.
     #
     # Same gemini-3.x line as the google provider, just a different transport.
     # Useful when deep-thinker / fast-thinker / flatline-tertiary token spend
@@ -843,7 +849,7 @@ hounfour:
     # to override.
     gemini-headless:
       type: gemini-headless
-      # No `auth:` field — auth is file-based (~/.gemini/settings.json) or env-var
+      # No `auth:` field — agy authenticates itself (its own OAuth store)
       read_timeout: 600.0
       models:
         # Model IDs match gemini-cli ≥ 0.40.x defaults. The bare names
