@@ -37,6 +37,7 @@ setup() {
     # indented body (thirty-third run, e3 DISS-C-004) — checked BEFORE the source, so a cut inside the body is named here and
     # never surfaces as source's "unexpected end of file" (thirty-sixth run, e3 DISS-C-003)
     _jq_pair_extracted_whole "$script_path"
+    _filter_block_extracted_whole "$script_path"
     {
         echo 'log() { echo "[test] $*" >&2; }'
         # sprint-bug-208 (#1025): the filter now routes verdict-bearing jq
@@ -58,7 +59,8 @@ _jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extr
     # (a function that is not there is named so — thirty-eighth run, e3 DISS-C-001)
     [[ -n "$_end" ]] || { echo "setup: _adv_jq_pair() not found in $1" >&2; return 1; }
     _next="$(sed -n "$((_end + 1))p" "$1")"
-    [[ -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* ]] \
+    # (an indented comment is no body: thirty-ninth run, e3 DISS-C-003)
+    [[ -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* || "$_next" =~ ^[[:space:]]+# ]] \
         || { echo "setup: _adv_jq_pair's extraction ended inside its body (line $_end)" >&2; return 1; }
     # (the extracted text itself parses whole: a column-0 brace inside a quoted program or a heredoc, followed by a
     # blank line, passes the next-line read but leaves an open quote or heredoc — thirty-eighth run, e3 DISS-C-002)
@@ -68,6 +70,15 @@ _jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extr
 
 teardown() {
     rm -rf "$TEST_WORKDIR"
+}
+
+_filter_block_extracted_whole() {  # <script> — the banner range setup copies into ext.sh has both its banners and parses whole,
+    # so a renamed banner or a cut is named here, never an opaque error from source (thirty-ninth run, e3 DISS-C-003)
+    grep -q '^# Dissenter Hallucination Filter' "$1" && grep -q '^# Finding ID Computation' "$1" \
+        || { echo "setup: a hallucination-filter banner is missing from $1" >&2; return 1; }
+    local _x
+    _x="$(sed -n '/# Dissenter Hallucination Filter/,/# Finding ID Computation/p' "$1" | bash -n 2>&1)" \
+        || { echo "setup: the hallucination-filter block does not parse whole: ${_x:-bash -n failed}" >&2; return 1; }
 }
 
 _make_result() {
@@ -364,4 +375,21 @@ _make_result() {
     src="$(grep -n '^    source filter-fns.sh$' "$f" | head -1 | cut -d: -f1)"
     [[ -n "$chk" && -n "$src" ]] || { echo "setup's check ($chk) or source ($src) not found"; return 1; }
     (( chk < src )) || { echo "the extraction check (line $chk) runs after the source (line $src)"; return 1; }
+}
+
+@test "setup checks the banner extraction too, and an indented comment after _adv_jq_pair's brace is no body (thirty-ninth run, e3 DISS-C-003)" {
+    local fx="$BATS_TEST_TMPDIR/banner39.sh" err f="$BATS_TEST_FILENAME" chk src
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' '  :' '}' > "$fx"
+    err=$(_filter_block_extracted_whole "$fx" 2>&1) && { echo "a block without its end banner passed"; return 1; }
+    [[ "$err" == *"banner"* ]] || { echo "the missing banner was not named: $err"; return 1; }
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' "  echo '" '# Finding ID Computation' > "$fx"
+    err=$(_filter_block_extracted_whole "$fx" 2>&1) && { echo "a block that does not parse passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' '  :' '}' '# Finding ID Computation' > "$fx"
+    _filter_block_extracted_whole "$fx" || { echo "a whole block was refused"; return 1; }
+    printf '_adv_jq_pair() {\n  :\n}\n  # next helper\nnext\n' > "$fx"
+    _jq_pair_extracted_whole "$fx" || { echo "an indented comment after the brace was read as body"; return 1; }
+    chk="$(grep -n '^    _filter_block_extracted_whole "$script_path"$' "$f" | head -1 | cut -d: -f1)"
+    src="$(grep -n '^    source filter-fns.sh$' "$f" | head -1 | cut -d: -f1)"
+    [[ -n "$chk" && -n "$src" ]] && (( chk < src )) || { echo "the banner check ($chk) does not run before the source ($src)"; return 1; }
 }

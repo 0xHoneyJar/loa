@@ -2,6 +2,7 @@ import { execFile, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { z } from "zod/v4";
+import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 const execFileAsync = promisify(execFile);
 /**
  * Zod schema for multi-model configuration (SDD Section 2.7).
@@ -111,8 +112,12 @@ export const PROVIDER_API_KEY_ENV = {
 };
 /** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
 // (case-sensitive, as cheval's alias lookup is — `Claude-Headless` resolves to nothing: thirty-eighth run, e4 DISS-C-002)
-export function isHeadlessModelId(modelId) {
-    return typeof modelId === "string" && /-headless$/.test(modelId);
+// (and a catalog entry, under its own provider when one is named — a suffix alone admitted a typo or a pairing cheval has no
+// alias for, past the key gate's fail-fast: thirty-ninth run, e4 DISS-C-002)
+export function isHeadlessModelId(modelId, provider) {
+    if (typeof modelId !== "string" || !/-headless$/.test(modelId) || !Object.hasOwn(GENERATED_MODEL_REGISTRY, modelId))
+        return false;
+    return provider === undefined || GENERATED_MODEL_REGISTRY[modelId].provider === provider;
 }
 /**
  * Validate API keys for configured multi-model providers.
@@ -129,7 +134,7 @@ export function validateApiKeys(config) {
         }
         // (a `*-headless` entry is a cheval CLI hop that authenticates itself — every voice dispatches through cheval — so
         // it needs no key; the gate dropped the keyless host's claude-headless entry: cycle-126 thirty-seventh run, e2b DISS-C-003)
-        if (isHeadlessModelId(model.model_id) || process.env[envVar]) {
+        if (isHeadlessModelId(model.model_id, model.provider) || process.env[envVar]) {
             valid.push({ provider: model.provider, modelId: model.model_id });
         }
         else {

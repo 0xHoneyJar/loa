@@ -198,7 +198,10 @@ _vd_committed() {  # <file> → 0 when git tracks it and its bytes are the commi
     command -v git >/dev/null 2>&1 || return 1
     ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
             GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_SHALLOW_FILE GIT_GRAFT_FILE \
-            GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(git rev-parse --local-env-vars 2>/dev/null)
+            GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(git rev-parse --local-env-vars 2>/dev/null) \
+            GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
+      # (thirty-ninth run, b1 DISS-C-001: the name is a literal path — `review?.jsonl` is no pattern matching a committed sibling)
+      export GIT_LITERAL_PATHSPECS=1
       git -C "${1%/*}" ls-files --error-unmatch -- "${1##*/}" >/dev/null 2>&1 \
         && git -C "${1%/*}" diff --quiet HEAD -- "${1##*/}" >/dev/null 2>&1 )
 }

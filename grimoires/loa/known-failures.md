@@ -83,8 +83,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 1 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
-| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 1 |
-| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 8 |
+| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 2 |
+| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 9 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 
@@ -1528,7 +1528,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 **Feature**: .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition)
 **Symptom**: npm test in .claude/skills/bridgebuilder-review reports 1 failing file: not ok - __tests__/persona.test.ts with location persona.test.ts:1:1 and the log line Fatal: ANTHROPIC_API_KEY required. Set it in your environment ... (or set BRIDGEBUILDER_MODEL=<provider>-headless ...). Every subtest inside the file passes; the file-level failure is the process exit.
 **First observed**: 2026-09-25 (cycle-126 sprint-247; identical on main in a throwaway worktree at HEAD)
-**Recurrence count**: 1
+**Recurrence count**: 2
 **Current workaround**: Run the BB suite in a shell where the key is present (never a fake value in tracked state), or set BRIDGEBUILDER_MODEL=claude-headless for the test run; treat the failure as environmental when the other 754 tests pass.
 **Upstream issue**: cycle-126 residue: the test should be hermetic — the precondition belongs behind the config resolution the test does not exercise, or the test should stub the API-key check
 **Related visions / lore**: none
@@ -1538,6 +1538,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-09-25 | worktree at main HEAD with the same node_modules, npx tsx --test __tests__/persona.test.ts | REPRODUCED on main — pre-existing, not the cycle-126 diff | grimoires/loa/a2a/sprint-247/reviewer.md test-first record; NOTES.md 2026-09-25 Decision Log |
+| 2026-10-05 | npm test in bridgebuilder-review after the round-1an build on a keyless host | 759/760 pass; persona.test.ts fails at :1:1 with the Fatal ANTHROPIC_API_KEY line (presence-only check: no key set) — this entry, not a regression | round 1an on 332f254c, /tmp/bb-test.log |
 
 ### Reading guide
 
@@ -1549,7 +1550,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 **Feature**: .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout
 **Symptom**: adversarial-review.json: companion_voice.status failed with last_error 'claude -p timed out after 610s' (failure_class timeout since sprint-248 round 1f; model_unavailable on older envelopes); the MODELINV row's models_failed[].message_redacted reads RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE … timed out. The same hop answers in ~384 s when the CLI is otherwise idle (sprint-247/248 round 0).
 **First observed**: 2026-09-25 (cycle-126 sprint-248 review re-run while the Sprint 3 baseline eval ran claude -p at concurrency 2)
-**Recurrence count**: 8
+**Recurrence count**: 9
 **Current workaround**: Run dissents and other claude CLI workloads (eval harness, Bridgebuilder claude-headless) serially — pause the eval before a review/audit; or raise flatline_protocol.<block>.timeout_seconds (the companion wait cap follows it: timeout × hops + 30 s). The dissent still completes on the primary (voices_planned 2, voices_succeeded 1).
 **Upstream issue**: cycle-126 residue: cheval could report a CLI-hop timeout as TIMEOUT (exit 3) rather than PROVIDER_UNAVAILABLE (exit 1); a host-level claude CLI concurrency budget would make the contention visible before the call
 **Related visions / lore**: KF-010 (google CLI hops under a concurrent BB sweep), KF-035
@@ -1569,6 +1570,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 | 2026-10-04 | thirty-sixth two-voice run (round 1aj 3509808d): a3-script-3's first two companion attempts timed out at 910 s (claude -p) with ~12 other Claude sessions live; Flatline, BB and the companion all resolve to the one claude binary and only adversarial-review.sh serialises it (e2b DISS-C-002) | attempt 3 two-voice via run-dissent-two-voice.sh; every other chunk two-voice on attempt 1 — structural: the upstream residue is now concrete, a cheval-level per-binary CLI lock (headless_cli.py) so Flatline and BB hops queue behind the dissent's, plus a per-consumer headless breaker (follow-up bead at cycle end) | run36.log a3 attempts 1-3 (~/.cache/loa/cycle-126-dissent/run36-out); branch feature/cycle-126-full-size @ 3509808d |
 | 2026-10-04 | thirty-seventh two-voice run (round 1ak 009ee894): a1-script-1's first companion attempt and all six of a4-script-4's (57604 bytes) timed out at 910 s (claude -p) with ~12 other Claude sessions live | a1 attempt 2 two-voice; a4 single-voice after six attempts (driver cap) — the chunk's size compounds the contention, so run 38 splits the script in five (chunk script 248i); every other chunk two-voice on attempt 1; structural residue unchanged (cheval-level per-binary lock + per-consumer breaker, cycle-end bead) | run37.log a1 attempts 1-2, a4 attempts 1-6 (~/.cache/loa/cycle-126-dissent/run37-out); branch feature/cycle-126-full-size @ 009ee894 |
 | 2026-10-04 | thirty-eighth two-voice run (round 1al 9bb1fe4c): a3-script-3's first companion attempt and a4-script-4's first three timed out at 910 s (claude -p) with ~12 other Claude sessions live, host load ~1.5 | a3 attempt 2 and a4 attempt 4 two-voice via run-dissent-two-voice.sh; every chunk two-voice; run 39 splits a4 (57 KB) into a4a/a4b to shorten the companion's hop | commit 9bb1fe4c; run38.log (cycle-126 dissent cache) |
+| 2026-10-05 | Thirty-ninth two-voice run (24 chunks, companion on claude-bedrock) with about twelve other Claude sessions live: retried each timed-out chunk until two-voice (a1, a2, b1 once; a3 twice; a4b six times at 910 s) | All 24 chunks two-voice; retry-until-two-voice holds but costs about an hour per run under host contention; dissent capped at 3 runs per sprint from here | run39.log on 332f254c (round 1am), sprint-248 feedback §43 |
 
 ### Reading guide
 

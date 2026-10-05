@@ -162,6 +162,15 @@ describe("validateApiKeys", () => {
       assert.equal(isHeadlessModelId("Claude-Headless"), false);
       assert.equal(isHeadlessModelId("CODEX-HEADLESS"), false);
       assert.equal(isHeadlessModelId("codex-headless"), true);
+      // (a catalog CLI alias, never a suffix: a typo or a pairing cheval has no alias for keeps the key gate's fail-fast —
+      // thirty-ninth run, e4 DISS-C-002)
+      assert.equal(isHeadlessModelId("claud-headless"), false);
+      assert.equal(isHeadlessModelId("gemini-headless", "google"), true);
+      assert.equal(isHeadlessModelId("gemini-headless", "anthropic"), false);
+      const typo = validateApiKeys(MultiModelConfigSchema.parse({
+        enabled: true, models: [{ provider: "anthropic", model_id: "claud-headless" }],
+      }));
+      assert.deepEqual(typo.missing.map((m) => m.envVar), ["ANTHROPIC_API_KEY"]);
     } finally {
       if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = saved;

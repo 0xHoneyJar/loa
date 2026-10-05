@@ -70,11 +70,13 @@ def _group_private(gid: int) -> bool:
 def _acl_extended(path: str) -> bool:
     """`path` carries a POSIX access ACL: its group bits are then the mask over named users and groups, never the owning
     group's own (thirty-fifth run, d DISS-C-004). A filesystem without xattrs carries none; any other failure is no proof.
-    (macOS ACLs are not POSIX xattrs and Python has no os.listxattr there — not judged.)"""
+    (macOS ACLs are not POSIX xattrs and Python has no os.listxattr there — not judged.) Any `system.*acl*` name counts:
+    an NFSv4 mount lists `system.nfs4_acl` (and never the POSIX name) for a grant the mode bits cannot show either
+    (thirty-ninth run, d DISS-C-001)."""
     if not hasattr(os, "listxattr"):
         return False
     try:
-        return "system.posix_acl_access" in os.listxattr(path)
+        return any(n.startswith("system.") and "acl" in n for n in os.listxattr(path))
     except OSError as exc:
         return exc.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP)
 
@@ -387,8 +389,18 @@ class HeadlessCLIAdapter(ProviderAdapter):
                         raise ProviderUnavailableError(
                             self.provider, f"{self._command_label} {exc}",
                         ) from exc
-                    except FileNotFoundError as exc:
+                    except (FileNotFoundError, PermissionError) as exc:
+                        # (thirty-ninth run, d DISS-C-002: a binary present but not executable is named as a missing one is —
+                        # the *_BIN override and install hint — never a preparation failure; a filename-less EACCES, or one on
+                        # the cwd, is the spawn's own walkable failure)
                         _cwd = invocation.kwargs.get("cwd")
+                        if isinstance(exc, PermissionError):
+                            if getattr(exc, "filename", None) is None or cwd_vanished(_cwd, exc):
+                                self._raise_spawn_error(exc)
+                            env_name = self._cli_type.upper().replace("-", "_") + "_BIN"
+                            raise ConfigError(
+                                f"{self._cli_name} CLI is not executable (set {env_name} to override). Original: {exc}"
+                            ) from exc
                         if cwd_vanished(_cwd, exc):
                             raise ProviderUnavailableError(
                                 self.provider, f"{self._command_label} working directory {_cwd} vanished before the CLI "

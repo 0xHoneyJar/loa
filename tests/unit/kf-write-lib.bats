@@ -244,7 +244,7 @@ def rendered_differs(h):
     if "``" in h or "\\`" in h or any(c.startswith(" ") and c.endswith(" ") and c.strip(" ") for c in p[1:len(p) - 1:2]):
         return True
     return bool(re.search(r"\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);", t)
-                or re.search(r"(^|[^\w])_+[^_\s](.*[^_\s])?_+([^\w]|$)", t) or re.search(r"(^|\s)#+\s*$", t))
+                or re.search(r"(^|[^\w])_+[^_\s](.*[^_\s])?_+([^\w]|$)", t) or re.search(r"(^|[ \t])#+[ \t]*$", t))   # (ASCII space or tab only, as the writer and CommonMark: thirty-ninth run, e2c DISS-C-001)
 found = re.findall(r"^##[ \t]+(KF-\d+:.*?)[ \t]*$", s, re.M)
 heads = {h.split(":")[0]: "".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-") for h in found}
 bad = [k for k, a in re.findall(r"^\| \[(KF-\d+)\]\(#([^)]*)\)", s, re.M) if heads.get(k) != a]
@@ -252,7 +252,7 @@ bad += [h.split(":")[0] for h in found if rendered_differs(h)]
 # (a heading whose anchor the slug references disagree on — Other_Number, a format character, an Other_Alphabetic symbol, a
 # context-dependent lowercase — has no settled anchor: thirty-sixth run, e2c DISS-C-002, the library's refusal)
 def unsettled(h):
-    return (any(unicodedata.category(c) in ("No", "Cf") or any(a <= ord(c) <= b for a, b in oa) for c in h)
+    return (any(unicodedata.category(c) in ("No", "Cf", "Cn") or any(a <= ord(c) <= b for a, b in oa) for c in h)
             or h.lower() != "".join(c.lower() for c in h))
 bad += [h.split(":")[0] for h in found if unsettled(h)]
 print("Index links that resolve to no heading:", bad) if bad else None
@@ -513,4 +513,21 @@ print(len(entries))
   [ "$status" -eq 0 ] || { echo "the control (no emphasis) failed the lint, so the anchor rule is not what the fixture assumes: $output"; return 1; }
   run _kf_link_lint "$G"
   [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "the lint passed a Unicode-bounded emphasis: $output"; return 1; }
+}
+
+@test "kf-write new: a code point unassigned in this host's Unicode database is refused as unsettled (a newer GitHub may call it a letter), and the link lint names it; a Unicode space before a closing # is text to the writer and to the lint alike (thirty-ninth run, e2c DISS-C-002 / DISS-C-001)" {
+  local G0="$BATS_TEST_TMPDIR/e2c39.md"; printf '# KF\n\n## Index\n\n| ID | Status | Feature | Recurrence |\n|----|--------|---------|------------|\n\n---\n' > "$G0"
+  local before; before="$(cksum < "$G0")"
+  run bash "$KFW" new --file "$G0" --title "$(printf 'an unassigned code point \315\270 here')" --status OPEN --quiet
+  [ "$status" -ne 0 ] && [[ "$output" == *"not settled"* ]] || { echo "an unassigned code point was written: $output"; return 1; }
+  [ "$(cksum < "$G0")" = "$before" ] || { echo "the refusal changed the ledger"; return 1; }
+  local G="$BATS_TEST_TMPDIR/lint-cn.md"
+  printf '%s\n' '# KF' '' '## Index' '' '| [KF-040](#kf-040-ab) | OPEN | x | 1 |' '' "$(printf '## KF-040: a\315\270b')" > "$G"
+  run _kf_link_lint "$G"
+  [ "$status" -eq 1 ] && [[ "$output" == *KF-040* ]] || { echo "the lint passed an unassigned code point: $output"; return 1; }
+  # (CommonMark's closing sequence follows an ASCII space or tab only: an NBSP before it leaves the hashes as text)
+  run bash "$KFW" new --file "$G0" --title "$(printf 'issue C\302\240##')" --status OPEN --quiet
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  run _kf_link_lint "$G0"
+  [ "$status" -eq 0 ] || { echo "the lint is stricter than the writer on a Unicode space before #: $output"; return 1; }
 }

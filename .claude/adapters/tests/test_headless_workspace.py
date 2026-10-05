@@ -343,6 +343,12 @@ def test_a_group_writable_directory_with_an_access_acl_is_never_trusted(monkeypa
         raise OSError(errno.EACCES, "denied")
     monkeypatch.setattr(hc.os, "listxattr", denied, raising=False)
     assert not hc._dir_trustworthy(os.stat(d), str(d))        # any other failure is no proof
+    # (thirty-ninth run, d DISS-C-001: an NFSv4 or rich ACL is no POSIX xattr, and its grants are as invisible to the mode bits)
+    for name in ("system.nfs4_acl", "system.nfs4_dacl", "system.richacl", "system.posix_acl_default"):
+        monkeypatch.setattr(hc.os, "listxattr", lambda p, n=name: ["user.x", n], raising=False)
+        assert not hc._dir_trustworthy(os.stat(d), str(d)), name
+    monkeypatch.setattr(hc.os, "listxattr", lambda p: ["user.mime_type", "security.selinux"], raising=False)
+    assert hc._dir_trustworthy(os.stat(d), str(d))            # an xattr that is no ACL changes nothing
 
 
 def test_a_missing_cwd_is_named_by_the_spawn_error_itself_never_a_later_stat(tmp_path):

@@ -259,6 +259,7 @@ _sweep_alive() {
 # checkout from a devcontainer and its host — so a marker records where it was written, and only a marker written HERE is
 # judged; and kill -0's EPERM is a live process of another uid even when hidepid keeps ps and /proc from seeing it)
 _sweep_where() { printf 'where %s %s\n' "$(uname -n 2>/dev/null)" "$(readlink /proc/self/ns/pid 2>/dev/null)"; }
+_touch_at() { touch -t "$(printf '%(%Y%m%d%H%M.%S)T' "$1")" "$2"; }   # <epoch> <file> (POSIX touch -t, never GNU `touch -d @…` — thirty-ninth run, c1c DISS-C-002)
 _sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one, or none at all
     # (thirty-seventh run, c1a DISS-C-001: a marker with no where line — empty from a crash between create and write, another
     # host's mid-write, or an older format — cannot be verified as this host's, so it is never ours to delete)
@@ -284,7 +285,7 @@ _sweep_reaper_alive() {  # <pid> <tag> → the sweeper that renamed a .reap-<pid
     [[ ! "$now" =~ ^t[0-9]+$ || "$now" == "$2" ]]
 }
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
-    local a2a="$1" pre="$2" m p d q qt rt left
+    local a2a="$1" pre="$2" m p d q qt rt left ino
     # (thirty-eighth run, c2a DISS-C-002: a `.owner.tmp` lives between setup's printf and its link; one over a minute old is a
     # crashed setup's, which no marker glob matches)
     find "$a2a" -maxdepth 1 -type f -name ".$pre-[0-9]*.owner.tmp" -mmin +1 -delete 2>/dev/null || true
@@ -294,6 +295,9 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
         [[ "$p" =~ ^[0-9]+$ ]] || continue
         _sweep_foreign "$m" && continue
         _sweep_alive "$p" && continue
+        # (thirty-ninth run, c1a DISS-C-001: the verdict is re-checked where it acts — a run that reuses the pid after it places
+        # its own marker, and its fresh directory and that marker are never the dead one's)
+        ino=$(ls -di -- "$m" 2>/dev/null) || ino=""
         left=0
         for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do
             [[ -e "$d" || -L "$d" ]] || continue
@@ -305,6 +309,7 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
                 [[ "$q" == *-* ]] && { qt=${q#*-}; q=${q%%-*}; }
                 if [[ ! "$q" =~ ^[0-9]+$ ]] || { [[ "$q" != "$$" ]] && _sweep_reaper_alive "$q" "$qt"; }; then left=1; continue; fi
             else
+                _sweep_alive "$p" && { left=1; continue; }
                 rt="$$$(_sweep_reap_tag)"
                 mv -- "$d" "$d.reap-$rt" 2>/dev/null || { left=1; continue; }
                 d="$d.reap-$rt"
@@ -313,7 +318,7 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
             find "$d" -mindepth 1 -delete 2>/dev/null || true
             rmdir "$d" 2>/dev/null || left=1
         done
-        (( left )) || rm -f -- "$m"
+        (( left )) || _sweep_alive "$p" || [[ -z "$ino" || "$(ls -di -- "$m" 2>/dev/null)" != "$ino" ]] || rm -f -- "$m"
     done
     return 0
 }
@@ -372,7 +377,10 @@ _now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }   # (mac
 # a scratch repository the suite builds is the suite's own: no global or system config reaches its init, add or commit —
 # commit.gpgsign, core.hooksPath, init.templateDir, commit.template (thirtieth run, c1c DISS-C-003)
 # (thirty-second run, c1a DISS-C-002: a git < 2.32 ignores GIT_CONFIG_GLOBAL — HOME and XDG_CONFIG_HOME point at no config too)
-_cmp_git() { HOME=/nonexistent/loa-cmp-home XDG_CONFIG_HOME=/nonexistent/loa-cmp-home GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@"; }
+# (thirty-ninth run, c2d DISS-C-001: and none of a caller's repository environment — a hook's GIT_DIR / GIT_INDEX_FILE, a dotfiles
+# GIT_WORK_TREE — so a fixture's init / add -A / commit never acts on the caller's repository)
+_cmp_git() { ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(command git rev-parse --local-env-vars 2>/dev/null)
+    HOME=/nonexistent/loa-cmp-home XDG_CONFIG_HOME=/nonexistent/loa-cmp-home GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -c user.email=t@t -c user.name=t -c protocol.file.allow=always "$@" ); }
 # sha256 hex of stdin — sha256sum, else shasum -a 256 (BSD / macOS), as the script falls back (thirtieth run, c1c DISS-C-002)
 _cmp_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v shasum >/dev/null 2>&1; then shasum -a 256; else return 1; fi; }
 _cmp_base_ref() { if command git -C "$PROJECT_ROOT" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; then echo main; else echo HEAD; fi; }
@@ -2613,11 +2621,16 @@ $s" 300 2>/dev/null)
     wait "$s" 2>/dev/null || true
     # the inner reap uses those pairs: a pid only the frozen collection saw carries the token taken while frozen
     sleep 30 3>&- & s=$!; HOLDER_PIDS+=("$s")
-    _adv_kill_tree() { printf '%s=%s\n' "$1" "$(_adv_tok_word "$(_adv_proc_start "$1")")" 999999 tFROZEN; kill "$1"; }
+    # (thirty-ninth run, c1b DISS-C-001: the frozen-only pid is above pid_max — 999999 is a legal, often live, pid of this user,
+    # and the reaper KILLs a member whose token still matches)
+    local fz; fz=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$fz" 2>/dev/null; then echo "pid $fz is live"; return 1; fi
+    _FZ109="$fz"
+    _adv_kill_tree() { printf '%s=%s\n' "$1" "$(_adv_tok_word "$(_adv_proc_start "$1")")" "$_FZ109" tFROZEN; kill "$1"; }
     _ADV_COMPANION_PID="$s"; _ADV_COMPANION_START=$(_adv_proc_start "$s"); LOA_ADVERSARIAL_REAP_GRACE_SECONDS=1
     _adv_reap_companion_inner "$s"
-    [[ " $_ADV_REAP_TREE_TOKENS" == *" 999999=tFROZEN "* ]] || { echo "tokens: $_ADV_REAP_TREE_TOKENS"; return 1; }
-    [[ " $_ADV_REAP_TREE_PIDS " == *" 999999 "* ]]
+    [[ " $_ADV_REAP_TREE_TOKENS" == *" $fz=tFROZEN "* ]] || { echo "tokens: $_ADV_REAP_TREE_TOKENS"; return 1; }
+    [[ " $_ADV_REAP_TREE_PIDS " == *" $fz "* ]] || { echo "pids: $_ADV_REAP_TREE_PIDS"; return 1; }
     [[ "$_ADV_REAP_TREE_TOKENS" != *"tFROZEN="* ]]
     wait "$s" 2>/dev/null || true
 }
@@ -2640,6 +2653,8 @@ $s" 300 2>/dev/null)
           exit 0 ) 3>&- || true
         [ -e "$T/once" ]
         [ ! -d "$T/wd-$sig" ] || { echo "$sig: the workdir survived the cleanup"; return 1; }
+        # (thirty-ninth run, c1b DISS-C-002: a lock that was never taken — a fail-open path — is no release; the leg says so)
+        [ -s "$T/lockdir" ] || { echo "$sig: no run lock was taken — the release leg would pass vacuously"; return 1; }
         [ ! -d "$(cat "$T/lockdir")" ] || { echo "$sig: the run lock survived the cleanup"; return 1; }
     done
 }
@@ -2668,9 +2683,19 @@ $s" 300 2>/dev/null)
     wait "$writer" 2>/dev/null || true
     kill "$_ADV_COMPANION_PID" 2>/dev/null; wait "$_ADV_COMPANION_PID" 2>/dev/null || true; _ADV_COMPANION_PID=""
     # the walker's hop/phase writes are atomic (a temp file renamed over the target), never a truncate-then-write
+    # (thirty-ninth run, c1b DISS-C-005: any redirect onto a hop/phase file in the whole script, however its path is spelled —
+    # "$x/…", "${x}/…", unquoted, >> — and the walker's own writes are the atomic helper's)
+    local hits; hits=$(python3 - "$ADVERSARIAL_REVIEW" <<'PY'
+import re, sys
+pat = re.compile(r'''(?<![0-9&])>>?\s*["']?\$\{?[A-Za-z_][A-Za-z_0-9]*\}?["']?/companion\.(current|phase)\b|(?<![0-9&])>>?\s*["']?\$\{?_ADV_PHASE_FILE\b''')
+for n, line in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
+    if pat.search(line.split(" # ")[0]): print(n, line.rstrip()[:160])
+PY
+) || { echo "the lint did not run"; return 1; }
+    [ -z "$hits" ] || { echo "a truncating hop/phase write: $hits"; return 1; }
     body=$(declare -f _walk_companion_chain)
-    if grep -qE "> \"\\\$workdir/companion\.(current|phase)\"" <<<"$body"; then return 1; fi
-    if declare -f _adv_invoke_hop | grep -qE "> \"\\\$_ADV_PHASE_FILE\""; then return 1; fi
+    grep -qF '_adv_put_state "$workdir/companion.current"' <<<"$body" && grep -qF '_adv_put_state "$workdir/companion.phase"' <<<"$body" || { echo "the walker does not publish through _adv_put_state"; return 1; }
+    declare -f _adv_hop_begins | grep -qF '_adv_put_state "$_ADV_PHASE_FILE"' || { echo "the hop phase is not published through _adv_put_state"; return 1; }
     _adv_put_state "$T/vw/companion.phase" queue; [ "$(cat "$T/vw/companion.phase")" = "queue" ]
     [ -z "$(find "$T/vw" -name '*.tmp*')" ]
 }
@@ -4515,8 +4540,10 @@ PY
         # a reviewer killed by its process group mid-freeze: the watchdog is in no group of the reviewer's
         sleep 30 3>&- & local w=$!; HOLDER_PIDS+=("$w")
         _adv_pid_tokens() { kill -KILL -- -"$(ps -o pgid= -p "$BASHPID" | tr -d ' ')"; sleep 5; }
-        setsid bash -c "$(declare -f _adv_kill_tree _adv_tree_pids _adv_cont_watchdog _adv_pid_tokens); _adv_kill_tree $w TERM tokens" >/dev/null 2>&1 3>&- </dev/null || true
-        local i; for i in $(seq 1 30); do [[ "$(ps -o stat= -p "$w")" == T* ]] && break; sleep 0.1; done
+        setsid bash -c "$(declare -f _adv_kill_tree _adv_tree_pids _adv_cont_watchdog _adv_pid_tokens _conf_uint log); _adv_kill_tree $w TERM tokens" >/dev/null 2>&1 3>&- </dev/null || true
+        # (thirty-ninth run, c1c DISS-C-001: a reaper that never ran inside the session never froze anything — say so, never pass)
+        local i froze=0; for i in $(seq 1 30); do [[ "$(ps -o stat= -p "$w")" == T* ]] && { froze=1; break; }; sleep 0.1; done
+        [ "$froze" = 1 ] || { echo "pid $w was never frozen — the inlined reaper did not run in the new session"; return 1; }
         for i in $(seq 1 40); do [[ "$(ps -o stat= -p "$w")" == T* ]] || break; sleep 0.1; done
         [[ "$(ps -o stat= -p "$w")" != T* ]] || { echo "pid $w is still stopped after the reviewer's group was killed"; kill -CONT "$w"; return 1; }
     fi
@@ -4597,7 +4624,7 @@ PY
     # the deadline: 700 s into the queue phase, under the 910 + 30 bound — a failed read must not reap at the 640 s fallback
     yq() { return 1; }
     local now; now=$(date +%s); mkdir -p "$T/dq210"
-    echo queue > "$T/dq210/companion.phase"; touch -d "@$(( now - 700 ))" "$T/dq210/companion.phase"
+    echo queue > "$T/dq210/companion.phase"; _touch_at "$(( now - 700 ))" "$T/dq210/companion.phase"
     echo claude-headless > "$T/dq210/companion.current"
     _ADV_QB_HOP=""; _ADV_QB_VAL=0; local whyq=""
     _companion_deadline_why "$T/dq210" $(( now - 800 )) 10 60 2000 whyq
@@ -4607,7 +4634,7 @@ PY
     _companion_deadline_why "$T/dq210" $(( now - 800 )) 10 60 2000 whyq
     [ -z "$whyq" ] && [ "$_ADV_QB_HOP" = "claude-headless" ] && [ "$_ADV_QB_VAL" = "940" ] \
       || { echo "good read: why '$whyq', cache $_ADV_QB_HOP=$_ADV_QB_VAL"; return 1; }
-    touch -d "@$(( now - 945 ))" "$T/dq210/companion.phase"
+    _touch_at "$(( now - 945 ))" "$T/dq210/companion.phase"
     _companion_deadline_why "$T/dq210" $(( now - 1000 )) 10 60 2000 whyq
     [ "$whyq" = "phase 'queue' deadline: 940s from the phase start" ] || { echo "past the bound: '$whyq'"; return 1; }
 }
@@ -5330,7 +5357,7 @@ PY
     fb="$XDG_CACHE_HOME/loa/headless-locks-$(id -u)"
     mkdir -p "$T/planted"; ln -s "$T/planted" "$rt"
     [ "$(_adv_lock_dir)" = "$fb" ] || { echo "lock dir: $(_adv_lock_dir)"; return 1; }
-    [ -d "$fb" ] && [ ! -L "$fb" ] && [ "$(stat -c %a "$fb")" = "700" ] || { echo "CMP-255: an assertion list failed"; return 1; }
+    [ -d "$fb" ] && [ ! -L "$fb" ] && [ "$(ls -ld -- "$fb" | cut -c1-10)" = "drwx------" ] || { echo "CMP-255: an assertion list failed"; return 1; }
     _ADV_RUN_LOCK_DIR=""; unset _ADV_RUN_LOCK_WARNED _ADV_LOCK_FALLBACK_SAID
     _adv_take_run_lock "$OUT_DIR" review 2>"$T/fb-err"
     [ -n "$_ADV_RUN_LOCK_DIR" ] || { echo "the run lock was not taken: $(cat "$T/fb-err")"; return 1; }
@@ -5436,8 +5463,236 @@ LINTEOF
     grep -qxF -- "$a/sprint-comp-$d.reap-$$-$(_sweep_start "$$")" "$T/a2a.mv" || { echo "renamed to: $(cat "$T/a2a.mv" 2>/dev/null)"; return 1; }
     [ ! -e "$a/sprint-comp-$d" ] && [ ! -e "$a/.sprint-comp-$d.owner" ] || { echo "the dead run's directory stayed"; return 1; }
     # a crashed setup's tmp
-    : > "$a/.sprint-comp-$d.owner.tmp"; touch -d '-2 minutes' "$a/.sprint-comp-$d.owner.tmp"; : > "$a/.sprint-comp-$h.owner.tmp"
+    : > "$a/.sprint-comp-$d.owner.tmp"; _touch_at "$(( $(date +%s) - 120 ))" "$a/.sprint-comp-$d.owner.tmp"; : > "$a/.sprint-comp-$h.owner.tmp"
     _sweep_stale_suite_dirs "$a" sprint-comp
     [ ! -e "$a/.sprint-comp-$d.owner.tmp" ] && [ -e "$a/.sprint-comp-$h.owner.tmp" ] || { echo "tmp sweep: $(ls -A "$a")"; return 1; }
     kill "$h" 2>/dev/null || true; wait "$h" 2>/dev/null || true
+}
+
+@test "CMP-259 a dead run's lock that vanishes between the takeover's judgement and its rename was released, never stuck: a third-round vanish then a last mkdir lost to a live run refuses, never runs unguarded beside it (thirty-ninth run, a2 DISS-C-001)" {
+    _need_flock
+    _adv_take_run_lock "$OUT_DIR" review; local lockd="$_ADV_RUN_LOCK_DIR"; _ADV_RUN_LOCK_DIR=""
+    command rm -f -- "$lockd/pid"; rmdir "$lockd"
+    sleep 300 3>&- & local p=$!; HOLDER_PIDS+=("$p")
+    ( exit 0 ) & local dead=$!; wait "$dead" 2>/dev/null || true
+    : > "$T/mk"
+    # rounds one to three lose to a dead run's lock, the last to a live one
+    mkdir() {
+        if [[ "$*" == "$lockd" ]]; then
+            echo x >> "$T/mk"; command mkdir "$lockd" 2>/dev/null || true
+            if (( $(grep -c '' "$T/mk") < 4 )); then printf '%s\n\n' "$dead" > "$lockd/pid"
+            else printf '%s\n%s\n' "$p" "$(_adv_proc_start "$p")" > "$lockd/pid"; fi
+            echo "mkdir: cannot create directory '$lockd': File exists" >&2; return 1
+        fi
+        command mkdir "$@"
+    }
+    # the dead lock goes (its holder's unserialised release) just before each rename, which then fails
+    mv() {
+        if [[ "${2:-}" == "$lockd" ]]; then command rm -f -- "$lockd/pid"; rmdir "$lockd"; return 1; fi
+        command mv "$@"
+    }
+    local rc=0; ( _adv_take_run_lock "$OUT_DIR" review ) 2>"$T/err" || rc=$?
+    unset -f mkdir mv
+    [ "$(grep -c '' "$T/mk")" = "4" ] || { echo "$(grep -c '' "$T/mk") lock mkdirs"; cat "$T/err"; return 1; }
+    [ "$rc" -eq 1 ] || { echo "rc $rc: $(cat "$T/err")"; return 1; }
+    if grep -q 'NOT guarded' "$T/err"; then echo "a vanished lock read as stuck: ran unguarded beside a live holder"; return 1; fi
+    [ "$(sed -n 1p "$lockd/pid")" = "$p" ] || { echo "the live holder's lock was touched"; return 1; }
+    command rm -f -- "$lockd/pid"; rmdir "$lockd"
+}
+
+@test "CMP-260 a strict hop bound over an aliased hop whose alias read FAILED prints nothing and returns 1 — never the unlisted fallback cached as the queue budget; a good alias read still resolves the CLI bound (thirty-ninth run, a3 DISS-C-002)" {
+    export LOA_MODEL_CONFIG="$T/cat-260.yaml"
+    printf 'aliases:\n  opus-cli: anthropic:claude-headless\nproviders:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 900\n    models:\n      claude-headless: {}\n' > "$LOA_MODEL_CONFIG"
+    [ "$(_adv_cli_hop_bound opus-cli strict)" = "910" ] || { echo "a good alias read: $(_adv_cli_hop_bound opus-cli strict)"; return 1; }
+    yq() { case "$*" in *aliases*) return 1 ;; *) command yq "$@" ;; esac; }
+    run _adv_cli_hop_bound opus-cli strict
+    { [ "$status" -ne 0 ] && [ -z "$output" ]; } || { echo "strict over a failed alias read: status $status, '$output'"; return 1; }
+    [ "$(_adv_cli_hop_bound opus-cli)" = "$_ADV_CLI_HOP_TIMEOUT" ] || { echo "the non-strict caller lost its fallback"; return 1; }
+    # the deadline: a failed alias read on the queue tick decides nothing and caches nothing
+    local now; now=$(date +%s); mkdir -p "$T/dq260"
+    echo queue > "$T/dq260/companion.phase"; _touch_at "$(( now - 700 ))" "$T/dq260/companion.phase"
+    echo opus-cli > "$T/dq260/companion.current"
+    _ADV_QB_HOP=""; _ADV_QB_VAL=0; local whyq=""
+    _companion_deadline_why "$T/dq260" $(( now - 800 )) 10 60 2000 whyq
+    [ -z "$whyq" ] || { echo "a failed alias read reaped: $whyq"; return 1; }
+    [ -z "$_ADV_QB_HOP" ] || { echo "a failed alias read was cached for $_ADV_QB_HOP ($_ADV_QB_VAL)"; return 1; }
+    unset -f yq
+}
+
+@test "CMP-261 the queue phase of an HTTP hop whose catalog chain reaches a CLI is its lock wait — the call timeout plus 30 s — never the CLI adapter's 610 + 30 fallback: a 900 s timeout is not reaped at 700 s, and is past 930 s (thirty-ninth run, a3 DISS-C-001)" {
+    export LOA_MODEL_CONFIG="$T/cat-261.yaml"
+    printf 'providers:\n  anthropic:\n    connect_timeout: 10\n    read_timeout: 600\n    models:\n      claude-opus-5-5:\n        fallback_chain: ["anthropic:claude-headless"]\n      claude-headless: {}\n' > "$LOA_MODEL_CONFIG"
+    [ "$(_adv_cli_bin_for claude-opus-5-5)" = "claude" ] || { echo "the fixture's chain does not reach the CLI"; return 1; }
+    local now; now=$(date +%s); mkdir -p "$T/dq261"
+    echo queue > "$T/dq261/companion.phase"; _touch_at "$(( now - 700 ))" "$T/dq261/companion.phase"
+    echo claude-opus-5-5 > "$T/dq261/companion.current"
+    CONF_TIMEOUT=900; _ADV_QB_HOP=""; _ADV_QB_VAL=0; local whyq=""
+    _companion_deadline_why "$T/dq261" $(( now - 800 )) 10 60 5000 whyq
+    [ -z "$whyq" ] || { echo "reaped inside a 900 s lock wait: $whyq"; return 1; }
+    [ "$_ADV_QB_VAL" = "930" ] || { echo "queue budget $_ADV_QB_VAL for $_ADV_QB_HOP"; return 1; }
+    _touch_at "$(( now - 935 ))" "$T/dq261/companion.phase"
+    _companion_deadline_why "$T/dq261" $(( now - 1000 )) 10 60 5000 whyq
+    [ "$whyq" = "phase 'queue' deadline: 930s from the phase start" ] || { echo "past the wait: '$whyq'"; return 1; }
+    # a *-headless hop keeps its CLI bound
+    echo claude-headless > "$T/dq261/companion.current"; _touch_at "$(( now - 600 ))" "$T/dq261/companion.phase"
+    _companion_deadline_why "$T/dq261" $(( now - 800 )) 10 60 5000 whyq
+    [ -z "$whyq" ] && [ "$_ADV_QB_VAL" = "640" ] || { echo "headless: why '$whyq', cache $_ADV_QB_HOP=$_ADV_QB_VAL"; return 1; }
+}
+
+@test "CMP-262 an empty hop window file (a walker killed between the truncate and the write) is a missing one: the MODELINV window falls back to the companion's lifetime, so its own row still speaks — and the walker and main publish every window stamp whole (thirty-ninth run, a4a DISS-C-002)" {
+    [[ -n "$T" && "$LOA_MODELINV_LOG_PATH" == "$T/"* ]] || { echo "the ledger is not test-scoped"; return 1; }
+    jq -nc '{event_type:"model.invoke.complete", ts_utc:"2026-10-01T10:00:10Z", payload:{models_requested:["anthropic:claude-headless"], calling_primitive:"adversarial-review", models_failed:[{model:"anthropic:claude-headless", message_redacted:"the companion own row"}]}}' > "$LOA_MODELINV_LOG_PATH"
+    local p='{"findings":[],"metadata":{"type":"review","status":"reviewed","model":"gpt-5.5-pro","cost_usd":0,"tokens_input":0,"tokens_output":0,"rejected_summary":[],"rejected_count":0}}'
+    local wd="$T/fold262" out le
+    mkdir -p "$wd"
+    printf 'claude-headless' > "$wd/companion.final"; printf 'claude-headless:api_failure\n' > "$wd/companion.attempts"
+    printf 'api_failure' > "$wd/companion.status"; printf '1' > "$wd/companion.rc"
+    : > "$wd/companion.hop_started_iso"; : > "$wd/companion.hop_ended_iso"
+    printf '2026-10-01T10:00:00Z' > "$wd/companion.started_iso"; printf '2026-10-01T10:00:20Z' > "$wd/companion.ended_iso"
+    printf 'ERROR: model-invoke failed with exit code 1\n' > "$wd/companion.log"
+    out=$(_fold_companion "$p" "$wd" anthropic claude-headless gpt-5.5-pro gpt-5.5-pro "" "gpt-5.5-pro" "" 2>"$T/fold262-err")
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$out")" = "failed" ] || { echo "the fold did not fail the companion"; return 1; }
+    le=$(grep -F 'Companion voice diagnostic' "$T/fold262-err" || true)
+    [[ "$le" == *"the companion own row"* ]] || { echo "an empty window file closed the window: $le"; return 1; }
+    # every window stamp is written by a rename — never a truncating redirect a kill can leave empty
+    local hits; hits=$(grep -nE 'date -u [^|;]*> "\$[a-z_]*/companion\.(hop_)?(started|ended)_iso"' "$BATS_TEST_DIRNAME/../../.claude/scripts/adversarial-review.sh" || true)
+    [ -z "$hits" ] || { echo "a truncating window write: $hits"; return 1; }
+}
+
+@test "CMP-263 the CONT watchdog is cancelled on the reaper path too, where TERM is ignored (trap '' INT TERM, inherited by the watchdog as SIG_IGN): a pid resumed by our CONT pass and stopped after it is never resumed seconds later (thirty-ninth run, a4b DISS-C-001)" {
+    export _ADV_CONT_WATCHDOG_SECONDS=1
+    bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-263-$$" 3>&- & local v=$!; HOLDER_PIDS+=("$v"); _await_stubborn "$v"
+    ( trap '' INT TERM; _adv_kill_tree "$v" TERM >/dev/null )
+    kill -0 "$v"
+    kill -STOP "$v"   # stopped after the reap by someone else (or a recycled pid's owner)
+    sleep 2.5
+    local st; st=$(ps -o stat= -p "$v"); kill -CONT "$v"
+    [[ "$st" == T* ]] || { echo "the watchdog survived its TERM-ignored cancel and resumed pid $v: $st"; return 1; }
+}
+
+@test "CMP-264 a malformed CONT-watchdog delay is the default, never a sleep that fails at once and resumes the tree mid-freeze (thirty-ninth run, a4b DISS-C-002)" {
+    local x
+    for x in bogus "" -3 1.5; do
+        export _ADV_CONT_WATCHDOG_SECONDS="$x"
+        sleep 300 3>&- & local v=$!; HOLDER_PIDS+=("$v")
+        kill -STOP "$v"
+        local _ADV_CONT_WD=""
+        _adv_cont_watchdog "$v" 2>"$T/wd264.err"
+        sleep 1.5
+        local st; st=$(ps -o stat= -p "$v")
+        local h; for h in $_ADV_CONT_WD; do kill -KILL -- "$h" 2>/dev/null || true; done
+        kill -CONT "$v"; kill "$v" 2>/dev/null || true
+        [[ "$st" == T* ]] || { echo "delay '$x' resumed the frozen pid at once: $st"; return 1; }
+    done
+}
+
+@test "CMP-265 --diff-range reads the tree at PROJECT_ROOT, never a repository a caller's git environment names: a hook's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE, an object directory or a namespace changes neither the resolved oids nor the diff (thirty-ninth run, a4b DISS-C-003)" {
+    local r="$T/r265" o="$T/o265"; _cmp_git init -q "$r"; _cmp_git init -q "$o"
+    _cmp_git -C "$r" commit -q --allow-empty -m base
+    printf 'ours\n' > "$r/f.txt"; _cmp_git -C "$r" add f.txt; _cmp_git -C "$r" commit -q -m head
+    _cmp_git -C "$o" commit -q --allow-empty -m base
+    printf 'theirs\n' > "$o/g.txt"; _cmp_git -C "$o" add g.txt; _cmp_git -C "$o" commit -q -m head
+    local want wantoid gv out
+    want=$(_adv_range_diff "$r" HEAD~1...HEAD); wantoid=$(_adv_range_oid "$r" HEAD)
+    grep -qx '+ours' <<<"$want" || { echo "the fixture diff: $want"; return 1; }
+    for gv in "GIT_DIR=$o/.git" "GIT_WORK_TREE=$o" "GIT_INDEX_FILE=$o/.git/index" "GIT_OBJECT_DIRECTORY=$o/.git/objects" "GIT_NAMESPACE=loa-other"; do
+        out=$(export "$gv"; _adv_range_diff "$r" HEAD~1...HEAD 2>/dev/null) || true
+        [ "$out" = "$want" ] || { echo "a caller's ${gv%%=*} changed the diff: $out"; return 1; }
+        out=$(export "$gv"; _adv_range_oid "$r" HEAD 2>/dev/null) || true
+        [ "$out" = "$wantoid" ] || { echo "a caller's ${gv%%=*} changed the resolved oid: $out"; return 1; }
+    done
+}
+
+@test "CMP-266 an empty --since, or a --since with no value, is a usage error naming the flag — never a dropped value that lets the record displace an envelope newer than the aborted run (thirty-ninth run, a5 DISS-C-001)" {
+    local rc
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason r --since "" ) >"$T/out" 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ] || { echo "empty --since: rc $rc $(cat "$T/err")"; return 1; }
+    grep -qF -- "--since needs a timestamp" "$T/err" || { echo "$(cat "$T/out" "$T/err")"; return 1; }
+    rc=0; ( main --type review --sprint-id "$SPRINT" --record-fallback failed --reason r --since ) >"$T/out" 2>"$T/err" || rc=$?
+    [ "$rc" -eq 2 ] || { echo "a trailing --since: rc $rc $(cat "$T/err")"; return 1; }
+    grep -qF -- "--since needs a timestamp" "$T/err" || { echo "$(cat "$T/out" "$T/err")"; return 1; }
+}
+
+@test "CMP-267 the audit gate's every-hop-ceded envelope is a degraded api_failure, as process_findings writes one — a fold that fails leaves DEGRADED_SECURITY_REVIEW readable; a fold that succeeds still promotes it undegraded (thirty-ninth run, a5 DISS-C-003)" {
+    _cfg_edit $'    model: gpt-5.5-pro\n    budget_cents: 200\n    timeout_seconds: 30\n    fallback_chain:\n      - codex-headless\n' $'    model: codex-headless\n    budget_cents: 200\n    timeout_seconds: 30\n    fallback_chain: []\n    companion_chain:\n      anthropic: [codex-headless]\n'
+    result=$(_run_main audit) || { echo "main failed"; tail -5 "$T/stderr.log"; return 1; }
+    [ "$(jq -r '.metadata.primary_voice.status' <<<"$result")" = "ceded" ] || { echo "not ceded: $(jq -c .metadata.primary_voice <<<"$result")"; return 1; }
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "false" ] || { echo "a promoted companion reads degraded"; return 1; }
+    _fold_companion() { return 1; }
+    result=$(_run_main audit) || { echo "main failed (fold failed)"; tail -5 "$T/stderr.log"; return 1; }
+    [ "$(jq -r '.metadata.status' <<<"$result")" = "api_failure" ] || { echo "status: $(jq -r .metadata.status <<<"$result")"; return 1; }
+    [ "$(jq -r '.metadata.degraded' <<<"$result")" = "true" ] || { echo "an audit api_failure envelope not degraded"; return 1; }
+}
+
+@test "CMP-268 the config example's budget_cents and repair-pin text says what the code does: a malformed value is read as 0 cents, which refuses (exit 4, budget_exceeded) any dispatch estimated above 0; the wall budget floor is two of the heaviest hop's charges plus a timeout on both gates; the pin is one env knob for both and warns below the heaviest repair hop's charge; companion_chain is read per block (thirty-ninth run, b2 DISS-C-001 / C-002 / C-003)" {
+    local ex="$PROJECT_ROOT/.loa.config.yaml.example" n
+    if grep -qF 'fails closed as 0' "$ex"; then echo "'fails closed as 0' still reads as an exit status"; return 1; fi
+    n=$(grep -cF 'read as 0 cents, which refuses' "$ex") || true
+    [ "$n" -eq 2 ] || { echo "$n blocks say what a malformed budget does"; return 1; }
+    if grep -qF "heaviest hop's charges at least" "$ex"; then echo "the audit block drops the timeout from the floor"; return 1; fi
+    if grep -qF "a pin below a hop's charge is warned" "$ex"; then echo "the pin warning names any hop"; return 1; fi
+    grep -qF "the heaviest repair hop's charge is warned" "$ex" || { echo "the pin warning is not the code's"; return 1; }
+    grep -qF 'one pin for both gates' "$ex" || { echo "the pin's scope is unsaid"; return 1; }
+    sed -n '/^  security_audit:/,/^  stable_anchors:/p' "$ex" | grep -qF 'companion_chain' || { echo "security_audit never says companion_chain is read per block"; return 1; }
+}
+
+@test "CMP-269 the sweep's dead-owner verdict is re-checked where it acts: a run that starts with the dead pid after the verdict (its setup replaces the marker) keeps its fresh directory and its marker — the sweep never renames the one nor removes the other (thirty-ninth run, c1a DISS-C-001)" {
+    local a="$T/a2a" d m
+    mkdir -p "$a"
+    ( : ) & d=$!; wait "$d"
+    m="$a/.sprint-comp-$d.owner"
+    mkdir -p "$a/sprint-comp-$d"; : > "$a/sprint-comp-$d/keep"; _sweep_where > "$m"
+    : > "$T/alive269"; _SW_D269="$d"; _SW_M269="$m"
+    # the first verdict is "dead"; at once a run with the reused pid places its own marker (a new file), and is alive from then on
+    _sweep_alive() {
+        if [[ "$1" == "$_SW_D269" && ! -s "$T/alive269" ]]; then echo 1 > "$T/alive269"; _sweep_where > "$_SW_M269.new"; command mv -f -- "$_SW_M269.new" "$_SW_M269"; return 1; fi
+        [[ "$1" == "$_SW_D269" ]] && return 0
+        kill -0 "$1" 2>/dev/null
+    }
+    _sweep_stale_suite_dirs "$a" sprint-comp
+    unset -f _sweep_alive
+    [ -e "$a/sprint-comp-$d/keep" ] || { echo "the live run's directory was swept: $(ls -A "$a")"; return 1; }
+    [ -e "$m" ] || { echo "the live run's marker was removed"; return 1; }
+    find "$a" -mindepth 1 -delete
+}
+
+@test "CMP-270 the suite holds to its portability floor: no GNU-only touch -d, date -d, stat -c or sed -i outside a comment — files are aged by _touch_at (POSIX touch -t) and modes read by ls (thirty-ninth run, c1c DISS-C-002)" {
+    local T_LINT="$T"
+    local hits; hits=$(python3 - "$BATS_TEST_FILENAME" <<'PY'
+import re, sys
+pat = re.compile(r'(^|[^A-Za-z0-9_-])(touch[ \t]+-d|date[ \t]+(-[A-Za-z]*[ \t]+)*-d|stat[ \t]+-c|sed[ \t]+-i)\b')
+for n, line in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
+    code = line.split(" # ")[0].split("   # ")[0]
+    if code.lstrip().startswith(("#", "@test")) or "pat = re.compile" in code: continue
+    if pat.search(code): print(n, line.rstrip()[:160])
+PY
+) || { echo "the lint did not run"; return 1; }
+    [ -z "$hits" ] || { echo "a GNU-only primitive: $hits"; return 1; }
+    # the helper ages a file to the second it names, on BSD touch too
+    : > "$T_LINT/aged"; _touch_at "$(( $(date +%s) - 700 ))" "$T_LINT/aged"
+    local age; age=$(( $(date +%s) - $(python3 -c 'import os,sys; print(int(os.stat(sys.argv[1]).st_mtime))' "$T_LINT/aged") ))
+    (( age >= 699 && age <= 702 )) || { echo "_touch_at aged the file $age s"; return 1; }
+}
+
+@test "CMP-271 the suite's fixture git never acts on a caller's repository: under a hook's GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE, _cmp_git builds the fixture where it is told and leaves the caller's repository as it was (thirty-ninth run, c2d DISS-C-001, as verdict-derive's _vd_git)" {
+    local gv r o before after
+    o="$T/gx-caller"; _cmp_git init -q "$o"; : > "$o/mine"; _cmp_git -C "$o" add mine; _cmp_git -C "$o" commit -q -m caller
+    before=$(_cmp_git -C "$o" rev-parse HEAD; _cmp_git -C "$o" ls-files)
+    for gv in "GIT_DIR=$o/.git" "GIT_WORK_TREE=$o" "GIT_INDEX_FILE=$o/.git/index"; do
+        r="$T/gx-${gv%%=*}"
+        ( export "$gv"; _cmp_git init -q "$r"; : > "$r/fixture"; _cmp_git -C "$r" add -A; _cmp_git -C "$r" commit -q -m fixture ) >/dev/null 2>&1 || true
+        [ -d "$r/.git" ] || { echo "a caller's ${gv%%=*}: no fixture repository at $r"; return 1; }
+        [ "$(_cmp_git -C "$r" ls-files)" = "fixture" ] || { echo "a caller's ${gv%%=*}: the fixture holds $(_cmp_git -C "$r" ls-files)"; return 1; }
+        after=$(_cmp_git -C "$o" rev-parse HEAD; _cmp_git -C "$o" ls-files)
+        [ "$after" = "$before" ] || { echo "a caller's ${gv%%=*}: the caller's repository changed"; return 1; }
+    done
+}
+
+@test "CMP-272 a re-reviewed or re-audited task carries every round's verdict label (br label add never removes the other), so both beads resources name the latest verdict comment as the record and a verdict label as history, never as the current verdict (thirty-ninth run, e2b DISS-C-001)" {
+    local s r
+    for s in reviewing-code auditing-security; do
+        r="$PROJECT_ROOT/.claude/skills/$s/resources/BEADS-WORKFLOW.md"
+        grep -q 'never removes the other' "$r" || { echo "$s: the resource does not say the labels accumulate"; return 1; }
+        grep -q 'latest .* comment is the verdict of record' "$r" || { echo "$s: no verdict of record named"; return 1; }
+    done
 }

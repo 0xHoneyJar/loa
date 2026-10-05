@@ -775,9 +775,11 @@ EOF
     # — the mktemp inside the assignment's own value, never a later statement on the line (thirty-third run, e3 DISS-C-003)
     # (thirty-seventh run, e3 DISS-C-002: to the statement's end, so a spaced substitution or default is read too; an indirection
     # through another variable is past a line lint — a suite that owns one sweeps it, as the companion suite's CMP_OWN_TMP)
-    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR[=][^;]*mktemp' "$1"; }
+    # (thirty-ninth run, e3 DISS-C-002: `:=` assigns a default as `=` does, and `&&` / `||` / `|` end a statement as `;` does)
+    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR:?[=][^;&|]*mktemp' "$1"; }
     # (and the per-file check reads the colon-less `-` default as the case-branch check below does: thirty-seventh run, e3 DISS-C-002)
-    _e3_tmpdir_fallback() { grep -nE '[{]BATS_TEST_TMPDIR[:]?[-]' "$1"; }
+    _e3_tmpdir_fallback() { grep -nE '[{]BATS_TEST_TMPDIR[:]?[-=]' "$1"; }
+    local _e3_case_fallback='BATS_TEST_TMPDIR[:]?[-=][^}]*mktemp'
     _e3_none() { local rc=0; "$@" || rc=$?; [ "$rc" -eq 1 ]; }   # (no match, and no error: thirty-fourth run, e3 DISS-C-002)
     # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
     for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
@@ -796,7 +798,7 @@ EOF
         case "${s##*/}" in
             adversarial-review-companion.bats) own=CMP_OWN_TMP ;;
             adversarial-review-normalise.bats) own=NORM_OWN_TMP ;;
-            *) _e3_none grep -nE 'BATS_TEST_TMPDIR[:]?[-][^}]*mktemp' "$s" || { echo "${s##*/} falls back to an unswept mktemp TEST_DIR (or is unreadable: thirty-fifth run, e3 DISS-C-002)"; return 1; }; continue ;;
+            *) _e3_none grep -nE "$_e3_case_fallback" "$s" || { echo "${s##*/} falls back to an unswept mktemp TEST_DIR (or is unreadable: thirty-fifth run, e3 DISS-C-002)"; return 1; }; continue ;;
         esac
         grep -qE "find \"[$]$own\" -mindepth 1 -delete; rmdir \"[$]$own\"" "$s" || { echo "${s##*/} no longer sweeps its own fallback"; return 1; }
     done
@@ -836,4 +838,12 @@ EOF
     printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' ':-' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
     printf '    TEST_DIR="$BATS_TEST_TMPDIR-x"\n' > "$fx/c.bats"
     if _e3_tmpdir_fallback "$fx/c.bats"; then echo "a plain path tripped the per-file fallback check"; return 1; fi
+    # (thirty-ninth run, e3 DISS-C-002: the assign-default `:=` is a fallback in both checks, and an `&&`/`||`/`|`-joined
+    # statement's mktemp is another statement's)
+    printf '    : "$%sXDG_RUNTIME_DIR%s$(mktemp -d)}"\n' '{' ':=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    printf '    export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR:?x}" && T="$(mktemp -d)"\n' '=' > "$fx/a.bats"
+    if _e3_xdg_fallback "$fx"; then echo "an &&-joined statement's mktemp tripped the fallback check"; return 1; fi
+    rm -f "$fx/a.bats"
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' ':=' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    grep -qE "${_e3_case_fallback:?the case-branch pattern is not one variable}" "$fx/c.bats"
 }

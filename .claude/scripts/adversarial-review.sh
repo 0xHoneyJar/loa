@@ -2617,7 +2617,10 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
       # a dead run's lock: renamed away (atomic), then removed; the loop's mkdir takes the key
       _stale="$dir.stale.$BASHPID.$RANDOM"
       # (twenty-ninth run, a2 DISS-C-002: a rename that fails leaves the dead lock standing — said as `stuck`, never a takeover)
-      if mv -- "$dir" "$_stale" 2>/dev/null; then command rm -rf -- "$_stale" 2>/dev/null || true; echo takeover; else echo stuck; fi
+      # (thirty-ninth run, a2 DISS-C-001: a rename that fails because the lock is gone — its holder released unserialised — freed
+      # the key: released, so a lost last mkdir is a live holder, never a stuck lock run unguarded beside it)
+      if mv -- "$dir" "$_stale" 2>/dev/null; then command rm -rf -- "$_stale" 2>/dev/null || true; echo takeover
+      elif [[ ! -e "$dir" && ! -L "$dir" ]]; then echo released; else echo stuck; fi
     ) || _verdict="retry"
     [[ "$_verdict" == "refuse" ]] && return 1
     [[ "$_verdict" == "unopenable" ]] && { _adv_run_lock_unguarded "the takeover lock $_tl cannot be opened (a dead run's lock is not taken over unserialised)"; return 0; }
@@ -2686,7 +2689,7 @@ _adv_cli_hop_bound() {  # <hop> [strict] → seconds the CLI adapter allows this
   # (thirty-fourth run, a3 DISS-C-002: with `strict`, a catalog read that FAILED prints nothing and returns 1 — only a listed or
   # not-listed answer decides; a caller that caches the bound must never latch the fallback over a yq hiccup)
   local hop cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" v="" ct="" rt="" strict="${2:-}" listed
-  hop=$(_adv_hop_canon "$1")   # (thirteenth run, a2 C-001: the catalog is read under the canonical id)
+  hop=$(_adv_hop_canon "$1" "$strict") || return 1   # (thirteenth run, a2 C-001: the catalog is read under the canonical id)
   local from_catalog="false"
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
     # the hop must be LISTED by a provider (has(), never a `// default`: yq's alternative operator fires on an empty stream,
@@ -2778,16 +2781,18 @@ _adv_lock_dir() {  # → the directory both locks use: the runtime one when it i
   _adv_lock_dir_ours "$d" && echo "$d"
   return 0
 }
-_adv_alias_target() {  # <name> → the catalog alias's raw target ("provider:id" or an id), or nothing
+_adv_alias_target() {  # <name> [strict] → the catalog alias's raw target ("provider:id" or an id), or nothing
   local cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" t=""
   # (twenty-seventh run, a2 DISS-C-001: the name passes as data through strenv — a quote or an operator in it is a key that is not there)
+  # (thirty-ninth run, a3 DISS-C-002: with `strict`, a read that FAILED returns 1 — never "no alias", which the strict bound would answer)
   if command -v yq >/dev/null 2>&1 && [[ -f "$cat" ]]; then
-    t=$(_adv_hop="$1" yq eval '.aliases[strenv(_adv_hop)]' "$cat" 2>/dev/null) || t=""
+    t=$(_adv_hop="$1" yq eval '.aliases[strenv(_adv_hop)]' "$cat" 2>/dev/null) || {
+      [[ "${2:-}" != "strict" ]] || return 1; t=""; }   # (its own line: CMP-150 reads a yq line whole)
     [[ -n "$t" && "$t" != "null" ]] && printf '%s' "$t"
   fi
   return 0
 }
-_adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alias resolved (thirteenth run, a2 C-001 — every
+_adv_hop_canon() {  # <model> [strict] → the catalog id: provider prefix stripped, alias resolved (strict: 1 on a failed alias read) (thirteenth run, a2 C-001 — every
                     # reader of a hop's CLI nature and bound goes through this, so `anthropic:claude-headless` IS claude-headless)
   local m="$1" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" target
   # (twenty-fifth run, a3 C-001: ANY provider prefix — `bedrock:`, `xai:` as well as the three companion families — so a prefixed
@@ -2795,7 +2800,7 @@ _adv_hop_canon() {  # <model> → the catalog id: provider prefix stripped, alia
   [[ "$m" =~ ^[A-Za-z0-9_-]+:(.+)$ ]] && m="${BASH_REMATCH[1]}"
   # (thirty-third run, a2 DISS-C-002: the target loses a provider token by the same rule — `${target#*:}` made a bare Bedrock
   # target's canonical hop `0`, and two such aliases one shared hop)
-  target=$(_adv_alias_target "$m")
+  target=$(_adv_alias_target "$m" "${2:-}") || return 1
   if [[ "$target" =~ ^[A-Za-z0-9_-]+:(.+)$ ]]; then m="${BASH_REMATCH[1]}"; elif [[ -n "$target" ]]; then m="$target"; fi
   echo "$m"
 }
@@ -2896,6 +2901,11 @@ _adv_put_state() {  # <file> <value> — the companion's state files are publish
   if ! { printf '%s' "$2" > "$1.tmp" && mv -f -- "$1.tmp" "$1"; } 2>/dev/null; then rm -f -- "$1.tmp" 2>/dev/null; fi
   return 0
 }
+_adv_read_state() {  # <file>... → the first of these state files that holds something; 1 when none does (an empty one is a missing one)
+  local f v
+  for f in "$@"; do v=$(cat -- "$f" 2>/dev/null) || continue; [[ -n "$v" ]] && { printf '%s' "$v"; return 0; }; done
+  return 1
+}
 _adv_error_summary() {  # <redacted diagnostic line> → allowlisted summary (may be empty)
   local line="$1" out=""
   # (nineteenth run, d C-002: the adapter's note on a catalog bound not applied as written travels too — up to the closing paren)
@@ -2982,10 +2992,10 @@ _walk_companion_chain() {  # <workdir (companion sub-dir)> <prompt_dir> <type> <
     # (nineteenth run, a2 C-001: an HTTP hop whose catalog chain reaches a CLI binary takes that binary's lock BEFORE its
     # request — it queues too, so main's deadline charges the lock wait to the queue, never to the hop)
     if [[ -n "$(_adv_cli_bin_for "$m")" ]]; then _adv_put_state "$workdir/companion.phase" queue; else _adv_put_state "$workdir/companion.phase" hop; fi
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_started_iso" 2>/dev/null || true   # (the MODELINV lookup window is this hop, not the companion's lifetime — sixteenth run, a3 C-004)
+    _adv_put_state "$workdir/companion.hop_started_iso" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"   # (whole — thirty-ninth run, a4a DISS-C-002; the MODELINV lookup window is this hop, not the companion's lifetime — sixteenth run, a3 C-004)
     command rm -f -- "$workdir/companion.lockwait" "$workdir/companion.hop_ended_iso" 2>/dev/null   # (twenty-first run, a3 DISS-C-001: a hop starts with no end time — the previous hop's would invert the fold's MODELINV window and hide a mid-hop reap)
     raw=$(_ADV_PHASE_FILE="$workdir/companion.phase" _ADV_HOP_START_FILE="$workdir/companion.hop_started_iso" _ADV_LOCK_EXPIRED_FILE="$workdir/companion.lockwait" _adv_invoke_hop "$m" "$prompt_dir/system-prompt.txt" "$prompt_dir/user-prompt.txt" "$m" "$timeout" "$vq" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$workdir/companion.hop_ended_iso" 2>/dev/null || true
+    _adv_put_state "$workdir/companion.hop_ended_iso" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
     [[ -s "$vq" ]] && echo "$vq" >> "$workdir/companion.vq"
     _adv_put_state "$workdir/companion.phase" post   # the model answered: validation and repair round-trips get their own budget
     # twentieth run, a2 DISS-C-001: the walker runs as a background job, where errexit is live — a failing post-hop helper is
@@ -3124,8 +3134,14 @@ _companion_deadline_why() {  # <workdir> <started> <wait cap> <post budget> <que
       [[ -n "$cur" ]] || cur=x-headless   # (twenty-fifth run, a3 C-002: an empty file is the missing one's fallback bound — never the cache's initial key and a 0 s budget)
       # (thirty-fourth run, a3 DISS-C-002: only a bound the catalog ANSWERED is cached — a failed read decides nothing this tick,
       # the global ceiling still holds, and the next tick reads again; a latched 610 + 30 reaped a companion inside its 910 s wait)
-      if [[ "$cur" != "$_ADV_QB_HOP" ]] && _qb=$(_adv_cli_hop_bound "$cur" strict 2>/dev/null) && [[ "$_qb" =~ ^[0-9]+$ ]]; then
-        _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( _qb + 30 ))
+      # (thirty-ninth run, a3 DISS-C-001: an HTTP hop's queue is its CLI lock wait — the call timeout, as _adv_with_cli_lock waits
+      # and the wait cap charges it — never the CLI adapter's bound; the hop is classified by a strict canonical read)
+      if [[ "$cur" != "$_ADV_QB_HOP" ]] && _qb=$(_adv_hop_canon "$cur" strict 2>/dev/null); then
+        case "$_qb" in
+          *-headless) if _qb=$(_adv_cli_hop_bound "$cur" strict 2>/dev/null) && [[ "$_qb" =~ ^[0-9]+$ ]]; then
+                        _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( _qb + 30 )); fi ;;
+          *) _ADV_QB_HOP="$cur"; _ADV_QB_VAL=$(( $(_adv_num_or "${CONF_TIMEOUT:-60}" 60) + 30 )) ;;
+        esac
       fi
       if [[ "$cur" == "$_ADV_QB_HOP" ]]; then budget=$_ADV_QB_VAL; else budget=""; fi ;;
     *) budget=$cap ;;
@@ -3277,8 +3293,10 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
     # 1) the provider's own line from the MODELINV row cheval wrote for this call (the shim discards stderr)
     # the window is the companion's LAST HOP when the walker recorded one (sixteenth run, a3 C-004: a primary repair on the
     # same model during the companion's post phase is not this voice's row); the companion's lifetime otherwise
-    _since=$(cat "$workdir/companion.hop_started_iso" 2>/dev/null || cat "$workdir/companion.started_iso" 2>/dev/null || echo "1970-01-01T00:00:00Z")
-    local _until; _until=$(cat "$workdir/companion.hop_ended_iso" 2>/dev/null || cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")
+    # (thirty-ninth run, a4a DISS-C-002: an empty window file is a missing one — `cat` of it succeeds with nothing, which closed the
+    # window and lost the companion's own row)
+    _since=$(_adv_read_state "$workdir/companion.hop_started_iso" "$workdir/companion.started_iso") || _since="1970-01-01T00:00:00Z"
+    local _until; _until=$(_adv_read_state "$workdir/companion.hop_ended_iso" "$workdir/companion.ended_iso") || _until="9999-12-31T23:59:59Z"
     [[ -s "$workdir/companion.hop_started_iso" && ! -s "$workdir/companion.hop_ended_iso" ]] && _until=$(cat "$workdir/companion.ended_iso" 2>/dev/null || echo "9999-12-31T23:59:59Z")   # (reaped mid-hop: until the reap)
     # (thirty-seventh run, a3 DISS-C-001: a last hop that never got its CLI lock sent no request — its window is the lock wait,
     # when the holder, the primary on the same shared hop, wrote its own rows — so the companion's log alone speaks for it)
@@ -3410,7 +3428,9 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
   [[ "${3:-}" == "tokens" ]] && { toks=$(_adv_pid_tokens "$pids" 2>/dev/null) || toks=""; }
   for x in $pids; do kill "-$sig" "$x" 2>/dev/null || true; done
   for x in $pids; do kill -CONT "$x" 2>/dev/null || true; done
-  for x in $_ADV_CONT_WD; do kill -TERM -- "$x" 2>/dev/null || true; done
+  # (thirty-ninth run, a4b DISS-C-001: KILL — every reaper runs after `trap '' INT TERM`, and a watchdog forked then inherits TERM
+  # as ignored, which a non-interactive sh may not reset, so a TERM cancel never landed)
+  for x in $_ADV_CONT_WD; do kill -KILL -- "$x" 2>/dev/null || true; done
   if [[ "${3:-}" == "tokens" ]]; then
     for x in $pids; do [[ " $toks" == *" $x="* ]] || toks+="$x= "; done   # (a pid the token pass missed: the pid alone decides)
     printf '%s\n' $toks
@@ -3421,7 +3441,8 @@ _adv_kill_tree() {  # <pid> [signal] [tokens] — signal a process and every des
 _adv_cont_watchdog() {  # <pids> — resume them in ${_ADV_CONT_WATCHDOG_SECONDS:-10} s from a process that outlives this shell; its
                         # handle (a process group under setsid, else a pid) is added to the caller's _ADV_CONT_WD for the cancel
   [[ -n "$1" ]] || return 0
-  local s="${_ADV_CONT_WATCHDOG_SECONDS:-10}"
+  local s   # (thirty-ninth run, a4b DISS-C-002: a validated whole number, as every sibling knob — a sleep that fails resumes at once)
+  s=$(_conf_uint "_ADV_CONT_WATCHDOG_SECONDS" "${_ADV_CONT_WATCHDOG_SECONDS:-10}" 10 1) || s=10
   if command -v setsid >/dev/null 2>&1; then
     # (its own session: a KILL of the reviewer's process group never reaches it; a background job of a non-interactive shell is
     # no group leader, so setsid execs in place and $! leads the new group)
@@ -3613,7 +3634,9 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
                      # gitattributes (GIT_ATTR_NOSYSTEM) — `.git/info/attributes` is the repository's own, and applies like
                      # .gitattributes (thirtieth run, a3 DISS-C-002); nor an exported GIT_DIFF_OPTS, which git lets override -U
                      # (thirty-first run, a4 DISS-C-001: `-u0` left no context line) — unset in a subshell, the caller keeps its own
-  ( unset GIT_DIFF_OPTS GIT_ATTR_SOURCE
+  # (thirty-ninth run, a4b DISS-C-003: nor a caller's repository — a hook's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE, an object
+  # directory, a namespace — which `git -C` does not override: the diff is the tree at the root's)
+  ( unset GIT_DIFF_OPTS GIT_ATTR_SOURCE $_ADV_GIT_REPO_ENV $(git rev-parse --local-env-vars 2>/dev/null)
     if _e=$(git -C "$1" hash-object -t tree /dev/null 2>/dev/null) && [[ -n "$_e" ]]; then export GIT_ATTR_SOURCE="$_e"; fi
     # (thirty-sixth run, e2a DISS-C-002: a git before 2.41 ignores GIT_ATTR_SOURCE without a word — said, never silent)
     _gv=$(git version 2>/dev/null) || _gv=""; _gv="${_gv#git version }"; _gv="${_gv%% *}"
@@ -3624,6 +3647,11 @@ _adv_range_diff() {  # <root> <range> → the unified diff the hunk cutter and t
     -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.renames=true -c diff.indentHeuristic=true -c core.attributesFile=/dev/null \
     diff -U3 --inter-hunk-context=0 --diff-algorithm=myers -O/dev/null \
     --no-color --no-ext-diff --no-textconv --submodule=short --ignore-submodules=none --src-prefix=a/ --dst-prefix=b/ "$2" -- )
+}
+_ADV_GIT_REPO_ENV="GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_SHALLOW_FILE GIT_GRAFT_FILE GIT_REPLACE_REF_BASE GIT_NO_REPLACE_OBJECTS GIT_PREFIX GIT_IMPLICIT_WORK_TREE"
+_adv_range_oid() {  # <root> <rev> → the commit oid the rev names in the tree at root, under none of a caller's repository environment
+  ( unset $_ADV_GIT_REPO_ENV $(git rev-parse --local-env-vars 2>/dev/null)
+    git -C "$1" rev-parse --verify --quiet "$2^{commit}" 2>/dev/null )
 }
 _ADV_RANGE_DIFF=""   # (the --diff-range diff, removed on every exit — twenty-fourth run, b2 DISS-C-001)
 _ADV_RANGE_OIDS=""   # ("<base oid> <head oid>" the --diff-range resolved to, before its diff — twenty-seventh run, a4 DISS-C-002)
@@ -3712,6 +3740,9 @@ main() {
   # without it, is a usage error, never a dropped value and a full review in place of the record)
   if [[ -n "$_rf_given" && -z "$record_fallback" ]]; then error "--record-fallback needs a status"; exit 2; fi
   if [[ -z "$_rf_given" && -n "$_reason_given" ]]; then error "--reason applies to --record-fallback only"; exit 2; fi
+  # (thirty-ninth run, a5 DISS-C-001: the same for --since — an empty one is no "--since not given", which would let the record
+  # displace an envelope newer than the aborted run)
+  if [[ -n "$_rf_given" && -n "$_since_given" && -z "$fallback_since" ]]; then error "--since needs a timestamp"; exit 2; fi
   if [[ -n "$record_fallback" ]]; then local _rf=0; _adv_record_fallback "$type" "$sprint_id" "$record_fallback" "$fallback_reason" "$fallback_since" || _rf=$?; exit "$_rf"; fi
   if [[ -n "$_since_given" ]]; then error "--since applies to --record-fallback only"; exit 2; fi
   # twenty-fourth run, a2 DISS-C-001: the skills cannot run `date` — a run that dies before it writes any record names its start
@@ -3735,8 +3766,8 @@ main() {
     # (twenty-seventh run, a4 DISS-C-002: the two sides are resolved once, BEFORE the diff, and the diff is taken between those
     # commits — metadata.scope names what was reviewed, never only a ref name a later commit moves)
     local _rb="" _rh="" _rr="$diff_range"
-    if _rb=$(git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${diff_range%%...*}^{commit}" 2>/dev/null) \
-       && _rh=$(git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${diff_range#*...}^{commit}" 2>/dev/null) \
+    if _rb=$(_adv_range_oid "$PROJECT_ROOT" "${diff_range%%...*}") \
+       && _rh=$(_adv_range_oid "$PROJECT_ROOT" "${diff_range#*...}") \
        && [[ "$_rb" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ && "$_rh" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then
       _ADV_RANGE_OIDS="$_rb $_rh"; _rr="${_rb}...${_rh}"
     fi
@@ -4028,7 +4059,7 @@ main() {
         # walks share nothing mutable (the KF-011 debug capture is already keyed by model + timestamp)
         if mkdir -p "$companion_workdir" 2>/dev/null && cp -f "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$companion_workdir/" 2>/dev/null; then   # (a4 C-001: a workdir that cannot be made is the same local failure as a prompt copy that cannot)
           # shellcheck disable=SC2086
-          date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.started_iso" 2>/dev/null || true   # (before the launch: the window holds the first hop's first second too)
+          _adv_put_state "$companion_workdir/companion.started_iso" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"   # (before the launch: the window holds the first hop's first second too)
           ( _walk_companion_chain "$companion_workdir" "$companion_workdir" "$type" "$sprint_id" "$timeout" "$diff_files" $companion_chain_str >"$companion_workdir/companion.log" 2>&1 ) &
           companion_pid=$!
           _ADV_COMPANION_PID="$companion_pid"   # (twenty-second run, a4 DISS-C-001: published before the next fork — a signal in that window reaps it)
@@ -4124,9 +4155,12 @@ main() {
   # (thirty-eighth run, a5 DISS-C-001: a chain whose every hop was ceded to the companion invoked none — no envelope of its own
   # reached the merge, and every step below turned "" into "", the writer an empty envelope over the previous round's. It is
   # the primary's failed envelope naming the cession: the fold promotes the companion that answered as `ceded`)
+  # (thirty-ninth run, a5 DISS-C-003: degraded on the audit gate, as process_findings writes an api_failure — the fold resets it
+  # when it promotes the companion, so only a failed fold leaves it standing)
   if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$result"; then
-    result=$(jq -n --arg type "$type" --arg model "$final_model" --arg sid "$sprint_id" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid, timestamp: $ts, status: "api_failure", degraded: false, error: "every hop of the primary chain was ceded to the companion"}}')
+    local _cd="false"; [[ "$type" == "audit" ]] && _cd="true"
+    result=$(jq -n --arg type "$type" --arg model "$final_model" --arg sid "$sprint_id" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson deg "$_cd" \
+      '{findings: [], metadata: {type: $type, model: $model, sprint_id: $sid, timestamp: $ts, status: "api_failure", degraded: $deg, error: "every hop of the primary chain was ceded to the companion"}}')
   fi
 
   # Annotate result with the chain that was tried + which model won.
@@ -4162,7 +4196,7 @@ main() {
       if [[ -n "${_ADV_COMPANION_PID:-}" ]] && _adv_companion_alive; then _adv_kill_tree "$companion_pid" KILL >/dev/null || true; fi   # (stdout is the envelope; fifteenth run, a4 C-001: never the last command of an && list)
       wait "$companion_pid" 2>/dev/null || true
       _ADV_COMPANION_PID=""
-      date -u +%Y-%m-%dT%H:%M:%SZ > "$companion_workdir/companion.ended_iso" 2>/dev/null || true
+      _adv_put_state "$companion_workdir/companion.ended_iso" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
     fi
     # chunk c C-003: the primary voice that actually answered (its last sidecar's succeeded id)
     local primary_succeeded="$final_model"

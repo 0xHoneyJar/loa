@@ -197,7 +197,12 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
             release_hop_workspace(hold)
 
     def _raise_spawn_error(self, exc):
-        # Preserve Codex's existing raw OSError/ValueError contract.
+        # (thirty-ninth run, d DISS-C-002: typed and worded as a spawn failure — a raw OSError reached complete()'s outer
+        # handler and read as "could not prepare its run"; a ValueError stays raw, as before)
+        if isinstance(exc, OSError):
+            raise ProviderUnavailableError(
+                self.provider, f"{self._command_label} spawn failed (ARG_MAX / ENOMEM / exec error?): {exc}",
+            ) from exc
         raise exc
 
     def _finish_completion(

@@ -21,6 +21,7 @@ br label add <task-id> review-approved
 # If changes required
 br label add <task-id> needs-revision
 ```
+A re-review or re-audit adds its round's label and `br label add` never removes the other, so a task can carry both: the latest `REVIEW:` comment is the verdict of record (with the feedback file and the COMPLETED marker), a label only history.
 
 ### Using Labels for Status
 | Label | Meaning | When to Apply |

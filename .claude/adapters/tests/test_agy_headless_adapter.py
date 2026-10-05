@@ -230,8 +230,19 @@ class TestErrors:
         # council #1109: ARG_MAX/E2BIG (huge diff on argv) → walkable, not a raw OSError crash
         with patch(_WHICH, return_value="/usr/bin/agy"), \
              patch(_PGKILL, side_effect=OSError(7, "Argument list too long")):
-            with pytest.raises(ProviderUnavailableError):
+            with pytest.raises(ProviderUnavailableError) as ei:
                 _adapter().complete(_req())
+        assert "ARG_MAX" in str(ei.value), str(ei.value)
+
+    def test_a_cwd_spawn_error_is_never_read_as_arg_max(self):
+        # (cycle-126 thirty-ninth run, e1 DISS-C-003: a chdir into the stable workspace that failed — replaced by a file, made
+        # unreadable — walks too, named by its errno and the path; only E2BIG says ARG_MAX)
+        for exc in (NotADirectoryError(20, "Not a directory", "/x/loa-agy-ws"), PermissionError(13, "Permission denied", "/x/loa-agy-ws")):
+            with patch(_WHICH, return_value="/usr/bin/agy"), patch(_PGKILL, side_effect=exc):
+                with pytest.raises(ProviderUnavailableError) as ei:
+                    _adapter().complete(_req())
+            msg = str(ei.value)
+            assert "ARG_MAX" not in msg and exc.__class__.__name__ in msg and "/x/loa-agy-ws" in msg, msg
 
     def test_nul_byte_prompt_walks_not_crashes(self):
         # Gemini council voice (via agy) finding: an untrusted prompt with an embedded NUL

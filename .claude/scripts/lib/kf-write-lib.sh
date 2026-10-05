@@ -74,6 +74,8 @@ gh_anchor(){
   # (thirty-sixth run, e2c DISS-C-002: the slug references disagree exactly there — perl's \w, Onigmo's \p{Word} and
   # github-slugger split on Other_Number, ZWNJ/ZWJ and the Other_Alphabetic symbols, and Python's lower() alone applies
   # Final_Sigma — so a title holding one, or any format character, has no settled anchor: refused, never guessed)
+  # (thirty-ninth run, e2c DISS-C-002: and a code point this python's Unicode database calls unassigned — a newer GitHub may
+  # call it a letter and keep it)
   local rc=0
   printf '%s' "${1-}" | python3 -c 'import sys, unicodedata
 try:
@@ -81,7 +83,7 @@ try:
 except UnicodeDecodeError:
     sys.exit(3)
 oa = ((0x24B6, 0x24E9), (0x1F130, 0x1F149), (0x1F150, 0x1F169), (0x1F170, 0x1F189))
-if (any(unicodedata.category(c) in ("No", "Cf") or any(a <= ord(c) <= b for a, b in oa) for c in h)
+if (any(unicodedata.category(c) in ("No", "Cf", "Cn") or any(a <= ord(c) <= b for a, b in oa) for c in h)
         or h.lower() != "".join(c.lower() for c in h)):
     sys.exit(4)
 def word(c):
@@ -89,7 +91,7 @@ def word(c):
     return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
 sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-").encode("utf-8"))' || rc=$?
   [[ $rc -ne 3 ]] || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
-  [[ $rc -ne 4 ]] || die "new: the title's GitHub heading anchor is not settled — it holds an Other_Number (², ½, ①), a format character (ZWJ, ZWNJ), an Other_Alphabetic symbol (Ⓐ) or a word-final capital sigma, on which GitHub's slug references disagree; rephrase it"
+  [[ $rc -ne 4 ]] || die "new: the title's GitHub heading anchor is not settled — it holds an Other_Number (², ½, ①), a format character (ZWJ, ZWNJ), an Other_Alphabetic symbol (Ⓐ) a word-final capital sigma or a code point this host's Unicode database leaves unassigned, on which GitHub's slug references disagree; rephrase it"
   [[ $rc -eq 0 ]] || die "new: python3 failed (exit $rc) computing the title's GitHub anchor"
 }
 # GitHub slugs a heading's RENDERED text: a title holding a link, an HTML tag, a character reference, an underscore emphasis

@@ -185,7 +185,7 @@ export async function executeMultiModelReview(
     const envVar = PROVIDER_API_KEY_ENV[entry.provider];
     // (a headless entry is valid without a key — validateApiKeys — and cheval's CLI hop never reads one)
     const apiKey = (envVar ? process.env[envVar] : undefined) ?? "";
-    if (!apiKey && !isHeadlessModelId(entry.modelId)) continue;
+    if (!apiKey && !isHeadlessModelId(entry.modelId, entry.provider)) continue;
 
     const costRates = multiConfig.cost_rates?.[entry.provider];
     const adapter = createAdapter({

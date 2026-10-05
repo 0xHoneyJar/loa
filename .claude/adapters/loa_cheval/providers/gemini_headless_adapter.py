@@ -178,7 +178,9 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         command = self._build_command(request, model_config, prompt)
         if _asks_sandbox(command[1:]):
             # (thirty-eighth run, e1b DISS-C-002: the operator's sandbox folds the prompt into the sandbox child's argv — said,
-            # and bounded before any spawn, never an opaque exec failure)
+            # and bounded before any spawn, never an opaque exec failure; an ambient GEMINI_SANDBOX that would cancel the flag is
+            # deliberately not read — misreading gemini-cli's env parse would drop the warning, so the flag alone decides:
+            # thirty-ninth run, e1b DISS-C-002)
             self._logger.warning("gemini-headless: gemini_extra_flags asks for a sandbox, which puts the prompt on the sandbox "
                                  "child's argv (readable through /proc/<pid>/cmdline; one argument holds at most 128 KiB)")
             if len(prompt.encode("utf-8", "surrogatepass")) > self._SANDBOX_ARGV_CAP:

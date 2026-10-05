@@ -118,6 +118,7 @@ _sweep_alive() {
 # checkout from a devcontainer and its host — so a marker records where it was written, and only a marker written HERE is
 # judged; and kill -0's EPERM is a live process of another uid even when hidepid keeps ps and /proc from seeing it)
 _sweep_where() { printf 'where %s %s\n' "$(uname -n 2>/dev/null)" "$(readlink /proc/self/ns/pid 2>/dev/null)"; }
+_touch_at() { touch -t "$(printf '%(%Y%m%d%H%M.%S)T' "$1")" "$2"; }   # <epoch> <file> (POSIX touch -t, never GNU `touch -d @…` — thirty-ninth run, c1c DISS-C-002)
 _sweep_foreign() {  # <marker> → 0 when it records a where line that is not this one, or none at all
     # (thirty-seventh run, c1a DISS-C-001: a marker with no where line — empty from a crash between create and write, another
     # host's mid-write, or an older format — cannot be verified as this host's, so it is never ours to delete)
@@ -154,7 +155,7 @@ _sweep_reaper_alive() {  # <pid> <tag> → the sweeper that renamed a .reap-<pid
     [[ ! "$now" =~ ^t[0-9]+$ || "$now" == "$2" ]]
 }
 _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
-    local a2a="$1" pre="$2" m p d q qt rt left
+    local a2a="$1" pre="$2" m p d q qt rt left ino
     # (thirty-eighth run, c2a DISS-C-002: a `.owner.tmp` lives between setup's printf and its link; one over a minute old is a
     # crashed setup's, which no marker glob matches)
     find "$a2a" -maxdepth 1 -type f -name ".$pre-[0-9]*.owner.tmp" -mmin +1 -delete 2>/dev/null || true
@@ -164,6 +165,9 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
         [[ "$p" =~ ^[0-9]+$ ]] || continue
         _sweep_foreign "$m" && continue
         _sweep_owner_alive "$p" "$m" && continue
+        # (thirty-ninth run, c1a DISS-C-001: the verdict is re-checked where it acts — a run that reuses the pid after it places
+        # its own marker, and its fresh directory and that marker are never the dead one's)
+        ino=$(ls -di -- "$m" 2>/dev/null) || ino=""
         left=0
         for d in "$a2a/$pre-$p" "$a2a/$pre-$p".reap-*; do   # (one directory per marker, never a sibling — twenty-ninth run, c2a)
             [[ -e "$d" || -L "$d" ]] || continue
@@ -177,14 +181,16 @@ _sweep_stale_suite_dirs() {  # <a2a dir> <prefix>
                 [[ "$q" == *-* ]] && { qt=${q#*-}; q=${q%%-*}; }
                 if [[ ! "$q" =~ ^[0-9]+$ ]] || { [[ "$q" != "$$" ]] && _sweep_reaper_alive "$q" "$qt"; }; then left=1; continue; fi
             else
+                _sweep_owner_alive "$p" "$m" && { left=1; continue; }
                 rt="$$$(_sweep_reap_tag)"
                 mv -- "$d" "$d.reap-$rt" 2>/dev/null || { left=1; continue; }
                 d="$d.reap-$rt"
             fi
+            chmod u+w -- "$d" 2>/dev/null || true   # (a dead run of ours left unwritable — thirty-ninth run, c2a DISS-C-001, as the companion suite's)
             find "$d" -mindepth 1 -delete 2>/dev/null || true
             rmdir "$d" 2>/dev/null || left=1
         done
-        (( left )) || rm -f -- "$m"
+        (( left )) || _sweep_owner_alive "$p" "$m" || [[ -z "$ino" || "$(ls -di -- "$m" 2>/dev/null)" != "$ino" ]] || rm -f -- "$m"
     done
     return 0
 }
@@ -196,7 +202,7 @@ teardown() {
     [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-norm-* ]] || return 0
     # this test's directory only — never a sibling it did not make (twenty-ninth run, c2a; as c1a DISS-001)
     d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
-    if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
+    if [[ -d "$d" && ! -L "$d" ]]; then chmod u+w -- "$d" 2>/dev/null || true; find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
     rm -f -- "$PROJECT_ROOT/grimoires/loa/a2a/.$SPRINT.owner"
     # (thirty-third run, c2b DISS-C-004: the one link a test registered at its own path — removed, never followed)
     d="${NORM_OWN_LINK:-}"
@@ -1346,7 +1352,7 @@ index last_error latency m match_idx model new_sev parse_path prim primary_final
 rejected_sidecar_rel repair_attempted repair_budget_exhausted repair_metadata_json repair_skipped_no_hop repair_succeeded
 repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason since sprint_id st stability stop_reason t timestamp
 tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
-api_exit_code _pf_rc mc""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
+api_exit_code _pf_rc mc _cd""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
 # (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's
@@ -1403,8 +1409,10 @@ for n, line in enumerate(lines):
         continue                                   # a comment that names the flag
     line = re.split(r'\s{2,}# ', line, maxsplit=1)[0]   # and a trailing one
     # (c2b DISS-C-002: MAX_ARG_STRLEN bounds each envp string as it does each argv string — no value reaches jq by its environment)
-    if re.search(r'\bjq\b', line) and (re.search(r'\$ENV\b|(?<![\w$.-])env\s*[.\[]', line)
-                                      or re.search(r'(?:^|[\s;&|(])[A-Za-z_]\w*=\S*\s+(?:command\s+)?jq\b', line)):
+    # (thirty-ninth run, c2b DISS-C-002: a jq env read anywhere — a program held in a variable reads $ENV on its own line — and a
+    # prefix value quoted with a space in it)
+    if (re.search(r'\$ENV\b|(?<![\w$.-])env\s*[.\[]', line)
+            or re.search(r'''(?:^|[\s;&|(])[A-Za-z_]\w*=(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s"'])*\s+(?:[A-Za-z_]\w*=(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s"'])*\s+)*(?:command\s+)?jq\b''', line)):
         bad.append('environment: ' + line.strip())
     # (thirty-third run, c2b DISS-C-001: a name is any word — a dynamic --arg "$1" "$2" is checked too — and every variable a
     # quoted operand interpolates, not the first one alone)
@@ -1499,6 +1507,14 @@ PY
     _nrm46_caught "$fx" || { echo "an environment prefix to jq was never checked"; return 1; }
     printf '%s\n' '  jq -n '"'"'env.P'"'"'' > "$fx"
     _nrm46_caught "$fx" || { echo "a jq env read was never checked"; return 1; }
+    # (thirty-ninth run, c2b DISS-C-002: a quoted prefix value holding a space, and a program held in a variable, are checked too)
+    local efx
+    for efx in '  P="x $finding_json" jq -n "$prog"' '  P="${a} ${payload}" command jq -n "$prog"' \
+               '  P="$(printf '"'"'%s %s'"'"' "$a" "$payload")" jq -n "$prog"' "  P='a b' Q=\"\$payload\" jq -n \"\$prog\"" \
+               '  prog='"'"'$ENV.P'"'"'' '  prog='"'"'env.P | length'"'"''; do
+        printf '%s\n' "$efx" > "$fx"
+        _nrm46_caught "$fx" || { echo "an environment read never checked: $efx"; return 1; }
+    done
     printf '%s\n' '_adv_refuse_json() {' '  if :; then' '    kv+=(--arg "$1" "$2")' '  fi' '}' '  jq -nc --arg ts "$(_adv_hop_canon "$m")" --arg c "$model" '"'"'{}'"'"' > "$env.tmp.$$"' > "$fx"
     # (thirty-eighth run, c2b DISS-C-001: every operand reviewed, so the lint must PASS the line — a grep of its output under
     # pipefail was false whenever the lint exited 3, whatever the env rule did)
@@ -1846,8 +1862,65 @@ PY
     grep -qxF -- "$a/sprint-norm-$d.reap-$$-$(_sweep_start "$$")" "$TEST_DIR/a2a.mv" || { echo "renamed to: $(cat "$TEST_DIR/a2a.mv" 2>/dev/null)"; return 1; }
     [ ! -e "$a/sprint-norm-$d" ] && [ ! -e "$a/.sprint-norm-$d.owner" ] || { echo "the dead run's directory stayed"; return 1; }
     # a crashed setup's tmp
-    : > "$a/.sprint-norm-$d.owner.tmp"; touch -d '-2 minutes' "$a/.sprint-norm-$d.owner.tmp"; : > "$a/.sprint-norm-$h.owner.tmp"
+    : > "$a/.sprint-norm-$d.owner.tmp"; _touch_at "$(( $(date +%s) - 120 ))" "$a/.sprint-norm-$d.owner.tmp"; : > "$a/.sprint-norm-$h.owner.tmp"
     _sweep_stale_suite_dirs "$a" sprint-norm
     [ ! -e "$a/.sprint-norm-$d.owner.tmp" ] && [ -e "$a/.sprint-norm-$h.owner.tmp" ] || { echo "tmp sweep: $(ls -A "$a")"; return 1; }
     kill "$h" 2>/dev/null || true; wait "$h" 2>/dev/null || true
+}
+
+@test "NRM-63 the sweep's dead-owner verdict is re-checked where it acts: a run that starts with the dead pid after the verdict (its setup replaces the marker) keeps its fresh directory and its marker (thirty-ninth run, c1a DISS-C-001, as CMP-269)" {
+    local a="$TEST_DIR/a2a" d m
+    mkdir -p "$a"
+    ( : ) & d=$!; wait "$d"
+    m="$a/.sprint-norm-$d.owner"
+    mkdir -p "$a/sprint-norm-$d"; : > "$a/sprint-norm-$d/keep"; _sweep_where > "$m"
+    : > "$TEST_DIR/alive63"; _SW_D63="$d"; _SW_M63="$m"
+    _sweep_owner_alive() {
+        if [[ "$1" == "$_SW_D63" && ! -s "$TEST_DIR/alive63" ]]; then echo 1 > "$TEST_DIR/alive63"; _sweep_where > "$_SW_M63.new"; command mv -f -- "$_SW_M63.new" "$_SW_M63"; return 1; fi
+        [[ "$1" == "$_SW_D63" ]] && return 0
+        kill -0 "$1" 2>/dev/null
+    }
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    unset -f _sweep_owner_alive
+    [ -e "$a/sprint-norm-$d/keep" ] || { echo "the live run's directory was swept: $(ls -A "$a")"; return 1; }
+    [ -e "$m" ] || { echo "the live run's marker was removed"; return 1; }
+    find "$a" -mindepth 1 -delete
+}
+
+@test "NRM-64 the suite holds to its portability floor: no GNU-only touch -d, date -d, stat -c or sed -i outside a comment — files are aged by _touch_at (POSIX touch -t), as CMP-270 (thirty-ninth run, c1c DISS-C-002)" {
+    local T_LINT="$TEST_DIR"
+    local hits; hits=$(python3 - "$BATS_TEST_FILENAME" <<'PY'
+import re, sys
+pat = re.compile(r'(^|[^A-Za-z0-9_-])(touch[ \t]+-d|date[ \t]+(-[A-Za-z]*[ \t]+)*-d|stat[ \t]+-c|sed[ \t]+-i)\b')
+for n, line in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
+    code = line.split(" # ")[0].split("   # ")[0]
+    if code.lstrip().startswith(("#", "@test")) or "pat = re.compile" in code: continue
+    if pat.search(code): print(n, line.rstrip()[:160])
+PY
+) || { echo "the lint did not run"; return 1; }
+    [ -z "$hits" ] || { echo "a GNU-only primitive: $hits"; return 1; }
+    # the helper ages a file to the second it names, on BSD touch too
+    : > "$T_LINT/aged"; _touch_at "$(( $(date +%s) - 700 ))" "$T_LINT/aged"
+    local age; age=$(( $(date +%s) - $(python3 -c 'import os,sys; print(int(os.stat(sys.argv[1]).st_mtime))' "$T_LINT/aged") ))
+    (( age >= 699 && age <= 702 )) || { echo "_touch_at aged the file $age s"; return 1; }
+}
+
+@test "NRM-65 an unwritable directory of ours is still removed: the stale sweep and teardown give it its write bit back before they empty it, as the claim and the companion suite do — never a leftover and marker that every later sweep fails on (thirty-ninth run, c2a DISS-C-001, as CMP-243)" {
+    [[ "$(id -u)" != 0 ]] || skip "root writes through a 555 directory"
+    local a="$TEST_DIR/a2a" dead rc own="$PROJECT_ROOT/grimoires/loa/a2a/$SPRINT"
+    mkdir -p "$a"
+    dead=$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))
+    if kill -0 "$dead" 2>/dev/null; then echo "pid $dead is live"; return 1; fi
+    mkdir -p "$a/sprint-norm-$dead"; : > "$a/sprint-norm-$dead/adversarial-review.json"; chmod a-w "$a/sprint-norm-$dead"
+    _sweep_where > "$a/.sprint-norm-$dead.owner"
+    _sweep_stale_suite_dirs "$a" sprint-norm
+    [ -d "$a/sprint-norm-$dead" ] && chmod -R u+w "$a" 2>/dev/null
+    [ ! -e "$a/sprint-norm-$dead" ] && [ -z "$(compgen -G "$a/sprint-norm-$dead.reap-*")" ] || { echo "the sweep left an unwritable directory of ours: $(ls -A "$a")"; return 1; }
+    [ ! -e "$a/.sprint-norm-$dead.owner" ] || { echo "the sweep kept the dead run's marker"; return 1; }
+    mkdir -p "$own"; : > "$own/adversarial-review.json"; chmod a-w "$own"
+    rc=0; ( set -e; NORM_OWN_TMP=""; teardown ) 3>&- & wait $! || rc=$?   # (a job: errexit is off on the left of `||`)
+    [ -d "$own" ] && chmod u+w "$own"
+    _sweep_where > "${own%/*}/.$SPRINT.owner"   # (this test's own marker back, whole, for the real teardown)
+    [ ! -e "$own" ] || { echo "teardown left an unwritable directory of its own (rc $rc)"; return 1; }
+    [ "$rc" -eq 0 ] || { echo "teardown failed: rc $rc"; return 1; }
 }

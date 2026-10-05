@@ -128,7 +128,9 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
 
         # (an isolated empty cwd under the private base, as its siblings: the caller's cwd is the reviewed tree, whose GEMINI.md
         # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks;
-        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001)
+        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001; a GEMINI.md / .gemini planted there is refused
+        # by private_workspace's project-file check, never read — and the T4.1 re-probe must show --sandbox denies cwd writes
+        # before agy is re-enabled: thirty-ninth run, e1 DISS-C-001)
         try:
             workspace = private_workspace("loa-agy-ws")
         except OSError as exc:
@@ -180,9 +182,16 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                     # --prompt-file exists) or another exec failure → WALK the chain,
                     # never crash with a raw OSError. The gemini-api HTTP fallback
                     # covers oversized diffs. (FileNotFoundError is handled above.)
+                    # (thirty-ninth run, e1 DISS-C-003: only E2BIG is the ARG_MAX cliff — a chdir into the stable workspace
+                    # that failed is named by its errno and the path, so it is never triaged as an oversized diff)
+                    import errno as _errno
+                    if exc.errno == _errno.E2BIG:
+                        why = "likely ARG_MAX on an oversized prompt"
+                    else:
+                        why = f"{type(exc).__name__}" + (f" on {exc.filename}" if exc.filename is not None else "")
                     raise ProviderUnavailableError(
                         self.provider,
-                        f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
+                        f"agy -p exec failed ({why}): {exc}",
                     ) from exc
                 except ValueError as exc:
                     # An untrusted prompt with an embedded NUL byte makes subprocess raise

@@ -19,6 +19,25 @@ teardown() {
 skip_if_no_jq() {
     command -v jq &>/dev/null || skip "jq not installed"
 }
+_vd_git() {  # <repo> <git args…> — a fixture repository's git: no caller config, and none of a caller's repository environment
+    # (thirty-ninth run, c2d DISS-C-001: a hook's GIT_DIR / GIT_INDEX_FILE or a dotfiles GIT_DIR + GIT_WORK_TREE would make
+    # `git -C "$r" init` / `add -A` / `commit` act on the caller's repository — the set the script itself unsets)
+    ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM GIT_NAMESPACE GIT_PREFIX GIT_IMPLICIT_WORK_TREE $(command git rev-parse --local-env-vars 2>/dev/null)
+      HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -C "$1" -c user.email=t@t -c user.name=t "${@:2}" )
+}
+_vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }   # <pid> → it and every descendant
+_vd_fifo_watchdog() {  # <reader pid> <fifo> <marker> — run in the background: past the deadline, mark, end the reader's tree, wake the FIFO
+    # (thirty-ninth run, c2d DISS-C-002: a validated deadline, and a sleep that ends early — a malformed value, or a sweep that
+    # killed it — still expires: errexit never ends the watchdog before its marker, leaving a blocked reader for good)
+    local reader="$1" ff="$2" mk="$3" dl="${VD_FIFO_DEADLINE:-60}" s="" w="" t
+    [[ "$dl" =~ ^[1-9][0-9]*$ ]] || dl=60
+    trap 'kill ${s:+"$s"} ${w:+"$w"} 2>/dev/null; exit 143' TERM
+    sleep "$dl" & s=$!
+    wait "$s" || :
+    : > "$mk"; t=$(_vd_tree "$reader"); kill -TERM $t 2>/dev/null || :
+    { : > "$ff"; } 2>/dev/null & w=$!
+    sleep 1; kill "$w" 2>/dev/null || :; kill -KILL $t $(_vd_tree "$reader") 2>/dev/null || :
+}
 
 _vd_quiet() {  # <command…> — its stdout only: every word an argument, never a path re-parsed as shell source (thirty-sixth run, c2c DISS-C-002)
     "$@" 2>/dev/null
@@ -397,15 +416,27 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     [[ "$output" == *"1 top-level triage line(s)"*"2 rejected payload(s)"* ]]
     # one line for two entries, with bullets before the section and in the next one: the section ends at the next heading
     # (thirty-sixth run, c2c DISS-C-001 — a counter that read on past it would make this CONSISTENT)
-    {
-        echo "All good"; echo; echo "- an approval note"; echo "- another"; echo
-        echo "## Rejected dissent payloads"; echo; echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."; echo
-        echo "## Observations"; echo; echo "- an observation"; echo "- another observation"; echo
-        echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
-    } > "$d/engineer-feedback.md"
-    run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
-    [ "$status" -eq 1 ] || { echo "bullets outside the section were counted: $output"; return 1; }
-    [[ "$output" == *"holds 1 top-level triage line(s)"*"2 rejected payload(s)"* ]]
+    # (thirty-ninth run, c2c DISS-C-001: with the siblings' prose verdict marker, and a two-line control that is CONSISTENT — so
+    # the count is the leg's one violation, never a prose/trailer mismatch that would satisfy the exit status alone)
+    local _two
+    for _two in "" "- b (LOW, y.sh:2) — missing-anchor: not a defect, the anchor is the hunk."; do
+        {
+            echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
+            echo "- an approval note"; echo "- another"; echo
+            echo "## Rejected dissent payloads"; echo; echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."
+            [ -z "$_two" ] || echo "$_two"
+            echo
+            echo "## Observations"; echo; echo "- an observation"; echo "- another observation"; echo
+            echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
+        } > "$d/engineer-feedback.md"
+        run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review
+        if [ -n "$_two" ]; then
+            [ "$status" -eq 0 ] || { echo "the two-line control is not consistent — the leg's exit is not the count alone: $output"; return 1; }
+            continue
+        fi
+        [ "$status" -eq 1 ] || { echo "bullets outside the section were counted: $output"; return 1; }
+        [[ "$output" == *"holds 1 top-level triage line(s)"*"2 rejected payload(s)"* ]] || { echo "$output"; return 1; }
+    done
     # two lines for two entries → consistent
     {
         echo "All good"; echo; echo "Sprint 9 has been reviewed and approved. All acceptance criteria met."; echo
@@ -1088,15 +1119,14 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
     # would outlive a TERM to its parent, reparented and blocked for good — and the FIFO goes on both paths)
     # (twenty-sixth run, c2d DISS-C-001: the reader's WHOLE tree, collected before any signal — a jq in a command substitution
     # is a grandchild that `pkill -P` never reached, and it stayed blocked on the FIFO after the unlink)
-    _vd_tree() { local c; echo "$1"; for c in $(pgrep -P "$1" 2>/dev/null); do _vd_tree "$c"; done; }
+    # (_vd_tree, _vd_fifo_watchdog: suite helpers — thirty-ninth run, c2d DISS-C-002)
     # (the signals are fail-soft: the subshell runs under bats' errexit, and a tree pid already gone would end it before the
     # writer — thirtieth run, c2d DISS-C-001)
     # (twenty-eighth run, c2d DISS-C-001: and then the FIFO's write end is opened — a bounded writer — so an opener the tree walk
     # missed (no pgrep on the host) is woken by EOF before the unlink: the regression path never leaks a blocked process)
     # (thirty-third run, c2d DISS-C-002: a reader that traps or ignores TERM, or opens the FIFO again after the one EOF, is KILLed —
     # the tree collected before any signal, so a child reparented by its parent's death is still in it)
-    ( w=""; trap 'kill "$s" ${w:+"$w"} 2>/dev/null; exit 143' TERM; sleep "${VD_FIFO_DEADLINE:-60}" & s=$!; wait "$s"; : > "$d/fifo-expired"; t=$(_vd_tree "$reader"); kill -TERM $t 2>/dev/null || :
-      { : > "$d/adversarial-review.json"; } 2>/dev/null & w=$!; sleep 1; kill "$w" 2>/dev/null || :; kill -KILL $t $(_vd_tree "$reader") 2>/dev/null || : ) >/dev/null 2>&1 3>&- & local wd=$!
+    _vd_fifo_watchdog "$reader" "$d/adversarial-review.json" "$d/fifo-expired" >/dev/null 2>&1 3>&- & local wd=$!
     status=0; wait "$reader" || status=$?
     [[ -e "$d/fifo-expired" ]] || kill "$wd" 2>/dev/null || true; wait "$wd" 2>/dev/null || true   # (an expired watchdog finishes its wake)
     output=$(cat "$d/fifo-out")
@@ -1459,6 +1489,8 @@ PY
     [ "$status" -eq 1 ] || { echo "status $status: $output"; return 1; }
     echo "$output" | jq -e '(.violations | map(select(test("malformed entry"))) | length) == 2' >/dev/null || { echo "$output"; return 1; }
     echo "$output" | jq -e '(.violations | map(select(test("lists engineer-feedback.md"))) | length) == 0' >/dev/null || { echo "$output"; return 1; }
+    # (thirty-ninth run, c2d DISS-C-004: the two are the whole list — a split's first half would add a listed-but-absent violation)
+    echo "$output" | jq -e '(.violations | length) == 2' >/dev/null || { echo "$output"; return 1; }
 }
 
 @test "verdict-derive: a listed rejected_sidecars name holding a space and another sidecar's name never masks that sidecar — membership is exact, so the real file's rows are counted and it is named as unlisted (thirty-fifth run, b1 DISS-C-001)" {
@@ -1479,7 +1511,7 @@ PY
     command -v git >/dev/null 2>&1 || skip "git not available"
     local r="${TEST_TMPDIR}/s35" d g
     d="$r/a2a"; mkdir -p "$d"
-    g() { HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 command git -C "$r" -c user.email=t@t -c user.name=t "$@"; }
+    g() { _vd_git "$r" "$@"; }   # (never a caller's repository — thirty-ninth run, c2d DISS-C-001)
     g init -q
     _vd_approved_review "$d/engineer-feedback.md"
     jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0, rejected_count: 2,
@@ -1549,7 +1581,7 @@ PY
         'bash -e -c "x $d"'                   # shsrc-fixture
         "run bash -c 'cd '\"\$d\"' && ls'"   # shsrc-fixture
         "sh -c 'cd '\$d' && ls'"             # shsrc-fixture
-        $'bash -c \\\n  "x"'                # shsrc-fixture
+        $'bash -c \\\n  "x"'                # shsrc-fixture (refused whatever it holds: a line lint cannot read the next line's program)
         'eval "x=$d"'                         # shsrc-fixture
     )
     for x in "${shfx[@]}"; do
@@ -1558,7 +1590,8 @@ PY
     done
     printf '%s\n' "run bash -c '\"\$1\" --file \"\$2\" --json' _ \"\$SCRIPT\" \"\$f\"" 'bash -c "echo ok"' "sh -c 'exit 0'" 'bashrc="$d"' > "$f"
     [ -z "$(_vd_shsrc "$f")" ] || { echo "the lint refused a positional program or a constant one: $(_vd_shsrc "$f")"; return 1; }
-    hits=$(_vd_shsrc "$BATS_TEST_FILENAME")
+    # (thirty-ninth run, c2e DISS-C-001: and the sibling verdict suite, which drives the same script)
+    hits=$(_vd_shsrc "$BATS_TEST_FILENAME"; _vd_shsrc "$BATS_TEST_DIRNAME/verdict-observations-section.bats")
     [ -z "$hits" ] || { echo "$(grep -c '' <<<"$hits") shell program(s) interpolate a variable, first: $(head -n 1 <<<"$hits")"; return 1; }
     # the helper keeps stdout only and passes every word as an argument
     skip_if_no_jq   # (thirty-seventh run, c2d DISS-C-001: the grep half above needs no jq; this half reads it)
@@ -1566,4 +1599,70 @@ PY
     run _vd_quiet "$SCRIPT" --file "$odd/f.md" --gate bogus --json
     [ "$status" -eq 1 ]
     echo "$output" | jq -e '.usage_error == true' >/dev/null || { echo "$output"; return 1; }
+}
+
+@test "verdict-derive: a sidecar's name is a literal path to git, never a pattern — an untracked newer sidecar whose name globs a committed one is a later run's and counts (thirty-ninth run, b1 DISS-C-001)" {
+    skip_if_no_jq
+    command -v git >/dev/null 2>&1 || skip "git not available"
+    local r="${TEST_TMPDIR}/s39b1" d g
+    d="$r/a2a"; mkdir -p "$d"
+    g() { _vd_git "$r" "$@"; }   # (never a caller's repository — thirty-ninth run, c2d DISS-C-001)
+    g init -q
+    _vd_approved_review "$d/engineer-feedback.md"
+    jq -n '{findings: [], metadata: {type: "review", model: "m", status: "reviewed", cost_usd: 0, rejected_count: 0,
+        rejected_sidecar: "grimoires/loa/a2a/x/adversarial-rejected-review.jsonl", schema_enforced: false}}' > "$d/adversarial-review.json"
+    printf '{"reject_reason":"old"}\n' > "$d/adversarial-rejected-reviewA.jsonl"
+    g add -A; g commit -q -m history
+    touch -t 201901010000 "$d/adversarial-rejected-reviewA.jsonl"; touch -t 202001010000 "$d/adversarial-review.json"
+    printf '{"reject_reason":"new"}\n' > "$d/adversarial-rejected-review?.jsonl"; touch -t 202101010000 "$d/adversarial-rejected-review?.jsonl"
+    run bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+    [ "$status" -eq 1 ] || { echo "an untracked sidecar named like a glob of a committed one read as history: $output"; return 1; }
+    echo "$output" | jq -e '.warnings | any(test("review\\?\\.jsonl.*newer|newer.*review\\?\\.jsonl"))' >/dev/null || { echo "$output"; return 1; }
+    # …and under a caller's GIT_GLOB_PATHSPECS / GIT_ICASE_PATHSPECS too
+    local gv
+    for gv in GIT_GLOB_PATHSPECS=1 GIT_ICASE_PATHSPECS=1; do
+        run env "$gv" bash -c '"$1" --file "$2" --gate review --json 2>/dev/null' _ "$SCRIPT" "$d/engineer-feedback.md"
+        [ "$status" -eq 1 ] || { echo "a caller's ${gv%%=*} decided: $output"; return 1; }
+    done
+}
+
+@test "verdict-derive: a fixture repository's git never acts on a caller's: under a hook's GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE, _vd_git builds the fixture in its own directory and leaves the caller's repository as it was (thirty-ninth run, c2d DISS-C-001)" {
+    command -v git >/dev/null 2>&1 || skip "git not available"
+    local gv r o before after
+    o="${TEST_TMPDIR}/gx-caller"; mkdir -p "$o"
+    _vd_git "$o" init -q; : > "$o/mine"; _vd_git "$o" add mine; _vd_git "$o" commit -q -m caller
+    before=$(_vd_git "$o" rev-parse HEAD; _vd_git "$o" ls-files)
+    for gv in "GIT_DIR=$o/.git" "GIT_WORK_TREE=$o" "GIT_INDEX_FILE=$o/.git/index"; do
+        r="${TEST_TMPDIR}/gx-${gv%%=*}"; mkdir -p "$r"
+        ( export "$gv"; _vd_git "$r" init -q; : > "$r/fixture"; _vd_git "$r" add -A; _vd_git "$r" commit -q -m fixture ) >/dev/null 2>&1 || true
+        [ -d "$r/.git" ] || { echo "a caller's ${gv%%=*}: no fixture repository at $r"; return 1; }
+        [ "$(_vd_git "$r" ls-files)" = "fixture" ] || { echo "a caller's ${gv%%=*}: the fixture holds $(_vd_git "$r" ls-files)"; return 1; }
+        after=$(_vd_git "$o" rev-parse HEAD; _vd_git "$o" ls-files)
+        [ "$after" = "$before" ] || { echo "a caller's ${gv%%=*}: the caller's repository changed"; return 1; }
+    done
+    # every fixture git in the suite goes through it
+    if grep -nE '^[[:space:]]*g\(\) \{ HOME=' "$BATS_TEST_FILENAME"; then echo "a fixture git that bypasses _vd_git"; return 1; fi
+}
+
+@test "verdict-derive: the FIFO leg's watchdog never dies before its deadline — a malformed VD_FIFO_DEADLINE is the default, and a deadline sleep someone else ended still expires: marker written, the reader ended (thirty-ninth run, c2d DISS-C-002)" {
+    command -v pgrep >/dev/null 2>&1 || skip "pgrep not available"
+    local x r wd sl i st mk="${TEST_TMPDIR}/wd-mark" ff="${TEST_TMPDIR}/wd-fifo"
+    for x in bogus 1.5 -3 0 ""; do
+        sleep 300 3>&- & r=$!
+        VD_FIFO_DEADLINE="$x" _vd_fifo_watchdog "$r" "$ff" "$mk" >/dev/null 2>&1 3>&- & wd=$!
+        sleep 1.5
+        if ! kill -0 "$wd" 2>/dev/null || [ -e "$mk" ]; then kill "$r" 2>/dev/null || :; echo "deadline '$x': the watchdog ended at once"; return 1; fi
+        kill -TERM "$wd"; wait "$wd" 2>/dev/null || :; kill "$r" 2>/dev/null || :; wait "$r" 2>/dev/null || :
+    done
+    sleep 300 3>&- & r=$!
+    VD_FIFO_DEADLINE=300 _vd_fifo_watchdog "$r" "$ff" "$mk" >/dev/null 2>&1 3>&- & wd=$!
+    sl=""; for i in $(seq 1 30); do sl=$(pgrep -P "$wd" sleep 2>/dev/null) || sl=""; [ -z "$sl" ] || break; sleep 0.1; done
+    [ -n "$sl" ] || { kill "$wd" "$r" 2>/dev/null || :; echo "no deadline sleep under the watchdog"; return 1; }
+    kill -TERM $sl
+    wait "$wd" 2>/dev/null || :
+    [ -e "$mk" ] || { kill -KILL "$r" 2>/dev/null || :; echo "a deadline sleep ended early took the watchdog with it, before its marker"; return 1; }
+    st=$(ps -o stat= -p "$r" 2>/dev/null) || st=""
+    [[ -z "$st" || "$st" == Z* ]] || { kill -KILL "$r" 2>/dev/null || :; echo "the reader outlived the watchdog: $st"; return 1; }
+    wait "$r" 2>/dev/null || :
+    rm -f -- "$mk" "$ff"
 }
