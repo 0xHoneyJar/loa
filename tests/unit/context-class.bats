@@ -45,7 +45,7 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
 @test "CC-4 the hook payload's .model on stdin is honoured when no --model is given" {
   run bash -c "printf '%s' '{\"session_id\":\"s\",\"hook_event_name\":\"SessionStart\",\"source\":\"startup\",\"model\":\"claude-haiku-4-5-20251001\"}' | bash '$HOOK' --root '$T'"
   [ "$status" -eq 0 ]; [ "$(_class)" = "standard" ]; [ "$(_basis)" = "model" ]
-  run bash -c "printf '%s' '{\"session_id\":\"s\",\"source\":\"resume\"}' | bash '$HOOK' --root '$T'"
+  run bash -c "printf '%s' '{\"session_id\":\"s\",\"source\":\"startup\"}' | bash '$HOOK' --root '$T'"
   [ "$(_class)" = "long" ]; [ "$(_basis)" = "default" ]
 }
 
@@ -90,7 +90,7 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
   [ "$(_class)" = "long" ]
 }
 
-@test "CC-8 hook wiring: present in both settings files, behind hook-guard.sh, once per session" {
+@test "CC-8 hook wiring: present in both settings files, behind hook-guard.sh (re-fires are handled by the hook, CC-17)" {
   for f in "$PROJECT_ROOT/.claude/settings.json" "$PROJECT_ROOT/.claude/hooks/settings.hooks.json"; do
     jq -e '[.hooks.SessionStart[].hooks[] | select(.command | test("hook-guard.sh.*loa-context-class.sh"))] | length == 1' "$f" >/dev/null
     jq -e '.hooks.SessionStart[].hooks[] | select(.command | test("loa-context-class.sh")) | .once == true' "$f" >/dev/null
@@ -156,4 +156,47 @@ display_context_line"
   run grep -rnE 'tokens_estimated > 2000|>2000 tokens|> 2000 tokens' \
     "$PROJECT_ROOT/.claude/protocols" "$PROJECT_ROOT/.claude/skills"/*/context-retrieval.md "$PROJECT_ROOT/.claude/skills"/*/impact-analysis.md
   [ "$status" -eq 1 ] || { echo "$output"; false; }
+}
+
+@test "CC-14 an alias target read back from the catalog is sanitised before the second lookup (no yq breakout)" {
+  cat > "$T/cat.yaml" <<'YAML'
+aliases:
+  evil: 'anthropic:zz"] | {"q": {"context_window": 150000}} | [."q'
+providers:
+  anthropic:
+    models:
+      big: {context_window: 1000000}
+YAML
+  run bash "$HOOK" --root "$T" --catalog "$T/cat.yaml" --model evil --line < /dev/null
+  [ "$status" -eq 0 ]
+  [ "$(_class)" = "long" ]; [ "$(_basis)" = "default" ]
+}
+
+@test "CC-15 LOA_CONTEXT_CLASS is read case-insensitively (Standard, LONG)" {
+  LOA_CONTEXT_CLASS=Standard run bash "$HOOK" --root "$T" < /dev/null
+  [ "$status" -eq 0 ]; [ "$(_class)" = "standard" ]; [ "$(_basis)" = "env" ]
+  LOA_CONTEXT_CLASS=LONG run bash "$HOOK" --root "$T" --model claude-haiku-4-5-20251001 < /dev/null
+  [ "$(_class)" = "long" ]; [ "$(_basis)" = "env" ]
+}
+
+@test "CC-16 Bedrock-shaped ids resolve: region prefix, anthropic. vendor prefix and the -vN:M suffix are stripped" {
+  run bash "$HOOK" --root "$T" --model global.anthropic.claude-haiku-4-5-20251001-v1:0 < /dev/null
+  [ "$status" -eq 0 ]; [ "$(_class)" = "standard" ]; [ "$(_basis)" = "model" ]
+  run bash "$HOOK" --root "$T" --model anthropic.claude-haiku-4-5-20251001-v1:0 < /dev/null
+  [ "$(_class)" = "standard" ]; [ "$(_basis)" = "model" ]
+  run bash "$HOOK" --root "$T" --model eu.anthropic.claude-opus-5 < /dev/null
+  [ "$(_class)" = "long" ]; [ "$(_basis)" = "model" ]
+}
+
+@test "CC-17 a clear/compact/resume re-fire with no model keeps a recorded model or env class; startup does not" {
+  local src
+  for src in clear compact resume; do
+    run bash "$HOOK" --root "$T" --model claude-haiku-4-5-20251001 < /dev/null
+    [ "$(_class)" = "standard" ]
+    run bash -c "printf '%s' '{\"session_id\":\"s\",\"source\":\"$src\"}' | bash '$HOOK' --root '$T'"
+    [ "$status" -eq 0 ]; [ "$(_class)" = "standard" ] || { echo "source=$src overwrote the record"; false; }
+    [ "$(_basis)" = "model" ]
+  done
+  run bash -c "printf '%s' '{\"session_id\":\"s\",\"source\":\"startup\"}' | bash '$HOOK' --root '$T'"
+  [ "$(_class)" = "long" ]; [ "$(_basis)" = "default" ]
 }

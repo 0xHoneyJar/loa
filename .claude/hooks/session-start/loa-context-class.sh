@@ -12,6 +12,10 @@
 #             --model) resolves to a catalog entry with context_window ≤ 200000:
 #             2K / 5K / 3K / 15K
 #
+# SessionStart also fires on /clear, compaction and resume; such a re-fire that
+# carries no model keeps a `model` or `env` record rather than resetting it.
+# Bedrock ids (global.anthropic.<id>-v1:0) resolve with those affixes stripped.
+#
 # Never blocks and never fails the session: every error path is `long`
 # (basis `default`). Silent on stdout as a SessionStart hook; `--line` prints
 # the one line /loa shows. Usage:
@@ -27,6 +31,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 MODEL=""
 CATALOG=""
 MODE="hook"
+SOURCE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     # a value flag given last has no value: stop parsing (shift 2 would not move, and the loop would spin)
@@ -36,7 +41,7 @@ while [[ $# -gt 0 ]]; do
     --line)    MODE="line"; shift ;;
     --json)    MODE="json"; shift ;;
     --show)    MODE="show"; shift ;;
-    -h|--help) sed -n '3,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) shift ;;
   esac
 done
@@ -78,26 +83,44 @@ if [[ -z "$MODEL" && ! -t 0 ]]; then
   fi
   if [[ -n "$payload" ]] && command -v jq >/dev/null 2>&1; then
     MODEL="$(printf '%s' "$payload" | jq -r '(.model // .model_id // .model_name // empty) | if type == "object" then (.id // .name // empty) else . end' 2>/dev/null || true)"
+    SOURCE="$(printf '%s' "$payload" | jq -r '.source // empty | strings' 2>/dev/null | tr -cd 'a-z')"
   fi
 fi
 MODEL="${MODEL//[^A-Za-z0-9._:-]/}"
 
 # --- resolve the model's context window through the catalog (alias-aware) ---
-_context_window_of() {  # <model> → integer or ""
+_window_of_id() {  # <catalog id or alias> → integer or ""
   local m="$1" target cw=""
-  command -v yq >/dev/null 2>&1 && [[ -f "$CATALOG" ]] || { echo ""; return 0; }
-  m="${m#anthropic:}"; m="${m#openai:}"; m="${m#google:}"
   target="$(yq eval ".aliases.\"$m\"" "$CATALOG" 2>/dev/null)"
   [[ -n "$target" && "$target" != "null" ]] && m="${target#*:}"
+  m="${m//[^A-Za-z0-9._:-]/}"   # the alias target is catalog text: the same whitelist before the second lookup
+  [[ -n "$m" ]] || { echo ""; return 0; }
   # one line per provider; the first non-null wins (yq has no `empty`)
   cw="$(yq eval "[.providers[].models.\"$m\".context_window | select(. != null)] | .[0]" "$CATALOG" 2>/dev/null)"
   [[ "$cw" =~ ^[0-9]+$ ]] && echo "$cw" || echo ""
 }
+_context_window_of() {  # <model> → integer or ""
+  local m="$1" c cw
+  command -v yq >/dev/null 2>&1 && [[ -f "$CATALOG" ]] || { echo ""; return 0; }
+  m="${m#anthropic:}"; m="${m#openai:}"; m="${m#google:}"
+  # a Bedrock id (global.anthropic.claude-haiku-4-5-20251001-v1:0): try it as given, then without the
+  # region prefix, the anthropic. vendor prefix and the -vN[:M] version suffix, in that order
+  local c1="$m" c2 c3 c4
+  c2="$(printf '%s' "$c1" | sed -E 's/^(global|us|eu|apac|jp|au|ca|us-gov)\.//')"
+  c3="${c2#anthropic.}"
+  c4="$(printf '%s' "$c3" | sed -E 's/-v[0-9]+(:[0-9]+)?$//')"
+  for c in "$c1" "$c2" "$c3" "$c4"; do
+    cw="$(_window_of_id "$c")"
+    [[ -n "$cw" ]] && { echo "$cw"; return 0; }
+  done
+  echo ""
+}
 
 CLASS="long"; BASIS="default"; CW=""
-if [[ "${LOA_CONTEXT_CLASS:-}" == "standard" ]]; then
+ENV_CLASS="$(printf '%s' "${LOA_CONTEXT_CLASS:-}" | tr '[:upper:]' '[:lower:]')"   # bash 3.2 has no ${v,,}
+if [[ "$ENV_CLASS" == "standard" ]]; then
   CLASS="standard"; BASIS="env"
-elif [[ "${LOA_CONTEXT_CLASS:-}" == "long" ]]; then
+elif [[ "$ENV_CLASS" == "long" ]]; then
   CLASS="long"; BASIS="env"
 elif [[ -n "$MODEL" ]]; then
   CW="$(_context_window_of "$MODEL")"
@@ -108,8 +131,20 @@ elif [[ -n "$MODEL" ]]; then
 fi
 
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# --- a clear/compact/resume re-fire that carries no model keeps a model or env record --
+# (SessionStart fires again inside the same session; the default would overwrite what startup decided)
+KEEP=0
+if [[ "$BASIS" == "default" && "$SOURCE" =~ ^(clear|compact|resume)$ && -f "$ROOT/.run/context-class" ]]; then
+  rec_basis="$(sed -n 2p "$ROOT/.run/context-class" 2>/dev/null | grep -o 'basis=[a-z]*' | cut -d= -f2)"
+  rec_class="$(head -1 "$ROOT/.run/context-class" 2>/dev/null | tr -cd 'a-z')"
+  if [[ "$rec_basis" =~ ^(model|env)$ && "$rec_class" =~ ^(long|standard)$ ]]; then
+    KEEP=1; CLASS="$rec_class"; BASIS="$rec_basis"
+    MODEL="$(sed -n 2p "$ROOT/.run/context-class" 2>/dev/null | grep -o 'model=[A-Za-z0-9._:-]*' | cut -d= -f2)"
+    [[ "$MODEL" == "null" ]] && MODEL=""
+  fi
+fi
 # --- write .run/context-class atomically (two lines: the class, then the basis) --
-if mkdir -p "$ROOT/.run" 2>/dev/null; then
+if (( KEEP == 0 )) && mkdir -p "$ROOT/.run" 2>/dev/null; then
   tmp="$(mktemp "$ROOT/.run/.context-class.XXXXXX" 2>/dev/null || true)"
   if [[ -n "$tmp" ]]; then
     printf '%s\nbasis=%s model=%s context_window=%s ts=%s\n' "$CLASS" "$BASIS" "${MODEL:-null}" "${CW:-null}" "$TS" > "$tmp" \

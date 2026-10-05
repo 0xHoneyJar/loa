@@ -36,7 +36,7 @@ read the file; when it is absent, assume `long`.
 ## Edge Cases
 
 1. **Zero high-signal results** (all scores <0.4): extract nothing; log "X results, 0 high-signal" to trajectory; reformulate the query or flag a potential Ghost Feature (see `citations.md` Negative Grounding); clear everything.
-2. **Single large file** (>1000 lines): never load whole; `Read` with offset/limit, synthesize only the relevant ≤50 lines.
+2. **Single large file** (above the class's full-file load row): never load whole; `Read` with offset/limit, synthesize only the relevant ≤50 lines.
 3. **Repeated similar searches**: check NOTES.md for an existing synthesis BEFORE searching; append rather than duplicate; >3 similar searches in a session is a confusion signal — log it.
 
 ## Related Protocols

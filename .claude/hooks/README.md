@@ -19,7 +19,7 @@ Merge `settings.hooks.json` into your `~/.claude/settings.json`. The template in
 | PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
-| SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` | Record the context class (`.run/context-class`: `long` default, `standard` for a ≤ 200K model or `LOA_CONTEXT_CLASS=standard`) |
+| SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` | Record the context class (`.run/context-class`: `long` default, `standard` for a ≤ 200K model or `LOA_CONTEXT_CLASS=standard`; a model-less re-fire on clear/compact/resume keeps the record) |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
