@@ -9,7 +9,11 @@
       "severity": "critical",
       "category": "authz",
       "source_commit": "ef81358f",
-      "synthetic": false
+      "synthetic": false,
+      "anchors": [
+        776,
+        807
+      ]
     },
     {
       "id": "D14-billing-400-terminal",

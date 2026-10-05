@@ -111,3 +111,75 @@ review() {  # review <body> — writes review.md with a trailer
   run "$GRADER" "$WS" pr-nope
   [ "$status" -eq 2 ]
 }
+
+# --- bd-ewrc (cycle-126 sprint-250 Task 4.8): citation-parser defects -------
+@test "RG-11 a leading ( is not part of the cited path: (head/a.sh:40) and (a.sh:40 both detect D1" {
+  review 'the decoy flag (head/.claude/scripts/a.sh:40) re-anchors'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+  review 'see (a.sh:40, a recent change'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+}
+
+@test "RG-12 comma continuations bind to the cited path: b.py:10,120 and b.py:10, 118-121 detect D2" {
+  review '`.claude/adapters/loa_cheval/b.py:10,120` both drop the error'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D2" ]
+  review 'b.py:10, 118-121'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D2" ]
+}
+
+@test "RG-13 a bare :N or head:N binds to the most recent cited path, not an earlier one" {
+  review 'In `.claude/scripts/c.sh:1` the guard … then `:7` returns early'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  review 'a.sh:1 is fine. c.sh:100 is odd, and head:40 too'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'c.sh:100 is odd, head:7 too'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+}
+
+@test "RG-14 a bare :N with no preceding path, or one glued to a word (10:40, note:40), credits nothing" {
+  review 'At :40 the decoy re-anchors; meeting at 10:40; note:40'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+}
+
+@test "RG-15 anchors[] lists every site of a multi-site defect; anchor_line alone still works" {
+  cat > "$T/manifests/pr-y.json" <<'JSON'
+{"fixture":"pr-y","defects":[
+ {"id":"M1","file":".claude/hooks/x.sh","anchor_line":807,"anchors":[776,807],"severity":"critical","category":"authz","source_commit":"deadbeef","synthetic":false},
+ {"id":"M2","file":".claude/scripts/s.sh","anchor_line":83,"severity":"low","category":"logic","source_commit":"deadbeef","synthetic":false}
+]}
+JSON
+  review 'x.sh:776 group 3 captures one root; s.sh:57 lists tags'
+  run "$GRADER" "$WS" pr-y
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "M1" ]
+  [ "$(echo "$output" | jq -r '.details.missed | join(",")')" = "M2" ]
+  review 'x.sh:807 and s.sh:83'
+  run "$GRADER" "$WS" pr-y
+  [ "$(echo "$output" | jq -r '.details.recall == 1')" = "true" ]
+}
+
+@test "RG-16 the two real multi-site manifests carry anchors[] (pr-05 D13 776/807, pr-02 D06 57/83), each a real site" {
+  local M="$REPO_ROOT/evals/fixtures/review-prs/manifests" F="$REPO_ROOT/evals/fixtures/review-prs"
+  [ "$(jq -c '.defects[] | select(.id=="D13-find-exec-multi-root") | .anchors' "$M/pr-05.json")" = "[776,807]" ]
+  [ "$(jq -c '.defects[] | select(.id=="D06-prerelease-tags-rejected") | .anchors' "$M/pr-02.json")" = "[57,83]" ]
+  sed -n 776p "$F/pr-05/head/.claude/hooks/safety/block-destructive-bash.sh" | grep -q '_re_find_exec_prefix='
+  sed -n 57p "$F/pr-02/head/.claude/scripts/semver-bump.sh" | grep -q "tag -l 'v\[0-9\]\*"
+  # every anchors[] list contains its anchor_line, so the field only ever widens detection
+  for f in "$M"/*.json; do
+    jq -e '[.defects[] | select(has("anchors")) | . as $d | .anchors | index($d.anchor_line) != null] | all' "$f" >/dev/null
+  done
+}
+
+@test "RG-17 grader_version is 1.1.0 (the bd-ewrc parser); the manifest corpus checksum list matches the manifests" {
+  review 'a.sh:40'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.0" ]
+  ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
+}

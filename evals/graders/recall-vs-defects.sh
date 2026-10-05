@@ -11,7 +11,14 @@
 # when the review contains a `path:line` (or `path:line-line`) citation whose
 # path ends with the defect's file (repo-relative, `head/`-prefixed, or the
 # bare basename) and whose line, or line range, falls within ±3 of the
-# manifest anchor.
+# manifest anchor — `anchor_line`, or any line in `anchors[]` for a defect
+# with more than one site.
+#
+# Parser (1.1.0, bd-ewrc): a leading `(` is not part of the path; comma
+# continuations (`path:776,807`, `path:10, 118-121`) and a later bare `:N` or
+# `head:N` / `base:N` bind to the most recent cited path. A `:N` glued to a
+# word or a number (`note:40`, `10:40`), or with no cited path before it,
+# credits nothing.
 #
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
@@ -34,7 +41,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.0.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -46,7 +53,7 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.0.0"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.0"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
@@ -58,17 +65,31 @@ man = json.load(open(manifest_path))
 text = open(review_path, encoding="utf-8", errors="replace").read()
 
 # path:line[-line] citations. Path = something with a file extension; the
-# optional trailing range keeps `file.py:10-14` in one token.
-CITE = re.compile(r'([A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6}):(\d{1,6})(?:\s*[-–]\s*(\d{1,6}))?')
+# optional trailing range keeps `file.py:10-14` in one token, and the comma
+# list after it (`:776,807`) belongs to the same path. A bare `:N` (or
+# `head:N` / `base:N`) not glued to a word binds to the most recent path.
+RNG = r'(\d{1,6})(?:\s*[-–]\s*(\d{1,6}))?'
+CITE = re.compile(
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6}):(?P<first>' + RNG + r'(?:\s*,\s*' + RNG + r')*)'
+    r'|(?:(?<![A-Za-z0-9_./:])(?:head|base)|(?<![A-Za-z0-9_./:])):(?P<bare>' + RNG + r')(?![A-Za-z0-9])')
+ONE = re.compile(RNG)
 cites = []
+last = None
 for m in CITE.finditer(text):
-    p, a, b = m.group(1), int(m.group(2)), m.group(3)
-    b = int(b) if b else a
-    if b < a:
-        a, b = b, a
-    if p.startswith("./"):
-        p = p[2:]
-    cites.append((p, a, b))
+    if m.group("path") is not None:
+        p = m.group("path").lstrip("(")
+        if p.startswith("./"):
+            p = p[2:]
+        last, spans = p, m.group("first")
+    elif last is not None:
+        p, spans = last, m.group("bare")
+    else:
+        continue
+    for r in ONE.finditer(spans):
+        a = int(r.group(1)); b = int(r.group(2)) if r.group(2) else a
+        if b < a:
+            a, b = b, a
+        cites.append((p, a, b))
 
 def path_matches(cited, defect_file):
     cited = cited.split("head/", 1)[1] if cited.startswith("head/") else cited
@@ -79,8 +100,9 @@ def path_matches(cited, defect_file):
 
 detected, missed = [], []
 for d in man.get("defects", []):
-    lo, hi = d["anchor_line"] - 3, d["anchor_line"] + 3
-    hit = any(path_matches(p, d["file"]) and not (b < lo or a > hi) for p, a, b in cites)
+    sites = d.get("anchors") or [d["anchor_line"]]
+    hit = any(path_matches(p, d["file"]) and not (b < s - 3 or a > s + 3)
+              for p, a, b in cites for s in sites)
     (detected if hit else missed).append(d["id"])
 
 planted = len(man.get("defects", []))
@@ -130,7 +152,7 @@ out = {
         "false_positives": false_positives, "severity_counts": sev,
         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
     },
-    "grader_version": "1.0.0",
+    "grader_version": "1.1.0",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)

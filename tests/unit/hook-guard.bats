@@ -144,3 +144,12 @@ setup() {
     [ "$status" -eq 0 ]
     [ "$output" = "alpha|beta" ]
 }
+
+# --- (d) the WARN names no event: the guard also wraps SessionStart hooks ----
+@test "parse-failure WARN does not call every wrapped hook a PreToolUse hook (it also wraps loa-context-class.sh)" {
+    local err="$BATS_TEST_TMPDIR/d.err"
+    "$GUARD" "$BROKEN" </dev/null >/dev/null 2>"$err"
+    ! grep -q "PreToolUse hook" "$err"
+    grep -q "did not run" "$err"
+    grep -q "failing OPEN" "$err"
+}

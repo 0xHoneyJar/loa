@@ -29,7 +29,11 @@
       "severity": "low",
       "category": "logic",
       "source_commit": "d94b20d4",
-      "synthetic": false
+      "synthetic": false,
+      "anchors": [
+        57,
+        83
+      ]
     }
   ]
 }

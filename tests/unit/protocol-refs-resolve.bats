@@ -2,7 +2,7 @@
 # =============================================================================
 # tests/unit/protocol-refs-resolve.bats — cycle-124 FR-8 / AC-8.3
 #
-# Every `protocols/<name>.md` string in .claude/, PROCESS.md, CONTRIBUTING.md,
+# Every `protocols/<name>.md` (and `protocols/reference/<name>.md`) string in .claude/, PROCESS.md, CONTRIBUTING.md,
 # tests/ and .github/workflows/ resolves to a file under .claude/protocols/,
 # so an archived protocol cannot leave a dangling pointer behind. Synthetic
 # strings (test fixtures) are listed in tools/protocol-refs.allowlist with a
@@ -19,7 +19,7 @@ setup() {
 # working tree also holds ignored local docs under .claude/config/)
 refs() {
     ( cd "$PROJECT_ROOT" && git ls-files -z -- .claude PROCESS.md CONTRIBUTING.md tests .github/workflows 2>/dev/null \
-        | xargs -0 grep -noE 'protocols/[A-Za-z0-9_-]+\.md' 2>/dev/null \
+        | xargs -0 grep -noE 'protocols/(reference/)?[A-Za-z0-9_-]+\.md' 2>/dev/null \
         | awk -F: '{ sub(/^protocols\//, "", $3); print $1 "\t" $3 }' | sort -u )
 }
 
@@ -57,4 +57,8 @@ allowed() {  # allowed <file> <name>
         [ ! -e "$PROJECT_ROOT/.claude/protocols/$p.md" ]
         ! grep -q "protocols/$p.md" "$PROJECT_ROOT/.claude/loa/reference/protocols-summary.md"
     done
+}
+
+@test "PR-4 the scan covers protocols/reference/ pointers (the cycle-126 moves), so a dangling one is caught by PR-1" {
+    refs | awk -F'\t' '$2 ~ /^reference\// { n++ } END { exit n > 0 ? 0 : 1 }'
 }

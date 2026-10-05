@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-05T23:10:59Z",
+  "generated": "2026-10-05T23:25:12Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -945,7 +945,7 @@
     ".claude/hooks/audit/mutation-logger.sh": "46d49d8ae3525b40af3cdaf261b8118956e8b9ef3a54216891b1904dc4e7e631",
     ".claude/hooks/audit/write-mutation-logger.sh": "f7e0108de87e912643756c2a4307289bc68f1e59945d1cae4d809c60e66b8c5a",
     ".claude/hooks/compliance/implement-gate.sh": "b976793be148169a586a8ae7be8da43cec1ef4ad4abcf18a46b2661fbee684ac",
-    ".claude/hooks/hook-guard.sh": "867dba365e34848212e67b58f9aa63065db08f0902f7ec849366da361fe41f9d",
+    ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "df73c944ef232be36aa965438477da7096686216704851c3c82b808567e164c0",
     ".claude/hooks/loa-kf-surface.sh": "c8f9b18e84b5f683772eaef1c8458e28172b222d721137c56583b53f70188cf6",
     ".claude/hooks/post-compact-reminder.sh": "4ba6fa34c9555b03b826cbe1349ce6281dff08c2c7fecb1914cb1d341bf1decc",
