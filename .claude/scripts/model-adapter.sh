@@ -108,17 +108,23 @@ declare -A MODEL_TO_ALIAS=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
     ["gpt-5.2-codex"]="openai:gpt-5.3-codex"    # Backward compat alias
-    ["opus"]="anthropic:claude-opus-4-7"
+    ["opus"]="anthropic:claude-opus-5-5"               # Current Opus (cycle-126, bd-2fti)
+    ["fable"]="anthropic:claude-fable-5-1"
+    ["claude-opus-5-5"]="anthropic:claude-opus-5-5"
+    ["claude-opus-5"]="anthropic:claude-opus-5"
+    ["claude-sonnet-5"]="anthropic:claude-sonnet-5"
+    ["claude-fable-5-1"]="anthropic:claude-fable-5-1"
+    # 4.x history: same targets as backward_compat_aliases in model-config.yaml
     ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
-    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"    # Current canonical (cycle-082)
-    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted to current (bash path); YAML preserves 4.6 for pinning
-    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted to current (bash path); YAML preserves 4.6 for pinning
+    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"
     ["claude-opus-4.5"]="anthropic:claude-opus-4-7"
-    ["claude-opus-4-5"]="anthropic:claude-opus-4-7"    # Hyphenated → current
-    ["claude-opus-4.1"]="anthropic:claude-opus-4-7"    # Legacy → current
-    ["claude-opus-4-1"]="anthropic:claude-opus-4-7"    # Legacy hyphenated → current
-    ["claude-opus-4.0"]="anthropic:claude-opus-4-7"    # Legacy → current
-    ["claude-opus-4-0"]="anthropic:claude-opus-4-7"    # Legacy hyphenated → current
+    ["claude-opus-4-5"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.1"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-1"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4.0"]="anthropic:claude-opus-4-7"
+    ["claude-opus-4-0"]="anthropic:claude-opus-4-7"
     ["gemini-2.0"]="google:gemini-2.0-flash"
     ["gemini-2.5-flash"]="google:gemini-2.5-flash"
     ["gemini-2.5-pro"]="google:gemini-2.5-pro"
@@ -341,7 +347,10 @@ hounfour.flatline_routing is enabled, otherwise uses legacy adapter.
 Models:
   gpt-5.2                    OpenAI GPT-5.2
   gpt-5.3-codex              OpenAI GPT-5.3 Codex
-  opus, claude-opus-4.7      Claude Opus 4.7 (current; 4.6 alias retargeted to 4.7 in bash layer)
+  opus, claude-opus-5-5      Claude Opus 5.5 (current)
+  fable, claude-fable-5-1    Claude Fable 5.1
+  claude-sonnet-5            Claude Sonnet 5 (the cheap alias)
+  claude-opus-5              Claude Opus 5 (pinnable; 4.x names keep their catalog targets)
   (Full model list depends on routing path)
 
 Modes:
@@ -641,8 +650,13 @@ main() {
     fi
 
     # Call model-invoke and translate output
-    local result exit_code=0
-    result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>/dev/null) || exit_code=$?
+    # cheval's stderr stays out of the caller's view except the agy argv-exposure
+    # WARN, which is the operator-facing half of that mitigation (bd-pw7e LOW-001).
+    local result exit_code=0 err_file
+    err_file="$(mktemp "${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX")"
+    result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>"$err_file") || exit_code=$?
+    grep -F -- 'gemini-headless dispatches agy' "$err_file" | cut -c1-600 >&2 || :
+    rm -f -- "$err_file"
 
     if [[ $exit_code -ne 0 ]]; then
         error "model-invoke failed with exit code $exit_code"

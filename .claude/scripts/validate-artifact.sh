@@ -124,7 +124,7 @@ validate_prd() {
             # and the bold form ('> **Sources**:') — discovering-requirements'
             # <output_format> prescribes the bold form while its Phase-8
             # example uses the plain one.
-            if ! printf '%s' "$body" | grep -qE '^> (\*\*)?Sources(\*\*)?:'; then
+            if ! grep -qE '^> (\*\*)?Sources(\*\*)?:' <<< "$body"; then
                 violations+=("PRD section '${heading# }' (line $lineno) has no '> Sources:' line in its body — add one per discovering-requirements Phase 8 template")
             fi
         done <<< "$sections"
@@ -175,7 +175,7 @@ validate_sdd() {
         [[ -z "$hits" ]] && continue
         while IFS= read -r hitline; do
             [[ -z "$hitline" ]] && continue
-            if ! printf '%s' "$hitline" | grep -qE '[0-9]+\.[0-9]+'; then
+            if ! grep -qE '[0-9]+\.[0-9]+' <<< "$hitline"; then
                 local lineno
                 lineno=$(printf '%s' "$hitline" | cut -d: -f1)
                 warnings+=("$FILE:$lineno: bare framework name '$name' with no version-shaped token (e.g. 18.2) on the same line")
@@ -224,12 +224,12 @@ validate_sprint() {
         ' < "$FILE")
         local sec
         for sec in "${SPRINT_REQUIRED_SECTIONS[@]}"; do
-            if ! printf '%s' "$block" | grep -qE "^### ($sec)\$"; then
+            if ! grep -qE "^### ($sec)\$" <<< "$block"; then
                 violations+=("sprint block '${heading# }' (line $lineno) is missing required section '### $sec' — see planning-sprints/resources/templates/sprint-template.md")
             fi
         done
         for sec in "${SPRINT_WARN_SECTIONS[@]}"; do
-            if ! printf '%s' "$block" | grep -qE "^### ($sec)\$"; then
+            if ! grep -qE "^### ($sec)\$" <<< "$block"; then
                 warnings+=("sprint block '${heading# }' (line $lineno) has no '### $sec' section — recommended for security-relevant sprints")
             fi
         done
@@ -258,7 +258,7 @@ validate_sprint() {
     # Final sprint E2E/validation task (WARN only).
     local last_block
     last_block=$(awk -v start="$last_sprint_lineno" 'NR > start { print }' < "$FILE")
-    if ! printf '%s' "$last_block" | grep -qiE 'E2E|end-to-end'; then
+    if ! grep -qiE 'E2E|end-to-end' <<< "$last_block"; then
         warnings+=("final sprint block '${last_sprint_heading# }' has no E2E/end-to-end validation task")
     fi
 }

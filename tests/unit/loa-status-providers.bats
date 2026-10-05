@@ -67,19 +67,19 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"   # no store → the catalog's probed bound
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5; calibrate: python3 tools/ceiling-probe-live.py --model claude-opus-5 --write-catalog\)'
-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5","observed_input_tokens":500000,"error_class":"RATE_LIMIT_UNVERIFIED"},{"provider":"anthropic","model":"claude-opus-5","observed_input_tokens":412000,"error_class":"CEILING_UNVERIFIED_LIMIT"}]}\n' > "$T/obs.json"
+  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5-5; calibrate: python3 tools/ceiling-probe-live.py --model claude-opus-5-5 --write-catalog\)'
+  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":500000,"error_class":"RATE_LIMIT_UNVERIFIED"},{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":412000,"error_class":"CEILING_UNVERIFIED_LIMIT"}]}\n' > "$T/obs.json"
   export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/obs.json"
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
   # 412K is above the probed 180K: the default bound stands, the observation is shown for the opt-in
-  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5; observed 411999 under the opt-in; calibrate: python3 tools/ceiling-probe-live.py'
+  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5-5; observed 411999 under the opt-in; calibrate: python3 tools/ceiling-probe-live.py'
   run timeout 120 bash "$STATUS" --no-stale-check --json
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.providers.providers.anthropic.ceiling.basis == "probed" and .providers.providers.anthropic.ceiling.observed == 411999 and .providers.providers.openai.ceiling == null' >/dev/null
   # an observation BELOW the probed bound becomes the bound
-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5","observed_input_tokens":150000,"error_class":"PROVIDER_CONTEXT_LIMIT"}]}\n' > "$T/obs.json"
+  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":150000,"error_class":"PROVIDER_CONTEXT_LIMIT"}]}\n' > "$T/obs.json"
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qE '^  ceiling: observed 149999 \(claude-opus-5; calibrate: python3 tools/ceiling-probe-live.py'
+  echo "$output" | grep -qE '^  ceiling: observed 149999 \(claude-opus-5-5; calibrate: python3 tools/ceiling-probe-live.py'
 }

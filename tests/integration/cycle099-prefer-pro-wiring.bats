@@ -256,7 +256,7 @@ YAML
     # tier_groups data was never live-tested. P6 omits operator's
     # tier_groups.mappings entirely. The resolver consults framework's
     # tier_groups.mappings.mid → picks sorted([anthropic, google, openai])[0]
-    # = anthropic → resolves via aliases.cheap → claude-sonnet-4-6.
+    # = anthropic → resolves via aliases.cheap → claude-sonnet-5 (cycle-126; claude-sonnet-4-6 before).
     # Then S6 looks up `cheap-pro` which doesn't exist → outcome=skipped,
     # reason=no_pro_variant_for_alias. The test pins the cycle-099 production
     # behavior on the framework path.
@@ -283,7 +283,7 @@ YAML
     [[ "$has_stage3" == "true" ]] || { echo "expected stage3 in path"; echo "$out"; return 1; }
     [[ "$provider" == "anthropic" ]] || { echo "framework-default mid: expected anthropic, got=$provider"; echo "$out"; return 1; }
     [[ "$resolved_alias" == "cheap" ]] || { echo "expected resolved_alias=cheap (mid.anthropic), got=$resolved_alias"; echo "$out"; return 1; }
-    [[ "$model_id" == "claude-sonnet-4-6" ]] || { echo "expected claude-sonnet-4-6, got=$model_id"; echo "$out"; return 1; }
+    [[ "$model_id" == "claude-sonnet-5" ]] || { echo "expected claude-sonnet-5, got=$model_id"; echo "$out"; return 1; }
     # S6 is emitted but skipped because `cheap-pro` alias doesn't exist.
     [[ "$last_label" == "stage6_prefer_pro_overlay" ]] || { echo "expected last stage6, got=$last_label"; echo "$out"; return 1; }
     [[ "$last_outcome" == "skipped" ]] || { echo "expected S6 skipped, got=$last_outcome"; echo "$out"; return 1; }

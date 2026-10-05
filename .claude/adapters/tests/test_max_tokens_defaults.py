@@ -144,7 +144,7 @@ def test_dry_run_reports_default_budget_and_effort():
                    "--prompt", "x", "--dry-run", "--json-errors")
     assert proc.returncode == 0, proc.stderr
     out = json.loads(proc.stdout)
-    assert out["resolved_model"] == "claude-opus-5"
+    assert out["resolved_model"] == "claude-opus-5-5"
     assert out["max_tokens"] == 64_000
     assert out["effort"] == "xhigh"
 

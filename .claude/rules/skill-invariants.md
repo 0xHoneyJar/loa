@@ -6,18 +6,19 @@ SKILL.md frontmatter keys interact across two permission layers: the skill's own
 
 When a skill declares write capability — either `capabilities.write_files: true` OR `allowed-tools` listing `Write`/`Edit` — it MUST NOT set `agent:` to a type that excludes those tools.
 
-Allowed: omit the `agent:` key (skill runs in the caller's context), or set `agent: general-purpose`.
+Allowed: omit the `agent:` key (skill runs in the caller's context), or set `agent:` to a write-capable type (`general-purpose`, `claude`, `fork`).
 
 ## Agent type tool allowlists
 
 | Agent type | Write / Edit / NotebookEdit | Use for |
 |------------|-----------------------------|---------|
-| `general-purpose` | ✓ all tools | Skills that author files |
+| `general-purpose`, `claude`, `fork` | ✓ all tools | Skills that author files |
 | `Plan` | ✗ excluded | Read-only planning / exploration |
 | `Explore` | ✗ excluded | Read-only codebase analysis |
+| `loa-scout`, `prompt-auditor`, `prompt-auditor-io` | ✗ excluded | Read-only project agents (`.claude/agents/`) |
 | (unset) | inherited from caller | Default; safe for write-capable skills |
 
-Source: Claude Code agent-type definitions in the system prompt.
+Source: Claude Code agent-type definitions in the system prompt, and `.claude/agents/*.md`.
 
 ## Enforcement
 
@@ -25,7 +26,7 @@ Source: Claude Code agent-type definitions in the system prompt.
 
 > agent type '<name>' excludes Write/Edit tools but skill declares write capability …
 
-The allowlist is maintained in the `WRITE_CAPABLE_AGENTS` array near the top of the script. Adding a new write-capable agent type is intentionally a one-line edit with reviewer visibility.
+The allowlist is maintained in `.claude/data/agent-types.yaml` (one `write_capable` flag per agent type); the script loads the `true` entries into `WRITE_CAPABLE_AGENTS` and falls back to `general-purpose` alone when the file is missing or unparsable. Adding a new write-capable agent type is intentionally a one-line edit with reviewer visibility.
 
 ## Mechanical C-PROC-001 enforcement via `disallowed-tools` (cycle-114 FR-4)
 

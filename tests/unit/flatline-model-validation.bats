@@ -157,3 +157,52 @@ setup() {
     stagger_count=$(sed -n '/^run_phase1/,/^}/p' "$ORCHESTRATOR" | grep -c 'sleep' || true)
     [ "$stagger_count" -ge 1 ]
 }
+
+# =============================================================================
+# cycle-126 sprint-250 Task 4.1/4.2 (SDD D-4.1): the forward-compat patterns and the
+# stub allowlist name the 5-family. The pattern checks bypass the generated allowlist
+# so a name the catalog already lists cannot mask a pattern gap.
+# =============================================================================
+
+pattern_accepts() {
+    local p
+    for p in "${VALID_MODEL_PATTERNS[@]}"; do
+        [[ "$1" =~ $p ]] && return 0
+    done
+    return 1
+}
+
+@test "VALID_MODEL_PATTERNS admit the 5-family dash forms (claude-opus-5, claude-sonnet-5, claude-fable-5-1, claude-opus-5-5, claude-fable-6)" {
+    local m
+    for m in claude-opus-5 claude-sonnet-5 claude-fable-5 claude-fable-5-1 claude-opus-5-5 claude-opus-5.5 claude-fable-6 claude-opus-4-7; do
+        pattern_accepts "$m" || { echo "pattern rejected $m" >&2; return 1; }
+    done
+}
+
+@test "VALID_MODEL_PATTERNS admit the fable short alias and the gpt -pro suffix" {
+    pattern_accepts fable
+    pattern_accepts gpt-5.5-pro
+    pattern_accepts gpt-5.3-codex
+    pattern_accepts opus
+}
+
+@test "VALID_MODEL_PATTERNS still reject shapes outside the grammar" {
+    local m
+    for m in claude-opus claude-fable- claude-fable-5- claude-opus-5-5-5 claude-poet-5 fables gpt-5.5-mini gpt-5 skeptic 'claude-opus-5;id'; do
+        if pattern_accepts "$m"; then echo "pattern accepted $m" >&2; return 1; fi
+    done
+}
+
+@test "the stub allowlist (generator not run) lists the 5-family and no 4.x model as current" {
+    local stub
+    stub=$(grep -E '^[[:space:]]*declare -a VALID_FLATLINE_MODELS=\(' "$ORCHESTRATOR")
+    [[ "$stub" == *" claude-opus-5 "* || "$stub" == *" claude-opus-5)"* ]]
+    [[ "$stub" == *"claude-sonnet-5"* && "$stub" == *"claude-fable-5-1"* ]]
+    [[ "$stub" != *"claude-opus-4-"* && "$stub" != *"claude-sonnet-4-"* ]]
+}
+
+@test "the rejection message names the fable family in the forward-compat patterns" {
+    run validate_model "skeptic" "primary"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"claude-{opus|sonnet|haiku|fable}"* ]]
+}

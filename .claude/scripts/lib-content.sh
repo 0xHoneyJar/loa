@@ -161,8 +161,9 @@ _lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one numbe
 _lc_chunk_tok() {  # <temp dir> <chunk index> <outvar> → the chunk's estimate, counted once per prepare_content call: the memo is the
                   # caller's local `_lc_tok` array (twenty-sixth run, b1 DISS-C-001 — the candidate scan, the reservation scan and the
                   # include loop each re-read and re-counted every chunk); printf -v, so the memo survives (a `$(...)` would drop it)
-  # a subscript is arithmetic — `$(…)` in it runs: only a number is an index (audit run 1, b1 DISS-C-001)
-  [[ "$2" =~ ^[0-9]+$ ]] || return 1
+  # a subscript is arithmetic — `$(…)` in it runs: only a number is an index (audit run 1, b1 DISS-C-001), and only a canonical
+  # decimal one — `08` is invalid octal there (bd-pw7e LOW-002)
+  [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
   [[ -n "${_lc_tok[$2]:-}" ]] || _lc_tok[$2]=$(estimate_tokens "$(cat "$1/chunk_$2")")
   printf -v "$3" '%s' "${_lc_tok[$2]}"
 }
@@ -242,7 +243,7 @@ prepare_content() {
     # Filter manifest: remove excluded files
     local filtered_manifest=""
     while IFS=$'\t' read -r priority chunk_idx filepath; do
-      [[ "$chunk_idx" =~ ^[0-9]+$ ]] || continue
+      [[ "$chunk_idx" =~ ^(0|[1-9][0-9]*)$ ]] || continue
       if is_excluded "$filepath"; then
         ((scope_excluded++)) || true
         rm -f "$temp_dir/chunk_${chunk_idx}"
@@ -291,6 +292,7 @@ prepare_content() {
     if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
     c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
+  local top_path_log; top_path_log=$(printf '%s' "$top_path" | LC_ALL=C tr -d '\000-\037\177')   # stderr never gets a header's raw controls (bd-pw7e LOW-003)
   if [[ -n "$top_idx" ]]; then
     # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
     # of the budget — a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large
@@ -334,7 +336,7 @@ prepare_content() {
   # twenty-first run, b1 DISS-001: the rows at or above its tier that fit leave no room for even the marker — no partial view is
   # made (a marker-only block placed first would displace a sibling that fits whole); the file is listed as omitted, like any other
   if [[ -n "$top_idx" ]] && (( others > 0 && reserve <= 0 )); then
-    $_log_fn "File ${top_path} exceeds what the rows that fit leave over: no room for a partial view, listed as omitted"
+    $_log_fn "File ${top_path_log} exceeds what the rows that fit leave over: no room for a partial view, listed as omitted"
     top_no_room=1
   elif [[ -n "$top_idx" ]]; then
     how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
@@ -349,7 +351,7 @@ prepare_content() {
       partial_block+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
     fi
     top_partial_done=1
-    $_log_fn "Top-priority file ${top_path} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
+    $_log_fn "Top-priority file ${top_path_log} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
   fi
 
   while IFS=$'\t' read -r priority chunk_idx filepath; do

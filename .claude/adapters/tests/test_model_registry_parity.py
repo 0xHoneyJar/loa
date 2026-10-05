@@ -33,7 +33,7 @@ def test_generated_aliases_match_python_resolution():
 
 
 @pytest.mark.parametrize("alias,input_cost,output_cost", [
-    ("opus", 5000, 25000), ("claude-opus-4-6", 5000, 25000),
+    ("opus", 4000, 20000), ("claude-opus-5", 5000, 25000), ("claude-opus-4-6", 5000, 25000),
     ("gpt-5.3-codex", 1750, 14000), ("gemini-2.5-pro", 1250, 10000),
 ])
 def test_retired_bash_pricing_contract_lives_in_python(alias, input_cost, output_cost):

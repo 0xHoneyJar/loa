@@ -62,10 +62,10 @@ hitl_jury_panel:
   enabled: false
   default_panelists:
     - id: persona-a
-      model: claude-opus-4-7
+      model: opus
       persona_file: .claude/data/personas/persona-a.md
     - id: skeptic
-      model: claude-opus-4-7
+      model: opus
       persona_file: .claude/data/personas/skeptic.md
     - id: alternative-model
       model: gpt-5.3-codex

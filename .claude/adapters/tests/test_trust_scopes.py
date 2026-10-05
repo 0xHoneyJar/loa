@@ -235,7 +235,7 @@ class TestRemoteModelScopes(unittest.TestCase):
                 self.assertEqual(scopes.get(dim), "none")
 
     def test_anthropic_opus_4_7_all_none(self):
-        """anthropic:claude-opus-4-7 has all-none scopes (cycle-082 current default)."""
+        """anthropic:claude-opus-4-7 has all-none scopes (the cycle-082 default; pinnable since)."""
         entry = self.models.get("anthropic:claude-opus-4-7", {})
         self.assertTrue(entry, "claude-opus-4-7 block missing from model-permissions.yaml")
         scopes = entry.get("trust_scopes", {})
@@ -345,6 +345,31 @@ class TestModelCoverage(unittest.TestCase):
                     entry,
                     f"Model '{model_id}' missing capabilities",
                 )
+
+    def test_every_anthropic_catalog_entry_has_a_row(self):
+        """cycle-126 D-4.2: every Anthropic entry the catalog serves (direct and
+        Bedrock-routed) has a registry row, so no current model is unscoped."""
+        catalog_path = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
+        with open(catalog_path, "r") as f:
+            providers = yaml.safe_load(f)["providers"]
+        served = [f"anthropic:{m}" for m in providers["anthropic"]["models"]]
+        served += [f"bedrock:{m}" for m in providers.get("bedrock", {}).get("models", {})
+                   if "anthropic." in m]
+        self.assertGreaterEqual(len(served), 12)
+        missing = [key for key in served if key not in self.models]
+        self.assertEqual(missing, [], f"catalog entries without a model-permissions row: {missing}")
+
+    def test_current_generation_rows_mirror_the_4_7_scopes(self):
+        reference = self.models["anthropic:claude-opus-4-7"]
+        for key in ("anthropic:claude-opus-5-5", "anthropic:claude-opus-5", "anthropic:claude-sonnet-5",
+                    "anthropic:claude-fable-5-1", "anthropic:claude-opus-4-8",
+                    "bedrock:us.anthropic.claude-opus-4-8"):
+            with self.subTest(model=key):
+                entry = self.models.get(key, {})
+                self.assertEqual(entry.get("trust_scopes"), reference["trust_scopes"])
+                self.assertEqual(entry.get("trust_level"), reference["trust_level"])
+                self.assertEqual(entry.get("execution_mode"), "remote_model")
+                self.assertEqual(entry.get("capabilities"), reference["capabilities"])
 
 
 if __name__ == "__main__":

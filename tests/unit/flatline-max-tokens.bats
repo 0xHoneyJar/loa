@@ -60,7 +60,7 @@ _argv_value() { awk -v flag="$1" '$0 == flag {getline; print; exit}' "$ARGV"; }
   [ "$(_argv_value --max-tokens)" = "32000" ]
 }
 
-@test "FMT-3 an alias resolves through MODEL_IDS (opus → claude-opus-5 → 64000)" {
+@test "FMT-3 an alias resolves through MODEL_IDS (opus → claude-opus-5-5 → 64000)" {
   _call_model anthropic:opus review >/dev/null
   [ "$(_argv_value --max-tokens)" = "64000" ]
 }

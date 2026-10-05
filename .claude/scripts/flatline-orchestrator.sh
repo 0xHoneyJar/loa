@@ -553,21 +553,21 @@ if [[ -f "$_GENERATED_MAPS" ]]; then
 else
     # Fallback (should never trigger in checked-in state — generator is run
     # alongside YAML edits per SDD §4.3 Flow 1).
-    declare -a VALID_FLATLINE_MODELS=(opus gpt-5.3-codex claude-opus-4-7 claude-sonnet-4-6 gemini-2.5-pro)
+    declare -a VALID_FLATLINE_MODELS=(opus fable cheap claude-opus-5-5 claude-opus-5 claude-sonnet-5 claude-fable-5-1 gpt-5.5 gpt-5.5-pro gpt-5.3-codex gemini-3.1-pro-preview)
 fi
 
 # Forward-compat patterns for provider-side verified models not yet in
-# the explicit allowlist. Operators running newer models (gpt-5.4-codex,
-# gemini-3.0-pro, claude-opus-4-8) can set them in config and the
+# the explicit allowlist. Operators running newer models (gpt-6.0-pro,
+# gemini-3.2-pro, claude-fable-6) can set them in config and the
 # pattern admits them; provider-side validation at API call time catches
 # typos/invalid names with a clearer error than a pre-runtime allowlist.
 # Note: gemini pattern requires X.Y (with dot). Variants like gemini-3-flash
 # don't match and must wait for explicit allowlist addition.
 VALID_MODEL_PATTERNS=(
-    '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
-    '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
+    '^gpt-[0-9]+\.[0-9]+(-codex|-pro)?$'     # openai: gpt-5.5, gpt-5.5-pro, gpt-5.3-codex
+    '^claude-(opus|sonnet|haiku|fable)-[0-9]+([-.][0-9]+)?$'  # anthropic: claude-opus-5, claude-fable-5-1, claude-opus-5-5
     '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?(-preview)?$'  # google: gemini-2.5-pro, gemini-3.1-pro-preview (cycle-109 T3.4 #793: -preview suffix)
-    '^(opus|sonnet|haiku)$'                  # short anthropic aliases (DISS-002: anchored alternation)
+    '^(opus|sonnet|haiku|fable)$'            # short anthropic aliases (DISS-002: anchored alternation)
     # cycle-109 Sprint 3 T3.4 (#793): cheval-headless pin form.
     # PR #727 (cycle-098) introduced subscription-auth headless adapters;
     # the orchestrator's pre-validator must admit the canonical pin shape
@@ -649,7 +649,7 @@ validate_model() {
 
     error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
     error "Known-good models: ${VALID_FLATLINE_MODELS[*]}"
-    error "Forward-compat patterns also accepted: gpt-X.Y(-codex), claude-{opus|sonnet|haiku}-X-Y, gemini-X.Y(-flash|-pro)"
+    error "Forward-compat patterns also accepted: gpt-X.Y(-codex|-pro), claude-{opus|sonnet|haiku|fable}-X(-Y), gemini-X.Y(-flash|-pro)"
     error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
     return 1
 }
@@ -694,7 +694,12 @@ declare -A MODE_TO_AGENT=(
 declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
-    ["opus"]="anthropic:claude-opus-4-7"
+    ["opus"]="anthropic:claude-opus-5-5"               # catalog aliases.opus (cycle-126 bd-2fti)
+    ["fable"]="anthropic:claude-fable-5-1"
+    ["claude-opus-5-5"]="anthropic:claude-opus-5-5"
+    ["claude-opus-5"]="anthropic:claude-opus-5"
+    ["claude-fable-5-1"]="anthropic:claude-fable-5-1"
+    ["claude-sonnet-5"]="anthropic:claude-sonnet-5"
     ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
     ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
     ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)

@@ -32,6 +32,7 @@ LOA_CONFIG_EXAMPLE = REPO_ROOT / ".loa.config.yaml.example"
 FAMILY_1M = {
     "claude-fable-5-1",
     "claude-fable-5",
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -43,6 +44,7 @@ FAMILY_1M = {
 # on the 4.6/4.7/4.8 family, default-on for Opus 5 / Sonnet 5; Fable rejects
 # every thinking shape except adaptive-or-omitted, so it is NOT flagged.
 ADAPTIVE = {
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -54,6 +56,7 @@ ADAPTIVE = {
 STRUCTURED_JSON = {
     "claude-fable-5-1",
     "claude-fable-5",
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-sonnet-5",
@@ -61,7 +64,10 @@ STRUCTURED_JSON = {
 }
 V2_INPUT_FIELDS = ("max_input_tokens", "streaming_max_input_tokens", "legacy_max_input_tokens")
 # Documented exceptions to the 0.1× cache-read rule (catalog-evidence.md).
-CACHE_READ_EXCEPTIONS = {"claude-fable-5-1": 250_000}  # 0.025× per the reference
+CACHE_READ_EXCEPTIONS = {
+    "claude-fable-5-1": 250_000,  # 0.025× per the reference
+    "claude-opus-5-5": 200_000,  # 0.05×: $0.20 cache hit on $4 input (platform.claude.com pricing, read 2026-10-05)
+}
 CEILING_CAP = 180_000
 
 
@@ -195,6 +201,7 @@ def test_generation_pricing_matches_reference(anthropic):
         p = anthropic[model_id]["pricing"]
         return p["input_per_mtok"], p["output_per_mtok"]
 
+    assert price("claude-opus-5-5") == (4_000_000, 20_000_000)
     assert price("claude-opus-5") == (5_000_000, 25_000_000)
     assert price("claude-fable-5-1") == (10_000_000, 50_000_000)
     assert price("claude-sonnet-5") == (2_000_000, 10_000_000)
@@ -203,8 +210,10 @@ def test_generation_pricing_matches_reference(anthropic):
 def test_aliases_retargeted_to_the_new_generation(catalog):
     aliases = catalog["aliases"]
     compat = catalog["backward_compat_aliases"]
-    assert aliases["opus"] == "anthropic:claude-opus-5"
+    assert aliases["opus"] == "anthropic:claude-opus-5-5"
+    assert aliases["cheap"] == "anthropic:claude-sonnet-5"
     assert aliases["fable"] == "anthropic:claude-fable-5-1"
+    assert compat["claude-opus-5-5"] == compat["claude-opus-5.5"] == "anthropic:claude-opus-5-5"
     assert compat["claude-opus-5"] == "anthropic:claude-opus-5"
     assert compat["claude-fable-5-1"] == "anthropic:claude-fable-5-1"
     # cycle-114 self-maps keep resolving (pinnable fallback).
@@ -256,7 +265,8 @@ def test_advisor_tier_points_at_opus_5():
     # (thirty-second run, e1 DISS-C-003: the directive is Fable 5.1 — `opus`/`sonnet` passed a downgrade with the suite green)
     assert cli_model in {"fable", "claude-fable-5-1"}, cli_model
     assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
-    assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
+    assert 'opus: "anthropic:claude-opus-5-5"' in LOA_CONFIG_EXAMPLE.read_text()
+    assert 'cheap: "anthropic:claude-sonnet-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()
     assert "anthropic: claude-opus-5" in example
     assert "anthropic: claude-opus-4-7" not in example.split("tier_aliases:")[1].split("executor:")[0]
@@ -328,3 +338,14 @@ def test_entries_outside_the_five_family_carry_no_long_context_tier(http_entries
     for model_id, entry in http_entries.items():
         if model_id not in FIVE_FAMILY:
             assert "long_context" not in (entry.get("pricing") or {}), model_id
+
+
+def test_opus_5_5_has_the_1m_window_at_standard_pricing(anthropic):
+    """cycle-126 bd-2fti: the vendor pricing page puts 4.6-and-later on the full 1M window at
+    standard pricing, so 5.5 carries no long_context tier; its ceiling is the conservative
+    default until a probe measures it."""
+    entry = anthropic["claude-opus-5-5"]
+    assert "long_context" not in entry["pricing"]
+    assert entry["ceiling_calibration"]["source"] == "conservative_default"
+    assert entry["ceiling_calibration"]["calibrated_at"] is None
+    assert entry["fallback_chain"][0] == "anthropic:claude-opus-5"

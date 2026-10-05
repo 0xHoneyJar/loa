@@ -24,6 +24,7 @@ declare -A MODEL_PROVIDERS=(
     ["gemini-headless"]="google"
     ["claude-fable-5-1"]="anthropic"
     ["claude-fable-5"]="anthropic"
+    ["claude-opus-5-5"]="anthropic"
     ["claude-opus-5"]="anthropic"
     ["claude-opus-4-8"]="anthropic"
     ["claude-opus-4-7"]="anthropic"
@@ -71,6 +72,8 @@ declare -A MODEL_PROVIDERS=(
     ["cursor-headless"]="cursor"
     ["gpt-5.2-codex"]="openai"
     ["gpt-5.3-codex"]="openai"
+    ["claude-opus-5-5"]="anthropic"
+    ["claude-opus-5.5"]="anthropic"
     ["claude-opus-5"]="anthropic"
     ["claude-fable-5-1"]="anthropic"
     ["claude-opus-4-8"]="anthropic"
@@ -103,6 +106,7 @@ declare -A MODEL_IDS=(
     ["gemini-headless"]="gemini-headless"
     ["claude-fable-5-1"]="claude-fable-5-1"
     ["claude-fable-5"]="claude-fable-5"
+    ["claude-opus-5-5"]="claude-opus-5-5"
     ["claude-opus-5"]="claude-opus-5"
     ["claude-opus-4-8"]="claude-opus-4-8"
     ["claude-opus-4-7"]="claude-opus-4-7"
@@ -123,10 +127,10 @@ declare -A MODEL_IDS=(
     ["gemini-2.0"]="gemini-2.0-flash"
     ["reviewer"]="gpt-5.5"
     ["reasoning"]="gpt-5.5"
-    ["cheap"]="claude-sonnet-4-6"
+    ["cheap"]="claude-sonnet-5"
     ["claude-sonnet-5"]="claude-sonnet-5"
     ["fable"]="claude-fable-5-1"
-    ["opus"]="claude-opus-5"
+    ["opus"]="claude-opus-5-5"
     ["tiny"]="claude-haiku-4-5-20251001"
     ["deep-thinker"]="gemini-3.1-pro-preview"
     ["gemini-3.1-pro"]="gemini-3.1-pro-preview"
@@ -150,6 +154,8 @@ declare -A MODEL_IDS=(
     ["cursor-headless"]="composer-2.5"
     ["gpt-5.2-codex"]="gpt-5.3-codex"
     ["gpt-5.3-codex"]="gpt-5.3-codex"
+    ["claude-opus-5-5"]="claude-opus-5-5"
+    ["claude-opus-5.5"]="claude-opus-5-5"
     ["claude-opus-5"]="claude-opus-5"
     ["claude-fable-5-1"]="claude-fable-5-1"
     ["claude-opus-4-8"]="claude-opus-4-8"
@@ -186,6 +192,7 @@ declare -A MODEL_AUTH_TYPE=(
     ["gemini-headless"]="headless"
     ["claude-fable-5-1"]="http_api"
     ["claude-fable-5"]="http_api"
+    ["claude-opus-5-5"]="http_api"
     ["claude-opus-5"]="http_api"
     ["claude-opus-4-8"]="http_api"
     ["claude-opus-4-7"]="http_api"
@@ -220,6 +227,7 @@ declare -A MODEL_DISPATCH_GROUP=(
     ["gemini-headless"]="google-gemini"
     ["claude-fable-5-1"]="anthropic-claude"
     ["claude-fable-5"]="anthropic-claude"
+    ["claude-opus-5-5"]="anthropic-claude"
     ["claude-opus-5"]="anthropic-claude"
     ["claude-opus-4-8"]="anthropic-claude"
     ["claude-opus-4-7"]="anthropic-claude"
@@ -253,6 +261,7 @@ declare -A MODEL_MAX_OUTPUT=(
     ["gemini-3.1-pro-preview"]="32000"
     ["claude-fable-5-1"]="128000"
     ["claude-fable-5"]="128000"
+    ["claude-opus-5-5"]="128000"
     ["claude-opus-5"]="128000"
     ["claude-opus-4-8"]="128000"
     ["claude-opus-4-7"]="128000"
@@ -287,6 +296,8 @@ declare -a VALID_FLATLINE_MODELS=(
     claude-opus-4.7
     claude-opus-4.8
     claude-opus-5
+    claude-opus-5-5
+    claude-opus-5.5
     claude-sonnet-4-5-20250929
     claude-sonnet-4-6
     claude-sonnet-5

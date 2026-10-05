@@ -5777,6 +5777,43 @@ EOF
     [[ "$out" == *"--- PARTIAL: docs/d.md shown up to the token budget"* ]]
 }
 
+@test "CMP-277 the chunk-memo index guard admits only a canonical decimal: 08, 00 and 010 are refused before the subscript, never read as octal (bd-pw7e LOW-002)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-oct.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+T="$2"
+printf '+x\n' > "$T/chunk_0"; printf '+y\n' > "$T/chunk_8"
+for i in 08 00 010 0x1; do _lc_tok=(); r=0; _lc_chunk_tok "$T" "$i" v || r=$?; echo "$i=$r"; done
+_lc_tok=(); _lc_chunk_tok "$T" 0 v; echo "0=ok"
+_lc_tok=(); _lc_chunk_tok "$T" 8 v; echo "8=ok"
+EOF
+    rc=0; out=$(bash "$T/lc-oct.sh" "$lib" "$T" 2>"$T/lc-oct.err") || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-oct.err"; return 1; }
+    [ "$out" = $'08=1\n00=1\n010=1\n0x1=1\n0=ok\n8=ok' ]
+    [ -z "$(grep 'value too great\|invalid' "$T/lc-oct.err")" ]
+    grep -c '\^(0|\[1-9\]\[0-9\]\*)\$' "$lib" | grep -qx 2
+}
+
+@test "CMP-278 a diff --git header path's control bytes never reach stderr raw: the partial-view and no-room log lines carry the path with C0 controls and DEL removed (bd-pw7e LOW-003)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-ctl.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name='src/a'$'\e''[2J'$'\r''b'$'\a'$'\x7f''.sh'
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    rc=0; bash "$T/lc-ctl.sh" "$lib" 2>"$T/lc-ctl.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-ctl.err"; return 1; }
+    grep -q 'Top-priority file src/a\[2Jb\.sh exceeds the token budget' "$T/lc-ctl.err"
+    [ -z "$(LC_ALL=C tr -d '\n\t -~\200-\377' < "$T/lc-ctl.err")" ]
+    grep -q 'File ${top_path_log} exceeds what the rows that fit leave over' "$lib"
+}
+
 @test "CMP-275 main refuses a --sprint-id that is not a plain name — a path in it never reaches mktemp, the run lock, the move-aside or the envelope's directory: a usage error (exit 2) and nothing written (audit run 1, a5 DISS-C-002)" {
     local esc="cmp275esc-$$" sid
     mkdir -p "$T/tmp/adversarial-x"   # the pre-made directory that lets mktemp -d walk out of TMPDIR

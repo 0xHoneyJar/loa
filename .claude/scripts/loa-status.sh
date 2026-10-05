@@ -672,6 +672,7 @@ main() {
       display_artefacts_line
       display_run_line
       display_context_line
+      display_gate_line
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -871,6 +872,16 @@ display_context_line() {
   local hook="${SCRIPT_DIR}/../hooks/session-start/loa-context-class.sh" line
   [[ -f "$hook" ]] || return 0
   line=$(bash "$hook" --show < /dev/null 2>/dev/null || true)
+  [[ -n "$line" ]] && echo "  $line"
+  return 0
+}
+
+# cycle-126 D-4.4: the implement gate's mode and the active_skill evidence the
+# gate recorded (evidence only; the payload carries no harness skill signal).
+display_gate_line() {
+  local detect="${SCRIPT_DIR}/detect-platform-features.sh" line
+  [[ -f "$detect" ]] || return 0
+  line=$(PROJECT_ROOT="$PROJECT_ROOT" RUN_DIR="$PROJECT_ROOT/.run" bash "$detect" --line < /dev/null 2>/dev/null || true)
   [[ -n "$line" ]] && echo "  $line"
   return 0
 }

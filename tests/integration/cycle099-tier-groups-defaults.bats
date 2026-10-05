@@ -191,7 +191,7 @@ YAML
 
 @test "T5 — operator override at tier_groups.mappings wins over framework defaults" {
     # Operator declares: tier_groups.mappings.max.anthropic = cheap (overriding default opus).
-    # Verify resolution lands on cheap → claude-sonnet-4-6 (operator wins).
+    # Verify resolution lands on cheap → claude-sonnet-5 (operator wins; claude-sonnet-4-6 before cycle-126).
     local cfg_yaml="$WORK_DIR/override.yaml"
     cat > "$cfg_yaml" <<YAML
 schema_version: 2
@@ -210,8 +210,8 @@ YAML
     out=$(python3 "$RESOLVER" resolve --config "$cfg_yaml" --skill probe_skill --role primary)
     local model_id
     model_id=$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("resolved_model_id",""))')
-    [[ "$model_id" == "claude-sonnet-4-6" ]] || {
-        echo "expected operator override → claude-sonnet-4-6, got $model_id" >&2
+    [[ "$model_id" == "claude-sonnet-5" ]] || {
+        echo "expected operator override → claude-sonnet-5, got $model_id" >&2
         echo "$out" >&2
         return 1
     }

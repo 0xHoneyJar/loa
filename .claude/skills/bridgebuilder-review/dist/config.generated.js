@@ -72,6 +72,14 @@ export const GENERATED_MODEL_REGISTRY = {
         capabilities: ["chat", "function_calling", "structured_json", "thinking_traces", "tools"],
         pricing: { inputPerMtok: 5000000, outputPerMtok: 25000000 },
     },
+    "claude-opus-5-5": {
+        provider: "anthropic",
+        modelId: "claude-opus-5-5",
+        contextWindow: 1000000,
+        reasoning: true,
+        capabilities: ["chat", "function_calling", "structured_json", "thinking_traces", "tools"],
+        pricing: { inputPerMtok: 4000000, outputPerMtok: 20000000 },
+    },
     "claude-sonnet-4-5-20250929": {
         provider: "anthropic",
         modelId: "claude-sonnet-4-5-20250929",
@@ -264,6 +272,7 @@ export const GENERATED_REASONING = {
     "claude-opus-4-7": true,
     "claude-opus-4-8": true,
     "claude-opus-5": true,
+    "claude-opus-5-5": true,
     "claude-sonnet-4-5-20250929": false,
     "claude-sonnet-4-6": true,
     "claude-sonnet-5": true,

@@ -6,10 +6,15 @@
 # /implement or /bug skill invocation.
 #
 # Two detection modes:
-#   1. AUTHORITATIVE: reads tool_input.active_skill from hook stdin
-#      (requires Claude Code platform support, detected via platform-features.json)
-#   2. HEURISTIC (ADVISORY): reads .run/ state files for RUNNING state
-#      (fallback when platform doesn't expose active_skill)
+#   1. HEURISTIC (ADVISORY, the default): reads .run/ state files for RUNNING state
+#   2. AUTHORITATIVE: reads tool_input.active_skill from hook stdin, only when
+#      .loa.config.yaml sets implement_gate.mode: authoritative. The PreToolUse
+#      payload carries no harness-set skill field (cycle-126 D-4.4) and tool_input
+#      is model-authored, so nothing in .run/ selects this mode.
+#
+# Evidence recorder (cycle-126 D-4.4): a lead-session payload carrying
+# tool_input.active_skill records active_skill_seen_at once in
+# .run/platform-features.json. It is evidence only and never changes the mode.
 #
 # Failure mode: FAIL-ASK for App Zone writes (not fail-open).
 # Non-App-Zone writes always allowed.
@@ -27,6 +32,23 @@
 # Read tool input from stdin
 input=$(cat 2>/dev/null) || input=""
 
+PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
+FEATURES_FILE="$RUN_DIR/platform-features.json"
+
+# Evidence recorder: lead session only (no teammate role, no subagent agent_id), once, atomic.
+if [[ -z "${LOA_TEAM_MEMBER:-}" && -d "$RUN_DIR" ]] \
+    && jq -e '(.tool_input.active_skill // "") != "" and (.agent_id // "") == ""' <<<"$input" >/dev/null 2>&1 \
+    && ! jq -e '.active_skill_seen_at' "$FEATURES_FILE" >/dev/null 2>&1; then
+    _ig_base=$(jq -c 'select(type == "object")' "$FEATURES_FILE" 2>/dev/null | tail -n 1)
+    _ig_tmp=$(mktemp "$RUN_DIR/.platform-features.XXXXXX" 2>/dev/null) && {
+        jq -nc --argjson b "${_ig_base:-{\}}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '$b + {active_skill_available: false, active_skill_seen_at: $ts, active_skill_source: "tool_input"}' > "$_ig_tmp" 2>/dev/null \
+            && mv -f "$_ig_tmp" "$FEATURES_FILE" 2>/dev/null
+        rm -f "$_ig_tmp" 2>/dev/null
+    }
+fi
+
 # Extract file path from tool input (Write or Edit)
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || file_path=""
 
@@ -34,12 +56,6 @@ file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) 
 if [[ -z "$file_path" ]]; then
     exit 0
 fi
-
-# ---------------------------------------------------------------------------
-# Project root and run directory
-# ---------------------------------------------------------------------------
-PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
-RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
 
 # ---------------------------------------------------------------------------
 # Source compat-lib.sh for _date_to_epoch()
@@ -92,65 +108,12 @@ if [[ "$is_app_zone" == "false" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# T4.4: Mode detection — authoritative vs heuristic
+# Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)
 # ---------------------------------------------------------------------------
-COMPLIANCE_MODE_FILE="$RUN_DIR/.compliance-mode"
-FEATURES_FILE="$RUN_DIR/platform-features.json"
-compliance_mode=""
-
-# Check cached mode (if fresh, <1h)
-if [[ -f "$COMPLIANCE_MODE_FILE" ]]; then
-    local_mtime=""
-    if stat -c %Y "$COMPLIANCE_MODE_FILE" &>/dev/null 2>&1; then
-        local_mtime=$(stat -c %Y "$COMPLIANCE_MODE_FILE" 2>/dev/null) || local_mtime=""
-    elif stat -f %m "$COMPLIANCE_MODE_FILE" &>/dev/null 2>&1; then
-        local_mtime=$(stat -f %m "$COMPLIANCE_MODE_FILE" 2>/dev/null) || local_mtime=""
-    fi
-    if [[ -n "$local_mtime" ]]; then
-        now=$(date +%s 2>/dev/null) || now=0
-        if [[ $now -gt 0 && $local_mtime -gt 0 ]]; then
-            age=$((now - local_mtime))
-            if [[ $age -lt 3600 ]]; then
-                compliance_mode=$(cat "$COMPLIANCE_MODE_FILE" 2>/dev/null) || compliance_mode=""
-            fi
-        fi
-    fi
-fi
-
-# If no cached mode, detect from platform-features.json
-if [[ -z "$compliance_mode" ]]; then
-    previous_mode="$compliance_mode"
-    if [[ -f "$FEATURES_FILE" ]]; then
-        active_skill_available=$(jq -r '.active_skill_available // false' "$FEATURES_FILE" 2>/dev/null) || active_skill_available="false"
-        if [[ "$active_skill_available" == "true" ]]; then
-            compliance_mode="authoritative"
-        else
-            compliance_mode="heuristic"
-        fi
-    else
-        compliance_mode="heuristic"
-    fi
-
-    # Pin mode to file
-    mkdir -p "$RUN_DIR" 2>/dev/null || true
-    echo "$compliance_mode" > "$COMPLIANCE_MODE_FILE" 2>/dev/null || true
-
-    # Log mode downgrade if applicable
-    if [[ -n "$previous_mode" && "$previous_mode" != "$compliance_mode" ]]; then
-        log_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || log_ts="unknown"
-        if command -v jq &>/dev/null; then
-            jq -nc \
-                --arg ts "$log_ts" \
-                --arg from "$previous_mode" \
-                --arg to "$compliance_mode" \
-                --arg reason "platform-features re-detection" \
-                '{timestamp: $ts, event: "compliance.mode.change", from_mode: $from, to_mode: $to, reason: $reason}' \
-                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
-        else
-            echo "{\"timestamp\":\"$log_ts\",\"event\":\"compliance.mode.change\",\"from_mode\":\"$previous_mode\",\"to_mode\":\"$compliance_mode\",\"reason\":\"platform-features re-detection\"}" \
-                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
-        fi
-    fi
+compliance_mode="heuristic"
+if command -v yq &>/dev/null && [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
+    configured_mode=$(yq '.implement_gate.mode // ""' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null) || configured_mode=""
+    [[ "${configured_mode//\"/}" == "authoritative" ]] && compliance_mode="authoritative"
 fi
 
 # ---------------------------------------------------------------------------

@@ -27,4 +27,4 @@ Multi-model adversarial review (Flatline) showed that cross-family disagreement 
 
 ## Operator extension
 
-Operators MAY swap the model (e.g., to `bedrock:claude-3-5-sonnet`, `gemini-2.5-pro`, etc.) but should keep at least one cross-family panelist when the decision_class is novel.
+Operators MAY swap the model (e.g., to `bedrock:us.anthropic.claude-opus-4-8`, `gemini-2.5-pro`, etc.) but should keep at least one cross-family panelist when the decision_class is novel.

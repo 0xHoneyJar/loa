@@ -1,0 +1,13 @@
+# PreToolUse stdin shapes per https://code.claude.com/docs/en/hooks (read 2026-10-05): the common fields,
+# plus agent_id/agent_type inside a subagent. The harness sets no active_skill field; where a fixture carries
+# tool_input.active_skill it is what a model-authored tool_input can contain. __ROOT__ is the test project root.
+# fixture	heuristic	authoritative	records_evidence
+# Decisions with no RUNNING state in .run/: "ask" = the gate emits {"decision":"ask"}, "allow" = silent exit 0.
+# records_evidence: the lead-session recorder writes active_skill_seen_at (yes) or nothing (no).
+write-src-plain.json	ask	ask	no
+write-src-active-implement.json	ask	allow	yes
+edit-lib-active-bug.json	ask	allow	yes
+write-app-active-review.json	ask	ask	yes
+write-src-subagent-run.json	ask	allow	no
+edit-src-subagent-plain.json	ask	ask	no
+write-state-active-review.json	allow	allow	yes

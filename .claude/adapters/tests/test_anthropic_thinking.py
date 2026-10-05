@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 from loa_cheval.providers.anthropic_adapter import AnthropicAdapter  # noqa: E402
 from loa_cheval.types import CompletionRequest, ModelConfig, ProviderConfig  # noqa: E402
 
-ADAPTIVE = ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+ADAPTIVE = ["claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
             "claude-sonnet-5", "claude-sonnet-4-6"]
 NOT_ADAPTIVE = ["claude-fable-5-1", "claude-fable-5", "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001"]
 

@@ -142,7 +142,7 @@ model_permissions:
       different context engineering for optimal performance.
 
   # -------------------------------------------------------------------------
-  # Claude Opus 4.7 — Remote model, primary top-review (current default)
+  # Claude Opus 4.7 — Pinnable (the `opus` alias in cycle-082 to cycle-113)
   # -------------------------------------------------------------------------
   anthropic:claude-opus-4-7:
     trust_level: high
@@ -200,6 +200,274 @@ model_permissions:
       Operators who need exact 4.6 behavior (historical baselines, rollback)
       use `anthropic:claude-opus-4-6` in .loa.config.yaml overrides. Trust
       scopes match 4.7 entry above — same remote-model trust model.
+
+  # -------------------------------------------------------------------------
+  # Claude Opus 5.5 — Remote model, the `opus` alias (current default, cycle-126)
+  # -------------------------------------------------------------------------
+  anthropic:claude-opus-5-5:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      The catalog's `opus` alias since cycle-126. Scopes copied from the 4.7
+      entry: remote review oracle, no side effects.
+
+  # -------------------------------------------------------------------------
+  # Claude Opus 5 — Pinnable (the `opus` alias in cycle-124/125)
+  # -------------------------------------------------------------------------
+  anthropic:claude-opus-5:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Pinnable after cycle-126 moved `opus` to 5.5; first hop of 5.5's
+      fallback chain. Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Fable 5.1 — Remote model, the `fable` alias
+  # -------------------------------------------------------------------------
+  anthropic:claude-fable-5-1:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      The catalog's `fable` alias. Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Fable 5 — Pinnable, first hop of Fable 5.1's fallback chain
+  # -------------------------------------------------------------------------
+  anthropic:claude-fable-5:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Sonnet 5 — Remote model, the `cheap` alias (cycle-126)
+  # -------------------------------------------------------------------------
+  anthropic:claude-sonnet-5:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      The catalog's `cheap` alias since cycle-126 (flatline-scorer, the
+      cheap and mid tiers). Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Opus 4.8 — Pinnable (cycle-114 self-map)
+  # -------------------------------------------------------------------------
+  anthropic:claude-opus-4-8:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Pinnable fallback. Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Sonnet 4.6 — Pinnable (the `cheap` alias before cycle-126)
+  # -------------------------------------------------------------------------
+  anthropic:claude-sonnet-4-6:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Pinnable. Scopes copied from the 4.7 entry; mirrors
+      bedrock:us.anthropic.claude-sonnet-4-6.
+
+  # -------------------------------------------------------------------------
+  # Claude Sonnet 4.5 — Pinnable
+  # -------------------------------------------------------------------------
+  anthropic:claude-sonnet-4-5-20250929:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Pinnable. Scopes copied from the 4.7 entry.
+
+  # -------------------------------------------------------------------------
+  # Claude Haiku 4.5 — Remote model, the `tiny` alias
+  # -------------------------------------------------------------------------
+  anthropic:claude-haiku-4-5-20251001:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Scopes copied from the 4.7 entry; mirrors
+      bedrock:us.anthropic.claude-haiku-4-5-20251001-v1:0.
+
+  # -------------------------------------------------------------------------
+  # Claude headless — `claude -p` subscription hop (kind: cli)
+  # -------------------------------------------------------------------------
+  anthropic:claude-headless:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      The adapter runs `claude -p` with `--tools ""` and `--permission-mode
+      plan`: pure inference, no tool loop, so the remote-model scopes apply.
+      An operator who sets `extra.allowed_tools` widens what the CLI can do
+      and should review this row.
 
   # -------------------------------------------------------------------------
   # Google Gemini 2.5 Pro — Remote model, standard generation
@@ -350,6 +618,30 @@ model_permissions:
   # so cost-ledger entries and audit logs separate cleanly.
   #
   # Source: cycle-096 Sprint 1 FR-5 + Sprint 0 G-S0-2 probe-locked IDs.
+
+  bedrock:us.anthropic.claude-opus-4-8:
+    trust_level: high
+    trust_scopes:
+      data_access: none
+      financial: none
+      delegation: none
+      model_selection: none
+      governance: none
+      external_communication: none
+      context_access:
+        architecture: full
+        business_logic: full
+        security: redacted
+        lore: full
+    execution_mode: remote_model
+    capabilities:
+      file_read: false
+      file_write: false
+      command_execution: false
+      network_access: false
+    notes: >
+      Bedrock-routed Claude Opus 4.8. Same operational trust posture as
+      anthropic:claude-opus-4-8; scopes copied from the 4.7 entry.
 
   bedrock:us.anthropic.claude-opus-4-7:
     trust_level: high

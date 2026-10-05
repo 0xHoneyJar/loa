@@ -104,8 +104,17 @@ should_skip() {
 # --- Agent types that include Write/Edit in their tool allowlist (Issue #553) ---
 # When a skill declares write capability (capabilities.write_files: true OR
 # allowed-tools lists Write/Edit), its agent: frontmatter key MUST be unset
-# or set to one of these. See .claude/rules/skill-invariants.md.
-WRITE_CAPABLE_AGENTS=("general-purpose")
+# or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
+# D-4.4); a missing or unparsable file leaves general-purpose only.
+# See .claude/rules/skill-invariants.md.
+AGENT_TYPES_FILE="${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}"
+WRITE_CAPABLE_AGENTS=()
+if [[ -f "$AGENT_TYPES_FILE" ]]; then
+    while IFS= read -r _agent; do
+        [[ "$_agent" =~ ^[A-Za-z0-9_-]+$ ]] && WRITE_CAPABLE_AGENTS+=("$_agent")
+    done < <(yq eval '.agent_types | to_entries | .[] | select(.value.write_capable == true) | .key' "$AGENT_TYPES_FILE" 2>/dev/null || true)
+fi
+[[ ${#WRITE_CAPABLE_AGENTS[@]} -gt 0 ]] || WRITE_CAPABLE_AGENTS=("general-purpose")
 
 is_write_capable_agent() {
     local agent="$1"
