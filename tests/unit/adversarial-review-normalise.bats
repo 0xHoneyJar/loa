@@ -1352,7 +1352,8 @@ index last_error latency m match_idx model new_sev parse_path prim primary_final
 rejected_sidecar_rel repair_attempted repair_budget_exhausted repair_metadata_json repair_skipped_no_hop repair_succeeded
 repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason since sprint_id st stability stop_reason t timestamp
 tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
-api_exit_code _pf_rc mc _cd""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
+api_exit_code _pf_rc mc _cd _r _e""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
+# (_r, _e: _adv_vq_as_dropped's drop-reason enum word and its exit code, a whole number clamped to 255 — round 1ao)
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
 # (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's

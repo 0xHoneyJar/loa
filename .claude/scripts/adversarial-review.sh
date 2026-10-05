@@ -3080,6 +3080,18 @@ _adv_inv5_rewrite() {  # <envelope> <space-separated ids> <out> — the envelope
       | .voices_planned = (((.voices_planned // 0) - $gone) | if . < 0 then 0 else . end)
       | .single_voice_call = (.voices_planned == 1))' "$1" > "$3" 2>/dev/null && [[ -s "$3" ]] && jq -e 'type == "object"' "$3" >/dev/null 2>&1   # (the aggregator's invariant: a one-voice envelope says so)
 }
+_adv_vq_as_dropped() {  # <sidecar> <walker status> <exit> — a hop's sidecar that claims an answer the walker rejected becomes that
+                       # voice's dropped entry, in place (fortieth round, the thirty-ninth run's c2b envelope: cheval's sidecar
+                       # describes the transport — KF-023, a clean envelope beside unparseable content — so the voice that
+                       # answered badly is dropped, as the companion's synthetic envelope drops it); 1 when unusable
+  local _r="Other"; [[ "$2" == "malformed_response" ]] && _r="EmptyContent"
+  local _e; _e=$(_adv_num_or "${3:-}" 1); (( _e <= 255 )) || _e=1
+  jq --arg r "$_r" --argjson e "$_e" '(.voices_succeeded_ids // []) as $s
+      | .voices_dropped = ((.voices_dropped // []) + ($s | map({voice: ., reason: $r, exit_code: $e, blocker_risk: "unknown"})))
+      | .voices_succeeded = 0 | .voices_succeeded_ids = [] | .chain_health = "exhausted" | .status = "FAILED"
+      | .rationale = "the walker rejected this hop'"'"'s answer"' "$1" > "$1.rej" 2>/dev/null \
+    && jq -e 'type == "object"' "$1.rej" >/dev/null 2>&1 && mv -f -- "$1.rej" "$1" || { rm -f -- "$1.rej"; return 1; }
+}
 _adv_mtime() { [[ -e "$1" ]] || { echo 0; return 0; }; stat -c %Y -- "$1" 2>/dev/null || stat -f %m -- "$1" 2>/dev/null || date +%s; }   # (0 for a missing path — thirteenth run, a2 C-005)
 _adv_fork_token() {  # <pid> → a just-forked child's start token; "" when it cannot be read but the child lives (the pid alone then decides);
                      # "exited" when the child is already gone — no process's token equals it, so a pid recycled after an early exit is
@@ -4139,6 +4151,12 @@ main() {
     fi
     status=$(_extract_result_status "$result")
     model_attempts+=("${try_model}:${status}")
+    # (fortieth round: a hop the walker read as malformed or failed is no voice that answered, whatever its sidecar claims — the
+    # thirty-ninth run's c2b envelope counted codex-headless twice and the aggregator refused it, INV-4)
+    if [[ ( "$status" == "malformed_response" || "$status" == "api_failure" ) && -s "$vq_sidecar" ]] \
+        && jq -e '(.voices_succeeded // 0) > 0' "$vq_sidecar" >/dev/null 2>&1; then
+      _adv_vq_as_dropped "$vq_sidecar" "$status" "$api_exit" || log "[vq-aggregate] the rejected hop's sidecar for $try_model could not be rewritten as a dropped voice"
+    fi
 
     if [[ "$status" != "malformed_response" && "$status" != "api_failure" ]]; then
       final_model="$try_model"
@@ -4151,6 +4169,30 @@ main() {
     # All models failed; final_model = last attempted (canonical for the failure record)
     final_model="${fallback_chain[${#fallback_chain[@]}-1]}"
     log "Fallback chain exhausted — all ${#fallback_chain[@]} models returned malformed_response or api_failure"
+  fi
+  # (fortieth round: a voice an earlier hop dropped and a LATER hop answered with is one voice that answered — INV-5 forbids it in
+  # both lists; the walk stays in model_attempts. An entry left with no voice is excluded whole)
+  if (( ${#vq_attempt_files[@]} > 1 )); then
+    local -a _wk=(); local _wi _wl _wf _wn=0
+    for (( _wi = 0; _wi < ${#vq_attempt_files[@]}; _wi++ )); do
+      _wf="${vq_attempt_files[$_wi]}"; _wl=""
+      if (( _wi + 1 < ${#vq_attempt_files[@]} )); then
+        _wl=$(jq -rs '[.[] | (.voices_succeeded_ids // [])[]] | unique | join(" ")' "${vq_attempt_files[@]:$((_wi + 1))}" 2>/dev/null </dev/null || true)
+      fi
+      if [[ -n "$_wl" ]] && _adv_vq_dropped_matching "$_wf" "$_wl" >/dev/null; then
+        _wn=$((_wn + 1))
+        if _adv_inv5_rewrite "$_wf" "$_wl" "$_wf.walk.json" && jq -e '(.voices_planned // 0) >= 1' "$_wf.walk.json" >/dev/null 2>&1; then
+          _wk+=("$_wf.walk.json")
+        fi
+        vq_cleanup_files+=("$_wf.walk.json")
+      else
+        _wk+=("$_wf")
+      fi
+    done
+    if (( _wn > 0 )); then
+      log "[vq-aggregate] $_wn primary attempt envelope(s) dropping a voice that a later hop answered with — rewritten without that entry or left out (INV-5)"
+      vq_attempt_files=(${_wk[@]+"${_wk[@]}"})
+    fi
   fi
   # (thirty-eighth run, a5 DISS-C-001: a chain whose every hop was ceded to the companion invoked none — no envelope of its own
   # reached the merge, and every step below turned "" into "", the writer an empty envelope over the previous round's. It is

@@ -161,6 +161,12 @@ YAML
                 [[ -n "$sidecar" ]] && _vq "$model" mixed "$_mxd" "$_mxh" > "$sidecar"
                 jq -nc --arg m "$_mxh" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
                 return 0 ;;
+            walkedmalformed:*)   # cheval's inner walk landed on <hop> and wrote that clean sidecar, but the answer is unparseable (KF-023 on the primary)
+                local _wmh="${b#walkedmalformed:}"
+                echo "$_wmh" >> "$CALLS"
+                [[ -n "$sidecar" ]] && _vq "$model" walked "$_wmh" > "$sidecar"
+                jq -nc '{content: "not json at all", tokens_input: 1, tokens_output: 1, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
+                return 0 ;;
             malformed)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
                 jq -nc '{content: "not json at all", tokens_input: 1, tokens_output: 1, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
@@ -5695,4 +5701,30 @@ PY
         grep -q 'never removes the other' "$r" || { echo "$s: the resource does not say the labels accumulate"; return 1; }
         grep -q 'latest .* comment is the verdict of record' "$r" || { echo "$s: no verdict of record named"; return 1; }
     done
+}
+
+@test "CMP-273 a primary hop the walker read as malformed never counts as a voice that answered: its clean sidecar becomes that voice's dropped entry, and a later hop the same voice answered with leaves it out — verdict quality aggregates, never INV-4's duplicate (thirty-ninth run, c2b envelope, missed in triage)" {
+    # the live shape: gpt-5.5-pro and gpt-5.5 both walk to codex-headless on a keyless host; the first answer is unparseable
+    BEHAVIOUR[gpt-5.5-pro]=walkedmalformed:codex-headless
+    BEHAVIOUR[gpt-5.5]=walked:codex-headless
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.model_attempts | join(",")' <<<"$result")" = "gpt-5.5-pro:malformed_response,gpt-5.5:reviewed" ]
+    [ "$(jq -r '.metadata | has("verdict_quality_error")' <<<"$result")" = "false" ] || { jq -r '.metadata.verdict_quality_error' <<<"$result"; return 1; }
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | sort | join(",")' <<<"$result")" = "claude-headless,codex-headless" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    [ "$(jq '.verdict_quality.voices_dropped | length' <<<"$result")" = "0" ]
+    grep -q "dropping a voice that a later hop answered with" "$T/stderr.log"
+    # a second hop that answers as ANOTHER voice: the rejected one is a dropped voice (EmptyContent), never a succeeded one
+    BEHAVIOUR[gpt-5.5]=ok
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata | has("verdict_quality_error")' <<<"$result")" = "false" ]
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | sort | join(",")' <<<"$result")" = "claude-headless,gpt-5.5" ]
+    [ "$(jq -c '[.verdict_quality.voices_dropped[] | {voice, reason}]' <<<"$result")" = '[{"voice":"codex-headless","reason":"EmptyContent"}]' ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "3" ]
+    # and a chain the walker rejected to its end has no succeeded primary voice in verdict quality
+    BEHAVIOUR[gpt-5.5]=walkedmalformed:codex-headless
+    BEHAVIOUR[codex-headless]=malformed
+    result=$(_run_main review)
+    [ "$(jq -r '.verdict_quality.voices_succeeded_ids | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata | has("verdict_quality_error")' <<<"$result")" = "false" ]
 }
