@@ -2329,7 +2329,7 @@
         {
           "global_id": 249,
           "local_label": "sprint-3",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-09-24T04:10:47Z",
           "epic": "bd-7ydj",
           "beads": [
@@ -2339,12 +2339,13 @@
             "bd-8bxb",
             "bd-ng1s"
           ],
-          "theme": "Context discipline and instruction diet"
+          "theme": "Context discipline and instruction diet",
+          "completed": "2026-10-05T23:06:57Z"
         },
         {
           "global_id": 250,
           "local_label": "sprint-4",
-          "status": "pending",
+          "status": "in_progress",
           "created": "2026-09-24T04:10:47Z",
           "epic": "bd-qgsn",
           "beads": [
