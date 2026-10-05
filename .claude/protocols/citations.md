@@ -224,7 +224,7 @@ Non-trivial implementation decisions carry an evidence chain (a citation for eac
 
 ## Related Protocols
 
-- **Trajectory Evaluation** (`.claude/protocols/trajectory-evaluation.md`) - log citations to trajectory
+- **Trajectory Evaluation** (`.claude/protocols/reference/trajectory-evaluation.md`) - log citations to trajectory
 - **Tool Result Clearing** (`.claude/protocols/tool-result-clearing.md`) - extract citations during synthesis
 - **Grounding Enforcement** (`.claude/protocols/grounding-enforcement.md`) - ratio rule and enforcement detail
 

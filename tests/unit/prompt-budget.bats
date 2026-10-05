@@ -52,29 +52,30 @@ fill() {  # fill <path> <bytes> — exactly <bytes> bytes of text
     [ "$(echo "$output" | jq -r '.skills[0].charged_resources | length')" = "0" ]
 }
 
-@test "PB-4 CLAUDE.loa.md passes at 10,240 bytes and fails at 10,241" {
+@test "PB-4 CLAUDE.loa.md passes at 9,216 bytes and fails at 9,217" {
     fill "$T/.claude/skills/s1/SKILL.md" 100
-    fill "$T/.claude/loa/CLAUDE.loa.md" 10240
+    fill "$T/.claude/loa/CLAUDE.loa.md" 9216
     run "$TOOL" --root "$T" --quiet
     [ "$status" -eq 0 ]
-    fill "$T/.claude/loa/CLAUDE.loa.md" 10241
+    fill "$T/.claude/loa/CLAUDE.loa.md" 9217
     run "$TOOL" --root "$T"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"CLAUDE.loa.md: 10241 B > 10240 B"* ]]
+    [[ "$output" == *"CLAUDE.loa.md: 9217 B > 9216 B"* ]]
 }
 
-@test "PB-5 protocols: above 143,360 warns but passes; above 200,000 fails" {
+@test "PB-5 protocols: above 114,688 warns but passes; above 160,000 fails; reference/ is not counted" {
     fill "$T/.claude/skills/s1/SKILL.md" 100
     fill "$P/a.md" 100000
-    fill "$P/b.md" 50000
+    fill "$P/b.md" 20000
+    mkdir -p "$P/reference"; fill "$P/reference/moved.md" 90000
     run "$TOOL" --root "$T" --json
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.protocols.warn')" = "true" ]
-    [ "$(echo "$output" | jq -r '.protocols.total')" = "150000" ]
-    fill "$P/c.md" 50001
+    [ "$(echo "$output" | jq -r '.protocols.total')" = "120000" ]
+    fill "$P/c.md" 40001
     run "$TOOL" --root "$T"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"protocols total: 200001 B > 200000 B"* ]]
+    [[ "$output" == *"protocols total: 160001 B > 160000 B"* ]]
 }
 
 @test "PB-6 --json carries per-skill totals, limits, history token counts and the violation list" {
@@ -86,8 +87,8 @@ fill() {  # fill <path> <bytes> — exactly <bytes> bytes of text
     [ "$(echo "$output" | jq -r '.skills[0].limit')" = "16384" ]
     [ "$(echo "$output" | jq -r '.skills[0].history_tokens')" = "3" ]
     [ "$(echo "$output" | jq -r '.violations | length')" = "1" ]
-    [ "$(echo "$output" | jq -r '.claude_loa.limit')" = "10240" ]
-    [ "$(echo "$output" | jq -r '.protocols.fail_limit')" = "200000" ]
+    [ "$(echo "$output" | jq -r '.claude_loa.limit')" = "9216" ]
+    [ "$(echo "$output" | jq -r '.protocols.fail_limit')" = "160000" ]
 }
 
 @test "PB-7 a root without .claude/ is a usage error (2)" {

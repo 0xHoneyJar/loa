@@ -39,6 +39,11 @@
             "type": "command",
             "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-run-state-surface.sh",
             "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-context-class.sh",
+            "once": true
           }
         ]
       }

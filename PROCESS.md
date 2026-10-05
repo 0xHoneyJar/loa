@@ -207,10 +207,10 @@ Detailed specifications are maintained in separate protocol files (single source
 - **Git Safety**: `.claude/protocols/git-safety.md` - Template detection, warning flow, remediation
 - **Feedback Loops**: `.claude/protocols/feedback-loops.md` - A2A communication, approval markers
 - **Structured Memory**: `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
-- **Trajectory Evaluation**: `.claude/protocols/trajectory-evaluation.md` - ADK-style reasoning logs, EDD
+- **Trajectory Evaluation**: `.claude/protocols/reference/trajectory-evaluation.md` - ADK-style reasoning logs, EDD
 
 ### Lossless Ledger Protocol (v0.9.0)
-- **Session Continuity**: `.claude/protocols/session-continuity.md` - Tiered recovery (L1/L2/L3), truth hierarchy
+- **Session Continuity**: `.claude/protocols/reference/session-continuity.md` - Tiered recovery (L1/L2/L3), truth hierarchy
 - **Grounding Enforcement**: `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
 - **Synthesis Checkpoint**: `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
 
@@ -1436,7 +1436,7 @@ Agents log reasoning to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`:
 - **Factual grounding**: All claims must cite sources or be flagged as `[ASSUMPTION]`
 - **Trajectory audit**: Reasoning logs are auditable for hallucination detection
 
-See `.claude/protocols/trajectory-evaluation.md` for detailed protocol.
+See `.claude/protocols/reference/trajectory-evaluation.md` for detailed protocol.
 
 ---
 
@@ -1723,10 +1723,10 @@ Detailed specifications for complex behaviors:
 - `.claude/protocols/feedback-loops.md` - A2A communication, approval markers, flow diagrams
 - `.claude/protocols/change-validation.md` - Pre-implementation validation protocol
 - `.claude/protocols/structured-memory.md` - NOTES.md protocol, tool result clearing
-- `.claude/protocols/trajectory-evaluation.md` - ADK-style evaluation, EDD
+- `.claude/protocols/reference/trajectory-evaluation.md` - ADK-style evaluation, EDD
 
 **v0.9.0 Lossless Ledger Protocols**:
-- `.claude/protocols/session-continuity.md` - Session lifecycle, tiered recovery
+- `.claude/protocols/reference/session-continuity.md` - Session lifecycle, tiered recovery
 - `.claude/protocols/grounding-enforcement.md` - Citation requirements (≥0.95 ratio)
 - `.claude/protocols/synthesis-checkpoint.md` - Pre-`/clear` validation (7 steps)
 

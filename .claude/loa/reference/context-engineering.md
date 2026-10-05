@@ -7,7 +7,7 @@ Pointer map for Loa's context/memory surfaces: what exists, where the detail liv
 | Surface | Detail lives at | Status |
 |---------|-----------------|--------|
 | Tool-result clearing + NOTES.md synthesis | `context_discipline` blocks in each SKILL.md; `.claude/protocols/tool-result-clearing.md` | Active — the live context rule |
-| Session recovery (tiered) | `.claude/protocols/session-continuity.md` | Active |
+| Session recovery (tiered) | `.claude/protocols/reference/session-continuity.md` (stub at the old path) | Active |
 | Compaction survival | `pre-compact-marker.sh` (PreCompact) + `post-compact-reminder.sh` (UserPromptSubmit) — mechanical, zero thinking-budget | Active (hooks registered in settings.json) |
 | Pre-clear validation | `.claude/protocols/synthesis-checkpoint.md` | Active |
 | KF ledger surfacing | `loa-kf-surface.sh` (SessionStart) → generated `grimoires/loa/INDEX.md` → `known-failures.md` | Active — three-tier progressive disclosure |

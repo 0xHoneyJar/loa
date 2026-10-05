@@ -11,7 +11,7 @@
       "text_variants": {
         "claude-loa-md": "NEVER write application code outside `/implement` (OR a construct with declared `workflow.gates`), and NEVER reach implementation except via `/run sprint-plan`, `/run sprint-N`, or `/bug` against an existing sprint plan"
       },
-      "why": "Code outside /implement bypasses review+audit; /run wraps the cycle with a circuit breaker. Mechanical stack: implement-gate.sh fail-asks Write/Edit-tool App-Zone writes outside /implement//bug; disallowed-tools strips write tools from pure-review skills; the adversarial gates catch the rest. Bash-path App-Zone writes remain review-territory (accepted fence gap, same class as the spiral guard's).",
+      "why": "Bypasses review+audit; /run adds the circuit breaker. Fences: implement-gate.sh fail-asks Write/Edit App-Zone writes outside /implement//bug; disallowed-tools strips pure-review skills' write tools; the adversarial gates. Bash-path App-Zone writes stay review-territory.",
       "construct_yield": {
         "enabled": true,
         "condition": "construct with workflow.gates is active",
@@ -46,7 +46,7 @@
         "claude-loa-md": "NEVER use Claude's `TaskCreate`/`TaskUpdate` for sprint task tracking when beads (`br`) is available",
         "skill-md": "Use `br` commands for task lifecycle, NOT `TaskCreate`/`TaskUpdate`"
       },
-      "why": "Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only",
+      "why": "Beads is the single source of truth for task lifecycle; TaskCreate only displays session progress.",
       "condition": {
         "when": "agent_teams_active",
         "override_text": "In Agent Teams mode, TaskCreate/TaskUpdate serves dual purpose: team coordination (primary) and session display (secondary). Sprint lifecycle STILL uses beads exclusively.",
@@ -123,7 +123,7 @@
         "claude-loa-md": "NEVER skip `/review-sprint` and `/audit-sprint` quality gates",
         "skill-md": "Do NOT use `/implement` without `/run` — `/run` provides the review→audit cycle"
       },
-      "why": "These are the only validation that code meets acceptance criteria and security standards",
+      "why": "The only check that code meets its acceptance criteria and security standards.",
       "construct_yield": {
         "enabled": true,
         "condition": "construct declares review: skip or audit: skip",
@@ -166,7 +166,7 @@
         "skill-md": "Phase 7 MUST invoke `/run sprint-plan` — NEVER implement code directly",
         "protocol": "Using /run or /bug (not direct /implement) ||| For autonomous/simstim ||| /run wraps implement+review+audit"
       },
-      "why": "Ensures the implement→review→audit cycle with circuit-breaker protection and requirements traceability (absorbs the former separate check-sprint-plan row; implement-gate.sh asks on ungated App-Zone writes).",
+      "why": "Keeps implement→review→audit, the circuit breaker and requirements traceability; implement-gate.sh asks on ungated App-Zone writes.",
       "order": 0,
       "layers": [
         {
@@ -599,7 +599,7 @@
         "claude-loa-md": "ALWAYS validate bug eligibility before `/bug` implementation",
         "skill-md": "Bug eligibility MUST be validated — observed failure, stack trace, or regression required"
       },
-      "why": "Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace.",
+      "why": "Feature work must not bypass the PRD/SDD gates via `/bug`; an observed failure, regression or stack trace is required.",
       "order": 10,
       "layers": [
         {
@@ -626,7 +626,7 @@
       "text_variants": {
         "claude-loa-md": "ALWAYS Read a state artifact (NOTES.md, a2a/ docs, MEMORY.md, contracts/*.yaml — any existing file) before Write/Edit"
       },
-      "why": "The Write tool rejects writes to un-Read existing files (hundreds of failed writes a month across mounts) and blind writes clobber cross-session state.",
+      "why": "The Write tool rejects writes to un-Read existing files, and blind writes clobber cross-session state.",
       "order": 11,
       "layers": [
         {
@@ -1232,7 +1232,7 @@
       "text_variants": {
         "claude-loa-md": "MUST restrict planning skills to team lead only — teammates implement, review, and audit only"
       },
-      "why": "Planning skills produce single artifacts (PRD, SDD, sprint plan) that assume single-writer semantics; concurrent invocation would corrupt state",
+      "why": "Planning artifacts (PRD, SDD, sprint plan) assume a single writer; concurrent invocation corrupts them.",
       "order": 0,
       "layers": [
         {
@@ -1253,7 +1253,7 @@
       "text_variants": {
         "claude-loa-md": "MUST serialize all beads operations through team lead — teammates report via SendMessage"
       },
-      "why": "Beads uses SQLite with single-writer semantics; concurrent br sync or br close causes lock contention and potential corruption",
+      "why": "Beads is single-writer SQLite; concurrent br sync / br close contend for the lock and can corrupt state.",
       "order": 1,
       "layers": [
         {
@@ -1274,7 +1274,7 @@
       "text_variants": {
         "claude-loa-md": "MUST only let team lead write to `.run/` state files — teammates report via SendMessage"
       },
-      "why": "State files use read-modify-write pattern; concurrent writes cause lost updates and inconsistent reads",
+      "why": "State files are read-modify-write; concurrent writers lose updates.",
       "order": 2,
       "layers": [
         {
@@ -1295,7 +1295,7 @@
       "text_variants": {
         "claude-loa-md": "MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage"
       },
-      "why": "Git's working tree and index are shared mutable state; concurrent commits or pushes cause merge conflicts, index lock failures, and corrupted state",
+      "why": "The working tree and index are shared mutable state; concurrent commits or pushes conflict and corrupt the index.",
       "order": 3,
       "layers": [
         {
@@ -1316,7 +1316,7 @@
       "text_variants": {
         "claude-loa-md": "MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook"
       },
-      "why": "System Zone modifications by a teammate could alter constraint definitions, hook behavior, or skill configurations for all agents in the team, breaking the coordination invariants that other C-TEAM constraints depend on",
+      "why": "A teammate's System Zone edit changes constraints, hooks and skills for the whole team and breaks the other C-TEAM invariants.",
       "order": 4,
       "layers": [
         {
@@ -1429,7 +1429,7 @@
       "text_variants": {
         "claude-loa-md": "NEVER implement code directly when `/spiraling` is invoked with a task — dispatch through the harness pipeline (`/run sprint-plan`, `/simstim`, or `spiral-harness.sh`)"
       },
-      "why": "`/spiraling` loads as context, not as an orchestrator. Without mechanical dispatch, the agent bypasses all quality gates (Flatline, Review, Audit, Bridgebuilder) — the fox-guarding-the-henhouse antipattern that the harness was built to prevent.",
+      "why": "`/spiraling` is context, not an orchestrator; without harness dispatch every quality gate (Flatline, Review, Audit, Bridgebuilder) is bypassed.",
       "order": 5,
       "layers": [
         {

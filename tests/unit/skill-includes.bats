@@ -33,20 +33,20 @@ teardown() { rm -rf "$FIX"; }
 }
 
 @test "skill-includes: --check FAILS with DRIFT message when a generated block is edited in place (fixture tamper)" {
-    sed -i 's/Follow `.claude\/protocols\/tool-result-clearing.md`/Follow NOTHING/' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
+    sed -i 's/`tool-result-clearing.md` — long/NOTHING — long/' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
     run bash "$GEN" --check --root "$FIX"
     [ "$status" -ne 0 ]
     [[ "$output" == *"DRIFT DETECTED"* ]]
 }
 
 @test "skill-includes: --write REPAIRS a tampered fixture block back to the canonical rendering" {
-    sed -i 's/Follow `.claude\/protocols\/tool-result-clearing.md`/Follow NOTHING/' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
+    sed -i 's/`tool-result-clearing.md` — long/NOTHING — long/' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
     run bash "$GEN" --write --root "$FIX"
     [ "$status" -eq 0 ]
     [[ "$output" == *"1 block(s) rewritten"* ]]
     run bash "$GEN" --check --root "$FIX"
     [ "$status" -eq 0 ]
-    grep -q 'Follow `.claude/protocols/tool-result-clearing.md`' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
+    grep -q '`tool-result-clearing.md` — long 20K/50K/30K/150K' "$FIX/.claude/skills/implementing-tasks/SKILL.md"
 }
 
 @test "skill-includes: fixture mutations never touch the real tree" {

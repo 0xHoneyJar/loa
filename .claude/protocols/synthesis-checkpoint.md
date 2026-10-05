@@ -309,6 +309,6 @@ or request human audit instead:
 ## Related Protocols
 
 - [Grounding Enforcement](grounding-enforcement.md) - Citation requirements and ratio calculation
-- [Session Continuity](session-continuity.md) - Session lifecycle and recovery
+- [Session Continuity](reference/session-continuity.md) - Session lifecycle and recovery
 - [Attention Budget](attention-budget.md) - Delta-synthesis triggers
-- [Trajectory Evaluation](trajectory-evaluation.md) - Logging claims and handoffs
+- [Trajectory Evaluation](reference/trajectory-evaluation.md) - Logging claims and handoffs

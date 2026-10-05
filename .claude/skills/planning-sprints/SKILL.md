@@ -75,14 +75,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:0553383a | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
-full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
-and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
-`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
-update it (decisions → Decision Log, issues → Technical Debt).
+Class: `.run/context-class` (`long` default; `standard` via `LOA_CONTEXT_CLASS=standard` or a
+≤200K model). `tool-result-clearing.md` — long 20K/50K/30K/150K, standard 2K/5K/3K/15K (single /
+accumulated / full file / session) → extract ≤10 files, ≤20 words, file:line to NOTES.md; reason
+from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` first. Start: NOTES.md
+"Session Continuity"; end / pre-compaction: update it.
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 

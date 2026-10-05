@@ -220,7 +220,7 @@ CODE > Loa Artifacts > Legacy Docs > User Context
 |----------|------|---------|
 | **Ride Translation** | `.claude/protocols/ride-translation.md` | Batch translation workflow |
 | **Structured Memory** | `.claude/protocols/structured-memory.md` | NOTES.md protocol |
-| **Trajectory Evaluation** | `.claude/protocols/trajectory-evaluation.md` | ADK-style grounding |
+| **Trajectory Evaluation** | `.claude/protocols/reference/trajectory-evaluation.md` | ADK-style grounding |
 | **Change Validation** | `.claude/protocols/change-validation.md` | Pre-change verification |
 
 ### Command References

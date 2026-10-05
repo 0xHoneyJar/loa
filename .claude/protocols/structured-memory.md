@@ -27,7 +27,7 @@ What a model cannot infer is WHERE durable notes go — that is the contract thi
 | Session end / pre-compaction | update Session Continuity |
 | File reaches 100 KiB / 200 KiB | `notes-guard.sh check` warns at 100 KiB and refuses growth at 200 KiB (hook, `>>` fence, learnings writer); run `/compound` or `notes-guard.sh rotate` (archive first, keep the `read` selection) |
 
-Recovery procedure (tiered L1/L2/L3, default read = `notes-guard.sh read`, ≤ 68 KiB): `.claude/protocols/session-continuity.md`. Clearing thresholds + synthesis format: `.claude/protocols/tool-result-clearing.md`.
+Recovery procedure (tiered L1/L2/L3, default read = `notes-guard.sh read`, ≤ 68 KiB): `.claude/protocols/reference/session-continuity.md`. Clearing thresholds + synthesis format: `.claude/protocols/tool-result-clearing.md`.
 
 ## Provenance
 

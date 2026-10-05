@@ -150,5 +150,5 @@ Every claim must use one of these formats:
 | Protocol | Path |
 |----------|------|
 | Structured Memory | `.claude/protocols/structured-memory.md` |
-| Trajectory Evaluation | `.claude/protocols/trajectory-evaluation.md` |
+| Trajectory Evaluation | `.claude/protocols/reference/trajectory-evaluation.md` |
 | Change Validation | `.claude/protocols/change-validation.md` |

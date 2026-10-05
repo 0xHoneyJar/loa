@@ -325,7 +325,7 @@ SESSION START SEQUENCE:
 5. Resume from "Reasoning State" # Continue where left off if applicable
 ```
 
-**Protocol**: See `.claude/protocols/session-continuity.md`
+**Protocol**: See `.claude/protocols/reference/session-continuity.md`
 
 ### During Session Actions
 

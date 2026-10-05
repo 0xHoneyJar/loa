@@ -129,14 +129,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:0553383a | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
-full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
-and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
-`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
-update it (decisions → Decision Log, issues → Technical Debt).
+Class: `.run/context-class` (`long` default; `standard` via `LOA_CONTEXT_CLASS=standard` or a
+≤200K model). `tool-result-clearing.md` — long 20K/50K/30K/150K, standard 2K/5K/3K/15K (single /
+accumulated / full file / session) → extract ≤10 files, ≤20 words, file:line to NOTES.md; reason
+from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` first. Start: NOTES.md
+"Session Continuity"; end / pre-compaction: update it.
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -157,9 +157,9 @@ Read the actual implementation (never documentation alone) and cross-reference t
 </grounding_requirements>
 
 <workflow>
-## Phase -1: Context Assessment (do this first)
+## Phase -1: Scope (do this first)
 
-Total the lines of the `*.{ts,js,tf,py}` files (Grep `^`, count mode): under 2,000 lines is SMALL (sequential, all 5 categories); 2,000–5,000 MEDIUM (consider category splitting); over 5,000 LARGE (parallel category agents — see `<parallel_execution>`).
+Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large scope splits per category (`<parallel_execution>`); otherwise run the 5 categories sequentially.
 
 ## Phase 0: Prerequisites Check
 
@@ -185,7 +185,7 @@ Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> 
 
 ## Phase 1: Systematic Audit
 
-Execute by category (sequential, or parallel per Phase -1), each per its `resources/REFERENCE.md` section: **Security**, **Architecture**, **Code Quality**, **DevOps**, and **Blockchain/Crypto** when applicable.
+Execute by category (sequential, or split per Phase -1), each per its `resources/REFERENCE.md` section: **Security**, **Architecture**, **Code Quality**, **DevOps**, and **Blockchain/Crypto** when applicable.
 
 ## Phase 2: Report Generation
 
@@ -247,9 +247,9 @@ and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
 <parallel_execution>
-## Parallel Splitting (LARGE codebases)
+## Parallel Splitting (large scopes)
 
-When Phase -1 rates the codebase LARGE, split into 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to its category's files and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate: deduplicate overlaps, sort CRITICAL → LOW, take the overall risk from the highest severity present.
+When splitting, use 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to its category's files and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate: deduplicate overlaps, sort CRITICAL → LOW, take the overall risk from the highest severity present.
 </parallel_execution>
 
 <rubric_scoring>

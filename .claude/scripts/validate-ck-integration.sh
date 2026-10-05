@@ -93,7 +93,7 @@ log_section "Protocol Documentation"
 
 required_protocols=(
     ".claude/protocols/tool-result-clearing.md"
-    ".claude/protocols/trajectory-evaluation.md"
+    ".claude/protocols/reference/trajectory-evaluation.md"
     ".claude/protocols/citations.md"
 )
 

@@ -671,6 +671,7 @@ main() {
       echo "  Sprints: ${completed_sprints}/${total_sprints} complete"
       display_artefacts_line
       display_run_line
+      display_context_line
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -861,6 +862,16 @@ display_providers_section() {
     fi
   done < <(printf '%s' "$pj" | jq -r '.providers | keys[]')
   echo "  reset: cheval --reset-breaker <provider>[:<auth_type>] · list: python3 -m loa_cheval.routing.breaker_cli --list"
+  return 0
+}
+
+# cycle-126 FR-3.1 (SDD D-3.1): the context class this session runs under, as the
+# SessionStart hook recorded it in .run/context-class (`--show` never rewrites it).
+display_context_line() {
+  local hook="${SCRIPT_DIR}/../hooks/session-start/loa-context-class.sh" line
+  [[ -f "$hook" ]] || return 0
+  line=$(bash "$hook" --show < /dev/null 2>/dev/null || true)
+  [[ -n "$line" ]] && echo "  $line"
   return 0
 }
 

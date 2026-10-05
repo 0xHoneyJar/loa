@@ -90,7 +90,7 @@ ${PROJECT_ROOT}/grimoires/loa/a2a/subagent-reports/goal-validation-*.md  # Valid
 ## Session Continuity
 
 <!-- CRITICAL: Load this section FIRST after /clear (~100 tokens) -->
-<!-- See: .claude/protocols/session-continuity.md -->
+<!-- See: .claude/protocols/reference/session-continuity.md -->
 
 ### Active Context
 
