@@ -139,10 +139,11 @@ One context-class table drives the context discipline (long by default, standard
 - Tests, CHANGELOG entry, `reviewer.md`.
 
 ### Acceptance Criteria
-- [ ] `generate-skill-includes.sh --check` clean; `tools/check-prompt-budget.sh`: `CLAUDE.loa.md` ≤ 9,216 B, protocols ≤ 160,000 B, every skill ≤ 16,384 B.
-- [ ] `tool-result-clearing.md` shows both classes; the include cites the rule; `LOA_CONTEXT_CLASS=standard` and a 200K session model select `standard`; default `long`.
-- [ ] Replay A/B: no gold case loses recall; report attached.
-- [ ] The three skills are smaller than before and contain no `wc -l` parallelism gate.
+- [x] `generate-skill-includes.sh --check` clean; `tools/check-prompt-budget.sh`: `CLAUDE.loa.md` ≤ 9,216 B, protocols ≤ 160,000 B, every skill ≤ 16,384 B.
+- [x] `tool-result-clearing.md` shows both classes; the include cites the rule; `LOA_CONTEXT_CLASS=standard` and a 200K session model select `standard`; default `long`.
+- [x] Replay A/B: no gold case loses recall; report attached.
+  - Review ruling (round 1, 2026-10-06, Fable 5.1): the pre-registered graded gate FAILS on five cases (grader citation-parser defect, bd-ewrc); on blind adjudication one slot in 27 is lost on audit-pr-02 (D06), inside the adjudicator's borderline band, with equal real-miss totals across arms and the include ablation pointing away. Accepted with a recorded waiver — binding conditions (bd-ewrc test-first + two-arm re-baseline before the cycle PR merges; component ablation and revert if the re-run loses; a NOTES Decision Log entry and a Sprint 4 task home) in `a2a/sprint-249/engineer-feedback.md` §"Replay A/B ruling". The audit rules independently.
+- [x] The three skills are smaller than before and contain no `wc -l` parallelism gate.
 
 ### Technical Tasks
 - **Task 3.1 — Baseline.** Run the replay gold sets on `main` and record.
@@ -199,6 +200,7 @@ No routing alias, fallback map, regex, trust entry, example pin or probe names t
 - **Task 4.5 — Permission grammar (SKP-010).** Formal normalisation (`Bash(<body>)` → key, trailing `:*`/` *` removed, trimmed, exact stays exact), deny precedence unchanged; CP-11/12 both forms, CP-13 table-driven mixed layers / whitespace / escaping / dangerous-shape fuzz.
 - **Task 4.6 — Docs.** Migration addendum, CHANGELOG, README.
 - **Task 4.7 — Regen and full run.** REPO-MAP + sidecar + checksums; full `tests/unit/` with ledger hashes before/after.
+- **Task 4.8 — Recall grader and A/B re-run (bd-ewrc; binding condition of the Sprint 3 review waiver).** Test-first in `eval-recall-grader.bats`: a leading `(` stripped from a cited path, continuation and bare `:N` citations bound to the preceding path, `anchors[]` for multi-site defects (D13 776/807, D06 57/83). Then re-run both arms (`2079e719`, the Sprint 3 head) on the fixed grader at n ≥ 9 on review-pr-02/05 and audit-pr-02/03/05, before the cycle PR merges. If any case loses by > 1 slot, or audit-pr-02's D06 loss persists, ablate the CLAUDE.loa.md trim and the constraint-rationale rewrite as separate components and revert the implicated one. Report under G-3.
 
 ### Task 4.E2E: End-to-End Goal Validation
 | Goal | Evidence to produce |
