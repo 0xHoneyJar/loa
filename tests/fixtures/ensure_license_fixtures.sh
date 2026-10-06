@@ -36,6 +36,9 @@ _ELF_ALL_PRESENT=true
 for _lic in valid_license.json grace_period_license.json expired_license.json \
             invalid_signature_license.json team_license.json enterprise_license.json; do
     [[ -s "$_ELF_DIR/$_lic" ]] || { _ELF_ALL_PRESENT=false; break; }
+    # A generator newer than a fixture regenerates the set, so a generator fix
+    # reaches checkouts that already hold fixtures (sprint-250: the naive-UTC exp).
+    [[ "$_ELF_GEN" -nt "$_ELF_DIR/$_lic" ]] && { _ELF_ALL_PRESENT=false; break; }
 done
 if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
     # Freshness guard: the generator computes expiry relative to now, but a
@@ -43,15 +46,17 @@ if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
     # time-relative window must still be open: valid_license.json's
     # expires_at (30 days) and grace_period_license.json's
     # offline_valid_until (12 hours — the tightest, so it goes stale first).
-    # Any closed or unparseable window regenerates the whole set.
-    _elf_future() {  # <file> <field> — exit 0 iff the ISO-8601 Z timestamp is in the future
+    # Any closed or unparseable window regenerates the whole set, and so does
+    # one closing within 300 s: a window that closes mid-suite is as stale
+    # (sprint-250 review run 1, n39).
+    _elf_future() {  # <file> <field> — exit 0 iff the ISO-8601 Z timestamp is > now + 300 s
         local ts epoch
         ts="$(grep -oE "\"$2\"[[:space:]]*:[[:space:]]*\"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z\"" "$1" 2>/dev/null \
               | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z' | head -1)"
         [[ -n "$ts" ]] || return 1
         epoch="$(date -u -d "$ts" +%s 2>/dev/null \
                  || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || echo 0)"
-        [[ "${epoch:-0}" -gt "$(date -u +%s)" ]]
+        [[ "${epoch:-0}" -gt $(( $(date -u +%s) + 300 )) ]]
     }
     if _elf_future "$_ELF_DIR/valid_license.json" expires_at \
        && _elf_future "$_ELF_DIR/grace_period_license.json" offline_valid_until; then

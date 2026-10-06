@@ -139,7 +139,7 @@ One context-class table drives the context discipline (long by default, standard
 - Tests, CHANGELOG entry, `reviewer.md`.
 
 ### Acceptance Criteria
-- [x] `generate-skill-includes.sh --check` clean; `tools/check-prompt-budget.sh`: `CLAUDE.loa.md` ≤ 9,216 B, protocols ≤ 160,000 B, every skill ≤ 16,384 B.
+- [x] `generate-skill-includes.sh --check` clean; `tools/check-prompt-budget.sh`: `CLAUDE.loa.md` ≤ 9,216 B (superseded by Sprint 4 Task 4.8: the trim was reverted under the pre-registered recall rule, so the limit is 10,240 B again; see `a2a/sprint-250/replay-ab-rerun.md`), protocols ≤ 160,000 B, every skill ≤ 16,384 B.
 - [x] `tool-result-clearing.md` shows both classes; the include cites the rule; `LOA_CONTEXT_CLASS=standard` and a 200K session model select `standard`; default `long`.
 - [x] Replay A/B: no gold case loses recall; report attached. — **Waived: not met as pre-registered** (ruling below; Task 4.8 is the binding condition).
   - Review ruling (round 1, 2026-10-06, Fable 5.1): the pre-registered graded gate FAILS on five cases (grader citation-parser defect, bd-ewrc); on blind adjudication one slot in 27 is lost on audit-pr-02 (D06), inside the adjudicator's borderline band, with equal real-miss totals across arms and the include ablation pointing away. Accepted with a recorded waiver — binding conditions (bd-ewrc test-first + two-arm re-baseline before the cycle PR merges; component ablation and revert if the re-run loses; a NOTES Decision Log entry and a Sprint 4 task home) in `a2a/sprint-249/engineer-feedback.md` §"Replay A/B ruling". The audit rules independently.

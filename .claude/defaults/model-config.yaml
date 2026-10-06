@@ -476,6 +476,10 @@ providers:
         # MTok; cache hit 0.05× = $0.20; "Claude 4.6 and later models … include
         # the full 1M token context window at standard pricing", so no
         # long_context tier). structured_json per the structured-outputs page.
+        # The other 5-family entries (claude-fable-5-1, claude-fable-5,
+        # claude-opus-5, claude-sonnet-5) keep their unverified 2.0×/1.5×
+        # long_context tier above 200K until an invoice confirms which reading
+        # holds (sprint-250 review run 1, n3).
         auth_type: http_api
         dispatch_group: anthropic-claude
         capabilities: [chat, tools, function_calling, thinking_traces, structured_json]

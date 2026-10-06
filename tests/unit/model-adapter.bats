@@ -92,3 +92,39 @@ SHIM
     [ "$status" -eq 7 ]
     [[ "$stderr" == *"gemini-headless dispatches agy"* ]]
 }
+
+@test "MA-7 (sprint-250 review run 1, n15) an unusable TMPDIR does not abort the call: the shim still runs and the result comes back" {
+    cat > "$TMP_DIR/mi" <<SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$@" > "$TMP_DIR/argv"
+echo "[cheval] WARNING: gemini-headless dispatches agy, which takes the whole prompt on argv" >&2
+printf '%s\n' '{"content": "ok", "model": "stub", "provider": "stub", "usage": {"input_tokens": 1, "output_tokens": 1}, "latency_ms": 1}'
+SHIM
+    chmod +x "$TMP_DIR/mi"
+    TMPDIR=/nonexistent/r250 MODEL_INVOKE="$TMP_DIR/mi" run --separate-stderr bash "$ADAPTER" --model opus --mode review --input "$TMP_DIR/input.txt"
+    [ "$status" -eq 0 ]
+    [ -s "$TMP_DIR/argv" ]
+    [[ "$output" == *"ok"* ]]
+    [ -c /dev/null ]   # the fallback never removes /dev/null
+}
+
+@test "MA-8 (sprint-250 review run 1, n15) a caller's TERM mid-call leaves no model-adapter-stderr file behind" {
+    local priv="$TMP_DIR/priv-tmp" pid
+    mkdir -p "$priv"
+    cat > "$TMP_DIR/mi" <<SHIM
+#!/usr/bin/env bash
+echo "\$\$" > "$TMP_DIR/started"
+exec sleep 20
+SHIM
+    chmod +x "$TMP_DIR/mi"
+    TMPDIR="$priv" MODEL_INVOKE="$TMP_DIR/mi" bash "$ADAPTER" --model opus --mode review --input "$TMP_DIR/input.txt" >/dev/null 2>&1 &
+    pid=$!
+    for _ in $(seq 1 100); do [ -e "$TMP_DIR/started" ] && break; sleep 0.1; done
+    [ -e "$TMP_DIR/started" ]
+    compgen -G "$priv/model-adapter-stderr.*" >/dev/null   # the file exists while the hop runs
+    kill -TERM "$pid"
+    wait "$pid" || true
+    kill "$(cat "$TMP_DIR/started")" 2>/dev/null || true   # the orphaned shim sleep
+    run compgen -G "$priv/model-adapter-stderr.*"
+    [ "$status" -ne 0 ] || { echo "left behind: $output" >&2; return 1; }
+}

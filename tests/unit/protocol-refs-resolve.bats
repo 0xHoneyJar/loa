@@ -10,6 +10,7 @@
 # =============================================================================
 
 setup() {
+    bats_require_minimum_version 1.5.0   # `run !`: a bare `! grep` inside the loop cannot fail (sprint-250 review run 1, n20)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     ALLOW="$PROJECT_ROOT/tools/protocol-refs.allowlist"
@@ -55,7 +56,7 @@ allowed() {  # allowed <file> <name>
 @test "PR-3 the three archived protocols are gone from .claude/protocols and their summary rows with them" {
     for p in risk-analysis upgrade-process sprint-completion; do
         [ ! -e "$PROJECT_ROOT/.claude/protocols/$p.md" ]
-        ! grep -q "protocols/$p.md" "$PROJECT_ROOT/.claude/loa/reference/protocols-summary.md"
+        run ! grep -q "protocols/$p.md" "$PROJECT_ROOT/.claude/loa/reference/protocols-summary.md"
     done
 }
 

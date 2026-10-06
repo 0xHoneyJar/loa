@@ -49,3 +49,46 @@ PY
     source "$WORK/ensure_license_fixtures.sh"
     [ "$(cksum < "$WORK/grace_period_license.json")" = "$before" ]
 }
+
+@test "LFF-3: a grace fixture that expires within the margin (now + 60 s) is regenerated, not trusted to outlive the suite" {
+    # sprint-250 review run 1, n39: a zero-margin check passed a window closing
+    # seconds later, and the fixture then expired mid-suite.
+    python3 - "$WORK/grace_period_license.json" <<'PY'
+import json, sys, datetime as dt
+p = sys.argv[1]
+d = json.load(open(p))
+d["offline_valid_until"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
+json.dump(d, open(p, "w"))
+PY
+    local soon; soon="$(_offline_until "$WORK/grace_period_license.json")"
+    source "$WORK/ensure_license_fixtures.sh"
+    [ "$(_offline_until "$WORK/grace_period_license.json")" != "$soon" ]
+    python3 -c 'import sys,datetime as d; t=d.datetime.strptime(sys.argv[1],"%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=d.timezone.utc); sys.exit(0 if t > d.datetime.now(d.timezone.utc) + d.timedelta(hours=1) else 1)' "$(_offline_until "$WORK/grace_period_license.json")"
+}
+
+@test "LFF-4: on a host east of UTC the JWT exp agrees with expires_at (the generator never reads a naive UTC time as local)" {
+    # sprint-250 review round 1: datetime.utcnow() is naive and .timestamp()
+    # reads it as local time, so on AEDT (UTC+11) every JWT exp landed 11 hours
+    # early and the pro tier's 24h grace closed 1 hour after generation.
+    ( cd "$WORK" && TZ=Australia/Sydney python3 generate_test_licenses.py >/dev/null )
+    python3 - "$WORK/grace_period_license.json" "$WORK/valid_license.json" <<'PY'
+import base64, json, sys, datetime as dt
+for p in sys.argv[1:]:
+    d = json.load(open(p))
+    seg = d["token"].split(".")[1]
+    exp = json.loads(base64.urlsafe_b64decode(seg + "=" * (-len(seg) % 4)))["exp"]
+    want = int(dt.datetime.strptime(d["expires_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp())
+    assert abs(exp - want) <= 1, f"{p}: jwt exp {exp} vs expires_at {want} (delta {exp - want} s)"
+    issued = dt.datetime.strptime(d["issued_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    assert abs((issued - dt.datetime.now(dt.timezone.utc)).total_seconds()) < 300, f"{p}: issued_at {d['issued_at']} is not UTC now"
+PY
+}
+
+@test "LFF-5: fixtures older than the generator are regenerated (a generator fix reaches an existing checkout)" {
+    local before; before="$(cksum < "$WORK/grace_period_license.json")"
+    touch -d '2026-01-01T00:00:00Z' "$WORK"/*.json
+    touch "$WORK/generate_test_licenses.py"
+    sleep 1
+    source "$WORK/ensure_license_fixtures.sh"
+    [ "$(cksum < "$WORK/grace_period_license.json")" != "$before" ]
+}

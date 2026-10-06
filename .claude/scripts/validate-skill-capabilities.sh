@@ -105,7 +105,8 @@ should_skip() {
 # When a skill declares write capability (capabilities.write_files: true OR
 # allowed-tools lists Write/Edit), its agent: frontmatter key MUST be unset
 # or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
-# D-4.4); a missing or unparsable file leaves general-purpose only.
+# D-4.4); a missing or unparsable file, or one with no `write_capable: true`
+# entry, leaves general-purpose only.
 # See .claude/rules/skill-invariants.md.
 AGENT_TYPES_FILE="${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}"
 WRITE_CAPABLE_AGENTS=()

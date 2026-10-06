@@ -9,7 +9,7 @@ import base64
 import hashlib
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # For RS256 signing, we'll use cryptography library if available,
@@ -132,7 +132,7 @@ def create_license_file(
         "lid": "lic_test789",
         "iss": "https://api.constructs.network",
         "aud": "loa-skills-client",
-        "iat": int(datetime.now().timestamp()),
+        "iat": int(datetime.now(timezone.utc).timestamp()),
         "exp": int(expires_at.timestamp())
     }
 
@@ -147,7 +147,7 @@ def create_license_file(
         "token": token,
         "tier": tier,
         "watermark": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-        "issued_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "issued_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "offline_valid_until": offline_valid_until.strftime("%Y-%m-%dT%H:%M:%SZ")
     }
@@ -169,7 +169,9 @@ def main():
         f.write(public_key_pem)
     print("Created: mock_public_key.pem (paired with the keypair signing the licenses below)")
 
-    now = datetime.utcnow()
+    # Aware UTC: a naive utcnow() read back by .timestamp() is taken as local
+    # time, which put every JWT exp off by the host's UTC offset (sprint-250).
+    now = datetime.now(timezone.utc)
 
     # 1. Valid license (expires in 30 days)
     valid_license = create_license_file(

@@ -652,11 +652,20 @@ main() {
     # Call model-invoke and translate output
     # cheval's stderr stays out of the caller's view except the agy argv-exposure
     # WARN, which is the operator-facing half of that mitigation (bd-pw7e LOW-001).
-    local result exit_code=0 err_file
-    err_file="$(mktemp "${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX")"
-    result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>"$err_file") || exit_code=$?
-    grep -F -- 'gemini-headless dispatches agy' "$err_file" | cut -c1-600 >&2 || :
-    rm -f -- "$err_file"
+    # An unusable TMPDIR must not abort the call: without a temp file stderr is
+    # discarded as before; the EXIT trap removes the file on a caller's TERM too
+    # (sprint-250 review run 1, n15).
+    local result exit_code=0 err_file=""
+    err_file="$(mktemp "${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX" 2>/dev/null)" || err_file=""
+    if [[ -n "$err_file" ]]; then
+        trap 'rm -f -- "$err_file"' EXIT
+        result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>"$err_file") || exit_code=$?
+        grep -F -- 'gemini-headless dispatches agy' "$err_file" | cut -c1-600 >&2 || :
+        rm -f -- "$err_file"
+        trap - EXIT
+    else
+        result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>/dev/null) || exit_code=$?
+    fi
 
     if [[ $exit_code -ne 0 ]]; then
         error "model-invoke failed with exit code $exit_code"

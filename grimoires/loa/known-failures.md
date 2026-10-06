@@ -1640,6 +1640,7 @@ Not a timeout or rate limit (KF-037/KF-038): an immediate failure with Errno 7 m
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-06 | G-1 attempt 1 (bare subscription CLI), attempt 2 (claude-fallback), attempt 3 (claude-bedrock) | 1 and 2 geo 400 in about 10 s; 3 succeeded | commit fd8aaae3; a2a/sprint-250/e2e/g1-real-call.txt; MODELINV ts 2026-10-06T06:41:11Z |
+| 2026-10-06 | Review-dissent caveat: the claude-bedrock workaround assumes the host's egress region is supported by Bedrock for the model; confirm the region before routing a hop through it | documentation only; the sprint-250 review dissent run 1 ran its companion voice through claude-bedrock on all 14 chunks | a2a/sprint-250/review-dissent-run-1-verifier-B.md n63; e2e/g2-two-voice-envelopes.txt |
 
 ### Reading guide
 

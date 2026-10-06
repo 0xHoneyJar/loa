@@ -225,3 +225,22 @@ cp13_case() {
   settings "$USERF" '[]' '["Bash(gh pr *)"]'
   cp13_case "cross-form-deny" "$REQ" '[]' 1 '.total_denied == 1 and .denied[0].rule == "Bash(gh pr:*)" and .denied[0].by == "Bash(gh pr *)"'
 }
+
+@test "CP-14 table: a universal rule, bare Bash or Bash(*), covers every Bash requirement, for allow and for deny" {
+  # sprint-250 review run 1, n29: rule_key skipped bare Bash and keyed Bash(*) as the
+  # exact body "*", so a universal deny passed the preflight and the run stalled later
+  local u
+  for u in 'Bash' 'Bash(*)' 'Bash( * )'; do
+    cp13_case "universal-allow $u" "$(jq -nc --arg u "$u" '[$u]')" '[]' 0 '.total_found == 16 and .total_denied == 0'
+    cp13_case "universal-deny $u" "$REQ" "$(jq -nc --arg u "$u" '[$u]')" 1 \
+      ".total_denied == 16 and .total_found == 0 and ([.denied[].by] | unique == [\"$u\"])"
+  done
+  # a narrower deny still subtracts from a universal allow
+  cp13_case "universal-allow-narrow-deny" '["Bash"]' '["Bash(rm:*)"]' 1 '.total_found == 15 and .total_denied == 1 and .denied[0].rule == "Bash(rm:*)"'
+  # a universal deny in the user file wins over the full allow list in the project file
+  settings "$USERF" '[]' '["Bash"]'
+  cp13_case "universal-deny-user-layer" "$REQ" '[]' 1 '.total_denied == 16'
+  settings "$USERF" '[]' '[]'
+  # near-misses are not universal: another tool, a lowercase name, a literal ** body
+  cp13_case "not-universal" '["Read","bash","Bash(**)","Bashx"]' '[]' 1 '.total_found == 0 and .total_missing == 16'
+}

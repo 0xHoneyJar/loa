@@ -26,7 +26,7 @@ Source: Claude Code agent-type definitions in the system prompt, and `.claude/ag
 
 > agent type '<name>' excludes Write/Edit tools but skill declares write capability …
 
-The allowlist is maintained in `.claude/data/agent-types.yaml` (one `write_capable` flag per agent type); the script loads the `true` entries into `WRITE_CAPABLE_AGENTS` and falls back to `general-purpose` alone when the file is missing or unparsable. Adding a new write-capable agent type is intentionally a one-line edit with reviewer visibility.
+The allowlist is maintained in `.claude/data/agent-types.yaml` (one `write_capable` flag per agent type); the script loads the `true` entries into `WRITE_CAPABLE_AGENTS` and falls back to `general-purpose` alone when the file is missing, unparsable, or lists no `write_capable: true` entry. Adding a new write-capable agent type is intentionally a one-line edit with reviewer visibility.
 
 ## Mechanical C-PROC-001 enforcement via `disallowed-tools` (cycle-114 FR-4)
 

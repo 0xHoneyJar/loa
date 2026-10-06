@@ -9,6 +9,7 @@
 # paths (exit code, stdout, stderr, stdin passthrough).
 
 setup() {
+    bats_require_minimum_version 1.5.0   # `run !`: a bare mid-test `! grep` cannot fail (sprint-250 review run 1, n38)
     PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     GUARD="$PROJECT_ROOT/.claude/hooks/hook-guard.sh"
     BLOCK_HOOK="$PROJECT_ROOT/.claude/hooks/safety/block-destructive-bash.sh"
@@ -149,7 +150,7 @@ setup() {
 @test "parse-failure WARN does not call every wrapped hook a PreToolUse hook (it also wraps loa-context-class.sh)" {
     local err="$BATS_TEST_TMPDIR/d.err"
     "$GUARD" "$BROKEN" </dev/null >/dev/null 2>"$err"
-    ! grep -q "PreToolUse hook" "$err"
+    run ! grep -q "PreToolUse hook" "$err"
     grep -q "did not run" "$err"
     grep -q "failing OPEN" "$err"
 }

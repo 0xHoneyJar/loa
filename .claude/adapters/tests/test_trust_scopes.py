@@ -346,24 +346,33 @@ class TestModelCoverage(unittest.TestCase):
                     f"Model '{model_id}' missing capabilities",
                 )
 
-    def test_every_anthropic_catalog_entry_has_a_row(self):
-        """cycle-126 D-4.2: every Anthropic entry the catalog serves (direct and
-        Bedrock-routed) has a registry row, so no current model is unscoped."""
+    @staticmethod
+    def _served_anthropic_keys():
+        """Every Anthropic entry the catalog serves, direct and Bedrock-routed."""
         catalog_path = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
         with open(catalog_path, "r") as f:
             providers = yaml.safe_load(f)["providers"]
         served = [f"anthropic:{m}" for m in providers["anthropic"]["models"]]
         served += [f"bedrock:{m}" for m in providers.get("bedrock", {}).get("models", {})
                    if "anthropic." in m]
+        return served
+
+    def test_every_anthropic_catalog_entry_has_a_row(self):
+        """cycle-126 D-4.2: every Anthropic entry the catalog serves (direct and
+        Bedrock-routed) has a registry row, so no current model is unscoped."""
+        served = self._served_anthropic_keys()
         self.assertGreaterEqual(len(served), 12)
         missing = [key for key in served if key not in self.models]
         self.assertEqual(missing, [], f"catalog entries without a model-permissions row: {missing}")
 
     def test_current_generation_rows_mirror_the_4_7_scopes(self):
+        # sprint-250 review run 1, n13: the key list is the catalog's served
+        # Anthropic/Bedrock entries (it pinned 6 of 16), so a widened scope on
+        # any served row fails here. No row is meant to differ from 4.7 today.
         reference = self.models["anthropic:claude-opus-4-7"]
-        for key in ("anthropic:claude-opus-5-5", "anthropic:claude-opus-5", "anthropic:claude-sonnet-5",
-                    "anthropic:claude-fable-5-1", "anthropic:claude-opus-4-8",
-                    "bedrock:us.anthropic.claude-opus-4-8"):
+        served = self._served_anthropic_keys()
+        self.assertGreaterEqual(len(served), 16)
+        for key in served:
             with self.subTest(model=key):
                 entry = self.models.get(key, {})
                 self.assertEqual(entry.get("trust_scopes"), reference["trust_scopes"])

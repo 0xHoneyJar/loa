@@ -149,6 +149,7 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {
-    ! grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"
-    ! grep -rq 'implement_gate' "$REPO/docs" "$REPO/README.md"
+    # sprint-250 review run 1, n20: a bare mid-test `! grep` cannot fail
+    run ! grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"
+    run ! grep -rq 'implement_gate' "$REPO/docs" "$REPO/README.md"
 }

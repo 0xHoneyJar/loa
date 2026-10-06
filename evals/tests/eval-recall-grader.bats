@@ -177,9 +177,56 @@ JSON
   done
 }
 
-@test "RG-17 grader_version is 1.1.0 (the bd-ewrc parser); the manifest corpus checksum list matches the manifests" {
+@test "RG-17 grader_version is 1.1.1 (the bd-ewrc parser, sprint-250 hardening); the manifest corpus checksum list matches the manifests" {
   review 'a.sh:40'
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.0" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.1" ]
   ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
+}
+
+# --- sprint-250 review run 1 (n40/n41/n42): grader 1.1.1 parser hardening ---
+@test "RG-18 the LOA-VERDICT trailer and JSON numbers are not citations: \"high\":3 never binds to the last cited path" {
+  cat > "$T/manifests/pr-z.json" <<'JSON'
+{"fixture":"pr-z","defects":[
+ {"id":"Z1","file":".claude/scripts/a.sh","anchor_line":3,"severity":"high","category":"logic","source_commit":"deadbeef","synthetic":false}
+]}
+JSON
+  printf 'a.sh:12 has a nit\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"CHANGES_REQUIRED","counts":{"critical":0,"high":3,"medium":0,"low":0},"sprint_id":"sprint-0","ts":"2026-01-01T00:00:00Z"} -->\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-z
+  [ "$(echo "$output" | jq -r '.details.missed | join(",")')" = "Z1" ]
+  [ "$(echo "$output" | jq -r '.details.citations')" = "1" ]
+  [ "$(echo "$output" | jq -r '.details.severity_counts.high')" = "3" ]   # the trailer still feeds the counts
+  # the same numbers in a JSON block in the body
+  printf 'a.sh:12 has a nit\n\n```json\n{"critical":0,"high":3, "rows": [3]}\n```\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-z
+  [ "$(echo "$output" | jq -r '.details.missed | join(",")')" = "Z1" ]
+  [ "$(echo "$output" | jq -r '.details.citations')" = "1" ]
+}
+
+@test "RG-19 a comma continuation stays on its line and is a line number: a.sh:12, 2026-10-05 and a.sh:12,<newline>40 rows credit nothing" {
+  review 'a.sh:12, 2026-10-05 is when it landed'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  printf 'a.sh:12,\n40 rows were dropped\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  printf 'a.sh:12\n- 40 rows were dropped\n' > "$WS/review.md"   # nor does a range
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'a.sh:12, 40 on one line still binds'   # RG-12 behaviour kept
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+}
+
+@test "RG-20 a backtick- or bold-wrapped path binds its own line (\`c.sh\`:7, **c.sh**:7); a URL is not a path citation" {
+  review 'a.sh:1 is fine; `c.sh`:7 returns early'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  review 'a.sh:1 is fine; **c.sh**:7 returns early'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  printf 'see https://example.com/x.js:8080 and http://example.com:8080/y\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-clean
+  [ "$(echo "$output" | jq -r '.details.citations')" = "0" ]
+  [ "$(echo "$output" | jq -r '.details.false_positives')" = "0" ]
 }

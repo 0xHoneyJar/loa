@@ -23,7 +23,9 @@ set -euo pipefail
 #   requirement's first word, so Bash(git push *) and Bash(git:*) both cover
 #   Bash(git push:*). The same test applies to allow and to deny: a narrower deny
 #   such as Bash(rm -rf /:*) or an exact Bash(git push) does not deny the generic
-#   requirement.
+#   requirement. A universal rule (bare Bash, or Bash(*) after trimming) covers
+#   every Bash requirement: a universal allow satisfies each one, a universal deny
+#   denies each one (sprint-250 review run 1, n29).
 #
 # Usage:
 #   check-permissions.sh                 Check all permissions (text report)
@@ -156,15 +158,19 @@ warn() {
 }
 
 # rule_key <rule> — sets RULE_KEY to "*<body>" for a wildcard rule, "=<body>" for
-# an exact one; returns 1 for anything that is not Bash(...). Pure parameter
+# an exact one, "ALL" for a universal one (bare Bash or Bash(*)); returns 1 for
+# anything that is not Bash or Bash(...). Pure parameter
 # expansion: the checker runs on every preflight against hundreds of rules.
 RULE_KEY=""
 rule_key() {
   local b="$1"
+  if [[ "$b" == "Bash" ]]; then RULE_KEY="ALL"; return 0; fi
   [[ "$b" == "Bash("*")" ]] || return 1
   b="${b#Bash(}"; b="${b%)}"
   b="${b#"${b%%[![:space:]]*}"}"; b="${b%"${b##*[![:space:]]}"}"
-  if [[ "$b" == *":*" || "$b" == *" *" ]]; then
+  if [[ "$b" == "*" ]]; then
+    RULE_KEY="ALL"
+  elif [[ "$b" == *":*" || "$b" == *" *" ]]; then
     b="${b%??}"; b="${b%"${b##*[![:space:]]}"}"
     RULE_KEY="*$b"
   else
@@ -235,15 +241,18 @@ main() {
     rule_key "$perm"
     key="$RULE_KEY"
     base="*${key#\*}"; base="${base%% *}"
-    # deny wins: the requirement's own key or its base wildcard, in any layer
-    if [[ -n "${deny_by[$key]+x}" ]]; then
+    # deny wins: a universal deny, the requirement's own key or its base wildcard, in any layer
+    if [[ -n "${deny_by[ALL]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"${deny_raw[ALL]}"$'\t'"${deny_by[ALL]}")
+      continue
+    elif [[ -n "${deny_by[$key]+x}" ]]; then
       denied_lines+=("$perm"$'\t'"${deny_raw[$key]}"$'\t'"${deny_by[$key]}")
       continue
     elif [[ -n "${deny_by[$base]+x}" ]]; then
       denied_lines+=("$perm"$'\t'"${deny_raw[$base]}"$'\t'"${deny_by[$base]}")
       continue
     fi
-    if [[ -n "${allow_by[$key]+x}" || -n "${allow_by[$base]+x}" ]]; then
+    if [[ -n "${allow_by[ALL]+x}" || -n "${allow_by[$key]+x}" || -n "${allow_by[$base]+x}" ]]; then
       found_permissions+=("$perm")
     else
       missing_permissions+=("$perm")

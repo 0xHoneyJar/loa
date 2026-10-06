@@ -20,6 +20,14 @@
 # word or a number (`note:40`, `10:40`), or with no cited path before it,
 # credits nothing.
 #
+# Parser 1.1.1 (sprint-250 review run 1, n40-n42): the LOA-VERDICT trailer is
+# removed before citations are parsed, and a bare `:N` after a quote, bracket,
+# brace or `*` (JSON such as `"high":3`) credits nothing; a backtick- or
+# bold-wrapped path (`` `b.sh`:40 ``, `**b.sh**:40`) binds its own line; a comma
+# continuation or range stays on its line, and a continuation must end at a
+# number boundary (no dates);
+# a path containing `//` (a URL) is not a citation.
+#
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
 # counts as one.
@@ -41,7 +49,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.1"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -53,7 +61,7 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.0"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.1"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
@@ -68,15 +76,20 @@ text = open(review_path, encoding="utf-8", errors="replace").read()
 # optional trailing range keeps `file.py:10-14` in one token, and the comma
 # list after it (`:776,807`) belongs to the same path. A bare `:N` (or
 # `head:N` / `base:N`) not glued to a word binds to the most recent path.
-RNG = r'(\d{1,6})(?:\s*[-–]\s*(\d{1,6}))?'
+RNG = r'(\d{1,6})(?:[ \t]*[-–][ \t]*(\d{1,6}))?'
 CITE = re.compile(
-    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6}):(?P<first>' + RNG + r'(?:\s*,\s*' + RNG + r')*)'
-    r'|(?:(?<![A-Za-z0-9_./:])(?:head|base)|(?<![A-Za-z0-9_./:])):(?P<bare>' + RNG + r')(?![A-Za-z0-9])')
+    r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
+    + r'(?:[ \t]*,[ \t]*' + RNG + r'(?![A-Za-z0-9-]))*)'
+    r'|(?:(?<![A-Za-z0-9_./:"\'{}\[\]*])(?:head|base)|(?<![A-Za-z0-9_./:"\'{}\[\]*])):(?P<bare>' + RNG + r')(?![A-Za-z0-9])')
 ONE = re.compile(RNG)
 cites = []
 last = None
-for m in CITE.finditer(text):
+# the trailer is machine output (its counts are read below), never a citation
+body = re.sub(r'<!--\s*LOA-VERDICT.*?-->', '', text, flags=re.S)
+for m in CITE.finditer(body):
     if m.group("path") is not None:
+        if "//" in m.group("path"):
+            continue          # a URL (https://h/x.js:8080, //host.com:8080), not a path
         p = m.group("path").lstrip("(")
         if p.startswith("./"):
             p = p[2:]
@@ -152,7 +165,7 @@ out = {
         "false_positives": false_positives, "severity_counts": sev,
         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
     },
-    "grader_version": "1.1.0",
+    "grader_version": "1.1.1",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)
