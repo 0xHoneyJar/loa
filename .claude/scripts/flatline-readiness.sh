@@ -256,7 +256,7 @@ check_alias_registry() {
             # model-config.yaml and the recommendation actively misled
             # operators. Point at the canonical pin form + the cached
             # registry of actually-existing aliases (already in $hint).
-            RECOMMENDATIONS+=("Set ${role^} to a registered alias or use '<provider>:<model_id>' pin form (e.g. google:gemini-3.1-pro-preview, anthropic:claude-opus-4-7).${hint:+ See available aliases above.}")
+            RECOMMENDATIONS+=("Set ${role^} to a registered alias or use '<provider>:<model_id>' pin form (e.g. google:gemini-3.1-pro-preview, anthropic:claude-opus-5-5).${hint:+ See available aliases above.}")
         fi
     done
 }

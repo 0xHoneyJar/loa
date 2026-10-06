@@ -84,3 +84,11 @@ PY
     run grep -nE 'Claude Opus 4\.7 \(alias resolves|opus: "anthropic:claude-opus-5" ' "$R/.loa.config.yaml.example"
     [ "$status" -eq 1 ] || { echo "$output" >&2; return 1; }
 }
+
+@test "RES-7 flatline-readiness's pin-form example names the catalog's current opus target, not a previous generation" {
+    local want
+    want=$(yq_cat aliases.opus)
+    grep -qF "e.g. google:gemini-3.1-pro-preview, $want)" "$R/.claude/scripts/flatline-readiness.sh"
+    run grep -nE 'pin form \(e\.g\.[^)]*claude-(opus|sonnet)-4-' "$R/.claude/scripts/flatline-readiness.sh"
+    [ "$status" -eq 1 ]
+}
