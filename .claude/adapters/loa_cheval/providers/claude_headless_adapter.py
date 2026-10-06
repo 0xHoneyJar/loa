@@ -135,8 +135,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             connect_timeout: 10.0
             read_timeout: 600.0
             models:
-              claude-opus-4-7:
-                context_window: 200000
+              claude-opus-5-5:
+                context_window: 1000000
                 pricing: {input_per_mtok: 0, output_per_mtok: 0}
                 extra:
                   effort: high
@@ -144,8 +144,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     Aliases bind to provider:model-id like other adapters:
 
         aliases:
-          opus: claude-headless:claude-opus-4-7
-          cheap: claude-headless:claude-sonnet-4-6
+          opus: claude-headless:claude-opus-5-5
+          cheap: claude-headless:claude-sonnet-5
     """
 
     # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-06T10:25:35Z",
+  "generated": "2026-10-06T11:10:13Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -123,7 +123,7 @@
     ".claude/adapters/loa_cheval/providers/base.py": "32643050d27788a9911fc8367be5c8370da83916a16ccb305d8a9f269cc369fa",
     ".claude/adapters/loa_cheval/providers/bedrock_adapter.py": "77d7f7308c38f66a05571de93af225fe998185a67e9bcd6a427a3ed670cedfb2",
     ".claude/adapters/loa_cheval/providers/bedrock_token_age.py": "21fc04c2bc545fe5720b1156d250e29e08ae1e0bd499b6035fe130aa50d00f91",
-    ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py": "dd994a2dc55aee13ec95730f2b95aaa7e77800d9a5d66eb205004ffb4fd87aea",
+    ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py": "cad0a0b1d41ced5df29ed2ca364effd66105a67f59e4387e4fa3b038ce935670",
     ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py": "8d2f9263d11159e84550af716143485906ebcfb9ef2197500a81385e8ae0803d",
     ".claude/adapters/loa_cheval/providers/concurrency.py": "51308176ea74bc929ee5d167f901b71b2640e3efbff8b7ca0dd6ef3c36fdc28e",
     ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py": "feec4d4f447a01e506612c6b45b04b3232e14ce60094d6f7a7f5d293dccf0b11",
@@ -709,7 +709,7 @@
     ".claude/cache/.gitignore": "443a6548747d089425e6cdcc06d11d21f2becf78dabd6438b2d0ab7cf2d5c02f",
     ".claude/cache/early-exit/.gitkeep": "8e4a89e279c721e09c9823d164667fad09e8e5ede32acc32c010a9f1e093a26a",
     ".claude/cache/full/.gitkeep": "7e0b7b284394c9693d0c73f7caf6dc4a5928e76a054ec1e3ed09498d90b6b304",
-    ".claude/cache/index.json": "99ff5c2e17b5ce4809aa2581cb25249e2ef37cb5f333fb4fb15a402bb89587c2",
+    ".claude/cache/index.json": "2ac28d4a7318e1fde250f52d27044e385f04e3da5b1230119a4f461d4c069a1d",
     ".claude/cache/results/.gitkeep": "556fe183f3e68c0f3646a3a1748a1bf774946291cc8bf9edac85d18fb9a45b2e",
     ".claude/cache/results/ee1c8ad3a6e6a2cbf9da536c91aecac71d0016a60092c34ac9a4035e88deae54.json": "1b7fa6935491d7b6c8e3b641ad3cf0800ccd87f23ca7afa8d54633b58ea66a10",
     ".claude/cache/results/f4039118bbc553b1bd1e87cc06a58c509b7217ef27093810209abd47a2124763.json": "48eb5fd9e2626192a37fc1101efb198fcd250b4a903a7de203f08ec539ac4e54",
