@@ -8,7 +8,7 @@
 # =============================================================================
 
 setup() {
-  bats_require_minimum_version 1.5.0   # `run !`: a bare mid-test `! grep` cannot fail (sprint-250 review run 1, n20)
+  bats_require_minimum_version 1.5.0   # `run -1 grep`: a bare `! grep` cannot fail, and only "no match" (exit 1) passes — a missing file (exit 2) fails (sprint-250 review run 1, n20; run 2, #10)
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"; export PROJECT_ROOT
   ORCHESTRATOR="$PROJECT_ROOT/.claude/scripts/flatline-orchestrator.sh"
   ARGV="$BATS_TEST_TMPDIR/argv.txt"
@@ -78,6 +78,6 @@ _argv_value() { awk -v flag="$1" '$0 == flag {getline; print; exit}' "$ARGV"; }
 }
 
 @test "FMT-6 no per-call-kind literal remains in the orchestrator" {
-  run ! grep -qE '^FLATLINE_(REVIEW|SCORE)_MAX_TOKENS=' "$ORCHESTRATOR"
+  run -1 grep -qE '^FLATLINE_(REVIEW|SCORE)_MAX_TOKENS=' "$ORCHESTRATOR"
   grep -qE '^FLATLINE_VOICE_MAX_TOKENS_CAP=64000' "$ORCHESTRATOR"
 }

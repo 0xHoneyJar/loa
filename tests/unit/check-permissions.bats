@@ -226,11 +226,12 @@ cp13_case() {
   cp13_case "cross-form-deny" "$REQ" '[]' 1 '.total_denied == 1 and .denied[0].rule == "Bash(gh pr:*)" and .denied[0].by == "Bash(gh pr *)"'
 }
 
-@test "CP-14 table: a universal rule, bare Bash or Bash(*), covers every Bash requirement, for allow and for deny" {
+@test "CP-14 table: a universal rule, bare Bash, Bash(*) or Bash(:*), covers every Bash requirement, for allow and for deny" {
   # sprint-250 review run 1, n29: rule_key skipped bare Bash and keyed Bash(*) as the
   # exact body "*", so a universal deny passed the preflight and the run stalled later
   local u
-  for u in 'Bash' 'Bash(*)' 'Bash( * )'; do
+  # run 2, #9: an empty prefix (Bash(:*)) matches every command in Claude Code's prefix grammar
+  for u in 'Bash' 'Bash(*)' 'Bash( * )' 'Bash(:*)' 'Bash( :* )'; do
     cp13_case "universal-allow $u" "$(jq -nc --arg u "$u" '[$u]')" '[]' 0 '.total_found == 16 and .total_denied == 0'
     cp13_case "universal-deny $u" "$REQ" "$(jq -nc --arg u "$u" '[$u]')" 1 \
       ".total_denied == 16 and .total_found == 0 and ([.denied[].by] | unique == [\"$u\"])"

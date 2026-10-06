@@ -8,7 +8,7 @@
 # =============================================================================
 
 setup() {
-    bats_require_minimum_version 1.5.0   # `run !`: a bare mid-test `! grep` cannot fail (sprint-250 review run 1, n20)
+    bats_require_minimum_version 1.5.0   # `run -1 grep`: a bare `! grep` cannot fail, and only "no match" (exit 1) passes — a missing file (exit 2) fails (sprint-250 review run 1, n20; run 2, #10)
     R="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     CAT="${RES_CAT:-$R/.claude/defaults/model-config.yaml}"   # RES_CAT: red-first replay against a base catalog
 }
@@ -58,10 +58,10 @@ map_value() {
 }
 
 @test "RES-4 example pins: hitl-jury-panel uses opus, alternative-model names the Bedrock Opus 4.8 id the catalog serves" {
-    run ! grep -q 'claude-opus-4-7' "$R/.claude/skills/hitl-jury-panel/SKILL.md"
+    run -1 grep -q 'claude-opus-4-7' "$R/.claude/skills/hitl-jury-panel/SKILL.md"
     [ "$(grep -c '      model: opus$' "$R/.claude/skills/hitl-jury-panel/SKILL.md")" -ge 2 ]
     grep -qF 'bedrock:us.anthropic.claude-opus-4-8' "$R/.claude/data/personas/alternative-model.md"
-    run ! grep -q 'claude-3-5-sonnet' "$R/.claude/data/personas/alternative-model.md"
+    run -1 grep -q 'claude-3-5-sonnet' "$R/.claude/data/personas/alternative-model.md"
     python3 -c 'import sys,yaml; d=yaml.safe_load(open(sys.argv[1])); assert "us.anthropic.claude-opus-4-8" in d["providers"]["bedrock"]["models"]' "$CAT"
 }
 

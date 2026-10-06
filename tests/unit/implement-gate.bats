@@ -14,7 +14,7 @@
 # =============================================================================
 
 setup() {
-    bats_require_minimum_version 1.5.0
+    bats_require_minimum_version 1.5.0   # `run -1 grep`: a bare `! grep` cannot fail, and only "no match" (exit 1) passes — a missing file (exit 2) fails (sprint-250 review run 2, #10)
     REPO="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     GATE="$REPO/.claude/hooks/compliance/implement-gate.sh"
     DETECT="$REPO/.claude/scripts/detect-platform-features.sh"
@@ -150,6 +150,6 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {
     # sprint-250 review run 1, n20: a bare mid-test `! grep` cannot fail
-    run ! grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"
-    run ! grep -rq 'implement_gate' "$REPO/docs" "$REPO/README.md"
+    run -1 grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"
+    run -1 grep -rq 'implement_gate' "$REPO/docs" "$REPO/README.md"
 }

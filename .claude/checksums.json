@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-06T09:07:36Z",
+  "generated": "2026-10-06T09:52:55Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1239,7 +1239,7 @@
     ".claude/scripts/check-feedback-status.sh": "fac822bc2db16b901432eb470d8721186b42b55f1a0f028e43d7f0458b0c436a",
     ".claude/scripts/check-installer-safety.sh": "8123ad37c2ebfa8067cc3a9777861e48fafa482de14e2ef364919d5b9e8e23f7",
     ".claude/scripts/check-loa.sh": "692eb317837c9b47ca3fb4a0fc517030f523cfa2abcfdc9b97640ba0bc1fab05",
-    ".claude/scripts/check-permissions.sh": "5c51276210465e909d7deabfc5abac4b5b3ec411f81c99955bb43fc4c9e2e6a1",
+    ".claude/scripts/check-permissions.sh": "0fa9cf5a5f6798ffd9c15c74671aaf2e4b3900a98fac7e001326b937e3441a51",
     ".claude/scripts/check-prerequisites.sh": "b5a9194f76f5f9f15e4e632cba9b63a741e8b28f5ad7b86722c086a067c46cbc",
     ".claude/scripts/check-proposal-status.sh": "ed7ae56f80e6f97a30bdbcb14aa6bfd3719acde558a8f1e55852a2ea646a8e02",
     ".claude/scripts/check-reality-freshness.sh": "f6cb4465e5b2d1e148248986f984c0b39fcca8b52c749b637e67dcee4f400b49",
@@ -1452,7 +1452,7 @@
     ".claude/scripts/migrate-skill-names.sh": "ec2e622bd109c29331c795f49aae1b49601fec1b8fe3c433142c6a9298325754",
     ".claude/scripts/migrate-skill-roles.sh": "a6e36e4e2bc5bc50c6420bdf95a8d3bc195055ba488ea365c1ecb43375dfc615",
     ".claude/scripts/migrate-state-layout.sh": "989e17bb85e027bdcbff097b200a5baf24bf63de44c9cfdd0b59eb24a97fbfdd",
-    ".claude/scripts/model-adapter.sh": "699f230160371362297f4ea32e4c7eb813cb37f92c4bfcf90ccc1c5d474248dd",
+    ".claude/scripts/model-adapter.sh": "33304291b42aa9c40985872d2ee6dae3c158a9992b14d31e78e6b8cbf71b9cdd",
     ".claude/scripts/model-health-probe.sh": "d3604c432ed833b77110b2af61ca7c17bc56150795a56dc2e3b6eb115e07bb96",
     ".claude/scripts/model-invoke": "73d62c1bc0616131d7a7d96cf36676912e75464522e2d1c8508a44ae3046cdcb",
     ".claude/scripts/mount-conflict-detect.sh": "05c40b3e9cd71041334bbd6b616a96dcba76b99f211f77e4f8179e362e4864bc",
@@ -3024,7 +3024,7 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/rating-stdin.test.ts": "3d1fd55534bd8f75795dc155ebe4c3423f7c98da4ae6cdf5eff8eb85aae514a3",
     ".claude/skills/bridgebuilder-review/resources/__tests__/rating.test.ts": "0a6af69e433d87789e72a8bc932c6ec479bb702dc0dd4c68ceba218f4f406b12",
     ".claude/skills/bridgebuilder-review/resources/__tests__/review-verdict.test.ts": "fb7e0f01d0cf96a69d76105d679113ef256a072b2e4ab946602abcdd48a82b76",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts": "b5d08beda95317bea49d0f1ca55c52da777edb368f154724bd4462b103406857",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts": "66f9508bf22e889c0b20d87c6c856b3c7dc625a7e90c92146415707ded95de86",
     ".claude/skills/bridgebuilder-review/resources/__tests__/sanitizer.test.ts": "1a5354b7a2c39790cf836b7663dfcf87c2e7cb117b92a14614ee0ff53d082eee",
     ".claude/skills/bridgebuilder-review/resources/__tests__/schemas.test.ts": "001bd3f5b955b72c6eca6ab404afcfba0a4a895d3277e6da9e530ebf481bbe44",
     ".claude/skills/bridgebuilder-review/resources/__tests__/scoring.test.ts": "f801c125b27a9b59ba00797b1c93e3fb8cc077210a072ed840e83879efeba280",

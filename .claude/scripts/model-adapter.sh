@@ -145,6 +145,13 @@ error() {
     echo "ERROR: $*" >&2
 }
 
+# _trap_body "<trap -p output>" — the handler text of a `trap -- '<body>' SIG`
+# line (trap -p quotes it for re-input), so a new handler can chain it.
+_trap_body() {
+    eval "set -- $1"
+    printf '%s' "${3:-}"
+}
+
 # =============================================================================
 # Probe-cache integration (Sprint 3B Task 3B.7 — SDD §5.1 row 4-5, §6.2)
 # =============================================================================
@@ -654,16 +661,21 @@ main() {
     # WARN, which is the operator-facing half of that mitigation (bd-pw7e LOW-001).
     # An unusable TMPDIR must not abort the call: without a temp file stderr is
     # discarded as before; the EXIT trap removes the file on a caller's TERM too
-    # (sprint-250 review run 1, n15).
-    local result exit_code=0 err_file=""
+    # (sprint-250 review run 1, n15). It chains any EXIT trap already set and
+    # restores it afterwards, never clearing it (sprint-250 review run 2, #6);
+    # the fallback says so on stderr (run 2, #7).
+    local result exit_code=0 err_file="" prev_exit_trap="" prev_exit_body=""
     err_file="$(mktemp "${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX" 2>/dev/null)" || err_file=""
     if [[ -n "$err_file" ]]; then
-        trap 'rm -f -- "$err_file"' EXIT
+        prev_exit_trap="$(trap -p EXIT)"
+        [[ -n "$prev_exit_trap" ]] && prev_exit_body="$(_trap_body "$prev_exit_trap")"
+        trap 'rm -f -- "$err_file"'"${prev_exit_body:+; $prev_exit_body}" EXIT
         result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>"$err_file") || exit_code=$?
         grep -F -- 'gemini-headless dispatches agy' "$err_file" | cut -c1-600 >&2 || :
         rm -f -- "$err_file"
-        trap - EXIT
+        if [[ -n "$prev_exit_trap" ]]; then eval "$prev_exit_trap"; else trap - EXIT; fi
     else
+        echo "WARN: model-adapter: stderr capture disabled (mktemp failed under ${TMPDIR:-/tmp}); the agy argv-exposure WARN will not be relayed" >&2
         result=$("$MODEL_INVOKE" "${invoke_args[@]}" 2>/dev/null) || exit_code=$?
     fi
 

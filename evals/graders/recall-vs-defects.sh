@@ -27,6 +27,12 @@
 # continuation or range stays on its line, and a continuation must end at a
 # number boundary (no dates);
 # a path containing `//` (a URL) is not a citation.
+# Run 2 (#11/#13-#15): a match inside any URL token (`scheme://...`) is not a
+# citation; a range dash is unspaced and every number (first, continuation,
+# bare) ends at a boundary (no further `-N` / `–N`: no dates); the
+# quote/bracket guard applies only to the fully bare `:N` (plus a closing
+# backtick), so `"head:40"` binds as in 1.1.0; one trailer pattern strips and
+# reads the LOA-VERDICT comment and never crosses another comment's bounds.
 #
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
@@ -76,20 +82,37 @@ text = open(review_path, encoding="utf-8", errors="replace").read()
 # optional trailing range keeps `file.py:10-14` in one token, and the comma
 # list after it (`:776,807`) belongs to the same path. A bare `:N` (or
 # `head:N` / `base:N`) not glued to a word binds to the most recent path.
-RNG = r'(\d{1,6})(?:[ \t]*[-–][ \t]*(\d{1,6}))?'
+# a range dash is unspaced (`a.sh:12 - 40 rows` is prose, not a range) and
+# every number ends at a boundary: no letter or digit, and no hyphen / en dash
+# before another digit, after it (dates such as 2026-10-05 / 2026–10–05 never
+# parse; an open `:369-...` still cites 369) — sprint-250 review run 2, #13
+RNG = r'(\d{1,6})(?:[-–](\d{1,6}))?(?![A-Za-z0-9]|[-–]\d)'
 CITE = re.compile(
     r'(?P<path>[A-Za-z0-9_./+()-]+\.[A-Za-z0-9]{1,6})[`*)]{0,3}:(?P<first>' + RNG
-    + r'(?:[ \t]*,[ \t]*' + RNG + r'(?![A-Za-z0-9-]))*)'
-    r'|(?:(?<![A-Za-z0-9_./:"\'{}\[\]*])(?:head|base)|(?<![A-Za-z0-9_./:"\'{}\[\]*])):(?P<bare>' + RNG + r')(?![A-Za-z0-9])')
+    + r'(?:[ \t]*,[ \t]*' + RNG + r')*)'
+    # head:N / base:N keep the 1.1.0 boundary set ("head:40" binds); the JSON
+    # punctuation set, plus a CLOSING backtick (one after a token character:
+    # `rows`:40, `"high"`:3), guards only the fully bare :N — an opening
+    # backtick (`:7`, (`:212`)) still binds (RG-13) — run 2, #14
+    r'|(?:(?<![A-Za-z0-9_./:])(?:head|base)|(?<![A-Za-z0-9_./:"\'{}\[\]*])(?<![A-Za-z0-9_"\'}\]]`)):(?P<bare>' + RNG + r')')
 ONE = re.compile(RNG)
 cites = []
 last = None
-# the trailer is machine output (its counts are read below), never a citation
-body = re.sub(r'<!--\s*LOA-VERDICT.*?-->', '', text, flags=re.S)
+# the trailer is machine output (its counts are read below), never a citation.
+# One pattern strips and reads it (tolerant whitespace, line breaks); the body
+# may not contain another comment's `<!--` or `-->`, so an unterminated
+# `<!-- LOA-VERDICT` strips nothing — sprint-250 review run 2, #15
+TRAILER = re.compile(r'<!--\s*LOA-VERDICT\s*(\{(?:(?!<!--|-->).)*\})\s*-->', re.S)
+body = TRAILER.sub('', text)
+URL = re.compile(r'[A-Za-z][A-Za-z0-9+.-]*://|^//')
 for m in CITE.finditer(body):
     if m.group("path") is not None:
-        if "//" in m.group("path"):
-            continue          # a URL (https://h/x.js:8080, //host.com:8080), not a path
+        # a URL (https://h/x.js:8080, //host.com:8080) is not a path, nor is a
+        # partial match that starts later inside the URL token
+        # (https://u@h.com/x.js:8080 matches `h.com/x.js`) — run 2, #11
+        tok = re.search(r'\S*$', body[max(0, m.start() - 4096):m.start()]).group(0) + m.group("path")
+        if "//" in m.group("path") or URL.search(tok):
+            continue
         p = m.group("path").lstrip("(")
         if p.startswith("./"):
             p = p[2:]
@@ -123,7 +146,7 @@ recall = round(len(detected) / planted, 4) if planted else None
 
 # trailer → severity counts (false positives on clean fixtures)
 sev = None
-tm = re.search(r'<!-- LOA-VERDICT (\{.*\}) -->', text)
+tm = TRAILER.search(text)
 if tm:
     try:
         sev = json.loads(tm.group(1)).get("counts")

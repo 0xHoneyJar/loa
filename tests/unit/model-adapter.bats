@@ -106,6 +106,9 @@ SHIM
     [ -s "$TMP_DIR/argv" ]
     [[ "$output" == *"ok"* ]]
     [ -c /dev/null ]   # the fallback never removes /dev/null
+    # the degraded mode is visible: one WARN line names the lost relay (sprint-250 review run 2, #7)
+    [[ "$stderr" == *"WARN: model-adapter: stderr capture disabled"*"agy argv-exposure WARN will not be relayed"* ]]
+    [ "$(grep -c 'stderr capture disabled' <<<"$stderr")" -eq 1 ]
 }
 
 @test "MA-8 (sprint-250 review run 1, n15) a caller's TERM mid-call leaves no model-adapter-stderr file behind" {
@@ -125,6 +128,27 @@ SHIM
     kill -TERM "$pid"
     wait "$pid" || true
     kill "$(cat "$TMP_DIR/started")" 2>/dev/null || true   # the orphaned shim sleep
+    run compgen -G "$priv/model-adapter-stderr.*"
+    [ "$status" -ne 0 ] || { echo "left behind: $output" >&2; return 1; }
+}
+
+@test "MA-9 (sprint-250 review run 2, #6) the stderr-file EXIT trap never clobbers or removes an EXIT trap already set" {
+    cat > "$TMP_DIR/mi" <<SHIM
+#!/usr/bin/env bash
+printf '%s\n' '{"content": "ok", "model": "stub", "provider": "stub", "usage": {"input_tokens": 1, "output_tokens": 1}, "latency_ms": 1}'
+exit "\${MI_EXIT:-0}"
+SHIM
+    chmod +x "$TMP_DIR/mi"
+    local priv="$TMP_DIR/priv-tmp"; mkdir -p "$priv"
+    # sourced, so a prior EXIT trap exists when main() runs; success path
+    TMPDIR="$priv" MODEL_INVOKE="$TMP_DIR/mi" run --separate-stderr bash -c 'trap "echo PRIOR-EXIT-RAN >&2" EXIT; source "$1" --model opus --mode review --input "$2"' _ "$ADAPTER" "$TMP_DIR/input.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ok"* ]]
+    [[ "$stderr" == *"PRIOR-EXIT-RAN"* ]]
+    # failure path: main() exits while the stderr file is live — both handlers run
+    MI_EXIT=3 TMPDIR="$priv" MODEL_INVOKE="$TMP_DIR/mi" run --separate-stderr bash -c 'trap "echo PRIOR-EXIT-RAN >&2" EXIT; source "$1" --model opus --mode review --input "$2"' _ "$ADAPTER" "$TMP_DIR/input.txt"
+    [ "$status" -eq 3 ]
+    [[ "$stderr" == *"PRIOR-EXIT-RAN"* ]]
     run compgen -G "$priv/model-adapter-stderr.*"
     [ "$status" -ne 0 ] || { echo "left behind: $output" >&2; return 1; }
 }

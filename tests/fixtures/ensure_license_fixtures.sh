@@ -47,16 +47,17 @@ if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
     # expires_at (30 days) and grace_period_license.json's
     # offline_valid_until (12 hours — the tightest, so it goes stale first).
     # Any closed or unparseable window regenerates the whole set, and so does
-    # one closing within 300 s: a window that closes mid-suite is as stale
-    # (sprint-250 review run 1, n39).
-    _elf_future() {  # <file> <field> — exit 0 iff the ISO-8601 Z timestamp is > now + 300 s
+    # one closing within 3600 s: a window that closes mid-suite is as stale
+    # (sprint-250 review run 1, n39; run 2, #8 — the full unit run takes
+    # ~38 min, and the 12 h window makes the extra regenerations negligible).
+    _elf_future() {  # <file> <field> — exit 0 iff the ISO-8601 Z timestamp is > now + 3600 s
         local ts epoch
         ts="$(grep -oE "\"$2\"[[:space:]]*:[[:space:]]*\"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z\"" "$1" 2>/dev/null \
               | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z' | head -1)"
         [[ -n "$ts" ]] || return 1
         epoch="$(date -u -d "$ts" +%s 2>/dev/null \
                  || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || echo 0)"
-        [[ "${epoch:-0}" -gt $(( $(date -u +%s) + 300 )) ]]
+        [[ "${epoch:-0}" -gt $(( $(date -u +%s) + 3600 )) ]]
     }
     if _elf_future "$_ELF_DIR/valid_license.json" expires_at \
        && _elf_future "$_ELF_DIR/grace_period_license.json" offline_valid_until; then

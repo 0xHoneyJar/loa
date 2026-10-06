@@ -1703,6 +1703,15 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
     patch: "@@ -1,1 +1,400 @@\n" + Array.from({ length: 400 }, () => "+" + "x".repeat(49)).join("\n"),
   }));
   const CEILING = 160_000; // GENERATED_TOKEN_BUDGETS["claude-opus-5-5"].maxInput
+  const PASS1_FINDINGS = [
+    "<!-- bridge-findings-start -->",
+    "```json",
+    JSON.stringify({ schema_version: 1, findings: [
+      { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "src/mod0.ts:1", description: "d", suggestion: "s" },
+    ] }),
+    "```",
+    "<!-- bridge-findings-end -->",
+  ].join("\n");
 
   function promptTokens(p: { systemPrompt: string; userPrompt: string }): number {
     return Math.ceil(p.systemPrompt.length * 0.25) + Math.ceil(p.userPrompt.length * 0.25);
@@ -1733,12 +1742,12 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
           llm: {
             generateReview: async (req) => {
               sent.push(promptTokens(req));
-              return {
-                content: "## Summary\nGood PR.\n\n## Findings\n- No issues found.\n\n## Callouts\n- Clean code.",
-                inputTokens: 100,
-                outputTokens: 50,
-                model: "test-model",
-              };
+              // two-pass: Pass 1 returns findings JSON so Pass 2 (enrichment)
+              // really runs and its payload is measured too (sprint-250 review run 2, #3)
+              const content = reviewMode === "two-pass" && sent.length === 1
+                ? PASS1_FINDINGS
+                : "## Summary\nGood PR.\n\n## Findings\n- No issues found.\n\n## Callouts\n- Clean code.";
+              return { content, inputTokens: 100, outputTokens: 50, model: "test-model" };
             },
           },
           logger,
@@ -1746,8 +1755,9 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
         await pipeline.run(`run-clamp-${model}-${reviewMode}`);
         // the fixture really lands in the 160–200K window
         assert.ok(estimate > CEILING && estimate < 200_000, `fixture estimate ${estimate} outside (160K, 200K)`);
-        assert.ok(sent.length > 0, "expected at least one LLM call");
-        assert.ok(sent[0] <= CEILING, `first LLM call carried ~${sent[0]} tokens > ${CEILING}`);
+        assert.equal(sent.length, reviewMode === "two-pass" ? 2 : 1, `LLM calls: ${sent.join(", ")}`);
+        // every call (Pass 1 and Pass 2), not just the first, stays under the ceiling
+        assert.ok(sent.every((t) => t <= CEILING), `an LLM call exceeded ${CEILING}: ${sent.join(", ")}`);
       });
     }
   }

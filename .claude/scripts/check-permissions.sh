@@ -158,7 +158,8 @@ warn() {
 }
 
 # rule_key <rule> — sets RULE_KEY to "*<body>" for a wildcard rule, "=<body>" for
-# an exact one, "ALL" for a universal one (bare Bash or Bash(*)); returns 1 for
+# an exact one, "ALL" for a universal one (bare Bash, Bash(*), or the empty
+# prefix Bash(:*), which matches every command — sprint-250 review run 2, #9); returns 1 for
 # anything that is not Bash or Bash(...). Pure parameter
 # expansion: the checker runs on every preflight against hundreds of rules.
 RULE_KEY=""
@@ -172,7 +173,7 @@ rule_key() {
     RULE_KEY="ALL"
   elif [[ "$b" == *":*" || "$b" == *" *" ]]; then
     b="${b%??}"; b="${b%"${b##*[![:space:]]}"}"
-    RULE_KEY="*$b"
+    if [[ -z "$b" ]]; then RULE_KEY="ALL"; else RULE_KEY="*$b"; fi
   else
     RULE_KEY="=$b"
   fi

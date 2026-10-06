@@ -230,3 +230,76 @@ JSON
   [ "$(echo "$output" | jq -r '.details.citations')" = "0" ]
   [ "$(echo "$output" | jq -r '.details.false_positives')" = "0" ]
 }
+
+@test "RG-21 a path inside a URL is not a citation, even where the match starts after the scheme (sprint-250 review run 2, #11)" {
+  # `@`/`~`/`%` split the path class, so a later partial match carries no `//`
+  printf 'see https://user@example.com/x.js:8080 and https://example.com/~u/c.sh:7 and https://h.io/%%7Ec.sh:7\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-clean
+  [ "$(echo "$output" | jq -r '.details.citations')" = "0" ]
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'see https://example.com/x.js:8080, then c.sh:7 returns early'   # a real path after a URL still binds
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+}
+
+@test "RG-22 a range is unspaced and ends at a number boundary (ASCII hyphen or en dash): a.sh:12 - 40 rows and dates credit nothing (sprint-250 review run 2, #13)" {
+  review 'a.sh:12 - 40 rows were dropped'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'a.sh:12-2026-10-05 is when it landed'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'a.sh:12, 2026–10–05 is when it landed'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'a.sh:12–2026–10–05 is when it landed'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'c.sh:100 is odd, and :1-2026-10-05 too'   # the bare branch as well
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'a.sh:40-... is open-ended'   # a dash before a non-digit still cites 40
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+  review 'a.sh:12-40 and a.sh:12–40 are ranges'   # RG-3 behaviour kept
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D1" ]
+}
+
+@test "RG-23 a quoted or bracketed head:N binds as in 1.1.0; a bare :N after a closing backtick credits nothing (sprint-250 review run 2, #14)" {
+  review 'c.sh:100 is odd, and "head:7" too'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  review 'c.sh:100 is odd, and [head:7] too'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  review 'c.sh:100 is odd; `rows`:7 is a field'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'c.sh:100 is odd; `"high"`:7 is JSON'
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+  review 'c.sh:100 is odd, then `:7` returns early'   # RG-13: an opening backtick still binds
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  review 'c.sh:100 is odd, then the guard (`:7`) returns early'   # after ( or [ too
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+}
+
+@test "RG-24 one trailer pattern strips and reads: tolerant whitespace and line breaks; an unterminated trailer swallows nothing (sprint-250 review run 2, #15)" {
+  printf 'b.py:1 is a nit\n\n<!--LOA-VERDICT  {"gate":"review","verdict":"APPROVED",\n "counts":{"critical":0,"high":0,"medium":0,"low":0}}\n-->\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-clean
+  [ "$(echo "$output" | jq -r '.details.severity_counts.high')" = "0" ]
+  [ "$(echo "$output" | jq -r '.details.false_positives')" = "0" ]
+  [ "$(echo "$output" | jq -r '.details.citations')" = "1" ]
+  # an unterminated trailer must not eat the citations after it up to a later comment's -->
+  printf '<!-- LOA-VERDICT {broken\nc.sh:7 returns early\n<!-- note -->\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  # the strip stops at the trailer's own -->
+  printf '<!-- LOA-VERDICT {"counts":{"critical":0,"high":0}} --> c.sh:7 returns early -->\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+}

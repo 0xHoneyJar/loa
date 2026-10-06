@@ -50,14 +50,16 @@ PY
     [ "$(cksum < "$WORK/grace_period_license.json")" = "$before" ]
 }
 
-@test "LFF-3: a grace fixture that expires within the margin (now + 60 s) is regenerated, not trusted to outlive the suite" {
+@test "LFF-3: a grace fixture that expires within the margin (now + 30 min) is regenerated, not trusted to outlive the suite" {
     # sprint-250 review run 1, n39: a zero-margin check passed a window closing
-    # seconds later, and the fixture then expired mid-suite.
+    # seconds later, and the fixture then expired mid-suite. Run 2, #8: the
+    # margin is 3600 s (the full unit run takes ~38 min), so a window closing
+    # in 30 minutes — past the old 300 s margin — is regenerated too.
     python3 - "$WORK/grace_period_license.json" <<'PY'
 import json, sys, datetime as dt
 p = sys.argv[1]
 d = json.load(open(p))
-d["offline_valid_until"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
+d["offline_valid_until"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
 json.dump(d, open(p, "w"))
 PY
     local soon; soon="$(_offline_until "$WORK/grace_period_license.json")"
