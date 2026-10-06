@@ -81,12 +81,13 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
-| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 1 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 2 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 2 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 9 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
+| [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
 
 ---
 
@@ -1488,7 +1489,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 **Feature**: release pipeline tests
 **Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
 **First observed**: 2026-09-23 (cycle-124 rc prep)
-**Recurrence count**: 1
+**Recurrence count**: 2
 **Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
 **Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
 **Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
@@ -1498,6 +1499,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-09-23 | Re-ran the suite with GIT_CONFIG_GLOBAL=/dev/null while landing sprint-bug-240 | 22/22 green; host config confirmed as the cause | commit 2018c320 (PR #1266); grimoires/loa/a2a/bug-20260923-27d899/auditor-sprint-feedback.md obs 3 |
+| 2026-10-06 | cycle-126 sprint-250 Task 4.7 full tests/unit run at bf988a43: the same setup() red (creating the v1.0.0 lightweight tag fails: 'fatal: no tag message?') also hits tests/unit/semver-evidence.bats (3 cases), alongside post-merge-publication (22); classified pre-existing, not re-attempted | recurred — the class spans every suite that creates lightweight tags in a scratch repo under the operator's global tag config; no fix attempted this cycle | commit bf988a43 (run 2026-10-06T05:40Z–06:18Z, 6214 tests, 42 failures) |
 
 ### Reading guide
 
@@ -1621,3 +1623,24 @@ Not KF-013 (an auth-mode env var) and not KF-037 (a claude -p timeout under cont
 ### Reading guide
 
 Not a timeout or rate limit (KF-037/KF-038): an immediate failure with Errno 7 means argv size. Check the adapter sends large prompts on stdin; do not retry the same chunk unchanged.
+
+## KF-040: Subscription claude -p hop refused with a geo 400 ('unsupported countries, regions, or territories'); claude-fallback does not fall back
+
+**Status**: OPEN — environmental (host network egress); Bedrock route unaffected
+**Feature**: cheval claude-headless adapter / ~/.local/bin/claude-fallback
+**Symptom**: cheval PROVIDER_UNAVAILABLE then RETRIES_EXHAUSTED (retryable false) after 1 attempt: claude -p failed (exit 1): API Error: 400 Access to Anthropic models is not allowed from unsupported countries, regions, or territories (api_status=400). Same result through claude-fallback.
+**First observed**: 2026-10-06T06:35Z, cycle-126 sprint-250 E2E G-1
+**Recurrence count**: 1
+**Current workaround**: Route the hop through ~/.local/bin/claude-bedrock (CLAUDE_HEADLESS_BIN); the same 913 KB call then succeeded (exit 0, 415,028 input tokens).
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-06 | G-1 attempt 1 (bare subscription CLI), attempt 2 (claude-fallback), attempt 3 (claude-bedrock) | 1 and 2 geo 400 in about 10 s; 3 succeeded | commit fd8aaae3; a2a/sprint-250/e2e/g1-real-call.txt; MODELINV ts 2026-10-06T06:41:11Z |
+
+### Reading guide
+
+Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry or raise retry counts. claude-fallback switches to Bedrock only on usage-limit text, so a geo refusal passes straight through; check the host's network egress (VPN/region) first, and use claude-bedrock for the run. Whether claude-fallback should also fall back on this 400 is the operator's call (it is a dotfile wrapper, outside the repo).
