@@ -177,10 +177,10 @@ JSON
   done
 }
 
-@test "RG-17 grader_version is 1.1.1 (the bd-ewrc parser, sprint-250 hardening); the manifest corpus checksum list matches the manifests" {
+@test "RG-17 grader_version is 1.1.2 (the bd-ewrc parser, sprint-250 hardening through review run 3); the manifest corpus checksum list matches the manifests" {
   review 'a.sh:40'
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.1" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.2" ]
   ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
 }
 
@@ -302,4 +302,27 @@ JSON
   printf '<!-- LOA-VERDICT {"counts":{"critical":0,"high":0}} --> c.sh:7 returns early -->\n' > "$WS/review.md"
   run "$GRADER" "$WS" pr-x
   [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+}
+
+# --- sprint-250 review run 3: the URL-token look-back is one linear split ---
+@test "RG-25 a line-leading citation after a line ending in a URL binds (LF, CRLF, tab); the URL token never crosses whitespace (sprint-250 review run 3, #1)" {
+  printf 'see https://example.com/pr/1\nc.sh:7 returns early\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  printf 'see https://example.com/pr/1\r\nc.sh:7 returns early\r\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  printf 'see https://example.com/pr/1\tc.sh:7 returns early\n' > "$WS/review.md"
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | join(",")')" = "D3" ]
+  printf 'see\nhttps://example.com/~u/c.sh:7\n' > "$WS/review.md"   # a line-leading URL is still a URL
+  run "$GRADER" "$WS" pr-x
+  [ "$(echo "$output" | jq -r '.details.detected | length')" = "0" ]
+}
+
+@test "RG-26 the look-back is linear: a 4,000-char unbroken token before 400 citations grades in under 3 s (sprint-250 review run 3, #1)" {
+  python3 -c "import sys; sys.stdout.write('x' * 4000 + ' ' + ' '.join('c.sh:%d' % i for i in range(1, 401)) + '\n')" > "$WS/review.md"
+  run timeout 3 "$GRADER" "$WS" pr-clean
+  [ "$status" -ne 124 ]
+  [ "$(echo "$output" | jq -r '.details.citations')" = "400" ]
 }

@@ -152,3 +152,27 @@ SHIM
     run compgen -G "$priv/model-adapter-stderr.*"
     [ "$status" -ne 0 ] || { echo "left behind: $output" >&2; return 1; }
 }
+
+@test "MA-10 (sprint-250 review run 3, #4) a TERM while the chained EXIT trap is installed runs both halves: the stderr file goes and the prior handler runs" {
+    # MA-9's failure path exits after the prior trap is restored, so only this
+    # case exercises the chained handler itself
+    local priv="$TMP_DIR/priv-tmp" marker="$TMP_DIR/prior-ran" pid
+    mkdir -p "$priv"
+    cat > "$TMP_DIR/mi" <<SHIM
+#!/usr/bin/env bash
+echo "\$\$" > "$TMP_DIR/started"
+exec sleep 20
+SHIM
+    chmod +x "$TMP_DIR/mi"
+    TMPDIR="$priv" MODEL_INVOKE="$TMP_DIR/mi" bash -c 'trap "echo PRIOR-EXIT-RAN > \"$3\"" EXIT; source "$1" --model opus --mode review --input "$2"' _ "$ADAPTER" "$TMP_DIR/input.txt" "$marker" >/dev/null 2>&1 &
+    pid=$!
+    for _ in $(seq 1 100); do [ -e "$TMP_DIR/started" ] && break; sleep 0.1; done
+    [ -e "$TMP_DIR/started" ]
+    compgen -G "$priv/model-adapter-stderr.*" >/dev/null   # the chained trap is live
+    kill -TERM "$pid"
+    wait "$pid" || true
+    kill "$(cat "$TMP_DIR/started")" 2>/dev/null || true   # the orphaned shim sleep
+    run compgen -G "$priv/model-adapter-stderr.*"
+    [ "$status" -ne 0 ] || { echo "left behind: $output" >&2; return 1; }
+    [ "$(cat "$marker")" = "PRIOR-EXIT-RAN" ]
+}

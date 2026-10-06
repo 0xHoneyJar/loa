@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-06T09:52:55Z",
+  "generated": "2026-10-06T10:25:35Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -1239,7 +1239,7 @@
     ".claude/scripts/check-feedback-status.sh": "fac822bc2db16b901432eb470d8721186b42b55f1a0f028e43d7f0458b0c436a",
     ".claude/scripts/check-installer-safety.sh": "8123ad37c2ebfa8067cc3a9777861e48fafa482de14e2ef364919d5b9e8e23f7",
     ".claude/scripts/check-loa.sh": "692eb317837c9b47ca3fb4a0fc517030f523cfa2abcfdc9b97640ba0bc1fab05",
-    ".claude/scripts/check-permissions.sh": "0fa9cf5a5f6798ffd9c15c74671aaf2e4b3900a98fac7e001326b937e3441a51",
+    ".claude/scripts/check-permissions.sh": "0718314a6cc61fb87e0387274cdeed47ecf7554b185ec680fa4851b8f21984a3",
     ".claude/scripts/check-prerequisites.sh": "b5a9194f76f5f9f15e4e632cba9b63a741e8b28f5ad7b86722c086a067c46cbc",
     ".claude/scripts/check-proposal-status.sh": "ed7ae56f80e6f97a30bdbcb14aa6bfd3719acde558a8f1e55852a2ea646a8e02",
     ".claude/scripts/check-reality-freshness.sh": "f6cb4465e5b2d1e148248986f984c0b39fcca8b52c749b637e67dcee4f400b49",

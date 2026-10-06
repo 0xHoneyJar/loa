@@ -23,9 +23,10 @@ set -euo pipefail
 #   requirement's first word, so Bash(git push *) and Bash(git:*) both cover
 #   Bash(git push:*). The same test applies to allow and to deny: a narrower deny
 #   such as Bash(rm -rf /:*) or an exact Bash(git push) does not deny the generic
-#   requirement. A universal rule (bare Bash, or Bash(*) after trimming) covers
-#   every Bash requirement: a universal allow satisfies each one, a universal deny
-#   denies each one (sprint-250 review run 1, n29).
+#   requirement. A universal rule (bare Bash, Bash(*) after trimming, or the empty
+#   prefix Bash(:*)) covers every Bash requirement: a universal allow satisfies each
+#   one, a universal deny denies each one (sprint-250 review run 1, n29; Bash(:*)
+#   named here in sprint-250 review run 3).
 #
 # Usage:
 #   check-permissions.sh                 Check all permissions (text report)

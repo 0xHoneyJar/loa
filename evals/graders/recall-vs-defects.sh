@@ -33,6 +33,9 @@
 # quote/bracket guard applies only to the fully bare `:N` (plus a closing
 # backtick), so `"head:40"` binds as in 1.1.0; one trailer pattern strips and
 # reads the LOA-VERDICT comment and never crosses another comment's bounds.
+# Parser 1.1.2 (the run 2 changes above, plus sprint-250 review run 3): the
+# URL look-back takes the text after the last whitespace — one linear split —
+# so a citation that opens a line never inherits the previous line's URL.
 #
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
@@ -55,7 +58,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.1"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.2"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -67,7 +70,7 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.1"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.2"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
@@ -110,7 +113,11 @@ for m in CITE.finditer(body):
         # a URL (https://h/x.js:8080, //host.com:8080) is not a path, nor is a
         # partial match that starts later inside the URL token
         # (https://u@h.com/x.js:8080 matches `h.com/x.js`) — run 2, #11
-        tok = re.search(r'\S*$', body[max(0, m.start() - 4096):m.start()]).group(0) + m.group("path")
+        # the token so far is the window's text after its last whitespace —
+        # one linear split ("" when the window ends in whitespace); `\S*$`
+        # also matched before a final newline, so a line-leading citation
+        # inherited the previous line's URL, and was O(k^2) — run 3
+        tok = re.split(r'\s', body[max(0, m.start() - 4096):m.start()])[-1] + m.group("path")
         if "//" in m.group("path") or URL.search(tok):
             continue
         p = m.group("path").lstrip("(")
@@ -188,7 +195,7 @@ out = {
         "false_positives": false_positives, "severity_counts": sev,
         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
     },
-    "grader_version": "1.1.1",
+    "grader_version": "1.1.2",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)
