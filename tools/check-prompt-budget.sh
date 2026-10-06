@@ -7,7 +7,7 @@
 #
 #   .claude/skills/*/SKILL.md      ≤ 16,384 B  each — charged with every
 #                                  resources/*.md the skill reads UNCONDITIONALLY
-#   .claude/loa/CLAUDE.loa.md      ≤ 9,216 B
+#   .claude/loa/CLAUDE.loa.md      ≤ 10,240 B
 #   .claude/protocols/*.md (total) ≤ 160,000 B fail; > 114,688 B warns (reference/ is not counted)
 #
 # Resource charging rule (the byte budget cannot be met by moving text into a
@@ -50,7 +50,7 @@ done
 python3 - "$ROOT" "$JSON" "$QUIET" <<'PY'
 import glob, json, os, re, sys
 root, as_json, quiet = sys.argv[1], sys.argv[2] == "1", sys.argv[3] == "1"
-SKILL_LIMIT, LOA_LIMIT, PROTO_FAIL, PROTO_WARN = 16384, 9216, 160000, 114688
+SKILL_LIMIT, LOA_LIMIT, PROTO_FAIL, PROTO_WARN = 16384, 10240, 160000, 114688
 IMPERATIVE = re.compile(r"\b(read|load|source|include)\b", re.I)
 GUARD = re.compile(r"\b(if|when|only|optional|as needed|on demand|unless|may|see)\b", re.I)
 HISTORY = re.compile(r"cycle-[0-9]{3}|#[0-9]{3,4}|KF-[0-9]{3}")

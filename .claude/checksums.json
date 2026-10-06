@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-06T03:19:04Z",
+  "generated": "2026-10-06T04:29:36Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -847,7 +847,7 @@
     ".claude/data/attack-surfaces.yaml": "7b55f74bc7e3a5eac9f56b979a65ed40ab470ee6763211d1fc6a1d97098d260e",
     ".claude/data/audit-retention-policy.yaml": "d4942a41345c73c2532ff16b69b933ac7f2a9d476ed7756b9a8d9f8d5cd159c5",
     ".claude/data/bridgebuilder-persona.md": "5d2f48d157aab5d94c1ec3c64b49a3b157189be2e73118d83cd90336393523e5",
-    ".claude/data/constraints.json": "ebe6c58425514ae2cc4a6eac2a149470223c4a77f271f8216cc586fafba686db",
+    ".claude/data/constraints.json": "8408e36ff377a40e6142c40d65cc1f7bcc2d5859f0f2d1b4957388e0b3f840d5",
     ".claude/data/core-skills.json": "0da6f666b640b4fe96669d8c1ab11938b15edd4ace4a6071cc671d580b3018b8",
     ".claude/data/cycle-108/modelinv-writer-version": "b6403da9b22abe355ad17208a336e658322c5d1d7ff646ca7b9229237ba4aef4",
     ".claude/data/design-review-prompt.md": "5fb5c7f4d098360c142e9a2963fd66569ea8725aff7838b165747a24a71f75d5",
@@ -1072,7 +1072,7 @@
     ".claude/lib/sync/wal-pruner.ts": "ac3c61dd1dc7aa709e1e7c0ad81b685a773abc3def22463c0def16cf947c223a",
     ".claude/lib/testing/consumer-harness.ts": "5fffe418f3694f6a768bb942b2ce2481de039311ca921e3563e383720a8dbe34",
     ".claude/lib/testing/fake-clock.ts": "1589920167f252b628c8c578fce4118287a5c906d4b2dc3bba2d4ed772470017",
-    ".claude/loa/CLAUDE.loa.md": "4cdb4a6fed9ab57e66a3a60b32263eba67908b13c679c0d363264d7634507bd7",
+    ".claude/loa/CLAUDE.loa.md": "3711cda717409feb5bbf2148aea3e139299618b2e4fa4774af67ee8a692a734b",
     ".claude/loa/feedback-ontology.yaml": "1d9fb5eec23e1ab26dd2ca7df3b6000f1a568d2fc6167e384ab3f1a2a943d04c",
     ".claude/loa/learnings/additional-extraction.json": "5d86db035cc579efbea6e59f924a9558fc7df6b8a17f6fa4465547a82e0a3c8c",
     ".claude/loa/learnings/anti-patterns.json": "c84ce36e19587d41b3612d8d9b834e117bb16895fcb43d08cf3eb834826751b4",
