@@ -12,6 +12,12 @@
 // v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
 // gate instead of dispatching what exit 7 would reject), else context_window.
 //
+// GENERATED_MODEL_ALIASES maps the catalog's `aliases:` block to bare model
+// ids (provider-qualified targets only; self-maps dropped) so an alias such as
+// `opus` gets its target's budget. An operator alias overlay in
+// .loa.config.yaml is NOT reflected — pin a concrete model or set
+// max_input_tokens (cycle-126 sprint-250).
+//
 // cycle-099 sprint-1 (T1.1). See SDD §1.4.3 + §5.3.
 export const GENERATED_TOKEN_BUDGETS = {
     "claude-fable-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
@@ -47,5 +53,25 @@ export const GENERATED_TOKEN_BUDGETS = {
     "grok-build": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
     "grok-composer-2.5-fast": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
     "default": { maxInput: 100000, maxOutput: 4096, coefficient: 0.25 },
+};
+export const GENERATED_MODEL_ALIASES = {
+    "cheap": "claude-sonnet-5",
+    "cursor-composer": "composer-2.5",
+    "cursor-fast": "composer-2.5-fast",
+    "cursor-headless": "composer-2.5",
+    "deep-thinker": "gemini-3.1-pro-preview",
+    "fable": "claude-fable-5-1",
+    "gemini-2.0": "gemini-2.0-flash",
+    "gemini-3-flash": "gemini-3-flash-preview",
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-api": "gemini-2.5-pro",
+    "grok-composer": "grok-composer-2.5-fast",
+    "grok-fast": "grok-composer-2.5-fast",
+    "grok-headless": "grok-build",
+    "opus": "claude-opus-5-5",
+    "reasoning": "gpt-5.5",
+    "researcher": "deep-research-pro",
+    "reviewer": "gpt-5.5",
+    "tiny": "claude-haiku-4-5-20251001",
 };
 //# sourceMappingURL=truncation.generated.js.map

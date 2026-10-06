@@ -525,3 +525,81 @@ EOF
     [ "$status" -eq 78 ]
     [[ "$output" == *"invalid context_window"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# T13: catalog aliases resolve to their target's budget (cycle-126 sprint-250
+# round 2). BB's DEFAULTS.model is the alias `opus`; without an alias row the
+# budget lookup fell to the 100K default row and effectiveInputBudget kept the
+# operator's 200K — above cheval's 180K probed ceiling for claude-opus-5-5.
+# ---------------------------------------------------------------------------
+
+# The alias block the generator must emit, derived independently from the
+# catalog: every `aliases:` entry whose `provider:model` target is a catalog
+# model with a context_window, minus self-maps, as `"alias": "model"` lines.
+_expected_alias_lines() {
+    local alias target provider model
+    # space-separated: yq v4 does not expand "\t" in string literals, and
+    # alias names / provider:model targets carry no whitespace
+    while read -r alias target; do
+        [[ "$target" == *:* ]] || continue
+        provider="${target%%:*}"; model="${target#*:}"
+        [ "$alias" = "$model" ] && continue
+        local cw
+        cw="$(yq -r ".providers.\"$provider\".models.\"$model\".context_window // \"\"" "$DEFAULTS_YAML")"
+        [[ "$cw" =~ ^[0-9]+$ ]] || continue
+        printf '  "%s": "%s",\n' "$alias" "$model"
+    done < <(yq -r '.aliases | to_entries | .[] | .key + " " + .value' "$DEFAULTS_YAML") | LC_ALL=C sort
+}
+
+_generated_alias_lines() {
+    awk '/^export const GENERATED_MODEL_ALIASES/ {f=1; next} f && /^};/ {exit} f' "$TRUNC_OUT"
+}
+
+@test "T13: truncation.generated.ts exports GENERATED_MODEL_ALIASES matching the catalog aliases block" {
+    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
+    grep -E '^export const GENERATED_MODEL_ALIASES: Record<string, string> = \{' "$TRUNC_OUT"
+    local expected generated
+    expected="$(_expected_alias_lines)"
+    generated="$(_generated_alias_lines)"
+    [ -n "$expected" ]
+    if [ "$expected" != "$generated" ]; then
+        diff <(echo "$expected") <(echo "$generated") || true
+        return 1
+    fi
+}
+
+@test "T13: the opus alias maps to the catalog's opus target (bare id)" {
+    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
+    local target; target="$(yq -r '.aliases.opus' "$DEFAULTS_YAML")"
+    [[ "$target" == anthropic:* ]]
+    grep -E "^  \"opus\": \"${target#anthropic:}\",\$" "$TRUNC_OUT"
+}
+
+@test "T13: aliases whose target is not a catalog model (native → claude-code:session) are not emitted" {
+    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
+    [ "$(yq -r '.aliases.native' "$DEFAULTS_YAML")" = "claude-code:session" ]
+    # the block must exist, or the zero-hit count below is vacuous
+    grep -E '^export const GENERATED_MODEL_ALIASES' "$TRUNC_OUT"
+    local hits; hits="$(_generated_alias_lines | grep -c '"native":' || true)"
+    [ "$hits" -eq 0 ]
+}
+
+@test "T13: fixture yaml — provider-qualified targets resolve; mismatched provider, bare, and self-map targets are dropped" {
+    local y="$BATS_TEST_TMPDIR/alias-fixture.yaml"
+    cat > "$y" <<'YAML'
+providers:
+  p1:
+    models:
+      m1:
+        context_window: 1000
+aliases:
+  fast: "p1:m1"
+  wrongprov: "p2:m1"
+  bare: "m1"
+  m1: "p1:m1"
+YAML
+    run "$TSX" "$GEN_SCRIPT" --source-yaml "$y" --output-dir "$OUTPUT_DIR"
+    [ "$status" -eq 0 ]
+    local generated; generated="$(_generated_alias_lines)"
+    [ "$generated" = '  "fast": "m1",' ]
+}

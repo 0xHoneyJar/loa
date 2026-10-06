@@ -13,7 +13,7 @@ import type { PullRequestFile } from "../ports/git-provider.js";
 // cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
 // effective_input_ceiling − 20000 so BB never prepares more than cheval's
 // pre-flight gate accepts (exit 7 above the ceiling).
-import { GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
+import { GENERATED_MODEL_ALIASES, GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
 import type {
   BridgebuilderConfig,
   TruncationResult,
@@ -676,6 +676,26 @@ function ownBudget(table: Record<string, TokenBudget>, id: string): TokenBudget 
 }
 
 /**
+ * cycle-126 sprint-250 round 2: the id the budget tables are keyed by. A
+ * concrete id (generated twin or hand table) is served as-is; otherwise a
+ * framework-catalog alias (`opus`, `cheap`, …) resolves to its target model id
+ * so it inherits that model's budget. An operator alias overlay in
+ * .loa.config.yaml is NOT reflected — the operator can pin a concrete model or
+ * set max_input_tokens.
+ */
+function budgetId(model: string): string {
+  if (
+    ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
+    ownBudget(TOKEN_BUDGETS, model) !== undefined
+  ) {
+    return model;
+  }
+  return Object.prototype.hasOwnProperty.call(GENERATED_MODEL_ALIASES, model)
+    ? GENERATED_MODEL_ALIASES[model]
+    : model;
+}
+
+/**
  * The input budget a caller may actually prepare for `model`: the operator
  * budget clamped to the model's dispatchable input when the id is KNOWN to
  * the generated twin or the hand table; an unknown id (and the literal
@@ -684,18 +704,20 @@ function ownBudget(table: Record<string, TokenBudget>, id: string): TokenBudget 
  * re-sends the same clamped payload (Sprint 1 audit, slice D).
  */
 export function effectiveInputBudget(budgetTokens: number, model: string): number {
+  const id = budgetId(model);
   const known =
-    model !== "default" &&
-    (ownBudget(GENERATED_TOKEN_BUDGETS, model) !== undefined ||
-      ownBudget(TOKEN_BUDGETS, model) !== undefined);
-  return known ? Math.min(budgetTokens, getTokenBudget(model).maxInput) : budgetTokens;
+    id !== "default" &&
+    (ownBudget(GENERATED_TOKEN_BUDGETS, id) !== undefined ||
+      ownBudget(TOKEN_BUDGETS, id) !== undefined);
+  return known ? Math.min(budgetTokens, getTokenBudget(id).maxInput) : budgetTokens;
 }
 
 export function getTokenBudget(model: string): TokenBudget {
   // cycle-124 FR-3: the generated twin (model-config.yaml) wins over the
   // hand-maintained table; the hand table remains the fallback for ids the
   // yaml does not carry.
-  return ownBudget(GENERATED_TOKEN_BUDGETS, model) ?? ownBudget(TOKEN_BUDGETS, model) ?? TOKEN_BUDGETS["default"];
+  const id = budgetId(model);
+  return ownBudget(GENERATED_TOKEN_BUDGETS, id) ?? ownBudget(TOKEN_BUDGETS, id) ?? TOKEN_BUDGETS["default"];
 }
 
 /** Estimate tokens from string using model-specific coefficient. */
