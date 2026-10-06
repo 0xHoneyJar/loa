@@ -158,9 +158,8 @@ def _legacy_wire() -> bool:
 # cycle-124 FR-2 (SDD §2.2): per-hop default output budget. Anthropic HTTP
 # hops default to the reference guidance — ~64K streaming, ~16K when the
 # streaming kill switch forces the non-streaming path — clamped to the
-# catalog's `max_output_tokens`. Every other provider keeps the historical
-# 4096 so its golden request bodies do not move (FR-2 is Anthropic-only by
-# decision; multi-provider routing is out of scope for this cycle).
+# catalog's `max_output_tokens`. cycle-124 kept every other provider at the
+# historical 4096; cycle-126 FR-1.3 (below) gave them a capped catalog default.
 _LEGACY_DEFAULT_MAX_TOKENS = 4096
 _ANTHROPIC_STREAMING_DEFAULT_MAX_TOKENS = 64_000
 _ANTHROPIC_LEGACY_TRANSPORT_DEFAULT_MAX_TOKENS = 16_000

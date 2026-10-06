@@ -39,18 +39,26 @@ for _lic in valid_license.json grace_period_license.json expired_license.json \
 done
 if [[ -s "$_ELF_PUBKEY" && "$_ELF_ALL_PRESENT" == "true" ]]; then
     # Freshness guard: the generator computes expiry relative to now, but a
-    # presence-only cache let stale fixtures survive across days — the "valid"
-    # license would silently expire, breaking every date-sensitive test. Treat
-    # an already-expired "valid" fixture as absent and regenerate.
-    _ELF_VEXP="$(grep -oE '"expires_at"[[:space:]]*:[[:space:]]*"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z"' "$_ELF_DIR/valid_license.json" 2>/dev/null \
-                 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z' | head -1)"
-    if [[ -n "$_ELF_VEXP" ]]; then
-        _ELF_VEXP_TS="$(date -u -d "$_ELF_VEXP" +%s 2>/dev/null \
-                        || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$_ELF_VEXP" +%s 2>/dev/null || echo 0)"
-        if [[ "${_ELF_VEXP_TS:-0}" -gt "$(date -u +%s)" ]]; then
-            return 0 2>/dev/null || exit 0
-        fi
+    # presence-only cache let stale fixtures survive across days. Every
+    # time-relative window must still be open: valid_license.json's
+    # expires_at (30 days) and grace_period_license.json's
+    # offline_valid_until (12 hours — the tightest, so it goes stale first).
+    # Any closed or unparseable window regenerates the whole set.
+    _elf_future() {  # <file> <field> — exit 0 iff the ISO-8601 Z timestamp is in the future
+        local ts epoch
+        ts="$(grep -oE "\"$2\"[[:space:]]*:[[:space:]]*\"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z\"" "$1" 2>/dev/null \
+              | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z' | head -1)"
+        [[ -n "$ts" ]] || return 1
+        epoch="$(date -u -d "$ts" +%s 2>/dev/null \
+                 || date -u -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || echo 0)"
+        [[ "${epoch:-0}" -gt "$(date -u +%s)" ]]
+    }
+    if _elf_future "$_ELF_DIR/valid_license.json" expires_at \
+       && _elf_future "$_ELF_DIR/grace_period_license.json" offline_valid_until; then
+        unset -f _elf_future
+        return 0 2>/dev/null || exit 0
     fi
+    unset -f _elf_future
     # else: stale (expired or unparseable) → fall through to regenerate
 fi
 

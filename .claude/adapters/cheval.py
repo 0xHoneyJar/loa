@@ -2929,9 +2929,11 @@ def main() -> int:
     parser.add_argument(
         "--max-tokens", type=int, default=None, dest="max_tokens",
         help=(
-            "Maximum output tokens. Default (cycle-124 FR-2): per model — Anthropic "
-            "hops min(64000 streaming | 16000 with LOA_CHEVAL_DISABLE_STREAMING, "
-            "catalog max_output_tokens); other providers 4096. Explicit values are "
+            "Maximum output tokens. Default (cycle-124 FR-2, cycle-126 FR-1.3): per "
+            "model — Anthropic hops min(64000 streaming | 16000 with "
+            "LOA_CHEVAL_DISABLE_STREAMING, catalog max_output_tokens); other providers "
+            "min(16000, catalog max_output_tokens); 4096 for an entry without "
+            "max_output_tokens or under LOA_CHEVAL_LEGACY_WIRE. Explicit values are "
             "clamped to the catalog max_output_tokens; 0 is rejected."
         ),
     )

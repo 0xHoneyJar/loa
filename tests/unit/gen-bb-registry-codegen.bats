@@ -97,24 +97,37 @@ setup() {
 # ---------------------------------------------------------------------------
 
 # cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling (180000) − 20000.
-@test "T3: truncation.generated.ts contains claude-opus-4-7 with maxInput=160000, maxOutput=8192, coefficient=0.25" {
+# cycle-126 FR-1.5 (SDD D-1.5): maxOutput = min(BB_OUTPUT_CAP 32000, the
+# catalog's max_output_tokens), so the expectation is read from the catalog.
+_expected_max_output() {
+    local provider="$1" model="$2" mot
+    mot="$(yq -r ".providers.\"$provider\".models.\"$model\".max_output_tokens // \"\"" "$DEFAULTS_YAML")"
+    [[ "$mot" =~ ^[0-9]+$ ]] || { echo "no max_output_tokens for $provider:$model" >&2; return 1; }
+    (( mot < 32000 )) && echo "$mot" || echo 32000
+}
+
+@test "T3: truncation.generated.ts contains claude-opus-4-7 with maxInput=160000, catalog maxOutput, coefficient=0.25" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-opus-4-7":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    local mo; mo="$(_expected_max_output anthropic claude-opus-4-7)"
+    grep -E '"claude-opus-4-7":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*'"$mo"',[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains claude-opus-4-6 with parity" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-opus-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    local mo; mo="$(_expected_max_output anthropic claude-opus-4-6)"
+    grep -E '"claude-opus-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*'"$mo"',[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains claude-sonnet-4-6 with parity" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"claude-sonnet-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*8192,[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
+    local mo; mo="$(_expected_max_output anthropic claude-sonnet-4-6)"
+    grep -E '"claude-sonnet-4-6":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*160000,[[:space:]]*maxOutput:[[:space:]]*'"$mo"',[[:space:]]*coefficient:[[:space:]]*0\.25' "$TRUNC_OUT"
 }
 
-@test "T3: truncation.generated.ts contains gpt-5.2 with maxInput=128000, maxOutput=4096, coefficient=0.23" {
+@test "T3: truncation.generated.ts contains gpt-5.2 with maxInput=128000, catalog maxOutput, coefficient=0.23" {
     "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
-    grep -E '"gpt-5\.2":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*128000,[[:space:]]*maxOutput:[[:space:]]*4096,[[:space:]]*coefficient:[[:space:]]*0\.23' "$TRUNC_OUT"
+    local mo; mo="$(_expected_max_output openai gpt-5.2)"
+    grep -E '"gpt-5\.2":[[:space:]]*\{[[:space:]]*maxInput:[[:space:]]*128000,[[:space:]]*maxOutput:[[:space:]]*'"$mo"',[[:space:]]*coefficient:[[:space:]]*0\.23' "$TRUNC_OUT"
 }
 
 @test "T3: truncation.generated.ts contains 'default' fallback entry" {
