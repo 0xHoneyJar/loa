@@ -12,7 +12,9 @@
 #
 # The refresh carries active_skill_seen_at forward only as an ISO-8601 UTC
 # timestamp and active_skill_source only as a value the recorder writes
-# ("tool_input"); anything else is dropped (sprint-250 audit n24).
+# ("tool_input"); anything else is dropped (sprint-250 audit n24). --line applies
+# the same two checks: a malformed seen_at is no evidence, any other source
+# prints "unknown" (sprint-250 audit run 2, finding 4).
 #
 # Outputs: .run/platform-features.json
 #   { "active_skill_available": false, "harness_signal": false,
@@ -36,7 +38,9 @@ if [[ "${1:-}" == "--line" ]]; then
         configured=$(yq '.implement_gate.mode // ""' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null) || configured=""
         [[ "${configured//\"/}" == "authoritative" ]] && label="authoritative (opt-in; "
     fi
-    evidence=$(jq -r 'if (.active_skill_seen_at // "") != "" then "seen \(.active_skill_seen_at) via \(.active_skill_source // "unknown")" else empty end' \
+    # the refresh's shape checks (run-2 finding 4): an ISO-8601 UTC seen_at or no evidence, a recorder-written source or "unknown"
+    evidence=$(jq -r 'if (.active_skill_seen_at | type == "string" and test("\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\\z"))
+                      then "seen \(.active_skill_seen_at) via \(if .active_skill_source == "tool_input" then "tool_input" else "unknown" end)" else empty end' \
         "$FEATURES_FILE" 2>/dev/null | LC_ALL=C tr -cd '[:print:]' | cut -c1-120)   # printable ASCII only: drops U+202E/U+200B too (sprint-250 audit n24)
     echo "Implement gate: ${label}active_skill evidence: ${evidence:-none}; no harness skill signal)"
     exit 0

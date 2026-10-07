@@ -5838,6 +5838,32 @@ EOF
     grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-cafe.err"
 }
 
+@test "CMP-280 the C1 strip is a fixed point: a doubled C2 C2 9B 9B (one pass leaves a live C2 9B CSI) never reaches stderr, while café still passes (audit run 2, finding 8)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-c1x.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name="$2"
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    # LC_ALL=C: under a UTF-8 locale the header regex's `.` does not match the invalid C2 C2 lead, so the path never reaches
+    # the strip; a C/POSIX-locale run (CI) parses it byte-wise, which is where a single pass left a live C2 9B
+    rc=0; LC_ALL=C bash "$T/lc-c1x.sh" "$lib" 'src/a'$'\xc2\xc2\x9b\x9b''2J'$'\xc2\xc2\x9d\x9d''52;c;QUJD'$'\xc2\xc2\x9c\x9c''b.sh' 2>"$T/lc-c1x.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-c1x.err"; return 1; }
+    grep -q 'Top-priority file src/a2J52;c;QUJDb\.sh exceeds the token budget' "$T/lc-c1x.err"
+    local pair
+    for pair in $'\xc2\x9b' $'\xc2\x9d' $'\xc2\x9c'; do
+        ! LC_ALL=C grep -qF "$pair" "$T/lc-c1x.err" || { echo "C1 pair reached stderr"; od -c "$T/lc-c1x.err" | head; return 1; }
+    done
+    rc=0; LC_ALL=C bash "$T/lc-c1x.sh" "$lib" 'src/café.sh' 2>"$T/lc-cafe2.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-cafe2.err"; return 1; }
+    grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-cafe2.err"
+}
+
 @test "CMP-275 main refuses a --sprint-id that is not a plain name — a path in it never reaches mktemp, the run lock, the move-aside or the envelope's directory: a usage error (exit 2) and nothing written (audit run 1, a5 DISS-C-002)" {
     local esc="cmp275esc-$$" sid
     mkdir -p "$T/tmp/adversarial-x"   # the pre-made directory that lets mktemp -d walk out of TMPDIR

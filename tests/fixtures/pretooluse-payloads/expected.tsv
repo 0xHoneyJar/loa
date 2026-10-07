@@ -14,3 +14,4 @@ write-app-active-review.json	ask	ask	yes
 write-src-subagent-run.json	ask	ask	no
 edit-src-subagent-plain.json	ask	ask	no
 write-state-active-review.json	allow	allow	yes
+notebook-src-plain.json	ask	ask	no

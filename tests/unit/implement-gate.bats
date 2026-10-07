@@ -156,7 +156,7 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     grep -A1 '^      display_context_line$' "$REPO/.claude/scripts/loa-status.sh" | grep -q 'display_gate_line'
 }
 
-@test "IG-12 authoritative is strictly tighter than heuristic: with RUNNING state a non-implementation claim asks and logs one model_signal row" {
+@test "IG-12 authoritative is strictly tighter than heuristic: with RUNNING state a non-implementation claim asks and logs one ask row, each implementation claim one heuristic row" {
     command -v yq >/dev/null || skip "yq not installed"
     printf '{"plan_id":"p","state":"RUNNING","timestamps":{"last_activity":"%s"}}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ROOT/.run/sprint-plan-state.json"
     gate_with write-app-active-review.json
@@ -175,7 +175,11 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     gate_with write-src-active-implement.json
     [ "$(decision)" = ask ]
     [[ "$stderr" == *"[ADVISORY]"* ]]
-    [ "$(jq -sc '[.[] | select(.event == "compliance.mode.model_signal")] | length' "$ROOT/.run/audit.jsonl")" = 1 ]
+    # every forged claim leaves a trace (run-2 finding 6): one ask row for the review claim, one heuristic row per implementation claim
+    run jq -sc '[.[] | select(.event == "compliance.mode.model_signal") | .decision] | sort' "$ROOT/.run/audit.jsonl"
+    [ "$output" = '["ask","heuristic","heuristic"]' ]
+    run jq -sc '[.[] | select(.event == "compliance.mode.model_signal" and .decision == "heuristic") | [.mode, .active_skill, .file_path]] | unique' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "[[\"authoritative\",\"implement\",\"$ROOT/src/index.ts\"]]" ]
 }
 
 @test "IG-13 control characters in a claimed skill or path are stripped from stderr and the audit row (n21)" {
@@ -188,13 +192,42 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     run -1 env LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]' <<<"$stderr"
     run jq -r 'select(.event == "compliance.mode.model_signal") | .active_skill + " " + .file_path' "$ROOT/.run/audit.jsonl"
     [ "$output" = "review $ROOT/src/a[31mb.py" ]
+    # run-2 findings 3/12: UTF-8 C1 controls, bidi/format code points and a doubled C2 C2 9B 9B (one pass would leave a live
+    # C2 9B) never reach stderr or the row; the logged skill is at most 256 bytes; legitimate UTF-8 (café) passes verbatim
+    local bad=$'\xc2\x9b'$'\xe2\x80\xae'$'\xe2\x80\x8b'$'\xc2\xc2\x9b\x9b' long
+    long=$(printf 'k%.0s' {1..400})
+    rm -f "$ROOT/.run/audit.jsonl"
+    printf '{"tool_input":{"file_path":"%s/src/caf\xc3\xa9%sx.py","active_skill":"rev%siew%s"}}\n' "$ROOT" "$bad" "$bad" "$long" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    [[ "$stderr" == *"'$ROOT/src/café"* ]]
+    [[ "$stderr" == *"detected during /rev"* ]]   # jq reads the invalid doubled bytes as U+FFFD U+009B U+FFFD; only the U+009B goes
+    local seq
+    for seq in $'\xc2\x9b' $'\xe2\x80\xae' $'\xe2\x80\x8b'; do
+        run -1 env LC_ALL=C grep -qF "$seq" <<<"$stderr"
+        run -1 env LC_ALL=C grep -qF "$seq" "$ROOT/.run/audit.jsonl"
+    done
+    run -1 env LC_ALL=C grep -q $'\xc2[\x80-\x9f]' "$ROOT/.run/audit.jsonl"
+    run jq -r 'select(.event == "compliance.mode.model_signal") | .file_path' "$ROOT/.run/audit.jsonl"
+    [[ "$output" == "$ROOT/src/café"*x.py ]]
+    run jq -j 'select(.event == "compliance.mode.model_signal") | .active_skill' "$ROOT/.run/audit.jsonl"
+    [[ "$output" == rev* ]]
+    [ "$(printf '%s' "$output" | LC_ALL=C wc -c)" -le 256 ]
 }
 
-@test "IG-14 the /loa evidence line and the refresh never carry Unicode format characters (U+202E, U+200B)" {
+@test "IG-14 the /loa evidence line and the refresh never carry Unicode format characters (U+202E, U+200B) and share one shape check" {
     printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z\\u202e","active_skill_source":"tool\\u200b_input"}\n' > "$ROOT/.run/platform-features.json"
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" --line' _ "$ROOT" "$DETECT"
-    [ "$output" = "Implement gate: heuristic (active_skill evidence: seen 2026-01-01T00:00:00Z via tool_input; no harness skill signal)" ]
+    [ "$output" = "Implement gate: heuristic (active_skill evidence: none; no harness skill signal)" ]
     run -1 env LC_ALL=C grep -q '[^[:print:]]' <<<"$output"
+    # run-2 finding 4: --line applies the refresh's shape checks — a malformed seen_at is no evidence, an unknown source is "unknown"
+    printf '{"active_skill_seen_at":"yesterday","active_skill_source":"tool_input"}\n' > "$ROOT/.run/platform-features.json"
+    run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" --line' _ "$ROOT" "$DETECT"
+    [ "$output" = "Implement gate: heuristic (active_skill evidence: none; no harness skill signal)" ]
+    printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z","active_skill_source":"forged"}\n' > "$ROOT/.run/platform-features.json"
+    run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" --line' _ "$ROOT" "$DETECT"
+    [ "$output" = "Implement gate: heuristic (active_skill evidence: seen 2026-01-01T00:00:00Z via unknown; no harness skill signal)" ]
+    printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z\\u202e","active_skill_source":"tool\\u200b_input"}\n' > "$ROOT/.run/platform-features.json"
     touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
     run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
@@ -205,6 +238,42 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
     run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
     [ "$output" = "2026-01-01T00:00:00Z null" ]
+}
+
+gate_path() {
+    jq -nc --arg p "$1" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+}
+
+@test "IG-15 the App-Zone check compares canonical paths: a non-canonical spelling of a src/ file asks, a canonically-outside path allows (run-2 finding 1)" {
+    local p
+    for p in "/proc/self/cwd/src/x.ts" "/$ROOT/src/x.ts" "$ROOT/../$(basename "$ROOT")/src/x.ts" "$ROOT/grimoires/../src/x.ts"; do
+        gate_path "$p"
+        [ "$(decision)" = ask ] || { echo "$p: expected ask, got $(decision)" >&2; return 1; }
+    done
+    ln -s "$ROOT" "$BATS_TEST_TMPDIR/link"
+    gate_path "$BATS_TEST_TMPDIR/link/src/x.ts"
+    [ "$(decision)" = ask ]
+    mkdir -p "$BATS_TEST_TMPDIR/elsewhere/src"
+    gate_path "$BATS_TEST_TMPDIR/elsewhere/src/x.ts"
+    [ "$(decision)" = allow ]
+    gate_path "$ROOT/grimoires/loa/NOTES.md"
+    [ "$(decision)" = allow ]
+}
+
+@test "IG-16 an unparsable payload and a NotebookEdit payload under src/ ask; a parsed payload without a path allows (run-2 finding 5)" {
+    printf 'not json\n' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$status" -eq 0 ]
+    [ "$(decision)" = ask ]
+    [[ "$output" == *"[GATE] could not evaluate tool_input"* ]]
+    printf '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":"%s/src/nb.ipynb","new_source":"x"}}\n' "$ROOT" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    printf '{"tool_input":{"content":"x"}}\n' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$status" -eq 0 ]
+    [ "$(decision)" = allow ]
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {

@@ -15,21 +15,27 @@
 #      add an ask, never grant an allow. A claimed implementation skill falls
 #      through to the heuristic exactly like an absent field; a claimed
 #      non-implementation skill asks and logs compliance.mode.model_signal to
-#      .run/audit.jsonl (plain hook log, not the signed audit_emit chain).
+#      .run/audit.jsonl (plain hook log, not the signed audit_emit chain). Every
+#      claim leaves one row per invocation: decision "ask" for a non-implementation
+#      claim, decision "heuristic" for an implementation claim (run-2 finding 6).
 #
 # Evidence recorder (cycle-126 D-4.4): a lead-session payload carrying
 # tool_input.active_skill records active_skill_seen_at once in
 # .run/platform-features.json. It is evidence only and never changes the mode.
 #
-# Failure mode: FAIL-ASK for App Zone writes (not fail-open).
-# Non-App-Zone writes always allowed.
+# Failure mode: FAIL-ASK for App Zone writes (not fail-open). A payload jq cannot
+# parse (or no jq), or a file_path that cannot be canonicalised, asks too (run-2
+# findings 1/5). The path is tool_input.file_path, or tool_input.notebook_path for
+# NotebookEdit. Non-App-Zone writes always allowed.
 #
 # Output (Claude Code PreToolUse contract, sprint-250 audit n20): allow = silent
 # exit 0 with empty stdout; ask = exit 0 with
 #   {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}
 # A top-level "decision" accepts approve|block only, so "ask" never goes there.
-# file_path and active_skill are stripped of control characters before they
-# reach stderr or the audit row (n21).
+# file_path and active_skill pass through strip_controls before they reach
+# stderr or the audit row (n21; run-2 findings 3/12): C0 and DEL, UTF-8 C1
+# controls and the Unicode format/bidi code points are removed to a fixed point,
+# then the copy is cut to 256 bytes.
 #
 # IMPORTANT: No set -euo pipefail — hook must never crash-block.
 # Parse/read errors on App Zone writes → ask (not allow).
@@ -43,6 +49,38 @@
 
 # Read tool input from stdin
 input=$(cat 2>/dev/null) || input=""
+
+# The ask reply; the reason is always a fixed string, never model-authored text
+emit_ask() {
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"
+}
+
+# Byte sequences strip_controls removes: UTF-8 C1 controls (C2 80..C2 9F) and the format/bidi code points
+# U+200B-U+200F, U+2028-U+202E, U+2060-U+2064, U+2066-U+2069, U+FEFF; printf -v keeps this portable (no GNU-sed \x)
+_IG_STRIP_SEQS=()
+for (( _ig_i = 128; _ig_i < 160; _ig_i++ )); do
+    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xc2\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+for _ig_hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do
+    printf -v _ig_seq "\\xe2\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+for _ig_hex in a0 a1 a2 a3 a4 a6 a7 a8 a9; do
+    printf -v _ig_seq "\\xe2\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+printf -v _ig_seq '\xef\xbb\xbf'; _IG_STRIP_SEQS+=("$_ig_seq")
+
+# Display/log copy of a model-authored string: C0 and DEL first, then the sequences above byte-wise until nothing
+# changes (deleting one sequence can join its neighbours into another: C2 C2 9B 9B), then at most 256 bytes
+strip_controls() {
+    local LC_ALL=C s prev seq
+    s=$(printf '%s' "$1" | tr -d '\000-\037\177')
+    while :; do
+        prev=$s
+        for seq in "${_IG_STRIP_SEQS[@]}"; do s=${s//"$seq"/}; done
+        [[ "$s" == "$prev" ]] && break
+    done
+    printf '%s' "${s:0:256}"
+}
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
@@ -61,10 +99,21 @@ if [[ -z "${LOA_TEAM_MEMBER:-}" && -d "$RUN_DIR" ]] \
     }
 fi
 
-# Extract file path from tool input (Write or Edit)
-file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || file_path=""
+# No jq, or a payload jq cannot parse: the write cannot be evaluated, so ask (run-2 finding 5)
+if ! command -v jq &>/dev/null || ! jq -e . <<<"$input" >/dev/null 2>&1; then
+    echo "[GATE] could not evaluate tool_input (jq missing or payload unparsable)." >&2
+    emit_ask "[GATE] could not evaluate tool_input. Verify this write is intentional."
+    exit 0
+fi
 
-# If we can't determine the file path, allow (can't evaluate)
+# Extract the path: Write/Edit/MultiEdit carry file_path, NotebookEdit carries notebook_path
+if ! file_path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null); then
+    echo "[GATE] could not evaluate tool_input (path not readable)." >&2
+    emit_ask "[GATE] could not evaluate tool_input. Verify this write is intentional."
+    exit 0
+fi
+
+# A parsed payload without a path is not a file write the gate can classify: allow
 if [[ -z "$file_path" ]]; then
     exit 0
 fi
@@ -78,37 +127,36 @@ COMPAT_LIB="${SCRIPT_DIR}/../../scripts/compat-lib.sh"
 source "$COMPAT_LIB" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
-# T4.5: Path normalization — resolve file_path relative to PROJECT_ROOT
-# Prevents false positives from parent directory names
-# (e.g., /home/user/src-projects/loa/grimoires/file.md should NOT match src/*)
+# T4.5: Path normalization — canonicalise both sides, then take file_path
+# relative to the project root (run-2 finding 1). A textual prefix test let
+# /proc/self/cwd/src/x, //ROOT/src/x, ROOT/../<name>/src/x or a symlinked root
+# reach an App-Zone file unseen. Relative paths resolve from PROJECT_ROOT.
+# Only the part under the root is matched, so parent directory names never
+# count (e.g., /home/user/src-projects/loa/grimoires/file.md is not src/*).
 # ---------------------------------------------------------------------------
-normalized_path="$file_path"
-
-# If file_path starts with PROJECT_ROOT, strip the prefix to get relative path
-if [[ "$file_path" == "$PROJECT_ROOT/"* ]]; then
-    normalized_path="${file_path#"$PROJECT_ROOT"/}"
-elif [[ "$file_path" == /* ]]; then
-    # Absolute path that doesn't start with PROJECT_ROOT — use as-is
-    # but don't match against App Zone patterns (could be false positive)
-    normalized_path="$file_path"
+canonical_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P) || canonical_root=""
+canonical_path=""
+if [[ -n "$canonical_root" ]]; then
+    # GNU realpath -m first (no component needs to exist), then readlink -f
+    canonical_path=$(cd "$PROJECT_ROOT" 2>/dev/null \
+        && { realpath -m -- "$file_path" 2>/dev/null || readlink -f -- "$file_path" 2>/dev/null; }) || canonical_path=""
+fi
+if [[ -z "$canonical_root" || -z "$canonical_path" ]]; then
+    echo "[GATE] could not canonicalise tool_input.file_path; asking." >&2
+    emit_ask "[GATE] could not canonicalise tool_input.file_path. Verify this write is intentional."
+    exit 0
 fi
 
 # ---------------------------------------------------------------------------
 # Zone check: Is this an App Zone write?
-# App Zone: src/, lib/, app/ (relative paths only after normalization)
+# App Zone: src/, lib/, app/ in the path relative to the canonical root;
+# a path that canonicalises outside the root is not App Zone
 # ---------------------------------------------------------------------------
 is_app_zone=false
-case "$normalized_path" in
-    src/*|lib/*|app/*)
-        is_app_zone=true
-        ;;
-esac
-
-# Only match */src/* etc. if path is relative (no leading /)
-# This prevents /home/user/src-projects/loa/grimoires from matching
-if [[ "$is_app_zone" == "false" && "$normalized_path" != /* ]]; then
+if [[ "$canonical_path" == "${canonical_root%/}/"* ]]; then
+    normalized_path="${canonical_path#"${canonical_root%/}"/}"
     case "$normalized_path" in
-        */src/*|*/lib/*|*/app/*)
+        src/*|lib/*|app/*|*/src/*|*/lib/*|*/app/*)
             is_app_zone=true
             ;;
     esac
@@ -119,8 +167,8 @@ if [[ "$is_app_zone" == "false" ]]; then
     exit 0
 fi
 
-# Display/log copy only: control characters never reach stderr or the audit row (n21)
-safe_file_path=$(printf '%s' "$file_path" | LC_ALL=C tr -d '[:cntrl:]')
+# Display/log copy only: control and format characters never reach stderr or the audit row (n21, run-2 finding 3)
+safe_file_path=$(strip_controls "$file_path")
 
 # ---------------------------------------------------------------------------
 # Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)
@@ -138,22 +186,29 @@ if [[ "$compliance_mode" == "authoritative" ]]; then
     active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=""
 
     if [[ -n "$active_skill" ]]; then
+        safe_skill=$(strip_controls "$active_skill")
+        # One model_signal row per invocation that carries a claim; the harness never sets the field,
+        # so a row means a model wrote it (run-2 finding 6)
+        log_model_signal() {
+            jq -nc \
+                --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+                --arg skill "$safe_skill" \
+                --arg path "$safe_file_path" \
+                --arg decision "$1" \
+                '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: $decision}' \
+                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+        }
         case "$active_skill" in
             implement|/implement|bug|/bug|run|/run|simstim|/simstim)
                 # Tighten-only (n17/n18): a model-authored implementation claim never
-                # allows by itself — fall through to the heuristic check below
+                # allows by itself — log it, then fall through to the heuristic check below
+                log_model_signal heuristic
                 ;;
             *)
-                # Non-implementation skill — ask, and log the model signal once
-                safe_skill=$(printf '%s' "$active_skill" | LC_ALL=C tr -d '[:cntrl:]')
+                # Non-implementation skill — log the model signal and ask
                 echo "[AUTHORITATIVE] App Zone write to '$safe_file_path' detected during /$safe_skill (not an implementation skill)." >&2
-                jq -nc \
-                    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
-                    --arg skill "$safe_skill" \
-                    --arg path "$safe_file_path" \
-                    '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: "ask"}' \
-                    >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
-                echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."}}'
+                log_model_signal ask
+                emit_ask "[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."
                 exit 0
                 ;;
         esac

@@ -107,8 +107,10 @@ should_skip() {
 # or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
 # D-4.4); a missing or unparsable file, or one with no `write_capable: true`
 # entry, leaves general-purpose only.
-# The AGENT_TYPES_FILE env override is a test seam: it is honoured only under
-# the bats markers (repo test-mode convention); otherwise the in-tree file is used.
+# The AGENT_TYPES_FILE env override is a test seam honoured only under the bats
+# markers, by repo convention; otherwise the in-tree file is used. The markers are
+# ordinary environment variables, so this is not a security control: a hardened
+# invocation runs the validator with a scrubbed environment.
 # See .claude/rules/skill-invariants.md.
 if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${AGENT_TYPES_FILE:-}" ]]; then
     :
