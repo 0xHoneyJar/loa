@@ -30,7 +30,6 @@ ROOT = Path(__file__).resolve().parents[3]
 TOOL = ROOT / "tools" / "ceiling-probe-live.py"
 CATALOG = ROOT / ".claude" / "defaults" / "model-config.yaml"
 SCHEMA_V3 = ROOT / ".claude" / "data" / "schemas" / "model-config-v3.schema.json"
-MODELINV_LOG = ROOT / ".run" / "model-invoke.jsonl"
 
 # The filler is ≈10 tokens per 45 characters; the fake compares stdin characters.
 CHARS_PER_TOKEN = 4.5
@@ -103,24 +102,21 @@ FAKE = textwrap.dedent('''\
 ''')
 
 
-def _stat(p: Path):
-    return (p.stat().st_size, p.stat().st_mtime_ns) if p.exists() else None
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _zero_live_spend():
-    """No test in this module may reach a model: the ledger cheval appends on
-    every invoke is byte-for-byte where it was."""
-    before = _stat(MODELINV_LOG)
+@pytest.fixture(autouse=True)
+def _zero_live_spend(_isolate_ledgers):
+    """No test in this module may reach a model through cheval: the test's OWN MODELINV ledger (conftest
+    _isolate_ledgers points LOA_MODELINV_LOG_PATH at the test's tmp_path) stays unwritten. r251-3 R5: scoped per test —
+    the host-global .run/model-invoke.jsonl grows under any concurrent cheval run on the host."""
     yield
-    assert _stat(MODELINV_LOG) == before, ".run/model-invoke.jsonl changed — a live call escaped the fake"
+    log = Path(os.environ["LOA_MODELINV_LOG_PATH"])
+    assert not log.exists() or log.stat().st_size == 0, f"{log} written — a live call escaped the fake"
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _no_real_cli(tmp_path_factory):
     """r251-1 P11 — fail-closed: this transport spawns ${CLAUDE_HEADLESS_BIN:-claude}
     directly, so a real `claude -p` would never show in cheval's MODELINV ledger
-    (the guard above). Every test starts with CLAUDE_HEADLESS_BIN at a path that
+    (the per-test guard above). Every test starts with CLAUDE_HEADLESS_BIN at a path that
     does not exist; only the `fake` fixture points it at the recording fake."""
     sentinel = tmp_path_factory.mktemp("loa-probe-no-real-cli") / "claude-must-not-run"
     with pytest.MonkeyPatch.context() as mp:

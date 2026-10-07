@@ -179,13 +179,19 @@ def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
 
 
 def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
-    """review r251-2 K9 (n35): one concrete pin THROUGH `_lookup_max_input_tokens` — the other pins compare the policy
-    against itself. claude-opus-5-5 is calibrated (1M window − 64K default output = 936,000); claude-opus-5 is not, and
-    answers its probed value (the policy cap)."""
+    """review r251-2 K9 (n35): one concrete check THROUGH `_lookup_max_input_tokens` — the gate answers a calibrated
+    entry's catalog bound (not the policy cap). claude-opus-5-5 is calibrated; claude-opus-5 is not, and answers its
+    probed value (the policy cap). r251-3 R2 (AC 3): the expectation is READ from the catalog, so this check moves
+    with the next re-probe instead of pinning today's bound by literal."""
     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
     monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
     monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
-    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == 936_000
+    cal = catalog["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert cal["ceiling_calibration"].get("calibrated_at"), "claude-opus-5-5 is expected to be calibrated"
+    want = cal["effective_input_ceiling"]
+    assert isinstance(want, int) and want != CEILING_CAP, want
+    assert input_bound(cal, max_tokens=_default_max_tokens(cal)).basis == "calibrated"
+    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == want
     uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
     assert not uncal["ceiling_calibration"].get("calibrated_at")
     assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP

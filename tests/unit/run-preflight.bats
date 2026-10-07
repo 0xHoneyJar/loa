@@ -330,6 +330,31 @@ YAML
   ! line_of P3 | grep -q 'opt-in' || { echo "unexpected: opt-in"; line_of P3; return 1; }
 }
 
+@test "PF-AGY-6 P3 (review r251-3 R3): under cli-only a Google voice is recognised by its PROVIDER, not the gemini* name — deep-research-pro with the opt-in off is not planned; under prefer-api its Google credential makes it usable" {
+  printf 'GOOGLE_API_KEY=not-a-real-key\n' > "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+hounfour:
+  headless:
+    mode: cli-only
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: deep-research-pro
+YAML
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -q '^\[FAIL\] P3 '
+  line_of P3 | grep -qF 'deep-research-pro(agy: opt-in (disabled; hounfour.headless.agy_opt_in))' || { line_of P3; return 1; }
+  ! line_of P3 | grep -q 'usable: deep-research-pro' || { echo "unexpected: usable"; line_of P3; return 1; }
+  python3 -I -c 'import sys; p=sys.argv[1]; s=open(p).read().replace("mode: cli-only", "mode: prefer-api"); open(p,"w").write(s)' "$R/.loa.config.yaml"
+  pf --unattended
+  [ "$status" -eq 0 ] || { line_of P3; return 1; }
+  line_of P3 | grep -qF 'usable: deep-research-pro'
+  ! line_of P3 | grep -q 'opt-in' || { echo "unexpected: opt-in"; line_of P3; return 1; }
+}
+
 @test "PF-AGY-3 P3 (review r251-1 G8): a stage whose every voice is a gated agy hop stays FAIL and says the voices are not planned, naming the key — not 'no credential present and no CLI hop on PATH'" {
   rm -f "$R/.env.local"
   cat > "$R/.loa.config.yaml" <<'YAML'

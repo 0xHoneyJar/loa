@@ -552,11 +552,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
         # cycle-127 review r251-2 K8 (n65): the CLI's own pre-flight size rejection ("Prompt is too long", "the request
         # is ~1065182 tokens (limit 1000000)") is the provider's size verdict on the payload — not walked (the next voice
-        # would get the same payload), never a breaker count. A throttle WORD still wins (as in the probe); the bare
-        # "429" / "529" substring tests below would otherwise match digits inside a stated token count.
-        from loa_cheval.routing.ceiling import is_context_limit_message, parse_context_limit
-        _throttle_words = ("rate limit", "overloaded", "too many requests", "quota")
-        if is_context_limit_message(full_diag) and not any(w in diag_lower for w in _throttle_words):
+        # would get the same payload), never a breaker count. r251-3 R1: unless a throttle marker is present — ONE rule
+        # with the ceiling probe (routing.ceiling.is_throttle_message, SDD D-3.12): Bedrock's tokens-per-minute throttle
+        # "Too many tokens, please wait before trying again" carries the context marker `too many tokens`, and a
+        # 429 / 529 counts only in status position (never digits inside a stated token count).
+        from loa_cheval.routing.ceiling import (
+            is_context_limit_message, is_throttle_message, is_token_limit_message, parse_context_limit,
+        )
+        _throttle = is_throttle_message(full_diag)
+        if is_context_limit_message(full_diag) and not _throttle:
             _nums = parse_context_limit(full_diag)
             raise ProviderContextLimitError(
                 self.provider,
@@ -566,17 +570,11 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
                 max_tokens=_nums.get("max_tokens"),
             )
 
-        # Rate-limit / overload — Anthropic returns 429 + "rate limit" or
-        # 529 + "overloaded" when the org / subscription quota is saturated.
-        if (
-            "rate limit" in diag_lower
-            or "429" in full_diag
-            or "529" in full_diag
-            or "overloaded" in diag_lower
-            or "too many requests" in diag_lower
-            or "quota" in diag_lower
-        ):
-            raise RateLimitError(self.provider)
+        # Rate-limit / overload / quota / token throttle — Anthropic returns 429 + "rate limit" or 529 + "overloaded"
+        # when the org / subscription quota is saturated; Bedrock "Too many tokens, please wait". token_limited marks
+        # the token class (cheval's D-1.1b arm reads it only for a hop above its probed bound; a CLI hop has none).
+        if _throttle:
+            raise RateLimitError(self.provider, token_limited=is_token_limit_message(full_diag))
 
         # Runtime auth revocation → WALKABLE (KF-017/#1071). Ambiguous
         # "unauthorized"/"401" walkable only when no static-misconfig marker.

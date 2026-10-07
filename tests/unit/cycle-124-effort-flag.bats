@@ -25,6 +25,9 @@ setup() {
     export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
     export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
     unset LOA_CHEVAL_DISABLE_STREAMING LOA_CHEVAL_LEGACY_WIRE
+    # (cycle-127 r251-3 R6: hermetic to the operator's environment — a Bedrock bearer token turns on bedrock-forward
+    # routing, so `tiny` would resolve to the Bedrock haiku; a CLAUDE_HEADLESS_BIN would point the CLI hop elsewhere)
+    unset CLAUDE_HEADLESS_BIN AWS_BEARER_TOKEN_BEDROCK
 }
 
 # `run` merges stderr into $output by default; the JSON is on stdout and

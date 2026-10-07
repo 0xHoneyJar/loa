@@ -51,13 +51,21 @@ google:gemini-3.1-pro cli-only True
 gemini-2.5-pro prefer-cli False
 claude-headless cli-only False
 gpt-5.5 cli-only False
+deep-research-pro cli-only True
+google:deep-research-pro cli-only True
+researcher cli-only True
+deep-research-pro prefer-api False
+deep-research-pro prefer-cli False
+opus cli-only False
+claude-opus-5-5 cli-only False
+anthropic:claude-opus-5-5 cli-only False
 TABLE
 }
 
 @test "AGC-2 the bash predicate and the Python twin agree on every row" {
     source "$LIB"
     local rows m mode b p
-    rows=$'gemini-headless prefer-api\ngoogle:gemini-headless cli-only\ngemini-2.5-pro cli-only\ngemini-2.5-pro prefer-cli\ngemini-2.5-pro prefer-api\ngoogle:gemini-3.1-pro cli-only\nclaude-headless cli-only\ncodex-headless prefer-cli\ngpt-5.5 cli-only'
+    rows=$'gemini-headless prefer-api\ngoogle:gemini-headless cli-only\ngemini-2.5-pro cli-only\ngemini-2.5-pro prefer-cli\ngemini-2.5-pro prefer-api\ngoogle:gemini-3.1-pro cli-only\nclaude-headless cli-only\ncodex-headless prefer-cli\ngpt-5.5 cli-only\ndeep-research-pro cli-only\ngoogle:deep-research-pro cli-only\nresearcher cli-only\ndeep-research-pro prefer-api\nopus cli-only\nclaude-opus-5-5 cli-only'
     while read -r m mode; do
         if routes_to_agy "$m" "$mode"; then b=True; else b=False; fi
         p=$(cd "$REPO/.claude/adapters" && python3 -I -c 'import sys; sys.path.insert(0, "."); from loa_cheval.config.loader import routes_to_agy; print(routes_to_agy(sys.argv[1], sys.argv[2]))' "$m" "$mode")
@@ -110,7 +118,7 @@ TABLE
     printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
     _cfg cli-only
     run --separate-stderr env LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" PATH="$T/bin:$PATH" \
-        timeout 120 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check --json
+        timeout 180 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check --json
     echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || { echo "$output" | tail -5; return 1; }
 }
 

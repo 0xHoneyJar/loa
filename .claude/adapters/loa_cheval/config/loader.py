@@ -214,14 +214,73 @@ def warn_agy_available_once(project_root: Optional[str] = None) -> None:
                    ", ".join(why), _AGY_OPT_IN_KEY)
 
 
+_CATALOG_PROVIDERS_CACHE: Dict[str, Tuple[Dict[str, str], Dict[str, str]]] = {}
+
+
+def _catalog_provider_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
+    """(model id → provider, alias → provider) from the System catalog (`.claude/defaults/model-config.yaml`, beside this
+    package — the file `generated-model-maps.sh` is generated from) overlaid with the project config's providers/aliases
+    (the cwd walk cheval uses). Cached per project root; any read failure leaves the maps it could read (fail soft: the
+    caller falls back to the `gemini*` name rule)."""
+    try:
+        root = _find_project_root()
+    except Exception:  # noqa: BLE001
+        root = ""
+    if root in _CATALOG_PROVIDERS_CACHE:
+        return _CATALOG_PROVIDERS_CACHE[root]
+    merged: Dict[str, Any] = {}
+    system = Path(__file__).resolve().parents[3] / "defaults" / "model-config.yaml"   # .claude/defaults
+    for read in (lambda: _load_yaml(str(system)) if system.is_file() else {},
+                 lambda: load_project_config(root) if root else {}):
+        try:
+            layer = read()
+        except Exception:  # noqa: BLE001 — fail soft
+            layer = {}
+        if isinstance(layer, dict):
+            merged = _deep_merge(merged, {k: layer[k] for k in ("providers", "aliases") if isinstance(layer.get(k), dict)})
+    models: Dict[str, str] = {}
+    for prov, block in (merged.get("providers") or {}).items():
+        for mid in ((block or {}).get("models") or {}) if isinstance(block, dict) else ():
+            models.setdefault(str(mid), str(prov))
+    aliases: Dict[str, str] = {}
+    for name, target in (merged.get("aliases") or {}).items():
+        if isinstance(target, dict):
+            target = target.get("target") or target.get("model") or ""
+        if isinstance(target, str) and ":" in target:
+            aliases[str(name)] = target.split(":", 1)[0]
+        elif isinstance(target, str) and target in models:
+            aliases[str(name)] = models[target]
+    _CATALOG_PROVIDERS_CACHE[root] = (models, aliases)
+    return models, aliases
+
+
+def catalog_provider_of(model: str) -> str:
+    """The provider cheval resolves `model` to: a `provider:` prefix, else the catalog alias, else the catalog model id,
+    else the `gemini*` name (→ google); "" when none applies (r251-3 R3)."""
+    m = (model or "").strip()
+    if not m:
+        return ""
+    if ":" in m:
+        return m.split(":", 1)[0]
+    models, aliases = _catalog_provider_maps()
+    if m in aliases:
+        return aliases[m]
+    if m in models:
+        return models[m]
+    return "google" if m.startswith("gemini") else ""
+
+
 def routes_to_agy(model: str, mode: Optional[str] = None) -> bool:
     """True when cheval would dispatch `model` through agy (cycle-127 review r251-1 G2) — the Python twin of
     `.claude/scripts/lib/agy-gate-lib.sh` `routes_to_agy`, one rule for every reader:
 
       * the `gemini-headless` hop by name — bare, provider-prefixed (`google:gemini-headless`) or as a provider
         (`gemini-headless:<model>`), in any headless mode;
-      * a Google model (`gemini*`, `google:gemini*`) under `hounfour.headless.mode: cli-only`, where the chain resolver
-        keeps only the CLI hop (the caller resolves the mode — env `LOA_HEADLESS_MODE` wins, as in cheval).
+      * a Google model under `hounfour.headless.mode: cli-only`, where the chain resolver keeps only the CLI hop (the
+        caller resolves the mode — env `LOA_HEADLESS_MODE` wins, as in cheval). r251-3 R3: "Google" is the PROVIDER the
+        model resolves to (`catalog_provider_of`: the `google:` prefix, the catalog alias or model id — e.g.
+        `deep-research-pro`, `researcher` — with the `gemini*` name as the fallback), as in cheval's
+        `_entry_routes_to_agy` and Bridgebuilder's `isAgyRouted`.
 
     Under `prefer-cli` a Google model is NOT agy-routed: its API hop stays planned (cheval's walk skips the gated hop).
     """
@@ -232,8 +291,7 @@ def routes_to_agy(model: str, mode: Optional[str] = None) -> bool:
         return True
     if mode != "cli-only":
         return False
-    bare = m[len("google:"):] if m.startswith("google:") else m
-    return bare.startswith("gemini")
+    return catalog_provider_of(m) == "google"
 
 
 def load_env_overrides() -> Dict[str, Any]:

@@ -86,11 +86,11 @@ None. State: `.loa.config.yaml` (operator), `.claude/defaults/model-config.yaml`
 ## 5. API Specifications
 - `hounfour.headless.agy_opt_in: boolean` (default false).
 - `params.default_effort: low|medium|high|xhigh|max` (catalog entry).
-- MODELINV `effort_source: caller|catalog|none` (additive).
+- MODELINV `effort_source: caller|catalog|extra|none` and `effort_effective` (the adapter's wire value; additive).
 - `tools/ceiling-probe-live.py --transport {api,claude-headless}`; record fields `transport`, `cli_bin`, `cli_model`, `pricing_basis`.
 
 ## 6. Error Handling Strategy
-Gate off → `INVALID_CONFIG` / `opt_in_required`, never a spawn. Planners map that class to `planned: false`. Effort: an invalid catalog value fails schema validation (load time), never a silent no-op. Probe: non-size failure → exit 1 and no write; budget cap → exit 3 and no write; the record is written in every case with `partial`/`error` set.
+Gate off → `INVALID_CONFIG` / `opt_in_required`, never a spawn. Planners map that class to `planned: false`. Effort: an invalid catalog value fails schema validation at validation time; the catalog is not schema-validated at load, so `resolve_effort` skips an invalid value with one WARN per (model, reason) — never a crash, never a silent no-op. Headless size verdicts: the CLI's own pre-flight rejection is `PROVIDER_CONTEXT_LIMIT` (not walked, no breaker count) unless a throttle marker is present — `is_throttle_message()` in `routing/ceiling.py`, one rule for the adapter and the probe — in which case it is a rate limit (retried, then walked). Probe: non-size failure → exit 1 and no write; budget cap → exit 3 and no write unless `--write-partial-as-operator-set` (the entry then carries `probe_outcome: partial`); the record is written in every case with `partial`/`error` set.
 
 ## 7. Testing Strategy
 Red first for every behaviour (D-1.4, D-2.4, D-3.4). Suites: adapter pytest (`tests/test_agy_*`, `test_ceiling_*`, `test_effort_*`), `tests/unit/adversarial-review-companion.bats` (planned/not-planned), Bridgebuilder vitest (registration + verdict quality), `run-preflight`/`loa-status-providers` bats, `model-config-v3-schema.bats` (the new enum, a bad value rejected), `cycle-124-anthropic-catalog.bats`, codegen regen tests, `test_ceiling_probe_write_catalog.py` (CLI transport write shape, partial → no write). Live: the one probe run (D-3.4) with its record; a dry-run `cheval invoke --model opus` showing `effort: high (catalog default)`; a `/loa` run showing the opt-in line.

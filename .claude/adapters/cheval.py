@@ -355,6 +355,24 @@ _CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
 }
 
 
+def _calibrate_hint(entry: Any, chain_entries: Any) -> Optional[str]:
+    """The ceiling-probe command for a provider size verdict on `entry` (cycle-126 D-1.1b), or None.
+
+    An HTTP hop names itself. A CLI hop carries no ceiling fields — the probe refuses it — so (review r251-3 R4) a
+    claude-headless hop names the chain's Anthropic HTTP entry with `--transport claude-headless` (the transport that
+    measured the payload), and any other CLI hop, or a chain with no such entry, gets no hint: the CLI's own window
+    refused the payload."""
+    if getattr(entry, "adapter_kind", "http") != "cli":
+        return _PROBE_COMMAND.format(model=entry.model_id)
+    if _CLI_ADAPTER_BY_PROVIDER.get(getattr(entry, "provider", "")) != "claude-headless":
+        return None
+    head = next((e for e in (chain_entries or ())
+                 if getattr(e, "adapter_kind", "http") != "cli" and getattr(e, "provider", "") == entry.provider), None)
+    if head is None:
+        return None
+    return f"{_PROBE_COMMAND.format(model=head.model_id)} --transport claude-headless"
+
+
 _AGY_NOT_PLANNED_WARNED = False
 
 
@@ -2227,7 +2245,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         _calib = {
             "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
             "provider_limit": provider_limit, "error_class": error_class,
-            "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
+            "calibrate": _calibrate_hint(_entry, _chain.entries), "store": _observed_store_path(),
             "observation_recorded": _record,
         }
         if isinstance(_modelinv_state.get("capability_evaluation"), dict):
@@ -2237,14 +2255,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             "message_redacted": _msg, "observed_input_tokens": _obs, "provider_limit": provider_limit,
         })
         _modelinv_state["operator_visible_warn"] = True
+        # (review r251-3 R4: a CLI hop with no HTTP entry to calibrate gets no probe command — the CLI's window refused it)
+        _remedy = (f"calibrate: {_calib['calibrate']}" if _calib["calibrate"]
+                   else "the CLI's own window refused the payload (no catalog ceiling to calibrate)")
         print(
             f"[preflight] calibration_needed model={_entry_target} class={error_class} "
-            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); run: {_calib['calibrate']}",
+            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); "
+            + (f"run: {_calib['calibrate']}" if _calib["calibrate"] else _remedy),
             file=sys.stderr,
         )
         print(_error_json(
             _exc.code,
-            f"{_msg} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
+            f"{_msg} — not walked: the same payload would fail the next voice; {_remedy}",
             retryable=False, calibration_needed=True, error_class=error_class,
             observed_input_tokens=_obs, provider_limit=provider_limit,
         ), file=sys.stderr)

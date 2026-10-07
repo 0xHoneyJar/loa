@@ -216,9 +216,43 @@ _CONTEXT_LIMIT_MARKERS = (
 
 
 def is_context_limit_message(message: str) -> bool:
-    """True when a provider error message is of the prompt-too-long class."""
-    low = (message or "").lower()
-    return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS)
+    """True when a provider error message is of the prompt-too-long class
+    (a marker, or one of the size statements ``parse_context_limit`` reads —
+    r251-3: the CLI's bare "~N tokens (limit M)" carries no marker word)."""
+    text = message or ""
+    low = text.lower()
+    return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS) or any(
+        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT))
+
+
+# cycle-127 r251-3 R1 (SDD D-3.12): ONE throttle rule for the headless adapter and
+# the ceiling probe. Bedrock's tokens-per-minute throttle reads "Too many tokens,
+# please wait before trying again" — it carries the context marker `too many
+# tokens`, so a throttle marker must win over a context marker or a transient
+# throttle becomes a terminal size verdict. A 429 / 529 counts only in status
+# position: never inside a token count ("1,429,000 tokens", "~1052900 tokens",
+# "1,429.5k") and never as a count itself ("~429 tokens"); a status followed by
+# punctuation ("API Error: 429. Too many tokens") is still a status.
+_THROTTLE_MARKERS = (
+    "throttl",            # ThrottlingException, "throttled"
+    "please wait",
+    "rate limit",
+    "rate_limit",         # Anthropic's error type rate_limit_error
+    "tokens per min",     # "input tokens per minute", "tokens per min (TPM)"
+    "overloaded",
+    "too many requests",
+    "quota",
+)
+_RE_THROTTLE_STATUS = re.compile(r"(?<![\d,.])(?:429|529)(?!\d|[,.]\d|\s*k?\s*tokens\b)", re.I)
+
+
+def is_throttle_message(message: Optional[str]) -> bool:
+    """True when a provider/CLI error message is of the throttle class (a rate,
+    token-per-minute, overload or quota limit) — retried and walked, never a size
+    verdict, even when the text also reads like a context limit."""
+    text = message or ""
+    low = text.lower()
+    return any(marker in low for marker in _THROTTLE_MARKERS) or bool(_RE_THROTTLE_STATUS.search(text))
 
 
 # A 429 whose message names a token budget (Anthropic: "... 30,000 input tokens

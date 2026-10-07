@@ -170,7 +170,9 @@ provider_of() {  # $1 = model id → openai|anthropic|google|""
     gpt*|o[0-9]*|codex*) echo openai ;;
     claude*) echo anthropic ;;
     gemini*) echo google ;;
-    *) echo "" ;;
+    # (review r251-3 R3: a catalog model id without a family prefix — deep-research-pro — resolves through the
+    # generated maps, the same lookup routes_to_agy uses)
+    *) if declare -F agy_catalog_provider >/dev/null; then agy_catalog_provider "$id"; else echo ""; fi ;;
   esac
 }
 declare -A USABLE_PROVIDERS=()   # providers that have a usable voice in any stage

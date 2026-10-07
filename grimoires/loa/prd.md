@@ -139,7 +139,7 @@ See the SDD. The config key lives under `hounfour.headless` beside `mode`; the g
 In: FR-1 … FR-3 and their docs/tests. Out: moving the agy prompt off argv (needs an agy host — bd-ugmi), any change to Gemini HTTP routing (KF-001/008), raising other 5-family ceilings, publishing (a separate preapproved step after merge).
 
 ## Success Criteria
-- SC-1 On this host, with no opt-in: `cheval` refuses an agy dispatch with the key named; Bridgebuilder's dry run plans two voices with full quality; `/loa` shows the opt-in line. With the key `true`: the adapter attempts the binary (absent here → the existing PROVIDER_UNAVAILABLE path).
+- SC-1 On this host, with no opt-in: `cheval` refuses an agy dispatch with the key named; Bridgebuilder's dry run plans two voices with full quality; `/loa` shows the opt-in line. With the key `true`: the adapter attempts the binary (absent here → the existing `INVALID_CONFIG` "agy CLI not found" refusal, unchanged by this cycle).
 - SC-2 Dry-run and adapter tests prove the effort resolution (FR-2.4); the migration caveat is gone.
 - SC-3 The probe record exists; the catalog carries either the measured `operator_set` bound or the unchanged 180K plus a documented attempt; schema and catalog tests green.
 - SC-4 Review and audit APPROVED (Fable) with cross-model dissent; CI green; one Bridgebuilder pass triaged; merged.

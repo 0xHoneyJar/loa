@@ -219,6 +219,16 @@ def test_g6_on_validate_config_still_checks_the_binary(monkeypatch):
     ("claude-headless", "cli-only", False),
     ("gpt-5.5", "cli-only", False),
     ("", "cli-only", False),
+    # r251-3 R3: under cli-only the PROVIDER decides (resolved through the catalog, aliases included), as in cheval's
+    # _entry_routes_to_agy and Bridgebuilder's isAgyRouted — deep-research-pro is a Google model without the prefix
+    ("deep-research-pro", "cli-only", True),
+    ("google:deep-research-pro", "cli-only", True),
+    ("researcher", "cli-only", True),
+    ("deep-research-pro", "prefer-api", False),
+    ("deep-research-pro", "prefer-cli", False),
+    ("opus", "cli-only", False),
+    ("claude-opus-5-5", "cli-only", False),
+    ("anthropic:claude-opus-5-5", "cli-only", False),
 ])
 def test_routes_to_agy_matches_the_bash_rule(model, mode, expected):
     from loa_cheval.config.loader import routes_to_agy

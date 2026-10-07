@@ -19,7 +19,8 @@
 #                                       cheval), then the config, then prefer-api
 #   routes_to_agy <model> [<mode>]    → 0 when cheval would dispatch <model> through agy: the gemini-headless hop by
 #                                       name (bare, `google:gemini-headless`, `gemini-headless:<m>`), or a Google model
-#                                       (`gemini*`, `google:gemini*`) under mode cli-only. <mode> defaults to
+#                                       under mode cli-only — by PROVIDER (agy_catalog_provider: the `google:` prefix, the
+#                                       generated catalog maps incl. aliases, the `gemini*` name as fallback; r251-3 R3). <mode> defaults to
 #                                       ${LOA_HEADLESS_MODE:-prefer-api}. prefer-cli is NOT agy-routed (the API hop stays
 #                                       planned; cheval's walk skips the gated hop itself).
 #   agy_route_planned <model> <config> → 0 when <model> is planned: not agy-routed, or the opt-in is on
@@ -98,13 +99,33 @@ agy_headless_mode() {
   printf '%s\n' "${v:-prefer-api}"
 }
 
+_AGY_GATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+
+agy_catalog_provider() {  # <model> → the provider cheval resolves it to (review r251-3 R3; Python twin loader.catalog_provider_of)
+  # a `provider:` prefix, else the generated catalog maps (MODEL_IDS resolves an alias, MODEL_PROVIDERS names the
+  # provider — read in a subshell: this lib may be sourced inside a function, where `declare -A` would be local), else
+  # the `gemini*` name → google; nothing when none applies. Bash < 4 or a missing map file: the name fallback only.
+  local m="${1:-}" maps="${_AGY_GATE_LIB_DIR:-}/../generated-model-maps.sh" p=""
+  [[ -n "$m" ]] || return 0
+  if [[ "$m" == *:* ]]; then printf '%s\n' "${m%%:*}"; return 0; fi
+  if [[ -f "$maps" ]] && (( ${BASH_VERSINFO[0]:-0} >= 4 )); then
+    p=$(source "$maps" >/dev/null 2>&1 || exit 0
+        id="${MODEL_IDS[$1]:-$1}"
+        printf '%s' "${MODEL_PROVIDERS[$1]:-${MODEL_PROVIDERS[$id]:-}}") 2>/dev/null || p=""
+  fi
+  if [[ -z "$p" ]]; then case "$m" in gemini*) p=google ;; esac; fi
+  [[ -n "$p" ]] && printf '%s\n' "$p"
+  return 0
+}
+
 routes_to_agy() {
   local m="${1:-}" mode="${2:-${LOA_HEADLESS_MODE:-prefer-api}}"
   [[ -n "$m" ]] || return 1
   case "$m" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac
   [[ "$mode" == "cli-only" ]] || return 1
-  case "${m#google:}" in gemini*) return 0 ;; esac
-  return 1
+  # (review r251-3 R3: under cli-only the PROVIDER decides — `deep-research-pro`, `researcher` are Google voices without
+  # the gemini* name — as in cheval's _entry_routes_to_agy and Bridgebuilder's isAgyRouted)
+  [[ "$(agy_catalog_provider "$m")" == google ]]
 }
 
 agy_route_planned() {

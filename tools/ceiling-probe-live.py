@@ -194,13 +194,12 @@ if sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S:  # r251-2 Q7: the schedule alone clears 
     raise RuntimeError("ceiling-probe-live: _TPM_BACKOFF_S must sum to at least _TPM_WINDOW_S")
 _RETRY_WAIT_CAP_S = 180         # total sleep per step, every class
 _RETRY_AFTER = re.compile(r"retry[-_ ]after\W{0,4}(\d+(?:\.\d+)?)", re.I)
-# A throttle marker (verifier r251-1): Bedrock's token throttle reads "Too many
-# tokens, please wait before trying again" — it carries the context marker
-# `too many tokens`, so a throttle marker must win or the first throttle is a
-# size rejection with no retry. `429` is matched as a status, never inside a
-# token count ("429,000 tokens", "1,429.5k"); a status followed by punctuation
-# ("API Error: 429. Too many tokens") is still a status (r251-2 Q1).
-_THROTTLE = re.compile(r"throttl|please wait|(?<![\d,.])429(?!\d|[,.]\d)|rate limit|tokens per min", re.I)
+# A throttle marker (verifier r251-1) wins over a context marker: Bedrock's token
+# throttle reads "Too many tokens, please wait before trying again" — it carries
+# the context marker `too many tokens`, so without the rule the first throttle is
+# a size rejection with no retry. r251-3 R1: the rule lives in ONE place,
+# loa_cheval.routing.ceiling.is_throttle_message, shared with the headless
+# adapter (a 429 / 529 only in status position, never inside a token count).
 _SLEEP = __import__("time").sleep
 # `opus` / `sonnet` / `haiku` are resolved by the claude CLI itself from these
 # pins (the claude-bedrock wrapper exports them); recorded when visible.
@@ -348,7 +347,7 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
     # wait" line on stderr cannot turn a genuine context-limit result into a transient
     throttle_text = " ".join(x for x in (result, f"(api_status={api_status})" if api_status else "") if x) \
         if result else full
-    if _THROTTLE.search(throttle_text) and (ceiling.is_context_limit_message(full)
+    if ceiling.is_throttle_message(throttle_text) and (ceiling.is_context_limit_message(full)
                                             or ceiling.is_token_limit_message(full)):
         # a token throttle, even when it also reads like a context limit: retried on the TPM schedule
         return {**base, "kind": "transient", "token_limit": True, "detail": diag}

@@ -64,7 +64,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
 }
 
-_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 936000
+_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 920000 (fixture values, not the live catalog — r251-3 R2)
   local cal_block=""
   if [[ -n "$2" ]]; then
     cal_block="          source: operator_set
@@ -77,7 +77,7 @@ _lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport
           calibrated_at: null
           stale_after_days: 90"
   fi
-  local bound=200000; [[ -n "$2" ]] && bound=936000
+  local bound=200000; [[ -n "$2" ]] && bound=920000
   cat > "$1" <<YAML
 aliases:
   opus: "anthropic:claude-fixture-1"
@@ -152,10 +152,10 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
     _lsp5_obs "$m" 500001 PROVIDER_CONTEXT_LIMIT
     run timeout 120 bash "$STATUS" --no-stale-check
     [ "$status" -eq 0 ]
-    echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
+    echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
     [[ "$output" != *"below on this route"* ]]
     run timeout 120 bash "$STATUS" --no-stale-check --json
-    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 936000' >/dev/null
+    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 920000' >/dev/null
   done
 }
 
@@ -167,16 +167,16 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
   _lsp5_obs "$m" 990000 PROVIDER_CONTEXT_LIMIT
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qF "  ceiling: calibrated 936000 ($m, calibrated 2026-10-07T09:29:07Z)"
+  echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
   # below it (a 429 row never counts): the observed bound governs and the line names both
   _lsp5_obs "$m" 300000 RATE_LIMIT_UNVERIFIED 500001 PROVIDER_CONTEXT_LIMIT
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qF "  ceiling: calibrated 936000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+  echo "$output" | grep -qF "  ceiling: calibrated 920000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
   run timeout 120 bash "$STATUS" --no-stale-check --json
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 500000 and .calibrated == true
-    and .calibrated_value == 936000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
+    and .calibrated_value == 920000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
     and .calibrated_at == "2026-10-07T09:29:07Z"' >/dev/null
 }
 
