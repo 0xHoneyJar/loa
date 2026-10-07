@@ -151,6 +151,13 @@ cred_present() {  # $1 = provider → 0 if a credential is present (env / .env.l
   return 1
 }
 cli_for() { case "$1" in claude-headless) echo claude ;; codex-headless) echo codex ;; gemini-headless) echo agy ;; *) echo "" ;; esac; }
+agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+  local v=""
+  have_yq && [[ -f "$ROOT/.loa.config.yaml" ]] || return 1
+  if [[ "$YQ_FLAVOUR" == "go" ]]; then v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$ROOT/.loa.config.yaml" 2>/dev/null) || v=""
+  else v=$(yq '.hounfour.headless.agy_opt_in == true' "$ROOT/.loa.config.yaml" 2>/dev/null) || v=""; fi
+  [[ "$v" == "true" ]]
+}
 provider_of() {  # $1 = model id → openai|anthropic|google|""
   local id="$1" alias="" cat=""
   # Only catalog-shaped ids reach the yq expression (config text is operator-owned but is still input).
@@ -169,7 +176,7 @@ provider_of() {  # $1 = model id → openai|anthropic|google|""
 }
 declare -A USABLE_PROVIDERS=()   # providers that have a usable voice in any stage
 declare -A STAGE_ONLY=()         # stage → the single usable provider (for P4)
-p3_status="PASS"; p3_detail=""; p3_fail_stages=""; p3_warn=""; p3_usable=""
+p3_status="PASS"; p3_detail=""; p3_fail_stages=""; p3_warn=""; p3_usable=""; p3_optin=""
 if ! have_yq || [[ ! -f "$ROOT/.loa.config.yaml" ]]; then
   p3_status="WARN"; p3_detail="yq or .loa.config.yaml missing: voices unchecked"
 else
@@ -179,6 +186,8 @@ else
     usable=0; missing=""; provs=""; usable_names=""
     for m in $models $chain; do
       prov=$(provider_of "$m"); cli=$(cli_for "$m"); ok=0
+      # (an agy hop whose opt-in is off is not a voice on any host — never usable, never "missing a CLI")
+      if [[ "$cli" == agy ]] && ! agy_opted_in; then [[ " $p3_optin " == *" $m(agy: opt-in (disabled; hounfour.headless.agy_opt_in)) "* ]] || p3_optin+="$m(agy: opt-in (disabled; hounfour.headless.agy_opt_in)) "; continue; fi
       if [[ -n "$cli" ]] && command -v "$cli" >/dev/null 2>&1; then ok=1
       elif [[ -z "$cli" && -n "$prov" ]] && cred_present "$prov"; then ok=1; fi
       if (( ok )); then usable=$((usable + 1)); USABLE_PROVIDERS["${prov:-$m}"]=1; provs+="${prov:-$m} "; usable_names+="$m${cli:+(cli $cli)} "
@@ -195,6 +204,8 @@ else
   if [[ -n "$p3_fail_stages" ]]; then p3_status="FAIL"; p3_detail="no usable voice for ${p3_fail_stages% }: no credential present and no CLI hop on PATH"
   elif [[ -n "$p3_warn" ]]; then p3_status="WARN"; p3_detail="${p3_usable}${p3_warn%; }"
   else p3_detail="every configured voice has a credential or CLI hop (${p3_usable%; })"; fi
+  # (cycle-127 FR-1: a hop not planned by its opt-in is said, never counted as a missing voice)
+  [[ -z "$p3_optin" ]] || p3_detail+="; not planned: ${p3_optin% }"
 fi
 record P3 voices "$p3_status" "$p3_detail" "export OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY (or put them in .env.local), or install a CLI hop (claude, codex, agy) named in the stage's fallback_chain"
 

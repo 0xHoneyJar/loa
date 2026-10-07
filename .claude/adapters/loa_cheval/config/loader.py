@@ -110,6 +110,22 @@ def load_project_config(project_root: str) -> Dict[str, Any]:
     return {}
 
 
+def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
+    """`hounfour.headless.agy_opt_in` (cycle-127 FR-1): True only for a YAML boolean `true`, default False.
+
+    Read through the project-config layer merged over the System defaults, from the root cheval itself resolves (the cwd
+    walk). No environment override — a planner is never talked into the agy voice by ambient env. A config that cannot be
+    read reads as off: the gate fails closed, and the adapter's refusal names the key.
+    """
+    root = project_root or _find_project_root()
+    try:
+        merged = _deep_merge(load_system_defaults(root), load_project_config(root))
+    except Exception:  # noqa: BLE001 — fail closed
+        return False
+    headless = merged.get("headless") if isinstance(merged, dict) else None
+    return isinstance(headless, dict) and headless.get("agy_opt_in") is True
+
+
 def load_env_overrides() -> Dict[str, Any]:
     """Layer 3: Environment variable overrides (limited scope).
 

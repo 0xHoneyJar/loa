@@ -2345,6 +2345,25 @@ _adv_cli_present() {  # <family> → 0 when the family's CLI hop binary is on PA
   command -v "$bin" >/dev/null 2>&1
 }
 
+# cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in. Read from the config with yq, never by
+# spawning cheval: true only for a YAML boolean true at hounfour.headless.agy_opt_in (absent, false, a string — off). No env override.
+_adv_agy_opted_in() {
+  local v=""
+  [[ -f "${CONFIG_FILE:-}" ]] && command -v yq >/dev/null 2>&1 || return 1
+  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
+  [[ "$v" == "true" ]]
+}
+_adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain without its agy hops when the opt-in is off; each drop is said once
+  local key="$1" fam="$2" h out=""; shift 2
+  if _adv_agy_opted_in; then printf '%s' "$*"; return 0; fi
+  for h in "$@"; do
+    if [[ "$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")" == "gemini-headless" ]]; then
+      log "WARN: companion hop ${h} not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — named by flatline_protocol.${key}.companion_chain.${fam}"
+    else out+="$h "; fi
+  done
+  printf '%s' "${out% }"
+}
+
 _companion_chain() {  # <family> → space-separated chain, credential presence deciding the start; "" = no route
   local fam="$1" configured=""
   case "$fam" in
@@ -4058,7 +4077,13 @@ main() {
     companion_family=$(_companion_family "$(_adv_family_of "$model")")
     local companion_chain_str
     companion_chain_str=$(_companion_chain "$companion_family")
-    if [[ -z "$companion_chain_str" ]]; then
+    # cycle-127 FR-1: an agy hop with the opt-in off is not planned; a chain left empty by that is opt_in_required, not no_route
+    local _agy_pre="$companion_chain_str"
+    # shellcheck disable=SC2086  # (a space-separated hop list, as everywhere it is walked)
+    [[ -z "$companion_chain_str" ]] || companion_chain_str=$(_adv_agy_filter_chain "$([[ "$type" == "audit" ]] && echo security_audit || echo code_review)" "$companion_family" $companion_chain_str)
+    if [[ -z "$companion_chain_str" && -n "$_agy_pre" ]]; then
+      companion_skip_reason="opt_in_required"
+    elif [[ -z "$companion_chain_str" ]]; then
       companion_skip_reason="no_route"
     else
       # review sprint-248 C-005 (round 1, live re-run): a hop the primary chain also holds — typically

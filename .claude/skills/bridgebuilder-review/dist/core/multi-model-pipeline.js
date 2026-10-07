@@ -10,7 +10,7 @@ import path from "node:path";
 import { summarizeReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, isHeadlessModelId, validateApiKeys } from "../config.js";
+import { PROVIDER_API_KEY_ENV, isHeadlessModelId, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 /**
  * Per-model timeout derivation — reasoning-class predicate (multi-provider).
@@ -93,8 +93,11 @@ export function shouldPostComment(poster, config, logger, context) {
 export async function executeMultiModelReview(item, systemPrompt, userPrompt, config, adapters, enrichment) {
     const multiConfig = config.multiModel;
     const { poster, sanitizer, logger } = adapters;
-    // Validate API keys
-    const keyStatus = validateApiKeys(multiConfig);
+    // Validate API keys (cycle-127 FR-1: and the agy opt-in, read from the repo's Loa config)
+    const keyStatus = validateApiKeys(multiConfig, readAgyGate(config.repoRoot ? path.join(config.repoRoot, ".loa.config.yaml") : ".loa.config.yaml"));
+    for (const np of keyStatus.notPlanned) {
+        logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+    }
     if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
         throw new Error(`Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`);
     }
@@ -283,7 +286,7 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
     }
     // Incomplete or degraded participation can never clear a merge.
-    if (modelResults.length !== multiConfig.models.length ||
+    if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||
         modelResults.some((result) => result.error || !result.response) ||
         computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
         reviewVerdict.mergeBlocked = true;
@@ -294,6 +297,7 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         posted: overallPosted || modelResults.some((r) => r.posted),
         combinedContent,
         reviewVerdict,
+        notPlanned: keyStatus.notPlanned,
     };
 }
 /**

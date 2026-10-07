@@ -752,6 +752,25 @@
         "max"
       ]
     },
+    "effort_source": {
+      "description": "Cycle-127 FR-2 (SDD D-2.3/D-2.5): where `effort` came from \u2014 `caller` (explicit --effort), `catalog` (the resolved entry's params.default_effort), `extra` (a CLI entry's legacy extra.effort) or `none` (nothing sent; vendor default). Optional/additive.",
+      "enum": [
+        "caller",
+        "catalog",
+        "extra",
+        "none"
+      ]
+    },
+    "effort_effective": {
+      "description": "Cycle-127 FR-2 (SDD D-2.6): the effort the answering hop put on the wire after the adapter's per-family mapping (e.g. xhigh \u2192 high on Opus 4.6). Absent when nothing was sent. Optional/additive.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
     "schema_enforced": {
       "description": "cycle-124 (PRD FR-7 / AC-7.4, SDD \u00a72.4; schema slot lands in Sprint 1 U0 so no writer can emit a field the schema rejects). True iff the provider enforced a structured-output schema on THIS call (Anthropic output_format json_schema; claude-headless --json-schema). False when the call proceeded unenforced: a headless hop whose CLI lacks the flag, or a chain hop whose catalog entry lacks structured_json. Optional/additive; readers MUST treat absence as false.",
       "type": "boolean"

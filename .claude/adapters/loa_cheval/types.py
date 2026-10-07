@@ -500,6 +500,22 @@ class ConfigError(ChevalError):
         super().__init__("INVALID_CONFIG", message, retryable=False)
 
 
+class AgyOptInRequiredError(ConfigError):
+    """The agy (Antigravity) headless route is opt-in and `hounfour.headless.agy_opt_in` is not `true` (cycle-127 FR-1).
+
+    An INVALID_CONFIG refusal raised before any binary discovery or spawn; `failure_class` (also in `context`) is the
+    machine-readable seam planners read as "not planned", never as a failed voice.
+    """
+
+    failure_class = "opt_in_required"
+    MESSAGE = ("agy headless route is opt-in: set hounfour.headless.agy_opt_in: true (the prompt travels on the CLI's "
+               "argv, readable by local users; the CLI must be OAuth-authed)")
+
+    def __init__(self, message: str = MESSAGE):
+        super().__init__(message)
+        self.context = {"failure_class": self.failure_class}
+
+
 class AuthRevokedError(ChevalError):
     """Runtime auth-credential revocation on a CLI/subscription leg (KF-017/#1071).
 

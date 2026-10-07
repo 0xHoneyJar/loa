@@ -65,11 +65,25 @@ export declare function loadMultiModelConfig(): MultiModelConfig;
 export declare const PROVIDER_API_KEY_ENV: Record<string, string>;
 /** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
 export declare function isHeadlessModelId(modelId: string, provider?: string): boolean;
+/** cycle-127 FR-1: the agy (Antigravity) route's opt-in and the headless mode that decides whether a google voice routes to it. */
+export interface AgyGate {
+    optIn: boolean;
+    mode: string;
+}
+/**
+ * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
+ * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
+ * file, a missing yq or an unreadable config reads as off — the gate fails closed.
+ */
+export declare function readAgyGate(configPath?: string): AgyGate;
+/** A voice cheval would dispatch through agy: the gemini-headless id, or any google model when headless mode is cli-only. */
+export declare function isAgyRouted(provider: string, modelId: string, mode: string): boolean;
 /**
  * Validate API keys for configured multi-model providers.
- * Returns available and missing provider lists.
+ * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
+ * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export declare function validateApiKeys(config: MultiModelConfig): {
+export declare function validateApiKeys(config: MultiModelConfig, gate?: AgyGate): {
     valid: Array<{
         provider: string;
         modelId: string;
@@ -77,6 +91,11 @@ export declare function validateApiKeys(config: MultiModelConfig): {
     missing: Array<{
         provider: string;
         envVar: string;
+    }>;
+    notPlanned: Array<{
+        provider: string;
+        modelId: string;
+        reason: "opt_in_required";
     }>;
 };
 export interface CLIArgs {

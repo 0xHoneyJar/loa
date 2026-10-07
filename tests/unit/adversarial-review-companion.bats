@@ -5972,3 +5972,56 @@ EOF
     # the line is still cut: at most 300 characters after the prefix
     [ "$(grep -F 'Companion voice diagnostic' "$T/cut-err" | sed 's/^.*Companion voice diagnostic (claude-headless): //' | wc -c)" -le 301 ]
 }
+
+# cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in (hounfour.headless.agy_opt_in, default
+# false). With it off, an operator companion_chain naming the hop does not plan it: read from the config, before any dispatch.
+_cmp_agy_chain() {  # <anthropic chain YAML list> [agy_opt_in YAML value | "absent"]
+    python3 -I - "$CONFIG_FILE" "$1" "${2:-absent}" <<'PY'
+import sys; p, chain, opt = sys.argv[1:4]; s = open(p, encoding="utf-8").read()
+s = s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: " + chain + "\n", 1)
+if opt != "absent":
+    s = "hounfour:\n  headless:\n    agy_opt_in: " + opt + "\n" + s
+open(p, "w", encoding="utf-8").write(s)
+PY
+}
+
+@test "CMP-284 an operator companion_chain naming gemini-headless with the agy opt-in off → planned false, reason opt_in_required, never dispatched, a WARN naming both keys; verdict quality counts the planned voice only" {
+    local opt
+    for opt in absent false '"true"'; do
+        cp "$T/loa.config.yaml" "$T/loa.config.yaml.orig" 2>/dev/null || true
+        _cmp_agy_chain '[gemini-headless]' "$opt"
+        : > "$CALLS"
+        result=$(_run_main review)
+        [ "$(jq -r '.metadata.companion_voice | [.planned, .reason, .family] | map(tostring) | join(",")' <<<"$result")" = "false,opt_in_required,anthropic" ] || { echo "opt=$opt"; jq -c '.metadata.companion_voice' <<<"$result"; return 1; }
+        [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
+        [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "DEGRADED" ]
+        [ "$(jq '[.verdict_quality.voices_dropped[]? | select(.voice | test("gemini"))] | length' <<<"$result")" = "0" ]
+        ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+        grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log"
+        grep 'hounfour.headless.agy_opt_in' "$T/stderr.log" | grep -q 'flatline_protocol.code_review.companion_chain.anthropic'
+        mv -f "$T/loa.config.yaml.orig" "$T/loa.config.yaml"
+    done
+}
+
+@test "CMP-285 with the agy opt-in off, a companion_chain's gemini-headless hop is dropped and the rest of the chain is planned" {
+    _cmp_agy_chain '[gemini-headless, claude-headless]'
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+    grep -q 'gemini-headless.*hounfour.headless.agy_opt_in' "$T/stderr.log"
+}
+
+@test "CMP-286 with the agy opt-in true, a gemini-headless companion hop is planned and dispatched, and its failure is a dropped voice as before" {
+    _cmp_agy_chain '[gemini-headless]' true
+    BEHAVIOUR[gemini-headless]=unavailable
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "gemini-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    grep -qx 'gemini-headless' "$CALLS"
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    ! grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log" || { echo "unexpected: grep -q 'hounfour.headless.agy_opt_in' '$T/stderr.log'"; return 1; }
+}

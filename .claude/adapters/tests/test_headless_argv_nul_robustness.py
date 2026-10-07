@@ -29,6 +29,12 @@ from loa_cheval.types import (
     ProviderUnavailableError,
 )
 
+
+@pytest.fixture(autouse=True)
+def _agy_opted_in(monkeypatch):
+    """The agy rows pin the opted-in path (cycle-127 FR-1: the route is opt-in; the gate is test_agy_opt_in_gate.py)."""
+    monkeypatch.setattr("loa_cheval.providers.agy_headless_adapter.agy_opt_in_enabled", lambda *a, **k: True)
+
 # (module-seam, provider-type, model-id, extra) — ARGV-prompt adapters only.
 _ARGV_ADAPTERS = [
     ("agy_headless_adapter", "gemini-headless", "gemini-3-pro", {"cli_model": "Gemini 3.1 Pro (High)"}),

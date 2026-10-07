@@ -493,19 +493,60 @@ get_model_secondary() {
 _CACHED_TERTIARY_MODEL=""
 _CACHED_TERTIARY_MODEL_SET=false
 
+# cycle-127 FR-1: a tertiary routed to agy (the gemini-headless hop) with hounfour.headless.agy_opt_in not true
+# is NOT PLANNED — get_model_tertiary returns empty (2-model mode) and the status reads disabled_by_opt_in.
 get_model_tertiary() {
     if [[ "$_CACHED_TERTIARY_MODEL_SET" == true ]]; then
         echo "$_CACHED_TERTIARY_MODEL"
         return
     fi
     local model
-    model=$(read_config '.hounfour.flatline_tertiary_model' '')
-    if [[ -z "$model" ]]; then
-        model=$(read_config '.flatline_protocol.models.tertiary' '')
+    model=$(_get_model_tertiary_configured)
+    if [[ -n "$model" ]] && _tertiary_routes_to_agy "$model" && ! _agy_opted_in; then
+        model=""
     fi
     _CACHED_TERTIARY_MODEL="$model"
     _CACHED_TERTIARY_MODEL_SET=true
     echo "$model"
+}
+
+_get_model_tertiary_configured() {  # the configured tertiary, before the agy opt-in gate
+    local model
+    model=$(read_config '.hounfour.flatline_tertiary_model' '')
+    if [[ -z "$model" ]]; then
+        model=$(read_config '.flatline_protocol.models.tertiary' '')
+    fi
+    echo "$model"
+}
+
+_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (read with yq, no env override)
+    local v=""
+    [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null || return 1
+    v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
+    [[ "$v" == "true" ]]
+}
+
+_tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy: the gemini-headless hop by name
+    # (bare, provider-prefixed, or as a provider), or a Google model under hounfour.headless.mode cli-only (env wins, as cheval's)
+    local m="$1" mode
+    case "$m" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac
+    mode="${LOA_HEADLESS_MODE:-$(read_config '.hounfour.headless.mode' 'prefer-api')}"
+    [[ "$mode" == "cli-only" ]] || return 1
+    case "${m#google:}" in gemini*) return 0 ;; esac
+    return 1
+}
+
+tertiary_opt_in_skip_reason() {  # prints the skip line and returns 0 when the configured tertiary is gated off
+    local m
+    m=$(_get_model_tertiary_configured)
+    [[ -n "$m" ]] && _tertiary_routes_to_agy "$m" && ! _agy_opted_in || return 1
+    echo "Tertiary model '$m' not planned: disabled by opt-in (the agy route needs hounfour.headless.agy_opt_in: true) — 2-model Flatline, not a degraded voice"
+}
+
+get_tertiary_status() {  # active | disabled | disabled_by_opt_in
+    if [[ -n "$(get_model_tertiary)" ]]; then echo "active"
+    elif tertiary_opt_in_skip_reason >/dev/null; then echo "disabled_by_opt_in"
+    else echo "disabled"; fi
 }
 
 # cycle-116 D3 (bd-c116-d3-tiering): per-stage tier routing opt-in.
@@ -1607,6 +1648,8 @@ run_phase1() {
     local tertiary_model
     tertiary_model=$(get_model_tertiary)
     local has_tertiary=false
+    local _tert_skip
+    _tert_skip=$(tertiary_opt_in_skip_reason) && log "$_tert_skip"
     if [[ -n "$tertiary_model" ]]; then
         if ! validate_model "$tertiary_model" "tertiary"; then
             log "Warning: tertiary model '$tertiary_model' invalid, continuing with 2-model mode"
@@ -2415,6 +2458,8 @@ main() {
     tertiary_model_check=$(get_model_tertiary)
     if [[ -n "$tertiary_model_check" ]]; then
         log "Tertiary model: $tertiary_model_check (active)"
+    elif [[ "$(get_tertiary_status)" == "disabled_by_opt_in" ]]; then
+        log "Tertiary model: none (disabled by opt-in: hounfour.headless.agy_opt_in)"
     else
         log "Tertiary model: none (disabled)"
     fi
@@ -2986,10 +3031,8 @@ main() {
     # FR-1 (cycle-045): Determine tertiary model status for output metadata
     local tertiary_model_output
     tertiary_model_output=$(get_model_tertiary)
-    local tertiary_status_output="disabled"
-    if [[ -n "$tertiary_model_output" ]]; then
-        tertiary_status_output="active"
-    fi
+    local tertiary_status_output
+    tertiary_status_output=$(get_tertiary_status)   # active | disabled | disabled_by_opt_in (cycle-127 FR-1)
 
     # Add metadata to result
     local final_result

@@ -494,6 +494,12 @@ def emit_model_invoke_complete(
     # cycle-124 FR-2 — requested reasoning effort (schema field since
     # cycle-114 FR-8; first populated this cycle). Optional/additive.
     effort: Optional[str] = None,
+    # cycle-127 FR-2 (SDD D-2.3) — where `effort` came from:
+    # caller | catalog | none. Optional/additive.
+    effort_source: Optional[str] = None,
+    # cycle-127 D-2.6 — the value the answering hop put on the wire (after
+    # the adapter's per-family mapping). Optional/additive.
+    effort_effective: Optional[str] = None,
     # cycle-124 FR-4 — prompt-cache telemetry (U0 schema fields).
     tokens_cache_read: Optional[int] = None,
     tokens_cache_creation: Optional[int] = None,
@@ -574,6 +580,10 @@ def emit_model_invoke_complete(
         payload["tokens_input"] = tokens_input
     if effort is not None:
         payload["effort"] = effort
+    if effort_source is not None:
+        payload["effort_source"] = effort_source
+    if effort_effective is not None:
+        payload["effort_effective"] = effort_effective
     if tokens_cache_read is not None:
         payload["tokens_cache_read"] = tokens_cache_read
     if tokens_cache_creation is not None:

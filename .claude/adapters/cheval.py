@@ -22,7 +22,7 @@ import traceback
 from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add the adapters directory to Python path for imports
 _ADAPTERS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -861,6 +861,85 @@ def _hop_max_tokens(
     return explicit
 
 
+_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+# One WARN per (model, reason) per process: an invalid catalog value or an
+# entry setting both rungs is a config smell, not a per-call event.
+_EFFORT_WARNED: set = set()
+
+
+def _effort_warn_once(key: Tuple[str, str], msg: str, *fmt: Any) -> None:
+    if key in _EFFORT_WARNED:
+        return
+    _EFFORT_WARNED.add(key)
+    logger.warning(msg, *fmt)
+
+
+def _is_cli_entry(entry: Optional[Dict[str, Any]]) -> bool:
+    return isinstance(entry, dict) and (entry.get("kind") == "cli" or entry.get("auth_type") == "headless")
+
+
+def _valid_effort(raw: Any) -> Optional[str]:
+    return raw if isinstance(raw, str) and raw in _EFFORT_LEVELS else None
+
+
+def resolve_effort(
+    args: Any, entry: Optional[Dict[str, Any]], model_key: str = "?",
+) -> Tuple[Optional[str], str]:
+    """Effective reasoning effort for this invocation (cycle-127 FR-2, SDD D-2.2/D-2.5).
+
+    One chokepoint, four rungs, first match wins:
+      ``caller``  — an explicit `--effort` (no request-metadata path feeds the
+                    cheval CLI; argparse already validated the level);
+      ``catalog`` — the RESOLVED entry's `params.default_effort` (aliases are
+                    strings and carry no params: `opus` is resolved to
+                    claude-opus-5-5 before this is called);
+      ``extra``   — a CLI entry's legacy `extra.effort` / `extra.reasoning_effort`
+                    (the headless adapter's own rung; HTTP entries never read it);
+      ``none``    — nothing on the wire, the vendor default applies.
+    The catalog is not schema-validated at load, so an invalid `default_effort`
+    is skipped with one WARN (never a crash); an entry setting both
+    `params.default_effort` and `extra.effort` gets one WARN too.
+    """
+    explicit = getattr(args, "effort", None)
+    entry = entry if isinstance(entry, dict) else {}
+    params = entry.get("params") if isinstance(entry.get("params"), dict) else {}
+    extra = entry.get("extra") if isinstance(entry.get("extra"), dict) else {}
+    extra_raw = extra.get("effort") or extra.get("reasoning_effort")
+    if "default_effort" in params and extra_raw:
+        _effort_warn_once((model_key, "both"),
+                          "%s sets both params.default_effort and extra.effort; params.default_effort wins "
+                          "(cycle-127 FR-2) — drop one", model_key)
+    if explicit:
+        return explicit, "caller"
+    if "default_effort" in params:
+        value = _valid_effort(params["default_effort"])
+        if value is not None:
+            return value, "catalog"
+        _effort_warn_once((model_key, "invalid"),
+                          "%s: params.default_effort %r is not one of %s — ignored (cycle-127 FR-2)",
+                          model_key, params["default_effort"], ", ".join(_EFFORT_LEVELS))
+    if _is_cli_entry(entry) and extra_raw:
+        value = _valid_effort(str(extra_raw).strip().lower())
+        if value is not None:
+            return value, "extra"
+    return None, "none"
+
+
+def _effort_on_wire(provider: str, model_id: str, effort: Optional[str], hounfour: Dict[str, Any]) -> Optional[str]:
+    """What the dispatched hop puts on the wire for `effort` (cycle-127 D-2.6):
+    the Anthropic HTTP adapter's per-family mapping (`xhigh` → `high` on
+    4.6, omitted on Sonnet/Haiku 4.5); a CLI hop passes it through; other
+    providers' adapters do not read CompletionRequest.effort (None)."""
+    if effort is None:
+        return None
+    if _is_cli_entry(_raw_model_entry(provider, model_id, hounfour)):
+        return effort
+    if provider == "anthropic":
+        from loa_cheval.providers.anthropic_adapter import _effort_for_model
+        return _effort_for_model(model_id, effort)
+    return None
+
+
 def _entry_thinking_class(entry: Any, hounfour: Dict[str, Any]) -> bool:
     """True iff this hop's model reasons before answering (cycle-124 FR-1).
 
@@ -1435,6 +1514,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         print(_error_json("INVALID_CONFIG", flag_error), file=sys.stderr)
         return EXIT_CODES["INVALID_CONFIG"]
 
+    # cycle-127 FR-2 (SDD D-2.2): effort resolved once, against the resolved
+    # (alias-followed) entry; every hop and the MODELINV envelope carry it.
+    _effort, _effort_source = resolve_effort(
+        args, _raw_model_entry(resolved.provider, resolved.model_id, hounfour),
+        model_key=f"{resolved.provider}:{resolved.model_id}",
+    )
+
     # Dry run — print resolved model and exit
     if args.dry_run:
         result = {
@@ -1447,10 +1533,17 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             "max_tokens": _hop_max_tokens(
                 _explicit_max_tokens, resolved.provider, resolved.model_id, hounfour
             ),
-            "effort": getattr(args, "effort", None),
+            "effort": _effort,
+            "effort_source": _effort_source,
+            "effort_effective": _effort_on_wire(resolved.provider, resolved.model_id, _effort, hounfour),
         }
         if _output_schema_sha is not None:
             result["output_schema_sha256"] = _output_schema_sha
+        if _effort is not None:
+            _label = {"catalog": "catalog default", "extra": "headless extra.effort"}.get(_effort_source, _effort_source)
+            _eff = result["effort_effective"]
+            _tail = "" if _eff == _effort else f" → effective {_eff or 'none (omitted on ' + resolved.model_id + ')'}"
+            print(f"effort: {_effort} ({_label}){_tail}", file=sys.stderr)
         print(json.dumps(result, indent=2), file=sys.stdout)
         # Dry-run does not invoke a model — no MODELINV emit.
         return EXIT_CODES["SUCCESS"]
@@ -1733,7 +1826,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             {"agent": agent_name, "output_schema_name": os.path.basename(str(args.json_schema))}
             if _output_schema is not None else {"agent": agent_name}
         ),
-        effort=getattr(args, "effort", None),
+        effort=_effort,
         output_schema=_output_schema,
     )
 
@@ -2737,7 +2830,17 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     tokens_output=_modelinv_state.get("tokens_output"),
                     # cycle-124 FR-2: requested effort (schema field since cycle-114
                     # FR-8, never populated before this cycle).
-                    effort=getattr(args, "effort", None),
+                    effort=_effort,
+                    # cycle-127 FR-2: caller | catalog | none.
+                    effort_source=_effort_source,
+                    # cycle-127 D-2.6: the wire value on the hop that answered
+                    # (the primary when none did).
+                    effort_effective=_effort_on_wire(
+                        *(_modelinv_state["final_model_id"].split(":", 1)
+                          if ":" in str(_modelinv_state.get("final_model_id") or "")
+                          else (resolved.provider, resolved.model_id)),
+                        _effort, hounfour,
+                    ),
                     # cycle-124 FR-4: prompt-cache telemetry.
                     tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
                     tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),

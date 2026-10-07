@@ -24,6 +24,12 @@ export interface MultiModelReviewResult {
     /** Combined content from all models. */
     combinedContent: string;
     reviewVerdict: ReviewVerdict;
+    /** cycle-127 FR-1: configured voices not planned (their agy route's opt-in is off) — never counted as failed or missing. */
+    notPlanned?: Array<{
+        provider: string;
+        modelId: string;
+        reason: "opt_in_required";
+    }>;
 }
 export interface PipelineAdapters {
     poster: IReviewPoster;

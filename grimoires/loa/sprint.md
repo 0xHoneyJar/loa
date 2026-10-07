@@ -47,6 +47,9 @@ On a host without `agy` and without the opt-in, no planner counts the agy route 
 - **Task 1.5 — The probe run (FR-3.3, lead).** One run through `claude-bedrock`, budget $20; record committed; catalog written if clean; maps/registry regenerated; affected suites re-run.
 - **Task 1.6 — Docs + E2E.** Migration addendum, CHANGELOG, SDD pointer; live evidence collected into `reviewer.md` (refusal transcript, `/loa` line, dry-run line, probe record); full affected-suite table.
 
+### Task 1.5 result (2026-10-07)
+One live run through `claude-bedrock`: three needle-verified accepts (696,136 / 880,634 / 972,887 measured input tokens), two CLI pre-flight rejections at the 1,000,000 window, $12.74 CLI-reported spend, outcome `partial` (budget cap before the filler tolerance). Catalog written by the lead as `operator_set` at 936,000 (I2 clamp: 1M − 64K default output; measured 972,887 recorded in `ceiling_calibration.measured_input_tokens`). Record: `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json`. See SDD §1.6.
+
 ### Dependencies
 Task 1.1 before 1.2–1.4 (test-first); 1.5 after 1.4; 1.6 last.
 

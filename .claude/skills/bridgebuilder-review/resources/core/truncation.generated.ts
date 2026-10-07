@@ -31,7 +31,7 @@ export const GENERATED_TOKEN_BUDGETS: Record<string, TokenBudget> = {
   "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
   "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
   "claude-opus-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
-  "claude-opus-5-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+  "claude-opus-5-5": { maxInput: 916000, maxOutput: 32000, coefficient: 0.25 },
   "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
   "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
   "claude-sonnet-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },

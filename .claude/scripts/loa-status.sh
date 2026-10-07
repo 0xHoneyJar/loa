@@ -788,9 +788,27 @@ _provider_key_present() {  # $1 provider → "present (env)" | "present (.env.lo
   done
   echo absent
 }
-_provider_hop() {  # $1 provider → hop binary name or ""
+_providers_config_file() {  # the Loa config the Providers block reads (bats-gated seam: LOA_STATUS_CONFIG_FILE)
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_CONFIG_FILE:-}" ]]; then
+    echo "$LOA_STATUS_CONFIG_FILE"
+  else
+    echo "$CONFIG_FILE"
+  fi
+}
+_agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+  local cfg v=""; cfg=$(_providers_config_file)
+  [[ -f "$cfg" ]] && command -v yq >/dev/null 2>&1 || return 1
+  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$cfg" 2>/dev/null) || v=""
+  [[ "$v" == "true" ]]
+}
+_AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
+_provider_hop_note() {  # $1 provider → the hop note when its CLI route is gated off, else ""
+  [[ "$1" == "google" ]] && ! _agy_opted_in && echo "$_AGY_OPT_IN_NOTE" || echo ""
+}
+_provider_hop() {  # $1 provider → hop binary name or "" (the agy hop is "" while its opt-in is off — cycle-127 FR-1)
   local bin=""
   case "$1" in anthropic) bin=claude ;; openai) bin=codex ;; google) bin=agy ;; esac
+  [[ "$bin" == agy ]] && ! _agy_opted_in && { echo ""; return 0; }
   [[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 && echo "$bin" || echo ""
 }
 _fmt_age_s() { local s="$1"; if [[ ! "$s" =~ ^[0-9]+$ ]]; then echo "-"; elif (( s >= 86400 )); then echo "$(( s / 86400 ))d"; elif (( s >= 3600 )); then echo "$(( s / 3600 ))h"; else echo "$(( s / 60 ))m"; fi; }
@@ -830,8 +848,10 @@ get_providers_json() {
   local out='{}'
   for p in $(printf '%s\n' $provs | sort -u); do
     out=$(printf '%s' "$out" | jq -c --arg p "$p" --arg key "$(_provider_key_present "$p")" --arg hop "$(_provider_hop "$p")" \
+      --arg note "$(_provider_hop_note "$p")" \
       --argjson buckets "$(printf '%s' "$snap" | jq -c --arg p "$p" '.buckets[$p] // {}')" \
-      '.[$p] = {credential:$key, cli_hop:(if $hop == "" then null else $hop end), breakers:$buckets}')
+      '.[$p] = ({credential:$key, cli_hop:(if $hop == "" then null else $hop end), breakers:$buckets}
+                + (if $note == "" then {} else {cli_hop_note:$note} end))')
   done
   out=$(printf '%s' "$out" | jq -c --argjson c "$(_anthropic_ceiling_json)" 'if has("anthropic") then .anthropic.ceiling = $c else . end')
   printf '%s' "$out" | jq -c --argjson rt "$(printf '%s' "$snap" | jq '.reset_timeout_seconds // 60')" '{reset_timeout_seconds:$rt, providers:.}'
@@ -842,7 +862,7 @@ display_providers_section() {
   echo -e "${BOLD}Providers${NC}"
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue
-    key=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].credential'); hop=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].cli_hop // "-"')
+    key=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].credential'); hop=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].cli_hop_note // .providers[$p].cli_hop // "-"')
     line=$(printf '  %-10s key %-20s hop %-7s' "$p" "$key" "$hop")
     local buckets; buckets=$(printf '%s' "$pj" | jq -r --arg p "$p" '.providers[$p].breakers | to_entries[] | "\(.key) \(.value.state) \(.value.age_s // "-") \(.value.probe_due_in_s // "-")"')
     if [[ -z "$buckets" ]]; then line+=" no breaker state"; else

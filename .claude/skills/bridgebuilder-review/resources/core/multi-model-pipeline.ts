@@ -23,7 +23,7 @@ import { summarizeReviewVerdict, type ReviewVerdict } from "./review-verdict.js"
 import { scoreFindings } from "./scoring.js";
 import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, isHeadlessModelId, validateApiKeys } from "../config.js";
+import { PROVIDER_API_KEY_ENV, isHeadlessModelId, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 import type { LoreEntry, PRReviewTemplate } from "./template.js";
 
@@ -96,6 +96,8 @@ export interface MultiModelReviewResult {
   /** Combined content from all models. */
   combinedContent: string;
   reviewVerdict: ReviewVerdict;
+  /** cycle-127 FR-1: configured voices not planned (their agy route's opt-in is off) — never counted as failed or missing. */
+  notPlanned?: Array<{ provider: string; modelId: string; reason: "opt_in_required" }>;
 }
 
 export interface PipelineAdapters {
@@ -166,8 +168,11 @@ export async function executeMultiModelReview(
   const multiConfig = config.multiModel!;
   const { poster, sanitizer, logger } = adapters;
 
-  // Validate API keys
-  const keyStatus = validateApiKeys(multiConfig);
+  // Validate API keys (cycle-127 FR-1: and the agy opt-in, read from the repo's Loa config)
+  const keyStatus = validateApiKeys(multiConfig, readAgyGate(config.repoRoot ? path.join(config.repoRoot, ".loa.config.yaml") : ".loa.config.yaml"));
+  for (const np of keyStatus.notPlanned) {
+    logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+  }
   if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
     throw new Error(
       `Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`,
@@ -414,7 +419,7 @@ export async function executeMultiModelReview(
     reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
   }
   // Incomplete or degraded participation can never clear a merge.
-  if (modelResults.length !== multiConfig.models.length ||
+  if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||
       modelResults.some((result) => result.error || !result.response) ||
       computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
     reviewVerdict.mergeBlocked = true;
@@ -426,6 +431,7 @@ export async function executeMultiModelReview(
     posted: overallPosted || modelResults.some((r) => r.posted),
     combinedContent,
     reviewVerdict,
+    notPlanned: keyStatus.notPlanned,
   };
 }
 

@@ -1,4 +1,4 @@
-import { execFile, execSync } from "node:child_process";
+import { execFile, execFileSync, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { z } from "zod/v4";
@@ -145,18 +145,62 @@ export function isHeadlessModelId(modelId: string, provider?: string): boolean {
   return provider === undefined || GENERATED_MODEL_REGISTRY[modelId].provider === provider;
 }
 
+/** cycle-127 FR-1: the agy (Antigravity) route's opt-in and the headless mode that decides whether a google voice routes to it. */
+export interface AgyGate {
+  optIn: boolean;
+  mode: string;
+}
+
+/**
+ * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
+ * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
+ * file, a missing yq or an unreadable config reads as off — the gate fails closed.
+ */
+export function readAgyGate(configPath = ".loa.config.yaml"): AgyGate {
+  let optIn = false;
+  let mode = "";
+  try {
+    const out = execFileSync(
+      "yq",
+      ["eval", "-o=json", "-I=0",
+        '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "mode": (.hounfour.headless.mode // "")}',
+        configPath],
+      { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] },
+    );
+    const parsed = JSON.parse(out) as { opt?: unknown; mode?: unknown };
+    optIn = parsed.opt === true;
+    mode = typeof parsed.mode === "string" ? parsed.mode : "";
+  } catch {
+    // (fail closed: no opt-in)
+  }
+  return { optIn, mode: process.env.LOA_HEADLESS_MODE || mode || "prefer-api" };
+}
+
+/** A voice cheval would dispatch through agy: the gemini-headless id, or any google model when headless mode is cli-only. */
+export function isAgyRouted(provider: string, modelId: string, mode: string): boolean {
+  if (provider !== "google") return false;
+  return modelId === "gemini-headless" || mode === "cli-only";
+}
+
 /**
  * Validate API keys for configured multi-model providers.
- * Returns available and missing provider lists.
+ * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
+ * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export function validateApiKeys(config: MultiModelConfig): {
+export function validateApiKeys(config: MultiModelConfig, gate: AgyGate = readAgyGate()): {
   valid: Array<{ provider: string; modelId: string }>;
   missing: Array<{ provider: string; envVar: string }>;
+  notPlanned: Array<{ provider: string; modelId: string; reason: "opt_in_required" }>;
 } {
   const valid: Array<{ provider: string; modelId: string }> = [];
   const missing: Array<{ provider: string; envVar: string }> = [];
+  const notPlanned: Array<{ provider: string; modelId: string; reason: "opt_in_required" }> = [];
 
   for (const model of config.models) {
+    if (!gate.optIn && isAgyRouted(model.provider, model.model_id, gate.mode)) {
+      notPlanned.push({ provider: model.provider, modelId: model.model_id, reason: "opt_in_required" });
+      continue;
+    }
     const envVar = PROVIDER_API_KEY_ENV[model.provider];
     if (!envVar) {
       missing.push({ provider: model.provider, envVar: `Unknown provider: ${model.provider}` });
@@ -171,7 +215,7 @@ export function validateApiKeys(config: MultiModelConfig): {
     }
   }
 
-  return { valid, missing };
+  return { valid, missing, notPlanned };
 }
 
 /** Built-in defaults per PRD FR-4 (lowest priority). */

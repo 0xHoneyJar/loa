@@ -277,3 +277,29 @@ line_of() { echo "$output" | grep -E "^\[(PASS|WARN|FAIL)\] $1 "; }
   # the real check-permissions.sh reads this repository's settings; whatever it says, the stub's forced failure must not be the source
   echo "$output" | jq -e '.checks[] | select(.id=="P2") | .detail | test("stub") | not' >/dev/null
 }
+
+@test "PF-AGY P3 voices (cycle-127 FR-1): a gemini-headless hop with the agy opt-in off is not a usable voice even with agy on PATH, and reads agy: opt-in (disabled); with the opt-in true it is usable as before" {
+  rm -f "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: gemini-headless
+YAML
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -q '^\[FAIL\] P3 .*code_review'
+  line_of P3 | grep -qF 'gemini-headless(agy: opt-in (disabled; hounfour.headless.agy_opt_in))'
+  printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' >> "$R/.loa.config.yaml"   # a string is not the boolean
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -qF 'agy: opt-in (disabled; hounfour.headless.agy_opt_in)'
+  python3 -I -c 'import sys; p=sys.argv[1]; s=open(p).read().replace("agy_opt_in: \"true\"", "agy_opt_in: true"); open(p,"w").write(s)' "$R/.loa.config.yaml"
+  pf --unattended
+  [ "$status" -eq 0 ]
+  line_of P3 | grep -qF 'gemini-headless(cli agy)'
+  ! line_of P3 | grep -q 'opt-in' || { echo "unexpected: line_of P3 | grep -q 'opt-in'"; return 1; }
+}

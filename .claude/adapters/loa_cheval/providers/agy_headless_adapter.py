@@ -33,10 +33,15 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     registers every project root it starts in, so a directory per hop left one orphan state entry per hop and made every
     hop a never-seen directory (thirty-seventh run, e1 DISS-C-001). Not yet probed live there (no agy on the cycle-126
     host): a folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a
-    walkable non-zero exit or ends at the catalog timeout — never a hang. agy is NOT disabled: it is the registered
-    `gemini-headless` class, the terminal of every stock Google chain, dispatched on any host with `agy` installed — so
-    the T4.1 gate probe (bd-ugmi) is owed now, and the stable cwd refuses any entry a hop left (cycle-126 audit run 1,
-    e1 DISS-C-001); until then every dispatch WARNs once per process of the argv exposure (e1 DISS-001).
+    walkable non-zero exit or ends at the catalog timeout — never a hang. agy is the registered `gemini-headless` class,
+    the terminal of every stock Google chain; the stable cwd refuses any entry a hop left (cycle-126 audit run 1, e1
+    DISS-C-001), and an opted-in dispatch WARNs once per process of the argv exposure (e1 DISS-001).
+  - **Opt-in** (cycle-127 FR-1) — the route is opt-in, default off: unless `hounfour.headless.agy_opt_in` is `true` in
+    `.loa.config.yaml`, `complete()` raises `AgyOptInRequiredError` (INVALID_CONFIG, `failure_class: opt_in_required`)
+    before any binary discovery, workspace or spawn, and `health_check()` is False without a spawn. A host without agy
+    therefore plans no Google CLI voice instead of failing one (Bridgebuilder #1274 ran DEGRADED 2/3 on that account),
+    and the argv prompt is only ever exposed by an operator's deliberate choice. Opted in, the route is NOT disabled:
+    discovery, the one-time WARN and dispatch run as before, and the T4.1 gate probe (bd-ugmi) is still owed.
   - **Auth** — agy is **OAuth**-authed on host (`agy models` → exit 0; no API-key flag; creds in
     an OAuth store, not `GOOGLE_API_KEY`). The gemini env-strip is a no-op for agy; we keep
     `build_headless_subprocess_env()` (harmless — agy ignores the stripped vars).
@@ -57,6 +62,7 @@ import threading
 import time
 from typing import Any, Dict, List
 
+from loa_cheval.config.loader import agy_opt_in_enabled
 from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace, cwd_vanished
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
@@ -66,6 +72,7 @@ from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
 from loa_cheval.types import (
+    AgyOptInRequiredError,
     CompletionRequest,
     CompletionResult,
     AuthRevokedError,
@@ -113,6 +120,9 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Invoke `agy -p` and return a normalized CompletionResult (plain-text)."""
+        # (cycle-127 FR-1: the opt-in is checked first — no discovery, workspace, WARN or spawn while it is off)
+        if not agy_opt_in_enabled():
+            raise AgyOptInRequiredError()
         model_config = self._get_model_config(request.model)
         enforce_context_window(request, model_config)
 
@@ -248,6 +258,8 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
     def validate_config(self) -> List[str]:
         """Validate that the agy CLI is on PATH. Auth is best-effort (CLI enforces)."""
         errors: List[str] = []
+        if not agy_opt_in_enabled():   # (cycle-127 FR-1)
+            errors.append(f"Provider '{self.provider}': {AgyOptInRequiredError.MESSAGE}")
         if self.config.type != "gemini-headless":
             errors.append(
                 f"Provider '{self.provider}': type must be 'gemini-headless' "
@@ -277,6 +289,12 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
     # ---------------------------------------------------------------------
     # Internal: command construction
     # ---------------------------------------------------------------------
+
+    def health_check(self) -> bool:
+        """False without a lookup or spawn while the opt-in is off (cycle-127 FR-1); else the base probe."""
+        if not agy_opt_in_enabled():
+            return False
+        return super().health_check()
 
     def _cli_bin(self) -> str:
         """Resolve the agy CLI binary name (env var override allowed)."""

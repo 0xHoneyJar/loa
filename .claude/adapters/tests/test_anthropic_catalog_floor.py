@@ -132,10 +132,19 @@ def test_every_http_entry_has_ceiling_with_provenance(http_entries):
         assert isinstance(cal.get("stale_after_days"), int) and cal["stale_after_days"] > 0, model_id
 
 
+def _measured(entry: dict) -> bool:
+    """cycle-127 FR-3.4: a calibrated entry (operator_set / empirical_probe with
+    calibrated_at) carries its own measured bound — the 180K cap is the
+    uncalibrated policy, so the test follows the catalog value there."""
+    cal = entry.get("ceiling_calibration") or {}
+    return bool(cal.get("calibrated_at")) and cal.get("source") in ("operator_set", "empirical_probe")
+
+
 def test_ceiling_is_the_computed_value_per_entry(http_entries):
     """SDD §2.1: ceiling = min(180000, context_window − default_max_tokens(entry)) — computed, not a constant."""
     for model_id, entry in http_entries.items():
-        expected = min(CEILING_CAP, entry["context_window"] - _default_max_tokens(entry))
+        cap = entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP
+        expected = min(cap, entry["context_window"] - _default_max_tokens(entry))
         assert entry["effective_input_ceiling"] == expected, (model_id, entry["effective_input_ceiling"], expected)
         assert entry["effective_input_ceiling"] + _default_max_tokens(entry) <= entry["context_window"], model_id
 
@@ -155,8 +164,9 @@ def test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch(catalog, ht
     """SDD §3.2: 180K was probed under streaming; killing streaming re-applies the 36K KF-002 wall."""
     assert _LEGACY_TRANSPORT_INPUT_WALL == 36_000
     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
-    for model_id in http_entries:
-        assert _lookup_max_input_tokens("anthropic", model_id, catalog) == CEILING_CAP, model_id
+    for model_id, entry in http_entries.items():
+        want = entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP
+        assert _lookup_max_input_tokens("anthropic", model_id, catalog) == want, model_id
     monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
     for model_id in http_entries:
         assert _lookup_max_input_tokens("anthropic", model_id, catalog) == _LEGACY_TRANSPORT_INPUT_WALL, model_id
@@ -285,7 +295,8 @@ def _default_ceiling_policy(monkeypatch):
 
 def test_every_http_entry_carries_the_probed_bound_and_account_limits(http_entries):
     for model_id, entry in http_entries.items():
-        assert entry.get("probed_ceiling") == CEILING_CAP, model_id
+        # cycle-127 FR-3.4: a measured entry carries its measurement in both fields
+        assert entry.get("probed_ceiling") == (entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP), model_id
         cal = entry["ceiling_calibration"]
         if not cal.get("calibrated_at"):
             assert entry["effective_input_ceiling"] == entry["probed_ceiling"], (
@@ -343,9 +354,15 @@ def test_entries_outside_the_five_family_carry_no_long_context_tier(http_entries
 def test_opus_5_5_has_the_1m_window_at_standard_pricing(anthropic):
     """cycle-126 bd-2fti: the vendor pricing page puts 4.6-and-later on the full 1M window at
     standard pricing, so 5.5 carries no long_context tier; its ceiling is the conservative
-    default until a probe measures it."""
+    default until a probe measures it (cycle-127 FR-3.4: either state, each with its shape)."""
     entry = anthropic["claude-opus-5-5"]
     assert "long_context" not in entry["pricing"]
-    assert entry["ceiling_calibration"]["source"] == "conservative_default"
-    assert entry["ceiling_calibration"]["calibrated_at"] is None
+    cal = entry["ceiling_calibration"]
+    if _measured(entry):
+        # a probe wrote it: the measured bound is both values, with its provenance
+        assert entry["probed_ceiling"] == entry["effective_input_ceiling"]
+        assert isinstance(cal.get("reprobe_trigger"), str) and cal["reprobe_trigger"]
+    else:
+        assert cal["source"] == "conservative_default"
+        assert cal["calibrated_at"] is None
     assert entry["fallback_chain"][0] == "anthropic:claude-opus-5"

@@ -491,14 +491,26 @@ providers:
           - anthropic:claude-sonnet-5
           - anthropic:claude-headless
         max_output_tokens: 128000
-        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
-        # loa:shortcut: Opus 5's measured bound, not probed on 5.5; 180000 — rerun
-        # tools/ceiling-probe-live.py --write-catalog on the operator's account.
-        probed_ceiling: 180000
+        effective_input_ceiling: 936000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-127 FR-3: bound measured 2026-10-07 by tools/ceiling-probe-live.py --transport claude-headless (Bedrock, global.anthropic.claude-opus-5-5); see ceiling_calibration.reprobe_trigger.
+        # operator_set (lead, maintainer delegation 2026-10-07): the tool's own outcome was `partial` — the $20 budget cap stopped the
+        # bisection before the 16K tolerance (the filler under-counts ~1.8x under the Opus 4.7+ tokenizer) — but the largest accept
+        # (972,887 measured input tokens, needle-verified; ceiling_calibration.measured_input_tokens) and the CLI pre-flight rejection
+        # at ~1,065,182 (stated limit 1,000,000) bound the route. Written as 936,000 = context_window 1,000,000 − the 64,000 default
+        # output budget (cheval's I2 invariant: input ceiling + default max_tokens ≤ context_window), below the measured accept.
+        # Record: grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json
+        probed_ceiling: 936000
         ceiling_calibration:
-          source: conservative_default
-          calibrated_at: null
+          source: operator_set
+          calibrated_at: "2026-10-07T09:29:07Z"
+          sample_size: null
           stale_after_days: 90
+          reprobe_trigger: "API-transport probe (tools/ceiling-probe-live.py --transport api) from a host with ANTHROPIC_API_KEY; this bound was measured through claude-headless on Bedrock (global.anthropic.claude-opus-5-5) on 2026-10-07"
+          method: probed_headless
+          transport: claude-headless
+          cli_version: "2.1.292 (Claude Code)"
+          cli_model: "global.anthropic.claude-opus-5-5"
+          measured_input_tokens: 972887
         account_limits:
           tier: unverified
           itpm: null
@@ -506,6 +518,10 @@ providers:
           temperature_supported: false
           thinking_adaptive: true
           beta_headers: []
+          # cycle-127 D-2: the vendor effort default is `medium` since Opus 5.5
+          # (Opus 5 was `high`; claude-api reference 2026-10-07). cheval sends
+          # this when the caller passes no --effort; an explicit --effort wins.
+          default_effort: high
         pricing:
           # Unit: micro-USD per million tokens.
           input_per_mtok: 4000000    # $4.00 per million tokens
