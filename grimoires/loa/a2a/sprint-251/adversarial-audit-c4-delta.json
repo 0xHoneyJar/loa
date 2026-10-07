@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "is_throttle_message",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md hunk: \"unless a throttle marker is present: Bedrock's \\\"Too many tokens, please wait before trying again\\\" is a rate limit, retried then walked — one is_throttle_message() rule in routing/ceiling.py serves the adapter and the probe (r251-3)\"",
+      "cross_file_justification": "The diff changes only documentation, but the CHANGELOG, migration doc and SDD hunks all document new runtime behaviour in loa_cheval/routing/ceiling.py (is_throttle_message) and the claude-headless adapter: a free-text marker found in the CLI diagnostic now overrides the PROVIDER_CONTEXT_LIMIT classification. The implementing code is outside the diff and could not be read in this session, so this is anchored on the documented contract.",
+      "description": "The headless adapter's context-limit verdict (\"not walked, no breaker count\", the rule that prevents an oversized payload from being re-sent to every fallback voice) is now overridden whenever a throttle phrase is present in the CLI diagnostic. The CHANGELOG also states that classification runs on the full diagnostic. A substring match over free text is a weaker signal than a structured error code: any diagnostic that happens to contain the phrase (a provider message embedded in a larger error, or prompt/tool content echoed into the CLI's output) would reclassify a genuine size rejection as a throttle. That path then retries and walks the identical payload to the next configured voice.",
+      "failure_mode": "A request correctly rejected by the CLI pre-flight for size is reclassified as a rate limit, retried, charged to the breaker, and forwarded unchanged to the next voice in the chain (possibly a different provider or the HTTP route). This defeats the not-walked safeguard and incurs the upload and spend it was designed to avoid; with attacker-shaped prompt content it is a cheap way to force fan-out of one oversized payload across every configured provider.",
+      "suggested_fix": "Classify throttles from the CLI's structured result (exit code, JSON error type such as Bedrock ThrottlingException, or an explicit HTTP 429) instead of a substring over the full diagnostic. If text matching must remain, restrict it to the CLI's own error line, require the context-limit signature to be absent before reclassifying, and add a test where the throttle phrase appears inside prompt-derived text and the verdict must stay PROVIDER_CONTEXT_LIMIT.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:53:10Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 5157,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0281fd13fac1fd7c18e22e667a71fbcefabce94d35d313d1d128bc19184e17ba",
+      "run_tag": "c4-delta"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "[[ -n \"${_LOA_AGY_GATE_LIB_LOADED:-}\" ]] && return 0",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "get_model_tertiary",
+      "cross_file_justification": "The guard lives in .claude/scripts/lib/agy-gate-lib.sh (new in diff); the fail-open manifests in the diff-touched hard-sourcing callers flatline-orchestrator.sh (get_model_tertiary, agy_gate_warn_once in main), run-preflight.sh (P3 loop) and loa-status.sh (_provider_hop, _AGY_OPT_IN_NOTE).",
+      "description": "The include guard reads `${_LOA_AGY_GATE_LIB_LOADED:-}`, which resolves from the process environment as well as the current shell. An exported `_LOA_AGY_GATE_LIB_LOADED=1` (or a parent running under `set -a`) makes `source lib/agy-gate-lib.sh` return before any function or constant is defined. flatline-orchestrator.sh, run-preflight.sh and loa-status.sh hard-source the lib and never check `declare -F routes_to_agy`. Their predicates then run as `routes_to_agy: command not found` (exit 127, i.e. false): `get_model_tertiary` keeps an agy-routed tertiary and `get_tertiary_status` reports `active`; preflight P3 counts a `gemini-headless` voice as usable whenever `agy` is on PATH; loa-status reports `cli_hop: agy` with no `cli_hop_note`. `_LOA_AGY_GATE_WARNED` is likewise seeded from env, so the G12/G18 warning can be pre-suppressed. Under `set -e`/`set -u` the same env instead aborts the orchestrator at the top-level `agy_gate_warn_once` call or loa-status at `_AGY_OPT_IN_NOTE=\"$AGY_OPT_IN_NOTE\"`. This contradicts the header's stated invariant that no environment value can talk a planner into the route. adversarial-review.sh is not affected because `_adv_agy_lib` checks `declare -F` and falls back to name-based fail-closed filtering.",
+      "failure_mode": "Ambient environment silently removes the planner-level agy opt-in gate: an agy-routed tertiary or voice is planned and reported as active/usable while hounfour.headless.agy_opt_in is absent or false, leaving cheval's Python gate as the only control; alternatively the orchestrator or status script crashes on load.",
+      "suggested_fix": "Make the guard shell-only, e.g. `declare -F agy_opted_in >/dev/null 2>&1 && return 0` instead of an env-readable variable, and set `_LOA_AGY_GATE_WARNED=''` unconditionally. In every hard-sourcing caller, verify `declare -F routes_to_agy agy_opted_in agy_headless_mode >/dev/null` after sourcing and either exit or fall back to the same name-based fail-closed behaviour adversarial-review.sh uses.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "_anthropic_ceiling_json",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "transport=$(yq eval -r \".providers.anthropic.models.\\\"$model\\\".ceiling_calibration.transport // \\\"\\\"\" \"$cfg\" 2>/dev/null)",
+      "cross_file_justification": null,
+      "description": "`_anthropic_ceiling_json` in loa-status.sh reads `.aliases.opus` from the model catalog and splices it unquoted into yq expressions of the form `.providers.anthropic.models.\"$model\".…`; the diff adds a fourth such read (`transport=`). A value containing a double quote breaks out of the string literal and runs arbitrary yq; mikefarah yq exposes `load()`/`load_str()`, which read any readable file into the result that then lands in the status JSON. run-preflight.sh guards the identical sink in `provider_of` with `^[A-Za-z0-9][A-Za-z0-9._:/-]*$` and the comment 'config text is operator-owned but is still input'; loa-status applies no check. The catalog is repo-owned, so exploitation requires a catalog edit or the env-selected catalog path from the new `_providers_model_config` seam (see AGY-003).",
+      "failure_mode": "A crafted `aliases.opus` value in the catalog (or an env-redirected catalog) injects into the yq expression and can pull arbitrary local file contents into loa-status output.",
+      "suggested_fix": "Validate `$model` with the same character-class regex used by run-preflight.sh `provider_of` before interpolation, or pass it out-of-band (`M=\"$model\" yq eval '.providers.anthropic.models[strenv(M)].…'`).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_providers_config_file",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_providers_model_config",
+      "cross_file_justification": null,
+      "description": "`_providers_config_file` and `_providers_model_config` in loa-status.sh switch to caller-supplied paths (`LOA_STATUS_CONFIG_FILE`, `LOA_STATUS_MODEL_CONFIG`) whenever `BATS_TEST_FILENAME` or `BATS_VERSION` is non-empty. Nothing verifies the process is actually under bats, so any invoker can export `BATS_VERSION=x LOA_STATUS_CONFIG_FILE=/tmp/x.yaml` and have `/loa-status`, including the machine JSON that 'callers merge', report the agy route as opted in, `cli_hop: agy`, and no `cli_hop_note`, while the real `.loa.config.yaml` says off. The same seam selects the catalog read by the yq interpolation in AGY-002. Display-only, but this is the surface operators use to confirm the gate is in place.",
+      "failure_mode": "Environment alone changes which config the Providers block reports on, so loa-status can be made to show the agy route enabled or disabled regardless of the real configuration.",
+      "suggested_fix": "Gate test seams on an explicit, non-inheritable switch (e.g. honour the override only when `LOA_TEST_SEAMS=1` is set by the test harness) or inject fixtures through a `--config <path>` argument rather than env vars named after bats.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_adv_agy_lib",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "source \"$PROJECT_ROOT/.claude/scripts/lib/agy-gate-lib.sh\" 2>/dev/null",
+      "cross_file_justification": null,
+      "description": "`_adv_agy_lib` in adversarial-review.sh lazily sources `${PROJECT_ROOT:-}/.claude/scripts/lib/agy-gate-lib.sh`, whereas the top-of-file source of the same lib and every other lib in the script use `$SCRIPT_DIR`. If `PROJECT_ROOT` is, or later becomes, env-overridable, the file executed with the reviewer's credentials and API keys is chosen by the caller. The function is also reached from inside `$(…)` filter calls where a sourcing error is swallowed by `2>/dev/null`. The derivation of PROJECT_ROOT in this file could not be verified from the diff.",
+      "failure_mode": "A caller-controlled PROJECT_ROOT leads to sourcing arbitrary shell code into the adversarial-review process.",
+      "suggested_fix": "Source from the already-computed `$_AGY_GATE_LIB_PATH` (`$SCRIPT_DIR/lib/agy-gate-lib.sh`) in the lazy path as well, keeping the `declare -F` verification.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_tertiary_routes_to_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": "routes_to_agy in lib/agy-gate-lib.sh matches literal id forms only; flatline-orchestrator.sh (_tertiary_routes_to_agy) and run-preflight.sh (P3 loop) pass the raw configured id, while adversarial-review.sh (_adv_agy_filter_chain) also tests the _adv_hop_canon result, so the three diff-touched planners disagree on what is gated.",
+      "description": "`routes_to_agy` recognises only `gemini-headless`, `*:gemini-headless`, `gemini-headless:*`, and `gemini*` under cli-only, case-sensitively. flatline-orchestrator's `_tertiary_routes_to_agy` and run-preflight P3 pass the raw configured id with no catalog alias resolution; adversarial-review tests both the raw hop and its canonical id. A tertiary configured via a catalog alias that resolves to a gemini-headless target, or written as `google:gemini-headless:<m>` or in mixed case, is therefore planned by flatline (status `active`), counted usable by preflight, and dropped by the companion-chain planner. The name-based fallback in `_adv_agy_filter_chain` also omits the `*:gemini-headless:*` form. Enforcement then rests entirely on cheval's Python twin, and the status/metadata surfaces misreport why a voice did or did not run.",
+      "failure_mode": "Inconsistent gating across planners: an alias- or prefix-spelled agy hop is planned and reported active by flatline and preflight while the opt-in is off, and the run degrades at dispatch instead of being reported as disabled_by_opt_in.",
+      "suggested_fix": "Resolve aliases through the shared catalog before calling routes_to_agy (flatline already sources generated-model-maps.sh / resolve_provider_id; preflight has provider_of's alias lookup), lower-case the id, and add the `*:gemini-headless:*` pattern to both routes_to_agy and the adversarial-review name fallback.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T14:57:24Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21178,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "437e04be15215212c85fb9d3547dd029512eca029fbe036ddbfd4f4baf96701c",
+      "run_tag": "d3-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

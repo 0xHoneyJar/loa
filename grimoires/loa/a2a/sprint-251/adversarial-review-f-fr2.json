@@ -1,0 +1,155 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:providers.anthropic.models.claude-opus-5-5",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The entry raises effective_input_ceiling and probed_ceiling from 180000 to 936000, justified in the comment as the I2 invariant 'input ceiling + default max_tokens <= context_window' using a 64,000 'default output budget'. The same entry (visible two lines above in the hunk) advertises max_output_tokens: 128000. 936,000 + 128,000 = 1,064,000 > context_window 1,000,000, so the invariant only holds for the implicit default, not for the output budget the catalog itself advertises as legal. The clamp also sits exactly at the hard limit with zero margin for anything the pre-dispatch gate does not count: adapter system prompt, tool definitions, cache-creation tokens, the headless CLI's own system prompt (the 972,887 measurement includes it), and estimator under-count — the implementation report documents the probe's own estimator under-counting ~1.8x on this tokenizer, yet the dispatch-time gate necessarily compares an estimate against this measured-token ceiling.",
+      "failure_mode": "(a) Any caller passing --max-tokens above 64000 (up to the advertised 128000) with an input between ~872K and 936K estimated tokens passes cheval's ceiling check and is rejected by Anthropic/Bedrock with a 400 (prompt tokens + max_tokens exceeds the context window; Claude 3.7+ validates this rather than truncating). (b) Any input cheval or Bridgebuilder (maxInput 916000) estimates just under the ceiling but which tokenizes a few percent higher is hard-rejected by the API or the CLI pre-flight ('~N tokens (limit 1000000)') instead of being truncated. With the previous 180K ceiling both cases were impossible (5x headroom); large dissent/Bridgebuilder inputs that previously truncated and succeeded will now fail outright.",
+      "suggested_fix": "Clamp with the entry's advertised output budget: effective_input_ceiling = context_window - max_output_tokens = 872,000 (or make the I2 check and i2_clamped() use max_output_tokens, not the default). Reserve an explicit safety margin below the hard limit for estimator error (e.g. divide by the observed tokenizer_ratio from the probe record, or a fixed 5-10%). At dispatch, have cheval cap max_tokens to context_window - input so a near-ceiling request degrades output length rather than failing.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/defaults/model-config.yaml:providers.anthropic.models.claude-opus-5-5.ceiling_calibration",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The bound was measured through claude-headless on Bedrock (cli_model global.anthropic.claude-opus-5-5) but is written onto the providers.anthropic HTTP-API entry, whose beta_headers is [] in the same hunk. The reprobe_trigger itself states the API transport has not been probed. The cycle-126 beta_headers mechanism exists precisely for dated 1M-context flags; if the direct API route for this model needs one, the API route now admits up to 936K tokens into a window that rejects them, whereas 180K was safe on either route.",
+      "failure_mode": "Dispatches to anthropic:claude-opus-5-5 over the HTTP API with inputs between 180K and 936K are sent instead of refused/truncated and fail with a provider 400 if the API route's context window differs from the Bedrock CLI route's.",
+      "suggested_fix": "Run tools/ceiling-probe-live.py --transport api from a host with ANTHROPIC_API_KEY before raising the API-route entry, or keep the API-route ceiling conservative and attach the headless measurement to the claude-headless route (or a transport-scoped override) until the API bound is verified.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:@@ -276,6 +281,29 @@ (ceiling_calibration.measured_input_tokens)",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new schema description for measured_input_tokens says it is 'the value written to probed_ceiling / effective_input_ceiling'. The catalog in the same change writes measured_input_tokens: 972887 but probed_ceiling and effective_input_ceiling: 936000, and commit 8ad37c55 makes the tool deliberately keep the raw measurement in measured_input_tokens while writing the I2-clamped value to the ceilings. The schema description now contradicts both the data and the tool. probed_ceiling also carries a non-measured value under method: probed_headless.",
+      "failure_mode": "Readers (staleness/reprobe logic, /loa status, future migrations) that follow the schema text will assume probed_ceiling == measured_input_tokens and either mis-report calibration or 'correct' the clamp back to 972887, re-exposing the context-window overflow.",
+      "suggested_fix": "Reword the description to 'the raw accepted input size the provider reported; probed_ceiling/effective_input_ceiling hold this value after cheval's I2 clamp (context_window - output budget) and may be lower'. Consider writing the raw measurement to probed_ceiling and only the clamp to effective_input_ceiling so the two fields carry distinct meanings.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/defaults/model-config.yaml:providers.anthropic.models.claude-opus-5-5.ceiling_calibration",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The tool's own outcome was `partial` and by design it writes nothing on partial; the lead invoked write_catalog_operator_set() manually. The resulting entry (source: operator_set, method: probed_headless, transport, cli_version, cli_model, measured_input_tokens, calibrated_at) is byte-for-byte the shape the tool writes on a `clean` outcome, and sample_size is null despite five recorded samples. The only indication that the bisection did not converge is a YAML comment, which every structured reader drops.",
+      "failure_mode": "Downstream consumers (staleness checks, /loa status 'calibrated', Bridgebuilder budget codegen, future audits) cannot distinguish a tool-verified clean probe from a manual write off a partial run; the provenance the schema was extended to carry is misleading for this entry.",
+      "suggested_fix": "Record the outcome in structured form: add an `outcome` (clean|partial) or `verified_steps` field to ceiling_calibration, set sample_size to the number of samples actually taken (5, or 3 accepts), and have write_catalog_operator_set() refuse or mark the entry when the source record's outcome is not clean.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:@@ -159,6 +159,11 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both hunks labelled `.claude/adapters/cheval.py` contain JSON Schema (params.default_effort and the ceiling_calibration provenance fields), i.e. the content of .claude/data/schemas/model-config-v3.schema.json. None of the Python the report describes (resolve_effort, _effort_on_wire, the three CompletionRequest sites, the dry-run effort line, modelinv.py effort_source/effort_effective) appears in the diff, yet the new bats cases c127-2-1..3 assert on resolved_model/effort/effort_source/effort_effective in cheval's --dry-run output. Either the diff is mis-pathed or the code under test is missing from the review set.",
+      "failure_mode": "If the path is literal, cheval.py would not parse. More likely the diff is incomplete and the primary reviewer has approved behavioural tests against code they have not seen; the effort-resolution precedence, the 'resolved once' semantics across fallback hops, and the WARN dedupe cannot be verified.",
+      "suggested_fix": "Re-generate the diff so the schema hunks carry their real path and the cheval.py / modelinv.py changes are included, then re-review resolve_effort (particularly what effort_source a fallback hop reports when the primary entry supplied the catalog default and the answering entry has none).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:14:42Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16983,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "320bbd2f833f59a57a34a12ce0cdd9540cca1b1f30c96343abeec99fb27b786f",
+      "run_tag": "f-fr2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

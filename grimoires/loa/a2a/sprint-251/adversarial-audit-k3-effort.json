@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/defaults/model-config.yaml: effective_input_ceiling: 936000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml: probed_ceiling: 936000",
+      "cross_file_justification": "effective_input_ceiling is consumed by cheval's pre-flight gate (exit 7 ContextTooLarge) and routing/ceiling.input_bound, as documented in .claude/data/schemas/model-config-v3.schema.json (effective_input_ceiling and probed_ceiling descriptions). The catalog entry edited in this diff is the trigger; the gate and the fallback chain that act on it live in cheval.py and the routing layer, which are not in the diff.",
+      "description": "The anthropic.claude-opus-5-5 entry (the HTTP-API route; it carries beta_headers and falls back to anthropic:claude-headless) has both probed_ceiling and effective_input_ceiling raised from 180000 to 936000, a 5.2x loosening of the pre-flight input gate. The evidence basis recorded alongside it is weak for this route: probe_outcome is partial, method is probed_headless, transport is claude-headless, and cli_model is the Bedrock inference profile global.anthropic.claude-opus-5-5. The reprobe_trigger text itself states the API transport was never measured. The same entry keeps beta_headers: [] (no 1M-context beta flag) and account_limits tier unverified / itpm null. Setting source: operator_set with a calibrated_at timestamp flips the entry from uncalibrated (where probed_ceiling 180000 governed) to calibrated, so 936000 now governs every request on the direct API route.",
+      "failure_mode": "Two effects. (1) Cost blast radius: any caller, including automated review/audit loops whose context size is influenced by untrusted input such as a large PR diff, can now send ~936k input tokens per call before any gate fires (roughly $3.74 vs $0.72 of input at the listed $4/MTok), a 5x amplifier on per-invocation spend with no API-side verification that the account tier even accepts it. (2) Routing bypass: if the direct API rejects inputs above its real bound (missing 1M beta header, lower account ITPM, or a 429), the request fails post-flight and the fallback chain (claude-sonnet-5, then claude-headless) takes over, so a ~900k-token prompt can be silently rerouted through the CLI subscription / Bedrock account, outside the metering and budgeting that applied to the original route.",
+      "suggested_fix": "Do not treat a partial, cross-transport probe as calibration for the API route. Either keep effective_input_ceiling at the previously measured API bound (or leave the entry uncalibrated with conservative_default) until tools/ceiling-probe-live.py --transport api has run on a host with ANTHROPIC_API_KEY, or, if the 936k bound must ship now, pair it with the required beta_headers entry and a verified account_limits.itpm. Consider having cheval refuse to treat an entry as calibrated when probe_outcome is partial or when ceiling_calibration.transport does not match the entry's own auth_type/transport, and add a per-call cost ceiling check so a loosened token gate cannot become an unbounded spend path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "tests/unit/cycle-124-effort-flag.bats: @test \"c127-2-1: --model opus with no --effort reports high from the catalog\"",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_effort_levels_single_source.py: def test_effort_levels_are_one_tuple_used_by_cheval",
+      "cross_file_justification": "The new params.default_effort value flows from the catalog (diff) through cheval's resolver (not in diff) into the Anthropic HTTP body output_config.effort and the headless adapter's --effort argv, and into the MODELINV payload whose schema enumerates effort/effort_effective. The tests added in this diff define the coverage for that path.",
+      "description": "params.default_effort is a new operator-controlled value that reaches the wire. The only rejection coverage added is the JSON-schema bats case (validate_v3 refusing \"ultra\", \"HIGH\", etc.), which is a CI-time check on the shipped catalog, not a runtime check on the config cheval actually loads (operator overlays, .loa.config.yaml extensions, migrated configs). None of the new pytest or bats tests asserts that cheval itself refuses a default_effort outside EFFORT_LEVELS at the chokepoint, and the single-source test only pins that cheval._EFFORT_LEVELS is the shared tuple. The analogous beta_headers field is documented as a ConfigError at dispatch; default_effort has no such documented or tested guard.",
+      "failure_mode": "A typo or overlay value such as \"HIGH\" or \"ultra\" is sent as output_config.effort (HTTP 400 from the provider, triggering the fallback chain) or passed as a --effort argv element to the CLI, and the MODELINV event records an effort/effort_effective value that violates its own payload schema, breaking downstream trajectory validation. No injection is possible (argv is a list and the body is JSON-serialised), so impact is reliability and telemetry integrity.",
+      "suggested_fix": "Validate default_effort against loa_cheval.types.EFFORT_LEVELS in the cheval resolver and raise a ConfigError (matching the beta_headers contract). Add a pytest case that feeds a hounfour with params.default_effort: \"ultra\" to the resolver and expects the typed config error, and a bats dry-run case asserting a non-zero exit.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/data/schemas/model-config-v3.schema.json: \"probe_outcome\": {",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new ceilingCalibration provenance fields have no cross-field constraints. probe_outcome: partial is documented as valid only when written as source: operator_set, but the schema accepts partial together with source: empirical_probe (the documented gold standard), so a partial bound can be labelled empirical. method: probed_headless is accepted alongside transport: api, and cli_version / cli_model are accepted on probed_api entries. cli_version and cli_model are free-form strings with no maxLength or pattern and are populated verbatim from claude --version subprocess output by the probe tool.",
+      "failure_mode": "Provenance that cheval and operators rely on to decide staleness and trust can be internally inconsistent without any validation error, weakening the audit trail that justifies ceiling changes like the one in this diff. Unbounded strings copied from subprocess output land in a config file that other tooling and reports render.",
+      "suggested_fix": "Use JSON Schema 2020-12 if/then blocks inside ceilingCalibration: probe_outcome: partial requires source: operator_set; method: probed_headless requires transport: claude-headless and vice versa; cli_version / cli_model only allowed when method is probed_headless. Add maxLength (e.g. 64) and a conservative pattern to cli_version and cli_model, and extend the V3-add (c127) bats case with these negative combinations.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_effort_wire_conformance.py: def _offline(monkeypatch):",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The autouse _offline fixture injects placeholder credentials (sk-ant-test, sk-test, g-test, bedrock-test) into the environment and then patches only http_post / http_post_stream on the openai, google and bedrock modules plus AnthropicAdapter._complete_nonstreaming. The Anthropic streaming path, any transport the adapters reach through a differently named import, and any SigV4/boto path on the Bedrock adapter remain unpatched; offline behaviour depends on every adapter honouring LOA_CHEVAL_DISABLE_STREAMING=1. The suite is parametrised over every (provider, model) in the live catalog, so any missed path is exercised for all of them.",
+      "failure_mode": "A code path that misses the patch makes real outbound HTTPS calls from CI with placeholder keys. Failures surface as unexpected exceptions rather than silent passes (the _http_body guard already covers the empty-body case), so the risk is CI egress, provider-side auth-failure noise and flakiness rather than a false green.",
+      "suggested_fix": "Add a hard network guard to the fixture, e.g. monkeypatch socket.socket or http.client.HTTPSConnection.connect to raise, or run the module under pytest-socket --disable-socket, so any unpatched transport fails fast and locally. Include anth_mod in the http_post patch loop as well.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:17:17Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16261,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5843dd87b24a7693e02603f0d4faf90411148e0cdf9607b6f16a3e4ec5930307",
+      "run_tag": "k3-effort"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

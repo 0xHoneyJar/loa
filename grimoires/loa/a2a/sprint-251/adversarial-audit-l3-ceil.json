@@ -1,0 +1,133 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "title": "Calibrated near-limit requests fail open when provider token count is unavailable",
+      "description": "In `gate()`, calibrated entries at or above `CALIBRATED_COUNT_NEAR_BOUND` return `warn` and dispatch when no provider counter produced a `count_tokens` estimate. The code comment acknowledges the local estimator can under-count by up to ~2x, so an attacker who controls prompt size can send inputs that appear below the calibrated bound but exceed the provider-measured limit. In an exposed service this is a practical resource-exhaustion path: repeated oversized requests bypass local preflight and are forwarded until the upstream rejects them, consuming bandwidth, queue slots, and provider/API capacity. The safer behavior for calibrated bounds without authoritative counting is fail-closed or require a stricter local bound.",
+      "location": {
+        "file": ".claude/adapters/loa_cheval/routing/ceiling.py",
+        "anchor": "gate(): `if decision.calibrated and in_count_band and est.method != \"count_tokens\": ... return _out(\"warn\", ... \"dispatching\")`"
+      },
+      "recommendation": "Change this branch to `preempt` or apply a conservative local cap such as `est.tokens * 2 <= bound` before dispatch. If dispatch-on-warn is required for operators, gate it behind an explicit unsafe override and add rate limiting for repeated upstream context-limit failures.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "In `gate()`, calibrated entries at or above `CALIBRATED_COUNT_NEAR_BOUND` return `warn` and dispatch when no provider counter produced a `count_tokens` estimate.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "input_bound",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "if (not calibrated or foreign) and observed is not None and _pos_int(observed) and observed - 1 < value:",
+      "cross_file_justification": null,
+      "description": "The cycle-127 r251-1 change lets the persisted observed provider limit (.run/ceiling-observed.json, path taken from LOA_CHEVAL_CEILING_OBSERVED_PATH) override a calibrated bound whenever ceiling_calibration.transport is foreign to the HTTP route. The only validation on the observed value is _pos_int, so an observed value of 1 produces value=0 with basis 'observed'; the gate then preempts every request on that route. Before this change calibrated entries ignored observations entirely. The accompanying tests pin claude-opus-5-5 as the live foreign-transport entry, and it is the catalog's `opus` alias target, so the primary production route now inherits exposure to a poisoned, stale, or mis-parsed observation. The observation is written by the self-correction from parsed error text (see CEIL-002), and nothing in the diff bounds it against the entry's context_window or the calibrated value, nor records in the envelope that an observation overrode a calibration.",
+      "failure_mode": "Availability: a single bad observation (tiny parsed limit, stale transient provider limit, or a crafted observed file) clamps the calibrated claude-opus-5-5 bound to as low as 0, and all dispatches are preempted with 'estimated N input tokens > 0 input bound (observed)' until the observation file is manually cleared.",
+      "suggested_fix": "Before honoring an observation against a calibrated foreign-transport bound, require it to be plausible: at or above a minimum floor (e.g. a fraction of the calibrated value or a fixed minimum like 1,000 tokens), not above context_window, recent (respect stale_after_days), and attributed to the same model and the HTTP transport. Surface an explicit flag in as_envelope when basis=='observed' overrode calibrated=True so operators can see the override.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "parse_context_limit",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_RE_CLI_TOKENS_LIMIT = re.compile(r\"~?(\\d[\\d,]*)\\s+tokens\\s*\\(\\s*limit:?\\s*(\\d[\\d,]*)\\s*\\)\", re.I)",
+      "cross_file_justification": null,
+      "description": "The new fallback regex is not anchored to the Claude Code pre-flight sentence it is meant to parse ('the request is ~N tokens (limit M) but ...'). Any error text containing 'N tokens (limit M)' matches, including unrelated limits (rate limits, output or tool limits) or text echoed from a prompt or tool result through the headless CLI's stderr. The parsed 'limit' is what the self-correction persists as the observed provider ceiling, which CEIL-001 now applies to the calibrated production route. Whether a _CONTEXT_LIMIT_MARKERS check gates this match could not be confirmed from the diff; the function body shown falls through to this pattern after the two stricter ones fail.",
+      "failure_mode": "A spurious or attacker-influenced 'N tokens (limit M)' string is recorded as a genuine context-limit observation, lowering the route's input bound and feeding the preempt-everything condition in CEIL-001.",
+      "suggested_fix": "Anchor the pattern to the CLI's phrasing (require the 'the request is' prefix or equivalent), accept the match only when the message also contains a context-limit marker, and reject parsed limits below a plausible floor or above the entry's context_window before they are persisted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:21:29Z",
+    "tokens_input": 54264,
+    "tokens_output": 8703,
+    "cost_usd": 0,
+    "latency_ms": 30090,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-audit-l3-ceil.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-audit-l3-ceil.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d0d975a0fdfd719073a65298de881a56b4c9536f85f48ea48c460e9702e116f3",
+      "run_tag": "l3-ceil"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

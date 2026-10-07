@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "loa_cheval/providers/agy_headless_adapter.py (agy -p <prompt> argv dispatch)",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".loa.config.yaml.example: hounfour.headless.agy_opt_in comment block",
+      "cross_file_justification": "The diff-touched config example documents, and the diff-touched test_headless_argv_nul_robustness.py docstring and _ARGV_ADAPTERS table confirm, that gemini-headless (agy) is the only adapter that still passes the UNTRUSTED prompt on argv via `-p <prompt>`. The sink lives in agy_headless_adapter.py (not in the diff); the diff adds the operator-facing switch that enables that path and the autouse fixtures that force it on in two test modules.",
+      "description": "When hounfour.headless.agy_opt_in is set true, the entire review prompt (persona text plus the redacted diff under review) is placed on the agy child process's command line. On Linux, /proc/<pid>/cmdline is world-readable by default, so any other local account, any container sharing the PID namespace, and any process-monitoring agent can read the full prompt for as long as the agy call runs. argv is also captured in auditd execve records, process accounting, and crash reports. The new opt-in default and its WARN text reduce exposure but do not remove it; redaction is the only content control, and the diff's own test suite pins agy as the sole argv-prompt adapter. Grok already uses --prompt-file and claude/codex/cursor use stdin, so a non-argv transport is the established pattern in this codebase.",
+      "failure_mode": "An operator enables agy_opt_in on a shared CI runner or multi-user developer host. A lower-privileged local user (or a compromised sidecar process) polls `ps -o args` or reads /proc/*/cmdline during a review and recovers proprietary source plus any credentials that survived redaction.",
+      "suggested_fix": "Move the prompt off argv in agy_headless_adapter: if agy accepts a prompt on stdin or from a file, pass it via `input=` or a 0600 temp file (mirror the grok --prompt-file pattern). If agy cannot, keep the default off and have agy_opt_in_enabled additionally refuse or WARN unless /proc is mounted with hidepid>=1. Add a test asserting the prompt bytes never appear in the spawned argv once a non-argv path exists, and keep the no-environment-override property documented in the config example.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T14:54:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10407,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e0dd92685f5e55ae8eca7a55a27f4e2104ac866d868db73dfa29e4ae1eb4af21",
+      "run_tag": "c3b-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

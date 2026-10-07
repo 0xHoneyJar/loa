@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut",
+      "cross_file_justification": "The writer under test is write_catalog_operator_set in tools/ceiling-probe-live.py (not in the diff). The diff-touched tests show it splices cli_version (taken from `claude --version` stdout, e.g. \"9.9.9 (Fake Claude)\"), --host-route and cli_model into both YAML scalar values and a provenance comment line by text editing, and no test exercises values containing newlines, '#', ':' or quotes.",
+      "description": "write_catalog_operator_set performs a line-oriented text edit of model-config.yaml and inserts externally sourced strings: cli_version comes from the subprocess output of the claude binary resolved via CLAUDE_HEADLESS_BIN/PATH, host_route and cli_model come from CLI flags. The tests assert these appear verbatim in reprobe_trigger, in ceiling_calibration.cli_version, and in a '# cycle-127 FR-3' comment line, but never test a value containing a newline, '#', ':' or a quote. If the writer does not quote/escape, a crafted `claude --version` output or --host-route value could break out of the scalar and add or alter YAML keys in the routing catalog.",
+      "failure_mode": "A binary answering `--version` with a multi-line or YAML-metacharacter string (or an operator typo in --host-route) produces a catalog that either fails yaml.safe_load (bricking routing) or silently gains injected keys under the model entry. Practical impact is low because controlling the claude binary already implies code execution as the operator.",
+      "suggested_fix": "Have write_catalog_operator_set reject or sanitize cli_version/host_route/cli_model (strip control characters, cap length, emit via yaml-safe quoting for scalars and strip newlines/'#' from the comment). Add a test that passes cli_version=\"1.0\\nproviders: {}\" and host_route=\"x # y\" and asserts the output still safe_loads to the expected structure with the value quoted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "test_p7_a_timeout_kills_the_whole_process_group",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "test_p7_a_timeout_kills_the_whole_process_group",
+      "cross_file_justification": null,
+      "description": "The test reads two PIDs from a pidfile written by a child it does not own, polls /proc/<pid>/stat for up to 10 s, and then sends SIGKILL to any PID that still looks alive. There is no check that the PID still belongs to the wrapper or grandchild (no start-time comparison, no Popen handle). If the tool's process-group kill succeeded and the kernel recycled either PID for an unrelated process of the same user within the wait window, the test would SIGKILL that process.",
+      "failure_mode": "On a busy CI host with low pid_max or aggressive PID recycling, the cleanup path can kill an unrelated same-user process, corrupting other test jobs or developer sessions. The window is narrow and the blast radius is limited to the invoking user.",
+      "suggested_fix": "Verify PID identity before killing: compare the process start time from /proc/<pid>/stat field 22 recorded at first observation, or have the wrapper write its own cmdline marker and check /proc/<pid>/cmdline before os.kill. Alternatively use a PR_SET_CHILD_SUBREAPER or a dedicated cgroup/session so the test can enumerate its own descendants rather than trusting raw PIDs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:28:25Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 5312,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a6da5fe45467fa14070ca05beed710bfa15228a5e754e1e1fbb0a1475a425186",
+      "run_tag": "o3-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

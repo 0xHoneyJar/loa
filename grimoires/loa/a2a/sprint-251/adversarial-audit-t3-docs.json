@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md: 'The agy (Antigravity) route is opt-in, default off.'",
+      "cross_file_justification": null,
+      "description": "The migration guide documents that the agy (`gemini-headless`) adapter still places the full redacted review diff on the CLI's argv, readable by every local account through /proc/<pid>/cmdline and ps. The same exposure is documented for gemini when an operator passes --sandbox in gemini_extra_flags. The change gates the route behind `hounfour.headless.agy_opt_in: true` rather than removing the exposure, and tells operators to enable it 'knowing the argv exposure'. This is an accepted-risk disclosure path for review content (which may contain secrets, pre-disclosure vulnerability fixes, or proprietary code) on any multi-user reviewer host.",
+      "failure_mode": "On a shared host with agy_opt_in enabled, any unprivileged local account can read the entire review diff from the agy process's command line for the duration of the hop.",
+      "suggested_fix": "Deliver the prompt to agy through a file inside the adapter's private 0700 workspace (as the grok adapter already does) or via stdin, and fall back to argv only if agy offers no other input. If argv remains the only option, refuse the route when /proc is not mounted with hidepid and other sessions are present, and document that condition rather than relying on operator judgement.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md: 'The key is read from `.loa.config.yaml` alone (a framework defaults file cannot opt you in)'",
+      "cross_file_justification": "The CHANGELOG hunk in this diff explains that every headless adapter was moved to an isolated cwd precisely because 'the caller's directory is the tree under review, whose CLAUDE.md ... would otherwise shape its own reviewer'. The new agy_opt_in key is read from `.loa.config.yaml`, a project-tree file, and `companion_chain`/`flatline_protocol` blocks live in the same file. If the dissent loads that file from the checkout being reviewed rather than from a trusted base ref, the reviewed change can reconfigure its own reviewer (route selection, companion opt-out, agy opt-in). Needs verification against the loader in cheval and adversarial-review.sh, which are not in this diff.",
+      "description": "The opt-in that re-enables the argv-exposing agy route, and the companion_voice / companion_chain controls that decide how many independent voices review a change, are all read from `.loa.config.yaml` inside the project tree. The diff's own rationale for cwd isolation (the reviewed tree must not shape its reviewer) is not applied to this configuration source. A pull request can edit `.loa.config.yaml` in the same change it wants reviewed.",
+      "failure_mode": "A change under review sets `flatline_protocol.security_audit.companion_voice: false` (dropping the second voice without DEGRADED status) or flips `agy_opt_in: true` so the reviewer pushes the diff to the argv-exposing adapter; the review of that change runs under the attacker-chosen configuration.",
+      "suggested_fix": "Read dissent-governing configuration (companion_voice, companion_chain, agy_opt_in, repair model) from the base ref or from a location outside the reviewed tree, or treat any `.loa.config.yaml` change in the reviewed diff as a mandatory INCONSISTENT/DEGRADED trigger so a reviewer sees that the reviewer's own settings were altered by the change.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:39:52Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 4114,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6a2b9514dc5a7e59623af3b7bda0aca1c8b49c203c15cebd890def7470d36c93",
+      "run_tag": "t3-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

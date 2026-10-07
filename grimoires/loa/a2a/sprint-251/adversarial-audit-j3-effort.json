@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "wire_effort",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "wire_effort",
+      "cross_file_justification": null,
+      "description": "GrokHeadlessAdapter.wire_effort constructs an uninitialized adapter with cls.__new__(cls), skipping __init__ (no config, logger, or circuit-breaker state), builds a synthetic CompletionRequest(messages=[]) and calls _resolve_reasoning_effort on that bare object. This is the value cheval records as effort_effective in the MODELINV audit envelope for xai routes. Any instance-attribute access inside _resolve_reasoning_effort, including a warning path that formats self.config or self.name, raises AttributeError at audit time. Because the value is derived by a side path rather than read back from the argv that _build_command actually emits, the audit field can silently diverge from the real --reasoning-effort token. The method also accepts an effort argument that its own docstring says is ignored, and it assumes CompletionRequest is a runtime import in this module. The new test module adds no test for wire_effort; _effort_on_wire coverage stops at anthropic and openai.",
+      "failure_mode": "On a grok-headless invocation, computing effort_effective either throws (aborting or failing the invoke depending on where _effort_on_wire is called relative to dispatch) or records a value that does not match the subprocess argv. The audit trail for model invocations becomes unreliable on exactly the provider whose effort handling differs from the others.",
+      "suggested_fix": "Make the reasoning-effort resolver a pure staticmethod that takes only the extra mapping and call it from both _build_command and wire_effort, or have wire_effort invoke the real argv builder and read the --reasoning-effort value back. Remove the ignored effort parameter or document it explicitly. Wrap the call site in cheval so an exception degrades to effort_effective=None with a WARN rather than failing the invoke. Add a unit test for wire_effort and an xai case to test_effort_on_wire_follows_the_adapter_mapping.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": "_dry",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_dry",
+      "cross_file_justification": null,
+      "description": "The dry-run subprocess helper copies the full parent environment and removes only ANTHROPIC_API_KEY, AWS_BEARER_TOKEN_BEDROCK and CLAUDE_HEADLESS_BIN. Every other provider credential cheval can read (OpenAI, xAI, Google/Gemini, OpenRouter, and any future one) still reaches a child process that runs the complete cheval.py entrypoint. Safety depends solely on --dry-run never dispatching.",
+      "failure_mode": "A regression in dry-run gating, or a test edit that drops the --dry-run flag, makes the suite perform live, billed API calls with the developer's or CI runner's real credentials. Captured stdout/stderr then appears in assertion messages and CI logs, which may include provider error bodies.",
+      "suggested_fix": "Construct the child environment from an allow-list (PATH, HOME, PYTHONPATH, LANG/LC_*, TMPDIR) rather than a deny-list, and inject placeholder values for any variable cheval needs to resolve a provider in dry-run mode.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "_invoke",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_invoke",
+      "cross_file_justification": null,
+      "description": "The in-process invoke helper patches loa_cheval.audit.modelinv.redact_payload_strings to the identity function and assert_no_secret_shapes_remain to a no-op before capturing the MODELINV payload. All assertions on effort, effort_source and effort_effective therefore run against the pre-redaction payload. The new envelope fields are never shown to survive the redaction gate, and the secret-shape assertion that normally guards the audit sink is silenced for every test in this module.",
+      "failure_mode": "A redaction change that strips or rewrites the new fields, or a regression that lets a secret-shaped string into the envelope alongside them, passes this suite unnoticed. The tests give false assurance about what actually lands in the audit log.",
+      "suggested_fix": "Keep redaction and the secret-shape assertion active (they should be no-ops for these payloads) and stub only audit_emit. If the identity patch exists to dodge a specific redaction false positive, scope it to that single test and add an explicit assertion that the real redactor preserves effort_source and effort_effective.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:14:45Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10660,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "32f57d65eb155922ad488e9043ab72cf79267c47b7ee05150eb7a399ff54a059",
+      "run_tag": "j3-effort"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

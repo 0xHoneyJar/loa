@@ -1,0 +1,210 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_ADAPTERS_DIR",
+      "anchor_type": "line",
+      "scope": "diff",
+      "description": "`_ADAPTERS_DIR` is derived from `__file__` using two `dirname()` calls and then appending `.claude/adapters`. In this diff-touched file, `__file__` is already under `.claude/adapters/loa_cheval/providers`, so the computed path becomes `.claude/adapters/loa_cheval/.claude/adapters`, not the real adapters root. Any `--transport claude-headless` path that calls `_adapters()` will insert the wrong directory into `sys.path` and then fail to import `loa_cheval`.",
+      "failure_mode": "Running the new claude-headless probe transport fails before probing with `ModuleNotFoundError: No module named 'loa_cheval'`, so FR-3’s CLI transport is unusable from this file location.",
+      "suggested_fix": "Compute the adapters root as the directory above `loa_cheval`, e.g. from this file use `os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))`, or otherwise reuse an existing repo-root/adapters-root resolver instead of appending `.claude/adapters` below `loa_cheval`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_classify",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "A token-budget 429 (ceiling.is_token_limit_message) is returned as kind=transient with token_limit=True; in step() when it persists over the 3 attempts (backoffs total 20s) the sample is rewritten to kind=size, failure_class=token_limit, size_origin=provider. The bisection then treats a per-minute input-token throttle as a context rejection: it becomes smallest_fail, brackets the previous accept, and _outcome_reasons reports `clean`. With --write-catalog the entry is written as method: probed_headless from a rate-limit artifact. The written value is still an accepted, needle-verified size (so the bound is conservative, never too high), but it is labeled clean and will under-report the route's real ceiling by whatever the org's ITPM happened to allow in that minute.",
+      "failure_mode": "An org below the top rate tier probing a 1M-window model: a large step is accepted (consuming the minute's budget), the next step hits the token 429 three times inside ~20s, is recorded as a size rejection, the bracket closes within tolerance, outcome=clean, and the catalog gets an ITPM-bounded effective_input_ceiling with no partial flag.",
+      "suggested_fix": "Never let a failure_class=token_limit sample satisfy the bracket: in _outcome_reasons add a reason when the smallest_fail sample's failure_class != context_limit (or exclude token_limit samples from current_fail and keep them as `other`-class stops). Alternatively lengthen the token_limit backoff to cover a full 60s window before giving up.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "step() charges `est = (measured or est_measured) * price_in // 1_000_000` for every attempt, including size rejections with size_origin=cli_local (the CLI's own pre-flight, no provider call, no billing) and OSError before spawn. The live run shows the effect: estimate $19.10 vs CLI-reported $12.74, and the $20 cap stopped the bisection (`outcome: partial`) while real spend had ~$7 of headroom. The two CLI pre-flight rejections (filler 1,000,000 and 590,000 at $4/MTok) alone account for ~$6.36 of phantom spend.",
+      "failure_mode": "The budget pre-check (`spent_micro + est_measured * price_in // 1_000_000 > budget_micro`) trips early, producing partial outcomes and no catalog write on runs that were in fact well within budget; operators then hand-write the catalog, which is exactly what happened in Task 1.5.",
+      "suggested_fix": "In step(), when res['kind']=='size' and res.get('size_origin')=='cli_local' (and for the OSError branch) charge 0 (or only rep_micro if the CLI reported a cost). Keep the full estimate for timeouts and provider-side errors, where the input may have been billed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_classify",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`diag` is truncated to 300 characters before any classification: `is_context_limit_message(diag)`, `is_token_limit_message(diag)`, `_PROVIDER_ORIGIN.search(diag)`, `parse_context_limit(diag)` and the _TRANSIENT_MARKERS scan all run on the clipped string. The diag is assembled as result + api_status + stderr, so when the CLI emits a preamble (warnings, a JSON-wrapped API error envelope, Bedrock's `ValidationException: The model returned the following errors: ...` prefix) the limit statement or its token count can fall past the cut.",
+      "failure_mode": "A genuine context-limit rejection is classified as `other` (bisection stops, outcome partial, exit 1) or its `rejected_input_tokens` is lost (size_basis degrades to `scaled` and the ratio is not corrected), after the step's tokens were already paid for.",
+      "suggested_fix": "Classify on the untruncated diag and apply the `[:300]` only to the `detail` stored in the returned dict.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "step() guards `_run_capped` + `_classify` only against subprocess.TimeoutExpired and OSError. Any other exception from the classification path (e.g. `ceiling.parse_context_limit(diag)` returning None → AttributeError on `.get`, a non-int value flowing into `_size`/`max`, a JSON type surprise in `usage`) propagates out of _main_cli with a traceback. The record — the only artifact of the money already spent, and what the SDD says is 'always written' — is built and written only after the loop, so it is lost.",
+      "failure_mode": "A probe that has consumed several multi-dollar steps dies on an unanticipated classifier exception; no record file, no samples, no spent_usd, and the operator cannot tell what was learned or billed.",
+      "suggested_fix": "In step(), catch `Exception` around `_classify` (and `_run_capped`) and convert to `{'kind': 'other', 'detail': f'classifier error: {e!r}'}`; additionally write the record in a `try/finally` so a crash after the first attempt still persists what was measured.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Catalog-write prerequisites are checked only after the bisection has spent its budget: i2_clamped raises when the entry has no positive context_window, and write_catalog_operator_set raises when `effective_input_ceiling:`, `probed_ceiling:` or `ceiling_calibration:` is absent at indent 8 — the normal state of a never-calibrated entry, i.e. the main use case for a probe. The failure surfaces as `catalog not written` / exit 1 after a clean (paid) run. Separately, `--allow-partial`, `--tier` and `--itpm` are accepted by argparse but silently ignored when `--transport claude-headless`; an operator passing `--allow-partial --write-catalog` (the Task 1.5 situation) gets no write and no warning.",
+      "failure_mode": "A $20 clean probe of a fresh model entry ends with 'catalog not written: … `ceiling_calibration` not found in the entry'; or an operator relies on --allow-partial and discovers after the run that it had no effect on this transport.",
+      "suggested_fix": "At the top of _main_cli, when --write-catalog is set, read the catalog and run i2_clamped plus a dry write_catalog_operator_set with a placeholder ceiling (discarding the result) to fail fast before any spend. Either honor --allow-partial on the headless path or make argparse reject --allow-partial/--tier/--itpm with --transport claude-headless.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_run_capped",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`subprocess.run(..., timeout=timeout)` kills only the direct child on TimeoutExpired. The documented route runs through a wrapper (`claude-bedrock`, CLAUDE_HEADLESS_BIN); unless that wrapper `exec`s the CLI, SIGKILL on the wrapper leaves the real `claude` node process alive to finish the ~1M-token request. step() then classifies the timeout as transient, sleeps 5s, and sends the same prompt again.",
+      "failure_mode": "On a slow step two or three concurrent 1M-token requests run against the same account: billed input the budget accounting never sees, plus self-inflicted 429s that the next attempt may record as a token_limit → size rejection (see DISS-001).",
+      "suggested_fix": "Launch with `start_new_session=True` and on TimeoutExpired send `os.killpg(proc.pid, SIGKILL)` (use Popen + communicate(timeout=) rather than subprocess.run), then re-raise; also rmtree the workspace after the group is dead.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:_classify",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "For a ProviderUnavailableError the transient decision includes `_STATUS_5XX.search(diag)` with pattern `\\b5\\d\\d\\b` over the free-text diag. Any word-delimited 3-digit number starting with 5 matches: node stack-trace positions (`cli.js:512:13`), line counts, ids. A deterministic CLI crash on a large prompt (OOM, a thrown error with a stack) whose stderr contains such a number is retried as transient.",
+      "failure_mode": "Two extra full-size attempts (each charged at est, ~$4 per 1M-token step at the catalog price) plus 20s of backoff for an error that cannot succeed, draining the budget cap and pushing the run to partial.",
+      "suggested_fix": "Anchor the 5xx match to a status context, e.g. `(?:status|http|error)[ :=]+5\\d\\d\\b` or `\\b5\\d\\d\\b(?=\\s*(?:internal|service|bad gateway|overloaded))`, mirroring how _PROVIDER_ORIGIN already requires explicit markers.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:31:38Z",
+    "tokens_input": 57384,
+    "tokens_output": 39650,
+    "cost_usd": 0,
+    "latency_ms": 29707,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-i-fr3.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-i-fr3.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6dc9efe17b159b89e699c908e3f25025756369a5affc875c582f26db786de623",
+      "run_tag": "i-fr3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

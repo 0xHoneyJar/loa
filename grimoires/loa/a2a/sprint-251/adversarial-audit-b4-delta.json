@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "agy_catalog_provider",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh",
+      "cross_file_justification": null,
+      "description": "The new lookup interpolates the caller-supplied model string directly into bash array subscripts (`${MODEL_IDS[$1]:-$1}`, `${MODEL_PROVIDERS[$1]:-${MODEL_PROVIDERS[$id]:-}}`) after sourcing `generated-model-maps.sh`. Plain `${arr[key]}` expansion is injection-safe only for arrays declared with `declare -A`. If the generated file omits either name (for example no aliases emitted) or declares it indexed, bash treats the reference as an indexed array and evaluates the subscript arithmetically, so a model id like `x[$(cmd)]` executes `cmd`. The subshell discards stderr (`2>/dev/null`) and swallows source failures (`|| exit 0`), so nothing would surface. Model ids reach this path from `.loa.config.yaml` stage/model settings via `routes_to_agy` and the new `*)` branch of `provider_of` in `run-preflight.sh`. The code checks `-f \"$maps\"` and the bash version but never verifies the declared type of the arrays or the shape of the id.",
+      "failure_mode": "A repo-controlled or malformed model id reaches an arithmetic subscript context during preflight or gate checks and runs shell commands whenever the generated maps file does not declare both MODEL_IDS and MODEL_PROVIDERS as associative arrays.",
+      "suggested_fix": "Validate the id before any lookup, e.g. `[[ $m =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || return 0`, and inside the subshell assert that `declare -p MODEL_IDS` and `declare -p MODEL_PROVIDERS` both begin with `declare -A` before dereferencing (exit the subshell otherwise). Add a bats case feeding a hostile id (`'x[$(touch /tmp/pwn)]'`) against a maps file that lacks MODEL_IDS and assert nothing runs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "routes_to_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh:agy_catalog_provider",
+      "cross_file_justification": "The bash predicate is documented as the twin of `loa_cheval.config.loader.routes_to_agy` / `cheval._entry_routes_to_agy`, and `test_agy_opt_in_gate.py::test_routes_to_agy_matches_the_bash_rule` now asserts `deep-research-pro` and `researcher` are agy-routed under cli-only. When the bash side cannot read the maps it silently gives the opposite answer for exactly those ids.",
+      "description": "`agy_catalog_provider` falls back silently to the legacy `gemini*` name rule when `generated-model-maps.sh` is absent, fails to source, or bash is older than 4. Under `cli-only`, `routes_to_agy deep-research-pro` then returns 1 (not agy-routed) and `agy_route_planned` reports the route as planned even with `hounfour.headless.agy_opt_in` off, while cheval classifies the same hop as agy-routed and refuses it. This recreates the bash-versus-Python split that R3 set out to close, in the direction where preflight is more permissive than the runtime gate, and no warning is emitted.",
+      "failure_mode": "Preflight reports a Google catalog model as planned without the opt-in and cheval refuses it at runtime; the argv-exposure route is never flagged by preflight for those ids when the maps are unreadable.",
+      "suggested_fix": "When bash is 4 or newer and the maps file is missing or unsourceable, print a one-time warning to stderr and return a distinct status (e.g. 2) from `agy_catalog_provider` so `routes_to_agy` and `agy_route_planned` can report 'unresolvable' rather than 'planned'. Add a bats test that removes the maps file and asserts the warning and the non-planned result.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_zero_live_spend",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "cross_file_justification": null,
+      "description": "The live-spend guard switched from a before/after comparison of the real host ledger `.run/model-invoke.jsonl` to checking only the file named by `LOA_MODELINV_LOG_PATH`. The new check is only as strong as every cheval invoke path honoring that variable; a path that still appends to the default ledger would now escape detection. The fixture also raises KeyError (a test error, not a clean assertion) if the `_isolate_ledgers` conftest fixture does not export the variable, and the module relies on `os` being imported, which the shown diff does not add. This guard exists to stop test payloads from being sent to a real provider.",
+      "failure_mode": "A live model call that escapes the fake in this module is no longer detected if cheval records it anywhere other than the tmp ledger, so test content could reach a real provider silently.",
+      "suggested_fix": "At fixture setup assert `LOA_MODELINV_LOG_PATH` is set and resolves under tmp_path, and assert via cheval's own ledger-path resolver that it will write there. Optionally retain a module-scoped size-delta check on the host ledger as a secondary signal with a message that names concurrent runs as a possible cause.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:48:57Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 18528,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a4638896f5fd7594220fc46de791da10897d99b807a78fb2ba25f9bfc6517f53",
+      "run_tag": "b4-delta"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

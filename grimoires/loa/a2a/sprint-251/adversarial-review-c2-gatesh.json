@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_agy_filter_chain",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header comment added at the soft-source site says the planner 'fails closed (every hop agy-checked) if the lib did not load', but _adv_agy_filter_chain does the opposite: when _adv_agy_lib returns false it logs a WARN and returns the chain unfiltered, so a gemini-headless hop stays planned. Before this diff the inline reader filtered the literal gemini-headless hop with no library dependency, so a consumer checkout where .claude/scripts/lib/agy-gate-lib.sh is missing or stale (the soft `source ... 2>/dev/null || true` exists precisely to tolerate that) now regresses from 'planned: false, reason: opt_in_required' to 'planned, then refused/skipped by cheval'. Additionally, agy_gate_warn_once is invoked inside _adv_agy_filter_chain, which main calls under $(...), against the lib's own contract that the once-flag is a shell variable and must not be set from a subshell; it is only quiet today because main calls it at top level first.",
+      "failure_mode": "With the lib absent, the companion chain keeps the agy hop; the dissent envelope records that voice as a cheval refusal/skip instead of opt_in_required, and the top-of-file comment misleads the next maintainer into assuming fail-closed planning.",
+      "suggested_fix": "Keep a minimal inline fallback in _adv_agy_filter_chain for the lib-missing path (drop hops whose raw or canonical id matches gemini-headless|*:gemini-headless|gemini-headless:*), and correct the header comment. Remove the agy_gate_warn_once call from inside _adv_agy_filter_chain and rely on the top-level call in main.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/scripts/lib/agy-gate-lib.sh:agy_opted_in",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The flavor fallback is selected by output shape, not by yq flavor: if the typed go-yq expression yields anything other than the literal 'true'/'false', the function re-runs `yq '.hounfour.headless.agy_opt_in == true'`. That untyped comparison is only a typed test under python yq (jq semantics). Under mikefarah go yq, `==` on two scalars compares node values as strings, so a quoted string \"true\" compares equal to boolean true. Today go yq cannot realistically reach the fallback (the first expression always prints true/false for any node), so there is no live exposure, but the library's single stated invariant — a string \"true\" never opts in — now rests on an incidental property of the first expression rather than on the branch guard.",
+      "failure_mode": "If a future go-yq version changes the output of the tag-test expression (e.g. multi-line or styled output), the fallback runs under go yq and `agy_opt_in: \"true\"` silently opts the planner into the agy route, defeating the gate.",
+      "suggested_fix": "Select the fallback by detecting the python flavor explicitly (e.g. `yq --version 2>&1 | grep -qi jq` or the absence of 'mikefarah'/'v4'), or restrict the fallback to only run when the first call exited non-zero AND the flavor is python. Alternatively make the python branch typed too: `(.hounfour.headless.agy_opt_in | type) == \"boolean\" and .hounfour.headless.agy_opt_in == true`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/run-preflight.sh:P3 voices",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh:routes_to_agy",
+      "cross_file_justification": "routes_to_agy is introduced in the diff and is consumed by run-preflight.sh P3 (also diff-touched: the source line). P3 uses the predicate only on the gated branch; with the opt-in on it falls through to a usability check that does not know the voice is agy-routed.",
+      "description": "P3 calls routes_to_agy \"$m\" \"$p3_mode\" only when p3_agy_on is 0. When the opt-in is true and mode is cli-only, a Google API model such as gemini-2.5-pro (or google:gemini-*) is agy-routed per the shared predicate, but cli_for returns \"\" for it, so usability is decided by cred_present google (GOOGLE_API_KEY / GEMINI_API_KEY) rather than by `agy` being on PATH. P3 can therefore report PASS for a stage whose only voice cannot run on this host, and STAGE_ONLY/P4 will attribute it to the google provider's API breaker rather than the headless one.",
+      "failure_mode": "Preflight passes, the run starts, and the stage's voice fails at dispatch with PROVIDER_UNAVAILABLE (agy binary absent) — the exact 'planned voice that cannot exist' G-1 is meant to prevent.",
+      "suggested_fix": "After computing cli, add: `if routes_to_agy \"$m\" \"$p3_mode\"; then cli=agy; fi` so the agy-routed voice is judged by `command -v agy` like the other *-headless hops, and label it `(cli agy)` in usable_names/missing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:15:40Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 31380,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "66d108edcae8a8d38257c6f751b5fddd5662c608500abbff618b487ce43144f9",
+      "run_tag": "c2-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

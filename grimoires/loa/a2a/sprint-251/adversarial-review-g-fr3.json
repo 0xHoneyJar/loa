@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:_measured",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:_measured",
+      "cross_file_justification": "The diff's _measured() predicate is what lets the suite accept the new claude-opus-5-5 catalog entry (effective_input_ceiling 936000, ceiling_calibration.transport: claude-headless, cli_model: global.anthropic.claude-opus-5-5). That field on an auth_type: http_api entry is consumed by cheval._lookup_max_input_tokens / loa_cheval.routing.ceiling.input_bound to gate direct Anthropic HTTP dispatch, and the diff's test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch now asserts the HTTP gate equals that CLI-measured value.",
+      "description": "_measured() honors any operator_set/empirical_probe calibration with calibrated_at, with no check that ceiling_calibration.transport matches the entry's dispatch path. The only measured entry it admits was probed through `claude -p` over Bedrock (transport claude-headless), yet it is the http_api entry whose ceiling moved from 180K (which the same test's docstring says was 'probed under streaming' on the HTTP route) to 936K. The HTTP route's account_limits remain tier: unverified, itpm: null, so nothing on the HTTP transport has demonstrated acceptance of a 936K-token request.",
+      "failure_mode": "cheval's walk gate now admits HTTP requests to claude-opus-5-5 between 180K and 936K input tokens. If the direct API account rejects them (400 prompt-too-long, 429 ITPM, or a tier gate on the 1M window), the call fails after the payload is built and falls back to anthropic:claude-opus-5 whose ceiling is still 180K, so the fallback cannot carry the same request either. The suite stays green because the test follows the catalog value rather than a transport-matched measurement.",
+      "suggested_fix": "Make the calibration transport-aware: in _measured (and ideally in input_bound) only treat a calibration as governing an http_api entry when cal.get('transport') is absent or 'api'; add an assertion in test_every_http_entry_has_ceiling_with_provenance that a calibrated http_api entry's transport is compatible with auth_type. Alternatively run the probe's --transport api path once for claude-opus-5-5 on the HTTP route before raising the HTTP ceiling, and record the headless measurement under the entry that actually dispatches through the CLI.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_ceiling_is_the_computed_value_per_entry",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "For measured entries `cap = entry['effective_input_ceiling']`, so `expected = min(effective, cw - dmt)` and the assertion `effective == expected` reduces to the I1 check on the next line: the test is tautological for exactly the entries the cycle introduced, and the recorded measurement (ceiling_calibration.measured_input_tokens 972887) is never compared to the written 936000. test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch likewise derives `want` from _measured(), a test-local reimplementation of the runtime's calibrated predicate that already diverges from input_bound in two ways: it filters on source (kf_derived + calibrated_at is 'calibrated' to the runtime per test_i1_and_i2_per_entry_from_the_fields but not to _measured), and it ignores stale_after_days. The module already has the right pattern in test_walk_gate_threshold_is_the_policy_bound_not_the_literal, which asks input_bound for the expected value.",
+      "failure_mode": "The I2 clamp the report says the lead applied by hand (and which the tool's clean path previously omitted) is unchecked against the measurement: a future write of probed_ceiling/effective_input_ceiling = measured_input_tokens that happens to satisfy I1 (e.g. a smaller max_tokens default) would pass. Any future divergence between _measured() and input_bound (a kf_derived calibration with a non-180K value, or staleness handling in the runtime after 2027-01-05 for the current entry) flips test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch red or, worse, keeps it green while the gate serves a different number than the test believes.",
+      "suggested_fix": "For measured entries assert `effective_input_ceiling == min(cal['measured_input_tokens'], context_window - _default_max_tokens(entry))` and `probed_ceiling == effective_input_ceiling`; compute `want` in the legacy-wall test via `input_bound(entry, max_tokens=_default_max_tokens(entry)).value` instead of _measured(), and keep _measured() only for the shape checks in test_opus_5_5_has_the_1m_window_at_standard_pricing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:_zero_live_spend",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The module-scoped guard asserts that .run/model-invoke.jsonl (cheval's MODELINV ledger) is byte-identical before and after the module, and the docstring presents this as proof that 'no live call escaped the fake'. On the claude-headless transport the probe spawns ${CLAUDE_HEADLESS_BIN:-claude} directly via subprocess (record['argv'] == [bin, *PINNED]); a real `claude -p` never writes cheval's ledger, so the guard cannot observe the one spend path this module exercises. test_runs_from_another_cwd_under_python_isolated_mode builds its own environment rather than using the `fake` fixture, so a future edit that drops the CLAUDE_HEADLESS_BIN assignment there would run the real CLI with --budget-usd 20 and still satisfy the guard.",
+      "failure_mode": "A test that reaches the real CLI bisects a 400K-token Opus 5.5 prompt for up to the $20 budget per test, on the operator's Bedrock/API account, and the module reports zero live spend.",
+      "suggested_fix": "Make the guard fail-closed for this transport: at module setup set CLAUDE_HEADLESS_BIN to a non-existent path (and PATH to an empty dir for the PATH test) so any test that forgets the fake fails on spawn; and/or have each test assert that fake['calls']() is non-empty and that record['cli_bin'] equals the fake path. Keep the ledger check only where the API transport is exercised.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_clean_bisection_measures_and_brackets_the_bound",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The test pins the budget pre-flight at 'worst-case step ≈ $1.60' for a 400K-token step and '12 such steps fit in $20', i.e. input_per_mtok ($4/MTok) only. The fake, like the real CLI, reports the prompt under usage.cache_creation_input_tokens, which the Anthropic API bills at 1.25× input, so the worst-case step is ≈$2.00 and only 10 such steps fit in $20. The record labels this pricing_basis: catalog_estimate.",
+      "failure_mode": "If the budget gate stops on the catalog estimate rather than the CLI's total_cost_usd, a run of all-accepted steps can spend ≈$25 against a $20 --budget-usd before the tool declares the budget exhausted; the live run happened to under-spend only because CLI-preflight rejections cost nothing while being estimated at full price.",
+      "suggested_fix": "Price cache_creation_input_tokens at 1.25× input in the estimate (or add cache_write_per_mtok to the catalog and read it), prefer the CLI's total_cost_usd for the running total when present, and update the pinned strings to the corrected figures.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:19:04Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 25149,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "34dd1459d302a78d37cf54c2783b0e560b75b560ff2c4b3aea4d589a3a3216f2",
+      "run_tag": "g-fr3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

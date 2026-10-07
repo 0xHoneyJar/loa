@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new 'every configured voice is not planned' throw always attributes the cause to the opt-in ('set hounfour.headless.agy_opt_in: true') even when agyGate.readError is set. In that case the gate failed closed because yq is missing or the YAML is unparsable, not because the operator left the key off; the thrown message is what reaches the per-PR failure record and run summary, while the correct reason exists only in an earlier logger.warn line. Additionally, the pre-existing fallback that follows (valid.length === 0 -> 'all API keys missing') still fires for the mixed case of some voices notPlanned plus the rest missing keys, which is equally misleading.",
+      "failure_mode": "Operator with a broken .loa.config.yaml (or no yq on PATH) and LOA_HEADLESS_MODE=cli-only sees the run fail with instructions to set agy_opt_in: true, sets it, and the run fails identically because the file still cannot be read.",
+      "suggested_fix": "When agyGate.readError is defined, build the thrown message from it ('agy gate unreadable: <readError>; voices routed to agy are not planned: ...') instead of the opt-in hint. Replace the length-equality check with a single valid.length === 0 check whose message lists notPlanned and missing separately.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Inside the notPlanned loop, `if (agyGate.readError !== undefined) continue;` skips the per-voice line entirely. The generic readError warn emitted above says 'voices routed to agy are not planned' but names none of them. In strict mode this weakens the r251-1 G3 promise (every configured voice is accounted for at warn): a configured google voice silently drops with only a generic sentence that does not mention it.",
+      "failure_mode": "Strict-mode operator with an unreadable config and cli-only mode loses a configured voice; the only log line does not name the voice or the model id, so the verdict quality 'N/N voices' summary is smaller than configured with no attributable reason in the logs.",
+      "suggested_fix": "Append the notPlanned list (provider/modelId) to the readError warn, or keep the per-voice strict warn and only suppress the graceful info line under readError.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts:budgetMaxInput",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "MEASURED_TO_ESTIMATE_SAFETY = 1.8 encodes a property of one tokenizer (Opus 4.7+ vs BB's chars/4 estimate), but the trigger for applying it is the mere presence of a positive ceiling_calibration.measured_input_tokens. Any future calibrated entry inherits the 1.8 divisor regardless of its actual estimate-to-measured ratio: a model whose tokenizer matches chars/4 would be over-truncated by ~45% (160000 -> 88000), and a model with a worse ratio would be under-protected and still trip cheval's pre-flight gate. The probe record already carries the observed tokenizer_ratio per the implementation report, so the data exists to make this per-entry.",
+      "failure_mode": "Next calibration of a non-Opus-4.7-tokenizer model (or a non-Anthropic provider) silently gets a budget that is either far too small (review quality loss from aggressive truncation) or still too large (exit 7 rejections the ceiling was meant to prevent).",
+      "suggested_fix": "Record the observed ratio in ceiling_calibration (e.g. tokenizer_ratio or estimate_tokens_at_accept) and have flattenModels read it; budgetMaxInput divides by max(ratio, 1) with a small safety margin, falling back to 1.8 only for entries that have measured_input_tokens but no ratio.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts:renderTruncation",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "HEADER_TRUNCATION is a template literal but hardcodes the text 'MEASURED_TO_ESTIMATE_SAFETY = 1.8' instead of interpolating the constant (which is declared above it and in scope). The new bats T14 header test greps for that literal string, so changing the constant would leave the generated header and the test both asserting a stale value while budgets are computed with the new one.",
+      "failure_mode": "Divisor tuned to e.g. 1.6; generated truncation header, the T14 header test, and the hand-written comment in tests/unit/gen-bb-registry-codegen.bats all keep saying 1.8 while GENERATED_TOKEN_BUDGETS reflects 1.6 — a drift the regen-model-artifacts drift check cannot catch.",
+      "suggested_fix": "Use `${MEASURED_TO_ESTIMATE_SAFETY}` in the header template, and have T14 derive the expected divisor from the generated header (or from the script source) rather than a literal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/main.ts:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "At startup, agyGate.readError is printed only inside the `keyStatus.notPlanned.length > 0` branch, and agyGate.typeWarning is never printed. Under the fail-closed defaults (no LOA_HEADLESS_MODE, so mode falls to 'prefer-api') an unreadable config usually yields an empty notPlanned list for HTTP google voices, so startup is silent about the unreadable file. The pipeline then emits the same warn once per reviewed PR, so r251-1 G12/G14's 'said once' becomes 'said zero times at startup, N times per run'.",
+      "failure_mode": "Operator with agy_opt_in: \"true\" (string) or a malformed config sees no diagnostic in the startup banner, and discovers the misconfiguration only by reading repeated per-PR warnings in the run log.",
+      "suggested_fix": "In main.ts print readError and typeWarning unconditionally, once, right after the 'Multi-model: ... available' line; optionally pass a flag into executeMultiModelReview so the pipeline does not repeat it per PR.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:40:04Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 23532,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3c0c1bf2a9f58183ab98ebd1869324e4881aadcfd22114a93b73478fe7c8aa32",
+      "run_tag": "g2-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": ".claude/adapters/cheval.py:@@ -0,0 +1,232 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The new `.claude/adapters/cheval.py` is test code placed at the production module/script path. It imports `cheval` from inside `cheval.py`, so normal `import cheval` resolves to this partially initialized test module rather than a real implementation with `cmd_invoke`, `EXIT_CODES`, etc.",
+      "failure_mode": "Any production caller or CLI entrypoint that imports or executes `.claude/adapters/cheval.py` will fail at runtime with missing attributes or recursive/self-import behavior instead of invoking the adapter command.",
+      "suggested_fix": "Move these tests under the test tree, for example `.claude/adapters/tests/test_cheval_agy_chain.py`, and leave `.claude/adapters/cheval.py` as the production implementation.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:@@ -0,0 +1,232 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk writes a pytest module into `.claude/adapters/cheval.py`, which is the CLI entry point the rest of the change set depends on (the same module the tests call as `cheval.cmd_invoke`, `cheval.EXIT_CODES`, `cheval._load_persona`, `cheval.load_config`, and that `resolve_effort` / `_effort_on_wire` live in per the reviewer context). The content is unmistakably a test file: `import pytest`, `import cheval`, nine `test_*` functions, and path arithmetic that is only correct for a file under `.claude/adapters/tests/` (`sys.path.insert(0, Path(__file__).resolve().parent.parent)` must yield `.claude/adapters` for `import cheval` and `from loa_cheval.types import ...` to resolve; `Path(__file__).resolve().parents[3]` must yield the repo root for the schema path). Placed at `.claude/adapters/cheval.py`, `parent.parent` is `.claude/` and `parents[3]` is the directory above the repo. The hunk header `-0,0` shows no removed lines against a non-empty prior blob (`ca85d389`), so the previous 232-line-plus body of cheval.py is unaccounted for. Additionally, the production change this hunk's tests exercise — the chain walk that records `models_not_planned`, the `_AGY_NOT_PLANNED_WARNED` once-flag, the `failure_class` field in the JSON error envelope, the `modelinv.py` emitter, `loader.routes_to_agy` / `warn_agy_available_once` / `_AGY_TYPE_WARNED` / `_AGY_AVAILABLE_WARNED`, the retry breaker exemption, and the `AgyOptInRequiredError` constructor change — appears nowhere in the diff, so the schema property added in this change set has no producer within it.",
+      "failure_mode": "If applied as shown: every `cheval invoke` (and every consumer that shells out to it — the four bash planners, Flatline, the dissent, Bridgebuilder, `/loa` Providers) loses `main`/`cmd_invoke`; executing the script performs a self-import, defines test functions, and exits with no CLI. The new test module itself fails at collection/runtime with `AttributeError: module 'cheval' has no attribute 'cmd_invoke'` (and `_load_persona`, `EXIT_CODES`), and `test_the_modelinv_schema_declares_models_not_planned` raises `FileNotFoundError` because `parents[3]` escapes the repo. If instead the path header is a mislabel, the diff ships tests and a schema for a `cmd_invoke` behaviour change that is not in the diff, so the G1/G5 guarantee (gated agy hop never dispatched, `failure_class: opt_in_required` on the envelope) cannot be verified from this change set.",
+      "suggested_fix": "Create the module as `.claude/adapters/tests/test_cheval_agy_chain_walk.py` (new file, `index 0000000..`), restore `.claude/adapters/cheval.py` to its real content, and include the production hunks the tests depend on (`cheval.py` cmd_invoke chain-walk planning + `_AGY_NOT_PLANNED_WARNED` + envelope `failure_class`; `loa_cheval/audit/modelinv.py` `models_not_planned`; `loa_cheval/config/loader.py` `routes_to_agy`, `warn_agy_available_once`, `_AGY_TYPE_WARNED`, `_AGY_AVAILABLE_WARNED`; `loa_cheval/providers/retry.py` breaker exemption; `loa_cheval/types.py` `AgyOptInRequiredError`; `agy_headless_adapter.py` `validate_config`) in the same change set so the schema and tests are reviewable against their producer.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:test_direct_gemini_headless_still_refuses_with_failure_class",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "G1 states a gated agy hop is \"never dispatched\" and the MODELINV record says `models_not_planned` / not in `models_requested`. For the two agy-alone cases (`test_direct_gemini_headless_still_refuses_with_failure_class` and `test_cli_only_google_voice_is_agy_alone_and_refuses`) the tests inject `dispatch=_refuse` that raises `AgyOptInRequiredError` and never assert on `seen`. They therefore pass both if cheval refuses pre-dispatch with an empty planned chain and if cheval dispatches the sole hop and relies on the adapter's own gate to refuse. In the second case the emitted MODELINV says the hop was not planned and `models_requested` is empty while a dispatch did occur, and cheval's own planning gate (the point of this round) is not actually what prevents the argv-exposure path — the adapter gate is. The supplied `_refuse` stub suggests the author expected a dispatch to happen.",
+      "failure_mode": "A regression that makes cheval dispatch a gated agy-alone hop (e.g. a mode branch that forgets to filter) is not caught by these tests; telemetry then under-reports a dispatch that happened, and the G1 'never dispatched' claim rests solely on the adapter-level gate.",
+      "suggested_fix": "In both tests assert `seen == []` and `payload.get(\"models_requested\", []) == []`; drop the `dispatch=_refuse` stub so a stray dispatch surfaces as a success rather than the expected INVALID_CONFIG. If cheval currently does dispatch the sole hop, change `cmd_invoke` to raise `AgyOptInRequiredError` itself when the planned chain is empty after filtering.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:11:02Z",
+    "tokens_input": 59974,
+    "tokens_output": 21311,
+    "cost_usd": 0,
+    "latency_ms": 27661,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-b2-gatepy.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-b2-gatepy.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f7127c62b66088242c2e10e60ef9057462539646a1d0e5e4de1495ed3dca6451",
+      "run_tag": "b2-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:ClaudeHeadlessAdapter.wire_effort",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The three headless wire_effort classmethods (claude, codex, grok) call the instance resolver on `cls.__new__(cls)`, an object that never ran ProviderAdapter.__init__ / HeadlessCLIAdapter.__init__, and pass a SimpleNamespace in place of the catalog entry. Any `self.*` state the resolver touches now or later (config, provider name, a warn-once set for an invalid `extra.effort`/`reasoning_effort`, dict-style `entry.get(...)`) raises AttributeError. Because cheval calls wire_effort to fill `effort_effective` in the MODELINV envelope and the `--dry-run` line, that AttributeError surfaces after a successful completion or on dry-run, not in the adapter's own complete() path.",
+      "failure_mode": "AttributeError inside wire_effort when _resolve_effort / _resolve_reasoning_effort reads an attribute set only in __init__ (e.g. a one-time WARN path on a malformed catalog value), failing the invoke after the provider call already happened or crashing --dry-run.",
+      "suggested_fix": "Make the effort resolvers pure module-level or @staticmethod functions taking (request_effort, extra) and have both complete() and wire_effort call that function; drop the __new__ instance and the SimpleNamespace stand-in.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/base.py:ProviderAdapter.wire_effort",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/base.py:ProviderAdapter.wire_effort",
+      "cross_file_justification": "The base default (None) is what OpenAIAdapter, BedrockAdapter, GoogleAdapter, CursorHeadlessAdapter and AgyHeadlessAdapter inherit; those adapters are not in the diff but their complete() bodies decide whether the recorded `effort_effective` matches the wire.",
+      "description": "Only anthropic, claude-headless, codex-headless and grok-headless override wire_effort. Every other registered adapter reports `effort_effective: null`. If any of them emit a reasoning-effort control from `request.effort` or a catalog `extra` (OpenAI `reasoning.effort`/`reasoning_effort` on gpt-5.x/o-series, Bedrock's Anthropic body builder, cursor-agent flags), the MODELINV record drifts from the body/argv, which is the exact invariant the docstring and tests/test_effort_wire_conformance.py claim to enforce.",
+      "failure_mode": "MODELINV envelopes for openai/openai_compat/bedrock/cursor-headless dispatches record `effort_effective: null` while the request carried an effort control, so audit and cost reasoning over effort are wrong for those providers.",
+      "suggested_fix": "Have the conformance test iterate _ADAPTER_REGISTRY and assert, per adapter, that the effort control present in the built body/argv equals wire_effort(); add overrides (or an explicit `emits_effort = False` assertion) for every adapter so a silent default cannot pass.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:input_bound",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:input_bound",
+      "cross_file_justification": "input_bound only reads `observed`; the writer of .run/ceiling-observed.json (the self-correction in cheval / the Anthropic adapter's context-limit handler) is outside the diff and historically mirrored the reader's `not calibrated` rule.",
+      "description": "The reader now lets an observed provider limit tighten a foreign-transport calibration (the Opus 5.5 entry calibrated via claude-headless). The diff does not touch the self-correction that writes observations. If that writer still skips calibrated entries (the symmetric rule the old reader had), no observation is ever recorded for claude-opus-5-5 on the HTTP route, the new branch is dead in production, and an account whose HTTP tier is below 936,000 input tokens gets a 400 on every oversize dispatch with no learning.",
+      "failure_mode": "Repeated ProviderContextLimitError on the HTTP route for the foreign-calibrated entry; `/loa` keeps rendering `calibrated 936000` with no observed tightening because nothing writes the observation.",
+      "suggested_fix": "Make the observation writer use the same predicate (`not is_calibrated(entry) or is_foreign_transport_calibration(entry)`) and add a test that a parsed context-limit rejection for a foreign-calibrated entry lands in ceiling-observed.json and lowers the next input_bound.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:GateOutcome.as_envelope",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:GateOutcome.as_envelope",
+      "cross_file_justification": "as_envelope output is embedded in the MODELINV payload validated against .claude/data/schemas/model-invoke-complete.payload.schema.json, which is not in the diff.",
+      "description": "as_envelope adds a new key `input_ceiling.calibration_transport` whenever the entry's calibration names a transport, which the live catalog now does for claude-opus-5-5. If the payload schema's `input_ceiling` object is closed (`additionalProperties: false`) and was not extended in this round, every Opus 5.5 HTTP dispatch produces an envelope that fails schema validation.",
+      "failure_mode": "MODELINV write or schema test fails only for the one calibrated entry; the sprint's own schema bats suite would pass because fixtures predate the new key.",
+      "suggested_fix": "Add `calibration_transport` (string, optional) to the `input_ceiling` schema object and extend the envelope fixture/test with a foreign-transport decision so the additive claim is pinned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_walk_gate_threshold_is_the_policy_bound_not_the_literal",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:input_bound",
+      "cross_file_justification": "The test compares cheval._lookup_max_input_tokens (reads the host's .run/ceiling-observed.json) with input_bound(entry, max_tokens=mt) (observed=None); the diff's change to input_bound makes the calibrated entry sensitive to that host file for the first time.",
+      "description": "Before this round a calibrated entry ignored observations on both sides, so the comparison was host-independent for claude-opus-5-5. Now _lookup_max_input_tokens applies an observed cap for the foreign-calibrated entry while the test's expected value is computed without one. The sibling test (test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch) already pins LOA_CHEVAL_CEILING_OBSERVED_PATH to a nonexistent file for exactly this reason; this one does not.",
+      "failure_mode": "The test fails on any host whose ceiling-observed.json holds an observation for claude-opus-5-5 below 936,000 (e.g. after one tier-limited HTTP rejection), passing on the developer's machine.",
+      "suggested_fix": "Set LOA_CHEVAL_CEILING_OBSERVED_PATH to a nonexistent path in the test (or in the autouse fixture) and add a separate case that feeds a synthetic observation to both sides.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/routing/ceiling.py:parse_context_limit",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_RE_CLI_TOKENS_LIMIT matches any `N tokens (limit M)` shape and records M as `limit`, the same slot _RE_INPUT_ONLY uses for the provider's input maximum. For the Claude Code pre-flight the M it captures is the total context window (1,000,000), not an input bound, and N includes the CLI's own system prompt. Downstream consumers that write `limit` as an observed input cap are protected today only because I1 (`context_window - max_tokens`) happens to clamp below it; the regex is also loose enough to match a non-context message with that shape if parse_context_limit is reached without the marker gate.",
+      "failure_mode": "An observation of 999,999 (or a bogus cap from an unrelated `tokens (limit …)` message) lands in ceiling-observed.json and either over-promises on a route without a derived bound or under-caps an uncalibrated/foreign-calibrated entry.",
+      "suggested_fix": "Return the CLI match in a distinct field (e.g. `context_total`) or subtract the request's max_tokens before treating it as an input limit, and anchor the regex to the CLI's wording (`the request is ~N tokens (limit M)`) so only the known pre-flight message matches.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:45:45Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 28903,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b8a1b26a3dae85cd22c088202b66ebf9abb9c24830faa35f9777924b3402515f",
+      "run_tag": "h2-ceil"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

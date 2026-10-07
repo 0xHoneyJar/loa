@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts:describe(\"validateApiKeys takes the gate explicitly (r251-1 G15)\")",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The G15 guard asserts `validateApiKeys.length === 2` and claims this proves 'no default reads the process cwd'. Function.length only drops parameters that carry a default initializer. An optional second parameter (`gate?: AgyGate`) with `gate ?? readAgyGate(loaConfigPathFor(undefined))` inside the body keeps length 2 and reintroduces exactly the cwd read G15 removed. The same describe also pins `loaConfigPathFor(undefined) === \".loa.config.yaml\"`, which enshrines a process-cwd fallback as accepted no-root behavior rather than treating a missing repo root as an error.",
+      "failure_mode": "A later refactor can silently reinstate a cwd-dependent agy gate read without failing this test, so a reviewed repo's opt-in could be decided by whatever `.loa.config.yaml` sits in Bridgebuilder's process cwd. The suite would stay green.",
+      "suggested_fix": "Replace the arity check with a behavioral one: create a temp dir containing `.loa.config.yaml` with `agy_opt_in: true`, `process.chdir` into it inside the test, call `validateApiKeys(models, { optIn: false, mode: \"cli-only\" })` and assert the google voice lands in `notPlanned`. Optionally assert `validateApiKeys(models, undefined as never)` throws rather than falling back. If `BridgebuilderConfig.repoRoot` is always set in production, drop the cwd fallback in `loaConfigPathFor` and pin a throw for `undefined` instead.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts:describe(\"executeMultiModelReview gate diagnostics (r251-1 G12, G14)\")",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both diagnostics cases force `LOA_HEADLESS_MODE=cli-only` from the environment, so the routing decision for the google voice never depends on what `readAgyGate` returns for `mode` when `readError` is set. The companion unit test ('an unreadable config fails closed but says why') asserts only `optIn === false`; the mode under an unreadable config is never pinned. If the pipeline defaults mode to `prefer-api` on readError with no env override, a google voice whose on-disk config actually says `mode: cli-only` is planned by Bridgebuilder, dispatched to cheval, routed to agy, refused with `opt_in_required`, and counted as a failed planned voice.",
+      "failure_mode": "An unreadable `.loa.config.yaml` (for example a YAML construct BB's parser rejects but yq/python accept) with no `LOA_HEADLESS_MODE` set yields a planned-then-refused google voice and a DEGRADED verdict or strict-mode failure, instead of the 'not planned' diagnostic the sprint promises under G-1. The current tests cannot detect this because they short-circuit the mode via env.",
+      "suggested_fix": "Add a third diagnostics case with `LOA_HEADLESS_MODE` deleted and the unclosed YAML body. Assert the gate's `mode` under readError (fail closed means treating it as `cli-only`), assert the google voice is not planned, and assert exactly one `agy gate unreadable` warn. Also assert `g.mode` in the readAgyGate readError unit test so the fail-closed claim covers both fields.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/progressive-truncation.test.ts:describe(\"progressiveTruncate budget clamp (cycle-124 FR-3)\")",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The rewritten 'resolves catalog aliases' case introduces a reference to `TOKEN_BUDGETS[\"default\"]`. The previous version of this case used only `getTokenBudget`, `effectiveInputBudget` and `progressiveTruncate`, and the file's import block is not part of the diff, so the identifier cannot be confirmed as imported from `../core/truncation.js` from the diff alone.",
+      "failure_mode": "If `TOKEN_BUDGETS` is not already imported in this file, the case fails on its first assertion with `ReferenceError: TOKEN_BUDGETS is not defined`, and the alias-clamp regression coverage for the `opus` alias is lost.",
+      "suggested_fix": "Confirm `TOKEN_BUDGETS` is in the import list from `../core/truncation.js`. If not, add it, or express the 'row exists' check without the constant, e.g. `assert.notDeepEqual(getTokenBudget(\"claude-opus-5-5\"), getTokenBudget(\"some-unknown-model\"))`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:34:56Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21655,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8af203b6bf1a6d77a361416de3b73e3a043d029fba2574dd51b79392c11c6f7f",
+      "run_tag": "f2-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

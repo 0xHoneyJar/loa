@@ -1,0 +1,148 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "secrets",
+      "message": "The new CLI transport forwards the entire parent environment to an environment-selected executable. `_run_capped` builds `env = {**os.environ, ...}` and `_cli_bin` allows `CLAUDE_HEADLESS_BIN` to choose the binary, so a poisoned environment can cause API keys/AWS credentials present in the process environment to be disclosed to an attacker-controlled executable. This is local-environment dependent, so I would not rate it HIGH without evidence this tool runs in CI or with attacker-controlled env, but it is a meaningful secrets-exposure risk for an operator tool.",
+      "anchor": "tools/ceiling-probe-live.py::_cli_bin and tools/ceiling-probe-live.py::_run_capped",
+      "recommendation": "Resolve the CLI path from a trusted allowlist or require an absolute path owned by the user, and pass a minimal environment containing only the variables the adapter actually needs.",
+      "id": "DISS-001",
+      "description": "The new CLI transport forwards the entire parent environment to an environment-selected executable, creating a local secrets-exposure risk when credentials are present in the process environment.",
+      "id_derived": true,
+      "failure_mode": "The new CLI transport forwards the entire parent environment to an environment-selected executable, creating a local secrets-exposure risk when credentials are present in the process environment.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "write_catalog_operator_set",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "f'          calibrated_at: \"{calibrated_at}\"'",
+      "cross_file_justification": null,
+      "description": "write_catalog_operator_set rebuilds part of the model-config.yaml catalog by string interpolation. It strictly validates probe_outcome, sample_size and ceiling, and quotes trigger, cli_version and cli_model with json.dumps, but four values are written raw: calibrated_at is placed inside bare double quotes with no escaping, transport is written as an unquoted scalar, and host_route (as `route`) and cli_model are interpolated into the provenance `# cycle-127 FR-3: ...` comment line. A newline, a double quote or a `#` in any of these breaks out of the intended scalar or comment and lets the caller append arbitrary YAML lines inside the model block (for example a new `effective_input_ceiling:` or `source:` line that the hand-rolled line editor will not notice but the YAML loader will honour). These values arrive from CLI flags and, per the docstring's record/partial semantics, from a previously written probe record file, so a tampered record or copy-pasted argument bypasses the function's own validation of the numeric fields.",
+      "failure_mode": "A crafted calibrated_at / transport / host_route / cli_model value injects extra YAML keys into the routing catalog, overriding ceilings or calibration provenance that the function deliberately validates elsewhere, and the hand-parsed text editor cannot detect the corruption.",
+      "suggested_fix": "Validate calibrated_at against a strict ISO-8601 regex (or re-serialize via datetime), restrict transport to a known set (e.g. {'claude-headless','api'}) or emit it via json.dumps, and reject or strip any character outside printable ASCII (and specifically `\\n`, `\\r`, `#`, `\"`) from host_route and cli_model before composing the provenance comment. Optionally round-trip the final text through yaml.safe_load and assert the model block still has the expected key set before os.replace.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_classify_unguarded",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "base[\"retry_after_s\"] = float(hint.group(1))",
+      "cross_file_justification": null,
+      "description": "The retry-after hint is extracted from provider/CLI diagnostic text (result, api_status, or stderr) with _RETRY_AFTER and converted with float() with no range check. The text is attacker-adjacent (it echoes whatever the provider or wrapper prints). A very long digit run makes float() return inf, and any large value is passed into the record and, per the module comments, is honoured by the retry loop. The _RETRY_WAIT_CAP_S = 180 cap is declared here but the sleep logic that must apply it lives in main(), which is not in this diff, so the clamp cannot be verified from the change.",
+      "failure_mode": "A misbehaving or hostile upstream message such as `retry-after: 99999999` or an overlong digit string either stalls the probe far beyond the intended 180 s per step, or produces inf and makes time.sleep raise OverflowError, aborting a multi-dollar probe run after the tokens were already billed.",
+      "suggested_fix": "Clamp at parse time: `base['retry_after_s'] = min(float(hint.group(1)), _RETRY_WAIT_CAP_S)` guarded by math.isfinite, and have the retry loop apply the same cap defensively.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": "_cli_bin",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "env = {**os.environ, \"CLAUDE_CODE_DISABLE_AUTO_MEMORY\": \"1\"}",
+      "cross_file_justification": null,
+      "description": "The executable to run is taken from the CLAUDE_HEADLESS_BIN environment variable (falling back to a bare `claude` resolved via PATH) and is executed twice: _cli_version runs `<bin> --version`, and _run_capped runs the full headless command with the complete inherited environment, which in the intended deployment includes ANTHROPIC_API_KEY and AWS credentials for the Bedrock route. Nothing checks that the resolved binary is an absolute path or the expected tool. In a CI job or a shell with directory-scoped env injection (direnv, .envrc, repo task runners), setting CLAUDE_HEADLESS_BIN or prepending PATH redirects the probe, and all its credentials, to an arbitrary program while the record only logs the basename.",
+      "failure_mode": "An environment-level override causes the probe to hand ANTHROPIC_API_KEY and AWS credentials to an attacker-chosen binary, which can also return fabricated JSON to poison the measured ceiling written into the catalog.",
+      "suggested_fix": "Resolve the binary once with shutil.which and record the absolute path in the probe record; optionally require CLAUDE_HEADLESS_BIN to be absolute and warn when it differs from the PATH-resolved `claude`. Pass a minimal env allow-list to the subprocess (ANTHROPIC_*, AWS_*, CLAUDE_CODE_*, PATH, HOME) instead of the full os.environ.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:32:54Z",
+    "tokens_input": 99237,
+    "tokens_output": 11375,
+    "cost_usd": 0,
+    "latency_ms": 35423,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-audit-q3-probe.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 20,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-audit-q3-probe.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2c58efd40e549aa1437d27d8100fdf37111adaca3fb8c1e508bae6704badb890",
+      "run_tag": "q3-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

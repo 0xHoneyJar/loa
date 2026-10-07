@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "\"route_env\": _route_env(),",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "_main_cli",
+      "cross_file_justification": "_route_env, _cli_command and _cli_bin are defined in hunks of tools/ceiling-probe-live.py that are not shown in this diff; the diff-touched record construction in _main_cli is what serializes their output to disk and stdout.",
+      "description": "The record built in _main_cli embeds route_env (whatever _route_env() collects from the process environment), the full CLI argv, cli_bin, and raw CLI stderr-derived `detail` strings copied wholesale from `res` into each sample. The record is then written with a plain open(args.output, \"w\") (default umask, typically 0644) or printed to stdout. If _route_env() returns any routing credential (ANTHROPIC_AUTH_TOKEN, AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, ANTHROPIC_BASE_URL with embedded basic-auth) or _cli_command places a token on the command line, that secret lands in a shareable JSON artifact. The module comments treat these records as reviewed, shared artifacts (\"the live record shows $4.99/MTok billed\"), so they are likely to be committed or pasted into reviews.",
+      "failure_mode": "Credentials or sensitive environment details leak through the probe record file, stdout capture, or CI logs.",
+      "suggested_fix": "Make _route_env() return an explicit allowlist of non-secret keys (e.g. CLAUDE_CODE_USE_BEDROCK, AWS_REGION, ANTHROPIC_BASE_URL host only) and redact any key matching KEY/TOKEN/SECRET/PASSWORD. Never pass credentials on the CLI command line. Create args.output with os.open(path, O_WRONLY|O_CREAT|O_TRUNC, 0o600) and cap/strip CLI `detail` strings before they enter the record.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_charge",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_charge and _retry_wait consume numbers parsed from the CLI's JSON output (cli_reported_cost_usd, measured_input_tokens, retry_after_s) with only isinstance checks. json.loads accepts Infinity and NaN. A reported cost of Infinity passes `reported > 0` and `int(reported * 1_000_000)` raises OverflowError, which is not in any except clause inside step(); it falls into the `except BaseException` branch, charges the estimate, marks the sample interrupted, re-raises, and ends the whole bisection with exit 1. NaN compares False and is silently treated as $0. measured_input_tokens is used in `measured * price_in // 1_000_000` with no type check, so a string value raises TypeError on the same path. The CLI relays provider data, so these values are not fully trusted.",
+      "failure_mode": "One malformed numeric field from the CLI terminates the bisection after money has been spent, or a non-finite cost is silently accounted as $0.",
+      "suggested_fix": "Sanitize numeric fields in _classify before they reach _charge/_retry_wait: require int/float, math.isfinite, and 0 <= value <= a sane ceiling; treat anything else as missing so the estimate fallback applies. Add OverflowError/TypeError handling in step() that classifies the attempt as `other` rather than aborting.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "write_catalog_operator_set(fh.read(), args.model, ceiling=1, calibrated_at=started_at,",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "_main_cli",
+      "cross_file_justification": "write_catalog_operator_set, i2_clamped and _write_text_atomic are defined outside the shown hunks; the diff-touched _main_cli passes operator free text and subprocess-derived strings into them and performs the pre-spend dry run.",
+      "description": "--host-route (documented as free text), --cli-model, and cli_version (stdout of the CLI binary) flow unvalidated into write_catalog_operator_set, which takes catalog text and returns new catalog text, i.e. it edits the catalog at the text level. If it templates values without proper quoting, a value containing a newline or structural characters can inject or overwrite other keys (for example another model's effective_input_ceiling), and the catalog then feeds gen-adapter-maps.sh and the review-skill build. The pre-spend dry run does not exercise the same inputs as the real write: it omits cli_version and force_partial and passes cli_arg where the real write passes _resolved_cli_model(cli_arg). A value that breaks or injects on the real write is therefore only discovered after paid probing, contrary to the stated 'fail before any spend' intent (r251-1 P6).",
+      "failure_mode": "Catalog corruption or key injection from unvalidated strings; late write failure after spend.",
+      "suggested_fix": "Validate host_route, cli_model and cli_version in _main_cli against a conservative pattern (single line, printable, length cap). Compute cli_version and _resolved_cli_model before the dry run and pass the dry run exactly the kwargs the final write uses. Ensure write_catalog_operator_set serializes through a parser (yaml/json dump) rather than string templating, and re-parses its output before returning.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "if spent_micro + est_micro > budget_micro:",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The --budget-usd cap is enforced only against est_micro, derived from filler tokens times `ratio`, and ratio is None (treated as 1.0) until a step has measured. The code's own comment says the Opus 4.7+ tokenizer counts the filler about 1.8x heavier, so the first step at --max-tokens-probe can be billed roughly 1.8x its estimate and the run can exceed the cap by up to 80% of the largest step. The pre-flight 'worst-case step' and 'N such steps fit' message is understated by the same factor. A size rejection with no parsable count and no CLI-reported cost is charged $0, so spent_usd can also under-report real spend.",
+      "failure_mode": "Actual provider spend exceeds the operator's cap and the recorded spent_usd under-reports it.",
+      "suggested_fix": "Apply a conservative initial ratio (e.g. 2.0) to the first step's estimate and to the worst-case line until a measurement exists, or multiply est_micro by a safety factor in the pre-check. State the possible overshoot explicitly in the pre-flight message.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:35:26Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 14962,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a2ba5cc38caabae794461cfa48b8eaaae4c51fbbea36a63b43b7111bb00e3d95",
+      "run_tag": "r3-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

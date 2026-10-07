@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_classify_unguarded",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tools/ceiling-probe-live.py: ceiling.is_throttle_message(throttle_text) and (ceiling.is_context_limit_message(full) or ceiling.is_token_limit_message(full))",
+      "cross_file_justification": "The diff removes the probe's local _THROTTLE regex and calls loa_cheval.routing.ceiling.is_throttle_message, which is not in the diff. Per sprint.md the same function now also drives ClaudeHeadlessAdapter._raise_for_error (throttle wins -> RateLimitError, retried then route-walked). The precedence rule is therefore shared across the probe and the live adapter.",
+      "description": "The throttle-wins-over-context-limit rule was widened from the probe's narrow regex (throttl, please wait, status 429, rate limit, tokens per min) to a shared matcher that also accepts 'overloaded', 'too many requests', 'quota' and a 529 in status position. The matcher runs on free-form provider error text and is substring based. Any terminal context-limit message that happens to contain one of the new words (for example a provider wording like 'input exceeds the context quota') is classified as transient. In the probe that means a size rejection is retried on the TPM backoff schedule and the bisection reads an inconsistent result; in the headless adapter it means the request is retried and then walked to the next route, so a payload the operator pinned to one provider can be re-sent to a different provider without the operator seeing why. The function body could not be verified from the diff, so this is recorded as a hardening concern rather than a confirmed defect. Provider error text is not attacker controlled in normal operation, which keeps severity LOW.",
+      "failure_mode": "A terminal context-limit error carrying a throttle-like word is misclassified as a rate limit: the probe burns budget on pointless retries and may record a partial outcome, and the adapter silently fails over to an alternate route, sending the prompt to a provider the operator did not select.",
+      "suggested_fix": "In is_throttle_message, require either a status-position 429/529 or an explicit throttle phrase, and only accept bare 'quota' or 'overloaded' when paired with a rate or time word (per minute, rate, retry). Add negative cases to the probe-vs-adapter conformance test for context-limit strings that contain 'quota' and 'overloaded'. Have _raise_for_error log the matched throttle marker whenever it overrides a context marker so a route walk is auditable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:54:44Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 4633,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e92bbf3bafcaca7aa6630edad43964ba93af655ab4b06120de650a760d367e0a",
+      "run_tag": "d4-delta"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

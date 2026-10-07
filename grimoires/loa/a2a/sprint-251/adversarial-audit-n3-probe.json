@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "test_default_binary_is_claude_on_path",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py::test_default_binary_is_claude_on_path",
+      "cross_file_justification": "The test pins the behaviour of tools/ceiling-probe-live.py: when CLAUDE_HEADLESS_BIN is unset the probe resolves `claude` from PATH and the calibration record stores `cli_bin == \"claude\"` (bare name) rather than the resolved absolute path. The record feeds `--write-catalog` into .claude/defaults/model-config.yaml with `source: operator_set, method: probed_headless`.",
+      "description": "The calibration record that becomes catalog provenance records the CLI as the bare PATH name `claude`, not the resolved absolute path (and no digest). The first test shows the record does carry a full path when CLAUDE_HEADLESS_BIN is set, so provenance quality depends on how the operator invoked the tool. A catalog entry written from a PATH-shadowed or wrapper `claude` is indistinguishable from one written from the real CLI.",
+      "failure_mode": "An operator or CI job with a shadowed `claude` earlier on PATH (wrapper script, stale install, planted binary) produces a `clean` record that writes a bogus `effective_input_ceiling` into the shared defaults catalog, and the record offers no way to tell which binary produced it.",
+      "suggested_fix": "Have the probe resolve the binary with shutil.which() before the --version call, record the absolute path (and optionally a sha256 of the file) in `cli_bin`, and refuse to `--write-catalog` when resolution fails. Update the test to assert the resolved path, e.g. `record[\"cli_bin\"] == str(bindir / \"claude\")`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": "test_runs_from_another_cwd_under_python_isolated_mode",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "env = {k: v for k, v in os.environ.items() if k not in (\"ANTHROPIC_API_KEY\", \"PYTHONPATH\")}",
+      "cross_file_justification": null,
+      "description": "The out-of-process test forwards the developer's entire environment to the child except two deny-listed names. Other credential-bearing variables that the real Claude CLI honours (ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN for Bedrock) still reach the subprocess. Exposure is currently nil because CLAUDE_HEADLESS_BIN is pinned to the recording fake and PATH is emptied, so the deny-list is doing no real work and gives a false sense that credentials were scrubbed.",
+      "failure_mode": "If a future edit loosens the binary pin (for example to test PATH fallback out-of-process), real provider credentials are already present in the child env and a live `claude -p` with a ~400K-token prompt would run and bill the operator's account without touching the cheval ledger the module guard watches.",
+      "suggested_fix": "Build the child environment from an allow-list (PATH, HOME, LANG/LC_*, TMPDIR, CLAUDE_HEADLESS_BIN, FAKE_LOG, FAKE_LIMIT_TOKENS) instead of copying os.environ with a deny-list, so no credential can leak into the subprocess regardless of the developer's shell.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:25:58Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9507,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b1b03733d6206cca9379987225e928897d4466d8f2ff197bf938010491e0e4c0",
+      "run_tag": "n3-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

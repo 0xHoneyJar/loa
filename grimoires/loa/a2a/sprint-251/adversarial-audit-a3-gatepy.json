@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "cmd_invoke",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "print(_error_json(_e.code, str(_e), retryable=_e.retryable,",
+      "cross_file_justification": null,
+      "description": "The restructured `except ChevalError` branch in .claude/adapters/cheval.py records `str(_e)` into `models_failed[].message_redacted` and prints it to stderr via `_error_json` without passing it through `sanitize_provider_error_message`. The sibling preflight handler in the same diff imports and applies `_sanitize` to the exception text, and the following catch-all branch is documented as redacting known env-var secrets. ChevalError subclasses that wrap provider/CLI failures can carry upstream response bodies, URLs with query-string tokens, or header fragments. The modelinv.py docstring acknowledges `message_redacted` MAY hold raw upstream content and is redacted downstream, but the stderr JSON line has no such second pass. This path pre-dates the diff, but the diff rewrote the block and added a second unredacted emit site for the `opt_in_required` branch.",
+      "failure_mode": "A provider-originated ChevalError containing credential material (e.g., a bearer token echoed in an upstream 401 body or a signed URL) is written verbatim to stderr and into the operator-visible error JSON, where it is captured by CI logs, shell transcripts, or log shippers.",
+      "suggested_fix": "Route `str(_e)` through `sanitize_provider_error_message` (already imported locally as `_sanitize` in the preflight handler) before both the `models_failed` append and the `_error_json` print, matching the preflight and catch-all branches. Also guard `_fc` extraction with `isinstance(getattr(_e, 'context', None), dict)` so a non-dict context cannot raise inside the handler and escape the typed-exit path with a raw traceback.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_plan_around_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "_chain, _models_not_planned = _plan_around_agy(_chain, hounfour)",
+      "cross_file_justification": "cheval.py (diff-touched) now rewrites `_chain` before `_modelinv_models_requested` is taken; modelinv.py (diff-touched) adds `models_not_planned` as an optional field that is omitted from the payload when empty. Audit consumers of the MODELINV event that key on `models_requested` alone lose visibility into dropped hops.",
+      "description": "The existing comment above the call states `models_requested` enumerates the entire resolved chain so audit consumers see the FULL intended walk shape. After this change, agy hops dropped by `_plan_around_agy` are removed from `models_requested` and surfaced only in the new optional `models_not_planned` field, which `emit_model_invoke_complete` omits entirely when falsy. The `_auth_type_resolved` value is also silently rewritten to the first kept hop's auth type. Existing downstream consumers, schema validators, or alerting that compare `models_requested` to the binding's declared chain will see a shorter chain with no indication a hop was removed unless they are updated to read the new field.",
+      "failure_mode": "An audit reviewer or compliance tool reconstructing which models were intended for a given invocation from `models_requested` sees a chain that does not match the configured binding, with the dropped hop recorded only in a field the consumer does not read. Policy drift (an agy hop silently added to a chain) is not detected by consumers that were written against the prior contract.",
+      "suggested_fix": "Either keep the full resolved chain in `models_requested` and mark planned-around hops via `models_not_planned` (so the invariant in the comment still holds), or update the comment and the MODELINV schema docs to state the new contract explicitly and emit `models_not_planned: []` unconditionally so consumers can distinguish 'nothing dropped' from 'field unsupported'. Record the original `_auth_type_resolved` alongside the rewritten one if both matter for audit.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T14:47:21Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 6488,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "32abfcaccb8d8b673cf433b779394874db42d4156e4915d11f9a155e553279dd",
+      "run_tag": "a3-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

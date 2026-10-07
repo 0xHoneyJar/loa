@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "tools/ceiling-probe-live.py @@ -13,6 +13,91 @@ module docstring: `--cli-model opus [--host-route TEXT]` and `ceiling_calibration {source: operator_set, method: probed_headless, transport, cli_version, cli_model, measured_input_tokens, …}`",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py::test_p12_a_forced_partial_write_says_partial (`assert \"partial\" in next(l for l in after.splitlines() if \"cycle-127 FR-3: bound measured\" in l)`)",
+      "cross_file_justification": "The catalog writer is not in the diff. The new test asserts on a specific human-readable comment line inside the written YAML text, which indicates the tool edits model-config.yaml line-by-line as text rather than round-tripping through a YAML dumper. The docstring hunk in tools/ceiling-probe-live.py documents that free-text values (--host-route, cli_version read from the CLI, cli_model, transport) are written into the ceiling_calibration block. If those strings are interpolated unquoted, a value containing a newline, `: `, or `#` changes the YAML structure of a file cheval relies on for routing and ceilings.",
+      "description": "The headless transport writes operator-supplied (--host-route) and CLI-reported (cli_version) free text into model-config.yaml via textual line edits. Neither the diff nor the tests show quoting/escaping of those values, and no test exercises a host-route or cli_version containing YAML-significant characters.",
+      "failure_mode": "A host route or CLI version string containing a newline or colon injects additional keys (e.g., an overriding effective_input_ceiling or a different model entry) into the catalog, or produces a file that fails to parse and takes cheval down at load time. Because the write is atomic and the record claims written_ceiling, the corruption is silent until the next consumer reads the catalog.",
+      "suggested_fix": "Serialize every written scalar with yaml.safe_dump(value, default_style='\"').strip() or an equivalent quoting routine, reject values containing \\n or \\r before the first paid call (alongside the existing pre-flight prerequisite checks), and add a test writing a host route like `x: 1\\neffective_input_ceiling: 1` that asserts the parsed catalog is unchanged apart from the intended fields.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py::test_p12_the_schema_probe_outcome_is_optional_and_closed",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`--write-partial-as-operator-set` writes a budget-capped, unbracketed measurement under `source: operator_set`. The schema test explicitly asserts `probe_outcome` is NOT required, so nothing forces consumers or future writers to carry the provenance distinction. A consumer that branches on `source` alone treats the partial value as an operator-vouched calibration with the operator's stale_after_days window.",
+      "failure_mode": "Downstream staleness and trust logic keyed on `source == operator_set` accepts a machine-produced partial bound as hand-verified evidence. The written value is a verified lower bound, so the direct risk is mis-attribution rather than an oversize ceiling, but the audit trail no longer distinguishes vouched-from-probe from hand-set.",
+      "suggested_fix": "Make `probe_outcome` required whenever `method` is `probed_headless` (schema `if/then`), or write such entries under a distinct source such as `operator_set_from_partial_probe`. Add a schema test that a `probed_headless` entry without `probe_outcome` is rejected.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py::test_an_interrupt_after_paid_steps_still_writes_the_record",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The record JSON and stderr carry raw provider error bodies (`detail`, 300 chars), OS error strings with paths (`error`: 'catalog not written ... No space left'), the interrupting exception text (`interrupted`), and for non-^C exceptions a full Python traceback including local function names. Probe records are evidence artifacts that are likely committed alongside the catalog change.",
+      "failure_mode": "Provider error bodies from Bedrock or the Anthropic API can include account/route identifiers, ARNs, request IDs or quota details; tracebacks reveal local filesystem layout. Committing the record publishes these to anyone with repo access.",
+      "suggested_fix": "Redact known identifier patterns (ARNs, request IDs, absolute home paths) before storing `detail`/`error`/`interrupted`, keep the full traceback on stderr only (not in the record), and document that records may contain provider diagnostics before being committed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py::test_p11_a_probe_without_the_fake_fails_on_spawn",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "This test invokes the real `main()` with `--transport claude-headless --budget-usd 20 --max-tokens-probe 400000` and no `fake` fixture. It is only safe because the `tool` fixture (not shown in this part of the diff) is expected to point CLAUDE_HEADLESS_BIN at the non-existent sentinel `loa-probe-no-real-cli`. The test's own assertion depends on that sentinel string appearing in the error.",
+      "failure_mode": "If the fixture's env setup is reordered, removed, or the tool gains a PATH fallback to `claude`, a routine `pytest` run on a developer host with a working claude-bedrock wrapper spawns real 100K-400K token requests and spends real money up to the $20 cap.",
+      "suggested_fix": "Set CLAUDE_HEADLESS_BIN to the sentinel explicitly inside this test via monkeypatch.setenv, and have the tool refuse to run the headless transport when CLAUDE_HEADLESS_BIN is unset or not an absolute path (usage error, exit 2) so there is no PATH-lookup fallback.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:29:56Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11031,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d13b337e5b846748bc02289747bf8c95f04a567ea7420e6bb7a448f6fd2c37bf",
+      "run_tag": "p3-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

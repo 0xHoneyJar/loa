@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The supplied diff contains no changed lines. The CHANGELOG hunk (@@ -19,2 +19,2 @@) is labelled part 2/3 of one hunk and shows only the pre-existing cycle-126 bullet as context; part 3/3 (@@ -21,3 +21,3 @@) has a header and no body; docs/migration/v2.0-model-generation-floor.md has an index line and no hunk. None of the code the implementation report describes is present: resolve_effort / _effort_on_wire and the three CompletionRequest sites in cheval.py, the agy gate in agy_headless_adapter.py and agy-gate-lib.sh, write_catalog_operator_set and i2_clamped in tools/ceiling-probe-live.py, build_headless_argv, the claude-opus-5-5 catalog entry, or the schema additions. The report says the round touched 69 files.",
+      "failure_mode": "A consumer of this dissent reads a near-empty findings list as a second-voice pass on the sprint's code. It is not one; the code was never in the review input, so every BLOCKING-class risk in those files is unexamined here.",
+      "suggested_fix": "Re-run the dissent with the full diff of the sprint's commits (f43949d6, 8ad37c55, 059e26be), e.g. adversarial-review.sh --diff-range <base>...<head>, so the code paths named in the report are in scope. Do not count this run toward voices_succeeded for the sprint's code review.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/defaults/model-config.yaml:claude-opus-5-5",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:## [Unreleased]",
+      "cross_file_justification": "The changed lines of this CHANGELOG hunk (the cycle-127 bullets, per the implementation report) document the catalog write of the 936,000 operator_set bound and the Task 1.5 decision; the catalog entry is where that documented behaviour lives and where cheval's HTTP adapter and Bridgebuilder read it. This finding rests on the report's own account, not on code I could read.",
+      "description": "The probe tool's stated contract is that only a clean outcome with --write-catalog writes probed_ceiling / effective_input_ceiling. The live run's outcome was partial and the entry was written by calling write_catalog_operator_set() directly from the lead's shell. The measurement was taken through claude-bedrock (CLI 2.1.292, us-east-1 global) and recorded on the claude-opus-5-5 entry, which is the HTTP (api.anthropic.com) entry the HTTP adapter and Bridgebuilder budget against; the CLI hop is the separate claude-headless entry. Round 1 acknowledged this as is_foreign_transport_calibration but made the HTTP bound tighten only after 'a verified observation on the HTTP route'. That is reactive: the first HTTP request sized between that route's real limit and 936,000 is sent and rejected by the provider before anything tightens. The CALIBRATED_COUNT_NEAR_BOUND count_tokens pre-gate fixes estimation units, not the per-route context limit, so it does not catch this case.",
+      "failure_mode": "On a host whose HTTP route for claude-opus-5-5 does not accept ~936K input (no 1M-context entitlement or beta header on the direct API), the first large review on that route fails at the provider. For a dissent that is a walked-on or dropped voice; for Bridgebuilder a failed call; repeated once per host until the reactive tightening records the observation.",
+      "suggested_fix": "Scope the calibration to the transport it was measured on: apply the 936,000 bound to claude-headless / bedrock hops and keep the prior HTTP bound on claude-opus-5-5 until a probe runs through the HTTP transport (the tool already has an API path). If one entry must carry both, have the loader WARN once when is_foreign_transport_calibration is true and the HTTP hop appears in a chain, and have the probe tool refuse an operator_set write from a partial outcome unless an explicit --accept-partial flag names the decision, so the bypass is in the record rather than in a shell session.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:30:47Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12326,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f2307686368e1b7a5e15958ebbbb9b54af425cdb66889011cdc3fc92b1deb97b",
+      "run_tag": "p2-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

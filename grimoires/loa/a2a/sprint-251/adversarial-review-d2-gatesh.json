@@ -1,0 +1,163 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:@@ -176,32 +175,44 @@ provider_of()",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "When agy opt-in is enabled, Google models that `routes_to_agy` under `cli-only` are no longer treated as CLI-routed for availability. The new gate only skips them when opt-in is off, but the later usability check still uses `cli_for`, which returns `agy` only for `gemini-headless`, not for routed Google model IDs like `gemini-2.5-pro`. That means a Google API credential can make a cli-only agy-routed voice look usable even when `agy` is not on PATH.",
+      "failure_mode": "The P3/adversarial review availability check can PASS with a Google credential but no agy CLI, then the actual planned headless route cannot run. This violates the shared routing rule introduced by the diff and can leave a configured review stage with no executable voice despite the preflight reporting one.",
+      "suggested_fix": "After computing `routes_to_agy \"$m\" \"$p3_mode\"`, use that routed result to force `cli=agy` for availability when opt-in is on, or add a shared helper that returns the effective transport/CLI for a model under the selected headless mode and use it for both gating and usability.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:@@ -176,32 +175,44 @@ provider_of() (P3 voice loop, `for m in $models $chain`)",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk introduces p3_mode (agy_headless_mode) and the shared routes_to_agy predicate, but consults them only to decide the gated-off case `(( ! p3_agy_on )) && routes_to_agy`. Once the opt-in is on, the usable-voice decision falls through to the pre-existing mode-blind pair: `cli=$(cli_for \"$m\")` (non-empty only for literal *-headless names) and otherwise `cred_present \"$prov\"`. Under `hounfour.headless.mode: cli-only` a Google voice such as `gemini-2.5-pro` or `google:gemini-3.1-pro` (rows the new conformance table marks routes_to_agy=True) therefore gets cli=\"\" and is judged usable by a GOOGLE/GEMINI key, although the shared rule — the one this diff exists to adopt — says that voice dispatches through the `agy` binary and never touches the key. The same mismatch exists for the `gemini-headless:any` form: routes_to_agy returns True but the rewritten cli_for strips only a leading provider prefix and returns \"\" for a trailing `:suffix`, so with the opt-in on it is checked as a credential voice. (Context: the diff header labels this file adversarial-review.sh, but the hunk is the run-preflight P3 block; the P3 result also feeds STAGE_ONLY/P4 via `provs`.)",
+      "failure_mode": "cli-only + opt-in true + Gemini key set + no `agy` on PATH: P3 reports `code_review usable: gemini-2.5-pro` and PASSes; the review/Flatline run then starts and the voice fails at dispatch (PROVIDER_UNAVAILABLE), i.e. a planned voice that cannot exist — the G-1 outcome the sprint is meant to make impossible. Inverse: cli-only + opt-in true + `agy` installed + no key → P3 marks the voice `missing` and FAILs a stage that would actually run.",
+      "suggested_fix": "After the gate, derive the resource from the same predicate instead of cli_for alone: e.g. `if routes_to_agy \"$m\" \"$p3_mode\"; then cli=agy; fi` (or make cli_for take the mode and delegate to agy-gate-lib), so the `command -v agy` branch is taken for every agy-routed voice and usable_names shows `(cli agy)`. Also normalise a trailing `:suffix` in cli_for (or reuse the lib's model-id normaliser) so `gemini-headless:any` maps to agy. Add a run-preflight.bats case: cli-only, opt-in true, key present, agy absent → FAIL/missing `(cli agy)`.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/agy-gate-conformance.bats:AGC-7 (case \"$w\" in bool) branch) and AGC-1 (`! agy_opted_in \"$BATS_TEST_TMPDIR/missing.yaml\"`)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two of the new conformance assertions are vacuous under bats/`set -e` semantics. In AGC-7 the boolean branch is `bool) [ \"$output\" = on ] && [ \"$py\" = on ] ;;` — a bare `&&` list. If the bash lib returns `off` for a boolean true, the first test fails, the list short-circuits, and because the failing command precedes `&&` neither `set -e` nor the ERR trap fires; the loop simply continues. Only the Python half (the final command of the list) can fail the test. In AGC-1, `! agy_opted_in \"$BATS_TEST_TMPDIR/missing.yaml\"` is a mid-test negation; bash exempts `!`-prefixed pipelines from `set -e`, so a lib that returned 0 on a missing file would pass unnoticed. Elsewhere the file correctly uses the `! cmd || { ...; return 1; }` idiom, so these two are inconsistencies rather than a pattern.",
+      "failure_mode": "A regression in agy_opted_in (boolean true → off in bash, or success on a missing config) is not caught by the suite that the SDD D-1.5/G12 rulings cite as the parity evidence; the report's 'every reader says so' claim rests partly on checks that cannot fail.",
+      "suggested_fix": "Use the same guarded idiom as the rest of the file: `bool) [ \"$output\" = on ] && [ \"$py\" = on ] || { echo \"bool: bash=$output py=$py\"; return 1; } ;;` and `run ! agy_opted_in \"$BATS_TEST_TMPDIR/missing.yaml\"` (bats ≥1.5, already required) or `! agy_opted_in ... || { echo ...; return 1; }`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/agy-gate-conformance.bats:AGC-9 (and the loa-status --json `! grep -q 'WARN'` check in AGC-8)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "AGC-9's environment isolation is inconsistent with its guard. The commands run with `PATH=\"/usr/bin:/bin:$(dirname \"$(command -v yq)\")\"`, but the 'nothing available → silent' guard only checks `PATH=\"/usr/bin:/bin\" command -v agy`. On any host where `agy` is installed next to yq (~/.local/bin, /usr/local/bin, /opt/homebrew/bin — the usual case for both tools) the guard passes, the lib sees `agy` on PATH, and `[ -z \"$stderr\" ]` fails. The second assertion ('a Google/Gemini key is set') is not guarded at all and depends on `agy` being absent from the yq directory; if it is present the WARN reason may read 'agy on PATH' instead. If yq is the Python flavour (the P3 code still branches on YQ_FLAVOUR), its `jq` dependency must also be reachable from the restricted PATH. Separately, AGC-8 asserts `! grep -q 'WARN'` over the entire stderr of `loa-status.sh --json` run against the real repo with empty run/env dirs — any unrelated WARN emitted by loa-status (missing beads, missing CLI, etc.) fails the agy test.",
+      "failure_mode": "The suite is green on the implementer's host (where `agy` is absent, per the report) but fails or flakes on a host with `agy` installed or with loa-status emitting an unrelated WARN, eroding trust in the conformance suite that is cited as the D-1.5/D-1.7 evidence.",
+      "suggested_fix": "Compute one restricted PATH variable (`rp=\"/usr/bin:/bin:$(dirname \"$(command -v yq)\")\"`), use it for both the guard (`PATH=\"$rp\" command -v agy`) and the runs, and apply the same guard (or `skip`) to the 'key is set' assertion. In AGC-8 grep for the specific agy WARN texts (`not a YAML boolean`, `agy route is available here`) rather than any `WARN`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/agy-gate-conformance.bats:AGC-1 / AGC-7 (the `for v in absent false '\"true\"' 1 yes` loop vs the `_three` absent|bool|string set)",
+      "cross_file_justification": "The new conformance suite is the sole evidence that the bash lib and the Python twin agree on the opt-in value. AGC-1 pins bash as *off* for `yes` and `1`, but AGC-7 (the only test that feeds the Python reader) covers just absent / true / \"true\". yq (go, yaml.v3) resolves `agy_opt_in: yes` to !!str, whereas PyYAML's safe_load (YAML 1.1 schema) resolves yes/no/on/off to a boolean. If loader.py parses with PyYAML and tests `is True`, `agy_opt_in: yes` is ON for cheval and OFF for every bash planner.",
+      "description": "The parity table has a hole exactly where yq-go and PyYAML are known to disagree. The sprint's stated invariant (SDD D-1.5: ONE predicate; the AC: 'with the opt-in absent or false, cheval refuses … the dissent/Flatline/preflight record not planned') is only pinned on the bash side for YAML 1.1 booleans. An operator who writes `agy_opt_in: yes` (a very common YAML habit) would see `/loa` and run-preflight say 'opt-in (disabled)' while `cheval invoke --model gemini-headless` happily spawns `agy`; or the reverse, a dissent planner filtering a hop that cheval would have dispatched.",
+      "failure_mode": "Split-brain planning: bash planners mark the voice not planned (no companion runs, P3 FAILs the stage) while cheval, invoked directly or via a chain, treats the route as opted in and spawns `agy` — the unplanned spawn G-1 forbids. Unverified without loader.py in the diff, hence ADVISORY.",
+      "suggested_fix": "Extend AGC-7's `_three` set (or AGC-2's row list) with `yes`, `on`, `1` and `True` fed to both agy_opted_in and agy_opt_in_enabled, and make the Python predicate normalise the raw scalar like yq does (accept only a value the YAML 1.2 core schema tags as !!bool true, e.g. check the node tag with the loader's resolver or compare the raw token against true/True/TRUE) so both sides agree on every row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:22:37Z",
+    "tokens_input": 56366,
+    "tokens_output": 32676,
+    "cost_usd": 0,
+    "latency_ms": 30142,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-d2-gatesh.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-d2-gatesh.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "10438ac6a897434ff141d8f9369b33d932e9845b079f44033b77f0aa3ebefccc",
+      "run_tag": "d2-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

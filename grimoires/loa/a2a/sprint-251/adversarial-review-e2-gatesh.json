@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:@@ -75,6 +77,11 @@ _cfg()",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new G13 assertion `[ ! -e \"$TEMP_DIR/tertiary-review.json\" ] && [ ! -e \"$TEMP_DIR/tertiary-skeptic.json\" ]` is a two-operand && list that is followed by further commands in the same @test body. Bash (and therefore bats, which relies on `set -eET` plus an ERR trap) does not fire errexit or the ERR trap for any command in a && list except the one after the final &&. If tertiary-review.json EXISTS, the first test returns 1, the list short-circuits, no trap fires, and the next line (`! grep -q gemini-headless ...`) resets $?. The test passes. Only the tertiary-skeptic.json half of the check can ever fail the test. The comment states the intent is 'no tertiary artefact', so half of that pin is a no-op. (The hunk is labeled .claude/scripts/adversarial-review.sh in the diff header but the content is the Flatline tertiary opt-in bats suite; see DISS-002.)",
+      "failure_mode": "If run_phase1 regresses and writes tertiary-review.json for a tertiary that is disabled_by_opt_in (e.g. an empty or error artefact that downstream consensus later reads as a voice), this test stays green. The review-round fix it was added to pin (r251-1 G13) is only verified for the skeptic artefact.",
+      "suggested_fix": "Make the check a single command or two separate statements so the ERR trap sees each failure, e.g. `[[ ! -e \"$TEMP_DIR/tertiary-review.json\" && ! -e \"$TEMP_DIR/tertiary-skeptic.json\" ]]` or two lines: `[ ! -e \"$TEMP_DIR/tertiary-review.json\" ]` then `[ ! -e \"$TEMP_DIR/tertiary-skeptic.json\" ]`. Optionally add an `|| { ls \"$TEMP_DIR\"; return 1; }` diagnostic like the loop above it. Grep the three touched bats files for other mid-body `] && [` lists.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/adversarial-review.sh",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff header names `.claude/scripts/adversarial-review.sh` (mode 100755) but both hunks are bats test code: the hunk-context function `_cfg() {  # <tertiary> [agy_opt_in value|absent] [headless mode]`, `$BATS_TEST_TMPDIR`, `run --separate-stderr run_phase1 ...`, `run tertiary_opt_in_skip_reason`, `get_model_tertiary`/`get_tertiary_status` assertions and `local f` with `return 1` are the Flatline tertiary opt-in suite (tests/unit/flatline-tertiary-agy-opt-in.bats per the sprint report). The pre-existing context lines are already bats syntax, so this is almost certainly a mislabeled path in the diff rather than bats code being inserted into the sourced dissent script. It still needs confirming: if these lines really were applied to adversarial-review.sh, sourcing it would execute test assertions at load time and fail.",
+      "failure_mode": "If the hunks were genuinely applied to .claude/scripts/adversarial-review.sh, the dissent script would run bats-only constructs (`run --separate-stderr`, top-level `return 1`, `[ \"$status\" -eq 0 ]`) when sourced or executed and break every /review dissent invocation. If the path is merely mislabeled, the only consequence is that findings anchored to it (including DISS-001) point at the wrong file.",
+      "suggested_fix": "Confirm with `git show --stat` that the hunks landed in tests/unit/flatline-tertiary-agy-opt-in.bats and that .claude/scripts/adversarial-review.sh is unchanged in this commit; regenerate the diff if the header was rewritten by tooling. If the file is genuinely adversarial-review.sh, revert the two hunks and move them to the bats suite.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:29:52Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21414,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "09e9636b299562f0dc4a9b9f9d23f6c3665f2007b2d2a8b849a823e36a20f7d6",
+      "run_tag": "e2-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

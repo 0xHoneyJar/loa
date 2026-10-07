@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "\"cli_bin\": \"/home/merlin/.local/bin/claude-bedrock\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json",
+      "cross_file_justification": null,
+      "description": "The committed probe report embeds the operator's local account name and home directory in `cli_bin` and `argv[0]`, plus the exact cloud route in `host_route`, `cli_model`, and `route_env` (Bedrock, us-east-1, global prefix, CLAUDE_CODE_USE_BEDROCK). No credentials are present, but this is a durable repository artifact that fingerprints the operator workstation and the production inference route.",
+      "failure_mode": "Anyone with read access to the repo learns a valid local username, the ~/.local/bin wrapper path, and the Bedrock region/route in use. That supports targeted phishing of the operator and tells an attacker exactly which wrapper path to plant or replace on the host.",
+      "suggested_fix": "Have the probe report writer redact `cli_bin`/`argv[0]` to the basename or a `~`-relative path, drop `route_env` or reduce it to an allowlist of non-identifying keys, and keep `host_route` generic. Add a small test that fails if a report under grimoires/loa/reports contains `/home/`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "test_calibrated_entry_without_a_count_warns_that_the_estimate_is_uncertain",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_calibrated_count.py::test_calibrated_entry_without_a_count_warns_that_the_estimate_is_uncertain",
+      "cross_file_justification": "The test pins behavior of gate() in loa_cheval/routing/ceiling.py (not in the diff): for a calibrated entry with a heuristic estimate at or above 0.5x the bound and no provider count (counter is None or returns None), the action is 'warn' and the request is dispatched rather than preempted.",
+      "description": "The pre-dispatch gate fails open for calibrated entries. The module docstring states the heuristic under-counts the tokenizer by 1.4-1.8x, and the probe report confirms 1.81x on all three successful samples (696136/385000, 880634/487500, 972887/538750). Any heuristic estimate above roughly 0.55x the bound with no count is therefore very likely over the real bound, yet the gate dispatches it. Anything that makes the counter unavailable (counter not wired, count_tokens outage, rate limit, exception swallowed to None) silently disables the control instead of stopping the request.",
+      "failure_mode": "Oversize requests are sent to the provider and rejected after the fact. Effects are wasted round trips and latency, possible billing on routes that charge for rejected prompts, noisy warn envelopes, and a counter outage becoming a bypass of the gate. The provider remains the real enforcement point, so impact is availability and cost rather than confidentiality.",
+      "suggested_fix": "When no count is available for a calibrated entry, scale the heuristic by the calibration's known ratio (measured_input_tokens divided by the probe's estimate, both already recorded) and preempt if the scaled estimate exceeds the bound. Alternatively preempt above a conservative fraction (about 0.55x) and reserve 'warn' for the band below it. Update the test to assert preempt for a 0.6x estimate with no count once the policy changes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "test_cli_shape_variants",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_cli_limit_parse.py::test_cli_shape_variants",
+      "cross_file_justification": "parse_context_limit in loa_cheval/routing/ceiling.py (not in the diff) produces the `limit` that is persisted to .run/ceiling-observed.json. test_ceiling_calibration_transport.py shows input_bound() trusts that observed value to tighten a foreign-transport calibrated bound to observed-1 whenever it is below the calibration, with no lower plausibility check (observed=500_001 yields bound 500_000; the live-entry test accepts ceiling-100_000+1).",
+      "description": "The parser is being widened to accept loose shapes from CLI text: 'N tokens (limit M)', 'limit: M', '~' prefixes, and comma-grouped digits. The transport tests confirm any parsed limit below the calibrated bound is accepted as authoritative and only ever tightens. The docstring says observations are restricted to 'the context classes only', but the diff gives no evidence of a plausibility bound on the parsed number or of provenance checks (for example requiring size_origin == 'provider'). The implementation could not be verified because ceiling.py is not in the diff; this finding is based on the behavior the new tests pin.",
+      "failure_mode": "A single mis-parsed or attacker-influenced message carrying a small limit (for example text containing 'limit 1' that also matches the context-limit phrase) is persisted and clamps the route, after which every request for that model on the HTTP transport is preempted until an operator clears the .run file. Because observations never loosen the bound there is no self-correction. Sources of such text include the local CLI wrapper, a proxy in the path, model output echoed into an error, or a stale or corrupted .run file.",
+      "suggested_fix": "Persist an observed limit only when is_context_limit_message passes AND the failure is attributed to the provider (size_origin == 'provider' with an api_status present), not to local CLI pre-flight text. Reject parsed limits outside a plausibility window (for example below 0.25x context_window or above context_window) and require input_tokens > limit for internal consistency. Record provenance (message hash, timestamp, transport) alongside the observed value so /loa can explain a tightened bound, and create .run/ceiling-observed.json with owner-only permissions. Add negative tests to test_ceiling_cli_limit_parse.py for implausible limits and non-provider shapes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:23:21Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10369,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b14cd3493b022f301b7da79ab8e0da8c0c43057179b8c620d7ba99d0d4ede272",
+      "run_tag": "m3-ceil"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

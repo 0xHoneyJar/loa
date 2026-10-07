@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "source \"$SCRIPT_DIR/lib/agy-gate-lib.sh\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "if (( ! p3_agy_on )) && routes_to_agy \"$m\" \"$p3_mode\"; then",
+      "cross_file_justification": null,
+      "description": "run-preflight.sh sources lib/agy-gate-lib.sh with no failure guard. The script runs under `set -uo pipefail` without `-e`, so a missing or unreadable lib prints one error and execution continues. Every gate call then hits an undefined function: `agy_headless_mode` yields an empty p3_mode, `agy_opted_in` returns 127 so p3_agy_on stays 0, and `routes_to_agy` returns 127, which bash treats as false. The opt-in test `(( ! p3_agy_on )) && routes_to_agy ...` therefore never gates anything and the K3 line `routes_to_agy ... && cli=agy` never fires. A `gemini-headless` voice with an `agy` binary on PATH is reported usable and P3 can PASS. This is the opposite of the fail-closed behaviour the same change adds to adversarial-review.sh and pins with CMP-287 (lib missing → hop dropped with reason opt_in_required). The two readers disagree exactly when the shared predicate is absent, which is the condition the conformance suite says must never happen.",
+      "failure_mode": "Preflight reports a stage as having a usable voice while the dissent planner, failing closed, drops that voice at run time. An operator launching an unattended run on the strength of P3 PASS gets a stage with no voice or a DEGRADED verdict, including for security_audit. Impact is advisory and availability-shaped, not a privilege boundary: preflight itself never dispatches agy or reads a credential value.",
+      "suggested_fix": "Guard the source: `source \"$SCRIPT_DIR/lib/agy-gate-lib.sh\" || { echo \"run-preflight: agy-gate-lib.sh not loaded\" >&2; exit 2; }`. Alternatively define fail-closed stubs before sourcing (`agy_opted_in() { return 1; }` and a `routes_to_agy` that returns 0 for any `gemini*` / `*gemini-headless*` id) so a missing lib yields opt_in_required rather than usable. Add a run-preflight.bats case mirroring CMP-287 that unsets the lib functions and asserts P3 reports the hop as not planned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "for m in $models $chain; do",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "p3_optin+=\"$m($AGY_OPT_IN_NOTE) \"",
+      "cross_file_justification": null,
+      "description": "Model ids read from .loa.config.yaml are expanded unquoted in `for m in $models $chain`, so they undergo word splitting and pathname expansion. A token such as `*` or `gemini-?` enumerates files in the current directory as voices. Each resulting name is passed to `provider_of` (shape-checked before yq, safe), `cli_for` (closed case, safe), the new `routes_to_agy` call in the shared lib (no shape check applied in this file), and is concatenated raw into p3_optin / usable_names / missing, which reach the terminal via `echo` and the JSON detail field. The loop line itself is unchanged context, but the diff adds three new consumers of `$m` inside it without adding validation. Config is operator-owned, so no privilege boundary is crossed; this is hardening only.",
+      "failure_mode": "A malformed or hostile config entry inflates the voice list with filenames, produces misleading P3 counts (n_voices, n_gated), and can inject arbitrary bytes including ANSI escape sequences into the human-readable preflight output. No command execution results because every sink is a string compare, `command -v` on a fixed binary name, or text output.",
+      "suggested_fix": "Disable globbing for the loop (`set -f` before, `set +f` after) or read the values with `mapfile -t` into arrays and iterate quoted. Apply the same `^[A-Za-z0-9][A-Za-z0-9._:/-]*$` shape check already used in provider_of at the top of the loop and record ids that fail it as a WARN rather than feeding them to routes_to_agy and the detail string.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:02:01Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11256,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "94d7644cd3a83df1b967ce658c6fd874f121c19631254da7a3666d75bd4536f8",
+      "run_tag": "e3-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

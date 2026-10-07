@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "build_headless_argv",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "The new module-level builder emits the prompt as a bare argv element immediately after `-p`, and appends `effort` and `cli_model` with no allowlist validation. The repository's own comments state the prompt is untrusted. Option parsers treat a value that begins with `-` as a new flag rather than as the argument to `-p`, so attacker-influenced leading prompt text (or a malformed `cli_model` / `effort` from config) becomes an injected CLI option in the `claude` invocation. The shape is pre-existing, but the refactor made it a shared public function consumed by callers outside the adapter (tools/ceiling-probe-live.py), widening the surface without adding validation.",
+      "failure_mode": "A prompt or config value starting with `--` is consumed by the claude CLI as an option. Depending on the flag, this can alter permission mode, tool enablement, output format, or cause the real prompt to be dropped and read from stdin, undermining the \"pure inference, all tools disabled\" guarantee the argv is meant to enforce.",
+      "suggested_fix": "Always deliver the prompt on stdin (the existing prompt=None path) so no untrusted text appears in argv. Validate `effort` against EFFORT_LEVELS and `cli_model` against a strict identifier regex (e.g. ^[A-Za-z0-9._:-]+$ and not starting with `-`) inside build_headless_argv, raising ConfigError on mismatch. Add a unit test asserting a `-`-prefixed prompt/model never reaches argv.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "if is_context_limit_message(full_diag) and not any(w in diag_lower for w in _throttle_words):",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "The new ProviderContextLimitError branch decides a failed `claude -p` run was a provider size rejection by pattern-matching free text in `full_diag`. If that aggregate includes stdout (the model's own output) or echoed prompt fragments, prompt-injected content such as \"Prompt is too long ... (limit 1000000)\" is classified as the provider's verdict. Per the inline comment, that class of error is deliberately \"not walked\" and \"never a breaker count\".",
+      "failure_mode": "Untrusted content can steer failure classification: fallback-voice routing is suppressed and circuit-breaker accounting is bypassed for the affected provider, pinning repeated failures to one voice.",
+      "suggested_fix": "Evaluate the context-limit check only against stderr or the CLI's structured JSON error fields (is_error / subtype / message), not the combined diagnostic string. Anchor is_context_limit_message to the CLI's exact message format and require the parsed numbers to be present before raising ProviderContextLimitError.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "f\"claude CLI refused the prompt as too large: {full_diag[:500]}\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "Up to 500 characters of raw CLI stderr/stdout are embedded in the exception message, which propagates into MODELINV envelopes, logs, and user-facing error output. CLI diagnostics can carry local filesystem paths, session or account identifiers, and echoed prompt content.",
+      "failure_mode": "Operator paths, account hints, or confidential prompt fragments leak into persisted envelopes and shared logs.",
+      "suggested_fix": "Log the raw diagnostic at debug level only. Put just the parsed values (input_tokens, limit, max_tokens) and a fixed message in the exception string.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "wire_effort",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "ClaudeHeadlessAdapter.wire_effort and CodexHeadlessAdapter.wire_effort invoke instance resolvers on `cls.__new__(cls)` (no __init__, so self.config and self.provider are absent) with a SimpleNamespace standing in for model_config. The `effort_effective` audit record is only faithful while `_resolve_effort` / `_resolve_reasoning_effort` remain pure functions of (request.effort, extra). Any future reference to instance state or other model_config attributes will either raise AttributeError in the envelope path or silently make the recorded effort diverge from the argv it is meant to certify.",
+      "failure_mode": "Integrity of the effort_effective record degrades silently, or envelope construction crashes, without any test catching the drift between record and dispatched argv.",
+      "suggested_fix": "Refactor the resolvers into static/class methods that take (effort, extra) explicitly and have both complete() and wire_effort call that single pure function. Extend tests/test_effort_wire_conformance.py to assert wire_effort equals the `--effort` / `model_reasoning_effort` value produced by the real argv builder.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:11:41Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 4,
+    "tokens_output": 12652,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "483813f1b61c299f3b392f7c3c60180ca62b21782472a9036a411cb3558b870f",
+      "run_tag": "i3-effort"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

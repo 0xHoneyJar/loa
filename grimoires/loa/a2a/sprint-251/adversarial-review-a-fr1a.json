@@ -1,0 +1,195 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The opt-in reader checks `merged.get(\"headless\")`, but the documented and tested user-facing key is `hounfour.headless.agy_opt_in`. In the actual `.loa.config.yaml.example` the setting is nested under `hounfour`, so a real config with `hounfour.headless.agy_opt_in: true` will still read as disabled unless the loader strips `hounfour` elsewhere. The new tests do not catch this because `_project()` writes a `.loa.config.yaml` whose top-level content starts with `hounfour`, yet the assertion expects `True`; if `load_project_config()` preserves the documented shape, this test should fail, indicating the implementation is reading the wrong path.",
+      "failure_mode": "Operators who explicitly opt in via the documented key cannot use the agy route: `complete()` raises `AgyOptInRequiredError`, `health_check()` stays false, and planners mark the voice as not planned despite valid configuration.",
+      "suggested_fix": "Read the nested path from the merged config, e.g. `hounfour = merged.get(\"hounfour\") if isinstance(merged, dict) else None; headless = hounfour.get(\"headless\") if isinstance(hounfour, dict) else None`, or use the same normalized accessor already used by the rest of the loader if one exists. Keep tests pinned to the real loader shape.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/types.py:AgyOptInRequiredError",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "cross_file_justification": "The refusal is raised from complete() as a ConfigError subclass (INVALID_CONFIG, retryable=False). By this adapter's own documented classification (_raise_for_error comments: ConfigError = 'hard-abort (static misconfig)', ProviderUnavailableError = 'WALK the chain'), cheval's Python fallback-chain walker in cheval.py treats ConfigError as non-walkable. The FR-1 file list in the report touches four bash planners and Bridgebuilder but not cheval.py's chain resolution, so cheval's own chains still contain the gemini-headless hop.",
+      "description": "The spec (FR-1 / G-1) requires an opt-in-off agy hop to be recorded as 'not planned, never as a failed voice'. The bash planners achieve this by filtering the hop out of the chain before calling cheval (_adv_agy_filter_chain). cheval's own chain walk was not given the equivalent filter, and the gate raises a hard-abort ConfigError. For any direct cheval caller whose chain reaches the gemini-headless hop: (a) with the stock ordering (API hops first, agy terminal), an upstream walkable failure such as a 429 on gemini-api is masked by a terminal INVALID_CONFIG 'opt-in required' error; (b) with `hounfour.headless.mode: prefer-cli` (documented in the example config), the agy hop is tried first and the chain aborts before the gemini-api hop runs, so the Google voice is lost entirely on a host that merely has not opted in, instead of falling through to the API. Nothing in the diff or tests exercises a chain with the hop in a non-terminal position.",
+      "failure_mode": "A prefer-cli operator who upgrades without setting agy_opt_in: true loses the Google voice completely: every chain that routes through gemini-headless raises INVALID_CONFIG at the first hop and never reaches gemini-api. With stock ordering, the real upstream failure is hidden behind an opt-in message, misdirecting triage.",
+      "suggested_fix": "Either (1) have the chain resolver in cheval.py drop gemini-headless hops when agy_opt_in_enabled() is False (mirroring _adv_agy_filter_chain) and WARN once that the hop is not planned, so the hop is never dispatched and never recorded as a failure; or (2) if the hop must stay in the chain, make the refusal walkable (a ProviderUnavailableError subclass carrying failure_class='opt_in_required') so the chain advances to the API hop. Add a test with chain [gemini-headless, gemini-api] and opt-in off asserting gemini-api is dispatched.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`root = project_root or _find_project_root()` runs outside the `try` that implements fail-closed. If root discovery raises (e.g. os.getcwd()/Path.cwd() FileNotFoundError when the process cwd has vanished, a condition this adapter already defends against via cwd_vanished, or a no-root-found error), the exception escapes agy_opt_in_enabled and complete()/health_check() surface a raw untyped exception instead of the AgyOptInRequiredError refusal.",
+      "failure_mode": "Callers expecting a typed ChevalError (chain walker, JSON error envelope) get an unclassified traceback from inside the gate, and health_check() raises instead of returning False.",
+      "suggested_fix": "Move root resolution inside the try block so any failure to locate or read config returns False, matching the docstring's 'a config that cannot be read reads as off'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.validate_config",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When the opt-in is off, validate_config() appends the opt-in error but then continues to shutil.which() the binary and to emit \"'agy' CLI not found on PATH. Install + OAuth-authenticate...\" on a host without agy. The module docstring claims the gate runs 'before any binary discovery'; here discovery still happens, and a host that deliberately has not opted in is told to install agy. Any consumer of validate_config (e.g. a `cheval validate`/preflight path) will report the un-planned hop as a missing-binary misconfiguration, which is exactly the 'failed voice' reading FR-1 is meant to remove.",
+      "failure_mode": "Operators on hosts without agy see two errors for the gemini-headless provider, one of which instructs them to install and authenticate agy even though the route is intentionally disabled.",
+      "suggested_fix": "Return early after appending the opt-in error (or skip the PATH probe and the install instruction while the opt-in is off), and add an assertion in test_off_validate_config_names_the_key that shutil.which is not called and no 'not found on PATH' error is emitted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/types.py:AgyOptInRequiredError.__init__",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/types.py:AgyOptInRequiredError",
+      "cross_file_justification": "The class docstring states failure_class / context['failure_class'] is 'the machine-readable seam planners read'. Whether that seam reaches consumers depends on cheval.py's error-to-JSON serialization, which is outside the diff. The reviewer context's e2e evidence for the refusal shows only {\"error\": true, \"code\": \"INVALID_CONFIG\", \"message\": ...} with no failure_class or context field.",
+      "description": "self.context is assigned after super().__init__(), so if ChevalError's serializer builds the envelope from constructor args or does not include context, the machine-readable seam is never emitted and callers of the cheval CLI can only distinguish this refusal from any other INVALID_CONFIG by substring-matching the human message. The in-process test asserts only on the Python attribute, not on the serialized envelope.",
+      "failure_mode": "External planners that consume cheval's JSON (rather than re-reading the YAML with yq) cannot tell 'not planned' from a genuine misconfiguration and fall back to brittle message grepping.",
+      "suggested_fix": "Pass context through ChevalError.__init__ if it accepts it, and add a test that the CLI's JSON error envelope for this refusal carries failure_class: opt_in_required; or document that the seam is Python-only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_agy_headless_adapter.py:_agy_opted_in",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The gate changes the default behaviour of every code path that constructs the gemini-headless adapter, but only three test modules received the autouse opt-in fixture, and the report states the adapters suite was run with a -k filter ('effort or ceiling or probe or catalog_floor or trust or agy or headless or opus55 or literal'), not in full. Any existing test outside that selection that dispatches or health-checks gemini-headless (chain/fallback tests, registry tests, cheval CLI tests, circuit-breaker tests) now reads the real project config from the test cwd and will receive AgyOptInRequiredError or health_check()==False.",
+      "failure_mode": "Red tests in CI outside the filtered selection, or worse, tests that silently pass because a mocked chain now skips a hop that used to be exercised.",
+      "suggested_fix": "Run the full .claude/adapters pytest suite once before merge; where unrelated suites touch gemini-headless, either add the same autouse fixture via a shared conftest or point them at a tmp project with agy_opt_in: true.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/adapters/loa_cheval/config/loader.py:agy_opt_in_enabled",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The gate merges load_system_defaults(root) under the project config, so a framework-shipped defaults file (.claude/defaults, updated on framework upgrade rather than by the operator) can satisfy the opt-in. The example config and the module docstring describe the key as an operator decision in .loa.config.yaml only. Env overrides were deliberately excluded for the same reason; the defaults layer is a comparable non-operator channel for a flag whose purpose is to require a deliberate local choice about exposing the prompt on argv.",
+      "failure_mode": "A future defaults change (or a vendored defaults file in a template) flips every project to opted-in without any edit to the project's own config.",
+      "suggested_fix": "Read the key from load_project_config(root) only (optionally still inside the fail-closed try), and add a parametrized case asserting that agy_opt_in: true in the system defaults alone does not enable the route.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T09:49:06Z",
+    "tokens_input": 61546,
+    "tokens_output": 19106,
+    "cost_usd": 0,
+    "latency_ms": 22329,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-a-fr1a.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-a-fr1a.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d61bdfa49cc8d765c3a63087af97d79ebc002dfc6016daf847aa4535ad4cef53",
+      "run_tag": "a-fr1a"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

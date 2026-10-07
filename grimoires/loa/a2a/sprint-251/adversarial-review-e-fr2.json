@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:_effort_on_wire",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/cheval.py:_effort_on_wire",
+      "cross_file_justification": "The function re-derives what loa_cheval/providers/anthropic_adapter.py and the other provider adapters put on the wire, but does so from the provider NAME (`provider == \"anthropic\"`) plus a hardcoded assumption that every non-anthropic HTTP adapter ignores CompletionRequest.effort. Adapter dispatch elsewhere in cheval is by provider `type`, not name.",
+      "description": "`_effort_on_wire` is the sole source for both the MODELINV `effort_effective` field and the operator-facing dry-run line `effort: X (caller) → effective none (omitted on <model>)`. It keys on the provider key string `\"anthropic\"` rather than the provider's `type`, and returns None for every other HTTP provider by assertion rather than by asking the adapter. Any catalog provider of anthropic type under a different key (a Bedrock/Vertex HTTP route, a regional mirror, a test provider) will be reported as `effort_effective: null` and the dry-run will tell the operator the value is omitted while the adapter actually sends `output_config.effort`. The same misreport happens if any other adapter (OpenAI `reasoning_effort` is the obvious candidate) reads `request.effort` now or later; nothing ties this function to the adapters, so it will silently drift.",
+      "failure_mode": "Audit telemetry and the dry-run report state the opposite of what was sent for any provider the hardcoded branch does not recognise. Operators relying on the dry-run line to confirm an effort downgrade/omission get a false answer; the trajectory record is wrong without any error.",
+      "suggested_fix": "Resolve the provider's `type` from `hounfour[\"providers\"][provider]` and branch on that, or better, add a small `wire_effort(model_id, effort) -> Optional[str]` classmethod/hook on each adapter (Anthropic delegates to `_effort_for_model`, headless returns passthrough, others return None) and have `_effort_on_wire` call it through `get_adapter`'s class lookup. Add a test that iterates every provider in the live catalog and asserts the derived value agrees with the adapter's actual body/argv builder.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "cross_file_justification": "loa_cheval/providers/claude_headless_adapter.py keeps its legacy rung: when `request.effort` is None it reads `model_cfg.extra.effort` itself and passes `--effort <raw>` (confirmed by test_cli_adapter_extra_effort_stays_below_the_chokepoint_value in this diff). cheval's resolver now sits in front of that rung but does not disable it.",
+      "description": "For a CLI entry, `resolve_effort` validates `extra.effort` / `extra.reasoning_effort` against `_EFFORT_LEVELS` and, on an invalid value (e.g. `ultra`, or a typo), silently returns `(None, \"none\")` with no WARN (unlike the `default_effort` branch, which warns once). The request is dispatched with `effort=None`, and the headless adapter's legacy rung then reads the same raw `extra.effort` and passes `--effort ultra` to the CLI. MODELINV records `effort` absent, `effort_source: none`, `effort_effective` absent, and the docstring's claim for the `none` rung (\"nothing on the wire, the vendor default applies\") is false for exactly this case. The CLI receiving the raw value is pre-existing behaviour; the new part is that the chokepoint now asserts in the audit record that nothing was sent.",
+      "failure_mode": "A misconfigured CLI entry produces an audit envelope that says no effort was requested while the spawned CLI received an invalid `--effort` value (and likely fails with a CLI argument error that the envelope gives no clue about). The one-WARN-per-reason policy also has a gap: invalid `extra.effort` is the only invalid catalog value that is swallowed with no log line.",
+      "suggested_fix": "(1) Emit `_effort_warn_once((model_key, \"invalid_extra\"), ...)` when a CLI entry's `extra` value fails `_valid_effort`, mirroring the `default_effort` branch. (2) Either remove the headless adapter's legacy `extra.effort` fallback now that cheval resolves it (the adapter is only reached via cheval), or have cheval pass an explicit sentinel so the adapter does not re-read `extra` when the resolver already evaluated it. Add a test asserting that for `{kind: cli, extra: {effort: \"ultra\"}}` the built argv carries no `--effort`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:_EFFORT_LEVELS",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The effort enum is now maintained in at least four independent places: `_EFFORT_LEVELS` in cheval.py (this diff), the argparse `--effort` choices, `params.default_effort.enum` in model-config-v3.schema.json, and `effort_effective.enum` in model-invoke-complete.payload.schema.json (both asserted by the new test). `resolve_effort` trusts the argparse-validated caller value unconditionally but validates catalog values against its own copy, so if any one list gains or loses a level the rungs disagree: a level argparse accepts could be rejected from the catalog with a misleading 'not one of' WARN, or a catalog value could be accepted that the trajectory schema then rejects. Separately, the parameter docstrings added to `emit_model_invoke_complete` and the emit-site comment in `cmd_invoke` still read `caller | catalog | none`, omitting the `extra` value the resolver actually produces and the schema test requires.",
+      "failure_mode": "Enum drift between the four copies produces inconsistent acceptance across caller, catalog, and audit-schema layers with no test catching it; the stale `caller | catalog | none` docstrings mislead the next consumer of the MODELINV contract.",
+      "suggested_fix": "Define the levels once (e.g. in loa_cheval/types.py next to CompletionRequest) and import it for `_EFFORT_LEVELS`, the argparse `choices`, and a test that loads both JSON schemas and asserts their enums equal the constant. Update the two docstrings/comments to `caller | catalog | extra | none`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:10:16Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19110,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b29b7fd602f95bd4b7a57486efed45a84b6fa030e9e56c683bc3d88cbda6109a",
+      "run_tag": "e-fr2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "`--tier` changed from `default=\"unverified\"` to `default=None` while the documented API transport default remains `unverified`. Unless every API path below now normalizes `None` before use, invoking the probe with the default `--transport api` no longer supplies the intended tier and can either omit the request tier or fail validation downstream.",
+      "failure_mode": "A default API probe run behaves differently from the CLI contract: `--tier` is no longer `unverified` by default, so the transport may use an unintended account tier or reject the call, violating the documented flag behavior.",
+      "suggested_fix": "Keep argparse default as `\"unverified\"` for API transport, or normalize `args.tier = \"unverified\"` before any API transport logic while still rejecting `--tier` for `claude-headless` if that is required.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:_classify_unguarded",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "(Content is tools/ceiling-probe-live.py despite the diff header.) The throttle-wins precedence `_THROTTLE.search(full) and (is_context_limit_message(full) or is_token_limit_message(full))` is now evaluated over `full`, which concatenates the error `result`, the api_status tag and the ENTIRE stderr (up to 1 MB); previously only 300 chars were examined. Any `throttl`, `please wait`, `rate limit`, `tokens per min` or bare `429` anywhere in stderr (wrapper banner, CLI notice, an unrelated earlier log line) flips a genuine context-limit rejection into `transient token_limit`, costing up to 4 attempts / 140 s per step, and if it persists it is recorded as `failure_class: token_limit`, which forces outcome `partial` even though the real bracket was a context-limit rejection. Separately, the bare-429 alternative `(?<![\\d,.])429(?![\\d,.])` also rejects a sentence-final period, so `... returned status 429.` is not recognised as a throttle marker.",
+      "failure_mode": "A real size rejection is retried on the TPM schedule and then mis-bracketed; a clean probe degrades to `partial` for a reason unrelated to the model; a 429 that ends a sentence loses the throttle precedence and may be classified as a size rejection with no retry (the exact r251-1 regression the rule was added to prevent).",
+      "suggested_fix": "Evaluate the throttle precedence on the structured error only (`result` + api_status), or require the throttle marker within a short window (e.g. 200 chars) of the context/token marker rather than anywhere in 1 MB of stderr. Change the 429 lookahead to `(?!\\d|[,.]\\d)` so trailing punctuation is allowed while `429,000` / `429.5` are still excluded. Add tests: a context-limit `result` with stderr containing \"please wait\" must classify `size`; \"status 429.\" must match the throttle marker.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "loa_cheval/providers/base.py:run_subprocess_pgkill",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:_run_capped",
+      "cross_file_justification": "`_run_capped` (in the diff) replaced `subprocess.run(input=bytes, timeout=)` with `run_subprocess_pgkill(cmd, input=prompt, ..., max_bytes=_CAPTURE_CAP)` from loa_cheval.providers.base. The input is now a str, and the failure contract changed: the helper raises `SubprocessOutputCapExceeded` on the cap and whatever it raises on timeout, which may not be `subprocess.TimeoutExpired`. The step loop that must map these to an `other` sample is not in the diff.",
+      "description": "The docstring promises a timeout kills the process group and that output past the cap 'maps to `other`', but the mapping lives in the step loop outside the diff. The unit tests described in the report stub `_run_capped` with canned (rc, stdout, stderr), and the only live run (Task 1.5) predates this change, so the new `run_subprocess_pgkill` integration has never executed against a real CLI. Two things are unverified: (1) the helper accepts a str `input` (the old code passed bytes); (2) the step catches the helper's actual exception types rather than `subprocess.TimeoutExpired`.",
+      "failure_mode": "If the step still catches only `subprocess.TimeoutExpired`, a CLI timeout propagates as an unexpected exception: the bisection ends with `stop: interrupted`, exit 1, and the attempt is charged as interrupted rather than recorded as a timeout `other` sample at the same size. If the helper expects bytes, every attempt fails before spawn and the probe never runs.",
+      "suggested_fix": "Confirm `run_subprocess_pgkill`'s input type and the exact exceptions it raises on timeout and on the cap; make the step catch exactly those (and `subprocess.TimeoutExpired` for safety) and record `other` with `timeout: true` / `output_cap_exceeded: true` charged at the estimate. Add one test that patches `run_subprocess_pgkill` to raise each exception and asserts an `other` sample is recorded and the bisection continues/stops per spec, not an interrupted record.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`--tier` default changed from `\"unverified\"` to `None` so the headless transport can detect an explicitly passed api-only flag. The api-transport write path in the same file (not in the diff) previously received the string and wrote/compared it. The help text promises \"(default unverified)\" but no `args.tier or \"unverified\"` substitution is visible in the diff.",
+      "failure_mode": "A default `--transport api --write-catalog` run writes `tier: None` into the catalog (or fails a `_TIERS` lookup/validation) at the write step, after the paid bisection has completed. The report's claim 'API path unchanged' does not cover a run with no `--tier` if the test passes `--tier` explicitly.",
+      "suggested_fix": "Resolve `tier = args.tier if args.tier is not None else \"unverified\"` once at the top of the api branch (or set the default inside the api dispatcher) and add an api-path test that runs with no `--tier` and asserts the written tier is `unverified`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:write_catalog_operator_set",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`probe_outcome` and `sample_size` are new REQUIRED keyword-only parameters with no defaults, and the function raises ValueError for anything but `clean`/`partial` or a non-int sample size. It is invoked at the very end of a paid run by `_main_cli` (not in the diff) and was also used ad hoc by the lead for the Task 1.5 write. Any caller still on the old signature raises TypeError at that point; a `partial` outcome without `force_partial` raises ValueError. The docstring says the catalog is never written on interrupt but says nothing about an exception raised by the catalog write itself after a completed bisection.",
+      "failure_mode": "A `--write-catalog` run completes the bisection (spend incurred), then crashes with TypeError/ValueError at the write. If the record is written only after the catalog write, the record is lost too and the spend has no artefact.",
+      "suggested_fix": "Verify `_main_cli` passes `probe_outcome=record[\"outcome\"]`, `sample_size=len(accepted)+len(rejected)` and `force_partial=args.write_partial_as_operator_set`. Write the record BEFORE attempting the catalog write and wrap the write so a ValueError/TypeError is reported (exit 1) with the record intact. Add a `_main_cli` clean-path test that goes through `--write-catalog` end to end rather than calling `write_catalog_operator_set` directly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:@@ -131,7 +183,20 @@ def _probe_once",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new TPM rule says a token-budget 429 that persists 'once the window was waited out' is a size rejection (`failure_class: token_limit`), but the same spec caps total sleep per step at `_RETRY_WAIT_CAP_S = 180` and honours a `retry-after` hint only 'when longer' up to that cap. When the hint exceeds the remaining cap (org-level ITPM pressure regularly yields hints above 60 s), the window has NOT been waited out, yet the persisting 429 still becomes a size rejection that steers the bisection downward. Separately, a `token_limit` size rejection reflects the account's per-minute budget, not the model's context window. The record's `partial` outcome and the catalog's new `probe_outcome: partial` do not say which failure class bracketed the bound, so an operator using `--write-partial-as-operator-set` cannot see that the bound is TPM-shaped.",
+      "failure_mode": "A bound that is an artefact of the account's ITPM rather than the model's ceiling is written as `operator_set` and governs production routing; with a long retry-after the bisection moves below the true ceiling without ever having retried outside the window.",
+      "suggested_fix": "When the hint exceeds the remaining cap, classify the persisting 429 as `other` (transient exhausted), not `size`. Record the bracketing `failure_class` in the record and in `ceiling_calibration` (e.g. `bracket: context_limit | token_limit`), and refuse or loudly warn on `force_partial` when the bracket is `token_limit`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff header names `.claude/adapters/tests/test_ceiling_probe_cli_transport.py` (index 6e084077..8e034532) but every hunk is `tools/ceiling-probe-live.py`: the module docstring, `_run_capped`, `_classify`, `_classify_unguarded`, `write_catalog_operator_set` and `main`'s argparse. The test-file changes the report credits for r251-1 (TPM backoff schedule, throttle-vs-context precedence, interrupt record, pgkill, api-flag usage errors, required `probe_outcome`/`sample_size`) are therefore not in the review bundle, and the production tool is being reviewed under a test-file path.",
+      "failure_mode": "The r251-1 behaviours ship with unreviewed and possibly absent tests; review anchors resolve to the wrong file, so findings cannot be traced to the real location.",
+      "suggested_fix": "Regenerate the review diff from the commit for both paths (`git show 059e26be -- tools/ceiling-probe-live.py .claude/adapters/tests/test_ceiling_probe_cli_transport.py`) and rerun the review on the test file to confirm coverage of each r251-1 behaviour listed above.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:14:18Z",
+    "tokens_input": 54942,
+    "tokens_output": 28462,
+    "cost_usd": 0,
+    "latency_ms": 30457,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-m2-probe.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-m2-probe.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "44f044c444998ce234397fdc4849ef9b3b488e3c7d93d8c1f86d1cb38674db78",
+      "run_tag": "m2-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

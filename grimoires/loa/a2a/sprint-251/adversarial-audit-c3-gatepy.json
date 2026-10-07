@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "test_the_project_root_defaults_to_the_cwd_walk",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_agy_opt_in_gate.py::test_the_adapter_reads_the_real_project_config",
+      "cross_file_justification": "The new tests pin that loa_cheval.config.loader.agy_opt_in_enabled() resolves the project root by walking up from the process cwd (test_the_project_root_defaults_to_the_cwd_walk) and that AgyHeadlessAdapter calls it with no explicit root, re-reading .loa.config.yaml on every dispatch (test_the_adapter_reads_the_real_project_config). test_no_environment_override and test_g9_system_defaults_alone_never_opt_in confirm the repo-tree file is the sole input to the gate.",
+      "description": "The opt-in gate exists (per the refusal text) to protect the operator from the prompt riding argv, readable by other local users, and from agy running with --dangerously-skip-permissions. Its only input is a file inside the project tree. Anyone who controls repo contents (a PR branch the operator checks out to review, a vendored submodule, a workspace under /run/user/1000/loa-claude-ws) can ship .claude/ plus .loa.config.yaml with agy_opt_in: true and the route silently activates with no operator action. There is no operator-owned source (home-dir config, per-project trust record) that must also agree, and no log of which file flipped the gate.",
+      "failure_mode": "Operator runs a review from inside an untrusted checkout. The checkout's config opts in. The full prompt, including the reviewed diff, is placed on the agy argv and agy is launched with permission checks skipped, without the operator ever having set the key.",
+      "suggested_fix": "Require the opt-in from an operator-owned location (e.g. ~/.loa/config.yaml or a trust record outside the tree) in addition to, or instead of, the repo file. At minimum, log the absolute path of the file that enabled the route on the first dispatch, and add a test asserting a repo-supplied true without operator trust reads off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "test_k1_the_strict_rule_holds_without_pyyaml",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_agy_opt_in_gate.py::test_k1_the_strict_rule_holds_without_pyyaml",
+      "cross_file_justification": "The test sets loader._HAS_YAML = False and relies on shutil.which('yq'), showing that loa_cheval.config.loader evaluates the security gate by spawning whatever yq is first on PATH when PyYAML is absent.",
+      "description": "A security-relevant decision is delegated to an unpinned third-party binary found on PATH. python-yq (the jq wrapper) and go-yq disagree on tag/!!bool expressions, so the strict rule the test asserts only holds for one implementation. The test skips when yq is missing, so CI most likely never exercises this fallback at all. A yq planted earlier on PATH that prints true opens the gate; fail-closed on error does not cover a successful wrong answer.",
+      "failure_mode": "Hosts without PyYAML get a gate whose strictness is untested in CI and depends on which yq flavor happens to be installed or planted.",
+      "suggested_fix": "When PyYAML is unavailable, read the key as off and emit the one-time warning rather than consulting yq. If the fallback must stay, verify yq --version identifies go-yq before trusting its output, and make the test fail rather than skip in CI (or vendor a stub) so the fallback is actually covered.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "test_off_refuses_before_any_discovery_or_spawn",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/tests/test_agy_headless_adapter.py::_agy_opted_in",
+      "cross_file_justification": null,
+      "description": "Gate coverage asserts only complete(), health_check() and validate_config() refuse when off. TestCommandConstruction._cmd shows _build_command is callable without passing the gate, and no test enumerates the adapter's other spawn-capable entrypoints (streaming, async, or any future method). The new autouse fixture forces the gate open for every test in test_agy_headless_adapter.py, so the legacy suite can no longer catch a path that forgets the gate.",
+      "failure_mode": "A later entrypoint spawns agy without consulting agy_opt_in_enabled and the whole suite stays green.",
+      "suggested_fix": "Route every spawn through a single chokepoint that performs the gate check and test that chokepoint directly; or add a test that introspects the adapter's public spawn-capable methods and asserts each raises AgyOptInRequiredError when the gate is off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T14:52:16Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9051,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "940e48bdca0412c377a18c873c2e5d492f54c19a1c4f7ee58978abc867fe0bf4",
+      "run_tag": "c3-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

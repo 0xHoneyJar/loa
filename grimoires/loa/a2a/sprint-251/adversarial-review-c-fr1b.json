@@ -1,0 +1,186 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/adversarial-review.sh:@@ -5972,3 +5972,56 @@ EOF",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The first hunk is attributed to the production dispatcher .claude/scripts/adversarial-review.sh, but its added lines and its pre-existing context lines are bats @test blocks that use $T, $CALLS, _run_main, BEHAVIOUR[...] and `return 1`. This is almost certainly tests/unit/adversarial-review-companion.bats mislabelled by the diff tooling, but the bundle cannot confirm it, and the dispatcher-side changes the report claims (_adv_agy_opted_in, _adv_agy_filter_chain, companion_skip_reason=opt_in_required) are then absent from what was reviewed.",
+      "failure_mode": "If the hunk really landed in the .sh file, bash reaches `@test ... {` after main returns, errors on `@test` and `local`, then executes the `for` loop body at top level: _cmp_agy_chain rewrites $CONFIG_FILE (the operator's live config) and _run_main review is invoked outside any test sandbox. If the path is a labelling artefact, the production gate code was not part of this review.",
+      "suggested_fix": "Confirm with `git show --stat` that CMP-284..286 live in tests/unit/adversarial-review-companion.bats, and re-run the review with the actual .claude/scripts/adversarial-review.sh hunks included.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:FTA-2",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:FTA-2",
+      "cross_file_justification": "FTA-2 pins the planner decision in .claude/scripts/flatline-orchestrator.sh:_tertiary_routes_to_agy, which must agree with the dispatch-time gate in .claude/adapters/loa_cheval/providers/agy_headless_adapter.py:complete for G-1 to hold.",
+      "description": "FTA-2 asserts that under hounfour.headless.mode prefer-api a Google tertiary (gemini-3.1-pro) is planned as `active`. The test neither sets nor clears GOOGLE_API_KEY/GEMINI_API_KEY, so the planner must be ignoring key presence. prefer-api semantics fall back to the CLI hop when no API key is resolvable, and the Google CLI hop is agy, which complete() now refuses with opt_in_required before any spawn.",
+      "failure_mode": "An operator with no Google key who relied on agy under the default mode (the pre-cycle-127 norm) gets a tertiary that is planned, dispatched, refused by the adapter, and recorded as a dropped voice / DEGRADED. That is exactly the 'planned voice that cannot exist' FR-1 and G-1 set out to remove, and the suite cannot see it because the gate is only asserted for cli-only and for the literal gemini-headless alias.",
+      "suggested_fix": "Have _tertiary_routes_to_agy (and the companion, preflight and Bridgebuilder twins) treat a Google voice as agy-routed under prefer-api when no Google key is resolvable, or map a dispatch-time opt_in_required failure to disabled_by_opt_in instead of a dropped voice. Add an FTA case: prefer-api, GOOGLE_API_KEY/GEMINI_API_KEY unset, tertiary gemini-3.1-pro → not planned; and its mirror with a key present → planned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/loa-status-providers.bats:LSP-5",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The rewritten LSP-5 pins that once ceiling_calibration.calibrated_at is set, a PROVIDER_CONTEXT_LIMIT observation below the calibrated bound neither lowers the bound nor appears in the /loa line or --json (only `calibrated $eff ($m, calibrated $cal)` is asserted for all three runs). The committed calibration came from a single route (claude-bedrock global, tool outcome `partial`, I2-clamped to 936000) and applies to claude-opus-5-5 on every anthropic route.",
+      "failure_mode": "On a route whose real input limit is lower (a non-global Bedrock region, Vertex, or a direct-API tier without the 1M window), cheval keeps sizing requests to 936000, receives a verified context-limit rejection every time, and the previously self-healing path (uncalibrated: a verified observation becomes the bound) is disabled with no operator-visible signal in /loa.",
+      "suggested_fix": "Let a verified PROVIDER_CONTEXT_LIMIT (not the *_UNVERIFIED classes) lower a calibrated bound, or at minimum render it (`calibrated 936000; observed N below, reprobe suggested`) in both the text line and --json, and pin that in LSP-5 instead of asserting silence.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/loa-status-providers.bats:LSP-5",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "LSP-5 now selects its assertions from the committed catalog (`if [[ -n \"$cal\" ]]`). Since the catalog carries calibrated_at for claude-opus-5-5, every `else` branch (the `probed` display, `observed N under the opt-in`, and `an observation below the probed bound becomes the bound`) is dead in CI. The literal-pinned assertions that did exercise those paths were removed, and the test title still promises them.",
+      "failure_mode": "A regression in the probed/observed rendering or in the observation-lowering logic for any uncalibrated anthropic model ships green.",
+      "suggested_fix": "Split into two tests. Drive the uncalibrated one against a fixture catalog via a bats-gated override (as LOA_STATUS_CONFIG_FILE already does for the config) or against a second anthropic entry with no ceiling_calibration, so both branches run on every pass.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/loa-status-providers.bats:LSP-AGY",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/loa-status-providers.bats:LSP-AGY",
+      "cross_file_justification": "Four independent yq readers of hounfour.headless.agy_opt_in (adversarial-review.sh, flatline-orchestrator.sh, run-preflight.sh, loa-status.sh) plus the Python predicate must agree; the report states they are copies rather than one shared helper.",
+      "description": "CMP-284, FTA-1 and PF-AGY all pin that the YAML string \"true\" is not the boolean and leaves the gate off. LSP-AGY only exercises absent and boolean true. `yq -r '.hounfour.headless.agy_opt_in'` prints `true` for both forms, so a reader that compares the raw string (rather than checking `tag == \"!!bool\"`) silently accepts the quoted value. Separately, no reader emits a diagnostic for a value that is present but not a boolean.",
+      "failure_mode": "/loa Providers could report `hop agy` (opted in) while cheval, Flatline, the dissent and preflight treat the same config as opted out, a misleading diagnostic for precisely the operator who mistyped the value. That operator otherwise sees only `opt-in (disabled)` with no hint their setting was ignored.",
+      "suggested_fix": "Add the \"true\" string case to LSP-AGY, add a conformance test that feeds the same three configs to all four bash readers and the Python predicate, and emit a one-line WARN naming the key when the value is present but not a YAML boolean.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/adversarial-review.sh:_cmp_agy_chain",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_cmp_agy_chain rewrites $CONFIG_FILE, but CMP-284's per-iteration save/restore copies $T/loa.config.yaml and tolerates a missing source (`cp ... 2>/dev/null || true`). The helper's `str.replace(..., 1)` never asserts that the `code_review:\\n    enabled: true` anchor was found.",
+      "failure_mode": "If CONFIG_FILE ever points elsewhere, iterations stack a second companion_chain key and repeated top-level hounfour keys; because all three expected outcomes are 'off', the loop keeps passing for the wrong reason. If the fixture block changes shape, the chain is never inserted and the failure surfaces as an unrelated planned/reason mismatch.",
+      "suggested_fix": "Save and restore $CONFIG_FILE, drop `|| true`, and assert in the Python that exactly one replacement happened before writing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:FTA-5",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "FTA-5 is the only test that runs run_phase1 through the new disabled_by_opt_in branch, and it never checks $status after `run --separate-stderr run_phase1 ...`. The assertions (four calls, the skip line, no 'Voice dropped') are all satisfied even if run_phase1 aborts after dispatch.",
+      "failure_mode": "A crash in the 2-model path after the skip is logged (for example a later step that still dereferences the tertiary's output file) ships with this test green.",
+      "suggested_fix": "Add `[ \"$status\" -eq 0 ]` after the run and assert the Phase 1 output artefact exists in $TEMP_DIR.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T09:59:10Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 30444,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "92e14a68349e5dbeb149a32b519d6da0265074da3d3afa457d2d297e892fbb0b",
+      "run_tag": "c-fr1b"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

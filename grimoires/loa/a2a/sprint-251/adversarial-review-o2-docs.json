@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -9,10 +9,10 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The Opus 5.5 ceiling bullet states two different current values for Bridgebuilder's generated input budget in the same paragraph. The retained first sentence says in present tense that 'Bridgebuilder's generated budget for the entry is 916,000'. The appended provenance text then says the generated budget 'divides by 1.8 (≈508,000 for this entry, from 916,000)'. Only one of these is the value in `truncation.generated.ts` after review round r251-1.",
+      "failure_mode": "An operator or later maintainer reading the CHANGELOG to confirm what Bridgebuilder budgets for `claude-opus-5-5` gets a stale figure first and a corrected figure later with no marker that the first is superseded. Downstream docs or tests written from the first sentence would pin 916,000 against a tree that generates ≈508,000.",
+      "suggested_fix": "Rewrite the first mention as history ('Bridgebuilder's generated budget before the units fix was 916,000') or delete it, so the bullet carries one current value (≈508,000) and one explanation of the 1.8 divisor.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "CHANGELOG.md:@@ -9,10 +9,10 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The units-gap mitigation described in the ceiling bullet is scoped to routes with a count endpoint: 'on a calibrated entry cheval now asks the provider's free count_tokens once the estimate passes half the bound'. The bullet also says Bridgebuilder gets a 1.8 divisor 'because it has no count endpoint before building the prompt'. The headless CLI route is in the same position as Bridgebuilder (no count endpoint, cheval's chars-based estimate is the only pre-dispatch gate), yet the text applies the full 936,000 bound to it with neither mitigation. That route is the transport the calibration was measured on. With the documented 1.4x to 1.8x under-count, a request cheval estimates anywhere from roughly 555,000 to 936,000 tokens can exceed the CLI's 1,000,000 pre-flight window. The bullet describes how the probe tool classifies that CLI rejection but says nothing about how cheval's production headless adapter classifies it (ProviderContextLimitError with no walk and no breaker count, or a generic failure).",
+      "failure_mode": "Large `opus` prompts routed to `claude-headless` pass cheval's gate, spawn the CLI, and fail at the CLI's own pre-flight. Under the previous 180,000 bound cheval refused these pre-dispatch with a clear ceiling message. If the adapter does not map the CLI's 'limit 1000000' text to the context-limit class, the failure is walked to the next voice with the same payload and counts toward the breaker, the exact behaviour cycle-126 designed around.",
+      "suggested_fix": "Either apply the same measured-unit divisor to the headless route's effective bound (mirroring the Bridgebuilder rule) or document and test that `claude_headless_adapter` maps the CLI pre-flight rejection to ProviderContextLimitError with the not-walked, no-breaker handling. State whichever holds in the bullet next to the count_tokens sentence.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:@@ -9,10 +9,10 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The ceiling bullet says the headless measurement 'governs the HTTP entry too' and discloses the self-heal for an HTTP route that turns out narrower. It does not disclose the pricing consequence. The cycle-126 bullet in the same hunk records that every Anthropic HTTP 5-family entry carries `pricing.long_context` with `verified: false` and that `calculate_total_cost` applies the multipliers above the threshold. With the previous 180,000 bound no HTTP request could cross the 200,000 long-context threshold. With 936,000 an HTTP `opus` caller with a 500,000-token prompt is now dispatched at the premium tier instead of being refused, on a pricing row the catalog itself marks unverified. No WARN, budget pre-check, or operator note is mentioned for the first crossing.",
+      "failure_mode": "Callers whose prompts previously failed fast at the ceiling now succeed at roughly double input pricing, with the ledger marking the row `long_context: true` after the fact. The cost exposure is silent until `cost-report.sh` is run, and the multiplier applied is one the catalog has not verified against the vendor's published tier.",
+      "suggested_fix": "Add a sentence to the bullet stating that HTTP requests above 200,000 tokens are now reachable and billed under the unverified `pricing.long_context` multipliers. Consider a one-time WARN (or a budget check) when the pre-dispatch estimate or count_tokens result crosses `pricing.long_context.threshold` on an entry whose long-context pricing is `verified: false`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:27:52Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11777,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "c426901d171457ee82057359402e02d80dbdb98f88283533a3395d8264edba21",
+      "run_tag": "o2-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

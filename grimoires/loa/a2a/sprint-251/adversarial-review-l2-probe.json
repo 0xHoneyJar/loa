@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_p11_a_probe_without_the_fake_fails_on_spawn",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "This test deliberately runs `tool.main()` on the claude-headless transport WITHOUT the `fake` fixture, with a 400K-token upper bound and a $20 budget, and relies on an ambient CLAUDE_HEADLESS_BIN sentinel (asserted separately by test_p11_the_module_default_binary_is_a_sentinel_that_does_not_exist) to make the spawn fail. The test receives `monkeypatch` but only uses it for argv; it never pins CLAUDE_HEADLESS_BIN itself. The reviewer context shows the suites were run under `env -u CLAUDE_HEADLESS_BIN`, which indicates the module-level sentinel does not override an inherited value. An operator who uses the CLI route legitimately exports CLAUDE_HEADLESS_BIN to the real binary; in that shell the sentinel test fails loudly but this test still executes and reaches a real `claude -p`.",
+      "failure_mode": "On a developer or CI host with CLAUDE_HEADLESS_BIN exported to a real claude binary (and Bedrock/Anthropic credentials present), the unit test sends real 400K-token prompts and bisects downward until the $20 budget or a result is reached: real spend and real provider calls from `pytest`, exactly the zero-spend guarantee the P11 fix claims to make fail-closed.",
+      "suggested_fix": "Inside the test, set `monkeypatch.setenv(\"CLAUDE_HEADLESS_BIN\", str(tmp_path / \"loa-probe-no-real-cli\"))` (and `monkeypatch.delenv` any AWS/Anthropic credential vars) before calling `main()`, so the fail-on-spawn property does not depend on import-time state or the invoking shell. Consider also making the module-level sentinel an unconditional assignment rather than setdefault, or an autouse fixture that forces it unless the `fake` fixture is active.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "tools/ceiling-probe-live.py:_run_capped",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_an_interrupt_after_paid_steps_still_writes_the_record",
+      "cross_file_justification": "test_p7_stdin_is_delivered_and_the_child_leads_its_own_group pins that `_run_capped` places the child in its own process group (and, if implemented via start_new_session, its own session). test_an_interrupt_after_paid_steps_still_writes_the_record is the only KeyboardInterrupt coverage, and it monkeypatches `_run_capped` away entirely, so the interrupt never occurs while a real child is running. The combination leaves the interrupt-during-communicate path of `_run_capped` in tools/ceiling-probe-live.py unexercised.",
+      "description": "Once the child leads its own group/session, a terminal Ctrl-C delivers SIGINT only to the Python parent, not to `claude -p`. If `_run_capped` kills the group only on `subprocess.TimeoutExpired` (the case the P7 test exercises) and not on KeyboardInterrupt/BaseException, the operator's interrupt raises inside `communicate()`, main() writes the record and exits 130, and the orphaned CLI child continues to completion in its own session. The diff's tests cannot detect this because the interrupt test replaces `_run_capped` before any child exists.",
+      "failure_mode": "Operator presses ^C mid-attempt: the probe exits 130 with `stop: interrupted`, but the real `claude -p` request still completes against the provider, billing the full attempt, and the process lingers as an orphan until the API call returns. The record's `interrupted_estimate` charge happens to cover the cost, but the child is not stopped and any subsequent re-run overlaps with it (ITPM contention, the exact 429 class the TPM backoff logic then has to absorb).",
+      "suggested_fix": "In `_run_capped`, wrap the `communicate()` call in `try/finally` (or `except BaseException: os.killpg(pgid, SIGKILL); raise`) so the group is killed on any exit path, not just TimeoutExpired. Add a test alongside the P7 pair that spawns the GRANDCHILD wrapper via the real `_run_capped`, sends SIGINT to the test process (or raises KeyboardInterrupt via a timer/signal handler) during the wait, and asserts the grandchild is dead.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_p7_a_timeout_kills_the_whole_process_group",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The pidfile wait loop runs only after `_run_capped` has already raised TimeoutExpired, i.e. after the wrapper has been killed; the pidfile can no longer appear at that point, so the 10-second poll is dead time. If the 2-second cap fires before the wrapper has executed `open(...).write(...)` (slow interpreter start on a loaded runner), the test burns the 10 s deadline and then crashes with FileNotFoundError at `int(pidfile.read_text())` instead of a readable assertion. In that same scenario the grandchild may already have been spawned by Popen but its pid is unknown, so the cleanup `os.kill(gc, 9)` never runs and a 300-second sleeper leaks if the group kill under test is in fact broken.",
+      "failure_mode": "Flaky, hard-to-diagnose failure on slow CI (FileNotFoundError with no indication that the timeout simply pre-empted the pidfile write), plus a possible orphaned sleeper for 5 minutes when the kill path regresses.",
+      "suggested_fix": "Have the wrapper write the pidfile before anything slow (or have the test poll for the pidfile in a thread started before `_run_capped`, with a timeout longer than the 2 s cap); replace the bare `read_text()` with `assert pidfile.exists(), \"wrapper never reached the pidfile write within the cap\"`; and increase the cap to something comfortably above interpreter start (e.g. 5 s) so the test measures group-kill behaviour rather than spawn latency.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:09:21Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 20236,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "aa97789a5593d46eb57b893252fe2c8025b71546b22b27a9f7ae26ceb4e77f83",
+      "run_tag": "l2-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -9,6 +9,11 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:@@ -9,6 +9,11 @@ ## [Unreleased]",
+      "cross_file_justification": "The new ceiling bullet documents a catalog write (.claude/defaults/model-config.yaml claude-opus-5-5.ceiling_calibration.calibrated_at) that, per the cycle-126 I2 contract stated in the same hunk, switches loa_cheval/routing/ceiling.py from the probed/preempt path to trusting the calibrated bound for the HTTP adapter.",
+      "description": "The Opus 5.5 ceiling bullet records `calibrated_at` on the `claude-opus-5-5` entry from a measurement taken through the headless CLI on Bedrock (`method: probed_headless`, `transport: claude-headless`). The cycle-126 bullet in the same [Unreleased] section defines `calibrated_at` as the signal that the HTTP adapter's I2 gate trusts the calibrated bound instead of the probed 180,000 with preempt/warn. The direct-API transport was never probed (the bullet's own `reprobe_trigger` names the API-transport probe as outstanding) and `account_limits` remains `{tier: unverified, itpm: null}`. The CHANGELOG does not say that the HTTP route now trusts a bound measured on a different transport and host.",
+      "failure_mode": "An `opus` HTTP request between 180K and 936K input tokens that previously preempted locally with the calibration command now goes to the wire. If the direct API or the account's tier rejects it, the call fails as PROVIDER_CONTEXT_LIMIT after one retry and is not walked; because the entry is calibrated, the `.run/ceiling-observed.json` observation does not lower the bound, so the failure recurs on every such request. Requests that are accepted above 200K are billed at the long-context multiplier the cycle-126 bullet documents as `verified: false`.",
+      "suggested_fix": "Scope the calibration to the transport that measured it: have the I2 policy treat `ceiling_calibration.transport != http` as uncalibrated for the HTTP adapter (keep preempt/warn there until `ceiling-probe-live.py --model claude-opus-5-5` runs over the API), or record the 936,000 bound on the CLI hop's entry only. If the operator decision stands, state in the bullet that the HTTP gate now trusts a CLI/Bedrock-measured bound and that `account_limits` is unverified.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -9,6 +9,11 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The probe bullet states that only a `clean` outcome writes the catalog and that the write sets `probed_ceiling`/`effective_input_ceiling` \"to the measured bound\". The ceiling bullet then presents the catalog write as a probe result. The implementation report discloses that the live run's outcome was `partial` (the $20 cap stopped the bisection before the 16K tolerance), that the tool wrote nothing, that the lead wrote the entry by hand through `write_catalog_operator_set()`, and that commit 8ad37c55 changed the clean write path to apply the I2 clamp (raw measurement kept in `measured_input_tokens`). None of this is in the CHANGELOG. In the same [Unreleased] section the cycle-126 bullet still describes `probed_ceiling` as \"(180,000, the last measured bound)\", which the new bullet contradicts.",
+      "failure_mode": "A reader of the release notes concludes the 936,000 bound came from a clean tool run and that the tool writes the raw measured value, neither of which is true. An operator reproducing the calibration with `--write-catalog` expects a write on the same evidence and gets none (partial outcome), and an operator reading the clean-path contract expects `probed_ceiling == measured_input_tokens`.",
+      "suggested_fix": "In the ceiling bullet, state the tool outcome (`partial`) and that the entry was written by the operator via `write_catalog_operator_set()` with the I2 clamp applied. In the probe bullet, say the clean write sets the ceiling to the I2-clamped measured bound and keeps the raw value in `measured_input_tokens`. Amend the cycle-126 parenthetical to something like \"(the last measured bound; 180,000 before cycle-127)\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -9,6 +9,11 @@ ## [Unreleased]",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:@@ -9,6 +9,11 @@ ## [Unreleased]",
+      "cross_file_justification": "The effort bullet documents cheval.resolve_effort's precedence (caller > catalog default of the resolved entry > CLI entry's extra.effort > none) and the catalog change (.claude/defaults/model-config.yaml: only claude-opus-5-5 sets params.default_effort). The claude-headless entry, which the cycle-126 bullet names as the opus alias's chain fallback and the dissent companion/repair hop, is not given a default.",
+      "description": "The bullet is titled \"Claude Opus 5.5 reasons at `high` by default\" and says the resolution applies \"for both the HTTP adapter and the headless CLI\". The default is a per-entry catalog value and the report says only `claude-opus-5-5` sets it. The `claude-headless` entry carries none, so when a request walks from `opus` to `claude-headless`, or when the dissent companion/repair chain starts at `claude-headless`, the hop passes `--effort` only if a legacy `extra.effort` is set. The probe record shows this host's CLI runs `global.anthropic.claude-opus-5-5`, so that route runs at the vendor default `medium`, the exact regression FR-2 set out to close.",
+      "failure_mode": "On a fallback or CLI-first route (OpenAI-family primary's companion `opus → claude-headless`, the repair chain's `claude-headless` hop, or any `opus` call whose HTTP hop fails over), Opus 5.5 reasons at `medium` while the MODELINV envelope records `effort_source: none` and the CHANGELOG promises `high`. Verdict quality on the dissent's Claude voice is silently one reasoning level below what the release notes state.",
+      "suggested_fix": "Either set `params.default_effort: high` on the CLI entries whose configured model is Opus 5.5 (`claude-headless` at least), or carry the effort resolved for the originally requested entry across the chain walk when the hop's own entry declares no default, and add a test that the `opus → claude-headless` fallback argv contains `--effort high`. If neither is done, qualify the CHANGELOG claim to the HTTP entry.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:40:42Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11601,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b824ccbb44775d6379720f93f72a2782a9e3788aae4f96b6fbb104e2399ea10a",
+      "run_tag": "j-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,4 @@
+27:Providers
+28:  anthropic  key absent               hop claude  · headless CLOSED · http_api CLOSED
+29:  ceiling: calibrated 936000 (claude-opus-5-5, calibrated 2026-10-07T09:29:07Z)
+30:  google     key present (env)        hop agy: opt-in (disabled; hounfour.headless.agy_opt_in) · headless CLOSED · http_api OPEN 93d (probe overdue → HAL

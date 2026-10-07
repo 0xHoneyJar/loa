@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "assert.equal(isAgyRouted(\"google\", \"gemini-3.1-pro-preview\", \"prefer-cli\"), false);",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts: describe(\"isAgyRouted\")",
+      "cross_file_justification": "The new test file pins the contract of isAgyRouted in resources/config.ts: a google model is treated as agy-routed only under mode cli-only (or the gemini-headless id). The dispatch side is ChevalDelegateAdapter, whose headless mode comes from LOA_HEADLESS_MODE or hounfour.headless.mode. If cheval's prefer-cli semantics are 'try the CLI hop first, fall back to HTTP' (which the name implies), a google voice under prefer-cli passes the gate as 'planned' and is then handed to the agy CLI hop with the opt-in off.",
+      "description": "The opt-in gate only classifies a google voice as agy-routed under mode cli-only. Under prefer-cli the same voice is planned, counted, and dispatched, yet cheval in prefer-cli mode would most plausibly try the gemini CLI (Antigravity) hop before HTTP. The test 'LOA_HEADLESS_MODE wins for the mode ... nothing in the environment opts in' also shows the mode is environment-selectable, so setting LOA_HEADLESS_MODE=prefer-cli in the runner environment is enough to steer google voices toward the agy hop without hounfour.headless.agy_opt_in being true. I could not read config.ts or cheval to confirm the fallback order, so this is flagged as a design gap the tests lock in rather than a verified exploit.",
+      "failure_mode": "PR diff content and review prompts are sent through the Antigravity CLI route for a repository whose operator never opted in, contradicting FR-1 ('the agy route is opt-in, default false'). The gate reports the voice as planned and the summary shows a full cohort, so nothing in the logs says the hop was taken.",
+      "suggested_fix": "Either treat prefer-cli as agy-routed for google models in isAgyRouted (gate on 'may hit the CLI' rather than 'must hit the CLI'), or have the pipeline pass an explicit no-CLI/HTTP-only flag to the cheval adapter for google voices when the opt-in is off. Add a test asserting isAgyRouted(\"google\", <non-headless id>, \"prefer-cli\") is true, or a dispatch-level test that the adapter receives an API-only directive.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "assert.equal(loaConfigPathFor(undefined), \".loa.config.yaml\");",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts: describe(\"validateApiKeys takes the gate explicitly (r251-1 G15)\")",
+      "cross_file_justification": null,
+      "description": "The gate's source file is resolved relative to the process cwd when no repo root is given, and otherwise from config.repoRoot. A security-relevant policy flag (whether PR content may leave via the Antigravity hop) therefore depends on where the process is launched and on whose .loa.config.yaml sits at repoRoot. The pipeline tests pass a temp dir as repoRoot; if repoRoot can ever be a checkout of the repository under review, the PR author controls the opt-in. I could not verify how repoRoot is populated in main.ts.",
+      "failure_mode": "Launching the reviewer from a directory containing an attacker- or stale-authored .loa.config.yaml with agy_opt_in: true silently enables the agy route. Fail-closed on read errors mitigates malformed files but not a well-formed hostile one.",
+      "suggested_fix": "Resolve the Loa config from the tool's own installation or an explicit absolute path rather than cwd, and document (or assert in a test) that repoRoot is never the reviewed repository's PR head checkout. Consider logging the resolved config path at startup via agyGateStartupLines.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "assert.ok(!result.reviewVerdict.mergeBlocked, \"a not-planned voice never blocks the merge as a missing one would\");",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts: describe(\"executeMultiModelReview with the agy opt-in off\")",
+      "cross_file_justification": null,
+      "description": "The tests pin that a configured reviewer voice removed by the gate is excluded from voices_planned, so a three-voice config posts '✓ APPROVED — 2/2 voices' with merge not blocked, and under api_key_mode strict the pipeline only WARNs instead of failing. The posted summary is not asserted to mention the not-planned voice. Readers of the PR comment see a full cohort even though the configured review coverage was silently reduced, and strict mode no longer means 'every configured voice ran or the review fails'.",
+      "failure_mode": "Review coverage degrades without a visible signal on the PR itself; an operator relying on strict mode to guarantee all configured reviewers ran gets a passing verdict with a reviewer missing.",
+      "suggested_fix": "In strict mode, treat a gated-off configured voice the same as a missing key (throw) or require an explicit acknowledgement setting. In graceful mode, include the not-planned voices in the posted Verdict Quality summary (e.g. '2/2 planned, 1 not planned: google/gemini-3.1-pro-preview (opt-in required)') and add a test asserting it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:07:08Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9286,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f506bacda6ccbc6eddf777549fa94acd2907f1e745c42bffeb6866ef83fd69e0",
+      "run_tag": "g3-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

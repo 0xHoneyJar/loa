@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/config.ts:readAgyGate",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "readAgyGate swallows every failure of the yq read (binary missing, YAML parse error, timeout, non-JSON output) and returns {optIn: false, mode: ''}. Two consequences: (1) an operator who set hounfour.headless.agy_opt_in: true but has a broken or absent yq sees the google voice dropped with the pipeline's info line 'agy opt-in off', which is false and points them at the wrong fix; (2) the mode collapses to 'prefer-api', so under a cli-only config Bridgebuilder plans a google voice that cheval (reading the same file through its Python loader) will refuse with AgyOptInRequiredError, producing a failed voice and a blocked merge instead of the 'not planned' outcome FR-1 specifies. The read failure is never logged anywhere.",
+      "failure_mode": "Silent divergence between Bridgebuilder's gate and cheval's gate on hosts where yq is unavailable or the config is malformed; misleading operator log; G-1 ('no planned voice that cannot exist') violated in exactly the environment where diagnosis is hardest.",
+      "suggested_fix": "Return a third state (e.g. readError?: string) from readAgyGate and have executeMultiModelReview log it at warn level with the underlying error. Keep the fail-closed opt-in default, but do not report a read failure as 'opt-in off'. Optionally reuse the existing config loader in config.ts (which already shells to yq) so there is one read path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "api_key_mode: 'strict' still only throws on keyStatus.missing. A voice removed by the agy gate is not in missing, so a strict-mode cohort of three configured voices silently runs as two and can clear the merge gate. The only signal is a logger.info line, which most runners do not surface. Strict mode's contract ('every configured provider must be available or fail') is weakened without any operator-visible warning, and the operator explicitly configured the voice.",
+      "failure_mode": "Operators relying on strict mode to guarantee the full cohort get a reduced review with an APPROVED verdict and no warning-level signal; a misconfigured mode: cli-only quietly removes the google reviewer from every PR.",
+      "suggested_fix": "In strict mode, treat a non-empty keyStatus.notPlanned as a configuration error (throw, or at minimum logger.warn naming the key). In graceful mode, log the dropped voice at warn rather than info, and consider surfacing it in the posted Verdict Quality summary so the reduced cohort is visible on the PR.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The merge-block check previously guaranteed that zero results could never pass (0 !== models.length). The new form models.length - notPlanned.length admits the degenerate case where every configured voice is agy-routed with opt-in off (e.g. gemini-headless plus a google HTTP model under cli-only): modelResults is empty, the count check passes, .some(error) is false, and the outcome depends entirely on computeVerdictBand([]) returning something other than 'APPROVED' for an empty list. If that helper uses an every()-style all-approved check, an empty cohort reads as APPROVED and mergeBlocked stays false. No early guard for an empty keyStatus.valid is visible in the diff.",
+      "failure_mode": "A review with zero participating voices could leave mergeBlocked false, inverting the 'incomplete participation can never clear a merge' invariant the comment above the check states.",
+      "suggested_fix": "Add an explicit guard: compute plannedCount = models.length - notPlanned.length and set mergeBlocked = true when plannedCount === 0 or modelResults.length === 0, independent of computeVerdictBand. Add a test with all voices not planned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/config.ts:validateApiKeys",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new default parameter gate: AgyGate = readAgyGate() turns a previously pure env-only function into one that spawns a synchronous yq subprocess and reads .loa.config.yaml relative to the process CWD. The pipeline passes an explicit repoRoot-based path, but any other caller that still invokes validateApiKeys(config) (startup preflight, CLI key check, dist consumers) now reads a potentially different config than the pipeline and can report a different valid/missing/notPlanned split for the same run.",
+      "failure_mode": "Inconsistent gating between a startup key check and the per-PR pipeline when CWD differs from repoRoot; surprising subprocess spawn from a function callers reasonably assume is pure.",
+      "suggested_fix": "Make gate a required parameter (or accept repoRoot and derive the path inside), and audit existing callers so every site resolves the gate from the same repoRoot path the pipeline uses.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/config.ts:isAgyRouted",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "isAgyRouted hardcodes the literal 'gemini-headless' while the module already exposes isHeadlessModelId(modelId, provider) backed by GENERATED_MODEL_REGISTRY. If codegen adds or renames a google headless id, or an alias resolves to it, the gate misses it: the voice is planned, dispatched, refused by cheval, and the merge blocks as a failed voice rather than being recorded as not planned.",
+      "failure_mode": "Registry drift silently reintroduces the 'planned voice that cannot exist' case FR-1 is meant to remove, with no test catching it because the test also pins the literal.",
+      "suggested_fix": "Use isHeadlessModelId(modelId, 'google') (or a registry flag) in place of the string literal, and add a test that iterates the generated registry's google headless ids.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:06:17Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 18045,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "17a5b877416bf548d60b160edba4e81653990fe9433dab67ff025fbdae8c1e16",
+      "run_tag": "d-fr1c"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

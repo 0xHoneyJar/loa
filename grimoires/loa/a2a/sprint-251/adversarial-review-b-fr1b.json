@@ -1,0 +1,139 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_agy_filter_chain",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The companion-chain filter treats a hop as agy-routed only when _adv_hop_canon yields the literal 'gemini-headless'. The sibling predicate added in the same change, flatline-orchestrator.sh:_tertiary_routes_to_agy, documents that cheval also dispatches any Google/gemini* model through agy when hounfour.headless.mode is 'cli-only' (LOA_HEADLESS_MODE winning, 'as cheval's'). The dissent filter, run-preflight.sh P3 (cli_for only matches the bare 'gemini-headless' id, so a gemini-* model in cli-only mode is counted usable on a Google credential) and loa-status.sh all ignore that path. The four readers the report calls 'yq twins' therefore disagree on which voices are gated.",
+      "failure_mode": "With hounfour.headless.mode: cli-only and the opt-in off (the default), a companion chain naming gemini-2.5-pro or google:gemini-* is planned, cheval refuses it with INVALID_CONFIG / opt_in_required, and the dissent records a failed companion (verdict DEGRADED) instead of planned: false, reason: opt_in_required. run-preflight P3 reports the same voice usable and passes a run that cannot dispatch it. This violates the FR-1 AC and G-1 ('no planned voice that cannot exist') in a supported configuration.",
+      "suggested_fix": "Define one routes-to-agy predicate with the flatline shape (literal gemini-headless hop, or gemini*/google:gemini* when the effective headless mode is cli-only) and use it in _adv_agy_filter_chain, in the run-preflight P3 loop (classify the voice as not planned), and in loa-status _provider_hop/_provider_hop_note. Add a bats case per planner with mode: cli-only and a gemini-2.5-pro voice asserting opt_in_required / not planned.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Only the companion chain is passed through _adv_agy_filter_chain. The primary review's model / fallback_chain for flatline_protocol.{code_review,security_audit} can also name gemini-headless, and nothing in the diff gates or warns about it on the primary path.",
+      "failure_mode": "With the opt-in off, the primary attempts the agy hop and receives INVALID_CONFIG from cheval. If the primary fallback does not advance past INVALID_CONFIG the review fails outright; if it does advance, the drop happens silently with no 'not planned' WARN, unlike the companion path.",
+      "suggested_fix": "Run the primary chain through the same filter (logging the WARN with the stage key), or confirm that INVALID_CONFIG advances the primary fallback and add a test for a primary chain containing gemini-headless with the opt-in off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:get_tertiary_status",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The change introduces two new values into emitted metadata: tertiary_model_status may now be 'disabled_by_opt_in' (Flatline result JSON) and companion_skip_reason may now be 'opt_in_required' (dissent envelope). The diff does not touch any schema or consumer of those fields.",
+      "failure_mode": "Any schema, Bridgebuilder parser, run-status display or dashboard that validates these fields against the previous closed sets (active|disabled; no_route|...) will reject the output or mis-bucket the run as a degraded voice, which is the exact outcome FR-1 is meant to avoid.",
+      "suggested_fix": "Grep .claude/data/schemas and the consumers for tertiary_model_status / companion_skip_reason enums, extend them with the new values, and add a test that the produced JSON validates against the schema.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/run-preflight.sh:@@ -195,6 +204,8 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When every configured voice of a stage is a gated agy hop, the loop 'continue's past them, usable stays 0, and P3 is recorded FAIL with detail 'no usable voice ... no credential present and no CLI hop on PATH' and the generic fix hint to export a key or install a CLI hop. Only the appended 'not planned:' suffix mentions the opt-in.",
+      "failure_mode": "The operator is told to install agy or export GOOGLE_API_KEY; neither changes the outcome, because the voice is gated by hounfour.headless.agy_opt_in. The P3 fix text is wrong for this case.",
+      "suggested_fix": "Track per-stage whether all skipped voices were opt-in gated; when such a stage fails, set the detail to 'no planned voice for <stage>: agy route disabled by opt-in' and the fix to 'set hounfour.headless.agy_opt_in: true in .loa.config.yaml or name another voice in the stage's fallback_chain'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T09:54:15Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21119,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d4db674c316ab315db84d42acc581f388c5c5ca4dd65d696cbca59e3ab6bf2ed",
+      "run_tag": "b-fr1b"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

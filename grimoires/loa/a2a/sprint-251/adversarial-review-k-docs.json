@@ -1,0 +1,139 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "cross_file_justification": "The new 'Cycle-127 addendum' bullet documents the agy refusal as `INVALID_CONFIG`, and the implementation report confirms `AgyOptInRequiredError` maps to `INVALID_CONFIG`. grimoires/loa/sdd.md D-1.6 (context line in this same diff, unchanged) specifies the refusal as `ROUTE_DISABLED` / `failure_class: opt_in_required`. The same commit ships a normative design record and user-facing migration doc that disagree on the error code.",
+      "description": "SDD D-1.6 names the opt-in refusal `ROUTE_DISABLED`; the migration addendum, the e2e refusal transcript and the adapter emit `INVALID_CONFIG`. The implementer's report lists a deviation from D-1.5 but not from D-1.6, so this drift is undocumented. The migration doc also asserts the refusal is 'never a breaker trip'; that guarantee was specified for a distinct ROUTE_DISABLED class, and reusing the generic INVALID_CONFIG class means it is inherited from whatever the breaker already does for config errors rather than being a property of this gate.",
+      "failure_mode": "Any consumer (bash planner, Bridgebuilder, downstream mount) written against the SDD matches on `ROUTE_DISABLED` and never recognises the refusal, treating the voice as a generic failure instead of 'not planned'; conversely if the breaker counts INVALID_CONFIG as a failure, repeated refusals on a host with the opt-in off trip the google headless breaker, contradicting the migration doc.",
+      "suggested_fix": "Pick one: either update D-1.6 to `INVALID_CONFIG` / `failure_class: opt_in_required` and add a test asserting the breaker ignores that (code, failure_class) pair, or introduce the `ROUTE_DISABLED` code in `types.py` and `AgyOptInRequiredError` and update the migration bullet and e2e transcript. Record the choice as an explicit deviation in the report.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "cross_file_justification": "The addendum states 'cheval now preempts above 936,000 instead of 180,000 for `opus`' and 'Downstream mounts inherit the value with the catalog'. `effective_input_ceiling` in `.claude/defaults/model-config.yaml` is a per-model field read by cheval's preemption regardless of transport, but the measurement was taken only through `claude-bedrock` via the headless CLI (`ceiling_calibration.transport: claude-headless`, `cli_model: global.anthropic.claude-opus-5-5`).",
+      "description": "A transport- and route-specific measurement (Bedrock global inference profile, CLI 2.1.292 pre-flight at 1,000,000) has been written into a transport-agnostic catalog field. The HTTP adapter path for `claude-opus-5-5` and every downstream mount now lose the 180,000 preemption floor without any measurement of their route. The `reprobe_trigger` naming the API-transport probe acknowledges the gap but nothing enforces it.",
+      "failure_mode": "On a route whose effective window for this model is smaller (direct API tier without the 1M window, a different Bedrock region/profile, an older CLI pre-flight), prompts between 180K and 936K are no longer preempted and are uploaded in full before the provider rejects them, adding latency and, where the provider bills on rejected oversize requests, spend; Bridgebuilder's generated `maxInput 916000` truncation budget inherits the same assumption.",
+      "suggested_fix": "Either scope the calibrated ceiling to the recorded transport (cheval applies `probed_ceiling` only when the dispatch transport matches `ceiling_calibration.transport`, falling back to the prior floor otherwise), or state in the migration addendum and the catalog comment that HTTP-route callers and downstream mounts must re-probe before relying on the new bound, and keep the 180K floor as an explicit `fallback_ceiling` field until the API-transport probe runs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": "grimoires/loa/sdd.md:@@ -59,6 +59,10 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "§1.6 records that the tool's outcome was `partial` and it 'wrote nothing', after which the lead invoked `write_catalog_operator_set()` by hand and then edited the value to 936,000. The migration addendum in the same diff tells operators the tool 'writes the catalog only on a clean outcome'. The provenance that this entry came from a partial run plus a manual clamp lives only in a YAML comment on the catalog entry; the structured `ceiling_calibration` block carries `method: probed_headless` with no outcome field, and `probed_ceiling` holds the clamped 936,000 rather than anything the probe observed.",
+      "failure_mode": "The catalog is round-tripped by `tools/regen-model-artifacts.sh`, yq overlays and the probe's own writer; a comment-only provenance note is dropped on the first structured rewrite, after which the entry is indistinguishable from a clean tool-produced calibration. A later operator re-running the probe, or the `test_anthropic_catalog_floor.py` `_measured` branch, has no way to tell that the bisection never closed to tolerance.",
+      "suggested_fix": "Add structured fields to `ceiling_calibration` (`probe_outcome: partial`, `written_by: operator`, `clamp: i2`) and extend the schema additively; have `write_catalog_operator_set()` refuse or require an explicit `--force-partial` flag when the record's outcome is not `clean`, so the bypass is visible in argv and the record. Reword the migration bullet so 'writes only on a clean outcome' and 'written from a partial run' are not presented as the same path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md:@@ -265,12 +265,50 @@",
+      "cross_file_justification": "The addendum claims 'cheval now preempts above 936,000'. That number is in server-measured tokens (`usage` from the CLI's JSON). The same diff (sdd.md §1.6) reports the probe's own filler estimate under-counted by ≈1.8x against measured usage. Whether cheval's preemption estimator in `cheval.py` counts in the same unit is not stated anywhere in the diff, and the 8ad37c55 fix to step the bisection in measured tokens shows the unit mismatch was real inside this very tool.",
+      "description": "The catalog bound is expressed in measured tokens, but cheval's preemption necessarily uses a local estimate before dispatch. The run demonstrated that a heuristic estimate for this tokenizer can be off by 1.8x. If cheval's estimator shares that bias, '936,000 estimated' corresponds to roughly 1.68M real tokens and the preemption never fires before the CLI pre-flight rejects; if it is calibrated to measured tokens the doc should say so. Additionally the CLI's `usage` includes the CLI's own system prompt and tool definitions, which cheval's prompt-side count may not include, so I2 (`936,000 + 64,000 = 1,000,000`) sits exactly at the window with no margin for that overhead.",
+      "failure_mode": "Prompts that cheval believes are under the ceiling are rejected after upload by the CLI pre-flight or the provider with 'Prompt is too long', reproducing the failure mode the preemption exists to prevent, at the largest and most expensive request sizes.",
+      "suggested_fix": "State in the addendum which estimator cheval's preemption uses and that it is calibrated to measured tokens (or apply the observed `tokenizer_ratio` from the probe record when comparing). Reserve a documented margin for the CLI's fixed overhead in the I2 clamp (for example write `effective_input_ceiling = context_window - default_max_tokens - cli_overhead_tokens`) and have the probe record the overhead by measuring an empty-prompt call.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:43:30Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16717,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e63af56e366d8be0f3a40b3a428eff552892903aafc6815335cae38c5b0f9049",
+      "run_tag": "k-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

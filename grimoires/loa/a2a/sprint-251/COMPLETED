@@ -1,0 +1,1 @@
+COMPLETED 2026-10-07T17:44:23Z sprint-1 (global 251) review r2 APPROVED (Fable, 0/0/1/3) audit r1 APPROVED (Fable, 0/0/1/4; audit dissent runs 1–2 triaged in round r251-4; round r251-4 cbfccab2 audited by reading, probes and suites — no third run; MED-001 one permission rule across the three opt-in readers to fix before the cycle PR)

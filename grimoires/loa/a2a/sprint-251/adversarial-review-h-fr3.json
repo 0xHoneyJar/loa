@@ -1,0 +1,210 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:test_a_transient_class_that_persists_is_other_after_three_attempts",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Pytest test code appears to have been added inside the production provider module. The added module body includes `@pytest.mark.parametrize(...)` decorators, but production imports of `loa_cheval.providers.claude_headless_adapter` will evaluate those decorators at import time.",
+      "failure_mode": "If `pytest` is not imported in this runtime module, importing the Claude headless adapter raises `NameError: name 'pytest' is not defined`, breaking any command path that loads the provider. Even if pytest were imported, this leaves test-only fixtures and helper references in production code.",
+      "suggested_fix": "Move these test functions into the intended test module, likely `.claude/adapters/tests/test_ceiling_probe_cli_transport.py`, and keep `.claude/adapters/loa_cheval/providers/claude_headless_adapter.py` limited to runtime adapter code.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tools/ceiling-probe-live.py:@@ -13,6 +13,40 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new usage docstring states that a clean --write-catalog writes `probed_ceiling` and `effective_input_ceiling` = \"the measured accepted size (raw — the api transport applies no safety margin either)\". The same diff ships fr23b tests (`test_the_write_clamps_to_the_i2_invariant_and_keeps_the_raw_measurement`, `test_clean_end_to_end_write_above_the_clamp`) asserting the written value is min(measured, context_window − default_max_tokens(entry)) = 936,000 with the raw accept only in `ceiling_calibration.measured_input_tokens`. The docstring also still describes `--tolerance-tokens` without saying it is now in measured tokens, and the older 'Exit codes' line still defines 3 as 'the budget cap stopped the bisection' while the new paragraph makes 3 mean any partial.",
+      "failure_mode": "An operator reading --help expects the raw measurement in the catalog and a filler-unit tolerance; the tool writes a clamped value and a measured-token tolerance. Misread provenance when auditing the catalog entry.",
+      "suggested_fix": "Update the docstring: the written bound is min(measured, context_window − default_max_tokens(entry)) (I2), the raw accept is kept in ceiling_calibration.measured_input_tokens, --tolerance-tokens / --max-tokens-probe are measured tokens, and exit 3 is any partial outcome.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": "grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json",
+      "cross_file_justification": "The committed record is in the diff and shows the spend rule from tools/ceiling-probe-live.py (`max(cli total_cost_usd, tokens × catalog price)` for every attempt) charging $4.00 and $2.36 for two rejections that reported `cli_reported_cost_usd: 0` and never produced billable usage (`size_origin: cli_local` pre-flight, and a provider 400). `test_transient_classes_retry_with_backoff_and_count_every_attempt` pins the same behaviour ('two rejected at the requested size' are paid for).",
+      "description": "Size rejections that never reach the model (the CLI's own pre-flight) or are refused with a 400 are not billed by Anthropic or Bedrock, yet the probe debits them at the full catalog input price of the requested filler size. In the committed run this consumed $6.36 of the $20 budget on zero-cost attempts; the tool's own spent_usd is 19.10 against a CLI-reported 12.74. That phantom spend is the proximate cause of the `partial` outcome (\"budget cap stopped the bisection\"), which in turn led to the manual catalog write that bypassed the tool's clean-only gate.",
+      "failure_mode": "The budget cap trips one or two bisection steps early on every run whose top steps are pre-flight rejected (which is the normal shape of a probe), producing `partial` records and no automatic write; operators then hand-write the catalog, which is exactly what the clean-only gate exists to prevent.",
+      "suggested_fix": "For a size rejection with no usage block and a CLI-reported cost of 0 (cli_local pre-flight, or a provider 400/validation error), charge 0 (or a count_tokens-sized nominal). Keep max(cli_cost, estimate) only for attempts that returned usage or a non-zero CLI cost. Record `billed: false` on such samples so the spend line stays auditable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/ceiling-probe-live.py:_classify",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_a_token_budget_429_that_persists_at_a_size_is_a_size_rejection",
+      "cross_file_justification": "The test in the diff asserts that a token-budget 429 persisting through 3 attempts yields `failure_class: token_limit`, kind `size`, exit 0 (clean), so the behaviour flows into the catalog write path in tools/ceiling-probe-live.py (docstring hunk in diff). The docstring says 429 is 'retried up to 3 attempts with backoff' and only context-limit messages are size rejections; it does not say a persisted token-budget 429 is promoted to a size rejection.",
+      "description": "The retry backoff is 5s then 15s (`fake['sleeps'] == [5, 15]`), i.e. ~20s total, but tokens-per-minute windows are 60s. Bisection steps run back-to-back and each accepted step deposits hundreds of thousands of tokens into the window, so the *next* larger step can 429 for three straight attempts purely because of the previous step's tokens, not because the request exceeds any per-request limit. The probe then records that step as a `size` rejection above the largest accept — a shape the `_outcome_reasons` 'inconsistent' check cannot catch — and keeps bisecting below it. On a direct-Anthropic claude-headless route (API key or subscription) this converges to a 'clean' bound that is really (ITPM − previous step) and writes it to `probed_ceiling`/`effective_input_ceiling` with `method: probed_headless`. The API transport keeps rate-limit evidence in `account_limits.itpm`; the CLI transport folds it into the ceiling instead.",
+      "failure_mode": "A clean-looking write of an under-sized ceiling (potentially tens of percent low) into the production catalog, silently governing truncation for every cheval caller until a re-probe. Not reproducible on the Bedrock route used in Task 1.5 (Bedrock throttles as `other`), so the live run did not exercise it.",
+      "suggested_fix": "Either (a) for a token-budget 429, wait out the window (≥60s, or the retry-after header) before the final attempt and only then classify as size; or (b) classify a persisted token-budget 429 as its own class (`rate_limit`) that makes the outcome `partial` with a reason, and record the parsed per-minute limit into `account_limits.itpm` as the API path does, rather than into the ceiling.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "This test skips whenever the live catalog no longer carries the '# loa:shortcut: Opus 5's measured bound, not probed on 5.5' comment. The lead's write in f43949d6 removed that comment, so from this commit onward the test is permanently skipped on the real tree. It is the only place in the suite that (1) validates the written `ceiling_calibration` block against `$defs.ceilingCalibration` in model-config-v3.schema.json, (2) checks that every other provider/model entry and the aliases block are byte-for-byte untouched by `write_catalog_operator_set`, and (3) checks the comment-count/provenance-line invariants. The SYNTH-based tests do none of these. The implementation report states the adapters pytest selection has only one pre-existing skip outside the sprint's files; this new skip is inside them.",
+      "failure_mode": "A future change to `write_catalog_operator_set` that emits a schema-invalid `ceiling_calibration` field, or that disturbs a neighbouring entry's YAML, passes the suite; the drift is only caught later when the live catalog is schema-checked (if at all).",
+      "suggested_fix": "Move the jsonschema validation, the neighbouring-entry equality loop and the aliases check into the SYNTH-based tests (`test_a_measured_bound_below_the_old_one_is_written_as_measured` or a new SYNTH test), and either delete the live-catalog test or convert it to assert the already-calibrated catalog is idempotent under a re-write.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_no_literal_opus55_ceiling_pins.py:SWEPT",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The guard's docstring says it covers 'the suites whose Opus 5.5 ceiling pins were swept to read the catalog', but SWEPT lists only `test_anthropic_catalog_floor.py` and `loa-status-providers.bats`. The implementation report (Task 1.4) says LSP-5 *and the codegen tests* (gen-bb-registry-codegen.bats, gen-adapter-maps.bats, the truncation.generated.ts expectations) were swept too. Those suites are unguarded, so a literal 180000 / 180_000 (or the new 936000 / 916000) can be re-pinned there without this test noticing.",
+      "failure_mode": "The next re-probe that changes the Opus 5.5 bound turns the codegen suites red on a literal, which is exactly the failure mode FR-3.4 / SDD D-3.4 says this guard prevents.",
+      "suggested_fix": "Add the swept codegen suites to SWEPT (with an empty allow-set), and consider extending LITERAL to the current written value (936000) so a re-pin of the *calibrated* number is caught as well as a re-pin of the old cap.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:test_budget_cap_stops_with_partial_and_writes_nothing",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The test passes `--allow-partial` together with `--write-catalog` on the claude-headless transport and asserts the catalog is untouched and exit is 3 — i.e. the flag is accepted by argparse but has no effect on this transport, and nothing in the asserted record (`reasons`) names the ignored flag. An operator who passes `--allow-partial --write-catalog` expects a write; they get exit 3 and no change, and have to discover why.",
+      "failure_mode": "Silent no-op of an explicit operator flag on one transport. In Task 1.5 the lead ended up hand-calling `write_catalog_operator_set` to get the write the flag appeared to offer.",
+      "suggested_fix": "In `_main_cli`, either reject `--allow-partial` with `--write-catalog` as a usage error (exit 2) for the claude-headless transport, or append an explicit reason such as '--allow-partial is not honoured by the claude-headless transport; catalog not written' to `record['reasons']` and print it to stderr.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py:@@ -0,0 +277,250 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff labels two large hunks (~400 lines of pytest tests referencing `tool`, `fake`, `CATALOG`, `SYNTH`, `SCHEMA_V3`, `pytest`, `yaml`) as modifications to the production adapter module, with a `-0,0` old range that cannot belong to an existing non-empty file. This is almost certainly a diff-chunking artefact: the content is `test_ceiling_probe_cli_transport.py`. Two consequences for this review: (1) if the attribution were literal, the adapter would import pytest at module load and fail in any runtime without it; (2) the adapter's *actual* production change in this sprint — the `build_headless_argv` extraction shared by the adapter and the probe — is not present in the diff and therefore has not been reviewed here.",
+      "failure_mode": "Unreviewed production change to the argv builder that both cheval's headless route and the probe depend on; a regression there (e.g. a dropped `--no-session-persistence` or `--tools \"\"`) would affect every headless completion, not just the probe.",
+      "suggested_fix": "Confirm `git show 8ad37c55 -- .claude/adapters/loa_cheval/providers/claude_headless_adapter.py` contains only the `build_headless_argv` extraction and no test code, and route that hunk through review.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T10:24:55Z",
+    "tokens_input": 59088,
+    "tokens_output": 28267,
+    "cost_usd": 0,
+    "latency_ms": 28869,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-h-fr3.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-h-fr3.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b6825fee4dd9d1660c04c49fe929c77f0fa70bcd59d77559af76c5a29a04b87c",
+      "run_tag": "h-fr3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

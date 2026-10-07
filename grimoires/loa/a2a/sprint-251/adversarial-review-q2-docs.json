@@ -1,0 +1,210 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -284,20 +284,37 @@ ### Cycle-127 addendum — operator decisions (unreleased)",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The agy routing rule documented in the changelog contradicts the SDD added in this same diff. CHANGELOG says a Google voice under `prefer-api` with no Google key is an agy route, while `grimoires/loa/sdd.md` D-1.9 says under `prefer-api` with no Google key the HTTP hop fails on credentials before any agy hop and key presence is not part of the rule.",
+      "failure_mode": "This leaves the normative operator docs specifying two incompatible planner behaviors for the same config: either skip as `opt_in_required` and walk on, or fail/report `no_credentials`. Implementers and tests following the changelog can produce the wrong `planned`/failure classification for Google `prefer-api` fallback chains.",
+      "suggested_fix": "Make the changelog use the same rule as SDD D-1.9: agy-routed means the literal `gemini-headless` hop or a Google voice under effective `cli-only`; under `prefer-api` with no Google key, classify the HTTP hop as `no_credentials` before any agy hop.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -284,20 +284,37 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "cross_file_justification": "CHANGELOG and SDD D-1.9 are both in this diff and give two different definitions of the single shared predicate routes_to_agy.",
+      "description": "The CHANGELOG defines the agy route as three cases: the literal gemini-headless hop, a Google voice under effective cli-only, OR 'a Google voice under prefer-api with no Google key resolvable'. SDD D-1.9 in the same diff defines routes_to_agy(model, mode) with only the first two cases and explicitly states 'key presence is not part of the rule' (the HTTP hop fails on no_credentials first). The predicate signature carries no key input, so the CHANGELOG's third clause cannot be what the shipped predicate computes. FR-1.5 requires one predicate; the diff publishes two definitions of it.",
+      "failure_mode": "Operators configuring prefer-api without a Google key read the CHANGELOG and expect the voice to be reported as not planned with reason opt_in_required (and expect setting agy_opt_in true to be the remedy), while the planners actually report no_credentials on the HTTP hop. Conformance tests written from the CHANGELOG wording would disagree with tests written from D-1.9.",
+      "suggested_fix": "Drop the prefer-api/no-key clause from the CHANGELOG bullet (or, if the planners really do treat it as an agy route, amend D-1.9 and the predicate signature). Make the CHANGELOG sentence match the D-1.9 wording verbatim: literal gemini-headless hop, or a Google voice under effective cli-only.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -307,8 +324,26 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Within the same CHANGELOG bullet the unchanged context line still says 'Bridgebuilder's budget for it is 916,000 input tokens' while the added text says 'Bridgebuilder's budget for the entry is the bound divided by 1.8 (≈508,000 estimated tokens)'. Both cannot be true. The added formula is also wrong on its own terms: 936,000 / 1.8 = 520,000, not 508,000; 508,000 only falls out of (936,000 − 20,000 safety margin) / 1.8, which is what sprint.md's '916,000 → 508,000' describes. The paragraph additionally attributes the whole 1.4–1.8× under-count to cheval's estimate, whereas D-3.10b says cheval's chars/3.5 heuristic is ≈1.4× and 1.8× is the cl100k probe filler.",
+      "failure_mode": "An operator sizing Bridgebuilder input for claude-opus-5-5 from the CHANGELOG gets either a stale 916,000 (1.8× over the real generated budget, guaranteeing truncation or provider rejection) or a formula that yields 520,000 instead of the generated 508,000.",
+      "suggested_fix": "Replace the 916,000 context line with the current generated value, and state the formula as it is computed: (bound − the 20,000 safety margin) / MEASURED_TO_ESTIMATE_SAFETY, ≈508,000 estimated tokens. Attribute 1.4× to cheval's estimate and 1.8× to the probe filler as D-3.10b does.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "grimoires/loa/prd.md:@@ -109,7 +109,7 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "cross_file_justification": "SDD D-3.11 and the CHANGELOG (both in the diff) add a partial-record catalog write path that PRD FR-3.5, shown as context in the diff's prd.md hunk, still forbids.",
+      "description": "PRD FR-3.5 still reads 'writes the catalog only on a clean verified bound' and SDD D-3.8 says the same. This diff adds --write-partial-as-operator-set (D-3.11, CHANGELOG) and records that the live claude-opus-5-5 entry was written from a partial record (probe_outcome: partial, sample_size: 5). The diff edits FR-1.5 for exactly this kind of label drift but leaves FR-3.5 contradicting shipped behaviour and the live catalog state. sprint.md's MVP line likewise still says an unclean bound ends as '180K kept'.",
+      "failure_mode": "The acceptance spec says one thing and the catalog carries another. The next FR-3 review or guard test written from FR-3.5 will flag the live entry as a spec violation, and a downstream mount reading the PRD has no way to learn that a partial record can legitimately reach the catalog.",
+      "suggested_fix": "Amend FR-3.5 and SDD D-3.8 to: 'writes the catalog only on a clean verified bound, or on a partial record when the operator passes --write-partial-as-operator-set, in which case probe_outcome: partial is written to the entry'. Update the sprint.md MVP line to the same effect.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -284,20 +284,37 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "cross_file_justification": "The CHANGELOG effort bullet and SDD D-2.8 are both in the diff and describe the chain-walk effort rule differently.",
+      "description": "The CHANGELOG says 'A hop the chain walk reaches that declares no default inherits the effort resolved for the requested entry', which implies a per-hop rule where a hop that does declare params.default_effort or extra.effort uses its own value. SDD D-2.8 says effort 'is resolved once against the head entry and carried on the request to every hop' with no conditional. Under D-2.8, declaring default_effort: low on claude-headless has no effect when it is reached from opus; under the CHANGELOG reading it would win.",
+      "failure_mode": "An operator follows the CHANGELOG's advice to declare a default on the CLI entry expecting it to govern fallback hops, and the walk sends --effort high anyway (or, if the implementation matches the CHANGELOG, D-2.8's pin and finding-54 refutation are wrong).",
+      "suggested_fix": "Remove the 'that declares no default' qualifier from the CHANGELOG and state D-2.8's rule plainly: effort is resolved once for the requested entry and carried to every hop; a CLI entry's own default applies only when that entry is the one requested.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "D-1.8 says 'Only a direct --model gemini-headless raises AgyOptInRequiredError' and that a gated hop in a chain is skipped and 'the walk continues to the next hop'. D-1.9 says any Google voice under effective cli-only routes to agy. The two leave two cases unspecified: (a) a direct --model gemini-2.5-pro under LOA_HEADLESS_MODE=cli-only, which routes to agy but is not the literal gemini-headless; (b) a chain whose every hop is gated (the stock Google chain under cli-only), where 'continue to the next hop' has nowhere to go. Neither doc says which error class terminates these walks.",
+      "failure_mode": "If the terminal error for an all-gated walk is the generic exhausted-chain class (PROVIDER_UNAVAILABLE or similar) rather than INVALID_CONFIG/opt_in_required, FR-1.5's 'never trips a breaker' and 'not planned rather than failed' guarantees are violated for exactly the configuration (cli-only hosts) the opt-in is meant to protect, and the MODELINV envelope misreports the voice as failed.",
+      "suggested_fix": "Add to D-1.8: a walk in which every hop is gated terminates with AgyOptInRequiredError (INVALID_CONFIG, failure_class opt_in_required, no breaker increment), and a direct Google voice under effective cli-only is treated as the direct gemini-headless case. Pin both with a test alongside the existing no-breaker-increment test.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -307,8 +324,26 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "cross_file_justification": "The CHANGELOG generalises a safeguard that SDD D-3.10b (in the diff) scopes to the Anthropic HTTP adapter only.",
+      "description": "The CHANGELOG states that 'on a calibrated entry cheval asks the provider's free count_tokens once the estimate passes half the bound and gates on the exact count'. D-3.10b scopes this to 'the Anthropic HTTP adapter's count_tokens trigger'. The calibration was taken on claude-headless, which is also this repo's primary route (KF-040: direct API unreachable), and the CLI has no count_tokens. On that route the only gate is cheval's chars/3.5 estimate, which under-counts by ≈1.4×, so prompts estimated between ≈670,000 and 936,000 pass the gate and are rejected by the CLI pre-flight.",
+      "failure_mode": "Operators on the headless route read the CHANGELOG and believe an exact-count gate protects them near the window; in practice such requests fail with PROVIDER_CONTEXT_LIMIT and are 'not walked', so the fallback chain is never tried for a request that a tighter estimate would have preempted or routed.",
+      "suggested_fix": "Qualify the CHANGELOG sentence: the exact-count gate applies on the HTTP transport only; on the claude-headless route cheval gates on its estimate and the CLI pre-flight is the backstop (no spend, PROVIDER_CONTEXT_LIMIT, not walked). Consider applying a 1/1.4 divisor to the headless pre-dispatch gate for calibrated entries, mirroring Bridgebuilder's MEASURED_TO_ESTIMATE_SAFETY.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/sdd.md:@@ -56,6 +56,17 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "D-3.12 makes a persisting tokens-per-minute 429 a size step (failure_class: token_limit). D-3.11's write path checks only clean|partial. A bisection whose rejections are all TPM 429s on a rate-limited account therefore ends 'clean' and writes probed_ceiling / effective_input_ceiling with method: probed_headless into the shared catalog, which the CHANGELOG says downstream mounts inherit. An account quota is not a model context ceiling; the catalog already distinguishes the two via account_limits.",
+      "failure_mode": "A probe run on a TPM-limited account publishes an artificially low model ceiling to every mount; because 'a bound below the old one is written, never kept' and the observation store is tighten-only, the bound is not self-correcting on hosts with a higher tier.",
+      "suggested_fix": "Have write_catalog_operator_set() refuse (or require an explicit flag for) a record whose bounding rejection carries failure_class token_limit, and direct such outcomes to account_limits rather than probed_ceiling. Record the bounding failure_class in ceiling_calibration alongside probe_outcome.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:34:07Z",
+    "tokens_input": 55718,
+    "tokens_output": 25050,
+    "cost_usd": 0,
+    "latency_ms": 29525,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-q2-docs.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-q2-docs.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4e1b55143e0dca2f20b64405d763ffd2e2464e877ea1397ba4302316086b3754",
+      "run_tag": "q2-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

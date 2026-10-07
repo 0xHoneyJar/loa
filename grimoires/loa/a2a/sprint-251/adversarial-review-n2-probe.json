@@ -1,0 +1,194 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_probe_cli_transport.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The new preflight dry-run calls write_catalog_operator_set(..., ceiling=1). That exercises the writer with a bogus ceiling rather than a minimally valid probe ceiling, so any catalog path that enforces the I2/output-budget clamp can fail before the probe starts even though a real post-probe write would have been valid.",
+      "failure_mode": "Running the CLI with --transport claude-headless --write-catalog can exit 2 with 'no call made, nothing spent' for a valid catalog, making the write path unusable. This violates the intended behavior of only rejecting catalogs that cannot accept the eventual operator-set write.",
+      "suggested_fix": "Use a syntactically valid dry-run ceiling that satisfies the same clamp invariants as a real write, for example default_output_budget + 1 or the requested max probe ceiling if available, rather than 1. Keep the dry-run non-mutating.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/ceiling-probe-live.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The r251-1 P6 pre-spend dry-run opens --write-catalog read-only and calls write_catalog_operator_set() on the text, but never checks that the final _write_text_atomic() can land (directory not writable, read-only file, temp-file creation in the catalog's directory). The comment claims 'a write that cannot land must fail before any spend'; only parse/clamp/field failures are caught before spend.",
+      "failure_mode": "A run against a catalog in a read-only checkout or a directory the user cannot write to passes the dry-run, spends the full budget on the bisection, and then fails with 'catalog not written: Permission denied' at the very end (clean path or the forced partial path), leaving the operator with a record but no catalog write — the exact outcome P6 was meant to prevent.",
+      "suggested_fix": "In the dry-run block also verify writability: os.access(os.path.dirname(args.write_catalog) or '.', os.W_OK) and os.access(args.write_catalog, os.W_OK), or create-and-remove a tempfile in the target directory the same way _write_text_atomic does; return 2 with 'no call made, nothing spent' on failure.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": "tools/ceiling-probe-live.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "record['written_ceiling'] and the new record['written_probe_outcome'] are set as soon as new_catalog is computed, and the record is serialized to --output before _write_text_atomic() runs. The forced-partial branch then catches OSError from _write_text_atomic and returns 1 without amending the already-written record.",
+      "failure_mode": "When the catalog write fails after the record has been written, the persisted JSON report asserts written_ceiling=N / written_probe_outcome=partial while the catalog is unchanged. Anyone reading the report (the sprint evidence trail, a later re-probe decision) sees a write that never happened.",
+      "suggested_fix": "Perform the catalog write before serializing the record (or set written_ceiling/written_probe_outcome only after _write_text_atomic succeeds, and on failure set record['error'] and re-write the record file). Apply the same ordering to the clean path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/ceiling-probe-live.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`if errors: record['error'] = errors[0]` runs first; the new forced-but-no-verified-accept branch then unconditionally overwrites record['error'] with 'catalog not written: --write-partial-as-operator-set but no verified accept to vouch for' without appending to `errors`. The exit code still follows `errors` (return 1), while the record and the stderr `why` text name a different cause.",
+      "failure_mode": "A run that stopped with an `other` failure (e.g. the CLI could not be spawned) and was invoked with --write-partial-as-operator-set exits 1 but its record's `error` field no longer names the actual failure; the original error text is lost from the only durable artifact.",
+      "suggested_fix": "Only set record['error'] in the forced branch when not already set (record.setdefault), or store it under a separate key such as record['write_skipped'], keeping record['error'] bound to errors[0].",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tools/ceiling-probe-live.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "After a successful forced write (--write-partial-as-operator-set, _write_text_atomic landed, 'written anyway as operator_set' printed), control falls through to `return 1 if errors else 3`. Exit 3 has until now meant 'partial — nothing written to the catalog'; the same code is now returned both when nothing was written and when the catalog was modified.",
+      "failure_mode": "Any wrapper (sprint runner, regen script, CI step) that treats exit 3 as 'no catalog change, skip regen' will skip regenerating Bridgebuilder's registry/truncation artifacts after the catalog actually changed, producing the drift that regen-model-artifacts.sh --check is meant to catch; conversely a wrapper treating non-zero as failure discards a successful write.",
+      "suggested_fix": "Return 0 (or a distinct documented code) when the forced write lands, and keep 3 only for 'partial, nothing written'. Document the code in the module docstring/--help.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/ceiling-probe-live.py:_main_cli",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The outer `except BaseException as e` around the bisection converts every exception — including programming defects (TypeError in _classify, KeyError in next_target) and SystemExit — into stop='interrupted', records only f'{type}: {e}', and exits 1. The traceback is never printed, and a SystemExit's code is discarded.",
+      "failure_mode": "A defect in the bisection surfaces as 'interrupted (KeyError: 'size_measured')' on stderr with no traceback and no way to localize it; the record is kept (good) but the operator cannot diagnose the tool failure that just consumed budget. sys.exit(2) raised from a helper becomes exit 1.",
+      "suggested_fix": "In the handler, `if not isinstance(e, KeyboardInterrupt): traceback.print_exc(file=sys.stderr)`; propagate SystemExit's code (return e.code if isinstance(e, SystemExit)); consider re-raising non-KeyboardInterrupt exceptions after the record has been written.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tools/ceiling-probe-live.py:_persisted_transient",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The token_limit → size reclassification requires `waited >= _TPM_WINDOW_S`, where `waited` is the sum of sleeps only. _retry_wait() clamps each sleep to `_RETRY_WAIT_CAP_S - waited`, so `waited` can never exceed the cap and reaches the window only if _RETRY_WAIT_CAP_S >= _TPM_WINDOW_S and the schedule sums to it within _TPM_ATTEMPTS-1 sleeps. With fractional retry_after_s hints, `waited + (cap - waited)` can accumulate to 59.999… and miss the `>=` by floating-point error. The attempts' own wall-clock (the CLI round-trip) is not counted, so the 'only Ns were waited — the 60s window was not cleared' message can be false when far more than 60s elapsed.",
+      "failure_mode": "A tokens-per-minute-bounded account ends every step in kind='other' (bisection stops) instead of the intended 'size'/'token_limit' (bisection continues downward), or stops with a misleading 'window not cleared' detail, depending on constants not visible in this diff and on float accumulation.",
+      "suggested_fix": "Measure the window by wall-clock: record time.monotonic() at the first token_limit 429 of the step and compare `monotonic() - first_429 >= _TPM_WINDOW_S` (integer seconds, or with a small tolerance); assert at import time that _RETRY_WAIT_CAP_S >= _TPM_WINDOW_S and sum(_TPM_BACKOFF_S[:_TPM_ATTEMPTS-1]) >= _TPM_WINDOW_S so the reclassification branch is reachable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T13:20:46Z",
+    "tokens_input": 55026,
+    "tokens_output": 31255,
+    "cost_usd": 0,
+    "latency_ms": 28271,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-n2-probe.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-n2-probe.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "41faa65943388420f87abfdbd1a54602b90878cb52490e8cf5c71cbda501b41b",
+      "run_tag": "n2-probe"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

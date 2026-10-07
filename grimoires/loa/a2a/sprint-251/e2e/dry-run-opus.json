@@ -1,0 +1,10 @@
+{
+  "agent": "reviewing-code",
+  "resolved_provider": "anthropic",
+  "resolved_model": "claude-opus-5-5",
+  "temperature": 0.3,
+  "max_tokens": 64000,
+  "effort": "high",
+  "effort_source": "catalog",
+  "effort_effective": "high"
+}

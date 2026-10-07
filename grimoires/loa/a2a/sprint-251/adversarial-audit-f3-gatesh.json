@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "tests/unit/run-preflight.bats:@test \"PF-AGY-4 (review r251-1 G12): a string agy_opt_in reads off with one WARN naming the key and the type; --json stays quiet on stderr\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:@test \"FTA-1 an agy tertiary with the opt-in absent, false or a string is not planned; the reason names the key\"",
+      "cross_file_justification": null,
+      "description": "The hounfour.headless.agy_opt_in gate decides whether review content is dispatched to the external Antigravity (agy) route. The diff shows it is parsed independently by three consumers: flatline-orchestrator.sh (FTA-1..5, bash), the /loa status script (LSP-AGY), and run-preflight (PF-AGY-4, whose WARN text reports a Python type name '(str)', implying PyYAML). The new tests only exercise the values true, false, absent, and the quoted string \"true\". None exercise YAML 1.1 truthy literals (yes, on, True, 1) or duplicate hounfour keys (PF-AGY and PF-AGY-4 append a hounfour: block to an existing file). PyYAML (YAML 1.1) decodes yes/on as booleans; yq v4 (YAML 1.2) decodes them as strings. A parser divergence between consumers is exactly the failure this gate exists to prevent, and the test suite would not detect it.",
+      "failure_mode": "An operator writes agy_opt_in: yes. Preflight and status report 'agy: opt-in (disabled)' while the orchestrator's parser treats the value as boolean true and sends review documents through the agy route the operator believes is off. The reverse divergence makes preflight PASS a voice the orchestrator never plans, silently degrading to 2-model mode.",
+      "suggested_fix": "Add one table-driven case list (yes, on, True, 1, \"true\", true, false, absent, duplicate key) and run it in all three test files, asserting identical verdicts from get_tertiary_status, the status JSON cli_hop_note, and the preflight P3 line. Preferably route all three consumers through a single shared boolean-parsing helper so the tests pin one implementation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:@test \"FTA-4 a non-agy tertiary and an unset tertiary are unchanged by the gate\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/flatline-tertiary-agy-opt-in.bats:@test \"FTA-4 a non-agy tertiary and an unset tertiary are unchanged by the gate\"",
+      "cross_file_justification": null,
+      "description": "FTA-4 verifies the gate defaults off when the opt-in key or the tertiary model is absent, but no test covers an unreadable CONFIG_FILE, malformed YAML, or the YAML tool missing from PATH. get_tertiary_status and tertiary_opt_in_skip_reason are only observed on well-formed input, so fail-closed behaviour on the error path is unverified for a gate that controls an external dispatch.",
+      "failure_mode": "A yq failure or a syntax error in .loa.config.yaml yields an empty status string; downstream Phase 1 code compares against 'disabled_by_opt_in', finds no match, and proceeds to dispatch or logs a 'Voice dropped' DEGRADED path instead of the opt-in skip.",
+      "suggested_fix": "Add FTA cases for a missing config file, a malformed YAML body, and yq removed from PATH. Assert get_model_tertiary returns empty, get_tertiary_status returns a disabled value, and run_phase1 makes no tertiary call.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:05:00Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9059,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0f39f627ae524989ac019833a829fb34ec1c7b35cf7850b90756704403cd100a",
+      "run_tag": "f3-gatesh"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

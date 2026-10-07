@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/__init__.py:@@ -141,14 +141,40 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The three hunks labelled under providers/__init__.py are not registry code. They define pytest tests (test_ceiling_is_the_computed_value_per_entry, test_a_foreign_transport_calibration_carries_its_provenance, test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch, test_opus_5_5_has_the_1m_window_at_standard_pricing), use fixtures named http_entries/catalog/anthropic, import from the top-level cheval module, and compute REPO_ROOT = Path(__file__).resolve().parents[3], which only resolves to the repository root from .claude/adapters/tests/. The supplied full-file context for providers/__init__.py shows the untouched adapter registry. The content matches tests/test_anthropic_catalog_floor.py, which the implementation report names as the file carrying the _measured branch.",
+      "failure_mode": "If the hunks really landed in providers/__init__.py, importing loa_cheval.providers would pull in pytest, the cheval CLI module and the catalog path .claude/.claude/defaults/model-config.yaml, breaking every adapter import. Far more likely the diff metadata is wrong, in which case the P0 escalation reviewed the registry instead of the test module and the registry review is vacuous.",
+      "suggested_fix": "Confirm with `git show --stat 059e26be` which file the hunks belong to. If the diff path is a harness artefact, re-run the review with the correct path so anchors are stable; if the test code is actually in providers/__init__.py, move it to .claude/adapters/tests/test_anthropic_catalog_floor.py.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_calibrated_count.py:_calibrated",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both synthetic fixtures (_calibrated in test_ceiling_calibrated_count.py and _entry in test_ceiling_calibration_transport.py) hardcode calibrated_at 2026-10-07T09:29:07Z together with stale_after_days 90. The live catalog entry read by test_the_live_opus55_entry_is_a_foreign_transport_calibration carries the same date and window. Calibrated-ness is already derived from calibrated_at (test_transport_helpers flips it to None to get an uncalibrated entry), so it is plausible that input_bound/gate also treat a calibration past stale_after_days as not calibrated.",
+      "failure_mode": "If staleness is enforced by the policy, every assertion of d.calibrated is True, basis == 'calibrated', the 0.5 count trigger and the 'warn' action in these two modules starts failing on 2027-01-05 with no code change, and the live-catalog test fails as well until the entry is reprobed. CI goes red on a calendar date rather than on a regression.",
+      "suggested_fix": "Build calibrated_at from datetime.now(timezone.utc) in the fixtures, or set stale_after_days to a value that cannot elapse, or freeze time with a monkeypatched clock. For the live-catalog test, assert staleness explicitly and skip or xfail with a message naming the reprobe when the calibration has aged out, so the failure is self-explaining.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/__init__.py:test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The expected value in the no-kill-switch loop changed from a concrete number (CEILING_CAP or the entry's effective_input_ceiling) to input_bound(entry, max_tokens=_default_max_tokens(entry)).value. The assertion is now _lookup_max_input_tokens(...) == input_bound(...).value. If _lookup_max_input_tokens is implemented by calling input_bound with the same arguments, the comparison is policy == policy and the docstring's SDD §3.2 claim (180K under streaming) is no longer checked here. Separately, the test relies on LOA_CHEVAL_CEILING_OBSERVED_PATH being the variable the ceiling module honours for the observed-limit file; the new transport tests never set it and pass observed= explicitly, so the name cannot be confirmed from the diff.",
+      "failure_mode": "A regression in input_bound (for example the 180K cap being dropped for uncalibrated entries, or observed tightening leaking into the API path) passes this test because both sides move together. If the env var name is wrong, _lookup_max_input_tokens reads the host's real .run/ceiling-observed.json while input_bound gets observed=None, and the test becomes host-state dependent: a 200000 API-route observation would make it fail only on hosts that recorded one.",
+      "suggested_fix": "Keep one concrete expectation per branch: CEILING_CAP-capped room for uncalibrated entries and min(effective_input_ceiling, room) for measured ones, and additionally assert the basis returned by input_bound. Assert that the ceiling module exposes the env var name as a constant and use that constant in monkeypatch.setenv, or pass the observed path through a fixture that both the lookup and the test share.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/loa_cheval/providers/__init__.py:test_a_foreign_transport_calibration_carries_its_provenance",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Three gaps in the provenance guard. (1) method is accepted from ('probed_api', 'probed_headless') even though the test only runs for entries whose ceiling_calibration.transport is not api; a probed_api method on a claude-headless transport is contradictory provenance and passes. (2) isinstance(cal.get('measured_input_tokens'), int) accepts True because bool subclasses int. (3) When no HTTP entry is a foreign-transport calibration the loop continues through every entry and the test passes with zero assertions, so removing the transport key from the live entry silently disables the guard rather than failing or skipping.",
+      "failure_mode": "A hand-edited or tool-written entry with method: probed_api, transport: claude-headless, or with measured_input_tokens: true, is accepted as auditable provenance; the foreign-transport tightening in routing.ceiling then trusts a bound whose stated origin does not match its transport. A future catalog edit that drops transport makes the test vacuous without anyone noticing.",
+      "suggested_fix": "Require the method to match the transport family (probed_headless for any headless transport, probed_api only for api), check type(x) is int or isinstance(x, int) and not isinstance(x, bool), and count checked entries, asserting at least one or calling pytest.skip with a reason when none is foreign.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_ceiling_calibrated_count.py:test_calibrated_entry_without_a_count_warns_that_the_estimate_is_uncertain",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The test pins that a calibrated entry with no counter (counter None or a failed count) dispatches with action 'warn' at an estimate of 0.6 x bound and keeps estimate.method == 'heuristic'. The module docstring states the heuristic under-counts the Opus 4.7+ tokenizer by 1.4 to 1.8 times, and the probe record in the report shows 692,678 estimated for 972,887 measured (1.40x). A heuristic estimate at or above bound/1.8 (about 0.56 x bound, roughly 520,000 for the 936,000 entry) can therefore already exceed the 1,000,000 window. The route the calibration was measured on, claude-headless under subscription auth, is exactly the route where a provider count_tokens call is typically unavailable, so the warn path is the common path there, not the fallback.",
+      "failure_mode": "On the headless route a request estimated between about 0.56 and 1.0 of the bound is dispatched with only a warning and is rejected by the CLI pre-flight ('Prompt is too long'), spending a round trip and producing a size failure the gate exists to prevent. The test cements warn-and-dispatch as the contract rather than a ratio-corrected estimate.",
+      "suggested_fix": "When the entry is calibrated and no count is available, scale the heuristic by a conservative tokenizer ratio before comparing to the bound (the probe already computes tokenizer_ratio; persist it in ceiling_calibration or default to 1.8) and preempt when the scaled estimate exceeds the bound; keep 'warn' for the band below that. Add a test that an estimate of 0.6 x bound with no counter preempts when the scaled value exceeds the bound.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_ceiling_calibration_transport.py:test_the_live_opus55_entry_is_a_foreign_transport_calibration",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The skip condition is cal.get('transport') in (None, 'api'), but the policy as pinned by test_same_or_absent_transport_calibration_is_never_lowered_by_an_observation also treats 'API', ' api ', 'http' and '' as same-transport. If the live entry is ever written with one of those spellings the test does not skip, runs the foreign-transport assertions and fails on basis == 'observed'. The function also hardcodes max_tokens=64_000 and a 100_000 offset against whatever the live ceiling is, so a smaller future ceiling or a larger default output budget changes which invariant wins and the assertion on basis becomes wrong for reasons unrelated to the feature. The pytest.skip path itself contradicts the sprint's zero-skips acceptance criterion.",
+      "failure_mode": "A catalog rewrite with transport: http or API turns a should-skip case into a hard failure; a reprobe that lowers the ceiling or a default output budget change makes the I1 bound win and the basis assertion fail without any policy regression.",
+      "suggested_fix": "Gate on `not is_foreign_transport_calibration(entry)` rather than a literal tuple so the skip mirrors the policy, compute the observation offset from the actual I1 room (context_window minus the default output budget) instead of fixed numbers, and either drop the skip in favour of a hard assertion that the live entry is foreign or document the skip as the intended behaviour.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:52:25Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 23645,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ea84fee546501c225749ec3b0ebc54156c83b567aff21cd91dadb69f40ce4ee6",
+      "run_tag": "i2-ceil"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

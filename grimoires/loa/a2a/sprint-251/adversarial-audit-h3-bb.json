@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "const gated = gate.readError !== undefined ? model.provider === \"google\" : isAgyRouted(model.provider, model.model_id, gate.mode);",
+      "cross_file_justification": "config.ts (diff-touched) marks every google voice notPlanned whenever readAgyGate reports readError; multi-model-pipeline.ts (diff-touched) then subtracts notPlanned from the required participant count for the merge gate and skips the strict-mode throw for those voices.",
+      "description": "The agy gate is documented as fail-closed, but its failure mode fails OPEN for the two controls that matter. When `yq` is absent, times out, or `.loa.config.yaml` is malformed, `validateApiKeys` moves every google voice to `notPlanned`. In `executeMultiModelReview` that has two effects: (1) `api_key_mode: \"strict\"` no longer throws for those voices — it only logs a warn — so a strict-mode operator gets a review with fewer voices than configured; (2) the merge-block invariant (`modelResults.length !== models.length - notPlanned.length`) is satisfied with the reduced set, so a verdict from the remaining voices can clear `mergeBlocked`. A review host missing `yq`, or a repo whose `.loa.config.yaml` is unreadable, therefore lowers the reviewer quorum rather than blocking merge. The pre-change comment states the invariant explicitly: 'Incomplete or degraded participation can never clear a merge.'",
+      "failure_mode": "A configured 3-voice strict review (anthropic, openai, google) runs on a host without `yq` or with a corrupt `.loa.config.yaml`. The google voice is silently dropped at warn level, strict mode does not fail, and the two remaining voices can produce an APPROVED band that clears `mergeBlocked`. If `repoRoot` ever points at a PR-head checkout, the PR author can trigger this by corrupting `.loa.config.yaml`.",
+      "suggested_fix": "Treat `gate.readError` as a hard failure for strict mode (throw, as missing keys do) and keep `mergeBlocked = true` whenever `keyStatus.notPlanned` is non-empty due to a read error. Only subtract voices from the required count when the opt-in was read successfully and is explicitly false. Consider also pinning the merge gate to `multiConfig.models.length` and recording not-planned voices as a separate, non-clearing degradation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "export function loaConfigPathFor(repoRoot?: string): string {",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The agy opt-in that decides whether google voices are dispatched through the Antigravity CLI (spending operator-side CLI auth/quota) or dropped from the review is read from `.loa.config.yaml` under `config.repoRoot`, falling back to the current working directory. This is repository- and cwd-controlled data governing a routing decision, not operator-controlled configuration (env/CLI). The code correctly refuses to let the environment opt IN, but it lets a repo file do so. Whether this is exploitable depends on whether `repoRoot` can ever be a checkout of untrusted PR content; from the diff alone that cannot be confirmed.",
+      "failure_mode": "If the reviewer runs against a checkout containing the PR under review, the PR author can flip `hounfour.headless.agy_opt_in: true` to route google voices through the operator's agy CLI session, or set it false / corrupt the file to remove the google reviewer from quorum (see SEC-1).",
+      "suggested_fix": "Document and enforce that `repoRoot` is the operator's trusted checkout, or read the opt-in from an operator-owned location (e.g. `~/.loa/config.yaml` or an explicit CLI flag) with the repo file as a lower-priority source that can only turn the route OFF.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "readError = (stderr || e.message || String(err)).split(\"\\n\")[0].slice(0, 300);",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "? `not planned: ${notPlannedList} (the agy gate failed closed: Loa config unreadable — ${agyGate.readError}; hounfour.headless.agy_opt_in)`",
+      "cross_file_justification": "config.ts captures raw yq stderr / Node error text into `readError`; multi-model-pipeline.ts interpolates it into a thrown Error message and warn logs; main.ts prints it via agyGateStartupLines.",
+      "description": "`readError` carries the first 300 chars of raw `yq` stderr or the Node spawn error (`spawnSync yq ENOENT`, absolute path of `.loa.config.yaml`, yq parse diagnostics). It is interpolated into the `No models available` Error thrown from `executeMultiModelReview`. If that error text is ever surfaced in a PR comment or run summary rather than only in operator logs, it leaks local filesystem paths and tool inventory of the review host.",
+      "failure_mode": "An unreadable config causes the pipeline to throw with a message containing the host's absolute config path and yq's raw diagnostic; any caller that posts or persists the error message externally exposes host details.",
+      "suggested_fix": "Keep a short, fixed reason code in `readError` for user-facing strings (e.g. `yq-missing`, `yaml-parse-error`) and log the raw stderr separately at debug level; avoid interpolating raw subprocess stderr into thrown Error messages.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "'{\"opt\": (.hounfour.headless.agy_opt_in | (tag == \"!!bool\" and . == true)), \"canon\": (.hounfour.headless.agy_opt_in | (tag == \"!!bool\" and (. == true or . == false))), \"tag\": (.hounfour.headless.agy_opt_in | tag), \"mode\": (.hounfour.headless.mode // \"\")}',",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `canon` check is dead: once yq has tagged a scalar `!!bool`, `. == true or . == false` is always true, so the 'boolean spelled other than true/false' warning can never fire. Meanwhile yq v4 accepts `True`, `TRUE`, `False` as `!!bool`, so those spellings DO opt in here. The comment claims the bash reader (`lib/agy-gate-lib.sh`) and the Python reader apply the same strict rule; a bash reader doing a literal `== true` match would disagree, producing a gate that plans a google voice in TypeScript which cheval then refuses (or vice versa). The gate is a security-relevant routing decision and the three readers should agree on exactly which inputs opt in.",
+      "failure_mode": "`agy_opt_in: True` opts in via this reader but may not via the bash gate, so BB dispatches a google voice that cheval rejects (or the reverse), yielding inconsistent planned/not-planned accounting across the pipeline and the quorum math in SEC-1.",
+      "suggested_fix": "Check the raw scalar text rather than the normalized value, e.g. add `\"raw\": (.hounfour.headless.agy_opt_in | tostring)` and require `raw == \"true\"` in TypeScript; add a parity test that feeds `True`, `yes`, `\"true\"`, and `true` to all three readers and asserts identical results. Remove the dead `canon` branch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T15:09:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8314,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "db90b7f6083b7c97be67c8d618c4d14411d2c41b71aff2d9f8b6377715a335de",
+      "run_tag": "h3-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

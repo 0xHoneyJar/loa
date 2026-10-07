@@ -1,0 +1,162 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "null-safety",
+      "anchor": ".claude/adapters/cheval.py:_effort_on_wire",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "`_effort_on_wire` now unconditionally calls `cls.wire_effort(...)` for any adapter class returned by `adapter_class_for_type`. The prior implementation only handled CLI passthrough and Anthropic HTTP; other providers returned `None`. Unless every registered adapter class implements `wire_effort`, invoking a non-Anthropic provider with an effort value will raise `AttributeError` while emitting MODELINV completion telemetry.",
+      "failure_mode": "A request whose resolved hop has `effort` set but whose adapter class lacks `wire_effort` crashes during audit emission/result finalization instead of completing successfully.",
+      "suggested_fix": "Guard the hook lookup, e.g. `wire_effort = getattr(cls, \"wire_effort\", None); return wire_effort(...) if callable(wire_effort) else None`, or add a default `wire_effort` classmethod to the adapter base class and ensure all registered adapters inherit it.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:cmd_invoke",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the `except ChevalError` branch, a hop whose error carries `failure_class: opt_in_required` is appended to `_models_not_planned`, but that hop is still present in `_modelinv_models_requested` (the agy-alone chain is deliberately left whole by `_plan_around_agy`) and it WAS dispatched (adapter.complete() ran and refused). The new `models_not_planned` parameter in `audit/modelinv.py:emit_model_invoke_complete` is documented as 'hops cheval did not plan (never dispatched)', and the test module docstring states a not-planned hop 'is not in models_requested'. The refusal path violates both: the same canonical appears in `models_requested` and `models_not_planned`, with `models_failed` empty.",
+      "failure_mode": "MODELINV records for an INVALID_CONFIG refusal show voices_planned=1, succeeded=0, failed=0, not_planned=[same hop]. Any verdict-quality or audit consumer that derives planned voices from `models_requested` and health from `models_failed` sees a planned voice that neither failed nor succeeded, and can label the record ok/APPROVED while the process exited INVALID_CONFIG. Double-membership also breaks any consumer that treats the two lists as disjoint.",
+      "suggested_fix": "Either remove the refused hop from `_modelinv_state['models_requested']` when recording it as not planned (so the two lists stay disjoint and the 'never dispatched' doc holds), or keep it in `models_failed` with `error_class: INVALID_CONFIG` and a distinct reason such as `refused_opt_in`, and update the modelinv.py docstring/schema enum accordingly.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:_plan_around_agy",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The reduced chain is rebuilt via `_RC(primary_alias=..., entries=kept, headless_mode=..., headless_mode_source=...)`, enumerating four fields by hand. Any other field on `ResolvedChain` (now or added later: capability/thinking class, ceiling policy, exhaustion reason, source metadata) is silently reset to its default on the re-planned chain only, with no test coverage because the test config exercises just these four.",
+      "failure_mode": "A future or existing optional field on ResolvedChain is dropped only when an agy hop was planned around, producing behaviour that differs between opt-in-on and opt-in-off runs of the same chain and is hard to trace.",
+      "suggested_fix": "Use `dataclasses.replace(chain, entries=kept)` (or an equivalent copy-with-entries helper on ResolvedChain) so every other field is carried over verbatim.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/cheval.py:resolve_effort",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new loop validates `extra.reasoning_effort` against EFFORT_LEVELS (low|medium|high|xhigh|max) and emits a once-per-process WARN saying the value is 'ignored' when it does not match. `reasoning_effort` is the codex/grok adapters' own key and codex legitimately accepts `minimal`, which is not in EFFORT_LEVELS. For such an entry cheval now logs a misleading WARN, resolve_effort returns (None, 'none'), `_effort_on_wire` short-circuits on `effort is None`, so MODELINV records effort=None/effort_effective=None while the codex adapter still puts `minimal` on the wire from its own extra.",
+      "failure_mode": "Spurious config-smell WARN on a valid catalog entry, and MODELINV effort telemetry that contradicts what the adapter actually sent.",
+      "suggested_fix": "Validate `reasoning_effort` against the owning adapter's accepted set (or only against the cheval set when the adapter is claude-headless), or extend the accepted values for that key; at minimum do not say 'ignored' for a key the adapter reads independently.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:cmd_invoke",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_plan_around_agy` is applied late, immediately before the MODELINV state is built, and the diff re-derives only `_auth_type_resolved` from the new primary. Under `prefer-cli` with the opt-in off, the original chain's primary is the agy hop; any other value derived from `_chain.entries[0]` before this point (effort resolution for the primary, dry-run output of the resolved model/chain, provider-config/adapter selection for the primary) was computed against a hop that will never be dispatched.",
+      "failure_mode": "`--dry-run` or pre-walk telemetry can report the agy hop as the resolved primary while the real walk dispatches the API hop, and primary-derived settings may reflect the wrong entry. Only the auth type is corrected.",
+      "suggested_fix": "Move the `_plan_around_agy` call to directly after chain resolution so every downstream consumer of `_chain` (dry-run, effort, auth type, adapter selection, MODELINV) sees the planned chain, and drop the special-case re-derivation of `_auth_type_resolved`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T12:05:34Z",
+    "tokens_input": 63931,
+    "tokens_output": 24712,
+    "cost_usd": 0,
+    "latency_ms": 29855,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-a2-gatepy.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-251/adversarial-rejected-review-a2-gatepy.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "edd69927e7b6f117d7c50010eca206c0b8e9e202fc6eb2a8d39e85122c636511",
+      "run_tag": "a2-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

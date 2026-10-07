@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "agy_opt_in_enabled",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "AgyHeadlessAdapter.complete",
+      "cross_file_justification": "The gate is computed in .claude/adapters/loa_cheval/config/loader.py but enforced in .claude/adapters/loa_cheval/providers/agy_headless_adapter.py. complete(), validate_config() and health_check() call agy_opt_in_enabled() with no project_root, so _find_project_root()'s cwd walk from the reviewed tree decides whether agy is dispatched.",
+      "description": "The opt-in that authorizes the agy route (prompt on argv readable by all local users, `agy --sandbox --dangerously-skip-permissions` on untrusted review content) is read from `.loa.config.yaml` discovered by walking up from cheval's cwd. The adapter's own module docstring identifies that cwd as the reviewed tree whose settings 'would shape its own reviewer', which is why agy's cwd was moved to a private workspace. The gate nonetheless anchors its trust in a file inside that same tree. When the review pipeline runs on a checkout of a PR head (CI-style flows), the PR author controls that file and can set `hounfour.headless.agy_opt_in: true`, defeating the 'operator decision' guarantee the docstrings make ('never talked into the agy voice by ambient env'; 'exposed only by an operator's deliberate choice'). On a host with agy OAuth-authed this enables the exposed-argv dispatch and the agentic run on the PR's content; on a host without agy it turns a cleanly not-planned voice into a hard ConfigError, degrading the verdict.",
+      "failure_mode": "A PR adds or edits `.loa.config.yaml` with `agy_opt_in: true`. The reviewing cheval process, running with cwd in the PR checkout, reads it as opted in, passes the adapter check, and spawns agy with the PR-controlled prompt on argv under --dangerously-skip-permissions, or fails the Google voice with INVALID_CONFIG where agy is absent. Exploitability depends on deployment: local reviews against a trusted main checkout are not affected.",
+      "suggested_fix": "Source the opt-in from an operator-controlled location outside the reviewed tree (a user-level or host-level config, or an explicit trusted root passed by cheval rather than the cwd walk), or at minimum read it from the base ref's `.loa.config.yaml` rather than the PR head and refuse when the diff under review touches that file. Pass the resolved trusted root explicitly into the adapter instead of relying on the ambient cwd.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_agy_opt_in_raw_yq",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The gate documents itself as 'no discovery, workspace, WARN or spawn while it is off' and 'A PATH lookup only: nothing is spawned', but the no-PyYAML fallback spawns `yq` resolved from PATH up to three times on every evaluation. Because agy_opt_in_enabled() is uncached and called from complete(), validate_config(), health_check() and warn_agy_available_once(), a PATH-resolved external binary runs on every hop and every health probe, including when the route is off. A planted `yq` earlier on PATH can return `true` / `!!bool` and flip the gate open; the gate otherwise fails closed only on non-zero exit or exception, not on a tampered answer.",
+      "failure_mode": "On a host without PyYAML, each gate evaluation executes whatever `yq` PATH resolves to with the config path as an argument. A malicious or buggy `yq` can report the key as a `!!bool true` and enable the route; a slow one adds up to 15 seconds of latency per hop before the 5-second timeouts fail closed.",
+      "suggested_fix": "Prefer requiring PyYAML (it is already the primary path) or resolve `yq` via an absolute, operator-pinned path. Evaluate the gate once per process (or memoize per config path and mtime) so the file is read and any subprocess runs at most once rather than per hop. Update the docstrings to state that the fallback does spawn.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_agy_opt_in_raw",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The PyYAML path derives `kind` with `(node.tag or '').rsplit(':', 1)[-1]`, so any tag whose last colon-separated segment is `bool` is accepted. A scalar written `agy_opt_in: !<x:bool> true` yields kind == 'bool' and text == 'true' and opts in, while the yq fallback and the bash reader (which keep the full tag) read the same node as off. This breaks the documented 'ONE strict rule with the bash reader' invariant, and the divergence is in the permissive direction for the Python reader that actually performs the dispatch.",
+      "failure_mode": "The Python adapter dispatches agy (argv prompt exposure) for a config the bash planner and the yq fallback treat as not opted in, so the two readers disagree about whether the route is live.",
+      "suggested_fix": "Compare the full tag exactly: `node.tag == 'tag:yaml.org,2002:bool'`, and in the yq fallback require `tag == '!!bool'` exactly rather than stripping a `!!` prefix.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-251",
+    "timestamp": "2026-10-07T14:48:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 15092,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "cbce5902d2298289c7652c0d0391235d87a6b920def2891713f75d8d056d27d1",
+      "run_tag": "b3-gatepy"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}
