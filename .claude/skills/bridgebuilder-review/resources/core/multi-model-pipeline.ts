@@ -172,8 +172,11 @@ export async function executeMultiModelReview(
   const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
   const keyStatus = validateApiKeys(multiConfig, agyGate);
   // (r251-1 G12/G14: an unreadable config or a non-boolean opt-in is said once, with its reason — not as "opt-in off")
+  const notPlannedList = keyStatus.notPlanned.map((np) => `${np.provider}/${np.modelId}`).join(", ");
   if (agyGate.readError !== undefined) {
-    logger.warn(`[multi-model] agy gate unreadable (${agyGate.readError}) — failing closed: voices routed to agy are not planned (hounfour.headless.agy_opt_in)`);
+    // (r251-2 K7d: the strict per-voice warn is skipped under a read error, so this one names the voices)
+    logger.warn(`[multi-model] agy gate unreadable (${agyGate.readError}) — failing closed: google voices are not planned (hounfour.headless.agy_opt_in)` +
+      (notPlannedList ? `; will not run: ${notPlannedList}` : ""));
   }
   if (agyGate.typeWarning !== undefined) logger.warn(`[multi-model] ${agyGate.typeWarning}`);
   for (const np of keyStatus.notPlanned) {
@@ -185,11 +188,6 @@ export async function executeMultiModelReview(
     } else {
       logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
     }
-  }
-  if (keyStatus.notPlanned.length > 0 && keyStatus.notPlanned.length === multiConfig.models.length) {
-    throw new Error(
-      `No models available for multi-model review: every configured voice is not planned (the agy route is opt-in: set hounfour.headless.agy_opt_in: true) — ${keyStatus.notPlanned.map((np) => `${np.provider}/${np.modelId}`).join(", ")}`,
-    );
   }
   if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
     throw new Error(
@@ -227,7 +225,22 @@ export async function executeMultiModelReview(
   }
 
   if (modelAdapters.length === 0) {
-    throw new Error("No models available for multi-model review (all API keys missing)");
+    // (r251-2 K7c: ONE message, the not-planned voices and the missing keys listed separately — the reason for a not-planned
+    // voice is the read error when the config could not be read, else the opt-in)
+    const parts: string[] = [];
+    if (keyStatus.notPlanned.length > 0) {
+      parts.push(agyGate.readError !== undefined
+        ? `not planned: ${notPlannedList} (the agy gate failed closed: Loa config unreadable — ${agyGate.readError}; hounfour.headless.agy_opt_in)`
+        : `not planned: ${notPlannedList} (the agy route is opt-in: set hounfour.headless.agy_opt_in: true)`);
+    }
+    if (keyStatus.missing.length > 0) {
+      parts.push(`missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
+    }
+    throw new Error(
+      parts.length > 0 && keyStatus.missing.length > 0 && keyStatus.notPlanned.length === 0
+        ? `No models available for multi-model review (all API keys missing): ${parts.join("; ")}`
+        : `No models available for multi-model review — ${parts.length > 0 ? parts.join("; ") : "no configured voice is usable"}`,
+    );
   }
 
   // Limit concurrency

@@ -354,6 +354,42 @@ YAML
   line_of P3 | grep -qF 'not planned: gemini-headless(agy: opt-in'
 }
 
+@test "PF-AGY-5 P3 (review r251-2 K3): with the opt-in ON an agy-routed voice is judged by the agy binary, never by its Google credential — cli-only gemini-2.5-pro and gemini-headless:any" {
+  printf 'GOOGLE_API_KEY=not-a-real-key\n' > "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+hounfour:
+  headless:
+    mode: cli-only
+    agy_opt_in: true
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: gemini-2.5-pro
+YAML
+  # no agy on PATH: the key does not make the voice usable — cheval would route it to an absent agy
+  pf --unattended
+  [ "$status" -eq 1 ] || { echo "status=$status"; line_of P3; return 1; }
+  line_of P3 | grep -q '^\[FAIL\] P3 ' || { line_of P3; return 1; }
+  ! line_of P3 | grep -q 'usable: gemini-2.5-pro' || { echo "false PASS on the credential"; line_of P3; return 1; }
+  # a fake agy on PATH: usable, labelled as the agy CLI hop
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
+  pf --unattended
+  [ "$status" -eq 0 ] || { echo "status=$status"; line_of P3; return 1; }
+  line_of P3 | grep -qF 'usable: gemini-2.5-pro(cli agy)' || { line_of P3; return 1; }
+  # the provider-form hop under prefer-api: the same — agy decides, not the key
+  rm -f "$T/bin/agy"
+  python3 -I -c 'import sys; p=sys.argv[1]; s=open(p).read().replace("mode: cli-only", "mode: prefer-api").replace("model: gemini-2.5-pro", "model: gemini-headless:any"); open(p,"w").write(s)' "$R/.loa.config.yaml"
+  pf --unattended
+  [ "$status" -eq 1 ] || { echo "status=$status"; line_of P3; return 1; }
+  ! line_of P3 | grep -q 'usable: gemini-headless:any' || { echo "false PASS on the credential"; line_of P3; return 1; }
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
+  pf --unattended
+  [ "$status" -eq 0 ] || { echo "status=$status"; line_of P3; return 1; }
+  line_of P3 | grep -qF 'usable: gemini-headless:any(cli agy)' || { line_of P3; return 1; }
+}
+
 @test "PF-AGY-4 (review r251-1 G12): a string agy_opt_in reads off with one WARN naming the key and the type; --json stays quiet on stderr" {
   printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' >> "$R/.loa.config.yaml"
   run --separate-stderr bash "$PF" --root "$R" --unattended

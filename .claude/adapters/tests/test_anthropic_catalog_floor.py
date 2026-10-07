@@ -165,14 +165,30 @@ def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
     transport (ceiling_calibration.transport ≠ api) must say how it was measured and what
     the provider accepted — `method` and `measured_input_tokens` — so the cross-transport
     trust is auditable, and an observed limit on this route may tighten it (routing.ceiling)."""
-    for model_id, entry in http_entries.items():
-        if not is_foreign_transport_calibration(entry):
-            continue
+    foreign = [m for m, e in http_entries.items() if is_foreign_transport_calibration(e)]
+    # (review r251-2 K9 / n36: with zero foreign entries the loop would assert nothing — the live catalog has one)
+    assert "claude-opus-5-5" in foreign, foreign
+    for model_id in foreign:
+        entry = http_entries[model_id]
         cal = entry["ceiling_calibration"]
-        assert cal.get("method") in ("probed_api", "probed_headless"), (model_id, cal.get("method"))
+        # a bound measured on a non-API transport was measured headless — `probed_api` there is a mislabel (n36)
+        assert cal.get("method") == "probed_headless", (model_id, cal.get("transport"), cal.get("method"))
         assert isinstance(cal.get("measured_input_tokens"), int) and cal["measured_input_tokens"] > 0, model_id
         assert cal["measured_input_tokens"] >= entry["effective_input_ceiling"], (
             f"{model_id}: the written bound may be clamped below the measured accept, never above it")
+
+
+def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
+    """review r251-2 K9 (n35): one concrete pin THROUGH `_lookup_max_input_tokens` — the other pins compare the policy
+    against itself. claude-opus-5-5 is calibrated (1M window − 64K default output = 936,000); claude-opus-5 is not, and
+    answers its probed value (the policy cap)."""
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+    monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == 936_000
+    uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
+    assert not uncal["ceiling_calibration"].get("calibrated_at")
+    assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP
 
 
 @pytest.mark.parametrize("kill_switch", ["", "1"])

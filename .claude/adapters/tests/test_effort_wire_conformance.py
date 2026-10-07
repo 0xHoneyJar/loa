@@ -53,7 +53,10 @@ class _Captured(Exception):
 def _capture_post(*args, **kwargs):
     body = kwargs.get("body")
     if body is None:
-        body = next((a for a in args if isinstance(a, dict) and ("messages" in a or "contents" in a or "input" in a)), None)
+        # chat bodies carry messages / contents / input; Google's interactions API (api_mode: interactions, Deep
+        # Research) carries `query` (review r251-2 K9 / n41)
+        body = next((a for a in args if isinstance(a, dict)
+                     and ("messages" in a or "contents" in a or "input" in a or "query" in a)), None)
     raise _Captured(body)
 
 
@@ -75,7 +78,11 @@ def _http_body(adapter, request) -> dict:
     try:
         adapter.complete(request)
     except _Captured as cap:
-        return cap.body or {}
+        # (review r251-2 K9 / n41: an uncaptured body would make every "carries no effort" assertion pass on {})
+        if not isinstance(cap.body, dict) or not cap.body:
+            pytest.fail(f"{type(adapter).__name__}: the transport was reached but its body was not captured "
+                        f"({cap.body!r}) — teach _capture_post this body shape")
+        return cap.body
     pytest.fail(f"{type(adapter).__name__}.complete() returned without reaching the transport")
 
 
@@ -137,3 +144,9 @@ def test_codex_and_grok_record_their_own_extra_reasoning_effort_not_the_caller_v
     hounfour["providers"][provider]["models"][model_id].setdefault("extra", {})["reasoning_effort"] = "low"
     _check(provider, model_id, hounfour, "high")
     assert cheval._effort_on_wire(provider, model_id, "high", hounfour) == "low"
+
+
+def test_adapter_class_for_type_is_part_of_the_public_api():
+    """review r251-2 K9 (n40): cheval imports it by name; it is exported with the rest of the registry API."""
+    import loa_cheval.providers as providers
+    assert "adapter_class_for_type" in providers.__all__

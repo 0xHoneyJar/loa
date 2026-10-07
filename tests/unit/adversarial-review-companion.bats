@@ -6030,3 +6030,20 @@ PY
     [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
     ! grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log" || { echo "unexpected: grep -q 'hounfour.headless.agy_opt_in' '$T/stderr.log'"; return 1; }
 }
+
+@test "CMP-287 (review r251-2 K4) with the agy gate lib missing the dissent planner still drops a literal gemini-headless hop (fail closed, reason opt_in_required)" {
+    local empty="$T/no-lib-root" cfg="$T/agy-off.yaml"
+    mkdir -p "$empty"
+    printf 'hounfour:\n  headless:\n    mode: prefer-api\n    agy_opt_in: true\n' > "$cfg"   # (even an on config: no lib, no opt-in read)
+    run bash -c '
+        exec 2>"$4"; source "$1"
+        unset -f routes_to_agy agy_opted_in agy_headless_mode agy_route_planned agy_gate_warn_once 2>/dev/null
+        PROJECT_ROOT="$2"; CONFIG_FILE="$3"; log() { echo "$*" >&2; }
+        _adv_agy_filter_chain code_review anthropic gemini-headless claude-headless google:gemini-headless gemini-headless:gemini-3-pro gemini-2.5-pro
+    ' _ "$ADVERSARIAL_REVIEW" "$empty" "$cfg" "$T/k4.err"
+    local stderr; stderr=$(cat "$T/k4.err")
+    [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+    [ "$output" = "claude-headless gemini-2.5-pro" ] || { echo "out=$output stderr=$stderr"; return 1; }
+    grep -q 'agy-gate-lib.sh not loaded' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
+    grep -q 'gemini-headless not planned.*opt_in_required' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
+}

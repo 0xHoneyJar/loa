@@ -103,5 +103,6 @@ __all__ = [
     "CursorHeadlessAdapter",
     "GrokHeadlessAdapter",
     "get_adapter",
+    "adapter_class_for_type",
     "cli_adapter_types",
 ]

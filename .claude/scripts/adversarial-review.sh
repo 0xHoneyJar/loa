@@ -80,7 +80,9 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
 source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
 
 # cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy).
-# Same soft-source as the libs above; the planner below fails closed (every hop agy-checked) if the lib did not load.
+# Same soft-source as the libs above. If the lib did not load, the planner below fails closed on what it can still tell
+# without it: the opt-in reads off and every hop that names gemini-headless is not planned (opt_in_required); a Google model
+# under cli-only cannot be told apart there, and cheval's own gate refuses that hop (review r251-2 K4).
 _AGY_GATE_LIB_PATH="$SCRIPT_DIR/lib/agy-gate-lib.sh"
 # shellcheck source=lib/agy-gate-lib.sh
 source "$_AGY_GATE_LIB_PATH" 2>/dev/null || true
@@ -2365,13 +2367,22 @@ _adv_agy_opted_in() {
 _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain without its agy hops when the opt-in is off; each drop is said once
   # (review r251-1 G2: a hop is agy-routed by the shared routes_to_agy — by name, alias-resolved, or a Google model under
   # hounfour.headless.mode cli-only — tested on the hop as written and on its catalog id)
+  # (the once-per-shell gate WARN is the caller's, from a top-level planning point — inside $(...) it would be lost)
   local key="$1" fam="$2" h c out="" mode; shift 2
-  if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (no-op when the planner already said it)
   if _adv_agy_opted_in; then printf '%s' "$*"; return 0; fi
   if ! _adv_agy_lib; then
-    # (no predicate to plan with: the chain is kept and cheval's own gate refuses or skips an agy hop)
-    log "WARN: lib/agy-gate-lib.sh not loaded — companion chain not agy-filtered; cheval's opt-in gate still applies"
-    printf '%s' "$*"; return 0
+    # (review r251-2 K4: no predicate to plan with — fail closed on the name: every gemini-headless hop is not planned.
+    # A Google model under cli-only is not recognisable here; cheval's own gate refuses that hop.)
+    log "WARN: lib/agy-gate-lib.sh not loaded — the agy opt-in reads off; companion hops naming gemini-headless are not planned"
+    for h in "$@"; do
+      c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
+      case "$h $c" in
+        gemini-headless\ *|*:gemini-headless\ *|gemini-headless:*|*\ gemini-headless|*\ *:gemini-headless|*\ gemini-headless:*)
+          log "WARN: companion hop ${h} not planned (opt_in_required): the agy route is opt-in (hounfour.headless.agy_opt_in) — named by flatline_protocol.${key}.companion_chain.${fam}" ;;
+        *) out+="$h " ;;
+      esac
+    done
+    printf '%s' "${out% }"; return 0
   fi
   mode=$(agy_headless_mode "${CONFIG_FILE:-}")
   for h in "$@"; do

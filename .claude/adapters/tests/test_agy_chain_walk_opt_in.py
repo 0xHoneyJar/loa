@@ -8,7 +8,11 @@ itself. With `hounfour.headless.agy_opt_in` off:
     not in `models_requested` (verdict quality counts planned hops only), not a failure, and the walk continues;
   * `hounfour.headless.mode: prefer-cli` (agy first) skips the hop and dispatches the API hop as the PRIMARY;
   * a direct `--model gemini-headless` (agy asked for by name — the chain is agy alone) still refuses with
-    INVALID_CONFIG, and the JSON error envelope carries `failure_class: opt_in_required` (G5);
+    INVALID_CONFIG, and the JSON error envelope carries `failure_class: opt_in_required` (G5). The hop IS dispatched
+    to the adapter, which refuses before any discovery or spawn; the record is disjoint and truthful (review r251-2 K2):
+    the operator asked for it, so it is in `models_requested` and in `models_failed` (`error_class: INVALID_CONFIG`,
+    `failure_class: opt_in_required`) — never in `models_not_planned`, which holds only the hops the planner dropped
+    before the walk — and verdict quality drops the voice with reason `OptInRequired`;
   * one WARN per process names the key.
 No model is called: adapters are mocks, the MODELINV emit is captured.
 """
@@ -118,6 +122,9 @@ def test_a_gated_agy_fallback_is_skipped_and_never_dispatched(capsys, caplog):
     assert payload["models_not_planned"] == [
         {"model": "google:gemini-headless", "provider": "google", "reason": "opt_in_required"}]
     assert [f["model"] for f in payload["models_failed"]] == ["google:gemini-2.5-pro"]
+    # (review r251-2 K2: the planner's drop is in models_not_planned ONLY — never requested, never failed)
+    assert "google:gemini-headless" not in payload["models_requested"]
+    assert all(f["model"] != "google:gemini-headless" for f in payload["models_failed"])
 
 
 def test_prefer_api_success_records_the_skip_and_the_primary_answers(capsys):
@@ -169,10 +176,7 @@ def test_direct_gemini_headless_still_refuses_with_failure_class(capsys):
     env = next(json.loads(l) for l in err.splitlines() if l.strip().startswith("{") and "INVALID_CONFIG" in l)
     assert env["code"] == "INVALID_CONFIG" and env["failure_class"] == "opt_in_required", env
     assert env["retryable"] is False
-    # the MODELINV record says the hop was not planned, not that a voice failed
-    assert payload["models_not_planned"] == [
-        {"model": "google:gemini-headless", "provider": "google", "reason": "opt_in_required"}]
-    assert payload["models_failed"] == []
+    _assert_agy_alone_refusal_record(payload, seen)
 
 
 def test_cli_only_google_voice_is_agy_alone_and_refuses(capsys, monkeypatch):
@@ -184,6 +188,24 @@ def test_cli_only_google_voice_is_agy_alone_and_refuses(capsys, monkeypatch):
     err = capsys.readouterr().err
     assert rc == cheval.EXIT_CODES["INVALID_CONFIG"], err
     assert '"failure_class": "opt_in_required"' in err
+    _assert_agy_alone_refusal_record(payload, seen)
+
+
+def _assert_agy_alone_refusal_record(payload, seen):
+    """review r251-2 K2 (n2 + n8): agy alone is dispatched to the adapter (which refuses before any spawn) and the
+    record is disjoint — requested and failed (INVALID_CONFIG / opt_in_required), never not-planned."""
+    hop = "google:gemini-headless"
+    assert seen == ["gemini-headless"], seen
+    assert payload["models_requested"] == [hop], payload["models_requested"]
+    assert payload["models_failed"] == [{
+        "model": hop, "provider": "google", "error_class": "INVALID_CONFIG", "failure_class": "opt_in_required",
+        "message_redacted": payload["models_failed"][0]["message_redacted"]}], payload["models_failed"]
+    assert "hounfour.headless.agy_opt_in" in payload["models_failed"][0]["message_redacted"]
+    assert "models_not_planned" not in payload, payload.get("models_not_planned")
+    assert payload["models_succeeded"] == []
+    vq = payload["verdict_quality"]
+    assert vq["voices_planned"] == 1 and vq["voices_succeeded"] == 0, vq
+    assert [d["reason"] for d in vq["voices_dropped"]] == ["OptInRequired"], vq["voices_dropped"]
 
 
 def test_the_modelinv_schema_declares_models_not_planned():
@@ -207,8 +229,9 @@ def test_the_emitted_payloads_validate_against_the_payload_schema(capsys, monkey
         raise AgyOptInRequiredError()
     _, refused_payload, _ = _invoke(opt_in=False, model="gemini-headless", model_id="gemini-headless", dispatch=_refuse)
     capsys.readouterr()
+    assert "models_not_planned" in ok_payload
+    assert refused_payload["models_failed"][0]["error_class"] == "INVALID_CONFIG"
     for payload in (ok_payload, refused_payload):
-        assert "models_not_planned" in payload
         validator.validate(payload)
 
 

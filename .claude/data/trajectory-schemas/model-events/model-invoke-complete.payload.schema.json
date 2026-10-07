@@ -62,6 +62,10 @@
           "retryable": {
             "type": "boolean"
           },
+          "failure_class": {
+            "description": "cycle-127 review r251-2 K2. A finer class under error_class; today only opt_in_required (an agy-alone chain refused by hounfour.headless.agy_opt_in, error_class INVALID_CONFIG). Optional/additive.",
+            "enum": ["opt_in_required"]
+          },
           "provider": {
             "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). Provider key for this entry (e.g. openai, anthropic, google). Optional for backward compat; new emitters MUST populate.",
             "type": "string",
@@ -508,6 +512,7 @@
                   "NoEligibleAdapter",
                   "ChainExhausted",
                   "InteractionPending",
+                  "OptInRequired",
                   "Other"
                 ]
               },

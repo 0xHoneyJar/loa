@@ -745,8 +745,9 @@ hounfour:
     # Flatline tertiary, Bridgebuilder, /loa, run preflight) records the hop as not planned
     # (reason opt_in_required), never as a failed voice — a host without agy plans no Google CLI voice.
     # Set true only where agy is installed AND OAuth-authed: `agy -p` takes the whole prompt (the
-    # redacted review diff) on argv, readable by every local account through /proc and ps. Only a
-    # YAML boolean true counts; there is no environment override.
+    # redacted review diff) on argv, readable by every local account through /proc and ps. Only the
+    # lowercase scalar `true` counts (yes / on / True / "true" read off, with a WARN); there is no
+    # environment override.
     agy_opt_in: false
     # cli_paths: discovery hints. If unset, $PATH is searched.
     # cli_paths:

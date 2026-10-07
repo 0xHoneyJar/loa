@@ -1298,6 +1298,8 @@ def _vq_map_reason(
         return "ChainExhausted"
     # Single-entry chain: use the last recorded error_class mapping.
     last_class = str(models_failed[-1].get("error_class") or "UNKNOWN")
+    if models_failed[-1].get("failure_class") == "opt_in_required":
+        return "OptInRequired"   # (cycle-127 review r251-2 K2: the agy route refused by its opt-in, not "Other")
     return _VQ_ERROR_CLASS_TO_REASON.get(last_class, "Other")
 
 
@@ -2211,17 +2213,22 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         from loa_cheval.redaction import sanitize_provider_error_message as _sanitize
         _msg = _sanitize(str(_exc))
         _obs = int(observed) if isinstance(observed, int) and observed > 0 else int(_walk_estimate or 0)
+        # cycle-127 review r251-2 K8: a CLI hop's size rejection is the CLI's own pre-flight against ITS window — it
+        # carries no HTTP ceiling, so it is not recorded as an observation (it would lower the HTTP route's bound).
+        _record = getattr(_entry, "adapter_kind", "http") != "cli"
         try:
-            _ceiling_record_observed(
-                provider=_entry.provider, model=_entry.model_id, observed_input_tokens=_obs,
-                error_class=error_class, estimated_input_tokens=_walk_estimate, provider_limit=provider_limit,
-            )
+            if _record:
+                _ceiling_record_observed(
+                    provider=_entry.provider, model=_entry.model_id, observed_input_tokens=_obs,
+                    error_class=error_class, estimated_input_tokens=_walk_estimate, provider_limit=provider_limit,
+                )
         except Exception as _rec_err:  # noqa: BLE001 — the record must never mask the typed exit
             print(f"[preflight] observed-bound record failed: {type(_rec_err).__name__}", file=sys.stderr)
         _calib = {
             "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
             "provider_limit": provider_limit, "error_class": error_class,
             "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
+            "observation_recorded": _record,
         }
         if isinstance(_modelinv_state.get("capability_evaluation"), dict):
             _modelinv_state["capability_evaluation"]["calibration_needed"] = _calib
@@ -2622,9 +2629,17 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 # Non-retryable typed cheval error — surface immediately.
                 _fc = (getattr(_e, "context", None) or {}).get("failure_class")
                 if _fc == "opt_in_required":
-                    # cycle-127 review r251-1 G1/G5: agy asked for by name with the opt-in off — a refusal, not a
-                    # failed voice: recorded as not planned, and the envelope names the failure class.
-                    _models_not_planned.append({"model": _entry_target, "provider": _entry.provider, "reason": _fc})
+                    # cycle-127 review r251-1 G1/G5, r251-2 K2: agy asked for by name (the chain is agy alone) with the
+                    # opt-in off — dispatched to the adapter, which refused before any discovery or spawn. The operator
+                    # asked for it, so it stays in models_requested and is a failed hop with its typed class; it is NOT
+                    # models_not_planned (that list holds only the hops _plan_around_agy dropped before the walk).
+                    _modelinv_state["models_failed"].append({
+                        "model": _entry_target,
+                        "provider": _entry.provider,
+                        "error_class": "INVALID_CONFIG",
+                        "failure_class": _fc,
+                        "message_redacted": str(_e),
+                    })
                 else:
                     _modelinv_state["models_failed"].append({
                         "model": _entry_target,

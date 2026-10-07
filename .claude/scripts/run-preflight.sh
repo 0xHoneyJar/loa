@@ -194,6 +194,9 @@ else
         n_gated=$((n_gated + 1))
         [[ " $p3_optin " == *" $m($AGY_OPT_IN_NOTE) "* ]] || p3_optin+="$m($AGY_OPT_IN_NOTE) "; continue
       fi
+      # (review r251-2 K3: opted in, an agy-routed voice — a Google model under cli-only, any gemini-headless form — runs
+      # on the agy CLI, so the agy binary decides its usability, never the Google credential)
+      routes_to_agy "$m" "$p3_mode" && cli=agy
       if [[ -n "$cli" ]] && command -v "$cli" >/dev/null 2>&1; then ok=1
       elif [[ -z "$cli" && -n "$prov" ]] && cred_present "$prov"; then ok=1; fi
       if (( ok )); then usable=$((usable + 1)); USABLE_PROVIDERS["${prov:-$m}"]=1; provs+="${prov:-$m} "; usable_names+="$m${cli:+(cli $cli)} "

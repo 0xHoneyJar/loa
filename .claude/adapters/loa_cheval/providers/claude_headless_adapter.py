@@ -70,6 +70,7 @@ from loa_cheval.types import (
     CompletionResult,
     AuthRevokedError,
     ConfigError,
+    ProviderContextLimitError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
@@ -548,6 +549,22 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             full_diag = stderr.strip() or f"exit code {returncode}"
 
         diag_lower = full_diag.lower()
+
+        # cycle-127 review r251-2 K8 (n65): the CLI's own pre-flight size rejection ("Prompt is too long", "the request
+        # is ~1065182 tokens (limit 1000000)") is the provider's size verdict on the payload — not walked (the next voice
+        # would get the same payload), never a breaker count. A throttle WORD still wins (as in the probe); the bare
+        # "429" / "529" substring tests below would otherwise match digits inside a stated token count.
+        from loa_cheval.routing.ceiling import is_context_limit_message, parse_context_limit
+        _throttle_words = ("rate limit", "overloaded", "too many requests", "quota")
+        if is_context_limit_message(full_diag) and not any(w in diag_lower for w in _throttle_words):
+            _nums = parse_context_limit(full_diag)
+            raise ProviderContextLimitError(
+                self.provider,
+                f"claude CLI refused the prompt as too large: {full_diag[:500]}",
+                input_tokens=_nums.get("input_tokens"),
+                limit=_nums.get("limit"),
+                max_tokens=_nums.get("max_tokens"),
+            )
 
         # Rate-limit / overload — Anthropic returns 429 + "rate limit" or
         # 529 + "overloaded" when the org / subscription quota is saturated.

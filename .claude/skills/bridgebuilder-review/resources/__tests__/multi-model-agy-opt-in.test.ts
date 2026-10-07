@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor } from "../config.js";
+import { readFileSync } from "node:fs";
+import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor, agyGateStartupLines } from "../config.js";
 import { GENERATED_MODEL_REGISTRY } from "../config.generated.js";
 import { ChevalDelegateAdapter } from "../adapters/cheval-delegate.js";
 import { executeMultiModelReview } from "../core/multi-model-pipeline.js";
@@ -266,8 +267,20 @@ describe("readAgyGate states (r251-1 G12, G14)", () => {
 });
 
 describe("validateApiKeys takes the gate explicitly (r251-1 G15)", () => {
-  it("the gate parameter is required: the function arity is 2 and no default reads the process cwd", () => {
-    assert.equal(validateApiKeys.length, 2);
+  it("the gate parameter decides: an OFF gate wins over an opted-in config in the process cwd (r251-2 K7a)", async () => {
+    // (behavioural, not an arity check: an optional `gate?` with an in-body cwd default would also have length 2)
+    await withConfig("hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: true\n", (_p, root) => {
+      const cwd = process.cwd();
+      process.chdir(root);
+      try {
+        const models = MultiModelConfigSchema.parse({ enabled: true, models: [{ provider: "google", model_id: "gemini-3.1-pro-preview" }] });
+        const r = validateApiKeys(models, { optIn: false, mode: "cli-only" });
+        assert.deepEqual(r.notPlanned, [{ provider: "google", modelId: "gemini-3.1-pro-preview", reason: "opt_in_required" }]);
+        assert.deepEqual(r.valid, []);
+      } finally {
+        process.chdir(cwd);
+      }
+    });
   });
   it("loaConfigPathFor resolves the repo root's .loa.config.yaml, and the cwd file only without a root", () => {
     assert.equal(loaConfigPathFor("/x/repo"), join("/x/repo", ".loa.config.yaml"));
@@ -312,6 +325,143 @@ describe("executeMultiModelReview gate diagnostics (r251-1 G12, G14)", () => {
           stub.mock.restore();
           if (savedMode === undefined) delete process.env.LOA_HEADLESS_MODE; else process.env.LOA_HEADLESS_MODE = savedMode;
         }
+      });
+    });
+  }
+});
+
+// --- review r251-2 K7 (findings n19, n20, n22, n23, n25, n26) -------------------------------------------------------
+
+describe("the agy gate under a read error fails closed for google voices (r251-2 K7b)", () => {
+  it("readAgyGate pins the mode (env, else prefer-api) and validateApiKeys plans no google voice, even an HTTP one", async () => {
+    const saved = process.env.LOA_HEADLESS_MODE; delete process.env.LOA_HEADLESS_MODE;
+    const savedKey = process.env.GOOGLE_API_KEY; process.env.GOOGLE_API_KEY = "fixture-not-a-key";
+    try {
+      await withConfig("hounfour: [unclosed\n  headless:\n    mode: cli-only\n", (path) => {
+        const g = readAgyGate(path);
+        assert.ok(g.readError, JSON.stringify(g));
+        assert.equal(g.optIn, false);
+        assert.equal(g.mode, "prefer-api");
+        const models = MultiModelConfigSchema.parse({ enabled: true, models: [
+          { provider: "anthropic", model_id: "claude-headless" },
+          { provider: "google", model_id: "gemini-3.1-pro-preview" },
+        ] });
+        const r = validateApiKeys(models, g);
+        assert.deepEqual(r.notPlanned, [{ provider: "google", modelId: "gemini-3.1-pro-preview", reason: "opt_in_required" }]);
+        assert.deepEqual(r.valid.map((v) => v.provider), ["anthropic"]);
+      });
+    } finally {
+      if (saved !== undefined) process.env.LOA_HEADLESS_MODE = saved;
+      if (savedKey === undefined) delete process.env.GOOGLE_API_KEY; else process.env.GOOGLE_API_KEY = savedKey;
+    }
+  });
+});
+
+describe("executeMultiModelReview with no voice left (r251-2 K7c/K7d)", () => {
+  const ok = async () => ({
+    content: "<!-- bridge-findings-start -->\n```json\n" + JSON.stringify({ schema_version: 1, findings: [] }) + "\n```\n<!-- bridge-findings-end -->\n\nVerdict: APPROVE",
+    inputTokens: 1, outputTokens: 1, model: "fixture",
+    verdictQuality: { status: "APPROVED", voices_planned: 1, voices_succeeded: 1, chain_health: "ok" },
+  });
+
+  it("an unreadable config: the throw is built from the read error, not the opt-in hint", async () => {
+    await withConfig("hounfour: [unclosed\n", async (_p, repoRoot) => {
+      const savedMode = process.env.LOA_HEADLESS_MODE; delete process.env.LOA_HEADLESS_MODE;
+      const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", async () => { throw new Error("dispatched"); });
+      try {
+        const f = pipelineFixture([{ provider: "google", model_id: "gemini-3.1-pro-preview", role: "primary" }] as MultiModelConfig["models"], "graceful", repoRoot);
+        await assert.rejects(
+          executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment),
+          (err: Error) => /unreadable/.test(err.message) && /google\/gemini-3\.1-pro-preview/.test(err.message)
+            && !/set hounfour\.headless\.agy_opt_in: true/.test(err.message) && !/all API keys missing/.test(err.message),
+        );
+        assert.equal(stub.mock.callCount(), 0);
+      } finally {
+        stub.mock.restore();
+        if (savedMode !== undefined) process.env.LOA_HEADLESS_MODE = savedMode;
+      }
+    });
+  });
+
+  it("some voices not planned and the rest missing keys: ONE message lists both, never 'all API keys missing'", async () => {
+    await withConfig("hounfour:\n  headless:\n    mode: cli-only\n", async (_p, repoRoot) => {
+      const savedMode = process.env.LOA_HEADLESS_MODE; delete process.env.LOA_HEADLESS_MODE;
+      const savedKey = process.env.OPENAI_API_KEY; delete process.env.OPENAI_API_KEY;
+      const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", async () => { throw new Error("dispatched"); });
+      try {
+        const f = pipelineFixture([
+          { provider: "google", model_id: "gemini-3.1-pro-preview", role: "primary" },
+          { provider: "openai", model_id: "gpt-5.5", role: "reviewer" },
+        ] as MultiModelConfig["models"], "graceful", repoRoot);
+        await assert.rejects(
+          executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment),
+          (err: Error) => /not planned: google\/gemini-3\.1-pro-preview/.test(err.message) && /hounfour\.headless\.agy_opt_in/.test(err.message)
+            && /missing API keys: openai \(OPENAI_API_KEY\)/.test(err.message) && !/all API keys missing/.test(err.message),
+        );
+        assert.equal(stub.mock.callCount(), 0);
+      } finally {
+        stub.mock.restore();
+        if (savedMode !== undefined) process.env.LOA_HEADLESS_MODE = savedMode;
+        if (savedKey !== undefined) process.env.OPENAI_API_KEY = savedKey;
+      }
+    });
+  });
+
+  it("strict mode under a read error: the warn still names the voices that will not run", async () => {
+    await withConfig("hounfour: [unclosed\n", async (_p, repoRoot) => {
+      const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", ok);
+      try {
+        const f = pipelineFixture([
+          { provider: "anthropic", model_id: "claude-headless", role: "primary" },
+          { provider: "google", model_id: "gemini-3.1-pro-preview", role: "reviewer" },
+        ] as MultiModelConfig["models"], "strict", repoRoot);
+        await executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment);
+        const w = f.warns.filter((m) => /agy gate unreadable/.test(m));
+        assert.equal(w.length, 1, JSON.stringify(f.warns));
+        assert.match(w[0], /google\/gemini-3\.1-pro-preview/);
+      } finally {
+        stub.mock.restore();
+      }
+    });
+  });
+});
+
+describe("startup diagnostics (r251-2 K7f)", () => {
+  it("agyGateStartupLines says the read error and the type warning once each, with or without a not-planned voice", () => {
+    const none = { valid: [], missing: [], notPlanned: [] };
+    const lines = agyGateStartupLines({ optIn: false, mode: "prefer-api", readError: "boom", typeWarning: "tw" }, none);
+    assert.equal(lines.filter((l) => l.includes("boom")).length, 1, JSON.stringify(lines));
+    assert.equal(lines.filter((l) => l.includes("tw")).length, 1, JSON.stringify(lines));
+    assert.deepEqual(agyGateStartupLines({ optIn: false, mode: "prefer-api" }, none), []);
+    const np = { ...none, notPlanned: [{ provider: "google", modelId: "gemini-headless", reason: "opt_in_required" as const }] };
+    assert.equal(agyGateStartupLines({ optIn: false, mode: "prefer-api" }, np).filter((l) => l.includes("google/gemini-headless")).length, 1);
+  });
+
+  it("main.ts prints them through the helper, outside any not-planned condition", () => {
+    const src = readFileSync(join(import.meta.dirname, "..", "main.ts"), "utf8");
+    assert.match(src, /for \(const line of agyGateStartupLines\(agyGate, keyStatus\)\) console\.error\(/);
+  });
+});
+
+describe("the truncation header names the safety factor from its constant (r251-2 K7e)", () => {
+  it("HEADER_TRUNCATION interpolates MEASURED_TO_ESTIMATE_SAFETY and the generated header matches it", () => {
+    const gen = readFileSync(join(import.meta.dirname, "..", "..", "scripts", "gen-bb-registry.ts"), "utf8");
+    const value = /const MEASURED_TO_ESTIMATE_SAFETY = ([\d.]+);/.exec(gen)?.[1];
+    assert.ok(value, "the constant is defined");
+    const header = gen.slice(gen.indexOf("const HEADER_TRUNCATION"), gen.indexOf("`;", gen.indexOf("const HEADER_TRUNCATION")));
+    assert.match(header, /with MEASURED_TO_ESTIMATE_SAFETY = \$\{MEASURED_TO_ESTIMATE_SAFETY\}\./);
+    const generated = readFileSync(join(import.meta.dirname, "..", "core", "truncation.generated.ts"), "utf8");
+    assert.ok(generated.includes(`with MEASURED_TO_ESTIMATE_SAFETY = ${value}.`), "the generated header carries the constant's value");
+  });
+});
+
+describe("readAgyGate spelling (r251-2 K1: one strict rule with the bash and Python readers)", () => {
+  for (const spelling of ["True", "TRUE", "False", "yes", "on"]) {
+    it(`${spelling} reads off and is flagged for one WARN naming the accepted spelling`, async () => {
+      await withConfig(`hounfour:\n  headless:\n    agy_opt_in: ${spelling}\n`, (path) => {
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false);
+        assert.match(String(g.typeWarning), /agy_opt_in: true/);
       });
     });
   }

@@ -495,16 +495,12 @@ def test_attempt_timeout_scales_with_size_and_is_capped(tool):
 def test_output_past_the_1mb_cap_raises_and_kills_the_group(tool):
     # verifier r251-1 (P7): the probe runs through loa_cheval's run_subprocess_pgkill, which
     # raises past its byte cap instead of truncating — a truncated answer never classifies
-    _adapters_base()
+    tool._adapters()                       # the tool's own import seam (verifier n46)
     from loa_cheval.providers.base import SubprocessOutputCapExceeded
     with pytest.raises(SubprocessOutputCapExceeded):
         tool._run_capped([sys.executable, "-c", "import sys; sys.stdout.write('x' * 3000000)"], "", 60)
     rc, out, err = tool._run_capped([sys.executable, "-c", "import sys; sys.stdout.write('x' * 1000)"], "", 60)
     assert rc == 0 and len(out) == 1000
-
-
-def _adapters_base():
-    sys.path.insert(0, str(ROOT / ".claude" / "adapters"))
 
 
 def test_an_oversized_cli_answer_is_other(tool, fake, monkeypatch, tmp_path):
@@ -890,7 +886,7 @@ def test_p6_a_missing_catalog_file_fails_fast(tool, fake, monkeypatch, tmp_path)
 GRANDCHILD = textwrap.dedent("""\
     import os, subprocess, sys, time
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
-    open(sys.argv[1], "w").write(str(child.pid))
+    open(sys.argv[1], "w").write(f"{os.getpid()} {child.pid}")
     time.sleep(300)
     """)
 
@@ -909,17 +905,21 @@ def test_p7_a_timeout_kills_the_whole_process_group(tool, tmp_path):
     script = tmp_path / "wrapper.py"
     script.write_text(GRANDCHILD)
     pidfile = tmp_path / "gc.pid"
+    # verifier n49: a 5 s cap leaves the wrapper ample time to write the pidfile, and a
+    # missing pidfile fails with a message rather than a FileNotFoundError
     with pytest.raises(subprocess.TimeoutExpired):
-        tool._run_capped([sys.executable, str(script), str(pidfile)], "prompt on stdin", 2)
+        tool._run_capped([sys.executable, str(script), str(pidfile)], "prompt on stdin", 5)
     deadline = time.time() + 10
     while not pidfile.exists() and time.time() < deadline:
         time.sleep(0.05)
-    gc = int(pidfile.read_text())
-    while _alive(gc) and time.time() < deadline:
+    assert pidfile.exists(), "the wrapper never wrote its pidfile within the 5 s cap — the test proved nothing"
+    wrapper, gc = (int(x) for x in pidfile.read_text().split())
+    while (_alive(gc) or _alive(wrapper)) and time.time() < deadline:
         time.sleep(0.1)
-    if _alive(gc):
-        os.kill(gc, 9)
-        pytest.fail("the wrapper's grandchild survived the timeout")
+    survivors = [p for p in (wrapper, gc) if _alive(p)]
+    for p in survivors:
+        os.kill(p, 9)
+    assert not survivors, f"the timeout left {survivors} alive (wrapper {wrapper}, grandchild {gc})"
 
 
 def test_p7_stdin_is_delivered_and_the_child_leads_its_own_group(tool):
@@ -1136,7 +1136,7 @@ def test_outcome_reasons_flag_a_non_context_bracket(tool):
 
 
 @pytest.mark.parametrize("exc,code", [(KeyboardInterrupt, 130), (RuntimeError, 1)])
-def test_an_interrupt_after_paid_steps_still_writes_the_record(tool, fake, monkeypatch, tmp_path, exc, code):
+def test_an_interrupt_after_paid_steps_still_writes_the_record(tool, fake, monkeypatch, tmp_path, capsys, exc, code):
     _limit(monkeypatch, 250_000)
     real = tool._run_capped
     n = {"calls": 0}
@@ -1155,3 +1155,108 @@ def test_an_interrupt_after_paid_steps_still_writes_the_record(tool, fake, monke
     assert first["kind"] in ("ok", "size") and second["kind"] == "interrupted"
     assert second["charge_basis"] == "interrupted_estimate" and second["charged_usd"] > 0
     assert record["spent_usd"] == pytest.approx(sum(s["charged_usd"] for s in record["samples"]), abs=1e-4)
+    # r251-2 Q5 (verifier n62): a defect keeps its traceback on stderr; ^C stays quiet
+    err = capsys.readouterr().err
+    if exc is KeyboardInterrupt:
+        assert "Traceback" not in err
+    else:
+        assert "Traceback" in err and "unexpected boom" in err and "flaky" in err
+
+
+# --- review dissent run 2 (r251-2) -----------------------------------------
+
+def _cls(tool, result, stderr=""):
+    return tool._classify(1, json.dumps({"type": "result", "is_error": True, "result": result}), stderr,
+                          "abcdefabcdef")
+
+
+@pytest.mark.parametrize("text", ["API Error: 429. Too many tokens", "API Error: 429, too many tokens",
+                                  "API Error: 429 Too many tokens"])
+def test_q1_a_429_followed_by_punctuation_is_a_throttle(tool, text):
+    res = _cls(tool, text)
+    assert res["kind"] == "transient" and res.get("token_limit") is True, res
+
+
+@pytest.mark.parametrize("text", ["Prompt is too long: 429,000 tokens > 400,000 maximum",
+                                  "Prompt is too long: 1,429.5k tokens > 1,000,000 maximum"])
+def test_q1_a_429_inside_a_number_is_still_not_a_status(tool, text):
+    assert _cls(tool, text)["kind"] == "size"
+
+
+def test_q1_a_stale_stderr_throttle_does_not_turn_a_context_result_transient(tool):
+    res = _cls(tool, "Prompt is too long: 1,065,182 tokens > 1,000,000 maximum",
+               stderr="warning: earlier rate limit hit, please wait before retrying")
+    assert res["kind"] == "size" and res["failure_class"] == "context_limit", res
+    assert res["rejected_input_tokens"] == 1_065_182
+
+
+def test_q1_stderr_decides_the_throttle_when_the_result_is_empty(tool):
+    res = tool._classify(1, "", "Too many tokens, please wait before trying again.", "abcdefabcdef")
+    assert res["kind"] == "transient" and res.get("token_limit") is True, res
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root ignores the permission bits")
+@pytest.mark.parametrize("lock", ["dir", "file"])
+def test_q2_an_unwritable_catalog_fails_before_any_spend(tool, fake, monkeypatch, tmp_path, capsys, lock):
+    _limit(monkeypatch, 250_000)
+    d = tmp_path / "cat"
+    d.mkdir()
+    catalog = d / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    target = d if lock == "dir" else catalog
+    mode = target.stat().st_mode
+    target.chmod(0o555 if lock == "dir" else 0o444)
+    try:
+        code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), expect_calls=False)
+    finally:
+        target.chmod(mode)
+    assert code == 2 and record is None and fake["calls"]() == []
+    err = capsys.readouterr().err
+    assert "not writable" in err and "nothing spent" in err
+    assert catalog.read_text() == SYNTH
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_q3_a_failed_catalog_write_leaves_no_written_claim(tool, fake, monkeypatch, tmp_path, capsys, partial):
+    _limit(monkeypatch, 350_000 if partial else 250_000)
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+
+    def boom(path, new):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(tool, "_write_text_atomic", boom)
+    extra = ("--budget-usd", "2", "--write-partial-as-operator-set") if partial else ()
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), *extra)
+    assert code == 1
+    assert record["outcome"] == ("partial" if partial else "clean")
+    assert "written_ceiling" not in record and "written_probe_outcome" not in record, record
+    assert "catalog not written" in record["error"] and "No space left" in record["error"]
+    assert catalog.read_text() == SYNTH
+    assert "No space left" in capsys.readouterr().err
+
+
+def test_q3_a_landed_write_is_claimed_in_the_record(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
+    entry = yaml.safe_load(catalog.read_text())["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert code == 0 and record["written_ceiling"] == entry["effective_input_ceiling"]
+    assert record["written_probe_outcome"] == "clean" and "error" not in record
+
+
+def test_q4_a_skipped_forced_write_keeps_the_first_probe_error(tool, fake, monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("FAKE_MODE", "other")
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), "--write-partial-as-operator-set")
+    assert code == 1 and catalog.read_text() == SYNTH
+    assert "Not logged in" in record["error"]                    # errors[0], not overwritten
+    assert "no verified accept" in record["write_skipped"]
+    assert "no verified accept" in capsys.readouterr().err
+
+
+def test_q7_the_tpm_schedule_clears_the_window_by_construction(tool):
+    assert sum(tool._TPM_BACKOFF_S) >= tool._TPM_WINDOW_S
+    src = TOOL.read_text()
+    assert "sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S" in src            # the import-time guard exists

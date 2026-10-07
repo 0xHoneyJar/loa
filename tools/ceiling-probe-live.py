@@ -124,6 +124,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
 import urllib.error
 import urllib.request
 
@@ -189,14 +190,17 @@ _BACKOFF_S = (5, 15)            # 5xx / network / throttling: sleep before attem
 _TPM_ATTEMPTS = 4
 _TPM_BACKOFF_S = (20, 45, 75)   # sleep before attempt 2, 3, 4 (cumulative 140 s)
 _TPM_WINDOW_S = 60
+if sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S:  # r251-2 Q7: the schedule alone clears the window
+    raise RuntimeError("ceiling-probe-live: _TPM_BACKOFF_S must sum to at least _TPM_WINDOW_S")
 _RETRY_WAIT_CAP_S = 180         # total sleep per step, every class
 _RETRY_AFTER = re.compile(r"retry[-_ ]after\W{0,4}(\d+(?:\.\d+)?)", re.I)
 # A throttle marker (verifier r251-1): Bedrock's token throttle reads "Too many
 # tokens, please wait before trying again" — it carries the context marker
 # `too many tokens`, so a throttle marker must win or the first throttle is a
 # size rejection with no retry. `429` is matched as a status, never inside a
-# token count ("429,000 tokens").
-_THROTTLE = re.compile(r"throttl|please wait|(?<![\d,.])429(?![\d,.])|rate limit|tokens per min", re.I)
+# token count ("429,000 tokens", "1,429.5k"); a status followed by punctuation
+# ("API Error: 429. Too many tokens") is still a status (r251-2 Q1).
+_THROTTLE = re.compile(r"throttl|please wait|(?<![\d,.])429(?!\d|[,.]\d)|rate limit|tokens per min", re.I)
 _SLEEP = __import__("time").sleep
 # `opus` / `sonnet` / `haiku` are resolved by the claude CLI itself from these
 # pins (the claude-bedrock wrapper exports them); recorded when visible.
@@ -339,7 +343,13 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
     hint = _RETRY_AFTER.search(full)
     if hint:
         base["retry_after_s"] = float(hint.group(1))
-    if _THROTTLE.search(full) and (ceiling.is_context_limit_message(full) or ceiling.is_token_limit_message(full)):
+    # r251-2 Q1: the throttle verdict reads the CLI's own answer (result + api_status);
+    # stderr decides only when there is no result, so a stale "rate limit … please
+    # wait" line on stderr cannot turn a genuine context-limit result into a transient
+    throttle_text = " ".join(x for x in (result, f"(api_status={api_status})" if api_status else "") if x) \
+        if result else full
+    if _THROTTLE.search(throttle_text) and (ceiling.is_context_limit_message(full)
+                                            or ceiling.is_token_limit_message(full)):
         # a token throttle, even when it also reads like a context limit: retried on the TPM schedule
         return {**base, "kind": "transient", "token_limit": True, "detail": diag}
     if ceiling.is_context_limit_message(full):
@@ -844,6 +854,12 @@ def _main_cli(args) -> int:
                 write_catalog_operator_set(fh.read(), args.model, ceiling=1, calibrated_at=started_at,
                                            cli_model=cli_arg, host_route=host_route, probe_outcome="clean",
                                            sample_size=0)
+            # r251-2 Q2: the atomic write needs the directory (mkstemp + replace) and an
+            # operator-writable file; a read-only catalog must fail here, not after spend
+            cat_dir = os.path.dirname(os.path.abspath(args.write_catalog))
+            for what, path in (("directory", cat_dir), ("file", args.write_catalog)):
+                if not os.access(path, os.W_OK):
+                    raise OSError(f"catalog {what} {path} is not writable")
         except (OSError, ValueError) as e:
             print(f"ceiling-probe-live: --write-catalog {args.write_catalog}: {e} — no call made, nothing spent",
                   file=sys.stderr)
@@ -1010,6 +1026,8 @@ def _main_cli(args) -> int:
                 stop = kind
     except BaseException as e:  # noqa: BLE001 — ^C / a defect after paid steps must not lose the record
         stop, interrupted = "interrupted", e
+        if not isinstance(e, KeyboardInterrupt):
+            traceback.print_exc()           # r251-2 Q5: a defect keeps its traceback
     interrupted_text = f"{type(interrupted).__name__}: {interrupted}" if interrupted is not None else None
 
     for x in samples:
@@ -1069,7 +1087,10 @@ def _main_cli(args) -> int:
     if args.write_catalog and (outcome == "clean" or forced):
         if forced and not (best and largest_ok_measured):
             # nothing to vouch for: not an `other` failure of the probe, the exit stays 3
-            record["error"] = "catalog not written: --write-partial-as-operator-set but no verified accept to vouch for"
+            # r251-2 Q4: a separate key — the probe's own first error (errors[0]) stays in `error`
+            record["write_skipped"] = ("catalog not written: --write-partial-as-operator-set but no verified "
+                                       "accept to vouch for")
+            record.setdefault("error", record["write_skipped"])
         else:
             try:
                 with open(args.write_catalog, "r", encoding="utf-8") as fh:
@@ -1079,9 +1100,14 @@ def _main_cli(args) -> int:
                     current, args.model, ceiling=int(largest_ok_measured), calibrated_at=record["calibrated_at"],
                     cli_model=record["cli_model"], host_route=host_route, cli_version=cli_version,
                     probe_outcome=outcome, sample_size=len(samples), force_partial=bool(forced))
+                # r251-2 Q3: the catalog lands BEFORE the record is serialized, and the
+                # record claims a write only once it has landed
+                _write_text_atomic(args.write_catalog, new_catalog)
                 record["written_ceiling"] = written
                 record["written_probe_outcome"] = outcome
             except (OSError, ValueError) as e:
+                new_catalog = None
+                record["write_failed"] = True
                 record["error"] = f"catalog not written: {e}"
                 errors.append(record["error"])
     text = json.dumps(record, indent=2)
@@ -1097,29 +1123,22 @@ def _main_cli(args) -> int:
               f"catalog", file=sys.stderr)
         return 130 if isinstance(interrupted, KeyboardInterrupt) else 1
     if outcome != "clean":
+        if record.get("write_failed"):
+            print(f"ceiling-probe-live: {record['error']}", file=sys.stderr)
+            return 1
         if forced and new_catalog is not None:
-            try:
-                _write_text_atomic(args.write_catalog, new_catalog)
-            except OSError as e:
-                print(f"ceiling-probe-live: catalog not written: {e}", file=sys.stderr)
-                return 1
             print(f"ceiling-probe-live: partial ({'; '.join(reasons)}) — written anyway as operator_set "
                   f"(--write-partial-as-operator-set: the operator vouches for the last verified accept): "
                   f"{args.model} effective_input_ceiling={record['written_ceiling']} (measured {largest_ok_measured}), "
                   f"probe_outcome: partial, sample_size {len(samples)}", file=sys.stderr)
         else:
-            why = f" ({record['error']})" if forced and record.get("error") else ""
+            why = f" ({record['write_skipped']})" if record.get("write_skipped") else ""
             print(f"ceiling-probe-live: partial ({'; '.join(reasons)}) — nothing written to the catalog{why}",
                   file=sys.stderr)
         return 1 if errors else 3
     if args.write_catalog:
         if new_catalog is None:
             print(f"ceiling-probe-live: {record['error']}", file=sys.stderr)
-            return 1
-        try:
-            _write_text_atomic(args.write_catalog, new_catalog)
-        except OSError as e:
-            print(f"ceiling-probe-live: catalog not written: {e}", file=sys.stderr)
             return 1
         print(f"ceiling-probe-live: {args.write_catalog}: {args.model} probed_ceiling=effective_input_ceiling="
               f"{record['written_ceiling']} (measured {largest_ok_measured}; operator_set, probed_headless, "

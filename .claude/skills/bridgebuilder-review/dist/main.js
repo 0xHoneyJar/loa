@@ -3,7 +3,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, loaConfigPathFor, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, } from "./config.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
 import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross-repo.js";
@@ -396,10 +396,9 @@ async function main() {
         const keyStatus = validateApiKeys(multiModelConfig, agyGate);
         console.error(`[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
             `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`);
-        if (keyStatus.notPlanned.length > 0) {
-            console.error(`[bridgebuilder] Not planned (agy opt-in, hounfour.headless.agy_opt_in): ${keyStatus.notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")}` +
-                (agyGate.readError !== undefined ? ` — config unreadable: ${agyGate.readError}` : ""));
-        }
+        // (r251-2 K7f: the read error and the type warning are said once here, whether or not a voice is not planned)
+        for (const line of agyGateStartupLines(agyGate, keyStatus))
+            console.error(line);
         if (keyStatus.missing.length > 0) {
             console.error(`[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
         }

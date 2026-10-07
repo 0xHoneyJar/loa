@@ -45,12 +45,14 @@ def _reset_warning_state_for_tests() -> None:
 # Try yaml import — pyyaml optional, yq fallback
 try:
     import yaml
+    _HAS_YAML = True
 
     def _load_yaml(path: str) -> Dict[str, Any]:
         with open(path) as f:
             return yaml.safe_load(f) or {}
 except ImportError:
     import subprocess
+    _HAS_YAML = False
 
     def _load_yaml(path: str) -> Dict[str, Any]:
         """Fallback: use yq to convert YAML to JSON, then parse.
@@ -115,36 +117,81 @@ _AGY_AVAILABLE_WARNED = False
 _AGY_OPT_IN_KEY = "hounfour.headless.agy_opt_in"
 
 
-def _agy_opt_in_raw(project_root: Optional[str]) -> Tuple[bool, Any]:
-    """(present, value) of `agy_opt_in` in the PROJECT config only (r251-1 G9: an operator decision — framework-shipped
-    System defaults never satisfy it). Raises on an unreadable config; callers fail closed."""
+_AGY_OPT_IN_ACCEPTED = "agy_opt_in: true"
+
+
+def _agy_opt_in_raw(project_root: Optional[str]) -> Tuple[bool, str, str]:
+    """(present, kind, text) of `agy_opt_in` in the PROJECT config only (r251-1 G9: an operator decision — framework-
+    shipped System defaults never satisfy it). `kind` is the YAML tag's short name (bool / str / int / null / map …) and
+    `text` the scalar's SOURCE text — the node, not the constructed value (review r251-2 K1: PyYAML resolves YAML 1.1, so
+    `yes` / `on` / `True` construct to True; the source text tells them from `true`). Raises on an unreadable config;
+    callers fail closed."""
     root = project_root or _find_project_root()
-    hounfour = load_project_config(root)
-    headless = hounfour.get("headless") if isinstance(hounfour, dict) else None
-    if not isinstance(headless, dict) or "agy_opt_in" not in headless:
-        return False, None
-    return True, headless.get("agy_opt_in")
+    config_path = Path(root) / ".loa.config.yaml"
+    if not config_path.exists():
+        return False, "", ""
+    if not _HAS_YAML:
+        return _agy_opt_in_raw_yq(str(config_path))
+    with open(config_path) as f:
+        node = yaml.compose(f, Loader=yaml.SafeLoader)
+    for key in ("hounfour", "headless", "agy_opt_in"):
+        if not isinstance(node, yaml.MappingNode):
+            return False, "", ""
+        found = None
+        for k, v in node.value:  # the last duplicate wins, as in safe_load
+            if isinstance(k, yaml.ScalarNode) and k.value == key:
+                found = v
+        if found is None:
+            return False, "", ""
+        node = found
+    kind = (node.tag or "").rsplit(":", 1)[-1]
+    text = node.value if isinstance(node, yaml.ScalarNode) else ""
+    return True, kind, text
+
+
+def _agy_opt_in_raw_yq(config_path: str) -> Tuple[bool, str, str]:
+    """The no-PyYAML fallback: go yq (mikefarah) keeps the source text and the YAML 1.2 tag — the bash reader's view."""
+    import subprocess as _sp
+
+    def _yq(expr: str) -> str:
+        r = _sp.run(["yq", "eval", expr, config_path], capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            raise ConfigError(f"yq failed on {config_path}: {r.stderr}")
+        return r.stdout.strip()
+    if _yq('.hounfour.headless | (tag == "!!map" and has("agy_opt_in"))') != "true":
+        return False, "", ""
+    tag = _yq(".hounfour.headless.agy_opt_in | tag")
+    return True, tag[2:] if tag.startswith("!!") else tag, _yq(".hounfour.headless.agy_opt_in")
 
 
 def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
-    """`hounfour.headless.agy_opt_in` (cycle-127 FR-1): True only for a YAML boolean `true`, default False.
+    """`hounfour.headless.agy_opt_in` (cycle-127 FR-1): True only for the YAML boolean scalar written exactly `true`,
+    default False.
+
+    ONE strict rule with the bash reader (`.claude/scripts/lib/agy-gate-lib.sh` `agy_opted_in`; review r251-2 K1): the
+    node's tag is `tag:yaml.org,2002:bool` AND its source text is `true`. PyYAML's other YAML 1.1 truthy spellings
+    (`yes`, `on`, `True`, `TRUE`) read off — as they do under go yq — and so do `1` and the string `"true"`.
 
     Read from the project config (`.loa.config.yaml`) only — never the System defaults (review r251-1 G9) — from the
     root cheval itself resolves (the cwd walk). No environment override — a planner is never talked into the agy voice by
     ambient env. A config that cannot be read reads as off: the gate fails closed, and the adapter's refusal names the
-    key. A present value that is not a YAML boolean (the string "true") reads as off with one WARN per process (G12).
+    key. A present value not written exactly `true` / `false` reads as off with one WARN per process naming the key and
+    the accepted spelling (G12, K1).
     """
     global _AGY_TYPE_WARNED
     try:
         # (review r251-1 G4: the root walk sits inside the fail-closed try — a discovery failure reads as off)
-        present, value = _agy_opt_in_raw(project_root)
+        present, kind, text = _agy_opt_in_raw(project_root)
     except Exception:  # noqa: BLE001 — fail closed
         return False
-    if present and value is not None and not isinstance(value, bool) and not _AGY_TYPE_WARNED:
+    on = present and kind == "bool" and text == "true"
+    canonical = (kind == "bool" and text in ("true", "false")) or kind == "null"
+    if present and not canonical and not _AGY_TYPE_WARNED:
         _AGY_TYPE_WARNED = True
-        logger.warning("%s is %r (%s), not a YAML boolean — expected true or false; the agy route stays off",
-                       _AGY_OPT_IN_KEY, value, type(value).__name__)
-    return value is True
+        what = "a boolean spelled other than true/false" if kind == "bool" else "not a YAML boolean"
+        logger.warning("%s is %r (%s), %s — only `%s` opts in (the lowercase scalar, as the bash reader requires); "
+                       "the agy route stays off", _AGY_OPT_IN_KEY, text, kind or "?", what, _AGY_OPT_IN_ACCEPTED)
+    return on
 
 
 def warn_agy_available_once(project_root: Optional[str] = None) -> None:

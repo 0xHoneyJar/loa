@@ -54,6 +54,14 @@ def _project(tmp_path, body):
     ("hounfour:\n  headless:\n    agy_opt_in: 1\n", False),
     ("hounfour:\n  headless: on-a-string\n", False),
     ("hounfour:\n  headless:\n    agy_opt_in: true\n", True),
+    # review r251-2 K1: ONE strict rule with the bash reader — only the scalar written exactly `true` opts in; PyYAML's
+    # YAML 1.1 truthy spellings (yes / on / True / TRUE) read off here as they do under go yq
+    ("hounfour:\n  headless:\n    agy_opt_in: yes\n", False),
+    ("hounfour:\n  headless:\n    agy_opt_in: on\n", False),
+    ("hounfour:\n  headless:\n    agy_opt_in: True\n", False),
+    ("hounfour:\n  headless:\n    agy_opt_in: TRUE\n", False),
+    ("hounfour:\n  headless:\n    agy_opt_in: !!bool true\n", True),
+    ("hounfour:\n  headless: {agy_opt_in: true}\n", True),
 ])
 def test_the_key_is_a_yaml_boolean_default_false(tmp_path, body, expected):
     assert agy_opt_in_enabled(_project(tmp_path, body)) is expected
@@ -253,6 +261,38 @@ def test_g12_absent_and_boolean_values_never_warn(tmp_path, monkeypatch, caplog)
             sub.mkdir()
             agy_opt_in_enabled(_project(sub, body))
     assert not [r for r in caplog.records if "hounfour.headless.agy_opt_in" in r.getMessage()]
+
+
+@pytest.mark.parametrize("spelling", ["yes", "on", "True", "TRUE", "1", '"true"', "False", "no"])
+def test_k1_a_non_canonical_spelling_reads_off_with_one_warn_naming_the_accepted_spelling(tmp_path, monkeypatch, caplog,
+                                                                                         spelling):
+    """review r251-2 K1 (n16): the Python reader used to accept PyYAML's truthy spellings while the bash reader (go yq,
+    tag !!bool and the literal true) refused them — a split-brain on the security-relevant route. Now both refuse, and a
+    present value not written exactly `true` / `false` is said once, naming the key and the accepted spelling."""
+    import logging
+    import loa_cheval.config.loader as loader
+    monkeypatch.setattr(loader, "_AGY_TYPE_WARNED", False, raising=False)
+    root = _project(tmp_path, f"hounfour:\n  headless:\n    agy_opt_in: {spelling}\n")
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            assert agy_opt_in_enabled(root) is False
+    warns = [r.getMessage() for r in caplog.records if "hounfour.headless.agy_opt_in" in r.getMessage()]
+    assert len(warns) == 1, [r.getMessage() for r in caplog.records]
+    assert "agy_opt_in: true" in warns[0], warns[0]
+
+
+def test_k1_the_strict_rule_holds_without_pyyaml(tmp_path, monkeypatch):
+    """The yq fallback (no PyYAML) applies the same strict rule: the typed go-yq expression, never `== true` alone."""
+    import shutil
+    import loa_cheval.config.loader as loader
+    if not shutil.which("yq"):
+        pytest.skip("yq not installed")
+    monkeypatch.setattr(loader, "_HAS_YAML", False, raising=False)
+    monkeypatch.setattr(loader, "_AGY_TYPE_WARNED", True, raising=False)
+    for spelling, want in (("true", True), ("True", False), ('"true"', False), ("yes", False), ("false", False)):
+        sub = tmp_path / f"s{abs(hash(spelling))}"
+        sub.mkdir()
+        assert agy_opt_in_enabled(_project(sub, f"hounfour:\n  headless:\n    agy_opt_in: {spelling}\n")) is want, spelling
 
 
 # --- review r251-1 G18 (SDD D-1.7): the route is available here but not opted in — one WARN per process --------------

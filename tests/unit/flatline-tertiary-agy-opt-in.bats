@@ -81,7 +81,8 @@ _cfg() {  # <tertiary> [agy_opt_in value|absent] [headless mode]
     [ "$status" -eq 0 ] || { echo "run_phase1 rc=$status"; echo "$stderr" | tail -20; return 1; }
     local f
     for f in gpt-review opus-review gpt-skeptic opus-skeptic; do [ -s "$TEMP_DIR/$f.json" ] || { echo "missing $f.json"; ls "$TEMP_DIR"; return 1; }; done
-    [ ! -e "$TEMP_DIR/tertiary-review.json" ] && [ ! -e "$TEMP_DIR/tertiary-skeptic.json" ]
+    [ ! -e "$TEMP_DIR/tertiary-review.json" ] || { echo "tertiary-review.json written"; return 1; }
+    [ ! -e "$TEMP_DIR/tertiary-skeptic.json" ] || { echo "tertiary-skeptic.json written"; return 1; }
     ! grep -q gemini-headless "$CALLS" || { echo "unexpected: grep -q gemini-headless '$CALLS'"; return 1; }
     [ "$(grep -c '' "$CALLS")" = "4" ]
     [[ "$stderr" == *"disabled by opt-in"*"hounfour.headless.agy_opt_in"* ]] || { echo "$stderr"; return 1; }

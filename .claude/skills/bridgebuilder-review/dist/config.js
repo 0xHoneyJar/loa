@@ -138,13 +138,16 @@ export function readAgyGate(configPath) {
     if (existsSync(configPath)) {
         try {
             const out = execFileSync("yq", ["eval", "-o=json", "-I=0",
-                '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
+                '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
                 configPath], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"] });
             const parsed = JSON.parse(out);
             optIn = parsed.opt === true;
             mode = typeof parsed.mode === "string" ? parsed.mode : "";
             if (typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
-                typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — expected true or false; the agy route stays off`;
+                typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;
+            }
+            else if (parsed.tag === "!!bool" && parsed.canon !== true) {
+                typeWarning = "hounfour.headless.agy_opt_in is a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off";
             }
         }
         catch (err) {
@@ -178,7 +181,10 @@ export function validateApiKeys(config, gate) {
     const missing = [];
     const notPlanned = [];
     for (const model of config.models) {
-        if (!gate.optIn && isAgyRouted(model.provider, model.model_id, gate.mode)) {
+        // (r251-2 K7b: an unreadable config fails closed for EVERY google voice — its mode is unknown, so is its route: cheval,
+        // reading the same file with PyYAML, might route it to agy and refuse; planned-as-HTTP would mis-count a failed voice)
+        const gated = gate.readError !== undefined ? model.provider === "google" : isAgyRouted(model.provider, model.model_id, gate.mode);
+        if (!gate.optIn && gated) {
             notPlanned.push({ provider: model.provider, modelId: model.model_id, reason: "opt_in_required" });
             continue;
         }
@@ -197,6 +203,23 @@ export function validateApiKeys(config, gate) {
         }
     }
     return { valid, missing, notPlanned };
+}
+/**
+ * The startup lines for the agy gate (r251-2 K7f): the read error and the type warning each said once, unconditionally —
+ * not only when a voice is not planned — and the not-planned voices. main.ts prints them; the pipeline says its own once
+ * per review.
+ */
+export function agyGateStartupLines(gate, keyStatus) {
+    const lines = [];
+    if (gate.readError !== undefined) {
+        lines.push(`[bridgebuilder] agy gate: Loa config unreadable (${gate.readError}) — failing closed: google voices are not planned (hounfour.headless.agy_opt_in)`);
+    }
+    if (gate.typeWarning !== undefined)
+        lines.push(`[bridgebuilder] ${gate.typeWarning}`);
+    if (keyStatus.notPlanned.length > 0) {
+        lines.push(`[bridgebuilder] Not planned (agy opt-in, hounfour.headless.agy_opt_in): ${keyStatus.notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")}`);
+    }
+    return lines;
 }
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS = {

@@ -269,7 +269,7 @@ def test_no_canonical_reason_stays_below_high_when_no_chain_exhausted():
     for reason in (
         "EmptyContent", "ContextTooLarge", "ProviderUnavailable",
         "RetriesExhausted", "NoEligibleAdapter", "RateLimited",
-        "InteractionPending", "Other",
+        "InteractionPending", "OptInRequired", "Other",
     ):
         result = compute_blocker_risk(
             reason=reason, voice_role="review", sprint_kind="implementation",
@@ -290,7 +290,7 @@ def test_no_canonical_reason_stays_below_high_when_no_chain_exhausted():
     [
         "EmptyContent", "RateLimited", "ProviderUnavailable",
         "RetriesExhausted", "ContextTooLarge", "NoEligibleAdapter",
-        "ChainExhausted", "InteractionPending", "Other",
+        "ChainExhausted", "InteractionPending", "OptInRequired", "Other",
         "UnrecognizedReason",  # graceful degradation: must still return valid enum
     ],
 )

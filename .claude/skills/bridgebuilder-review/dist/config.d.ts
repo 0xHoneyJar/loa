@@ -71,7 +71,8 @@ export interface AgyGate {
     mode: string;
     /** The config could not be read (yq missing, unparsable YAML): the gate failed closed for this reason (r251-1 G14). */
     readError?: string;
-    /** `agy_opt_in` is present but not a YAML boolean (e.g. the string "true"): it reads off, said once (r251-1 G12). */
+    /** `agy_opt_in` is present but not written exactly `true` / `false` (the string "true", `True`, `yes` …): it reads off,
+     * said once (r251-1 G12, r251-2 K1 — the bash and Python readers apply the same strict rule). */
     typeWarning?: string;
 }
 /** The Loa config the agy gate reads: the repo root's when one is known, else the cwd's (r251-1 G15 — one path for all callers). */
@@ -107,6 +108,12 @@ export declare function validateApiKeys(config: MultiModelConfig, gate: AgyGate)
         reason: "opt_in_required";
     }>;
 };
+/**
+ * The startup lines for the agy gate (r251-2 K7f): the read error and the type warning each said once, unconditionally —
+ * not only when a voice is not planned — and the not-planned voices. main.ts prints them; the pipeline says its own once
+ * per review.
+ */
+export declare function agyGateStartupLines(gate: AgyGate, keyStatus: ReturnType<typeof validateApiKeys>): string[];
 export interface CLIArgs {
     dryRun?: boolean;
     repos?: string[];

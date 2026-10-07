@@ -73,6 +73,7 @@
               "NoEligibleAdapter",
               "ChainExhausted",
               "InteractionPending",
+              "OptInRequired",
               "Other"
             ],
             "description": "Canonical drop-reason taxonomy. `Other` reserved for edge cases that don't map to the above; consumers route per the reason value."

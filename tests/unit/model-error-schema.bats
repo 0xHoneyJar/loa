@@ -428,15 +428,17 @@ _validate_sh() {
     "$PYTHON_BIN" -I -c "import json, jsonschema; jsonschema.Draft202012Validator.check_schema(json.load(open('$SCHEMA')))"
 }
 
-@test "S2: schema enumerates exactly 13 error_class values (taxonomy pin)" {
+@test "S2: schema enumerates exactly 14 error_class values (taxonomy pin)" {
     local n
     n="$("$PYTHON_BIN" -I -c "import json; print(len(json.load(open('$SCHEMA'))['properties']['error_class']['enum']))")"
-    # 13 = original 10 + PROVIDER_OUTAGE + AUTH_REVOKED (KF-017/#1071) +
+    # 14 = original 10 + PROVIDER_OUTAGE + AUTH_REVOKED (KF-017/#1071) +
     # PREFLIGHT_PREEMPT (cycle-114 preflight input-ceiling gate; the cheval
     # emitter writes it into models_failed on context-too-large preempt —
-    # schema caught up in v1.196.0). This pin is a deliberate tripwire: bump
-    # it (and review the addition) when the enum grows.
-    [ "$n" -eq 13 ]
+    # schema caught up in v1.196.0) + INVALID_CONFIG (cycle-127 review r251-2
+    # K2: an agy-alone chain refused by its opt-in is a failed hop with this
+    # class and failure_class opt_in_required). This pin is a deliberate
+    # tripwire: bump it (and review the addition) when the enum grows.
+    [ "$n" -eq 14 ]
 }
 
 # -----------------------------------------------------------------------------
