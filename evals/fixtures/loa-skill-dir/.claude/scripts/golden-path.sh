@@ -88,7 +88,7 @@ _gp_sprint_is_complete() {
 # FR-5 (cycle-124): the one verdict gate behind both call sites below. Every
 # caller has already confirmed the file carries a LOA-VERDICT marker, so a
 # verdict-derive.sh exit 2 here can only be a present-but-unparseable trailer
-# or a usage error (it exits 2 BEFORE emit_json) — any rc != 0 denies, as
+# (a usage error exits 1 with a result object since cycle-126) — any rc != 0 denies, as
 # does missing/broken jq. Passes only on rc 0 AND .consistent AND APPROVED.
 # Returns 0 pass / 1 deny; diagnostics go to stderr, never stdout.
 # Trailer DETECTION is deliberately loose — any HTML comment whose text reads

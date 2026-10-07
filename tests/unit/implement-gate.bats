@@ -410,7 +410,7 @@ state_aged() {
     jq -nc --argjson h "$2" "$3"' + {timestamps: {last_activity: (now - $h * 3600 | floor | todate)}}' > "$ROOT/.run/$1"   # jq todate: portable, no GNU date -d
 }
 
-@test "IG-22 state.json RUNNING and simstim-state.json implementation allow only while fresh: older than 24 h, or with no timestamp, asks (LOW-004)" {
+@test "IG-22 state.json RUNNING, simstim-state.json implementation and sprint-plan-state.json RUNNING allow only while fresh: older than 24 h, more than 24 h ahead, with no timestamp or an unparsable one, asks (LOW-004, LOW-006)" {
     local f body
     for f in state.json simstim-state.json; do
         case "$f" in state.json) body='{state: "RUNNING"}' ;; *) body='{state: "RUNNING", phase: "implementation"}' ;; esac
@@ -430,6 +430,30 @@ state_aged() {
     jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{state: "RUNNING", updated_at: $ts}' > "$ROOT/.run/state.json"
     gate_path "$ROOT/src/x.ts"
     [ "$(decision)" = allow ]
+    # sprint-250 audit LOW-006: the window is bounded in both directions — a last_activity 48 h ahead is not fresh forever
+    for f in state.json simstim-state.json sprint-plan-state.json; do
+        case "$f" in
+            state.json) body='{state: "RUNNING"}' ;;
+            simstim-state.json) body='{state: "RUNNING", phase: "implementation"}' ;;
+            *) body='{plan_id: "p", state: "RUNNING"}' ;;
+        esac
+        rm -f "$ROOT/.run/state.json" "$ROOT/.run/simstim-state.json" "$ROOT/.run/sprint-plan-state.json"
+        state_aged "$f" -48 "$body"
+        gate_path "$ROOT/src/x.ts"
+        [ "$(decision)" = ask ] || { echo "$f 48 h ahead: expected ask, got $(decision)" >&2; return 1; }
+    done
+    # and sprint-plan-state.json RUNNING + plan_id with no timestamp, or one that does not parse, is stale too
+    # (not-a-date, not yesterday: GNU date -d parses yesterday)
+    rm -f "$ROOT/.run/sprint-plan-state.json"
+    jq -nc '{plan_id: "p", state: "RUNNING"}' > "$ROOT/.run/sprint-plan-state.json"
+    gate_path "$ROOT/src/x.ts"
+    [ "$(decision)" = ask ] || { echo "sprint-plan no timestamp: expected ask, got $(decision)" >&2; return 1; }
+    jq -nc '{plan_id: "p", state: "RUNNING", timestamps: {last_activity: "not-a-date"}}' > "$ROOT/.run/sprint-plan-state.json"
+    gate_path "$ROOT/src/x.ts"
+    [ "$(decision)" = ask ] || { echo "sprint-plan not-a-date: expected ask, got $(decision)" >&2; return 1; }
+    state_aged sprint-plan-state.json 0 '{plan_id: "p", state: "RUNNING"}'
+    gate_path "$ROOT/src/x.ts"
+    [ "$(decision)" = allow ] || { echo "sprint-plan fresh: expected allow, got $(decision)" >&2; return 1; }
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {

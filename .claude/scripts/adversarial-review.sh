@@ -2382,7 +2382,7 @@ _adv_resolve_run_tag() {  # sets _ADV_RUN_TAG for LOA_ADVERSARIAL_RUN_TAG: the t
   _ADV_RUN_TAG_RAW_SEEN="set:$_rt"
   if [[ -z "$_rt" ]]; then _ADV_RUN_TAG=""; return 0; fi
   if [[ "$_rt" =~ ^[A-Za-z0-9_-]{1,64}$ ]]; then _ADV_RUN_TAG="$_rt"; return 0; fi
-  _h=$(printf '%s' "$_rt" | sha256sum 2>/dev/null | cut -c1-12) || _h=""
+  _h=$(printf '%s' "$_rt" | sha256_portable 2>/dev/null | cut -c1-12) || _h=""
   [[ -n "$_h" ]] || _h=$(printf '%s' "$_rt" | shasum -a 256 2>/dev/null | cut -c1-12) || _h=""   # (macOS: no sha256sum, KF-012; `|| _h=""`: errexit-safe — fifteenth run, a2 C-003)
   if [[ -z "$_h" ]]; then   # no digest tool: the raw tag hex-encoded, whole up to 100 bytes and its byte length beyond (twelfth run, c2 C-003;
                             # eighteenth run, a2 C-004: a 40-hex cut shared a name for tags that differed only after byte 20)
@@ -2548,12 +2548,12 @@ _adv_take_run_lock() {  # <sprint dir> <gate> → 0 with this run's key locked (
   local key="" dir pidf other ostart cur _try _w lockdir _g
   # (twentieth run, c1b C-005: the in-flight grace is a validated knob, so a test can hold a token-less lock live past it)
   _g=$(_conf_uint "LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS" "${LOA_ADVERSARIAL_RUN_LOCK_GRACE_SECONDS:-5}" 5 0) || _g=5
-  key=$(printf '%s|%s' "$1" "$2" | sha256sum 2>/dev/null | cut -c1-16) || key=""
+  key=$(printf '%s|%s' "$1" "$2" | sha256_portable 2>/dev/null | cut -c1-16) || key=""
   [[ -n "$key" ]] || key=$(printf '%s|%s' "$1" "$2" | shasum -a 256 2>/dev/null | cut -c1-16) || key=""
   # twenty-first run, a2 DISS-C-001 / c1b DISS-C-004: every fail-open path below runs unguarded — never a refusal — and says so,
   # once (this is called once per run), as the per-binary lock's _adv_run_unlocked does. The lock lives in the per-user runtime
   # directory: two launchers that resolve XDG_RUNTIME_DIR differently, or two users of one checkout, do not see each other's lock
-  [[ -n "$key" ]] || { _adv_run_lock_unguarded "no sha256sum or shasum to name the lock"; return 0; }
+  [[ -n "$key" ]] || { _adv_run_lock_unguarded "no SHA-256 tool to name the lock"; return 0; }
   # (twenty-sixth run, a2 DISS-C-001: a racer that loses the first-of-session mkdir to another run sees EEXIST — the directory is
   # re-tested after the mkdir, as _adv_with_cli_lock does, so the loser still takes the per-key lock)
   local _rt; _rt=$(_adv_cli_lock_dir); lockdir=$(_adv_lock_dir) || lockdir=""
@@ -3416,7 +3416,7 @@ _fold_companion() {  # <result json> <companion workdir> <family> <chain csv> <p
 # a wait cap (chain length × per-call timeout + slack; LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS pins it).
 _ADV_COMPANION_PID=""
 _adv_tree_pids() {  # <pid> → the process and every descendant, one per line (collected BEFORE any signal:
-                    # once the parent dies its children are re-parented and pgrep -P can no longer find them)
+                    # once the parent dies its children are re-parented and a parent-pid pgrep can no longer find them)
   local p="$1" c kids rc
   echo "$p"
   if command -v "${_ADV_PGREP_BIN:-pgrep}" >/dev/null 2>&1; then
@@ -4431,7 +4431,7 @@ main() {
   # twenty-sixth run, b2 DISS-C-002/003: the envelope says what it reviewed — a skill refused while another run held the lock
   # adopts the envelope that run left only when the scope is the one it asked for (a chunk driver's tagged run reviews one chunk)
   local _scope_sha="" _scoped=""
-  _scope_sha=$( { sha256sum < "$diff_file" || shasum -a 256 < "$diff_file"; } 2>/dev/null | cut -c1-64) || _scope_sha=""
+  _scope_sha=$( { sha256_portable < "$diff_file" || shasum -a 256 < "$diff_file"; } 2>/dev/null | cut -c1-64) || _scope_sha=""
   [[ "$_scope_sha" =~ ^[0-9a-f]{64}$ ]] || _scope_sha=""
   if _scoped=$(jq -c --argjson sc "$(_adv_scope_json "$_scope_sha")" '.metadata.scope = $sc' <<<"$result" 2>/dev/null) && [[ -n "$_scoped" ]]; then
     result="$_scoped"

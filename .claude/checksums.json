@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-07T04:57:16Z",
+  "generated": "2026-10-07T05:35:26Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -944,7 +944,7 @@
     ".claude/hooks/README.md": "9bf2efcf0e514176c3265fe9ab1cdeb93e28937b9de79a620bdd268384d90d4e",
     ".claude/hooks/audit/mutation-logger.sh": "46d49d8ae3525b40af3cdaf261b8118956e8b9ef3a54216891b1904dc4e7e631",
     ".claude/hooks/audit/write-mutation-logger.sh": "f7e0108de87e912643756c2a4307289bc68f1e59945d1cae4d809c60e66b8c5a",
-    ".claude/hooks/compliance/implement-gate.sh": "b17b7af04057806e2be81e8a1569def31d14511a5dd1cfac52ebfd6d575a9ae2",
+    ".claude/hooks/compliance/implement-gate.sh": "0b84d29072f0801318a4cb751b942e604e9ffec1bfb2558254cd93ec8ece3d74",
     ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "df73c944ef232be36aa965438477da7096686216704851c3c82b808567e164c0",
     ".claude/hooks/loa-kf-surface.sh": "c8f9b18e84b5f683772eaef1c8458e28172b222d721137c56583b53f70188cf6",
@@ -1188,7 +1188,7 @@
     ".claude/schemas/wire/flatline-skeptic.wire.json": "8251f74444f32c158297f7cc63997e2e08b4a90504be09fd06c83b37b7b12c9e",
     ".claude/scripts/README.md": "280e64d05e8eda11ee8b960da4ef1e060ea422cce06599704bc174be704e9aab",
     ".claude/scripts/__pycache__/loa-migrate-model-config.cpython-313.pyc": "9db5f62f73cb75a24cad707d0500d19fd0a4858e27e74f005db46341d67c4be7",
-    ".claude/scripts/adversarial-review.sh": "6b99b27db777706f5d703126a0d38e7bbec8cfe595fcb3bda905065edea2f1a4",
+    ".claude/scripts/adversarial-review.sh": "b29d75508388c500312cee9b91806329318172fd9ff6e10e38974007e14197ae",
     ".claude/scripts/agents-md-gen.sh": "393b3f3a9557a887bf233a527bc5eb750508c0f8a85dc3ca8da2c3f5e2666f2a",
     ".claude/scripts/analytics.sh": "e9dc4bcaa0b3b08efe32edf52e3c37915e7342189a25cb3d1bc4fa67187da428",
     ".claude/scripts/anonymize-proposal.sh": "62fff7fed9942e861a48cb468d6751baa9ed210e0d5f04557e16f3ef4c94913a",

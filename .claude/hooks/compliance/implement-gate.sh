@@ -364,8 +364,8 @@ fi
 # Heuristic mode: Is an /implement or /bug skill currently active?
 # Check .run/sprint-plan-state.json, .run/simstim-state.json, .run/state.json
 # ---------------------------------------------------------------------------
-# True when the ISO-8601 timestamp $1 parses and is at most 24 h (86400 s) old; empty or unparsable is stale
-# (sprint-250 audit LOW-004: tighten-only)
+# True when the ISO-8601 timestamp $1 parses and is within 24 h (86400 s) of now, either side; empty or unparsable is stale
+# (sprint-250 audit LOW-004: tighten-only; LOW-006: a future-dated stamp is not fresh forever)
 _ig_fresh() {
     [[ -n "$1" ]] || return 1
     local now last_epoch
@@ -376,7 +376,7 @@ _ig_fresh() {
         last_epoch=$(date -d "$1" +%s 2>/dev/null || date -jf '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null) || last_epoch=""
     fi
     [[ "$last_epoch" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]] || return 1
-    (( last_epoch > 0 && now - last_epoch <= 86400 ))
+    (( last_epoch > 0 && now - last_epoch <= 86400 && last_epoch - now <= 86400 ))
 }
 
 check_implementation_active() {
@@ -391,25 +391,11 @@ check_implementation_active() {
             return 1
         fi
 
-        # Integrity: check staleness (24h = 86400s)
-        # Use _date_to_epoch from compat-lib.sh for portable conversion
-        last_activity=$(jq -r '.timestamps.last_activity // empty' "$RUN_DIR/sprint-plan-state.json" 2>/dev/null) || true
-        if [[ -n "$last_activity" ]]; then
-            local now last_epoch
-            now=$(date +%s 2>/dev/null) || now=0
-            if type _date_to_epoch &>/dev/null; then
-                last_epoch=$(_date_to_epoch "$last_activity" 2>/dev/null) || last_epoch=0
-            else
-                # Fallback if compat-lib not loaded: try GNU then macOS
-                last_epoch=$(date -d "$last_activity" +%s 2>/dev/null ||
-                             date -jf '%Y-%m-%dT%H:%M:%SZ' "$last_activity" +%s 2>/dev/null) || last_epoch=0
-            fi
-            if [[ $now -gt 0 && $last_epoch -gt 0 ]]; then
-                local age=$((now - last_epoch))
-                if [[ $age -gt 86400 ]]; then
-                    return 1  # Stale state (>24h)
-                fi
-            fi
+        # Integrity: check staleness (within 24 h either side, via _ig_fresh); an absent or unparsable
+        # last_activity is stale too (sprint-250 audit LOW-006: the check was skipped, so RUNNING + plan_id allowed)
+        last_activity=$(jq -r '.timestamps.last_activity // empty' "$RUN_DIR/sprint-plan-state.json" 2>/dev/null) || last_activity=""
+        if ! _ig_fresh "$last_activity"; then
+            return 1  # Stale, future-dated or unstamped state
         fi
 
         if [[ "$state" == "RUNNING" ]]; then

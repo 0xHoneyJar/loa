@@ -2375,7 +2375,7 @@ $(mk_file c.py 120)" 300 2>/dev/null)
     unset _ADV_RUN_LOCK_WARNED
     _adv_take_run_lock "$OUT_DIR" review 2>"$T/rl-err"
     [ -z "$_ADV_RUN_LOCK_DIR" ]
-    grep -q "run lock is not taken — no sha256sum or shasum to name the lock" "$T/rl-err"
+    grep -q "run lock is not taken — no SHA-256 tool to name the lock" "$T/rl-err"
     unset -f sha256sum shasum
     # a lock directory that IS ours: taken, nothing said
     unset _ADV_RUN_LOCK_WARNED
