@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "@test \"NRM-45 a rejected_summary row is a bounded, typed surface",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "jq -e 'all(.[]; [.title, .anchor, .description_head][] | strings | test(\"[\\u0000-\\u001f\\u007f]\") | not)' <<<\"$rs\"",
+      "cross_file_justification": "NRM-45 and NRM-48 in tests/unit/adversarial-review-normalise.bats pin the sanitiser that process_findings in .claude/scripts/adversarial-review.sh applies to rejected_summary rows and reject-reason log lines. The pinned contract is exactly the jq class [\\u0000-\\u001f\\u007f] plus an LC_ALL=C grep of the same bytes, so the production clean is bounded to C0 and DEL by test.",
+      "description": "The 'control-free' guarantee for the model-written title, anchor, description_head, severity and reason fields covers only C0 controls and DEL. C1 controls U+0080 to U+009F, the line and paragraph separators U+2028/U+2029, bidi overrides U+202A to U+202E and U+2066 to U+2069, and zero-width characters are neither stripped nor tested. The tests themselves name the threat as terminal and markdown injection ('## Injected', ESC, BEL fixtures). xterm-family terminals interpret UTF-8 encoded C1 as controls (U+009B is CSI), and bidi overrides reorder displayed text, so the gap leaves that threat partly open for model output that reaches the operator's stderr or a rendered report.",
+      "failure_mode": "A model finding whose severity or title contains U+009B followed by an SGR sequence, or a U+202E override, passes the clean unchanged. When the reject reason or summary row is printed to the terminal or rendered into the report, the visible line is recoloured, overwritten or reversed, so the rejected finding's real content is disguised in operator-facing output.",
+      "suggested_fix": "Extend the clean to the full set of non-printing code points, for example reject or space-replace [\\u0000-\\u001f\\u007f-\\u009f​-‏ -‮⁠-⁤⁦-⁩﻿], applied via explode/map/implode so it is still linear time per NRM-49. Pin it by adding fixtures to NRM-45 and NRM-48 containing U+009B, U+2028 and U+202E and asserting they do not survive in title, severity, reason, anchor or description_head.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "@test \"NRM-28 the test seams are honoured under the bats marker only",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "out=$(_ADV_FLOCK_BIN=/nonexistent/flock _ADV_PGREP_BIN=/nonexistent/pgrep _ADV_LOCK_WAIT_CLI=1 bash -c \"source /dev/stdin \\\"\\$0\\\"\" \"$PROJECT_ROOT\" <<<\"$probe\" 2>/dev/null)",
+      "cross_file_justification": "NRM-28 and NRM-25 pin load-time behaviour of .claude/scripts/adversarial-review.sh: with BATS_TEST_FILENAME or BATS_VERSION present in the environment, the script keeps _ADV_FLOCK_BIN, _ADV_PGREP_BIN, _ADV_LOCK_WAIT_CLI and honours LOA_ADVERSARIAL_NO_FM_DERIVATION; without the marker it drops them.",
+      "description": "The test seams are gated solely on two ordinary, inheritable environment variables that bats exports. Any invocation of the real script from inside another bats process (an integration suite, a CI step that runs bats, or a shell where BATS_VERSION leaked) silently re-enables them. In that state the environment chooses which binary the script executes in place of flock and pgrep, can disable the CLI lock wait, and can turn off failure_mode derivation so findings pass without that field. The marginal risk over plain PATH control is small, which is why this is a hardening item rather than an exploitable gap.",
+      "failure_mode": "A CI job runs the adversarial review from a bats-driven integration test with BATS_VERSION set. A compromised or misconfigured environment also sets _ADV_FLOCK_BIN to an attacker-controlled path; the review executes that binary with the operator's credentials while believing it is serialising CLI hops, or sets LOA_ADVERSARIAL_NO_FM_DERIVATION=1 and the review emits findings that lack failure_mode.",
+      "suggested_fix": "Require an explicit opt-in such as LOA_ADVERSARIAL_TEST_SEAMS=1 in addition to the bats marker, and constrain _ADV_*_BIN to an absolute, executable path under the repository's tests/ tree or owned by the current uid. Add a negative case to NRM-28 where BATS_VERSION is set but the opt-in is absent and assert the seams are dropped.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "@test \"NRM-46 no payload-sized value reaches jq on argv",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": "for m in re.finditer(r'--(?:argjson|arg)\\s+\\S+\\s+(?=(\\S.*))', line):",
+      "cross_file_justification": null,
+      "description": "The NRM-46 Python lint is the control that keeps model payloads off jq's argv, preventing the E2BIG and truncation failures NRM-43 and NRM-46 were written for. It is regex based with bypasses a later edit would slip through: (a) a quoted flag, kv+=(\"--arg\" \"$name\" \"$payload\"), does not match because the regex requires whitespace immediately after --arg; (b) a flag held in a variable, \"$flag\" x \"$payload\", is invisible; (c) the trailing-comment strip re.split(r'\\s{2,}# ', line) is applied before quote parsing, so a quoted operand containing two spaces and '# ' hides every operand after it; (d) the SMALL allowlist is by name only, and names such as last_error, reject_reason, sidecar_reject_reason, why, _ff_why, violated_clause, _enforced_err, _vq_err and stop_reason carry model- or provider-derived text whose caps the lint never verifies. The lint's own fixture self-tests exercise none of (a) to (c).",
+      "failure_mode": "A refactor passes a finding through one of these forms, the lint passes, and a model finding above 128 KiB makes jq exit with E2BIG mid-run or silently truncates the field, reintroducing the review-wide failure the suite guards against.",
+      "suggested_fix": "Add fixtures for (a), (b) and (c) to the lint's self-test and widen the flag match to [\"']?--(?:argjson|arg)[\"']?\\s+, stripping comments only outside quoted spans. For (d), either assert in the suite that each allowlisted reason or error variable is produced by a capping helper such as _adv_error_summary, or remove them from SMALL and route them through _adv_jq_pair or a file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:37:38Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 15921,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a87761b0a5273bde99604a76597187c4caf0dbb0d2b60043e87598c3116d9e66",
+      "run_tag": "c2b-normalise-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

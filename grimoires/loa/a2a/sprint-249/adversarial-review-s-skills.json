@@ -1,0 +1,171 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/reviewing-code/SKILL.md:context_discipline",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The sprint AC 'Replay A/B: no gold case loses recall' is unmet on the pre-registered measure. Pooled n=9 recall fell on review-pr-02 (.926 to .815), review-pr-05 (.963 to .852), audit-pr-02 (.852 to .815), audit-pr-03 (1 to .963) and audit-pr-05 (.926 to .889); missed-defect slots went 5/144 to 10/144, with D13 misses 0/6 to 3/6 and D06 1/6 to 3/6. The pre-registered remedy (revert or retune the implicated change) was not applied. A post-hoc blind adjudication reclassified 38 of 44 misses as grader artifacts, but even on that adjudicated measure audit-pr-02 still loses recall (1.000 to .963), so the AC fails under both measures. The implicated change is the regenerated context_discipline include in this diff, which raises the default thresholds tenfold (full file 3K to 30K before extraction) across auditing-security, implementing-tasks and reviewing-code.",
+      "failure_mode": "Merging accepts a measured review and audit recall regression on gold defects (D13 find-exec multi-root, D06 prerelease tags) on the implementer's own override of a pre-registered gate. If the adjudication is wrong, the regression ships silently into every /review-sprint and /audit-sprint run. The gate exists precisely to prevent post-hoc reinterpretation of a failed result.",
+      "suggested_fix": "Do not accept the AC on the implementer's override. Choose one: (a) land the grader fix (bd-ewrc) test-first, re-baseline both arms on the fixed grader, and re-run the five losing cases to show pooled after >= before; (b) apply the pre-registered remedy by shipping the include with the old 2K/5K/3K/15K thresholds as default until parity is demonstrated; or (c) the reviewer records an explicit AC waiver that names the audit-pr-02 D06 loss as accepted, citing the c9b7bdc0 ablation as the basis.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/commands/ride.md:During Session Actions",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "ride.md was touched only to repoint the session-continuity path, but the same file still instructs 'Monitor attention budget (advisory, not blocking)' and 'Trigger Delta-Synthesis at Yellow threshold (5k tokens)'. After this diff the default class is long with an accumulated threshold of 50K; 5k is the standard-class accumulated threshold. The diff-touched context-engineering.md also states attention-budget zones were deleted in cycle-121.",
+      "failure_mode": "/ride agents receive two contradictory thresholds (5k vs 50K) plus a reference to a mechanism documented as removed. The skill either over-synthesizes on long-class sessions or ignores the command text, and the stale Yellow-zone wording contradicts the protocol the include now cites.",
+      "suggested_fix": "Replace the 5k Yellow line with a pointer to the class thresholds in tool-result-clearing.md (accumulated threshold for the class in .run/context-class) and drop the attention-budget wording from the During Session block.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/reviewing-code/resources/PARALLEL-REVIEW.md:@@ -1,7 +1,7 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/reviewing-code/resources/PARALLEL-REVIEW.md:@@ -1,7 +1,7 @@",
+      "cross_file_justification": "The diff-touched PARALLEL-REVIEW.md and PARALLEL-SPLIT.md headers and the three SKILL.md Phase -1 sections now point at resources/REFERENCE.md ('has the size table') and a parallel_threshold key; neither REFERENCE.md file nor any config/schema file is modified in this diff.",
+      "description": "The size tables previously lived inline in each SKILL.md Phase -1 and are deleted here. The replacement text says 'Parallelise (parallel_threshold) when the scope warrants' and the two resource headers say 'REFERENCE.md has the size table'. No hunk in this diff adds a size table to auditing-security/resources/REFERENCE.md or reviewing-code/resources/REFERENCE.md, and no hunk defines parallel_threshold in .loa.config.yaml.example or its schema. The implementation report does not list REFERENCE.md among the edited files.",
+      "failure_mode": "If those targets do not exist, 'large scope' and 'large sprint' have no definition reachable from the skills, the lead's parallel decision becomes guesswork, and the pointer reintroduces by reference the size gate the AC says was removed.",
+      "suggested_fix": "Verify both REFERENCE.md files contain the size table and that parallel_threshold exists in the config example and schema. If either is absent, add it or change the pointers to 'the lead decides' with no table or key reference.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/implementing-tasks/SKILL.md:context_discipline",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The include tells agents to treat long (20K/50K/30K/150K) as the default whenever .run/context-class is absent, and the hooks-reference row documents that the hook resolves every error path to long. Hooks are opt-in (README: install via /mount or manual merge), so any project without hooks, any session before the hook runs, and any model id missing from the catalog gets the permissive class regardless of window size.",
+      "failure_mode": "A 200K-window session (Sonnet, Haiku, or any model not in the catalog) follows a 150K session threshold and 30K full-file reads before extracting to NOTES.md, consuming most of the window before the discipline engages. For a limit whose purpose is to protect smaller contexts, defaulting to the permissive class is fail-open.",
+      "suggested_fix": "Fail closed: treat a missing or unreadable record or an unknown model as standard, and select long only on positive catalog evidence of a >200K window or an explicit LOA_CONTEXT_CLASS=long. Update the include text and both hook table rows to match.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/loa/reference/hooks-reference.md:All Hook Registrations",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": ".run/context-class is one project-local word derived from the session model, written at SessionStart behind hook-guard once. It is shared by every session in the same checkout and read by every subagent that loads a SKILL.md carrying the include. Two concurrent sessions on different models in one directory (a 1M lead plus a 200K helper terminal) race with last-writer-wins. The parallel_execution Explore and category subagents dispatched by a long lead may run on 200K models yet read long from the shared record.",
+      "failure_mode": "A 200K session or subagent applies 150K session and 30K full-file thresholds inside a 200K window. The once guard also means a mid-session /model switch to a smaller model never refreshes the record.",
+      "suggested_fix": "Key the record by session id (for example .run/context-class.<session_id>, or embed the session id and verify on read). Have the three skills' parallel dispatch pass the class explicitly to subagents, or default subagents to standard unless their model is known to be long-window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/README.md:Files",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The Hook Registry table gains the SessionStart row for session-start/loa-context-class.sh, but the same file's 'Active (registered in settings.hooks.json)' table, which manual installers use to know what to merge into ~/.claude/settings.json, is not updated. The registry also still omits the other SessionStart hooks (loa-kf-surface.sh, loa-run-state-surface.sh) that hooks-reference.md lists as registered.",
+      "failure_mode": "Operators following the Files table omit the hook, .run/context-class is never written, and per DISS-004 the session silently runs the permissive long class.",
+      "suggested_fix": "Add the loa-context-class.sh row to the Active table and reconcile the registry with hooks-reference.md so the two documents list the same SessionStart hooks.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T21:10:35Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 18853,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "605f260baeda7513d545e02a2cf85c73dc7e3a4e352f990eac41be38eb5a8ddb",
+      "run_tag": "s-skills"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

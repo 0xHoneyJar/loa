@@ -1,0 +1,291 @@
+1..287
+ok 1 P2 (git push --force): blocks
+ok 2 P2b (git push -f): blocks
+ok 3 P2 negative: --force-with-lease allowed
+ok 4 P3 (git reset --hard): blocks
+ok 5 P3 negative: git reset --soft allowed
+ok 6 P4 (git clean -f without -n): blocks
+ok 7 P4 negative: git clean -nfd (dry-run) allowed
+ok 8 FR-1.1 (P5 git branch -D grouped): blocks
+ok 9 FR-1.1 (P5 split -d -f): blocks
+ok 10 FR-1.1 (P5 --force --delete reversed): blocks
+ok 11 FR-1.1 negative: git branch -d (lowercase) allowed
+ok 12 FR-1.1 negative: git branch --list allowed
+ok 13 FR-1.2 (P6 git stash drop): blocks
+ok 14 FR-1.2 (P6 git stash clear): blocks
+ok 15 FR-1.2 negative: git stash list allowed
+ok 16 FR-1.2 negative: git stash pop allowed (recoverable from reflog)
+ok 17 FR-1.3 (P7 git checkout -- path): blocks
+ok 18 FR-1.3 negative: git checkout main allowed
+ok 19 FR-1.3 negative: git checkout --quiet allowed (no path)
+ok 20 FR-1.4 (P8 DROP TABLE): blocks
+ok 21 FR-1.4 (P8 lowercase drop schema): blocks
+ok 22 FR-1.4 negative: SELECT from dropped_users allowed (word-boundary)
+ok 23 FR-1.5 (P9 TRUNCATE TABLE): blocks
+ok 24 FR-1.5 (P9 quoted Postgres ident): blocks
+ok 25 FR-1.5 negative: echo TRUNCATEABLE allowed
+ok 26 FR-1.6 (P10 DELETE FROM no WHERE): blocks
+ok 27 FR-1.6 (P10 multi-statement bypass closed): blocks the WHERE-less one
+ok 28 FR-1.6 negative: DELETE FROM users WHERE id=1 allowed
+ok 29 FR-1.7 (P11 kubectl delete namespace): blocks
+ok 30 FR-1.7 (P11 ns short form): blocks
+ok 31 FR-1.7 (P11 with global flag prefix): blocks
+ok 32 FR-1.7 negative: kubectl get namespace allowed
+ok 33 FR-1.8 (P12 kubectl delete --all): blocks
+ok 34 FR-1.8 (P12 kubectl delete -A): blocks
+ok 35 FR-1.8 negative: kubectl get pods --all-namespaces allowed
+ok 36 FR-1.8 cross-statement: delete then unrelated --all allowed
+ok 37 FR-2-BLOCK: rm -rf / blocks
+ok 38 FR-2-BLOCK: rm -rf $HOME blocks
+ok 39 FR-2-BLOCK: rm -rf ~ blocks
+ok 40 FR-2-BLOCK: rm -rf ~/.ssh blocks
+ok 41 FR-2-BLOCK: rm -rf /etc blocks
+ok 42 FR-2-BLOCK: rm -rf * blocks
+ok 43 FR-2-BLOCK: rm -rf . blocks
+ok 44 FR-2-AMBIGUOUS: rm -rf ./ blocks (SKP-002 closure)
+ok 45 FR-2-AMBIGUOUS: rm -rf ./.git blocks
+ok 46 FR-2-ALLOW: rm -rf ./build allowed
+ok 47 FR-2-ALLOW: rm -rf ./node_modules allowed
+ok 48 FR-2-ALLOW: rm -rf ./dist allowed
+ok 49 FR-2-ALLOW: rm -rf /tmp/loa-test-XYZ allowed
+ok 50 FR-2 detector negative: rm file.txt allowed (not -rf)
+ok 51 FR-2 detector negative: rm -r dir (no -f) allowed
+ok 52 FR-2 split-flag: rm -r -f /etc blocks
+ok 53 FR-2 multi-invocation: rm -rf safe ; rm -rf /etc blocks (closes SKP-001)
+ok 54 FR-2 multi-arg: rm -rf safe /etc blocks
+ok 55 FR-2 path traversal: rm -rf ./../ ambiguous-blocks
+ok 56 FR-2-REDIR: rm -rf ./build 2>/dev/null allowed (issue #1177 repro)
+ok 57 FR-2-REDIR: rm -rf dist/ >log 2>&1 allowed
+ok 58 FR-2-REDIR: rm -rf ./build 2> /dev/null (space-separated operator+target) allowed
+ok 59 FR-2-REDIR adversarial: rm -rf ./build 2> /dev/null dist/ (multi-operand, mid-redirect) allowed
+ok 60 FR-2-REDIR negative: rm -rf $HOME 2>/dev/null still blocks
+ok 61 FR-2-REDIR negative: rm -rf / >/dev/null 2>&1 still blocks
+ok 62 FR-2-REDIR negative: rm -rf ~/ &>/dev/null still blocks
+ok 63 FR-2-REDIR negative: rm -rf * 2>/dev/null (glob + redirect) still blocks
+ok 64 FR-2-REDIR negative: rm -rf ../foo stays ambiguous (no redirect present)
+ok 65 FR-2-REDIR adversarial: quoted operand containing '>' is not mistaken for a redirect
+ok 66 FR-2-REDIR adversarial: literal digit-named file '2' still classifies (not swallowed as fd)
+ok 67 FR-2-REDIR negative: rm -rf 2>&1 $HOME (fd-dup BEFORE operand) still blocks
+ok 68 FR-2-REDIR negative: rm -rf 2>/dev/null / (redirect BEFORE root) still blocks
+ok 69 FR-2-REDIR negative: rm -rf >/dev/null ~ (bare redirect BEFORE tilde) still blocks
+ok 70 FR-2-REDIR negative: rm -rf &>/dev/null * (&-redirect BEFORE glob) still blocks
+ok 71 FR-2-REDIR negative: x && rm -rf / (&& separator detection intact) still blocks
+ok 72 FR-2-REDIR negative: rm -rf dist/ >log 2>&1 /etc (operand after fd-dup) still blocks
+ok 73 FR-2-REDIR negative: rm -rf node_modules/ 2>&1 / (operand after fd-dup) still blocks
+ok 74 R-002 BLOCK: rm -rf ./.loa/qmd/ (hidden subdir) is conservatively blocked
+ok 75 R-002 BLOCK: rm -rf ./.cache/foo blocked
+ok 76 R-002 AUDIT: rm -rf ./.netrc blocked
+ok 77 R-002 AUDIT: rm -rf ./.npmrc blocked
+ok 78 R-002 AUDIT: rm -rf ./.git-credentials blocked
+ok 79 R-002 AUDIT: rm -rf ./.password-store blocked
+ok 80 R-002 AUDIT: rm -rf ./.aws-old (near-miss of protected .aws) blocked
+ok 81 R-002 AUDIT: rm -rf ./.ssh-backup blocked
+ok 82 R-002 PROTECT: rm -rf ./.git/ still blocks
+ok 83 R-002 PROTECT: rm -rf ./.ssh/ still blocks
+ok 84 R-002 PROTECT: rm -rf ./.env.local still blocks
+ok 85 R-002 PROTECT: rm -rf ./.claude/ (System Zone) still blocks
+ok 86 R-002 PROTECT: rm -rf ./. still blocks
+ok 87 R-002 PROTECT: rm -rf ./.. still blocks
+ok 88 R-002 ALLOW: rm -rf ./build (visible subdir) still allowed
+ok 89 R-002 PEDAGOGY: FR-2-AMBIGUOUS names WORKING alternatives, not the bogus hidden form
+ok 90 C15 must-still-block: rm -rf "$UNSET/" (unset-var-looking path)
+ok 91 C15 must-still-block: p='..'; rm -rf "packages/$p/dist"
+ok 92 C15 must-still-block: find / -exec rm -rf {} + (dangerous root)
+ok 93 C15 must-still-block: find $DIR -exec rm -rf {} + (dollar-expansion root — NEVER allow)
+ok 94 C15 find-exec ALLOW: find ./build -exec rm -rf {} + (explicit safe relative root)
+ok 95 C15 find-exec ALLOW: find ./node_modules -exec rm -rf {} + allowed
+ok 96 C15 find-exec negative: find ./build -a -name foo -exec rm -rf {} + still root-classified safe (allowed)
+ok 97 C15 find-exec negative: find /etc -exec rm -rf {} + still blocks (dangerous root)
+ok 98 C15 find-exec negative: find ../escape -exec rm -rf {} + still ambiguous-blocks (dotdot root)
+ok 99 C15 find-exec negative: unrelated later segment keeps its own classification (no root leakage)
+ok 100 C15 find-exec negative: rm -rf {} standalone (no find) stays ambiguous — unchanged
+ok 101 C15 multi-root MUST-BLOCK: find ./build /etc -exec rm -rf {} + (second root dangerous)
+ok 102 C15 multi-root MUST-BLOCK: find ./build ~/other -exec rm -rf {} + (tilde second root)
+ok 103 C15 multi-root MUST-BLOCK: find ./build $X -exec rm -rf {} + (dollar second root)
+ok 104 C15 single-root with primaries+args still allowed: find ./build -name '*.o' -exec rm -rf {} +
+ok 105 C15 zero-root MUST-BLOCK: find -name '*.o' -exec rm -rf {} + (GNU default-dot root, ineligible)
+ok 106 C15 nested-find MUST-BLOCK: find ./build -exec find / ... -exec rm -rf {} +
+ok 107 C15 nested-find MUST-BLOCK: inner $HOME root
+ok 108 C15 nested-find MUST-BLOCK: inner glob root
+ok 109 C15 nested-find MUST-BLOCK: inner /usr/bin/find path form
+ok 110 C15 nested-find control: reversed order still blocks (dangerous outer root)
+ok 111 C15 symlink-follow MUST-BLOCK: find ./build -L -exec rm -rf {} +
+ok 112 C15 symlink-follow MUST-BLOCK: find ./build -H -exec rm -rf {} +
+ok 113 C15 symlink-follow MUST-BLOCK: find ./build -follow -exec rm -rf {} +
+ok 114 C15 symlink-follow MUST-BLOCK: -follow between primaries
+ok 115 fail-open: malformed JSON exits 0
+ok 116 fail-open: empty tool_input.command exits 0
+ok 117 fail-open: missing tool_input field exits 0
+ok 118 fail-open: jq missing PATH exits 0 (allow) and emits stderr WARN
+ok 119 audit: block emits row to .run/audit.jsonl
+ok 120 audit: row has hook + action + matched fields
+ok 121 audit: AKIA in command is redacted in audit row
+ok 122 audit: no row written on allow path
+p95=21ms (min=16 max=28)
+ok 123 latency: p95 over 100 invocations < 80ms (revised budget post-impl)
+elapsed_ms=52
+ok 124 latency-unit-sanity: 50ms sleep measures 30-200ms
+ok 125 edge: heredoc body — DROP TABLE inside psql heredoc blocks
+ok 126 edge: subshell — rm -rf / inside $(...) blocks (FR-2 sees inner)
+ok 127 edge: pipe chain — rm -rf /etc after pipe blocks
+ok 128 edge: bash -c with destructive — kubectl delete ns visible to outer scan
+ok 129 FR-SZ-REDIR: cat > .run/cron.d/x.sh blocks
+ok 130 FR-SZ-REDIR: append >> to a cron script blocks
+ok 131 FR-SZ-REDIR: redirect to merged-model-aliases.sh blocks (routing hijack)
+ok 132 FR-SZ-REDIR: fd-prefixed redirect (2>) to a .run .sh blocks
+ok 133 FR-SZ-TEE: tee into merged-model-aliases.sh blocks
+ok 134 FR-SZ-TEE: tee -a into a cron script blocks
+ok 135 FR-SZ-COPY: cp (dest) into cron.d blocks
+ok 136 FR-SZ-COPY: mv (dest) into grimoires/loa/skills blocks (lifecycle bypass)
+ok 137 FR-SZ-LINK: ln -s into cron.d blocks
+ok 138 FR-SZ-DD: dd of= a cron script blocks
+ok 139 FR-SZ-INPLACE: sed -i on an approved skill blocks (tamper)
+ok 140 FR-SZ-INPLACE: perl -i on merged-model-aliases.sh blocks
+ok 141 FR-SZ-INPLACE: awk -i inplace on a cron script blocks
+ok 142 FR-SZ-EXTRACT: tar -C into cron.d blocks (drops cron-eligible files)
+ok 143 FR-SZ-EXTRACT: unzip -d into grimoires/loa/skills blocks
+ok 144 FR-SZ-INTERP: naive python3 -c open(w) literal blocks
+ok 145 FR-SZ negative: append to NOTES.md allowed (data write)
+ok 146 FR-SZ negative: write run-state json allowed (data write)
+ok 147 FR-SZ negative: append to beads JSONL allowed (data write)
+ok 148 FR-SZ negative: ledger.json write allowed (data write, not skills/)
+ok 149 FR-SZ negative: cp FROM a protected path (backup) allowed — dest-anchored
+ok 150 FR-SZ negative: rsync FROM cron.d (backup) allowed — PROT is source
+ok 151 FR-SZ negative: cat (read) a cron script allowed
+ok 152 FR-SZ negative: ls the cron dir allowed
+ok 153 FR-SZ negative: grep (read) merged-model-aliases.sh allowed
+ok 154 FR-SZ negative: git add a skills path allowed (git not in write-verb set)
+ok 155 FR-SZ escape hatch: LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 allows the write
+ok 156 CR-1: cp into cron.d dir (no trailing slash) blocks
+ok 157 CR-1: mv into skills dir (no trailing slash) blocks
+ok 158 CR-1: tar -C into cron.d (no trailing slash) blocks
+ok 159 CR-1 negative: a sibling like .run/cron.daemon is NOT a protected dir
+ok 160 CR-2: tee --append (long opt) into a cron script blocks
+ok 161 CR-2: tee with PROT as a non-first operand blocks
+ok 162 CR-3: cp -t cron.d (dest-as-option) blocks
+ok 163 CR-3: tar --directory cron.d (long -C) blocks
+ok 164 CR-3: ln -s -t cron.d (dest-as-option) blocks
+ok 165 CR-4: sed -Ei (grouped) on merged-model-aliases blocks
+ok 166 CR-4: sed --in-place (long) on an approved skill blocks
+ok 167 CR-5: cp into cron.d with a trailing comment blocks
+ok 168 CR negative: mv a protected file OUT to /tmp (source) allowed
+ok 169 CR negative: tar backing up cron.d (PROT source, no -C) allowed
+ok 170 CR negative: grep -i on merged-model-aliases (read, not sed/perl/awk) allowed
+ok 171 CR negative: ls the skills dir (no slash, read) allowed
+ok 172 CR negative: cat a cron script with a trailing comment (read) allowed
+ok 173 DISS-002: redirect with ./ prefix into cron.d blocks
+ok 174 DISS-002: cp with absolute-style prefix into cron.d blocks
+ok 175 DISS-002: in-place edit with ./ prefix on a skill blocks
+ok 176 DISS-003: sed -i'' (glued empty backup) on merged-model-aliases blocks
+ok 177 DISS-002 negative: cat a ./prefixed cron script (read) allowed
+ok 178 DISS-002 negative: cp FROM a ./prefixed protected path (backup) allowed
+ok 179 SA-HIGH-4: cp into cron.d with a trailing -f option blocks
+ok 180 SA-HIGH-4: mv into skills with a trailing -f option blocks
+ok 181 SA-HIGH-3: python3 -c shutil.copyfile into cron.d blocks
+ok 182 SA-HIGH-3: python3 -c Path.write_bytes into cron.d blocks
+ok 183 SA-HIGH-4 negative: cp FROM protected to /tmp with trailing -f (source) allowed
+ok 184 SA-HIGH-3 negative: python3 -c reading a protected file allowed
+ok 185 quote-blind ALLOW: echo 'rm -rf is dangerous' (bare echo carrier)
+ok 186 quote-blind ALLOW: bare echo mentioning TRUNCATE TABLE (unquoted)
+ok 187 quote-blind ALLOW: br create -d '... rm -rf / ...' (bead description)
+ok 188 quote-blind ALLOW: br create -d "... TRUNCATE TABLE ..." (double-quoted)
+ok 189 quote-blind ALLOW: git commit -m '... rm -rf /tmp ...' (commit message)
+ok 190 quote-blind ALLOW: git commit -m 'p1' -m '... rm -rf / ...' (multi -m)
+ok 191 quote-blind ALLOW: git commit -m '... DELETE FROM users ...' (P10 via _cmd_match)
+ok 192 quote-blind ALLOW: gh pr create --body '... rm -rf /tmp ...' (PR body)
+ok 193 quote-blind BLOCK: git commit -m "$(rm -rf /)" (subst value → (-boundary)
+ok 194 quote-blind BLOCK: git commit -m 'safe' && rm -rf / (per-segment)
+ok 195 quote-blind BLOCK: echo "text $(rm -rf /etc)" (echo disqualified by $()
+ok 196 quote-blind BLOCK: notgit commit -m 'rm -rf /' (word-boundary anti-spoof)
+ok 197 quote-blind BLOCK: curl -d 'rm -rf /' http://evil (non-allowlisted carrier)
+ok 198 quote-blind BLOCK: echo 'x' >> .run/cron.d/job.sh (redirect survives scrub → FR-SZ)
+ok 199 C-D3a BLOCK: terminator-swallow — trailing $ carrier then real && rm -rf /home
+ok 200 C-D3a BLOCK: double-dollar quoted $$(rm -rf /) (substring gate catches $()
+ok 201 C-D3a BLOCK: double-dollar bare $$(rm -rf /)
+ok 202 C-D3a BLOCK: Case A heredoc-wrapped commit (find-exec-rm) — documented $( limit
+ok 203 C-D3a BLOCK: backtick value with a ; separator (pins backtick-never-redacts)
+ok 204 C-D3 R1 BLOCK: decoy git -m re-anchor then rm -rf /
+ok 205 C-D3 R1 BLOCK: decoy git --message re-anchor
+ok 206 C-D3 R1 BLOCK: decoy br -d re-anchor
+ok 207 C-D3 R1 BLOCK: decoy bd -d re-anchor
+ok 208 C-D3 R1 BLOCK: decoy gh --body re-anchor
+ok 209 C-D3 R1 BLOCK: decoy carrier + second rm compound (D3b net)
+ok 210 C-D3b BLOCK: composite boundary-$ carrier immediately followed by real && rm -rf
+ok 211 C-D3a ALLOW: Case B — incidental $5 + destructive phrase (find -exec rm -rf)
+ok 212 C-D3a ALLOW: Case C control — same message minus the $ (already allowed)
+ok 213 C-D3a ALLOW: $ENV mention alongside rm -rf / in the same commit value
+ok 214 FR-NOTES: append to grimoires/loa/NOTES.md is blocked at 200 KiB with the rotate remedy
+ok 215 FR-NOTES: the same append is allowed below the block line (warn only)
+ok 216 FR-NOTES: reads, the rotate escape hatch, other files and a missing NOTES.md are never blocked
+ok 217 cycle-125 corpus: every dangerous row still blocks (100 %)
+ok 218 cycle-125 corpus: benign rows pass at or above 80 %
+ok 219 cycle-125 corpus lint: rows carry no hostnames, URLs, IPs, credentials or key shapes
+ok 220 cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline
+ok 221 cycle-125 D-1.1 vocab: rm -rf node_modules dist .next coverage allowed
+ok 222 cycle-125 D-1.1 vocab: nested last segment (packages/app/node_modules, apps/web/.turbo) allowed
+ok 223 cycle-125 D-1.1 vocab twin: rm -rf src blocks
+ok 224 cycle-125 D-1.1 vocab twin: rm -rf ./.git/ blocks
+ok 225 cycle-125 D-1.1 vocab twin: hidden middle segment (.git/dist) blocks
+ok 226 cycle-125 D-1.1 vocab twin: node_modules/../src blocks
+ok 227 cycle-125 D-1.1 vocab twin: dist alongside /etc blocks
+ok 228 cycle-125 D-1.1 scratch: cd /tmp/loa-work && rm -rf work allowed
+ok 229 cycle-125 D-1.1 scratch: cd $TMPDIR/probe (real temp TMPDIR) then rm -rf out allowed
+ok 230 cycle-125 D-1.1 scratch twin: cd /tmp && cd /home && rm -rf work blocks (last cd wins)
+ok 231 cycle-125 D-1.1 scratch twin: quoted 'cd /tmp' text is not a cd
+ok 232 cycle-125 D-1.1 scratch twin: cd /tmp && rm -rf ../etc blocks
+ok 233 cycle-125 D-1.1 scratch twin: cd /tmp/x && rm -rf .git blocks (hidden name)
+ok 234 cycle-125 D-1.1 scratch twin: the hook's own cwd under /tmp is not scratch
+ok 235 cycle-125 D-1.1 temp: rm -rf /var/tmp/loa-cache-probe /private/tmp/x allowed
+ok 236 cycle-125 D-1.1 temp twin: bare /tmp blocks
+ok 237 cycle-125 D-1.1 temp twin: bare /var/tmp and /var/tmp/ block
+ok 238 cycle-125 D-1.1 temp twin: /var/tmp/../lib and /var/log block
+ok 239 cycle-125 D-1.1 TMPDIR: real temp TMPDIR, rm -rf "$TMPDIR/cache" allowed
+ok 240 cycle-125 D-1.1 TMPDIR twin: inline TMPDIR=/ assignment blocks
+ok 241 cycle-125 D-1.1 TMPDIR twin: TMPDIR outside a temp root blocks
+ok 242 cycle-125 D-1.1 TMPDIR twin: unset TMPDIR blocks; bare $TMPDIR blocks even when real
+ok 243 cycle-125 D-1.1 mktemp: T=$(mktemp -d); rm -rf "$T" allowed
+ok 244 cycle-125 D-1.1 mktemp: WORK="$(mktemp -d)" && rm -rf "$WORK/sub" allowed
+ok 245 cycle-125 D-1.1 mktemp twin: path text after the substitution blocks
+ok 246 cycle-125 D-1.1 mktemp twin: substitution that is not a plain mktemp blocks
+ok 247 cycle-125 D-1.1 mktemp twin: rebinding builtin voids the allowance
+ok 248 cycle-125 D-1.1 mktemp twin: two assignments block
+ok 249 cycle-125 D-1.1 mktemp twin: literal, unbound and HOME-shaped variables block
+ok 250 cycle-125 D-1.3 SQL: heredoc into a .sql file with DROP TABLE allowed (no runner)
+ok 251 cycle-125 D-1.3 SQL: prose mentions of TRUNCATE / DELETE FROM allowed
+ok 252 cycle-125 D-1.3 SQL twin: psql -c DROP TABLE blocks [FR-1.4]
+ok 253 cycle-125 D-1.3 SQL twin: heredoc piped into psql blocks
+ok 254 cycle-125 D-1.3 SQL twin: mysql -e TRUNCATE blocks [FR-1.5]
+ok 255 cycle-125 D-1.3 SQL twin: sqlite3 DELETE FROM without WHERE blocks [FR-1.6]
+ok 256 cycle-125 D-1.3 SQL twin: inline interpreter program (python3 -c) blocks
+ok 257 cycle-125 D-1.3 SQL twin: docker exec db psql -c DROP blocks; prisma db execute blocks
+ok 258 cycle-125 D-1.4: git branch -D on a branch merged into main allowed
+ok 259 cycle-125 D-1.4 twin: unmerged branch blocks [FR-1.1] and names the helper
+ok 260 cycle-125 D-1.4 twin: one unmerged name among merged ones blocks
+ok 261 cycle-125 D-1.4 twin: unknown branch, metacharacters, and a non-repo cwd all block
+ok 262 cycle-125 D-1.5: generated dirs, lockfiles and codegen paths allowed
+ok 263 cycle-125 D-1.5: linguist-generated attribute from .gitattributes allows
+ok 264 cycle-125 D-1.5 twin: a hand-written path blocks [FR-1.3]
+ok 265 cycle-125 D-1.5 twin: one hand-written path among generated ones blocks; .. escapes block
+ok 266 cycle-125 r1 H-1 twin: newline-initial rebinding of a mktemp variable blocks
+ok 267 cycle-125 r1 H-1 twin: +=, readonly, array element and getopts rebinding block
+ok 268 cycle-125 r1 H-2 twin: TMPDIR mutated by read / += / unset blocks even with a real temp TMPDIR
+ok 269 cycle-125 r1 H-3a twin: a second identical rm segment is judged by its own preceding cd
+ok 270 cycle-125 r1 H-3a: two rm segments both after one scratch cd still allowed
+ok 271 cycle-125 r1 H-3b twin: pushd, eval, source and an inline shell void the scratch proof
+ok 272 cycle-125 r1 H-4 twin: a second branch -D segment naming an unmerged branch blocks; main by name blocks
+ok 273 cycle-125 r1 H-4: two branch -D segments both merged still allowed
+ok 274 cycle-125 r1 H-4 twin: a second checkout -- segment with a hand-written path blocks
+ok 275 cycle-125 DISS-001: a temp root through a bare glob blocks; a prefixed glob below it is allowed
+ok 276 cycle-125 r1 obs-1: php -r and rails/manage.py runners count as SQL sinks
+ok 277 cycle-125 audit r1 twin: an assignment after if / while / { / ! rebinds the mktemp variable and blocks
+ok 278 cycle-125 audit r1: a single mktemp binding followed by ordinary commands is still allowed
+ok 279 cycle-125 audit r1 refutation: a $(…) inside a grep pattern is not scrubbed — the inner rm is judged on its own
+ok 280 cycle-125 s4: a rebinding builtin used as an ARGUMENT does not void the mktemp proof
+ok 281 cycle-125 s4 twins: read in command position (after while / if / && / { / command / assignment prefix) still voids the proof
+ok 282 limitation: SQL comment containing WHERE bypasses FR-1.6
+ok 283 limitation: rm -rf quoted-path-with-space is conservatively blocked
+ok 284 limitation: bash -c with destructive verb in inner quoted string IS visible
+ok 285 limitation: eval base64-decoded destructive verb bypasses
+ok 286 limitation: python invoking destructive verb via SCRIPT FILE bypasses
+ok 287 limitation: jq missing from PATH allows all destructive commands (FR-3 fail-open)
+EXIT 0

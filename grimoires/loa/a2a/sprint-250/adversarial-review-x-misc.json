@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/hook-guard.bats:parse-failure WARN does not call every wrapped hook a PreToolUse hook",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new test (d) pins the WARN text with a bare `! grep -q \"PreToolUse hook\" \"$err\"` as a non-final line. Under bats' errexit/ERR-trap harness, a `!`-negated pipeline never triggers errexit (POSIX exempts it), and only the last command's status is used as the function's return. So the one assertion that is the stated purpose of this test cannot fail: if the hook-guard WARN regresses to say \"PreToolUse hook\" again, the test still passes because the following two positive greps succeed. The sibling tests CMP-277/CMP-278 in this same diff use the correct `[ -z \"$(grep …)\" ]` form.",
+      "failure_mode": "A future edit that reintroduces the misleading 'PreToolUse hook' wording in hook-guard.sh passes CI; the test provides no regression protection for the behaviour it claims to cover.",
+      "suggested_fix": "Use `run ! grep -q \"PreToolUse hook\" \"$err\"` (bats ≥1.5) or `! grep -q \"PreToolUse hook\" \"$err\" || false`, or mirror CMP-277's `[ -z \"$(grep 'PreToolUse hook' \"$err\")\" ]`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": "tests/fixtures/ensure_license_fixtures.sh:_elf_future",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The freshness guard now trips every 12 hours (grace fixture's offline_valid_until) instead of every 30 days, and it compares `epoch > now` with zero margin. Two consequences: (1) a fixture with seconds left passes the guard in setup() but is already expired when the validator under test reads it a moment later, producing an unreproducible one-off failure; (2) regeneration is now a routine event rather than a once-per-checkout one, and the generator path (`cd $_ELF_DIR && python3 $_ELF_GEN`) has no lock and writes the pubkey and six signed JSONs non-atomically. Under `bats --jobs N`, two setup() calls that both observe a stale window run the generator concurrently; one test can copy a pubkey from one keypair alongside a license signed by the other, and every signature-dependent test in that file fails with an error that disappears on rerun. The race pre-existed for first generation, but the diff makes the trigger frequent.",
+      "failure_mode": "Intermittent, non-reproducible signature/grace failures in test_license_validator-style suites during parallel runs or at the 12-hour boundary; the ensure script is sourced from several bats files' setup() so the blast radius is every license test.",
+      "suggested_fix": "Require a safety margin (e.g. `epoch - now > 3600`) so a fixture that will expire during the run is regenerated up front; serialise regeneration with an `mkdir`-based lock (or `flock` where available) around the generator call and re-check freshness after acquiring it, so concurrent setups do not both regenerate.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:32:59Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 22278,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e486da1b489ab3bfbb1dbbd914089ada801c1031479702d7f20b0e694c381997",
+      "run_tag": "x-misc"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

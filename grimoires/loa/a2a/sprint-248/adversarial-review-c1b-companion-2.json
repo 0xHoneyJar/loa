@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-109",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The second leg stubs `_adv_kill_tree` to hand the inner reaper a hard-coded pid `999999` with token `tFROZEN` as a member of the companion's tree. On 64-bit Linux `kernel.pid_max` defaults to 4194304, so 999999 can be a live process owned by the same user (another CI job, the operator's own shell). After the grace the reaper walks `_ADV_REAP_TREE_PIDS` and KILLs every pid whose token still matches; the only thing between this fixture and `kill -KILL 999999` is the same-process token check that CMP-62, CMP-82 and CMP-100 exist to guard against regressions in. The test asserts the token bookkeeping (`_ADV_REAP_TREE_TOKENS`, `_ADV_REAP_TREE_PIDS`) but never asserts 999999 was left alone, so a regression in that check would kill an unrelated host process while the test stays green.",
+      "failure_mode": "A regression in `_adv_kill_same` or the post-grace re-collection, plus a live same-user process at pid 999999, makes a run of the suite SIGKILL that process. Nothing in the test turns red.",
+      "suggested_fix": "Use a pid that cannot exist (`$(( $(cat /proc/sys/kernel/pid_max 2>/dev/null || echo 4194304) + 1 ))`), or better an owned `sleep 30` carrying a deliberately wrong token, as CMP-62's last leg does, and assert it survives the reap.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-110",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The run-lock half of the title is checked with `[ ! -d \"$(cat \"$T/lockdir\")\" ]`, where `lockdir` is filled from `$_ADV_RUN_LOCK_DIR` inside the subshell. When `_adv_take_run_lock` fails open (no sha256sum/shasum, lock directory not ours, the paths CMP-93 pins) that variable is empty, the file is empty, and `[ ! -d \"\" ]` is true. The leg then passes without any lock having been taken or released. The workdir leg is sound; the lock leg can pass vacuously on exactly the hosts where the fail-open path is live.",
+      "failure_mode": "On a host where the run lock fails open, a cleanup that skips `_adv_release_run_lock` after a masked second INT/TERM is not detected by this test.",
+      "suggested_fix": "Assert `[ -s \"$T/lockdir\" ]` after the subshell (or `[ -d \"$_ADV_RUN_LOCK_DIR\" ]` inside it before the traps are set), mirroring CMP-93's owned-directory leg which asserts `[ -n \"$_ADV_RUN_LOCK_DIR\" ]` and `[ -d ... ]` as two statements.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-97",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "CMP-97 redefines `_adv_proc_start` to return a constant and CMP-82 to a t1/t2 toggle keyed on `$T/reused`; neither restores the original. CMP-62 and CMP-71 do restore via `eval \"$_orig_proc_start\"`, but only on the success path: the restore line is skipped whenever an earlier assertion trips errexit. bats runs `teardown` in the same process as the test body, so teardown's sweeps run against the stub. The implementation report says those sweeps use start tokens ('sweeps name their renames with a start token', 'stale sweeps that respect hidepid'), and CMP-90's comment shows the authors already hit this class of leak for `cat` and routed it through `command cat`. The same seam is open for `_adv_proc_start` and `_adv_kill_tree` (CMP-82, CMP-109). Teardown itself is not in this chunk, so the exact consequence could not be confirmed.",
+      "failure_mode": "Under `bats -j` or beside a live dissent, a teardown that compares recorded tokens against the stubbed `_adv_proc_start` judges every live holder recycled (constant token) or never dead (t2 forever), so the sweep removes a sibling's live a2a or lock directory or leaves stale ones behind, while the test that caused it reports green.",
+      "suggested_fix": "Capture `declare -f _adv_proc_start` and `declare -f _adv_kill_tree` in `setup` and `eval` them back as the first statements of `teardown`, so every test's overrides are undone regardless of where the test stopped; the per-test `eval \"$_orig_proc_start\"` lines then become redundant.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-62",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The third leg forks a TERM-ignoring `sleep 300` named `loa-cmp30-stubborn-$$`, SIGSTOPs it, and relies on the single `_adv_reap_companion` statement to KILL it. The test's own `kill -CONT; kill -KILL` fallback runs only if the process is still alive at the probe after that statement. If `_adv_reap_companion` itself returns non-zero (the failure the second leg of this very test guards against), bats errexit aborts the test before the probe. The in-line comment states teardown ends holders with TERM, which this process ignores and, being stopped, does not even receive until a CONT; a stopped `sleep` never runs its timer, so it does not expire after 300 s either.",
+      "failure_mode": "A regression that makes the re-entered reaper return non-zero leaves a permanently stopped `loa-cmp30-stubborn-<pid>` process on the CI or dev host after every run of the suite, invisible to the TERM teardown and to `pkill` with the default signal.",
+      "suggested_fix": "Have teardown resume and KILL HOLDER_PIDS (`kill -CONT` then `kill -KILL`) instead of TERM, or make the leg's cleanup unconditional: `rc=0; _adv_reap_companion || rc=$?; kill -CONT \"$q\" 2>/dev/null || true; kill -KILL \"$q\" 2>/dev/null || true; [ \"$rc\" = 0 ]`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-112",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The 'publishes its hop and phase whole' half of the title is proven by a source-text grep over `declare -f _walk_companion_chain` for the literal `> \"$workdir/companion.(current|phase)\"` and over `_adv_invoke_hop` for `> \"$_ADV_PHASE_FILE\"`. `declare -f` prints variable references as written, so a truncating write spelled `\"${workdir}/companion.phase\"`, through any other local, or to an unquoted path passes the lint. The `_adv_put_state` leg that follows exercises the helper in isolation and says nothing about whether the walker calls it. The behavioural half (the verdict waits on an empty `current`) is sound; the atomicity half rests on a brittle lint.",
+      "failure_mode": "A later edit that writes `companion.phase` or `companion.current` with a plain redirection under a different spelling is not caught; the primary's shared-hop wait can again read a torn hop name and run the hop the companion is moving onto.",
+      "suggested_fix": "Either widen the lint to any redirection whose target names the file regardless of variable spelling (e.g. `grep -E '>+ *\"?[^ ]*companion\\.(current|phase)'`), or assert behaviourally: wrap `_adv_put_state` in a counting stub, run a two-hop walk, and expect one call per hop/phase transition with no `*.tmp*` left behind.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:37:37Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 55750,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "becfd51a990e8f067a027866aa09d5fd2f99065512d71fcb4c61362dd1b1496b",
+      "run_tag": "c1b-companion-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/unit/instruction-diet-revert.bats:@test \"IDR-3 the twelve constraint rationales carry their pre-diet text\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The new regression tests expect `.claude/data/constraints.json` to contain objects with `id` and `why` fields, but the same diff adds that file as a flat `{id: rationale}` map. The recursive walker in IDR-3 never records any entries, and IDR-4's jq selector `select(.id? == $id) | .why` returns null for every C-PROC row.",
+      "failure_mode": "The newly added Bats suite fails deterministically: IDR-3 reports every expected rationale as mismatched, and IDR-4 greps for `| null |` in `CLAUDE.loa.md`. This makes CI red immediately after the change.",
+      "suggested_fix": "Either restore `constraints.json` to the schema the tests and renderers expect, with objects carrying `id` and `why`, or update IDR-3 and IDR-4 to read the new flat mapping shape, e.g. `found = json.load(...)` and `jq -r --arg id \"$id\" '.[$id]'`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": "tests/unit/instruction-diet-revert.bats:IDR-3",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The constraints.json hunk in this diff renders the file as a flat {\"C-PROC-001\": \"<why>\", ...} map. Both new tests that read it assume a different shape: IDR-3's Python walk only records entries from dicts that carry both an `id` and a `why` key, and IDR-4's jq filter is `[.. | objects | select(.id? == $id) | .why][0]`. Against a flat map neither finds anything. The hunk header is `@@ -0,0 +1,14 @@` against a non-empty preimage blob (795a23bd is not the empty blob), so the hunk is almost certainly a synthesized rendering rather than real git output, but the inconsistency between the data as shown and the readers as written needs to be confirmed against the actual file.",
+      "failure_mode": "If .claude/data/constraints.json really is a flat id-to-string map: IDR-3 leaves `found` empty, all 12 ids land in `bad`, and the test exits 1. IDR-4's jq prints `null` for every id and `grep -qF \"| null |\"` fails on all seven rows. The sprint report's claim that IDR-1–4 went red-then-green would then be false.",
+      "suggested_fix": "Confirm the committed constraints.json carries `{id, why}` objects (nested under whatever tier/list structure the renderer expects). If it does, no change; if the file was flattened, restore the object shape or rewrite IDR-3/IDR-4 to read the flat map (`.[$id]`).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/instruction-diet-revert.bats:IDR-3",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "IDR-3 hard-depends on `tests/fixtures/constraint-rationales-pre-diet.json` (must exist, must parse, must contain exactly 12 keys), but that fixture is not part of this diff. If it was not already committed in Sprint 3, `json.load(open(sys.argv[2]))` raises FileNotFoundError and the test fails for a reason unrelated to the rationales. The fixture also becomes a third copy of the same 12 strings (constraints.json, the two golden tables, and this file), so any future wording edit must be made in three places or IDR-3/IDR-4 go red.",
+      "failure_mode": "Test fails with a Python traceback instead of a mismatch list when the fixture is absent; later rationale edits silently fall out of sync across the three copies and the revert guard fails on wording rather than on the intended regression.",
+      "suggested_fix": "Either add the fixture in this change set (and reference it in the report), or derive the expected text from the golden tables already pinned under tests/fixtures/ so there is one source of truth for the rendered rationale strings.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tools/check-prompt-budget.sh:LOA_LIMIT",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "LOA_LIMIT goes 9,216 B back to 10,240 B. The report discloses that the Sprint 3 acceptance criterion \"CLAUDE.loa.md ≤ 9,216 B\" is being given up under the pre-registered A/B rule, which is a legitimate outcome, but the budget constant is the only place the diff touches. The current CLAUDE.loa.md is reported at 10,225 B, leaving 15 bytes of headroom, so the next one-word edit to that file will fail CI. Any remaining references to the 9,216 figure (sprint plan AC text, CHANGELOG, README, CI sentinel fixture trees used via `--root`) are now stale and will contradict the tool.",
+      "failure_mode": "Requirements-traceability checks that read the Sprint 3 AC text still see an unmet AC; a stale sentinel fixture sized to the 9,216 limit stops exercising the breach path; the first non-trivial CLAUDE.loa.md change after merge breaks the budget gate with no slack to absorb it.",
+      "suggested_fix": "Amend the Sprint 3 AC / sprint plan to record the reverted budget and cite the A/B rule, grep the tree for `9216` and `9,216` and update or remove the stale references, and consider whether 10,240 B should be re-derived from the measured pre-diet size plus explicit headroom rather than restored as a bare constant.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:48:54Z",
+    "tokens_input": 52709,
+    "tokens_output": 14152,
+    "cost_usd": 0,
+    "latency_ms": 25324,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-k2-kernel.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-k2-kernel.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8295d5d501085404903836551ea74230082218b6293161d32d7ed736446a19e0",
+      "run_tag": "k2-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

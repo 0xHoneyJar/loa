@@ -1,0 +1,162 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:Mode: heuristic unless the operator opts in through .loa.config.yaml",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The new authoritative-mode opt-in is read from `$PROJECT_ROOT/.loa.config.yaml`, but that file is inside the project workspace and is not protected by this hook because it is outside the App Zone. A model/session can first write `.loa.config.yaml` with `implement_gate.mode: authoritative`, then send a model-authored `tool_input.active_skill` such as `implement` and silently allow subsequent `src/`, `lib/`, or `app/` writes. This violates the stated invariant that only an operator opt-in selects authoritative mode and that model-authored `tool_input` must not select or bypass the gate.",
+      "failure_mode": "A forged two-step write bypasses the App Zone compliance ask: write project config to enable authoritative mode, then perform an App Zone Write/Edit with forged `tool_input.active_skill=implement`; the hook exits 0 without `decision: ask`.",
+      "suggested_fix": "Do not trust repo-local `.loa.config.yaml` for this security decision. Move the opt-in to an operator-controlled location outside the project writable surface, require an environment variable set by the harness/operator, or make writes to `.loa.config.yaml` that affect `implement_gate.mode` fail-ask/protected before the mode can change.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:@@ -92,65 +108,12 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The change moves the authoritative-mode trust anchor from .run/platform-features.json to $PROJECT_ROOT/.loa.config.yaml on the stated grounds that tool_input is model-authored and so nothing the model can write may select the mode. But .loa.config.yaml is also a plain file inside the project that the model writes with the same Write/Edit tools, and this very hook classifies it as non-App-Zone and exits 0 silently (zone check: only src/, lib/, app/ are gated). A model can therefore (1) Write .loa.config.yaml with `implement_gate:\\n  mode: authoritative`, then (2) Write src/x.ts with tool_input.active_skill: \"implement\" and receive a silent allow with no ask and no audit line. IG-5 (\"whatever .run/ claims\") and IG-11 (key stays undocumented) pin a property that only holds if some other hook protects .loa.config.yaml; the hook source itself is readable to the model, so the undocumented key is not a control. The old code also logged compliance.mode.change to audit.jsonl; the new selection path writes nothing, so an authoritative session leaves no trace of why App Zone writes were allowed.",
+      "failure_mode": "If no separate hook guards .loa.config.yaml writes, the operator-only opt-in is self-grantable by the model in two tool calls, and every subsequent App Zone write with a forged active_skill bypasses the FAIL-ASK gate silently and unlogged.",
+      "suggested_fix": "Either (a) have this hook treat writes to $PROJECT_ROOT/.loa.config.yaml (and .loa.config.yaml.* ) as gated, emitting {\"decision\":\"ask\"} regardless of zone, or confirm an existing protected-files hook covers it and reference it in the header comment; (b) read the opt-in from a location the model cannot author via tool_input (operator shell env var or ~/.config/loa/), falling back to the repo file only for display; and (c) restore an audit.jsonl event (e.g. compliance.mode.selected with source: .loa.config.yaml) whenever compliance_mode becomes authoritative, so an allowed write is attributable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/compliance/implement-gate.sh:@@ -92,65 +108,12 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Mode selection requires `command -v yq` and runs `yq '.implement_gate.mode // \"\"' file`. If yq is absent, or is Go yq v3 (which uses `yq r FILE PATH` syntax and errors on this expression), or is the Python jq-wrapper yq with a YAML the wrapper rejects, the error is swallowed by `2>/dev/null || configured_mode=\"\"` and the operator's explicit opt-in is silently ignored. Nothing is written to audit.jsonl or stderr. The hook also calls yq on every App Zone write rather than once, so the silent failure repeats indefinitely. The quote-stripping `${configured_mode//\\\"/}` papers over the Python-vs-Go output difference but not the v3 syntax difference.",
+      "failure_mode": "An operator who sets implement_gate.mode: authoritative on a machine with yq v3 or no yq gets heuristic behaviour with no indication; because the fallback direction is toward asking, the symptom is spurious ADVISORY prompts that look like a hook bug rather than a missing dependency.",
+      "suggested_fix": "When .loa.config.yaml exists and contains the implement_gate key (cheap grep) but yq is missing or exits non-zero, append a one-line compliance.config.unreadable event to $RUN_DIR/audit.jsonl (guarded by the same once-only pattern used by the evidence recorder) and/or emit a single stderr note. Prefer the repository's existing config-reading helper if one exists so yq-flavour handling lives in one place.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/detect-platform-features.sh",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/hooks/compliance/implement-gate.sh:@@ -27,6 +32,23 @@",
+      "cross_file_justification": "The new evidence recorder in implement-gate.sh creates or rewrites .run/platform-features.json via mktemp+mv, which refreshes the file's mtime. detect-platform-features.sh owns that file and, per the new test IG-9 (which must `touch -d '2 hours ago'` before invoking it), uses an mtime-based freshness cache.",
+      "description": "When no platform-features.json exists yet, the recorder writes a three-key object ({active_skill_available:false, active_skill_seen_at, active_skill_source}) with a brand-new mtime. If detect-platform-features.sh treats a file younger than its cache window as authoritative and returns it without re-detecting, every other feature field it normally populates (detected_at, schema_version, harness_signal, any further platform flags) is absent for the rest of the window, and any consumer reading those fields sees null. The same applies when the recorder rewrites an existing file: its mtime is bumped, extending the cache lifetime of possibly stale detections by up to the full window.",
+      "failure_mode": "For up to the cache window after the first lead-session payload carrying active_skill, `/loa` status and any other reader of platform-features.json may operate on a sparse or stale detection record because the file looks freshly detected.",
+      "suggested_fix": "Have the recorder preserve the original mtime (e.g. `touch -r \"$FEATURES_FILE\" \"$_ig_tmp\"` before mv when the file existed), or have detect-platform-features.sh key its cache on `.detected_at` rather than mtime and treat a file lacking detected_at as a cache miss. Add a bats case: recorder runs on an absent file, then detect runs within the window and still performs detection.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/compliance-hook.bats:CH-T8",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "CH-T8, CH-T9, IG-7, IG-8 and the opt-in half of IG-10 all `skip \"yq not installed\"`. The implementation report claims CH-T8 \"no longer passes vacuously\", but on any CI image without yq the entire authoritative branch of implement-gate.sh (the only branch that can produce a silent allow on a forged payload) runs zero assertions and the suite is green. The gate code itself also degrades silently without yq (DISS-002), so a missing yq hides both the behaviour and its tests at once.",
+      "failure_mode": "A regression in the authoritative branch (e.g. a widened case pattern or a dropped fallback) ships undetected on CI runners that lack yq, while local runs with yq pass; the report's non-vacuity claim does not hold in that environment.",
+      "suggested_fix": "Declare yq as a required test dependency and fail rather than skip when running under CI (e.g. `[[ -n \"${CI:-}\" ]] && fail \"yq required\" || skip`), or vendor a minimal yq-free parser path for the single scalar key so the branch is testable everywhere and the skip can be removed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:15:04Z",
+    "tokens_input": 114202,
+    "tokens_output": 18689,
+    "cost_usd": 0,
+    "latency_ms": 34369,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-g-gate.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-g-gate.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2517c8e7e509aa45ad89a665c7e427be98090f29c3b81bd677e69c38fb095de0",
+      "run_tag": "g-gate"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

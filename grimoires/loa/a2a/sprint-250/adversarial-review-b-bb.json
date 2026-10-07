@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts:readCatalog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "readCatalog silently coerces a missing or malformed `aliases:` block to `{}`, and resolveAliases silently drops any alias whose provider-qualified target is not a flattened model. Both failure shapes regenerate a truncation.generated.ts with no `opus` row, which is exactly the pre-fix state: budgetId('opus') falls through to the 100K default row, effectiveInputBudget treats it as unknown and returns the raw 200K operator budget. The generator's `.providers` path throws ConfigError for the same class of malformation; aliases are treated more leniently even though DEFAULTS.model depends on them.",
+      "failure_mode": "A catalog edit that misspells the opus target (e.g. `anthropic:claude-opus-55`) or restructures `aliases:` regenerates cleanly with exit 0; BB again dispatches 160–200K prompts that cheval's 180K pre-flight gate rejects with exit 7. Only the single hard-coded `opus` bats assertion would notice, and only if the suite runs.",
+      "suggested_fix": "Throw ConfigError when `aliases` is present but not a plain object. In resolveAliases, when the target's provider exists in the catalog but the model id does not, write a warning to stderr (or fail under a strict flag) instead of dropping silently; keep the silent drop only for providers absent from the catalog (the `native` case).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts:resolveAliases",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts:budgetId",
+      "cross_file_justification": "resolveAliases emits a row for any alias whose name differs from its target model id, but budgetId in truncation.ts checks GENERATED_TOKEN_BUDGETS/TOKEN_BUDGETS first and never consults the alias row when the alias name is itself a concrete budget id. The generator and the runtime disagree about which rows are live.",
+      "description": "Only self-maps (`alias === modelId`) are dropped. An alias whose name collides with a different concrete model id (e.g. a catalog retarget such as `claude-opus-5: anthropic:claude-opus-5-5`, or a hand-table legacy id) is emitted into GENERATED_MODEL_ALIASES but is dead at runtime because budgetId returns the concrete id first. The bats `_expected_alias_lines` helper mirrors the generator's rule, so T13 passes while asserting a row the runtime ignores.",
+      "failure_mode": "Catalog retargets an old concrete id to a new model via `aliases:`; cheval dispatches to the new target while BB budgets by the old id's own row. If the ceilings diverge (today they are both 160K for the Anthropic rows, but not for e.g. gpt-5.2 at 128K vs gpt-5.5 at 400K), BB either under-truncates (exit 7) or over-truncates, with no log evidence that the alias row was skipped.",
+      "suggested_fix": "In resolveAliases, also drop (or warn on) aliases whose name is in the flattened model-id set, not only self-maps, so the generated table only contains rows budgetId will actually consult. Mirror the same rule in the bats helper.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts:ReviewPipeline model budget clamp (sprint-250 round 2)",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new pipeline test asserts only `sent[0] <= CEILING`. In two-pass mode the second (synthesis) LLM call is never checked, and the diff touches only the Pass 1 estimate/guard in runTwoPass; no Pass 2 guard hunk appears. Likewise the `prompt_too_large_after_truncation` hunk in the single-pass path changes only the logged `budget` field, so the skip condition itself is not visible in the diff and may still compare against the raw `this.config.maxInputTokens`.",
+      "failure_mode": "If Pass 2 re-embeds the (possibly untruncated) diff or the post-truncation skip still uses the raw 200K budget, a 160–200K payload can still reach cheval on the second call or after a partial truncation, and the test suite stays green because it only inspects the first call.",
+      "suggested_fix": "Assert `sent.every(t => t <= CEILING)` in the test and record the per-call estimate. Confirm the post-truncation skip condition in reviewer.ts compares against `inputBudget`, and that any Pass 2 size guard in runTwoPass uses effectiveInputBudget as well.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/progressive-truncation.test.ts:resolves catalog aliases to their target's budget",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The closing assertion `progressiveTruncate(many, 300_000, \"opus\", 560_000, 0)` with `excluded.length > 0 || level > 1` is vacuous for alias clamping: a 560K estimate exceeds the 300K raw operator budget, so truncation fires regardless of whether `opus` resolves to the 160K row. The comment claims it proves 'progressiveTruncate clamps the alias like the concrete id' but it does not.",
+      "failure_mode": "A regression where progressiveTruncate stops clamping aliases (e.g. it starts calling a non-resolving lookup) passes this test unchanged.",
+      "suggested_fix": "Use an estimate strictly between the alias target's maxInput and the operator budget (e.g. 200_000 with budget 300_000) and assert the result's final estimate is ≤ floor(160_000 * 0.85), mirroring the existing concrete-id clamp test above it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/reviewer.test.ts:ReviewPipeline model budget clamp (sprint-250 round 2)",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The fixture's 36×400-line patches contribute ~184K tokens on their own; the test then requires the total estimate (system prompt + user wrapper + files) to land in the open interval (160K, 200K). The remaining headroom (~16K tokens, ~65K chars) is consumed by the review system prompt and user-prompt template, whose size the test does not control or measure.",
+      "failure_mode": "Any growth of the system prompt or user-prompt scaffolding by a few tens of KB pushes the estimate past 200K, and the fixture assertion fails for reasons unrelated to the clamp logic (false red). Conversely, shrinking the template could drop it below 160K, making the clamp assertion vacuous.",
+      "suggested_fix": "Size the fixture dynamically: run the pipeline once with a tiny diff to measure the fixed prompt overhead from the `Prompt estimate` log, then generate enough patch bytes to land mid-window; or assert against the logged `budget` value rather than a hard-coded 160K/200K pair.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T09:09:07Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 17307,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "30b62b8b99ea7ea0d6182832ae498232128607a86b8920a055ce154f86cea2fd",
+      "run_tag": "b-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

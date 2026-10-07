@@ -1,0 +1,165 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/loa/CLAUDE.loa.md:agent_teams_constraints",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:agent_teams_constraints",
+      "cross_file_justification": "The diff changes the Agent Teams constraint rationales in the source constraints file, but the managed generated CLAUDE.loa.md block still contains the old rationale text and unchanged generated hash.",
+      "description": "The managed Loa instruction file is stale relative to .claude/data/constraints.json for the Agent Teams constraints. The source now says, for example, that planning skills produce single artifacts with single-writer semantics, but CLAUDE.loa.md still says only 'Planning skills assume single-writer semantics'. The generated block hash is also unchanged, indicating this section was not regenerated.",
+      "failure_mode": "Consumers that read CLAUDE.loa.md receive outdated generated policy text despite the source constraints changing. This violates the managed-file generation contract and can cause policy drift between the canonical constraints and the runtime instructions agents actually load.",
+      "suggested_fix": "Regenerate .claude/loa/CLAUDE.loa.md from .claude/data/constraints.json so the agent_teams_constraints block and its generated hash match the updated source rationales.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/loa/CLAUDE.loa.md:@@ -1,11 +1,24 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "This hunk and the Golden Path hunk (@@ -27,9 +40,19 @@) re-expand the Reference Files and truenames prose back into two Markdown tables and re-add the NOTES.md sentence, taking CLAUDE.loa.md from the Sprint 3 trimmed size back to 10,225 B. The Sprint 3 acceptance criterion is 'CLAUDE.loa.md <= 9,216 B'. The report discloses the AC is 'given up', but its own ablation data does not support giving it up: rationales-only revert scored 27/26 and the full revert (rationales + trim) also scored 27/26 on audit-pr-02/05. The trim revert added zero measurable recall. The only ablation that reverted the trim alone scored 26/26, i.e. no better than keeping it. No sprint-plan or PRD amendment recording the waived AC appears in the diff.",
+      "failure_mode": "Sprint 3 AC is formally unmet at sprint close with no amended plan; ~1 KB of always-loaded prompt budget is spent on every turn for no demonstrated recall gain; the revert decision is attributed to a pre-registered rule whose ablation evidence actually points the other way.",
+      "suggested_fix": "Re-run the post-revert A/B with only the constraints.json rationale revert applied and the CLAUDE.loa.md trim retained (the fixture already pins the rationale side). If it passes the gate, drop the two CLAUDE.loa.md hunks and the Sprint 3 AC is met. If it does not pass, amend the Sprint 3 AC in grimoires/loa/sprint.md to the new 10,240 B budget and record the waiver with the ablation table so audit can rule on it explicitly rather than via a disclosure sentence.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/loa/CLAUDE.loa.md:@constraint-generated agent_teams_constraints",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:@@ -1232,7 +1232,7 @@",
+      "cross_file_justification": "The diff rewrites the `why` field on all five C-TEAM rows in constraints.json (hunks at 1232, 1253, 1274, 1295, 1316), but the rendered agent_teams_constraints block in CLAUDE.loa.md is untouched, carries a hand-written hash `c020-teamcreate` rather than a computed one, and shows rationale text ('Planning skills assume single-writer semantics', 'SQLite single-writer prevents lock contention', ...) that matches neither the pre-diff nor post-diff `why`.",
+      "description": "The process_compliance_never/always blocks were regenerated (hashes 74e01d57…, bcb45bf9…) from the changed `why` fields, but the agent_teams_constraints block was not. Either that block is derived from a different field (in which case the five C-TEAM `why` edits in this diff are inert for the prompt and the new fixture pins text nothing renders), or the block is generator-owned and now stale with a placeholder hash that will not match on a drift check.",
+      "failure_mode": "Constraint-drift or regen check flags CLAUDE.loa.md as out of sync, or the C-TEAM rationale revert silently has no effect on agent behaviour while being counted as part of the recall fix.",
+      "suggested_fix": "Run the constraints generator and diff the agent_teams_constraints block. If it is `why`-derived, regenerate and let the tool compute the hash. If it uses another field, note that in constraints.json and drop the five C-TEAM `why` rows from the pre-diet fixture so the pin reflects what is actually rendered.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/fixtures/constraint-rationales-pre-diet.json:file",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff under review contains only the rationale revert (constraints.json), the CLAUDE.loa.md re-expansion, and a new fixture whose contents are not included. The implementation report, by contrast, claims security-bearing changes: implement-gate.sh active_skill evidence recording, the forged-payload test (IG-11) pinning that no .run file can select `authoritative` mode, model-permissions.yaml rows for every Anthropic catalog entry, and check-permissions.sh dual-grammar parsing. None of that code is in this diff. The P0 escalation lands on CLAUDE.loa.md, a prose file, while the actual trust-boundary code (commits a9ecda08, e612fa2d, fd8aaae3) is unreviewed here. The fixture is also presumably the oracle for IDR-1–4; its content and whether it is a full-equality snapshot (a change-detector that breaks on any future rationale edit) cannot be assessed.",
+      "failure_mode": "Primary reviewer signs off on the report's implement-gate / forged-payload / registry claims on the strength of a diff that does not contain them; fixture semantics go unreviewed.",
+      "suggested_fix": "Review the three implementation commits as separate diffs (at minimum .claude/scripts/implement-gate.sh, tests/unit/implement-gate.bats IG-11, .claude/data/model-permissions.yaml, check-permissions.sh) before issuing a verdict on Sprint 4. Include the fixture content and the IDR test bodies in the review set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": null,
+      "anchor_type": null,
+      "scope": null,
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The implementation report contradicts itself in three places a reviewer could wave through: (1) the Task 4.8 prose says CLAUDE.loa.md's budget 'goes back to 10,240 B' while the G-3 table measures the file at 10,225 B (consistent only if 10,240 is a ceiling, which the prose does not say); (2) the E2E summary reports 'residue + adapter bats 13/13' at fd8aaae3 while the G-4 row cites g4-residue-bats.tap at 12/12, implying the G-4 artefact predates RES-7 and was not re-collected; (3) G-2 (real two-voice envelope) is listed as 'pending' in a report titled Sprint 4 (Final), with the pending evidence being this very dissent run, so the sprint is being closed on a goal whose evidence does not yet exist.",
+      "failure_mode": "Audit accepts stale or self-referential evidence; G-2 is marked complete without an artefact.",
+      "suggested_fix": "Re-collect g4-residue-bats.tap at fd8aaae3 (13/13), state 10,240 B as the configured ceiling and 10,225 B as the measured size, and either attach the G-2 envelope artefact before closing or mark G-2 as deferred in the sprint plan.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:45:34Z",
+    "tokens_input": 107559,
+    "tokens_output": 15419,
+    "cost_usd": 0,
+    "latency_ms": 41140,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-k1-kernel.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-k1-kernel.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0460d561d179813d7b5058b8624d2b28e18bef5ac502aaf87e734e5c50ed6c3e",
+      "run_tag": "k1-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

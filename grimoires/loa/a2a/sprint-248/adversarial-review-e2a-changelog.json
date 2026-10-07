@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -11,8 +11,11 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The FR-2 entry states the verdict-derive contract as: the trailer is INCONSISTENT when `rejected_summary` is non-empty and \"a non-array summary or an unparseable envelope is a violation\". The same entry, and the implementation report (\"legacy envelopes (no `rejected_summary`, or `null`) pinned as passing\"; \"a pre-FR-2 envelope ... counts no sidecar rows as old as itself\"), say a `null` or absent `rejected_summary` is the legacy pass. `null` is a non-array value, so the published contract sentence contradicts the legacy rule the code implements.",
+      "failure_mode": "An operator or a downstream check that reads the CHANGELOG as the `verdict-derive.sh` contract expects an envelope with `rejected_summary: null` to fail the trailer check, while the script passes it as a pre-FR-2 envelope. Historical-sprint triage decisions and any tooling built on the stated rule diverge from the code's actual verdict.",
+      "suggested_fix": "Qualify the sentence: \"a present, non-null `rejected_summary` that is not an array, or an unparseable envelope, is a violation; a `null` or absent summary is read as a pre-FR-2 envelope (legacy pass)\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:@@ -11,8 +11,11 @@ ### Fixed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The known-failures entry documents a refusal class that did not exist before: `kf-write-lib.sh new` now exits 1 with nothing written for titles that were previously accepted (non-UTF-8, `_emphasis_`, links, HTML tags, character references, backtick runs, padded code spans, a closing `#`, anchor-ambiguous codepoints, and any non-ASCII title when python3 is missing or fails). The entry itself labels this a \"Behaviour change\" yet is filed under `### Fixed` with no upgrade note, unlike the FR-2 entry directly above it which carries one.",
+      "failure_mode": "Automation or operators that invoke `kf-write-lib.sh new` with titles in any of the newly refused classes get exit 1 and no ledger entry; a caller that only scans `### Changed` for behaviour changes before upgrading does not learn of the new refusal, and the entry gives no remedy (how to rewrite a refused title, or that python3 is now required for non-ASCII titles).",
+      "suggested_fix": "Move the behaviour-change sentence under `### Changed` (or add an Upgrade note to the entry) stating that python3 is required for non-ASCII titles and that a refused title must be rewritten in plain text before the entry is written; keep the anchor-slug repair itself under `### Fixed`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T05:11:01Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16175,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "bc2fe72095054c3f501499c512875121a38016a6ca7ddf2b3d5eeedb9d795520",
+      "run_tag": "e2a-changelog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

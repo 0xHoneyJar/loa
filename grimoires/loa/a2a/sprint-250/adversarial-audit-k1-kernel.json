@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "<!-- @constraint-generated: start agent_teams_constraints | hash:c020-teamcreate -->",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "@@ -1232,7 +1232,7 @@ (constraints.json C-TEAM `why` edits, through @@ -1316,7 +1316,7 @@)",
+      "cross_file_justification": "The diff rewrites all five C-TEAM `why` fields in .claude/data/constraints.json, yet the agent_teams_constraints block in .claude/loa/CLAUDE.loa.md that claims to be generated from that file is untouched, its rendered `Why` text matches neither the old nor the new source, and its hash marker is a non-hex placeholder rather than a content hash.",
+      "description": "Every other `@constraint-generated` block in CLAUDE.loa.md carries a 16-hex content hash and was regenerated in this diff when its source `why` changed. The Agent Teams block is labelled `DO NOT EDIT — generated from .claude/data/constraints.json` but carries `hash:c020-teamcreate`, was not regenerated despite its source changing, and renders summary text that does not exist in constraints.json. This shows the regeneration and drift-check pipeline does not actually cover this block, so the `generated` and `DO NOT EDIT` assertions are unenforced for the table that defines teammate guardrails (System Zone lockout, beads serialization, .run/ single-writer, git coordination).",
+      "failure_mode": "Hand edits or stale content in the Agent Teams guardrail table persist indefinitely without the hash-drift check firing. A teammate or script that alters this block (weakening or removing a MUST NOT rule) would not be detected by the same mechanism that protects the other constraint tables, undermining the integrity guarantee of the file that governs multi-agent behaviour.",
+      "suggested_fix": "Make the generator emit agent_teams_constraints from constraints.json using the same 16-hex content hash format, regenerate the block so its text matches source, and make the sync validator fail on any `@constraint-generated` marker whose hash does not match the rendered rows. Add a test that iterates every generated block and asserts hash-to-content agreement so a placeholder hash cannot pass again.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:36:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 3918,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0460d561d179813d7b5058b8624d2b28e18bef5ac502aaf87e734e5c50ed6c3e",
+      "run_tag": "k1-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

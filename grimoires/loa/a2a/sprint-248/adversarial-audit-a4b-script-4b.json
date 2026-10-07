@@ -1,0 +1,150 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "injection",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "line": 3450,
+      "anchor": "_adv_range_diff(): git ... diff ... --src-prefix=a/ --dst-prefix=b/ \"$2\" -- )",
+      "title": "Untrusted diff range can be interpreted as git options",
+      "description": "The new `_adv_range_diff` helper passes the user-controlled diff range directly to `git diff` before the pathspec terminator. If `--diff-range` is attacker-controlled, values beginning with `--` are parsed as git options, not revisions. For example, `--output=/tmp/leak` can redirect output, and `--no-index` can make git compare arbitrary filesystem paths. The trailing `--` only terminates pathspecs after the injected option has already been parsed.",
+      "impact": "A caller able to influence `--diff-range` can alter where review output is written or potentially cause the script to read/diff files outside the intended repository context, undermining the audit boundary.",
+      "recommendation": "Validate `diff_range` before calling `_adv_range_diff`: require it to resolve to allowed commit/range syntax via `_adv_range_oid` or an explicit regex, reject any value beginning with `-`, and pass only resolved commit OIDs/ranges to `git diff`.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new `_adv_range_diff` helper passes the user-controlled diff range directly to `git diff` before the pathspec terminator.",
+      "failure_mode_derived": true,
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "_adv_range_diff",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "main",
+      "cross_file_justification": null,
+      "description": "`_adv_range_diff` passes the caller-supplied range straight into `git diff` as `\"$2\" --`. The trailing `--` only separates revisions from pathspecs; it does not stop git from parsing `$2` itself as an option. A range beginning with `-` is therefore interpreted as a `git diff` flag: `--output=<path>` writes the diff over an arbitrary file owned by the operator, `--ext-diff` re-enables the external diff driver that the preceding `--no-ext-diff` was meant to disable (and `GIT_EXTERNAL_DIFF` is not among the variables unset in the subshell), and `-O<file>` or `--no-index` reshape what the hunk cutter and file-list reader later parse. `_adv_range_oid` has the same shape (`\"$2^{commit}\"` after `--verify --quiet` with no `--end-of-options`). The value originates from the new `--diff-range` CLI argument (`diff_range` added to `main`), which in this tool is typically composed by an LLM skill from repository or sprint content, so prompt-injected content is a plausible source. The diff does not show whether `main` validates the range (e.g. resolves both sides with `_adv_range_oid` and aborts) before `_adv_range_diff` runs, so this is rated as a defense-in-depth gap rather than a confirmed exploit.",
+      "failure_mode": "A `--diff-range` such as `--output=/home/u/.gitconfig` (or `--ext-diff` with a hostile `GIT_EXTERNAL_DIFF`) is accepted by `git diff`, clobbering an operator-owned file or executing a configured external command instead of producing the reviewed-tree diff; the review then proceeds on an empty or attacker-shaped diff.",
+      "suggested_fix": "Diff on the two resolved commit OIDs from `_ADV_RANGE_OIDS` (hex-only, `base..head`) rather than the raw range string, and insert `--end-of-options` immediately before the revision argument in both `_adv_range_diff` and `_adv_range_oid` (git >= 2.24). Reject any `--diff-range` value whose first character is `-` in `main`. Also add `GIT_EXTERNAL_DIFF` to the variables unset in the subshell.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_adv_kill_tree",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_adv_kill_tree",
+      "cross_file_justification": null,
+      "description": "`_adv_kill_tree` sends STOP, the requested signal (TERM or KILL) and CONT to every pid collected by `_adv_tree_pids` without checking the start token; only the later KILL in `_adv_kill_same` is identity-gated. A collected descendant that exits between the `pgrep`/`ps` walk and the first `kill -STOP` pass frees its pid, and an unrelated same-user process that receives that pid is then frozen and TERMed. Because the pid=token pairs are taken after the freeze, the token recorded for such a recycled pid describes the new process, so `_adv_reap_primary` (which has no pre-freeze token read, unlike `_adv_reap_companion_inner`) will also KILL it after the grace period. Separately, `_adv_is_same` treats an empty token as 'the pid alone decides', so on a host where `_adv_proc_start` fails (e.g. no `ps`, as the pgrep-less fallback anticipates) every KILL is sent on the bare pid.",
+      "failure_mode": "A reap under heavy load or on a host with fast pid wraparound stops, terminates or kills an unrelated process owned by the operator (another editor, shell, or a concurrent `claude -p`), not just the companion tree.",
+      "suggested_fix": "Read start tokens for the collected pids BEFORE the first STOP pass and only signal pids whose token still matches at signalling time; in `_adv_reap_primary` take a pre-freeze token read like `_adv_reap_companion_inner` does and prefer it over the post-freeze one. When `_adv_proc_start` is unavailable, skip the KILL escalation (log and leave the pid) rather than killing on pid alone.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_adv_cont_watchdog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_adv_kill_tree",
+      "cross_file_justification": null,
+      "description": "When `setsid` is present the watchdog handle stored in `_ADV_CONT_WD` is a negative value (`-$!`), and `_adv_kill_tree` later runs `kill -KILL -- -<pgid>`. If the watchdog has already fired and exited (its delay defaults to 10 s, and the two freeze/collect passes between fork and cancel are not bounded), the process-group id can be reused by a new session leader, and the group KILL lands on an unrelated process group of the same user. The non-setsid fallback puts the watchdog in the reviewer's own group, so a group KILL of the reviewer also kills the watchdog and leaves the frozen `claude -p` tree stopped indefinitely, holding its per-binary lock.",
+      "failure_mode": "Under load, a cancel issued after the watchdog's delay has elapsed KILLs a recycled process group; without `setsid`, a reaper killed mid-freeze leaves the companion tree permanently stopped (lock held until manual intervention).",
+      "suggested_fix": "Before the group KILL, verify the watchdog is still alive and still ours (e.g. `kill -0` plus a start-token check on the stored pid, or have the watchdog write its own pid+token to a file in the workdir). Consider using `kill -KILL \"$pid\"` on the setsid child itself rather than the group, since `sh -c` with a single `sleep` child can be handled by also killing the sleep pid; and in the non-setsid fallback use `nohup`/`setsid -f` alternatives or document that the freeze-forever failure mode exists.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:08:41Z",
+    "tokens_input": 51171,
+    "tokens_output": 17153,
+    "cost_usd": 0,
+    "latency_ms": 23977,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-a4b-script-4b.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-a4b-script-4b.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "dabb230fb00b560d145a2ca2a8caa4d8779e8703a0a9f868c2597a5dabd07565",
+      "run_tag": "a4b-script-4b"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

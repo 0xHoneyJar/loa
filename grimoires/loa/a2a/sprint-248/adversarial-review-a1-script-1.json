@@ -1,0 +1,146 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_conf_chain_hops",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "Valid configured companion_chain lists are never accepted. The function pipes JSON arrays from yq into `jq -rn`, but `-R` makes `inputs` raw strings, so `.value[0]` inspects the first character of the JSON text rather than the parsed tag array. Every element is classified as non-hop and a valid operator chain falls back to defaults.",
+      "failure_mode": "A production config such as `companion_chain.openai: [codex-headless]` is ignored, causing the script to run the default companion chain instead of the operator-selected chain. That can dispatch the wrong provider/model and violate the documented configuration contract.",
+      "suggested_fix": "Parse the yq JSON instead of reading raw strings, e.g. remove `-R` from jq and consume parsed inputs, or keep raw mode but call `fromjson` before indexing each element. Add a test that a valid list produces the configured hop names.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "process_findings creates a fresh mktemp file for _ADV_REPAIR_SKIP_FILE on every call and overwrites the global with the new path. No removal of the file (or of the previous call's file) appears in the diff. When _ADVERSARIAL_WORKDIR is unset (unit-test harness, or any call path before the run workdir exists) the file lands in $TMPDIR or /tmp, where no workdir sweep will ever remove it.",
+      "failure_mode": "Repeated runs or test invocations without a run workdir accumulate adv-repair-skipped.XXXXXX files in /tmp; within one run, a second process_findings call (companion walker, re-validation) orphans the first file's path so even a workdir-scoped cleanup cannot name it.",
+      "suggested_fix": "Create the skip file only under _ADVERSARIAL_WORKDIR (skip the feature with a log line when it is unset), or register the path in the EXIT cleanup and `rm -f` the previous value before reassigning the global.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The _xid renumbering block runs for both branches (\"whatever the branch\"). On the schema-enforced path a whitespace-only or otherwise non-token `id` is therefore rewritten to a fresh DISS-NNN and tagged id_derived: true before validate_finding sees it. The new `(.id | test(\"\\\\S\"))` gate added to validate_finding is thus unreachable for any string id, and the stated rule for the enforced path (no normalisation, so a wire-schema/prompt drift is surfaced as a rejection) is bypassed for the id field: a blank id from an enforced payload is accepted and logged only as \"not a safe token\", never as a drift rejection.",
+      "failure_mode": "A schema-enforced voice that starts emitting blank or malformed ids is silently repaired per finding instead of producing rejected_summary rows, so the drift the enforced path is meant to expose goes unnoticed; the log line also misdescribes a blank id as a non-token.",
+      "suggested_fix": "On the schema-enforced branch, skip the \\u0001 (unsafe/blank) renumbering and let validate_finding reject the finding (keep the duplicate-id and DISS-C- renumbering, which are not schema concerns); or, if renumbering is intended there, state it in the branch comment and have validate_finding's id gate removed as dead code.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`validated_findings=$(_adv_jq_pair \"$validated_findings\" \"$validated\" '$a + [$b]')` has no failure guard. If validate_anchor ever yields a non-JSON or multi-value output for one finding, _adv_jq_pair refuses (\"two values expected\" or a parse error) and the accumulator collapses to an empty string; every later iteration then fails the array-literal parse as well, so all remaining valid findings are lost and the final envelope assembly reads an empty accumulator. The pre-change --argjson form had the same collapse, but the new helper makes the loss deterministic and loud for every subsequent finding rather than only the one that misbehaved.",
+      "failure_mode": "One malformed validate_anchor result silently drops every validated finding after it (or aborts process_findings under errexit), producing an envelope with fewer findings than were accepted and no rejected_summary row for them.",
+      "suggested_fix": "Capture into a temporary and keep the previous accumulator on failure: `_nv=$(_adv_jq_pair ... ) && validated_findings=\"$_nv\" || { log \"WARN: finding $i could not be appended — kept out\"; rejected_count=$((rejected_count+1)); }`, and write a sidecar/rejected_summary row for the finding so the loss is said.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-04T23:09:09Z",
+    "tokens_input": 76977,
+    "tokens_output": 63656,
+    "cost_usd": 0,
+    "latency_ms": 35130,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a1-script-1.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a1-script-1.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0e47ef24048bc545aefe9f656d0b91513b94304af78c3b2182fbeafe7ac23922",
+      "run_tag": "a1-script-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

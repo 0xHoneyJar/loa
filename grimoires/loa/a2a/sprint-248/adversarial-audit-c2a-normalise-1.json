@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_adv_run_tag",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-normalise.bats: NRM-19, the `huge` tag assertion `^h[0-9a-f]{200}-152$`",
+      "cross_file_justification": "NRM-19 in the diff-touched test file pins the no-digest fallback of `_adv_run_tag` in .claude/scripts/adversarial-review.sh. The test asserts the truncated shape rather than distinctness, so the collision in the production function is locked in by this suite.",
+      "description": "When neither sha256sum nor shasum is on PATH, the run-tag fallback hex-encodes the raw tag, cuts the hex at 200 characters (the first 100 raw bytes), and appends only the byte length. Two invalid tags longer than 100 bytes that share their first 100 bytes and their total length therefore map to one sidecar filename. That is the exact outcome the tag scheme exists to prevent (the suite's own headline is that `c.1` and `c1` never share a sidecar). NRM-19 asserts the truncated form and only checks distinctness for tags that differ inside the first 100 bytes.",
+      "failure_mode": "Two runs with long, prefix-sharing tags on a host without a digest tool append to the same `adversarial-rejected-<type>-h....jsonl`, interleaving rows and attributing one run's rejected payloads to the other in `metadata.rejected_sidecar`.",
+      "suggested_fix": "Keep the whole tag in the name derivation: for example hex of the first 60 bytes plus hex of the last 40 bytes plus the length, or use POSIX `cksum` (always present) over the raw tag as the no-sha fallback. Add an NRM-19 assertion that two 150-byte tags differing only in their last byte produce different names.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_scrub_cred_aliases",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The credential scrub consumes only the first line of `_adv_cred_aliases` output (`read -ra row <<<\"$(...)\"`) and then calls `unset \"$v\"` with no `-v` and no option terminator. NRM-8 reads the same table with unquoted word splitting, which tolerates both space- and newline-separated output; the scrub does not. If the table ever emits one alias per line, every alias after the first stays set, and the function reports success. A token beginning with `-` would be parsed by `unset` as an option rather than a name.",
+      "failure_mode": "An operator's real provider key survives setup's scrub, is inherited by every `bash -c` child the suite spawns, and silently flips the routing assertions in NRM-6 and NRM-20 (tiny vs claude-headless) so the suite exercises a different hop than it claims to.",
+      "suggested_fix": "Read all tokens regardless of separator, validate each as a shell identifier, and unset by name explicitly: `mapfile -t row < <(_adv_cred_aliases \"$p\" | tr ' ' '\\n' | sed '/^$/d')`, then `[[ \"$v\" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || return 1; unset -v \"$v\"`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:34:51Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 12187,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b50c9f33300dc61bc908683327f5e498d9fb68d1de00e3c90e76a07714c6599f",
+      "run_tag": "c2a-normalise-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

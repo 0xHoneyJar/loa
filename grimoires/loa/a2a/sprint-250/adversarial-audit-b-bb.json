@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/skills/bridgebuilder-review/scripts/gen-bb-registry.ts::resolveAliases",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "readCatalog coerces a present-but-non-object `aliases:` block to `{}`, and resolveAliases silently `continue`s past non-string targets, unqualified targets, and provider-qualified targets that are not in the flattened catalog. Any of these drops the alias from GENERATED_MODEL_ALIASES with no diagnostic. Because effectiveInputBudget treats an unresolved id as unknown and returns the raw operator budget, a malformed or typo'd alias entry (including the default `opus`) silently restores the pre-fix behavior: a 160-200K prompt bypasses truncation and is dispatched past cheval's 180K ceiling. The getTokenBudget(\"opus\") unit test catches this only for `opus`, and only when the generated twin is regenerated and the suite is re-run.",
+      "failure_mode": "Silent fail-open. A catalog edit or YAML mistake disables model-budget clamping for the affected alias; oversized prompts reach the provider pre-flight gate and the review fails (exit 7) or wastes tokens. Availability and cost impact limited to the review pipeline.",
+      "suggested_fix": "In readCatalog, raise ConfigError when `aliases` is present but not a plain object. In resolveAliases, emit a warning (or error under --check) for provider-qualified string targets that are not in `known`, with an explicit allowlist for intentionally unresolvable providers such as `native`. Optionally assert in the generator that DEFAULTS.model resolves to a budget row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts::effectiveInputBudget",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "effectiveInputBudget remains fail-open: when budgetId(model) does not resolve to a row in GENERATED_TOKEN_BUDGETS or TOKEN_BUDGETS, the operator budget is returned unclamped. The new alias hop consults only the framework catalog. An operator alias overlay in .loa.config.yaml that retargets `opus` (or any alias) to a model with a smaller ceiling is still budgeted against the catalog target's row, and a model id the catalog lacks is not clamped at all. PR diff size is attacker-controlled input and this clamp is the control that bounds what is dispatched, so an unresolvable model id removes that bound. The limitation is documented in code comments but is never surfaced at runtime.",
+      "failure_mode": "Oversized prompt dispatched past the real model ceiling; the review fails with a provider rejection or incurs unnecessary token cost. No confidentiality or integrity impact.",
+      "suggested_fix": "Log a warning at ReviewPipeline construction when config.model does not resolve to a known budget row so operators see the fail-open. Longer term, resolve aliases at config-load time against the effective overlay-merged catalog rather than at codegen time, or fall back to a conservative default row instead of the raw operator budget when an alias fails to resolve.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:45:46Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10763,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "ac7f1315e94ab5f69b161fb93e049f5194ccf19f6c9d6e1f38806642acc97d83",
+      "run_tag": "b-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

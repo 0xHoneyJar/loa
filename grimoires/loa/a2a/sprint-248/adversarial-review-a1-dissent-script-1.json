@@ -1,0 +1,116 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": ".claude/scripts/adversarial-review.sh:_repair_model_chain",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hop-aware companion skip in _repair_model_chain is gated on `-n \"${companion_shared_hops:-}\"`, i.e. on the PRIMARY chain sharing a hop with the companion chain. The repair chain is built independently (`tiny` → `claude-headless` → answering voice) and contains `claude-headless` whenever the binary is on PATH, regardless of the primary chain. In the default configuration (CONF_MODEL=gpt-5.3-codex → OpenAI family → companion `opus` → `claude-headless`; primary chain gpt-* → codex-headless) `companion_shared_hops` is empty, so the guard is false and the skip never fires even while the companion is ON `claude-headless` (phase queue/hop). The comment on the block says 'a repair never queues behind the live companion on the hop it is ON right now' — that holds only on hosts whose primary chain already ends on claude-headless (the operator's host, where the thirteenth run validated it).",
+      "failure_mode": "On an OpenAI-primary host with `claude` installed, every KF-004 repair's `claude-headless` hop queues behind the companion's `claude -p` for the full `_ADV_LOCK_WAIT_CLI` (CONF_TIMEOUT, 60 s default) before falling to the answering voice; up to ADV_REPAIR_MAX_PER_RUN × 60 s of the 360 s wall budget is spent waiting, and `repair_hops_skipped` stays `[]` so the envelope does not explain the latency.",
+      "suggested_fix": "Drop `-n \"${companion_shared_hops:-}\"` from the guard (keep the PID/workdir/kill -0 checks) so the skip is decided purely from companion.current/companion.phase against the repair chain's own hops; add a companion-suite case with an OpenAI primary, an empty shared set and the companion parked on `claude-headless` asserting `repair_hops_skipped` contains `claude-headless:shared_with_companion`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Hunk `@@ -1181,6 +1332,32 @@` derives the repair wall budget as `ADV_REPAIR_MAX_PER_RUN * CONF_TIMEOUT * 2` (360 s default) and checks it only BEFORE a payload's repair starts (hunk `@@ -1207,18 +1396,40 @@`). Each repair walks up to three hops, and the CLI hops (`claude-headless`, `codex-headless` as the answering voice) are not bounded by CONF_TIMEOUT: per this cycle's own cheval finding, `--timeout` never reaches the headless adapter, whose bound is `headless_timeout_seconds` (900 s) plus connect. The per-hop `_ADV_LOCK_WAIT_CLI` adds another CONF_TIMEOUT. The budget therefore under-states a single repair's worst case by ~15× and cannot pre-empt it.",
+      "failure_mode": "One KF-004 repair whose `claude-headless` hop runs to cheval's ceiling holds the review for ~15–30 min (lock wait + 910 s per CLI hop, twice if the answering voice is also a CLI hop) while `repair_wall_budget_seconds` on the envelope reads 360; the next payload is then rejected unrepaired with `repair_budget_exhausted` incremented, which reads as a budget policy rather than a stall.",
+      "suggested_fix": "Before starting each hop inside the `for _rm in $(_repair_model_chain …)` loop, compute the hop's real bound with the same CLI-aware helper the main walk uses (`_ADV_CLI_HOP_CEILING` / the cheval-formula bound) and skip the hop — naming it in `repair_hops_skipped` as `<hop>:over_budget` — when `_repair_wall_budget - _repair_wall_used` is smaller than that bound; alternatively size `_repair_wall_budget` from the max hop bound rather than CONF_TIMEOUT.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:process_findings",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_repair_wall_budget=$(( ADV_REPAIR_MAX_PER_RUN * ${CONF_TIMEOUT:-60} * 2 ))` is the first place this function feeds `CONF_TIMEOUT` into bash arithmetic. `CONF_TIMEOUT` is read raw from yq in load_adversarial_config (`timeout_seconds // 60`) with no shape check, while the sibling env knob `LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS` in the same hunk is validated with `^[0-9]+$` precisely because 'a value that is not a whole number would break the arithmetic and then the envelope's --argjson'. A `timeout_seconds` of `60.0`, `90s` or `2m` raises an arithmetic syntax error (aborting process_findings under errexit), and a bare word such as `abc` is silently evaluated as an unset variable → 0, which zeroes the budget and rejects every payload unrepaired.",
+      "failure_mode": "A malformed `timeout_seconds` in .loa.config.yaml either aborts the dissent mid-loop (no envelope, no sidecar summary) or silently disables the repair path with `repair_wall_budget_seconds: 0`, with no WARN naming the config key.",
+      "suggested_fix": "Validate `CONF_TIMEOUT` once in load_adversarial_config the way the budget knob is validated (`[[ \"$CONF_TIMEOUT\" =~ ^[0-9]+$ ]] || { log \"WARN: …timeout_seconds='$CONF_TIMEOUT' is not a whole number — 60 applies\"; CONF_TIMEOUT=60; }`), so every arithmetic and `--argjson` consumer downstream sees an integer.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-09-29T04:23:54Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 37430,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

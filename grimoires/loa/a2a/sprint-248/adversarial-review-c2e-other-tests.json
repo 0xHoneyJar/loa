@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "injection",
+      "anchor": "tests/unit/verdict-observations-section.bats:@@ -108,9 +108,13 @@ trailer()",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `--json` leg runs `bash -c \"\\\"$SCRIPT\\\" --file \\\"$T/r.md\\\" --gate review --review-file \\\"$T/r.md\\\" --json 2>/dev/null\"`, interpolating two filesystem paths into a shell command string. The reviewer context records that the sibling verdict-derive suite was deliberately moved off this exact pattern (\"82 verdict-derive cases off `bash -c`\", the `bash -c` lint) because a path containing `\"`, `$`, a backtick or a backslash either breaks the command or is executed. The only reason for `bash -c` here is the `2>/dev/null`. Separately, the plain (non-`--json`) leg now asserts only `status -eq 1`, which an INCONSISTENT verdict also returns, so despite the comment the usage-error marker is pinned on the `--json` leg alone.",
+      "failure_mode": "On a host whose `TMPDIR`/`BATS_RUN_TMPDIR` or checkout path contains a shell-significant character the interpolated command fails to parse or runs unintended text, and the test reports a false failure (or, with a crafted path, executes it). The non-JSON leg cannot distinguish a usage error from an INCONSISTENT verdict, so a regression that turned this usage error into a real verdict would pass that leg.",
+      "suggested_fix": "Pass the paths as arguments instead of interpolating: `run bash -c '\"$0\" --file \"$1\" --gate review --review-file \"$1\" --json 2>/dev/null' \"$SCRIPT\" \"$T/r.md\"`, or use `run --separate-stderr \"$SCRIPT\" --file \"$T/r.md\" --gate review --review-file \"$T/r.md\" --json` (bats >= 1.5). Optionally assert the usage-error wording on the plain leg's `$output` as well so both paths are pinned by the marker, not the shared exit code.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:39:08Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 26429,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "39ef053b0d120532923c8b3b24de8c934b29531f385e081d8932cba58c0f7d3c",
+      "run_tag": "c2e-other-tests"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

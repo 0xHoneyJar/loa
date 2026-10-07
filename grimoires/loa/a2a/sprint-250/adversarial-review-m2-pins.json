@@ -1,0 +1,139 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/unit/model-residue.bats:RES-4 example pins",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "RES-4 uses bare negated commands as assertions: `! grep -q 'claude-opus-4-7' .../hitl-jury-panel/SKILL.md` and `! grep -q 'claude-3-5-sonnet' .../alternative-model.md`. Under bats-core, test bodies run with `set -eET` plus an ERR trap, and bash exempts `!`-inverted commands from both errexit and the ERR trap. Neither line is the final command of the test, so a non-zero result from `! grep` is simply discarded. This is the documented bats gotcha (\"My negated statement does not fail the test\"), which is why bats 1.5.0 added `run !`. The two residue checks therefore can never go red, even though RES-4 is cited as G-4 acceptance evidence for AC 1 (no previous-generation pins in hitl-jury-panel or the persona).",
+      "failure_mode": "If `claude-opus-4-7` is reintroduced into hitl-jury-panel/SKILL.md, or `claude-3-5-sonnet` into alternative-model.md, RES-4 still passes 7/7 and the residue gate reports clean. The 'red first' claim for this test cannot hold for these two assertions because they are unconditionally true.",
+      "suggested_fix": "Add `bats_require_minimum_version 1.5.0` to setup() and rewrite as `run ! grep -q 'claude-opus-4-7' \"$R/.claude/skills/hitl-jury-panel/SKILL.md\"` and `run ! grep -q 'claude-3-5-sonnet' \"$R/.claude/data/personas/alternative-model.md\"`. Alternatively use the pattern already used in RES-6: `run grep -q ...; [ \"$status\" -eq 1 ]`. Verify the fix goes red by temporarily inserting the forbidden string.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/model-residue.bats:RES-1 the catalog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "RES-1 pins claude-opus-5-5 pricing as input 4000000, output 20000000, cache_read 200000 (micro-dollars per MTok, i.e. $4 / $20 / $0.20). Anthropic's published prompt-caching price structure prices cache reads at 0.1x the base input rate, which for a $4 input price would be $0.40 = 400000. The pinned value is a 0.05x ratio. The implementation report says the entry is 'vendor-sourced' for input/output but does not mention cache read, and this test now locks the 5% figure in.",
+      "failure_mode": "If the vendor price for cache reads is $0.40, the cost ledger (LOA_COST_LEDGER_PATH) and cost-budget-enforcer undercount cache-read spend on the default `opus` alias by 2x, and the test prevents a later correction from landing without a test edit.",
+      "suggested_fix": "Re-check the cache_read_per_mtok value for claude-opus-5-5 against the vendor pricing page and the ratio used by the other Anthropic entries in model-config.yaml. If the vendor figure is $0.40, update both the catalog entry and the RES-1 expectation to 400000.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/personas/alternative-model.md:Operator extension",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/flatline-model-allowlist.bats:gemini-2.5-pro still accepted by validate_model",
+      "cross_file_justification": "The diff-touched allowlist test documents that cycle-126 dropped gemini-2.5-pro from the literal VALID_FLATLINE_MODELS list and now only asserts it is admitted by the forward-compat regex. The diff-touched RES-4 and RES-6 residue checks grep alternative-model.md but do not cover gemini-2.5-pro, so the persona's 'Operator extension' example continues to recommend it.",
+      "description": "alternative-model.md still tells operators they MAY swap the tertiary panelist to `gemini-2.5-pro`. The allowlist test in this diff was rewritten because that id is no longer in the literal allowlist, and validate_model now accepts it only via the forward-compat pattern. If the catalog no longer serves gemini-2.5-pro (the generated allowlist is derived from the catalog), an operator following the persona doc passes validation but fails at resolution/invoke time. The residue grep in RES-6 does not include this id, so the stale example is not caught by the new acceptance tests.",
+      "failure_mode": "Operator configures the L1 panel tertiary as gemini-2.5-pro per the persona doc; validate_model passes; the hop fails later with an unknown-model error from model-invoke, after validation has already reported the config as sound.",
+      "suggested_fix": "Confirm whether gemini-2.5-pro is still a served catalog id. If not, change the persona example to a served alias (e.g. `gemini-3.1-pro`) and extend the RES-6 regex to cover `gemini-2\\.5-pro` under .claude/data so the doc cannot drift again.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/data/personas/alternative-model.md:@@ -191,7 +191,7 @@ YAML",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff attributes two hunks at lines 191-217 to .claude/data/personas/alternative-model.md, and their content is a bats test (`@test \"T5 — operator override at tier_groups.mappings wins...\"`) that invokes `$RESOLVER resolve ...` and parses JSON. The P0 full-file context supplied for the same path is a roughly 35-line persona markdown with no bats content and no line 191. One of the two is wrong: either the T5 hunk belongs to a resolver bats file and the diff path is mislabeled, or the persona document that gets loaded as a panelist prompt carries embedded shell test code.",
+      "failure_mode": "If the hunk really lives in the persona file, a bats test body is injected into every alternative-model panelist prompt and RES-4/RES-6 greps over .claude/data will scan test fixtures as if they were persona text. If the path is mislabeled, the T5 expectation change (claude-sonnet-4-6 to claude-sonnet-5) was reviewed against the wrong file and its real location was not covered by this review.",
+      "suggested_fix": "Verify with `git show <commit> --stat` which file actually contains the T5 test. If it is the persona file, move the test to tests/unit and keep the persona document prose-only. If it is mislabeled, re-run the review bundle against the correct path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:09:30Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 23152,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e656bceef860f7093caea6c409e675a55278afb6396b4a1d6aab87dd463bbaa9",
+      "run_tag": "m2-pins"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The loop now coerces a missing key to the empty string (`?? \"\"`) and hands it to `createAdapter` for a headless entry. Before this change `apiKey` was always a non-empty string past the guard, so the adapter has never been exercised with an empty key. The only test that reaches this path (`multi-model-headless-key.test.ts`) stubs `ChevalDelegateAdapter.prototype.generateReview`, so nothing verifies what the real adapter does with `apiKey: \"\"` — in particular whether it injects `ANTHROPIC_API_KEY=\"\"` / `OPENAI_API_KEY=\"\"` into the cheval child environment. A set-but-empty variable is not the same as an unset one for every CLI (codex reads `OPENAI_API_KEY` from the environment and may prefer it over its stored login), which is exactly the condition the headless path is supposed to avoid.",
+      "failure_mode": "On a real keyless host the headless voice is now dispatched, but the CLI hop sees an empty API-key variable, selects key auth, and fails with an auth error. The voice is dropped again — the symptom this change set out to fix — with a less legible cause than the previous 'missing key' gate message.",
+      "suggested_fix": "Pass `undefined` instead of `\"\"` for a headless entry (widen the factory option to `apiKey?: string`), or make the adapter omit any falsy key from the spawned environment. Add an adapter-level test (not a `generateReview` stub) that constructs the adapter with an empty key and asserts the provider env var is absent from the child environment it would spawn.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/config.ts:isHeadlessModelId",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`isHeadlessModelId` is a suffix heuristic (`/-headless$/`), not a catalog lookup, although the pipeline already imports `GENERATED_MODEL_REGISTRY`. Two consequences: (1) any `*-headless` id under a known provider is admitted keyless even when cheval has no such `kind: cli` alias (e.g. `gemini-headless` under `google`), so a misconfigured entry that the old gate rejected with a named missing key now fails only at dispatch inside cheval; (2) because the unknown-provider check in `validateApiKeys` runs first, a genuine cheval CLI alias under a provider outside `PROVIDER_API_KEY_ENV` (the report names grok/agy CLI adapters) is still dropped as 'Unknown provider', so the two gates disagree about what a headless entry is — the test pins `mistral-headless` as missing, which documents the inconsistency rather than resolving it.",
+      "failure_mode": "A `*-headless` typo or an unsupported provider pairing produces a cheval alias-resolution failure late in the run instead of a clear preflight message; in strict mode the operator loses the fail-fast signal the key gate used to give for that entry.",
+      "suggested_fix": "Resolve the id against the registry's `kind: cli` entries (or the provider's `*-headless` alias list) rather than the bare suffix, and log at info level when an entry is admitted without a key so the keyless dispatch is visible in the run log. Decide explicitly whether the provider table should gate headless entries at all; if it should, say so in the comment and the test name.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T05:41:04Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 11820,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2d45ac634c473d1bc58a47bbd792ee449de4d07c8f7a9e0d4fe7bfcd20a635f5",
+      "run_tag": "e4-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

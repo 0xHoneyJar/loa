@@ -1,0 +1,180 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:VALID_MODEL_PATTERNS",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/flatline-orchestrator.sh:VALID_MODEL_PATTERNS",
+      "cross_file_justification": "The diff expands the validator to accept dotted 5-family Claude IDs, but the diff-touched adapter maps only the hyphenated 5-family IDs.",
+      "description": "The new Claude forward-compat regex accepts both hyphen and dot separators for 5-family models, e.g. `claude-opus-5.5` and `claude-fable-5.1`, but `.claude/scripts/model-adapter.sh:MODEL_TO_ALIAS` and `.claude/scripts/red-team-model-adapter.sh:MODEL_TO_PROVIDER_ID` only add `claude-opus-5-5` and `claude-fable-5-1`. This creates an accepted-by-validation but not invocable model name. The previous 4.x dotted forms were explicitly translated, so operators can reasonably expect the same accepted dotted form to work.",
+      "failure_mode": "A config using `claude-opus-5.5` or `claude-fable-5.1` passes Flatline validation, then later fails in the adapter or is sent as an invalid bare provider model ID during runtime.",
+      "suggested_fix": "Either remove dot acceptance for new Claude 5-family IDs from the validator, or add dotted compatibility aliases in every adapter map, e.g. `claude-opus-5.5 -> anthropic:claude-opus-5-5` and `claude-fable-5.1 -> anthropic:claude-fable-5-1`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/model-adapter.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new stderr capture creates a temp file with mktemp and removes it with a plain `rm -f` after the model-invoke call returns. There is no EXIT/INT/TERM trap. The adapter is routinely run under a caller-imposed timeout (flatline orchestrator, red-team pipeline, jury panel per-panelist timeout). When the caller kills the adapter mid-call, the `rm -f` never runs and the file, containing cheval's stderr, is left in TMPDIR. Separately, under `set -e` a failing mktemp (full or unwritable TMPDIR) now aborts the adapter before the model is invoked, a dependency the previous `2>/dev/null` path did not have.",
+      "failure_mode": "Orphaned `model-adapter-stderr.XXXXXX` files accumulate in /tmp across timed-out runs; on hosts with a read-only or full TMPDIR every model-adapter call fails before reaching cheval with only mktemp's message as diagnostics.",
+      "suggested_fix": "Register `trap 'rm -f -- \"$err_file\"' RETURN` (or EXIT in a subshell) right after mktemp, and fall back to `/dev/null` if mktemp fails: `err_file=$(mktemp ...) || err_file=/dev/null`. Alternatively avoid the file entirely with `2> >(grep -F -- 'gemini-headless dispatches agy' | cut -c1-600 >&2)`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/model-adapter.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "cheval's stderr is now captured to a file, but only lines matching the agy WARN are forwarded. When `exit_code -ne 0` the script still reports only `model-invoke failed with exit code N` and deletes the file, so the actual provider/resolver error (unknown alias, auth failure, ceiling exceeded) is discarded even though it is already in hand. This matters more after this PR because six call sites now pass catalog aliases (`opus`, `cheap`, `reviewer`) whose resolution failures surface only on cheval's stderr.",
+      "failure_mode": "Operators debugging a failed Flatline/red-team/jury run see an opaque exit code and must re-run cheval by hand to learn that an alias did not resolve.",
+      "suggested_fix": "On non-zero exit, emit a bounded, control-stripped tail of `$err_file` to stderr (e.g. `tail -n 5 | cut -c1-600`) before removing it, or always when `LOA_DEBUG=true`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/flatline-proposal-review.sh:call_gpt_review",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/flatline-proposal-review.sh:@@ -71,8 +71,9 @@",
+      "cross_file_justification": "The same default swap (`GPT_MODEL=reviewer`, `OPUS_MODEL=opus`) is made in flatline-validate-learning.sh in this diff, and both scripts' pass/fail contract ('both models must score >= min_alignment', results tagged `model: \"gpt\"`/`\"opus\"`) assumes two different model families. The family is now decided by `aliases.reviewer` in .claude/defaults/model-config.yaml, which is not in the diff.",
+      "description": "The two-call adversarial review previously named a concrete OpenAI model and a concrete Anthropic model. It now names two catalog aliases and still hardcodes the family labels `gpt` and `opus` into the result JSON and the trajectory log. Nothing asserts that `reviewer` resolves to a non-Anthropic provider. If an operator (or a future catalog edit) points `reviewer` at an Anthropic model, both reviews run on the same family while the output and audit trail still claim a GPT review occurred. The usage text also still says OPENAI_API_KEY is 'Required for GPT review', which is no longer necessarily true.",
+      "failure_mode": "The cross-family guarantee that gates upstream proposals and learning validation silently degrades to a same-family double-check, with trajectory records that misreport which family reviewed.",
+      "suggested_fix": "Record the resolved `provider:model_id` (cheval dry-run or the resolver) in the result JSON instead of the fixed `gpt`/`opus` labels, and warn or fail when both resolve to the same provider. Update the usage text to describe aliases and `LOA_GPT_MODEL`/`LOA_OPUS_MODEL` overrides.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/flatline-orchestrator.sh:@@ -553,21 +553,21 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The fallback `VALID_FLATLINE_MODELS` list now admits `cheap`, `gpt-5.5`, `gpt-5.5-pro` and `gemini-3.1-pro-preview`, but the hand-maintained `MODEL_TO_PROVIDER_ID` table edited in the same file (hunk @@ -694) adds only the Anthropic 5-family keys; `cheap` and the gpt-5.5 ids have no row. The three bash maps (flatline-orchestrator, model-adapter, red-team-model-adapter) also now hardcode `opus -> claude-opus-5-5`, duplicating the catalog's `aliases.opus`, and model-adapter.sh's new comment claims the 4.x rows are 'same targets as backward_compat_aliases in model-config.yaml' while red-team-model-adapter.sh in the same diff still labels those rows 'Retargeted in bash layer (cycle-082)'.",
+      "failure_mode": "Whichever path consults the bash map before cheval will route `cheap`/gpt-5.5 differently from the allowlist that admitted them, and the next catalog bump repeats this PR's residue hunt; the parity claim for 4.x pins is untested and contradicted by a sibling comment.",
+      "suggested_fix": "Have model-adapter.sh and red-team-model-adapter.sh source `generated-model-maps.sh` the way flatline-orchestrator.sh does, and extend the RES bats to assert every key in the fallback allowlist either has a map row or is a catalog alias. Reconcile the two comments to state the actual YAML target for `claude-opus-4-6`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/data/personas/alternative-model.md:@@ -27,4 +27,4 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The operator-facing swap example was changed to `bedrock:us.anthropic.claude-opus-4-8`. No `claude-opus-4-8` exists in the catalog or at the provider; the orchestrator comment in this same diff moved its own hypothetical ids to `claude-fable-6`, and the readiness hint was fixed to `claude-opus-5-5` for exactly this reason (RES-7).",
+      "failure_mode": "An operator who copies the documented example into `default_panelists` gets a provider-side unknown-model error at panel time, during the unattended window the jury panel is designed for.",
+      "suggested_fix": "Use a served id such as `bedrock:us.anthropic.claude-opus-5-5` (or whatever the Bedrock catalog id for Opus 5.5 is), or label the example explicitly as a placeholder.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:06:11Z",
+    "tokens_input": 119636,
+    "tokens_output": 18727,
+    "cost_usd": 0,
+    "latency_ms": 54869,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-m1-pins.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-review-m1-pins.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "54b2cd122b420850ac7fe5b1d59c5d84adf1038e61a715b9daa729d261f960e7",
+      "run_tag": "m1-pins"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

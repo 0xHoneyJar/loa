@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "[[ \"${configured//\\\"/}\" == \"authoritative\" ]] && label=\"authoritative (opt-in; \"",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/detect-platform-features.sh --line branch",
+      "cross_file_justification": "detect-platform-features.sh (diff-touched) reads implement_gate.mode from the project-local .loa.config.yaml and labels the gate 'authoritative'. The same flag is consumed by implement-gate.sh (not in this diff), which the header comment says records active_skill evidence from tool_input. The diff explicitly states tool_input is model-authored and that no harness-set skill field exists in the PreToolUse payload.",
+      "description": "The new --line mode advertises the implement gate as 'authoritative' purely because a project-local YAML flag is set. By the diff's own account, the only skill signal available to the gate is tool_input.active_skill, which the model writes. An 'authoritative' mode backed by model-authored input means the subject of the control (the model) can satisfy the control by asserting it is inside /implement. The status line does append 'no harness skill signal', so the display is honest, but the mode itself remains selectable and is surfaced as a legitimate operating state.",
+      "failure_mode": "With implement_gate.mode: authoritative in .loa.config.yaml, a model (or a prompt-injected model) that sets active_skill in its tool_input passes the C-PROC-001 write gate outside /implement. The /loa status line will report the gate as authoritative, giving operators false confidence that a stronger control is in force.",
+      "suggested_fix": "Until a harness-set signal exists, have detect-platform-features.sh --line (and implement-gate.sh) treat 'authoritative' as unsupported: print a WARN that the mode is ignored and fall back to heuristic, rather than labeling it as active. Alternatively gate the mode on harness_signal: true in platform-features.json, which this script now always writes as false.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evidence=$(jq -r 'if (.active_skill_seen_at // \"\") != \"\" then \"seen \\(.active_skill_seen_at) via \\(.active_skill_source // \"unknown\")\" else empty end'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/loa-status.sh display_gate_line",
+      "cross_file_justification": null,
+      "description": "The --line output echoes active_skill_seen_at and active_skill_source from .run/platform-features.json into the operator's terminal via loa-status.sh. The .run/ directory is writable by the model through normal file tools, and the refresh path carries these two keys forward verbatim on every run with no type, format, or freshness check. Sanitization strips [:cntrl:] bytes and truncates to 120 characters, which neutralizes ANSI escapes, but multibyte Unicode format characters (bidi overrides U+202E/U+2066, zero-width joiners) are not control bytes and pass through tr -d unchanged.",
+      "failure_mode": "A model or injected content writes a crafted active_skill_source into .run/platform-features.json. Every subsequent refresh preserves it, and /loa renders a status line whose visible text can be reordered or hidden with bidi characters, or that asserts stale 'seen <timestamp> via <source>' evidence indefinitely.",
+      "suggested_fix": "In the refresh path, validate active_skill_seen_at against the ISO-8601 shape and active_skill_source against a known enum (or at least require both to be strings) before carrying them forward, and drop evidence older than a bounded window. In --line, restrict evidence to printable ASCII (e.g. tr -cd '[:print:]' or a [A-Za-z0-9:_./ -] allowlist) rather than only deleting control bytes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "rule_key",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "base=\"*${key#\\*}\"; base=\"${base%% *}\"",
+      "cross_file_justification": null,
+      "description": "The new grammar consults only three keys per requirement: ALL, the requirement's exact normalized key, and its first word. Claude Code's prefix semantics are broader: a deny Bash(git pu:*) or Bash(rm -r:*) denies the commands Run Mode will actually execute but matches neither 'git push' nor 'git', so the checker reports PASSED. Inner-whitespace variants (Bash(git  push:*)) are likewise invisible. Separately, rules are read with jq -r and split on newlines, so a single JSON string containing an embedded newline is parsed as two rules, the first of which may satisfy a requirement that Claude Code would never match. The script is advisory and Claude Code enforces its own rules, so this is not a bypass, but the preflight exists specifically to prevent unattended runs from stalling on a prompt.",
+      "failure_mode": "Operator has a legitimate narrow deny such as Bash(rm -rf:*) or Bash(git pu:*); check-permissions.sh prints 'Run Mode pre-flight check: PASSED'; the autonomous run later hits a permission prompt or denial and hangs unattended.",
+      "suggested_fix": "When checking denies, iterate every stored wildcard deny key and test whether it is a prefix of the requirement's key (string-prefix, honoring the documented ':*' semantics), rather than only the exact key and first word. Collapse internal runs of whitespace during normalization. Use jq -r '... | @json' or 'select(test(\"\\n\") | not)' so a rule string with embedded newlines is skipped with a WARN rather than split.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/scripts/validate-skill-capabilities.sh",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/agent-types.yaml",
+      "cross_file_justification": "agent-types.yaml (new in this diff) is the sole source for WRITE_CAPABLE_AGENTS, and the only consumer is validate-skill-capabilities.sh, whose diff body is truncated in the provided changes.",
+      "description": "The diff hunk for validate-skill-capabilities.sh is empty, so the parser that loads agent-types.yaml and the documented fail-closed fallback ('general-purpose alone when the file is missing, unparsable, or lists no write_capable: true entry') could not be verified. The YAML header comment itself contains the literal substring 'write_capable: true', which a grep -B1 or awk-style parser would match and attach to the preceding comment line as an agent name. The lint is a functional invariant rather than a privilege boundary (widening it only causes skills to silently fail writes at runtime), so impact is limited, but the fallback claim in skill-invariants.md is unverified.",
+      "failure_mode": "If parsing is line-based, comments or future edits pollute the allowlist with garbage names; if yq is absent and the fallback is not implemented as documented, the lint either aborts the validation suite or accepts every agent type, letting the Issue #553 regression (skills that refuse to persist output) reappear undetected.",
+      "suggested_fix": "Parse with yq -r '.agent_types | to_entries[] | select(.value.write_capable == true) | .key' and treat yq-missing, non-zero exit, or empty output as the general-purpose-only fallback with a WARN. Add a bats case that feeds a YAML whose only 'write_capable: true' appears in a comment and asserts the fallback list.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:19:22Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19849,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "fba1bc80ad961c8813b7140547473f9b332d50a064fb7198fca4afbc781e0f6e",
+      "run_tag": "p1-platform"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

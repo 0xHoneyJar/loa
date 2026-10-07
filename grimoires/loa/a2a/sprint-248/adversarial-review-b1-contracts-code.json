@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/verdict-derive.sh:_vd_committed",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_vd_committed decides that a sidecar newer than a pre-FR-2 envelope is history when `git ls-files --error-unmatch` and `git diff --quiet HEAD -- <name>` both pass. The subshell unsets git's repository/discovery environment but leaves the user's diff configuration in force: `diff.external` / `GIT_EXTERNAL_DIFF` and attribute-driven `diff=<driver>` with a `command`, plus pathspec globbing. With an external diff configured (difftastic, delta and similar are common in global config) and a stat-dirty index entry for the sidecar (a `touch`, a checkout on a different filesystem, a changed mtime after the thirty-fifth run's own scenario), recent git versions run the external program under `--exit-code`/`--quiet` and, without `diff.trustExitCode`, report a change. The committed sidecar is then classed as a later run's rows and counted, which is exactly the false INCONSISTENT on historical audit sprints that `_vd_committed` was added to remove. A sidecar name holding `[`, `*` or `?` would also be matched as a glob by both git commands.",
+      "failure_mode": "On a host with a user-level external diff driver, a committed, byte-identical rejected sidecar beside a legacy envelope is reported as 'newer than it … those rows are counted', the feedback file that never triaged those rows reads INCONSISTENT (exit 1), and historical sprints lose their verdicts again. Low likelihood: it needs both the external-diff config and a stat-dirty index entry; the failure direction is fail-closed.",
+      "suggested_fix": "Make the history check independent of the user's diff configuration: `git -C … --literal-pathspecs -c diff.external= diff --no-ext-diff --no-textconv --quiet HEAD -- \"${1##*/}\"` (and `--literal-pathspecs` on the `ls-files` call). Optionally export `GIT_OPTIONAL_LOCKS=0` inside the subshell so a read-only verdict script never writes the caller's index.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:10:08Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 55317,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8d56c34afb01b5baa44ac09241dd2722b318e6c7084a769bd00e201d166dbd94",
+      "run_tag": "b1-contracts-code"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/hooks/session-start/loa-context-class.sh:@@ -0,0 +1,119 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The option loop uses `shift 2` for --root/--model/--catalog without guarding against a missing value. When one of these flags is the final argument (e.g. `loa-context-class.sh --model $MODEL` with MODEL unset and unquoted), bash's `shift 2` fails with $# == 1 and does not consume anything; because the script runs without `set -e`, the `while [[ $# -gt 0 ]]` loop spins forever on the same `$1`. No shipped call site (hook-guard wiring, loa-status `--show`, the bats tests) passes a dangling flag, so this is not triggered in production today, but it contradicts the header's 'never blocks' contract for any future caller or operator who does.",
+      "failure_mode": "Infinite loop (100% CPU, never exits) in a script whose contract is to never block; if ever wired that way at SessionStart it would hang session startup.",
+      "suggested_fix": "Make the value-taking cases fail-safe, e.g. `--root) ROOT=\"${2:-}\"; shift 2 2>/dev/null || break ;;` (same for --model/--catalog), or check `[[ $# -ge 2 ]]` before `shift 2` and otherwise `shift; break`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/hooks/session-start/loa-context-class.sh:@@ -0,0 +1,119 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/loa-status.sh:display_context_line",
+      "cross_file_justification": "display_context_line (in diff) and the skills' context-discipline include both read .run/context-class as 'the class this session runs under', but the hook (in diff) writes a single repo-scoped file with last-writer-wins semantics and no session identity.",
+      "description": "The class is defined as per-session ('the context class this session runs under') but is persisted to a single repo-level file, .run/context-class. Two concurrent Claude Code sessions in the same checkout (common: two terminals, or one with LOA_CONTEXT_CLASS=standard and one without, or different models once the harness exposes `.model`) each fire the once-per-session hook and overwrite each other. `--show` then prints, and the skills then apply, whichever session wrote last. The same staleness arises when the hook does not run for a session (hook-guard skips, hooks disabled, settings not trusted) while a record from an earlier session persists: `--show` trusts the recorded class verbatim with no freshness or session check. The report's atomic mktemp+mv prevents torn writes but not this cross-session clobbering.",
+      "failure_mode": "A 200K-window session reads `long` (150K full-file threshold) because a sibling 1M session wrote the record after it, or vice versa; /loa reports a class that does not match the running session. Degraded context discipline, not data corruption.",
+      "suggested_fix": "Record the session id (from the payload `.session_id`) in the second line and have `--show` / readers prefer a per-session path (e.g. .run/context-class.<session_id> with .run/context-class as a fallback), or at minimum document in the include and the /loa line that the record is repo-scoped and may reflect another concurrent session.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/hooks/session-start/loa-context-class.sh:@@ -0,0 +1,119 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Payload reading depends on GNU `timeout` (`payload=\"$(timeout 2 cat 2>/dev/null || true)\"`). On macOS without coreutils `timeout` does not exist; the error is swallowed, `payload` is empty, and the `.model` path is silently dead, so the class is always `long` unless LOA_CONTEXT_CLASS is set. The test suite's `stat -f %m` fallback (CC-7) shows macOS is an intended platform, yet no test covers the missing-`timeout` case, and the failure is invisible (exit 0, basis `default`). Impact is nil today if the harness does not yet send `.model`, but it will become a silent misclassification for 200K-model sessions on macOS once it does.",
+      "failure_mode": "On macOS without GNU coreutils a session on a ≤200K model is classified `long` (20K/50K/30K/150K thresholds) with no error surfaced; the /loa line reports basis `default` giving no hint that model detection was skipped.",
+      "suggested_fix": "Guard on availability: `if command -v timeout >/dev/null 2>&1; then payload=\"$(timeout 2 cat 2>/dev/null || true)\"; else payload=\"$(cat 2>/dev/null || true)\"; fi` (SessionStart stdin is closed by the harness so plain `cat` is safe there), or use bash's `read -t 2` loop. Add a bats case that runs the hook with `timeout` masked off PATH and asserts the payload model is still honoured.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T20:46:42Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19940,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a24a98de060858e8fec396a0d3f000a1699f430bcf1247ffd6c9798594d0773b",
+      "run_tag": "h-hook"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

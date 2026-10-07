@@ -1,0 +1,92 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-normalise.bats:NRM-49",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "NRM-49 asserts `[ \"$took\" -lt 15 ]` on the real wall clock (`$SECONDS`) around a process_findings call that runs four ~120 KB payloads, two of which are rejected and go through the repair chain (lock acquisition, status files, sidecar writes). The suite's own rule, stated in NRM-26 and NRM-27 (\"the test's own clock — no wall-clock margin to flake under load\", run 23 c2b DISS-C-001), moved every timing expectation onto `_fake_repair_clock`; this test re-introduces a wall-clock bound. The round-20 dry run already saw NRM-22/NRM-26 race a whole-second budget guard under load, which is the same failure shape.",
+      "failure_mode": "On a loaded CI runner (parallel bats files, the dissent driver's other suites, a slow jq build) the four-payload run crosses 15 s and the test fails with no defect in the code under test; conversely the bound is loose enough that a quadratic regression on a single 120 KB payload (the 54 s case was 300 KB) can still pass well under 15 s, so the guard is both flaky and weak.",
+      "suggested_fix": "Replace the wall-clock assertion with a structural one: pin that the rewritten predicates are linear by running the same payload at two sizes (e.g. 40k and 80k runs) under `_fake_repair_clock`-independent measurement of jq work, or assert the absence of the whole-string `gsub` directly in the extracted jq programs (grep the derive/clean filters for `gsub(` over the full string). If a timing bound is kept, use a per-size ratio (time(2n)/time(n) < 3) rather than an absolute 15 s, and document the slack rule the other tests follow.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-normalise.bats:NRM-46",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The operand lint in NRM-46 is an allowlist that must fail on every unreviewed way a payload-sized value reaches jq. Its environment rule is `(?:^|[\\s;&|(])[A-Za-z_]\\w*=\\S*\\s+(?:command\\s+)?jq\\b`. The `\\S*` for the assigned value cannot span whitespace, so an env prefix whose quoted value contains a space — `P=\"x $finding_json\" jq '$ENV.P'`, `P=\"${a} ${payload}\" jq …`, or `P=\"$(printf '%s %s' …)\" jq …` — never matches, and the `$ENV`/`env.` branch only fires when the jq program is on the same line (a program held in a variable, `jq -n \"$prog\"`, hides `$ENV.P`). The fixture set exercises only the single-token `P=\"$finding_json\" jq` shape, so the gap is not covered by the lint's own positive/negative controls.",
+      "failure_mode": "A future edit that passes a payload through jq's environment with any whitespace in the value (or with the program in a variable) passes the lint silently; at runtime the envp string exceeds MAX_ARG_STRLEN and jq fails with E2BIG exactly like the argv case the lint exists to prevent (the exit-126 envelope loss from run 29).",
+      "suggested_fix": "In the environment rule, match the value as a shell word rather than `\\S*`: allow quoted spans, e.g. `[A-Za-z_]\\w*=(?:\"(?:[^\"\\\\]|\\\\.)*\"|'[^']*'|\\S)*\\s+(?:command\\s+)?jq\\b`, and flag any such prefix whose value interpolates a name outside SMALL (reuse the existing `re.findall(r'\\$\\{?([A-Za-z_0-9]+)', …)` check). Add two fixtures to the NRM-46 control set: `P=\"x $finding_json\" jq -n '$ENV.P'` must be caught, and `P=\"$model $i\" jq -n '$ENV.P'` must pass.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:10:20Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:malformed_response",
+      "gpt-5.5:clean"
+    ],
+    "final_model": "gpt-5.5",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 35744,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "verdict_quality_error": "[verdict-aggregate] invariant violation: INV-4: voices_succeeded_ids contains duplicates: ['codex-headless']",
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8f9c2597910d92c5ed6d610b3a7663b7268c9ec7353ca2f193f4fe4798b48b60",
+      "run_tag": "c2b-normalise-2"
+    }
+  }
+}

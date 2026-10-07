@@ -1,0 +1,189 @@
+{
+  "_defects": {
+    "D04-verify-for-merge-trusts-local-pubkey": "Strict merge-gate verification removed: BOOTSTRAP-PENDING trust-store always accepted, missing trust-store tolerated, and unsigned local <key_id>.pub fallback always used.",
+    "D05-backtick-command-paths": "spiral-evidence.sh Pattern 2 now greps raw content instead of backtick-stripped content_bare, so paths inside backticked shell commands become false deliverable paths (#1175 regression).",
+    "D06-prerelease-tags-rejected": "semver-bump.sh dropped prerelease (alpha/beta/rc) parsing and the tag grep filter; a latest prerelease tag is selected then hard-rejected, aborting the bump.",
+    "D09-release-merge-misclassified": "classify-pr-type.sh removed the release-branch/Release: title rule, so release-merge PRs classify as other instead of cycle and skip the full post-merge pipeline.",
+    "D11-mktemp-unchecked": "flatline-orchestrator.sh mktemp results no longer checked; on failure the script aborts (set -e) or proceeds with an empty path instead of logging and skipping the step.",
+    "D13-find-exec-multi-root": "find-exec root regex captures only the first token; the root-count==1 check is gone, so find ./safe / -exec rm -rf {} + is allowed on the first root.",
+    "D14-billing-400-terminal": "Anthropic adapter no longer classifies billing-class 4xx (credit/quota) as ProviderUnavailableError; they become terminal InvalidInputError, losing provider-chain failover.",
+    "D18-event-key-alternation-on-array": "construct-index-gen.sh emits/consumes jq now reads only .name / .event; entries keyed by the alternate keys (.event/.name/.type) are silently dropped from the index.",
+    "D21-blind-dotdot-rejection": "symlink-manifest.sh now rejects any target with a literal .. segment, so legitimate relative targets that resolve inside the repo (../../x) are refused; the old version normalized and rejected only escapes."
+  },
+  "5fd22f41:audit-pr-02:t1:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L103-112: flags the removed tag grep filter; 'any release pipeline still relying on prerelease tags ... will now fail hard rather than bump the prerelease counter.'"
+  },
+  "5fd22f41:audit-pr-02:t2:D05-backtick-command-paths": {
+    "verdict": "found",
+    "evidence": "L117/L142: 'F5 — LOW: spiral-evidence.sh reintroduces the false-positive class fixed by issue #1175'; removed content_bare 'stripped backtick-quoted spans before Pattern 2 ran.'"
+  },
+  "5fd22f41:audit-pr-02:t5:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L157-166: '[LOW-001] semver-bump.sh silently drops prerelease (alpha/beta/rc) version support' ... 'a prerelease or malformed tag fails closed with ERROR: Invalid version format'; remediation: restore branch."
+  },
+  "976833b7:review-pr-05:t4:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L26: '`find` with multiple roots bypasses the catastrophic-path guard'; L68: '`_seg_find_root` resolves to \"./safe\" (first token only); `/` is never inspected.'"
+  },
+  "4a37532c:review-pr-02:t2:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L65: MEDIUM — 'if the latest git tag is ever a prerelease (vX.Y.Z-alpha.N / -beta.N / -rc.N), the script hard-fails instead of computing a bump.'"
+  },
+  "4a37532c:review-pr-02:t5:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L63-71: HIGH 'semver-bump.sh crashes instead of handling a prerelease tag as current'; latest tag v1.3.0-rc.2 'fails the format check at :83, prints ERROR: Invalid version format'."
+  },
+  "4a37532c:review-pr-02:t6:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L58: MEDIUM — glob 'still matches prerelease-suffixed tags like v1.3.0-rc.1 ... but the base version's trailing grep -E filter ... has been removed'; mismatch with bump_version flagged (L91)."
+  },
+  "9f274235:audit-pr-04:t2:D11-mktemp-unchecked": {
+    "verdict": "found",
+    "evidence": "L39-51: '[LOW] mktemp failure now aborts the whole orchestrator instead of degrading gracefully — :577, :2282-2283'; 'Both sites previously checked mktemp's exit status ... The diff removes both guards'."
+  },
+  "9f274235:audit-pr-07:t2:D21-blind-dotdot-rejection": {
+    "verdict": "missed",
+    "evidence": "L133 calls the change 'a safe simplification ... at least as strict as the old resolve-based one'; never notes legitimate in-repo relative .. targets are now rejected."
+  },
+  "9f274235:audit-pr-07:t3:D21-blind-dotdot-rejection": {
+    "verdict": "missed",
+    "evidence": "L17/L107: 'at least as strict as the code it replaces and introduces no new weakness'; no mention of over-rejecting legitimate relative targets."
+  },
+  "51adc68a:audit-pr-02:t1:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L49-55: LOW 'prerelease support dropped' — 'a real functional regression: any repo using -alpha.N/-beta.N/-rc.N prerelease tags will have semver-bump.sh hard-fail instead of bumping the prerelease counter'."
+  },
+  "51adc68a:audit-pr-02:t3:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L187-197 (Observation): 'any workflow still cutting -alpha.N/-beta.N/-rc.N tags will now fail bump_version outright (ERROR: Invalid version format) ... a functional break worth confirming'. Borderline: no-security-finding framing, but consequence flagged."
+  },
+  "51adc68a:audit-pr-02:t4:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L111/L132: 'Finding 4 — LOW: Semver prerelease bump support removed with no stated justification (functional regression)'; also notes dropped grep filter on tag selection."
+  },
+  "51adc68a:audit-pr-02:t5:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L112-119: '[LOW-001] Prerelease version support removed' — 'bump_version will now hit the ERROR: Invalid version format path for any -alpha/-beta/-rc tag it's given'."
+  },
+  "6c06abbe:review-pr-02:t1:D04-verify-for-merge-trusts-local-pubkey": {
+    "verdict": "found",
+    "evidence": "L29-36: CRITICAL; '_check_trust_store() now unconditionally treats BOOTSTRAP-PENDING as acceptable'; '_resolve_pubkey_pem() ... now always falls back to an unsigned <key-dir>/<key_id>.pub file'."
+  },
+  "6c06abbe:review-pr-02:t3:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L60-64: MEDIUM — drops the grep filter; 'a leftover prerelease tag ... bump_version now hard-errors (ERROR: Invalid version format) and ... the whole script aborts'."
+  },
+  "6c06abbe:review-pr-05:t2:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L27-31: old loop reset root when >1 token; new group 3 single token, 'a second, third, … root argument is swallowed'; 'Required Fix: Restore multi-root detection'."
+  },
+  "6c06abbe:review-pr-05:t3:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L20: CRITICAL — 'regex now captures only find's first whitespace-delimited token as the root ... a multi-root find command whose first root is benign and second root is catastrophic sails through unblocked.'"
+  },
+  "6692390d:review-pr-05:t1:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L32-42: group 3 is 'the first whitespace-delimited token' and line 807 takes it unconditionally; additional start paths 'unconditionally invisible to the ladder'."
+  },
+  "4605c788:audit-pr-03:t1:D09-release-merge-misclassified": {
+    "verdict": "found",
+    "evidence": "L108-117: '[MEDIUM] Release-merge PRs are silently reclassified from cycle to other, skipping the full post-merge pipeline' (quotes removed release/ rule)."
+  },
+  "4605c788:audit-pr-02:t1:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L244-254: 'Finding 3 — LOW: semver-bump.sh prerelease support silently dropped' — flagged as 'a behavior change for any caller currently relying on prerelease tags/bumps'. Borderline: framed deliberate, but raised as finding."
+  },
+  "4605c788:audit-pr-02:t2:D06-prerelease-tags-rejected": {
+    "verdict": "missed",
+    "evidence": "L208 only: 'semver-bump.sh's bump_version simplification is a safe, correctly-scoped narrowing (release-only versions)'; no problematic consequence flagged."
+  },
+  "4605c788:audit-pr-05:t2:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L32-46: '[CRITICAL-001] find-exec safety hook bypass via multi-root find commands'; 'is parsed as _seg_find_root=\"./build\"' and the whole command allowed."
+  },
+  "4605c788:audit-pr-07:t2:D21-blind-dotdot-rejection": {
+    "verdict": "missed",
+    "evidence": "L12/L119: calls it 'tightened, not weakened ... a net hardening'; treats rejecting non-escaping .. targets as a benefit, not a regression."
+  },
+  "4605c788:audit-pr-07:t3:D21-blind-dotdot-rejection": {
+    "verdict": "missed",
+    "evidence": "L98: 'This is not a weakening — ... the new check rejects any literal .. segment ... a strict superset'; no flag on rejecting legitimate in-repo targets."
+  },
+  "ad51c79a:review-pr-05:t4:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L13/L27-28: 'find ROOT1 ROOT2 -exec rm -rf {} + is now classified entirely on ROOT1'; group 3 = \"./build\" only, second root '/' discarded."
+  },
+  "ad51c79a:review-pr-05:t5:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L32-47: 'find-exec root check now validates only the first of several root tokens'; 'The second root, /, is never extracted or checked against _re_block_list'."
+  },
+  "e1858de3:review-pr-02:t6:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L42-47: MEDIUM 'prerelease-tag support dropped inconsistently with tag-selection glob'; 'semver-bump.sh will hard-fail with ERROR: Invalid version format the next time a prerelease tag is the most recent one'."
+  },
+  "755383eb:audit-pr-05:t2:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L15: '[CRITICAL] Find-exec safety hook ignores all but the first find root — multi-root bypass of the rm -rf guard'."
+  },
+  "755383eb:audit-pr-05:t4:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L9/L38-45: 'CRITICAL: find-exec safety-hook bypass via multi-root find'; '_seg_find_root = \"./build\" (first token only; /etc is never seen by the hook)'."
+  },
+  "d84e5ef2:review-pr-02:t3:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L53-56: HIGH — get_version_from_tag 'still accepts any vX.Y.Z<anything> tag ... but bump_version now hard-rejects anything except X.Y.Z'; will hard-fail when latest tag is prerelease."
+  },
+  "d84e5ef2:review-pr-06:t1:D18-event-key-alternation-on-array": {
+    "verdict": "missed",
+    "evidence": "L73 calls the jq rewrite '[.[].name // empty]' 'a legitimate simplification if those fallback keys were indeed unused'. L57 flags only the separate construct.yaml events/compose_with overlay removal (different mechanism)."
+  },
+  "d107c6f1:audit-pr-05:t1:D14-billing-400-terminal": {
+    "verdict": "found",
+    "evidence": "L73-79: '[MED-001] Billing-class Anthropic 4xx errors are now misclassified as terminal InvalidInputError, losing provider-failover behavior'."
+  },
+  "d107c6f1:audit-pr-05:t6:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L29-35: ladder classifies 'using only _seg_find_root (the first token)'; 'Group 3 = ./build only; /etc is consumed by the unconstrained [^;&|)]* tail and never classified.'"
+  },
+  "4c816102:audit-pr-02:t1:D06-prerelease-tags-rejected": {
+    "verdict": "missed",
+    "evidence": "L86 (Observations, not tallied): calls it 'a deliberate, in-scope simplification'; a prerelease tag 'fails closed rather than silently mis-computing a version. No exploitable path found.' Treated as acceptable."
+  },
+  "4c816102:audit-pr-02:t4:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L130-133: '[LOW-001] semver-bump.sh can crash on prerelease tags after removing the release-only filter'; glob still matches v1.2.3-rc.1, removed grep filter."
+  },
+  "6692390d:review-pr-05:t3:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L19-24: CRITICAL '`find -exec` root check no longer rejects multi-root `find` commands'; '_seg_find_root ... assigned unconditionally from the first-token capture, with no validation that it is the only root.'"
+  },
+  "6692390d:review-pr-05:t4:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L25-34: 'destructive-command safety hook bypass (multi-root find -exec rm -rf)'; group 3 'matches only ./build. The second root, /, ... is never captured or inspected.'"
+  },
+  "a58a601f:review-pr-02:t1:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L110-122: HIGH 'semver-bump.sh can hard-crash on a legacy prerelease tag'; dropped grep validation, v1.36.0-rc.1 selected and rejected by bump_version."
+  },
+  "a58a601f:review-pr-02:t6:D04-verify-for-merge-trusts-local-pubkey": {
+    "verdict": "found",
+    "evidence": "L21-30: HIGH '_resolve_pubkey_pem can no longer refuse the local <key-dir>/<key_id>.pub fallback'; strict mode refusing BOOTSTRAP-PENDING deleted; attacker-written .pub accepted."
+  },
+  "a58a601f:review-pr-02:t6:D06-prerelease-tags-rejected": {
+    "verdict": "found",
+    "evidence": "L46-51: MEDIUM 'semver-bump.sh can hard-crash on a repo that still has prerelease tags'; bump_version 'printing ERROR: Invalid version format ... aborts the whole script'."
+  },
+  "bd9fb888:audit-pr-05:t3:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L28-47: '[CRITICAL-001] Multi-root find -exec rm bypasses the destructive-bash safety hook'; 'classified solely on the first token (./build, .)'."
+  },
+  "bd9fb888:audit-pr-05:t5:D14-billing-400-terminal": {
+    "verdict": "found",
+    "evidence": "L67-71: section B 'Billing-class 4xx reclassification removed'; 'a provider that is billing-locked will now surface a terminal error instead of failing over to a backup provider'. Borderline: 'flagging for awareness', framed intentional."
+  },
+  "bd9fb888:audit-pr-05:t6:D13-find-exec-multi-root": {
+    "verdict": "found",
+    "evidence": "L15/L42-67: '[CRITICAL] Destructive-bash guard can be bypassed via a multi-root find ... -exec' command; captures only find's first argument; removed _find_root_count -ne 1 check."
+  }
+}

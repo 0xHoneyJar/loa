@@ -1,0 +1,67 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-09-25T13:37:57Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": null,
+      "status": "failed",
+      "failure_class": "timeout",
+      "cost_cents": null,
+      "attempts": [],
+      "independent": true,
+      "counted_as": null,
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [
+      {
+        "voice": "claude-headless",
+        "reason": "Other",
+        "exit_code": 124,
+        "blocker_risk": "unknown"
+      }
+    ],
+    "chain_health": "degraded",
+    "confidence_floor": "med",
+    "rationale": "multi-voice aggregate (1/2 succeeded); chain_health=degraded; dropped: claude-headless(Other/unknown)",
+    "single_voice_call": false,
+    "status": "DEGRADED"
+  }
+}

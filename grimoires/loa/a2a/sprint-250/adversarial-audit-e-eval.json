@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "python3 - \"$manifest\" \"$review\" \"$executor\" <<'PY'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "python3 - \"$manifest\" \"$review\" \"$executor\" <<'PY'",
+      "cross_file_justification": null,
+      "description": "The grader runs its citation parser as `python3 -` with the program on stdin. In that mode sys.path[0] is '' (the current working directory), so the first statement `import json, re, sys` resolves against cwd before the stdlib. The script's own header treats the workspace as hostile (the manifest is 'never copied into the sandbox'), but nothing pins cwd: the harness is handed `$workspace` as an argument and nothing prevents it running `cd \"$ws\" && grader \"$ws\" pr-NN`. If cwd is the agent-written workspace, a planted json.py or re.py executes with the grader's privileges, can read every hidden manifest under MANIFEST_DIR, and can print a forged {\"pass\":true,\"score\":100,...} with exit 0. The invocation line is unchanged in this diff, but the Python body it executes is rewritten here and the file is the P0 grader.",
+      "failure_mode": "Arbitrary code execution in the grading context and total grader bypass, conditional on the invoker's working directory being inside (or any agent-writable) directory.",
+      "suggested_fix": "Run `python3 -I - \"$manifest\" \"$review\" \"$executor\"` (isolated mode drops cwd from sys.path and ignores PYTHON* env vars), and additionally `cd \"$SCRIPT_DIR\"` before the python call so the grader never inherits an untrusted cwd. Add a bats case that plants a workspace json.py and asserts it is not imported.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "false_positives = fp if planted == 0 else 0",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "hit = any(path_matches(p, d[\"file\"]) and not (b < s - 3 or a > s + 3)",
+      "cross_file_justification": null,
+      "description": "On any fixture with planted defects, pass/score depend only on recall: false_positives is forced to 0 and len(cites) is reported but never scored (RG-26 grades 400 citations without penalty). This diff deliberately widens what counts as a citation: comma continuations (`path:1,4,7,...`), a bare `:N` / `head:N` that binds to the most recent path, and multi-site anchors[]. Combined with the pre-existing bare-basename rule in path_matches, a review consisting of `block-destructive-bash.sh:1,4,7,...,1000` (or one path followed by a bare `:N` list) lands inside every ±3 window of the file and is graded as detecting every defect in it, with no need to know the directory, the line, or the bug. The clean-fixture half of the criterion is equally forgeable: when a LOA-VERDICT trailer with a counts dict is present, fp is taken from the agent's self-reported critical+high and body citations are ignored, so a trailer of zeros passes any clean fixture regardless of content.",
+      "failure_mode": "A model under evaluation can obtain pass=true / score=100 on every defect fixture with a content-free line enumeration, and on every clean fixture with a zeroed trailer, inflating the recall and false-positive metrics the eval exists to measure.",
+      "suggested_fix": "Add a precision term so volume is not free: on defect fixtures count citations that fall outside every anchor window as false positives (or fail when len(cites) > k * planted, or when more than N distinct line windows are cited per file). On clean fixtures do not let the self-reported trailer override observed citations; use max(trailer critical+high, number of distinct body citations) or require them to agree. Surface a `precision` field alongside `recall` in details.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "rate-limiting",
+      "anchor": "CITE = re.compile(",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "text = open(review_path, encoding=\"utf-8\", errors=\"replace\").read()",
+      "cross_file_justification": null,
+      "description": "The review is read whole with no size check, and the path alternative `[A-Za-z0-9_./+()-]+\\.[A-Za-z0-9]{1,6}` is quadratic on a long unbroken run of path-class characters: from every start offset the greedy + consumes the rest of the token, then the engine scans backward to each `.` (CPython's REPEAT_ONE literal skip keeps it in C but it is still O(n) per offset). RG-26 covers a 4,000-char token (~8M steps); a 1 MB hex/base64 blob or minified snippet pasted into a review is ~5e11 steps, i.e. minutes, and a sparse multi-GB review.md created with truncate exhausts memory in .read() before any parsing. The lookback window for the URL check is correctly bounded at 4096, but the main regex is not.",
+      "failure_mode": "Grader timeout or OOM on a hostile or merely verbose review; a stalled grader can block a batch eval run.",
+      "suggested_fix": "Reject or truncate reviews above a cap before invoking python (e.g. `[[ $(stat -c %s \"$review\") -le 2000000 ]] || err \"review too large\"`). Bound the path class with `{1,512}` and prefix the path alternative with `(?<![A-Za-z0-9_./+()-])` so each token is attempted from one offset with bounded work; the existing RG-11..RG-25 cases still pass because `(`, `*`, backtick and `@` boundaries are preserved. Add a bats case with a 1 MB unbroken token under `timeout 3`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "printf '{\"pass\":false,\"score\":0,\"details\":{\"error\":\"review file not found: %s\",\"planted\":%s,\"detected\":[],\"recall\":0},\"grader_version\":\"1.1.2\"}\\n' \\",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "printf '{\"pass\":false,\"score\":0,\"details\":{\"error\":\"review file not found: %s\",\"planted\":%s,\"detected\":[],\"recall\":0},\"grader_version\":\"1.1.2\"}\\n' \\",
+      "cross_file_justification": null,
+      "description": "$review_name is interpolated into the JSON result with a raw %s. The only validation (`case ... */*|..*`) rejects a slash and a leading `..`; a name containing `\"`, `\\` or a newline produces malformed output, and a name such as `x\"},\"pass\":true,\"score\":100,\"details\":{\"a\":\"` yields a document whose duplicate top-level `pass` key is read as true by jq and Python (last key wins) even though the script exits 1. The value is the third CLI argument supplied by the harness, not by the agent, which keeps impact low. The err() helper defined two lines earlier already escapes correctly with `jq -Rn --arg`.",
+      "failure_mode": "Harness JSON parse failure, or with a crafted $3 a result parsed as pass=true that disagrees with the exit status.",
+      "suggested_fix": "Build the message with jq like err() does: `jq -cn --arg n \"$review_name\" --argjson p \"$(jq '.defects|length' \"$manifest\")\" '{pass:false,score:0,details:{error:(\"review file not found: \"+$n),planted:$p,detected:[],recall:0},grader_version:\"1.1.2\"}'`. Optionally tighten the name check to `^[A-Za-z0-9._-]+$` as is already done for the fixture id.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:31:20Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21591,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6906fb416cdb31f2261942f0968465d82bab53b31e08a1bf97a3d15e621eb971",
+      "run_tag": "e-eval"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

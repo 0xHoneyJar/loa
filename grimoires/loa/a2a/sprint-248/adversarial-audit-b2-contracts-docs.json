@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": ".loa.config.yaml.example: `companion_voice: true` under flatline_protocol.code_review (hunk @@ -1391,13 +1391,47 @@ flatline_protocol:)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".loa.config.yaml.example: `companion_voice: true`",
+      "cross_file_justification": null,
+      "description": "The new default plans a second dissent chain from the OTHER provider family, and the comment states that credential presence alone decides where that chain starts and that 'an absent key is true: a config that predates the key runs two voices'. Once flatline_protocol.*.enabled is true, the set of third-party LLM vendors that receive the full `main...HEAD` diff is therefore determined by which API keys happen to exist in the environment, not by an explicit opt-in in config. An operator who adds ANTHROPIC_API_KEY or OPENAI_API_KEY to CI for unrelated tooling silently starts shipping source diffs (including any fixtures, .env samples, or embedded secrets in the change set) to that vendor on every /review-sprint and /audit-sprint.",
+      "failure_mode": "Silent expansion of data egress to an additional external LLM provider with no config change and no explicit approval; proprietary or regulated code leaves the trust boundary and the operator believes only the configured `model` vendor receives it.",
+      "suggested_fix": "Default `companion_voice` to false in the example, or require the companion provider to be named explicitly in config (e.g. `companion_voice: { enabled: true, provider: anthropic }`) rather than inferred from env key presence. Record the resolved destination providers in the adversarial-review envelope and print them at dispatch so the egress is auditable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "rate-limiting",
+      "anchor": ".loa.config.yaml.example: `budget_cents: 150            # Gate on ONE dissent call's pre-dispatch cost estimate` (code_review block)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".loa.config.yaml.example: `budget_cents: 150` (both code_review and security_audit blocks)",
+      "cross_file_justification": null,
+      "description": "The diff documents that `budget_cents` gates only a single pre-dispatch estimate and explicitly does NOT count: fallback hops, the companion voice, or KF-004 repairs (up to 5 findings per voice, each up to 3 repair-chain hops). Worst case per run is roughly 2 voices x (primary + fallback hops + 15 repair calls), none of which are cost-gated. The only remaining bound is wall clock (5 x timeout x 2 = 600 s per voice at defaults), and the LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS pin is floored at 'two of the heaviest hop's charges plus a timeout', so it cannot be tightened below that. Because the reviewed diff is untrusted PR content fed verbatim to the dissenter, prompt injection in the diff can steer the model into emitting deliberately malformed findings to trigger the maximum repair rounds.",
+      "failure_mode": "Token-spend amplification / cost DoS by any PR author: a single review can consume 20-30x the amount the operator believes `budget_cents` caps, across two paid vendors, while the config field name implies a spend ceiling.",
+      "suggested_fix": "Add an aggregate per-run ceiling (e.g. `max_run_cents`) accumulated across voices, fallback hops and repair calls, failing closed with status budget_exceeded once the running total plus the next call's estimate would exceed it. Rename or alias the existing field to `estimate_gate_cents` so the semantics are not misread, and cap repair calls per run (not just per voice).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": ".loa.config.yaml.example: comment `Credential presence only decides where the companion chain starts (no key → the CLI hop)` and default chains `[gpt-5.5, codex-headless]` / `[opus, claude-headless]`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".loa.config.yaml.example: `companion_voice: true`",
+      "cross_file_justification": "The CLI hop is dispatched by .claude/scripts/adversarial-review.sh (allowed in .claude/skills/auditing-security/SKILL.md allowed-tools as `Bash(.claude/scripts/adversarial-review.sh *)`). That script is not in the diff and could not be read here, so the invocation flags and permission mode of the headless CLI are unverified. The diff is the trigger because it makes the CLI hop a default-planned step whenever the other family's key is absent, which is the common CI state.",
+      "description": "With `companion_voice: true` and no API key for the other family, the default chain falls through to a headless CLI agent (`claude-headless` or `codex-headless`) resolved from PATH, and the untrusted `main...HEAD` diff is handed to it as the prompt. Two risks follow. (1) If the headless CLI is launched with any tool/write permission, prompt injection embedded in the PR diff can drive it to execute actions in the reviewer's checkout or CI runner. (2) The binary is located by PATH lookup ('plan the CLI hop when its binary is on PATH'); a PATH that includes a writable or repo-relative directory lets a PR plant a fake `claude`/`codex` executable that runs with the reviewer's credentials.",
+      "failure_mode": "Untrusted PR content reaches a locally executing agent; worst case is arbitrary command execution on the review host or exfiltration of the API keys present in its environment. Severity is MEDIUM pending verification of how adversarial-review.sh invokes the CLI.",
+      "suggested_fix": "In adversarial-review.sh, invoke the headless CLI with an explicit read-only/no-tools permission profile and a hard output-only contract, resolve the binary to an absolute path once and verify it is not under the repository or a world-writable directory, and consider defaulting the CLI hop to off (API key required) for the security_audit block.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".loa.config.yaml.example: commented block `# companion_chain:` / `#   anthropic: [opus, claude-headless]` / `#   openai: [gpt-5.5, codex-headless]`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".loa.config.yaml.example: `# companion_chain:` override comment",
+      "cross_file_justification": "Hop-name resolution happens in .claude/scripts/adversarial-review.sh, which is not in the diff; the comment 'used as given — no PATH filter' describes behaviour that bypasses the default chain's validation and so needs the script to enforce an allowlist.",
+      "description": "The override is documented as 'used as given — no PATH filter: a CLI hop named here is planned even when its binary is absent, and fails as that hop'. That means hop names from .loa.config.yaml are accepted without being checked against the model catalog or the set of known CLI hops. When the reviewer runs against a PR branch that carries its own .loa.config.yaml, the config is attacker-influenced; if any hop name is ever mapped to an executable name or interpolated into a command, this becomes a repo-controlled command surface. The comment also notes a hop that duplicates the primary fallback_chain 'stays in the chain', so a misconfiguration can silently remove the independence the second voice is supposed to provide while still reporting voices_planned 2.",
+      "failure_mode": "Unknown or malicious hop names are accepted at plan time and only fail at dispatch; independence of the second voice can be defeated by configuration while the envelope still looks two-voice until `companion_voice.independent` is inspected.",
+      "suggested_fix": "Validate every companion_chain entry at config load against the catalog plus the fixed CLI-hop enum and refuse unknown names (exit non-zero, not 'fail as that hop'). Reject or warn loudly when a companion hop shares a family or model with the primary fallback_chain rather than listing it under shared_hops.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".loa.config.yaml.example: `companion_voice: true        # ... with no route to the other family every audit is DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape` (security_audit block)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".loa.config.yaml.example: security_audit `companion_voice: true`",
+      "cross_file_justification": null,
+      "description": "The DEGRADED_SECURITY_REVIEW marker is only emitted when the companion voice is enabled but unreachable. The example config explicitly tells operators to set `companion_voice: false` to make the marker go away. A single-voice audit by configuration therefore carries no degradation signal at all, even though it provides exactly the same (reduced) assurance as the degraded case. The marker is a control that can be silenced by disabling the control it reports on.",
+      "failure_mode": "Downstream consumers of adversarial-audit.json (verdict-derive.sh, COMPLETED gate, humans) cannot distinguish a deliberately single-voice security audit from a two-voice one unless they inspect voices_planned; the degradation signal is trivially suppressible.",
+      "suggested_fix": "Always record `voices_planned` and a `single_voice_reason` (configured | no_route | duplicate_voice) in the envelope and have the audit template surface it in the report header. Consider emitting a weaker SINGLE_VOICE_SECURITY_REVIEW marker when companion_voice is false so the reduced assurance is visible without being treated as an error.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/data/skill-includes/input_guardrails.md: `| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".loa.config.yaml.example: `companion_voice: true`",
+      "cross_file_justification": "The guardrails orchestrator is the only pre-dispatch input check in front of the dissent calls; the diff doubles the number of external LLM dispatches (two voices) and adds CLI-hop dispatch that this fail-open gate fronts, so its failure behaviour matters more after this change.",
+      "description": "The mechanized pre-execution guardrail continues on a missing script, a non-zero exit, or unparseable output. For an auditing skill whose downstream step now sends the invocation input and diff to up to two external providers and possibly a local headless agent, a crashed or deleted guardrails-orchestrator.sh removes the only input screen with no error surfaced to the operator.",
+      "failure_mode": "An attacker who can break or remove the guardrails script (or trigger a parse error in it) disables input screening silently; the review proceeds and dispatches to external LLMs as if the check had passed.",
+      "suggested_fix": "Fail closed for the security_audit skill (HALT on missing script or non-zero exit) or at minimum WARN visibly and record `guardrails: skipped` in the envelope so the degraded state is auditable. Keep fail-open, if desired, only for non-security skills.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:24:22Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10919,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d0a2aac68a48fba0bb58a28a839ad111db091af8ab74b56160bfb5b06f32021d",
+      "run_tag": "b2-contracts-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

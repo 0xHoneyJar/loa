@@ -1,0 +1,118 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "secrets",
+      "title": "Agy/Gemini prompts can be exposed through process argv",
+      "description": "The change leaves at least one headless adapter path sending the review prompt on argv: the changelog states agy's prompt is still on argv by default, and Gemini returns to argv when sandbox flags are used. Review prompts include diffs and may contain credentials or proprietary code, so any local process able to read /proc/<pid>/cmdline can capture them during execution. This is a direct secrets exposure path; warnings and size caps do not remove the leak. Pass all prompts through stdin or a private 0600 file descriptor, and reject configurations that force argv transport.",
+      "anchor": "CHANGELOG.md: added text containing \"agy adapter documents that its prompt, still on argv, is readable through `/proc/<pid>/cmdline`\"",
+      "location": {
+        "file": "CHANGELOG.md",
+        "line": 14
+      },
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The change leaves at least one headless adapter path sending the review prompt on argv: the changelog states agy's prompt is still on argv by default, and Gemini returns to argv when sandbox flags are",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "CHANGELOG.md: \"the agy adapter documents that its prompt, still on argv, is readable through `/proc/<pid>/cmdline`\"",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md hunk @@ -11,8 +11,11 @@ (sprint-248 entry)",
+      "cross_file_justification": "The diff is documentation only. The entry records that cheval's agy headless adapter (and gemini when `--sandbox` is set via `gemini_extra_flags`) still places the full reviewer prompt on argv. The implementation lives in cheval's headless adapters, not in this diff; the changelog is the trigger that documents the residual exposure.",
+      "description": "The sprint-248 notes state that claude, gemini (unsandboxed), codex, cursor and grok headless hops now receive the prompt on stdin or a private prompt file because an argv prompt is readable through `/proc/<pid>/cmdline`. The same entry says agy keeps the prompt on argv by default, and gemini falls back to argv when an operator requests a sandbox. The prompt carries the diff under review, which can include source, config, and any secrets committed in the change. On a multi-user host without `hidepid` on procfs, any local account can read that argv for the lifetime of the hop. The changelog acknowledges this and warns at runtime, but does not close it. The code could not be inspected from this diff, so this is recorded as a documented residual rather than a verified defect.",
+      "failure_mode": "A local user on a shared review host reads another account's agy (or sandboxed gemini) hop argv via `/proc/<pid>/cmdline` and obtains the diff content being reviewed, including any secrets it contains.",
+      "suggested_fix": "Move the agy prompt to stdin or a 0600 prompt file inside the adapter's private workspace, as grok already does. For gemini with a sandbox, write the prompt to a file inside the private workspace and pass only the path, or refuse the sandboxed argv path entirely rather than warning. Document the `hidepid=2` procfs mount as a host requirement until then.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:08:23Z",
+    "tokens_input": 50058,
+    "tokens_output": 3629,
+    "cost_usd": 0,
+    "latency_ms": 24301,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-e2a-changelog.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-e2a-changelog.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2282b3ca4223c76ea3f76ce61b4578fb54cea6f0d4f6346137cc360d29228523",
+      "run_tag": "e2a-changelog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

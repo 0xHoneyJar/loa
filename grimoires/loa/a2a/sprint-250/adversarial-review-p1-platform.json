@@ -1,0 +1,186 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "rule_key returns 1 for anything that is not literally Bash(...), so the documented bare rule `Bash` (\"matches all Bash commands\") is silently dropped from both allow_by and deny_by. `Bash(*)` is likewise keyed as the exact rule `=*` and never matches. permissions.defaultMode (bypassPermissions / acceptEdits) is also not consulted. The header now claims the checker evaluates rules \"the way Claude Code evaluates them\" and the report says it \"reads both rule grammars\", but these forms remain unmodelled.",
+      "failure_mode": "A machine with `\"allow\": [\"Bash\"]` (common for autonomous setups) gets every one of the 16 requirements reported as missing and exit 1, blocking Run Mode preflight on a correctly permissioned machine. Conversely `\"deny\": [\"Bash\"]` or `\"deny\": [\"Bash(*)\"]` in any layer is ignored, the preflight passes, and the unattended run stalls on the first permission prompt, which is exactly the failure the preflight exists to prevent.",
+      "suggested_fix": "In rule_key, accept `Bash` and `Bash(*)` (after trim) and map them to a sentinel key such as `*` ; in main, treat deny_by['*'] as denying every requirement and allow_by['*'] as satisfying every requirement, in that order. Optionally read .permissions.defaultMode and short-circuit to PASS for bypassPermissions. Add CP cases for bare Bash in allow and in deny.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The rewrite adds `command -v jq &>/dev/null || exit 0` and deletes the heredoc fallback, so on a host without jq .run/platform-features.json is never created or refreshed. Previously the file was always written (schema_version 1 via heredoc). Any consumer that distinguishes 'file absent' from 'harness_signal: false' now sees a different state on jq-less hosts, and a stale v1 file on such a host is never replaced.",
+      "failure_mode": "On a jq-less machine the probe becomes a no-op: no schema 2 file, no refresh of detected_at, and an existing schema 1 file with active_skill_available: true persists indefinitely.",
+      "suggested_fix": "Keep a printf-based fallback that writes the fixed schema 2 document (all evidence fields null) when jq is missing, or explicitly document that the file is only produced when jq is present and make consumers treat absence as 'no signal'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The one-hour mtime cache is honoured without checking the document's shape. An existing schema_version 1 file, including one that recorded active_skill_available: true via the now-removed CLAUDE_ACTIVE_SKILL_AVAILABLE env var or the .active-skill-probe path, is left in place and reported as current until it ages out. The script's stated contract is that it 'never reports active_skill_available: true on its own', but it will leave such a file untouched for up to an hour after upgrade.",
+      "failure_mode": "Immediately after upgrading, /loa or any consumer reading the file sees schema 1 content with active_skill_available: true for up to 60 minutes, contradicting the new truthful-reporting contract.",
+      "suggested_fix": "Bypass the cache when `jq -e '.schema_version == 2 and .active_skill_available == false'` fails on the existing file, so legacy or inconsistent documents are rewritten on the next run regardless of mtime.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "cross_file_justification": "implement-gate.sh (per the report) writes active_skill_seen_at / active_skill_source into the same .run/platform-features.json 'once, atomically'. detect-platform-features.sh reads those fields into $base, then later mv's a fresh document over the file. Both writers are atomic individually but the detect script's read-then-replace is not serialised against the gate's write.",
+      "description": "detect-platform-features.sh performs an unlocked read-modify-write: `base=$(jq ... \"$FEATURES_FILE\")`, then jq -n ... > $tmp, then `mv -f $tmp $FEATURES_FILE`. If the gate's PreToolUse hook records evidence between the read and the mv (the gate fires on every Write/Edit and the detect script runs on SessionStart/status), the gate's just-recorded active_skill_seen_at and active_skill_source are overwritten with the stale nulls captured in $base.",
+      "failure_mode": "The gate's single evidence record is silently lost. If the gate's 'once' guard is keyed on something other than the presence of active_skill_seen_at in this file, the evidence is never re-recorded and /loa reports 'active_skill evidence: none' for the rest of the session.",
+      "suggested_fix": "Serialise with `flock` on $RUN_DIR/.platform-features.lock around read+write in both scripts, or have the detect script only ever update detected_at/schema fields via `jq ... \"$FEATURES_FILE\" > $tmp && mv` immediately after a fresh read (no separate $base capture), and have the gate re-record when it observes seen_at missing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/detect-platform-features.sh:@@ -17,79 +24,48 @@",
+      "cross_file_justification": "The new --line branch reads .loa.config.yaml implement_gate.mode and labels the gate 'authoritative (opt-in; ...)', which confirms implement-gate.sh still accepts a config-selected authoritative mode. The report for this same sprint states the PreToolUse payload has no harness-set skill field and that tool_input.active_skill is model-forgeable; it says the mode is merely 'not documented' and that no .run file can select it.",
+      "description": "The --line output codifies an operator/config opt-in to a gate mode whose only input is a model-authored, forgeable field. If .loa.config.yaml is writable during a session (it is a project-root file, not under the framework-managed .claude/ zone), a model can set implement_gate.mode: authoritative and then supply tool_input.active_skill on each Write/Edit, bypassing the C-PROC-001 implement gate. Separately, when yq is absent the line prints 'heuristic' regardless of the configured mode, so the status line can misreport a security-relevant setting.",
+      "failure_mode": "Implement gate becomes bypassable by a two-step model-authored edit, and /loa may display 'heuristic' while the gate is actually running in authoritative mode.",
+      "suggested_fix": "Until a harness-set signal exists, have implement-gate.sh refuse or downgrade implement_gate.mode: authoritative (log a WARN and run heuristic), and extend the forged-payload bats case to assert that the config cannot select it. In --line, drop the 'opt-in' label or print an explicit WARN when authoritative is configured, and resolve the mode with the same parser/fallback the gate uses so the two never disagree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/validate-skill-capabilities.sh",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff records validate-skill-capabilities.sh as modified (index 13f633c6..0b7f30f3) but contains no hunk for it, and the P0 full-file context omits it. The YAML loader that now populates WRITE_CAPABLE_AGENTS, its 'general-purpose only' fallback, and its handling of a missing yq therefore cannot be reviewed. Note that the header comment of agent-types.yaml contains the literal token `write_capable: true` (line 4); a grep/awk-based loader that scans for that token and takes the preceding line as the agent name would ingest comment text.",
+      "failure_mode": "Unreviewable change to the P0 lint that enforces the #553 invariant. If the loader is text-based rather than a YAML parse, comment lines or future comments can pollute or widen the write-capable allowlist without reviewer visibility.",
+      "suggested_fix": "Resubmit the hunk. Ensure the loader parses YAML (e.g. `yq '.agent_types | to_entries[] | select(.value.write_capable == true) | .key'`) and falls back to `general-purpose` when yq is missing or the file fails to parse. Add bats cases for: file missing, yq missing, malformed YAML, a comment containing `write_capable: true`, and `claude`/`fork` accepted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/data/agent-types.yaml",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`claude` and `fork` are registered as harness agent types with Write/Edit. Claude Code's documented SKILL.md `agent:` values are the built-in subagent types (general-purpose, Explore, Plan) or names of .claude/agents/*.md; `fork` is the value of the separate `context:` key, not an agent type, and `claude` is not a documented subagent_type. The rules doc now tells authors they may set `agent: fork` or `agent: claude` for file-authoring skills.",
+      "failure_mode": "A write-capable skill that sets `agent: fork` or `agent: claude` passes the lint, but its runtime dispatch depends on how the harness treats an unknown subagent type (error, or silent fallback), reintroducing the class of silent misdispatch #553 was meant to catch.",
+      "suggested_fix": "Verify both names against the Agent tool's subagent_type list in the target Claude Code version and record the provenance in the YAML comment; if they are not real types, remove them and keep the skill-invariants.md allowed list to general-purpose plus named .claude/agents entries.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:19:29Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 35957,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "83663f1fafa7fc7aa435b2df82c5d1e7d2a44bd79eb6b73aeda375e2ceb757c1",
+      "run_tag": "p1-platform"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

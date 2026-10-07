@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": ".claude/data/schemas/model-config-v3.schema.json: $defs.modelEntry.params.properties.beta_headers",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/schemas/model-config-v3.schema.json: \"beta_headers\": {\"type\": \"array\", \"items\": {\"pattern\": \"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$\"}}",
+      "cross_file_justification": "The schema hunk in the diff introduces a catalog-sourced list that anthropic_adapter._beta_header_value (not in the diff) joins into the outgoing `anthropic-beta` HTTP header. The schema description names the adapter's `_BETA_HEADER_RE` as the runtime gate but that regex is not shown; the catalog hunk adds `beta_headers: []` to the new claude-opus-5-5 entry, making the runtime regex the sole gate for any operator overlay.",
+      "description": "Catalog values now flow into an outbound HTTP header. The JSON-schema pattern is strict under ECMA semantics (`$` is end-of-string, `[0-9]` is ASCII), but the schema is only enforced where it is validated, and the description says the adapter's own regex is the dispatch-time gate. In Python `re`, `^...$` with `re.match` accepts a trailing newline and `\\d` accepts non-ASCII digits, so a value such as `context-1m-2025-08-07\\n` or a flag with Unicode digits could pass the adapter check while failing the schema. Threat is bounded: the catalog is operator-controlled and the same file already carries the endpoint and API key, and httpx/h11 reject CR/LF in header values, so a crafted value produces a transport error rather than a smuggled header. This is a defense-in-depth gap, not an exploitable vulnerability.",
+      "failure_mode": "An operator overlay or edited catalog supplies a beta flag with a trailing newline or non-ASCII digits; it passes the runtime regex and the request fails at header construction (or, under a transport that does not validate header bytes, injects a header).",
+      "suggested_fix": "In anthropic_adapter, validate with `re.fullmatch` using an explicit `[0-9]` class (no `\\d`, no `$`), additionally reject any value containing characters outside `[a-z0-9-]`, and run the merged catalog through the v3 schema at load time so the schema pattern is enforced where operator overlays are applied, not only in CI.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/defaults/model-config.yaml: providers.anthropic.models.claude-opus-5-5.probed_ceiling: 180000",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new `opus` alias target declares `probed_ceiling: 180000` while the adjacent comment states the value is Opus 5's measured bound and was not probed on 5.5, and `ceiling_calibration.source` is `conservative_default`. The schema added in the same diff defines `probed_ceiling` as \"the last measured input bound the catalog ships\" and says `routing/ceiling.input_bound` uses it for uncalibrated entries under the default `probed` policy. The default high-quality tier's input gate therefore rests on a value labelled as measured but copied from a different model. Compounding this, `test_every_http_entry_carries_the_probed_bound_and_account_limits` asserts `probed_ceiling == CEILING_CAP` for every HTTP entry, so CI cannot detect a wrong per-model value and will reject a genuine probe result that measures anything other than 180000.",
+      "failure_mode": "If Opus 5.5's real input bound is lower, prompts up to 180K tokens are admitted by the gate and rejected or truncated by the vendor, degrading the default tier under load; if higher, capacity is left unused. Recording a real probe result breaks the test suite.",
+      "suggested_fix": "Omit `probed_ceiling` on claude-opus-5-5 until tools/ceiling-probe-live.py has run on it (letting input_bound fall through to the I1 derivation), or add an explicit provenance marker alongside it. Change the floor test to assert `probed_ceiling <= CEILING_CAP` and consistency with `effective_input_ceiling` rather than equality to the constant.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:02:07Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9088,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d4032aa28820aecdd68882e1f99804b8d2c5be81ba9bcd9fddf851b8e56cc25b",
+      "run_tag": "c1-catalog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

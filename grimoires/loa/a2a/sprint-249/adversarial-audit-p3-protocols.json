@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "## Thresholds",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/tool-result-clearing.md",
+      "cross_file_justification": null,
+      "description": "The new context-class selection fails open. The protocol tells the agent to read `.run/context-class`, and \"when it is absent, assume `long`\", which raises every clearing threshold 10x (e.g. session total 15,000 -> 150,000 tokens). `.run/` is untracked, agent-written state. If the SessionStart hook `loa-context-class.sh` does not run, is disabled, errors, or the directory is wiped, a `standard` (<=200K) session silently inherits `long` limits. The same file is also a trivially writable override: any process or repo content that can create `.run/context-class` controls which thresholds the agent enforces, with no integrity or provenance check described.",
+      "failure_mode": "On a standard-context model with the hook missing, the agent accumulates up to 150K tokens of raw tool output before mandatory synthesis, exhausting context and losing un-synthesized decisions. This is an availability and information-loss concern rather than a confidentiality or integrity breach, which is why it is rated LOW.",
+      "suggested_fix": "Invert the default: when `.run/context-class` is absent or unreadable, assume `standard` (the conservative thresholds) and emit a one-line warning. Have `loa-context-class.sh` write the file with the resolved model id and timestamp so `/loa` can show provenance, and have the protocol tell the agent to fall back to `standard` if the file's model id does not match the session model.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:32:17Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 3155,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "21a93da29e2abb3603723dc89df017714929b62e5b7471e7021ef8ef993375d3",
+      "run_tag": "p3-protocols"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

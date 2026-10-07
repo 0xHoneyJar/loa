@@ -1,0 +1,162 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/unit/verdict-derive.bats:verdict-derive: the suite never re-parses a path as shell source",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "The negative fixture meant to prove detection of a `bash -c` program on the continuation line is missing any variable interpolation: `$'bash -c \\\\\\n  \"x\"'`. `_vd_shsrc` only flags shell programs that interpolate variables, so this fixture is a constant program and should produce no hit.",
+      "failure_mode": "The test asserts `[ -n \"$(_vd_shsrc \"$f\")\" ]` for this fixture and will fail even when the lint is behaving as specified, breaking the verdict-derive unit suite.",
+      "suggested_fix": "Change the fixture to include an expansion on the continuation line, for example `$'bash -c \\\\\\n  \"x $d\"'`, or remove it from the must-refuse list if constant continuation programs are intended to be allowed.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": "tests/unit/verdict-derive.bats:@@ -266,0 +1422,148 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the s35 test (\"an envelope as the writer before cycle-126 shaped it ... a sidecar git tracks\"), the fixture helper g() resets only git's config environment (HOME, GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM) before running `git -C \"$r\" init -q`, `add -A`, `commit -q -m history`, `rm -q --cached`, and `add`. It leaves GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY, GIT_COMMON_DIR and GIT_CEILING_DIRECTORIES in place, which is exactly the set this same test proves the script under test unsets because hooks and dotfiles setups export them. Git exports GIT_DIR to hook processes (absolute for linked worktrees), pre-commit exports GIT_INDEX_FILE, and `GIT_DIR=~/.dotfiles GIT_WORK_TREE=~` is a common shell export. In any of those environments `git -C \"$r\" init` reinitialises the caller's repository instead of creating $r/.git, and `add -A` (whole work tree regardless of cwd) plus `commit` stage and commit into it: with GIT_WORK_TREE set that is the whole home directory; with GIT_DIR alone, $r becomes the work tree so every tracked path is staged as deleted and a2a/* added, then committed on the current branch; with only GIT_INDEX_FILE set, the pending commit's index is rewritten.",
+      "failure_mode": "Running the verdict-derive suite under an exported git repository environment (a hook, a linked-worktree hook, a dotfiles export) commits fixture files, mass deletions, or home-directory contents into an unrelated repository, or clobbers an in-progress commit's index; the test then fails with a misleading message or passes by accident.",
+      "suggested_fix": "Make g() hermetic the way the script is: run git in a subshell that unsets the discovery set, e.g. `g() { ( unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_NAMESPACE GIT_ALTERNATE_OBJECT_DIRECTORIES; HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 XDG_CONFIG_HOME=/nonexistent command git -C \"$r\" -c user.email=t@t -c user.name=t \"$@\" ); }`, or pin GIT_DIR=\"$r/.git\" GIT_WORK_TREE=\"$r\" GIT_INDEX_FILE=\"$r/.git/index\" explicitly; and assert `[[ -d \"$r/.git\" ]]` after init before any add.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/verdict-derive.bats:@@ -266,0 +1020,168 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the s27 FIFO leg (\"a default sibling envelope that is not a regular file\"), the watchdog subshell runs under bats' inherited errexit (its own comment says so) and guards its kill calls with `|| :`, but `wait \"$s\"` is unguarded and `sleep \"${VD_FIFO_DEADLINE:-60}\"` is unvalidated. Any nonzero return from wait other than the TERM-trap path (a non-numeric VD_FIFO_DEADLINE making sleep fail at once, or the sleep killed by a process sweep) exits the subshell before it writes fifo-expired, TERMs the reader's tree, or opens the FIFO's write end. A TERM delivered between `sleep ... &` and `s=$!` also runs the trap with $s empty and orphans the sleep. In the normal (fast-exit) path none of this is observable, so a dead watchdog is never noticed.",
+      "failure_mode": "If verdict-derive regresses to opening the FIFO sibling envelope, the test hangs indefinitely with no 'blocked on the FIFO' diagnostic because the deadline that was supposed to bound it exited silently; a misconfigured knob disables the deadline without any message.",
+      "suggested_fix": "Validate the knob before forking: `[[ ${VD_FIFO_DEADLINE:-60} =~ ^[0-9]+$ ]] || VD_FIFO_DEADLINE=60`; write `wait \"$s\" || :`; and begin the watchdog body with `set +e` (or assign `s` before installing the trap) so the body is fail-soft by construction instead of per-command guards.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/verdict-derive.bats:@@ -266,0 +1188,234 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The embedded Python awk lint (\"no awk program uses a POSIX character class\") matches `(?<![\\w.-])(?:[gmn]?awk\\b|...)` anywhere in a non-comment line, not only in command position, and refuses every match whose next non-blank character is neither `-` nor `'` as 'an awk program not in single quotes'. Prose in a --help heredoc, an echo/printf diagnostic, a case label, or a string literal in verdict-derive.sh that mentions awk would therefore fail the suite, and the refusal text points at a quoting problem that does not exist. The lint runs against $SCRIPT unconditionally, so it is a trip wire for any future usage-text edit, and the skip-lookup regex covers only command -v/type/hash/which.",
+      "failure_mode": "A documentation-only change to the script's usage or warning text that names awk turns the verdict-derive suite red with a misleading 'not in single quotes' diagnostic; the real class check (the reason the lint exists) is unaffected.",
+      "suggested_fix": "Accept a match only in command position (line start or after `|`, `;`, `&&`, `||`, `$(`, `(`, `{`, `then`, `do`, or `name=$(`), skip heredoc bodies by tracking `<<[-]?['\"]?WORD` to its terminator, and downgrade non-command mentions to a note rather than a refusal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/verdict-derive.bats:@@ -266,0 +1422,148 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The s33b2 test (\"an empty rejected_sidecars entry, or one holding a newline ... never dropped silently or split into two names\") pins exactly two 'malformed entry' violations and zero 'lists engineer-feedback.md' violations, but not the total violation count. If the script split the entry \"adversarial-rejected-review-x.jsonl\\nengineer-feedback.md\" on the newline, the first half is a well-formed sidecar name that is listed but absent and would surface as a different violation (a missing listed sidecar) that nothing here asserts against. Sibling cases s22 and s28 pin `(.violations | length)` exactly; this one does not, so the 'never split' half of its title is only half-proved.",
+      "failure_mode": "A regression that splits a control-character entry and reports its first half as a listed-but-missing sidecar passes this test as long as the malformed count stays at two.",
+      "suggested_fix": "Add `(.violations | length) == 2` to the jq assertion, and optionally `(.violations | map(select(test(\"review-x.jsonl\") and (test(\"malformed\") | not))) | length) == 0` so any non-malformed mention of the split name fails the case.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:24:45Z",
+    "tokens_input": 84639,
+    "tokens_output": 64037,
+    "cost_usd": 0,
+    "latency_ms": 23481,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-c2d-vdbats-2.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-c2d-vdbats-2.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3d5709e911bd0791410633e3ad089dbcaff5a714139e6083aa8690a2914c5bc0",
+      "run_tag": "c2d-vdbats-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

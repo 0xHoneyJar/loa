@@ -1,0 +1,29 @@
+{"error": true, "code": "CHAIN_EXHAUSTED", "message": "[cheval] CHAIN_EXHAUSTED: All 2 entries in chain for 'anthropic:claude-opus-5' failed.", "retryable": false, "models_failed_count": 2}
+PASSED tests/test_ceiling_e2e.py::test_default_policy_preempts_600k_at_the_probed_bound
+PASSED tests/test_ceiling_e2e.py::test_opt_in_low_estimate_warns_and_dispatches
+PASSED tests/test_ceiling_e2e.py::test_opt_in_high_estimate_preempts_with_the_calibration_command
+PASSED tests/test_ceiling_e2e.py::test_opt_in_count_endpoint_is_authoritative
+PASSED tests/test_ceiling_e2e.py::test_legacy_transport_wall_still_owns_the_walk_gate
+PASSED tests/test_ceiling_e2e.py::test_legacy_ceiling_kill_switch_is_todays_behaviour
+PASSED tests/test_ceiling_e2e.py::test_calibrated_entry_uses_its_calibrated_value
+PASSED tests/test_ceiling_e2e.py::test_provider_limit_above_the_probed_bound_is_not_walked_and_lowers_the_bound
+PASSED tests/test_ceiling_e2e.py::test_provider_limit_under_the_probed_bound_is_the_catalogs_error_and_still_not_walked
+PASSED tests/test_ceiling_e2e.py::test_429_while_unverified_is_recorded_not_walked_and_never_lowers_the_bound
+PASSED tests/test_ceiling_e2e.py::test_170k_on_a_200k_entry_shrinks_the_output_budget_instead_of_failing
+PASSED tests/test_ceiling_e2e.py::test_unverified_status_is_per_hop_not_inherited_from_the_head
+PASSED tests/test_ceiling_e2e.py::test_calibration_exit_redacts_secret_shapes_in_the_recorded_message
+PASSED tests/test_ceiling_retry.py::test_input_plus_output_shape_is_retried_once_at_the_budget_that_fits
+PASSED tests/test_ceiling_retry.py::test_second_context_error_after_the_shrink_propagates_without_a_third_attempt
+PASSED tests/test_ceiling_retry.py::test_input_only_shape_propagates_at_once
+PASSED tests/test_ceiling_retry.py::test_no_retry_below_the_floor_or_when_the_room_is_not_smaller
+PASSED tests/test_transport_matrix.py::test_row[anthropic-claude-fable-5-1-http-stream]
+PASSED tests/test_transport_matrix.py::test_row[anthropic-claude-fable-5-1-http-legacy]
+PASSED tests/test_transport_matrix.py::test_row[anthropic-claude-headless-cli-hop]
+PASSED tests/test_transport_matrix.py::test_row[openai-gpt-5.5-http-stream]
+PASSED tests/test_transport_matrix.py::test_row[openai-gpt-5.5-http-legacy]
+PASSED tests/test_transport_matrix.py::test_row[openai-codex-headless-cli-hop]
+PASSED tests/test_transport_matrix.py::test_row[google-gemini-3.1-pro-preview-http-stream]
+PASSED tests/test_transport_matrix.py::test_row[google-gemini-3.1-pro-preview-http-legacy]
+PASSED tests/test_transport_matrix.py::test_row[google-gemini-headless-cli-hop]
+PASSED tests/test_transport_matrix.py::test_bridgebuilder_and_flatline_agree_with_the_same_rows
+27 passed in 1.02s

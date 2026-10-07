@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".loa.config.yaml.example:@@ -1412,7 +1444,12 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The security_audit budget_cents comment restates the repair wall-budget floor as \"two of the heaviest hop's charges at least\", while the code_review block it points to says \"never under two of the heaviest hop's charges plus a timeout\" (the implementation report, round 1t, matches the code_review wording). The code_review block also says a pin \"below a hop's charge is warned\", whereas the report (round 1v, CMP-235) records \"a pinned repair budget below every CLI charge warns at load\" — below the lightest CLI charge is a different condition from below any hop's charge. Finally both blocks derive the default from \"THIS block's timeout_seconds\" but LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS is a single env knob; neither comment says one pin governs both gates.",
+      "failure_mode": "An operator who sizes the env pin from the audit block's text under-budgets by one timeout; one who relies on the documented load-time warning to catch a too-small pin may get none when the pin sits between the lightest and heaviest CLI charge; a pin tuned for code_review's timeout silently governs security_audit too. Repairs are then pre-empted, payloads land in rejected_summary and the sidecar, and verdict-derive demands triage bullets — degraded dissent rather than a crash.",
+      "suggested_fix": "In security_audit replace the paraphrase with \"repair wall budget: code_review's rule applied to this block's timeout_seconds\" and nothing more; state the warn condition exactly as _adv_repair_wall_for implements it (pick one phrasing and use it in both blocks); add to both blocks that the env pin applies to both gates at once.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".loa.config.yaml.example:@@ -1412,7 +1444,12 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The companion_chain override block (and its 'used as given — no PATH filter' semantics) is documented only under code_review. The security_audit block's new companion_voice comment says 'see code_review' for the voice rule but never mentions that companion_chain is read per block (implementation report: 'operator companion_chain per block (CMP-13)').",
+      "failure_mode": "An operator places companion_chain once under code_review (for example to route the companion onto claude-bedrock around KF-037) and expects it to apply to audits; audits keep the default chain. On a host where the default chain has no route, every audit records companion_voice {planned: false, reason: no_route} and is DEGRADED_SECURITY_REVIEW while the operator believes the override is in effect.",
+      "suggested_fix": "Add a one-line pointer under security_audit, e.g. '# companion_chain: per block — same shape as code_review's; a code_review override does not reach audits'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".loa.config.yaml.example:@@ -1391,13 +1391,45 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both budget_cents comments say '(a malformed value fails closed as 0)'. The implementation report (sixteenth run) records the behaviour as refusing the run with exit 4 and a JSON status. 'as 0' reads either as 'treated as a 0-cent budget' or as 'exits 0'; in a file read by shell-tooling operators the second reading is natural and inverts the meaning. The comment also never states that an explicit budget_cents: 0 refuses every dispatch, though 0 conventionally means 'no cap'.",
+      "failure_mode": "An operator reads the malformed-value path as a silent exit-0 and does not check the run's status; or sets budget_cents: 0 intending no cap and every dissent is refused before dispatch, so with the gate enforced no review or audit can write its COMPLETED marker until the value is changed.",
+      "suggested_fix": "Reword to '(a malformed or zero value refuses the run before any dispatch — exit 4, status in the JSON; there is no unlimited setting)'.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:23:19Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 15274,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "99d2efa1281e4b09381366cbc2a734dd0c7dc1bb677f1309fc3721a07d676355",
+      "run_tag": "b2-contracts-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

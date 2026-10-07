@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "_adv_record_fallback",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_adv_record_fallback validates --sprint-id (regex plus a '..' check) and --since, but the type argument `t` is used as given to build `env=\"$dir/adversarial-${t}.json\"`, the glob `\"$dir\"/adversarial-rejected-\"${t}\"*.jsonl`, and the run-lock key. The function's own comments say it exists because the review/audit skill agents cannot run mv themselves, so the caller is a semi-trusted LLM agent whose arguments can be influenced by repository content. A type of `*` or `rejected-*` widens the glob so every gate's sidecars are moved to .prev; a type containing `/` yields writes to unintended sibling paths. The asymmetry with the sid check suggests type validation is assumed to happen in the CLI parser, which this diff does not show.",
+      "failure_mode": "A prompt-injected skill invocation passes a crafted --type and the recorder moves aside or overwrites envelopes and sidecars belonging to other gates or sprints, silently changing which findings the verdict step sees.",
+      "suggested_fix": "Validate `t` against the closed set the script supports (e.g. `case \"$t\" in review|audit) ;; *) error ...; return 2;; esac`) at the top of _adv_record_fallback, next to the sid check, regardless of what the arg parser does.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "def clean($n): .[0:$n] | gsub(\"[\\u0000-\\u001f\\u007f-\\u009f​-‏ -‮⁠-⁤⁦-⁩﻿]\"; \" \");",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The rejected_summary row is explicitly described as 'a surface of an untrusted payload' that a downstream triage agent reads one bullet per row. The clean() filter strips C0/C1 controls, zero-width and bidi format characters, but not the Unicode Tag block (U+E0000-E007F), variation selectors (U+FE00-FE0F, U+E0100-E01EF), U+061C, U+180E, or interlinear annotation characters (U+FFF9-FFFB). Tag characters in particular are invisible when rendered and are a documented vector for smuggling hidden instructions to LLMs. Model output flows into title, severity, anchor and description_head of the row with only this filter applied.",
+      "failure_mode": "A compromised or adversarial model response embeds Tag-encoded text in a finding title or description; the row renders clean to a human but carries hidden instructions to the LLM that consumes rejected_summary during triage.",
+      "suggested_fix": "Extend the class to cover `︀-️`, `￹-￻`, `؜`, `᠎`, and the supplementary ranges `\\U000e0000-\\U000e007f` and `\\U000e0100-\\U000e01ef` (jq/Oniguruma accept `\\x{E0000}-\\x{E007F}`), or invert the policy to an allow-list of printable categories via `test(\"\\\\p{C}\")` removal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_ADV_LOCK_EXPIRED_FILE=\"${_rcf:+$_rcf.lockwait}\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The repair status file `_rcf` is created with mktemp, but the lock-wait sentinel is the derived path `$_rcf.lockwait`, which is removed before each hop and then created by the lock helper only when the CLI lock wait expires (up to CONF_TIMEOUT seconds later). When _ADVERSARIAL_WORKDIR is unset the parent is TMPDIR or /tmp, a shared sticky directory, and the name is discoverable by listing. Another local user can pre-create the sentinel in that window to make every hop read as 'never ran' (skipping repairs and spending budget) or, on hosts with fs.protected_symlinks disabled, plant a symlink that the helper's write follows.",
+      "failure_mode": "A co-tenant on a shared host degrades or steers the repair phase of every review, or clobbers a file writable by the invoking user via a symlink planted at the predictable sentinel path.",
+      "suggested_fix": "Create the sentinel with mktemp too, or create both files inside a private directory (mktemp -d, 0700) so the sibling name is never exposed; alternatively signal lock expiry via the exit-code file already owned by this process.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "_adv_record_fallback",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "--since is validated only for the YYYY-MM-DDTHH:MM:SSZ shape, not for being no later than now. The age guard moves a standing envelope aside whenever its metadata.timestamp sorts before --since. A caller can therefore pass a far-future --since and force any envelope, including one a live-completed run wrote seconds ago, to be displaced and replaced by a findings: [] failure record. The comments show this path is meant to be invoked by the skill agents under a restricted allowlist, i.e. a semi-trusted caller.",
+      "failure_mode": "A prompt-influenced skill invocation uses `--since 2999-01-01T00:00:00Z` to retire a legitimate review envelope with findings and substitute a failure record, altering what the verdict derivation gates on.",
+      "suggested_fix": "Reject a --since later than the current UTC time (compare the normalized string against `date -u +%Y-%m-%dT%H:%M:%SZ`), and consider also requiring --since to be no older than a bounded window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_hb=$(_adv_hop_charge \"$_rm\" \"${CONF_TIMEOUT:-60}\"); _hb_memo+=\"$_rm $_hb\"$'\\n'",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "_hb=$(_adv_hop_charge \"$_rm\" \"${CONF_TIMEOUT:-60}\"); _hb_memo+=\"$_rm $_hb\"$'\\n'",
+      "cross_file_justification": "The diff adds the arithmetic consumers of _hb in adversarial-review.sh; _adv_hop_charge and the catalog it reads headless_timeout_seconds from live outside the diff and are the source of the value.",
+      "description": "The new wall-budget guard evaluates `(( _est > _hb ))` and `_est=$_hb` then `(( _repair_wall_budget - _repair_wall_used < _est ))` using the value returned by _adv_hop_charge without the `^[0-9]+$` check that the sibling _last value receives. Bash `(( ))` performs expansion on its operands, so a non-numeric string of the form `a[$(cmd)]` is executed. The charge is derived from the model catalog's per-model headless_timeout_seconds, which is repo-controlled configuration. The memo parsing with `read -r _mh _mv` also silently truncates a value containing whitespace.",
+      "failure_mode": "A malformed or hostile catalog entry for a repair hop's timeout causes arbitrary command execution in the reviewer's shell at the point the budget guard runs, or a stray non-numeric value aborts the repair phase under set -e.",
+      "suggested_fix": "Mirror the _last guard: `[[ \"$_hb\" =~ ^[0-9]+$ ]] || _hb=<fallback bound>` immediately after the _adv_hop_charge call, before memoizing or comparing it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T06:55:45Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 17508,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "976c6ceba666b5215a0182c4ea8dfb8e1d2c0386e253bb30654a59b976be4da8",
+      "run_tag": "a2-script-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

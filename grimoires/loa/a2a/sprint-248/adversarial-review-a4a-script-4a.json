@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "comp_status is set to \"succeeded\" solely because companion.result.json exists and parses as a JSON object. Neither companion.status (read a few lines earlier and then used only for the failure class) nor the companion envelope's own metadata.status is consulted. Every other envelope this script writes carries metadata.status in {reviewed, api_failure, malformed_response, ...}; the same writer behind the companion's result path can therefore leave a well-formed object whose status is a failure (the CMP-168 shape, mirrored onto the companion side). The success branch then folds zero findings, sums its spend, and — when the primary also failed — promotes the whole envelope to status \"reviewed\" with the note \"findings are the companion voice's alone\".",
+      "failure_mode": "A run in which both voices failed can be published as a clean, reviewed envelope with no findings, so the gate passes vacuously and the companion is recorded as counted_as sole_voice / independent_voice with a FAILED envelope feeding verdict quality.",
+      "suggested_fix": "Gate comp_status=\"succeeded\" on all three signals: the result object exists, companion.status is \"succeeded\" (or absent), and $cres.metadata.status is not in (\"api_failure\",\"malformed_response\"). Otherwise fall through to the failed branch and let _companion_failure_class name it (the status/rc files are already in hand).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "null-safety",
+      "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The MODELINV window bounds are read as `cat hop_started_iso || cat started_iso || echo epoch` and `cat hop_ended_iso || cat ended_iso || echo far-future`. `cat` on a present-but-empty file exits 0 with empty output, so the fallbacks never fire for an empty state file; only the third line patches one shape (hop_started non-empty, hop_ended empty). CMP-134 gave companion.current the missing-file fallback for exactly this class, but the four ISO files here still treat empty as a value. An empty _since opens the window at the start of the ledger, so _companion_ledger_message can return another voice's or an earlier run's row for the same model — the misattribution rounds 37/38 closed for the lock_wait case.",
+      "failure_mode": "With hop_started_iso cleared or truncated (reaped at the moment the walker rotates its per-hop state), the companion's last_error and failure_class are derived from a row that belongs to the primary's shared hop or a previous run, and that text is logged and summarised as this voice's diagnostic.",
+      "suggested_fix": "Read each bound through a small helper that returns the first file with -s content (e.g. `_first_nonempty_file a b` then the literal default), and drop the special-case third line. Add a companion case with an empty hop_started_iso beside a non-empty started_iso asserting the window opens at started_iso.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T00:42:23Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 34002,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3c48d84c16b323e73533ddc1b82e7d65d4fa839fd2d2c6a1e0423a610ec8375d",
+      "run_tag": "a4a-script-4a"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

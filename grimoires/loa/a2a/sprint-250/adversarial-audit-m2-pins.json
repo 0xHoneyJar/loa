@@ -1,0 +1,147 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "secrets",
+      "title": "Model prompts are still dispatched through argv, exposing sensitive prompt contents to local users",
+      "file": "tests/unit/model-adapter.bats",
+      "line": 71,
+      "description": "The new test explicitly preserves behavior where `gemini-headless` dispatches `agy` with the whole prompt on argv, warning that it is readable via `/proc/<pid>/cmdline` and `ps`. Prompts commonly contain secrets, proprietary code, credentials, or incident data; on a multi-user host any local account can scrape those arguments during the hop. Forwarding a warning does not mitigate the exposure.",
+      "recommendation": "Change the model invocation path to pass prompts through stdin or a private, permission-restricted temp file, and ensure downstream adapters never place prompt bodies in argv. Keep the warning only as a regression guard until the unsafe path is removed.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new test explicitly preserves behavior where `gemini-headless` dispatches `agy` with the whole prompt on argv, warning that it is readable via `/proc/<pid>/cmdline` and `ps`.",
+      "failure_mode_derived": true,
+      "anchor_status": "needs_triage",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "@test \"MA-5 (bd-pw7e LOW-001) the agy argv WARN reaches the shim's stderr; other cheval stderr stays out\"",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/model-adapter.bats: MA-5, MA-6, MA-7",
+      "cross_file_justification": "The sink is cheval's gemini-headless provider, which execs `agy` with the entire prompt on argv (not in this diff). The diff-touched test file model-adapter.bats pins the behaviour of .claude/scripts/model-adapter.sh to 'relay a WARN line' and nothing more, so the tests now lock in warn-only handling of a live local-disclosure path.",
+      "description": "MA-5 and MA-6 assert that the only remediation for the agy argv exposure is forwarding a WARNING string to stderr. The WARN text itself states the whole prompt is readable by every local account via /proc/<pid>/cmdline and ps for the life of the hop. Flatline prompts carry source, PRDs, review payloads and whatever the operator fed in. MA-7 further accepts that when TMPDIR is unusable the relay is silently replaced by a generic 'stderr capture disabled' WARN, so even the warning is best-effort. The suite therefore treats a confirmed prompt leak on multi-user hosts as expected, tested behaviour rather than a defect to close.",
+      "failure_mode": "On any shared host (CI runners, dev boxes, containers with a sidecar user) a non-privileged local account polls `ps -eo args` or /proc/*/cmdline while a gemini-headless hop runs and reads the full review prompt, including any secrets or proprietary code embedded in it. The operator only sees a stderr line, and not even that if TMPDIR is broken.",
+      "suggested_fix": "Fix the sink rather than the message: have the gemini-headless provider hand the prompt to agy via stdin or a 0600 temp file, or refuse to dispatch gemini-headless unless an explicit opt-in (e.g. LOA_ALLOW_ARGV_PROMPT=1) is set. Keep MA-5/MA-6 but add a test asserting that, without the opt-in, the hop fails closed instead of warning. Separately confirm model-adapter.sh creates model-adapter-stderr.* with mktemp (0600), since MA-5 shows cheval stderr can contain provider chatter that is written to that file before filtering.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/data/personas/alternative-model.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "diff --git a/.claude/data/personas/alternative-model.md",
+      "cross_file_justification": null,
+      "description": "The hunk labelled .claude/data/personas/alternative-model.md contains bats test code (`@test \"bare gemini-3.1-pro NOT in VALID_FLATLINE_MODELS\"`, `_extract_validator`, `source '$TEST_DIR/validator.sh'`). The supplied full file is a ~35 line markdown persona with no test blocks, so the hunk at lines 32 to 60 cannot apply to it. Two changes are therefore unreviewed: whatever bats file actually received this hunk, and the real edit to alternative-model.md that RES-4 in model-residue.bats implies (it asserts the file now names bedrock:us.anthropic.claude-opus-4-8 and no longer mentions claude-3-5-sonnet).",
+      "failure_mode": "A reviewer approving this diff signs off on a test-file change attributed to the wrong path and never sees the actual persona edit. If the mislabel comes from the diff-assembly tooling, every future review through this pipeline can hide changes the same way.",
+      "suggested_fix": "Regenerate the diff from git directly and confirm each hunk header matches its content. Add the real alternative-model.md hunk and the correctly attributed bats hunk before merging.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "map_value",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/model-residue.bats: map_value; tests/unit/model-adapter.bats: map_of",
+      "cross_file_justification": null,
+      "description": "map_of and map_value use awk to slice everything from `declare -A NAME=(` down to the first line matching `^\\)` and then run that text through `bash -c`. map_value additionally splices the array name argument straight into the code string: `printf \"%s\" \"${'\"$2\"'[$1]:-}\"`. The awk window is not restricted to key=value lines, so any command substitution or stray statement inside or after the declare block (up to the closing paren) executes during the test run. Current callers pass literals, and the scripts are repo-owned, so this is not exploitable today.",
+      "failure_mode": "A future edit that adds a `$(...)` default inside MODEL_TO_ALIAS, or a caller that passes a variable as the array name, turns the test helper into an eval of arbitrary text. The pattern is also an easy copy-paste into non-test scripts where inputs are less controlled.",
+      "suggested_fix": "Source the target script in a subshell with a no-op main guard and read the map with `declare -p NAME`, or parse the block with a strict regex that only accepts `[key]=\"value\"` lines. Validate the array name against `^[A-Za-z_][A-Za-z0-9_]*$` before interpolating it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:14:37Z",
+    "tokens_input": 49938,
+    "tokens_output": 11117,
+    "cost_usd": 0,
+    "latency_ms": 46590,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-m2-pins.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-m2-pins.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "b42a31d0a923ea7cae40c58e3ca35b1709928d2b4453669b932ac1fd9f9df6e5",
+      "run_tag": "m2-pins"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

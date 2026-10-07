@@ -1,0 +1,171 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/skills/autonomous-agent/SKILL.md <input_guardrails> table row: `Script missing, non-zero exit, or unparseable output | Continue — fail-open`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/fixtures/dissent-rejected/README.md table row `01-guardrails-fail-open.json` (and tests/fixtures/dissent-rejected/01-guardrails-fail-open.json `payload.description`)",
+      "cross_file_justification": "The diff commits, verbatim, a real dissenter finding that the autonomous skill continues when the guardrails orchestrator is missing, exits non-zero, or returns unparseable output. The new README goes further: it states that `guardrails-orchestrator.sh` passes `--mode run`, which the danger-level enforcer rejects, so run-mode input guardrails fall open. The README marks the bead (bd-rk9o, P2) as still open. The diff therefore documents a live bypass of a pre-execution security control without fixing it.",
+      "description": "Pre-existing and tracked, not introduced by this diff, but the diff's own README upgrades the dissenter's claim from 'an attacker who can trigger a validator error bypasses the guardrail' to 'the guardrail's own invocation is rejected by the enforcer on every run-mode call, so the fail-open branch is the normal path'. If that reading is correct, the input guardrail for a skill with write, execute, web, and agent-spawn capabilities effectively never evaluates the user prompt/args. The lead tallied this MEDIUM as 'pre-existing'; from an exploitability standpoint an always-skipped pre-execution policy check on an autonomous agent is a significant gap. I could not read SKILL.md, guardrails-orchestrator.sh, or the enforcer to confirm the deterministic mode mismatch; the evidence is the README text and the fixture payload shipped in this diff.",
+      "failure_mode": "Any invocation prompt, including an injected or policy-blocked one, reaches the privileged autonomous workflow (file writes, command execution, web access, sub-agent spawn) without the input guardrail ever evaluating it, because the orchestrator call is rejected (or otherwise errors) and the skill continues on the fail-open branch.",
+      "suggested_fix": "Fix the `--mode run` / enforcer mismatch so the orchestrator actually runs, and change the SKILL.md policy to fail closed on missing script, non-zero exit, or unparseable output (at most allow a narrowly scoped, explicitly approved infrastructure-outage override). Add a test that invokes guardrails-orchestrator.sh exactly as the skill does and asserts a non-zero/unparseable result halts the run. Until then, raise bd-rk9o above P2 and note in the fixture README that the bypass is deterministic, not attacker-triggered.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: trigger_anchor not in diff",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/adapters/tests/test_epistemic_scopes.py::TestAuditFilterContext::test_audit_with_unknown_model (and TestGetContextAccess::test_missing_context_access_returns_defaults, TestFilterContext::test_none_trust_scopes_defaults_to_full)",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-repair-loop.bats: `[ \"$(_repair_model_chain \"gpt-5.3-codex\")\" = \"gpt-5.3-codex\" ]` and the `process_findings ... \"gpt-5.3-codex\"` calls; tests/unit/adversarial-review-schema-enforced.bats FR7-9 grep-lock on `_adv_invoke_hop ... invoke_dissenter`",
+      "cross_file_justification": "The diff's tests pin the dissent/repair hop path (`_adv_invoke_hop` -> `_adv_with_cli_lock` -> `invoke_dissenter`) that sends system and user prompts to external models such as gpt-5.3-codex and gpt-5.5-pro via codex-headless. cheval's `filter_context` / trust_scopes `context_access` is the control that decides whether security findings, business-logic code, and architecture reach those models. The supplied P0 test file pins that this control fails open: an unknown provider/model, a model entry without `context_access`, or `None` trust scopes all resolve to DEFAULT_CONTEXT_ACCESS (all 'full').",
+      "description": "The context filter defaults to full access when the model is not found in model-permissions.yaml, when its entry predates v7 and lacks `context_access`, or when scopes are None. These are enshrined as expected behaviour by the tests. Combined with the diff adding new external model ids to the fallback/repair chains (gpt-5.3-codex, gpt-5.5-pro), any model id that lacks a permissions entry, or is mistyped, receives unredacted security audit content and code. Separately, `test_audit_returns_original_messages` pins that audit mode returns the original messages even for a model whose scopes say `security: none`; if audit mode is ever the production default, the filter is log-only. I could not read context_filter.py or model-permissions.yaml to confirm which models are registered or what the production mode is.",
+      "failure_mode": "A model added to a dissent or repair chain without a model-permissions.yaml entry (or with a pre-v7 entry) is sent full security findings, CVE details, secrets-adjacent error text, and business-logic source, defeating the epistemic trust boundary the filter exists to enforce.",
+      "suggested_fix": "Make the unknown-model and missing-`context_access` cases resolve to the most restrictive profile for non-native providers (or refuse the hop with a clear error), and keep the all-full default only for explicitly native-runtime providers. Add a test that loads the real model-permissions.yaml and asserts every model id referenced by adversarial-review.sh's chains has a `context_access` block. Assert that audit mode is opt-in and not the default in production.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": ".claude/skills/autonomous-agent/resources/phase-mechanics.md Phase 0.0 case `*) # Other error - log and continue`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/fixtures/dissent-rejected/02-cleanup-continues.json `payload.description`; tests/fixtures/dissent-rejected/README.md row `02-cleanup-continues.json`",
+      "cross_file_justification": "The diff ships the dissenter payload and a README confirmation (bead bd-mfqp, P3, open) that Phase 0.0 halts only on exit 3 or a detected partial state on the exit-0 path, so a stage-4 failure of workspace-cleanup.sh (originals partly removed, exit 1) is logged and the run continues on a half-cleaned grimoire.",
+      "description": "Pre-existing and tracked. Prior-cycle artifacts that cleanup failed to archive remain readable by the next autonomous run, which can carry stale instructions, prior findings, or secrets-adjacent text into a new context. Impact is bounded to the same user and workspace, hence LOW, but it is a fail-open in a security-relevant preflight.",
+      "failure_mode": "workspace-cleanup.sh exits 1 after partially removing originals; the run continues and later phases read or act on a mix of old and new artifacts.",
+      "suggested_fix": "Treat any non-zero cleanup exit as blocking unless the exit code is explicitly classified safe, and have cleanup emit a structured result the skill must verify before continuing.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_epistemic_scopes.py::TestLookupTrustScopes::test_lookup_returns_context_access",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-repair-loop.bats `process_findings ... \"gpt-5.3-codex\"` (external reviewer model path)",
+      "cross_file_justification": "The diff exercises external OpenAI-family reviewer hops. The only test that reads the real permissions entry for such a model (`openai/gpt-5.2`) wraps its assertion in `if scopes and \"context_access\" in scopes:`, so it passes vacuously if the block is removed; `test_gpt_reviewer_scopes` uses hand-built scopes, not the yaml.",
+      "description": "No test pins that the real model-permissions.yaml entry for an external reviewer actually restricts `security` to `none`. Deleting or renaming the `context_access` block for gpt-5.2 would make the filter fall open (see SEC-002) with the suite still green.",
+      "failure_mode": "A permissions-file edit silently removes the external reviewer's security redaction and no test fails.",
+      "suggested_fix": "Replace the conditional with hard assertions on the real entry (e.g. `scopes[\"context_access\"][\"security\"] == \"none\"`), and add a parametrised test over every non-native model id in the yaml requiring a `context_access` block.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-repair-loop.bats @test \"C14: a repair OF the derived failure_mode (it failed validation) is the model's text — the derived marker is not carried onto it\"",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new test pins that when the repair model rewrites `failure_mode`, the result carries `failure_mode_derived: null`, i.e. it is indistinguishable from a failure_mode the dissenter wrote. Only the envelope-level `repaired_count` records that a repair happened; per-finding provenance of model-authored text is lost. Downstream consumers (verdict tallies, sidecars, humans triaging) treat repaired text as the dissenter's own evidence.",
+      "failure_mode": "A finding whose failure_mode was written by the repair model, not the dissenter, is reported and acted on as if the dissenter asserted it; a hallucinated or weakened failure statement cannot be traced back to the repair hop.",
+      "suggested_fix": "Set a per-field provenance marker (e.g. `failure_mode_repaired: true` / `repaired_fields: [...]`) when the repair model supplies the violated field, and keep it through to the verdict and sidecar.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tests/unit/adversarial-review-repair-loop.bats @test \"setup is hermetic...\": `[ \"$(_adv_cli_lock_dir)\" = \"$TEST_DIR/loa-headless-locks-$(id -u)\" ]`",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-repair-loop.bats `export XDG_RUNTIME_DIR=\"$TEST_DIR\"`; tests/unit/adversarial-review-schema-enforced.bats FR7-9 grep-lock on `_adv_with_cli_lock \"$model\" invoke_dissenter \"$@\"`",
+      "cross_file_justification": "The diff introduces test coverage for the new per-binary CLI lock (`_adv_cli_lock_dir`, `_adv_with_cli_lock` in adversarial-review.sh) and shows the lock directory is `$XDG_RUNTIME_DIR/loa-headless-locks-<uid>`. The suites override XDG_RUNTIME_DIR, so nothing in the diff pins the behaviour when it is unset (CI, cron, containers).",
+      "description": "Hardening note; the fallback could not be verified from the diff. If `_adv_cli_lock_dir` falls back to a shared directory such as /tmp with the predictable name `loa-headless-locks-<uid>`, another local user can pre-create it (or a symlink) and either deny the lock permanently or redirect lock files. The tests themselves are hermetic and correct.",
+      "failure_mode": "With XDG_RUNTIME_DIR unset, the headless CLI lock lives in a world-writable predictable path; a local attacker pre-creates it and every *-headless dissent/repair hop fails or waits indefinitely.",
+      "suggested_fix": "When XDG_RUNTIME_DIR is unset, create the lock dir with `mkdir -m 0700` under a per-user location, verify it is a real directory owned by the current uid and not a symlink before use, and add a test that unsets XDG_RUNTIME_DIR and asserts the resolved path and its mode.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:48:55Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19157,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "04f5dce7429e342a4ced046ddd955b5b9766aed66985d4f7312f85789a8cb696",
+      "run_tag": "c2e-other-tests"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

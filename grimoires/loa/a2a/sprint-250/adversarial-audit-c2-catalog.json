@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_expected_alias_lines",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/gen-bb-registry-codegen.bats:_expected_alias_lines",
+      "cross_file_justification": "The new T13 tests are the only oracle for GENERATED_MODEL_ALIASES, a block of TypeScript string literals that the (not-in-diff) gen-bb-registry-codegen script emits from catalog alias keys/targets into truncation.generated.ts, which is compiled into BB. The oracle is built with a raw printf '%s' and no escaping, so it mirrors an unescaped emit instead of detecting one.",
+      "description": "T13 derives its expectation with printf '  \"%s\": \"%s\",' on alias names and model ids taken straight from the YAML, and compares that to the generator's output. If the generator also emits identifiers unescaped, an alias key or target containing a double quote, backslash, or newline produces the same malformed TypeScript on both sides and the test passes. The fixture test shows the generator accepts an arbitrary --source-yaml path, so the input is not limited to the committed catalog. The same helper and _expected_max_output also build yq expressions by splicing $provider/$model inside \\\"...\\\" quotes, which breaks or changes meaning on a quote in the value.",
+      "failure_mode": "A hostile or malformed alias entry in model-config.yaml or a --source-yaml override is emitted verbatim into truncation.generated.ts, yielding a broken build or injected code in BB's compiled registry, with no test coverage because the oracle reproduces the same unescaped output.",
+      "suggested_fix": "In the test, assert every alias key and target matches a strict identifier pattern (e.g. ^[A-Za-z0-9._:-]+$) before building the oracle, and add a fixture with a key such as bad\"key asserting the generator exits non-zero (as it does for invalid context_window, status 78) rather than emitting it. In the generator, JSON.stringify each emitted identifier. Pass provider/model to yq via env() or --arg instead of string interpolation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "V3 (c126): every beta-header value the schema accepts, the adapter accepts (never looser)",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/model-config-v3-schema.bats:V3 (c126): every beta-header value the schema accepts, the adapter accepts (never looser)",
+      "cross_file_justification": "params.beta_headers values flow from model-config.yaml through anthropic_adapter._BETA_HEADER_RE (not in diff) into the outbound anthropic-beta HTTP header. This new test is the only place in the change that exercises that allowlist, and it only checks one direction.",
+      "description": "The test asserts schema-accepted ⊆ adapter-accepted, so it guarantees usability (valid config is not rejected at runtime) but never asserts the adapter rejects anything, even though the adapter is the last check before the header sink. It also evaluates the JSON-Schema (ECMA-262) pattern with Python re.search, where \\d is Unicode-aware and $ matches before a trailing newline, and the case list has no CR, LF, or trailing-newline inputs. A _BETA_HEADER_RE that ends in $ and is used with .match() would accept \"context-1m-2025-08-07\\n\" and this test would not notice.",
+      "failure_mode": "An adapter allowlist looser than the schema (trailing newline, Unicode digits, missing end anchor) ships undetected; any config value that bypasses or predates schema validation reaches the anthropic-beta header, causing request failures from header-encoding checks or, with a permissive HTTP client, header injection.",
+      "suggested_fix": "Add the converse assertion (every schema-rejected case is also rejected by _BETA_HEADER_RE) and extend cases with \"context-1m-2025-08-07\\n\", \"context-1m-2025-08-07\\r\\nX: y\", and \"context-1m-2025-08-07 \". Use re.fullmatch with re.ASCII (or \\A...\\Z anchors) in the adapter, and assert the schema pattern uses [0-9] and ^...$ so Python and ECMA semantics agree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:04:25Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 13879,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "61641e6c0b8a9d3605c8e4d1f1fa250a47d4399c4cdb944b3c56156fb67bae28",
+      "run_tag": "c2-catalog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

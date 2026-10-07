@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "- [x] Replay A/B: no gold case loses recall; report attached.",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "grimoires/loa/sprint.md ticks the Sprint 3 acceptance criterion 'Replay A/B: no gold case loses recall' while the ruling recorded directly beneath it states the pre-registered graded gate FAILED on five cases and that one slot in 27 was lost on audit-pr-02 (D06) under blind adjudication. The replay A/B gate measures whether the review and audit skills still catch gold defects after the prompt diet (CLAUDE.loa.md trim, constraint-rationale rewrite, skill gate removal). The repo's own NEVER table, re-rendered in this diff, names those skills as 'the only check that code meets its acceptance criteria and security standards'. A measured recall regression on a security-audit gold case is therefore a weakened detective control. It ships under a waiver whose binding conditions (grader fix bd-ewrc, two-arm re-baseline, ablation and revert) live in a prose document and a future Task 4.8 rather than in any mechanical merge gate.",
+      "failure_mode": "The cycle PR merges with the audit skill measurably less likely to surface a defect class it previously caught, and the self-contradictory acceptance record makes the regression invisible to anyone reading the checklist rather than the ruling. If Task 4.8 slips or the re-run is skipped, the degradation becomes permanent with no CI signal.",
+      "suggested_fix": "Leave the criterion unchecked or reword it to 'waived, see ruling' so the record is not self-contradictory. Make Task 4.8 a hard merge blocker (a CI job that runs the fixed grader and both arms, or a branch-protection check) instead of a prose condition. Since the ablation of the CLAUDE.loa.md trim versus the rationale rewrite can be run before merge, do it now and revert the implicated component rather than after the fact.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "session-start/loa-context-class.sh",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "A new SessionStart hook, `session-start/loa-context-class.sh`",
+      "cross_file_justification": "The CHANGELOG hunk (mislabeled in the diff as .claude/data/constraints.json) introduces and specifies the behaviour of a SessionStart hook, its registration in settings.json and settings.hooks.json, and the .run/context-class write. The hook script, the settings changes, tool-result-clearing.md, the regenerated skills and context-class.bats are not present in the reviewed diff, so the specified behaviour cannot be verified against code.",
+      "description": "The changelog describes the highest-privilege artifact of this sprint: a hook that executes on every session start, reads LOA_CONTEXT_CLASS from the environment, parses the stdin payload's session model name with alias-aware catalog resolution, falls back from timeout to gtimeout to a plain read, and writes .run/context-class atomically. None of that code is in the audited changeset (possibly because the diff was chunked). Claims such as 'never blocks', 'atomically', and alias-aware parsing of an externally supplied model string are exactly the ones an audit needs to see implemented: an unquoted model string interpolated into a shell or jq expression would be an injection sink, a plain read with no timeout can hang session start, and a non-atomic or wrong-directory temp write can be raced via a symlink in .run/.",
+      "failure_mode": "If the hook interpolates the payload model string into a shell command, a crafted payload could execute commands at session start. If the plain-read fallback has no timeout on a system without timeout or gtimeout, every session start blocks. If .run/ is pre-seeded with a symlink, the 'atomic' write could land outside the repo. None of these can be confirmed or excluded from this diff.",
+      "suggested_fix": "Include the hook script, both settings files and context-class.bats in the audited diff. In the hook, extract the model name with jq -r and pass it only as a quoted argument or jq --arg, never via eval or unquoted expansion. Create .run with restrictive permissions, write via mktemp in the same directory and mv -f, and refuse to follow a symlink at the target. Add a CC test case with a hostile model name containing quotes, backticks and $( ) to pin the no-injection property.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:37:04Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9374,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d550061c6bb08c0482691ac9f228f9c8a6ba3dde0187f13330599d021bdb9181",
+      "run_tag": "k2-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

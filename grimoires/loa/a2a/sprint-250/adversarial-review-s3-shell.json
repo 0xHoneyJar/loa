@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/model-adapter.bats:MA-9",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "MA-9's second case is commented as \"main() exits while the stderr file is live — both handlers run\", but with MI_EXIT=3 the adapter takes `result=$(...) || exit_code=$?`, then `rm -f`, then restores the prior trap via `eval \"$prev_exit_trap\"`, and only exits later. By the time EXIT fires the chained handler has already been replaced by the original one. The assertion `PRIOR-EXIT-RAN` therefore only proves the restore path (already proven by the success case), not that the chained `rm -f -- \"$err_file\"; <prior body>` string is well-formed and runs both halves when the process dies with the file live. MA-8 covers TERM-mid-call but without a prior trap, so the one code path this change actually adds (chained body executing) has no test.",
+      "failure_mode": "A future regression in the chained trap string (e.g. quoting of `prev_exit_body`, a prior body ending in `&` or starting with a comment that swallows the rest) would pass MA-9 and MA-8 unnoticed, and surface only as a lost caller EXIT handler or an orphaned stderr file in production under TERM.",
+      "suggested_fix": "Add a third case modelled on MA-8: set a prior EXIT trap, run the adapter with a `mi` shim that sleeps, send TERM to the adapter mid-call, then assert both that `PRIOR-EXIT-RAN` is on stderr and that `compgen -G \"$priv/model-adapter-stderr.*\"` finds nothing. Correct the comment on the existing MI_EXIT=3 case to say it exercises the restore path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff updates the `rule_key` function comment to include `Bash(:*)` as universal, but the file's header block — the normative grammar statement cited as cycle-126 SDD D-4.5 (\"A universal rule (bare Bash, or Bash(*) after trimming) covers every Bash requirement\") — still lists only bare `Bash` and `Bash(*)`. The usage text and the header are what operators read when a preflight passes or fails unexpectedly; they now disagree with the implementation on which rules are treated as allow-all / deny-all.",
+      "failure_mode": "An operator with `Bash(:*)` in a deny list sees every requirement reported denied and, consulting the header, concludes the checker is wrong rather than the settings; conversely a reviewer auditing the grammar against the SDD misses that the empty-prefix form is universal.",
+      "suggested_fix": "Update the header grammar paragraph (and the SDD D-4.5 text if it is quoted there) to read: \"A universal rule (bare Bash, Bash(*), or the empty prefix Bash(:*) after trimming) covers every Bash requirement\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T09:57:04Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21699,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2c5fc865ea3d8b52868487fb974bb86ec5c7c73b7b15276f3b54cdbe41775e61",
+      "run_tag": "s3-shell"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

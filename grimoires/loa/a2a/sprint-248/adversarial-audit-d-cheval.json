@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "_dir_trustworthy",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_dir_trustworthy` returns True as soon as the group-write bit is clear and only calls `_acl_extended` in the group-writable branch. That is sound for POSIX ACLs (group bits are the mask over named entries) but not for NFSv4 ACLs: the server synthesizes st_mode from OWNER@/GROUP@/EVERYONE@ only, so a named-user ACE granting write (the very `system.nfs4_acl` case the docstring cites) is invisible in the mode bits. A home directory or TMPDIR on such a mount is accepted as 'no other user can write' while another account can create entries above the isolated cwd.",
+      "failure_mode": "On an NFSv4-backed home or tmp, a second local account holding a named-user write ACE on an ancestor plants CLAUDE.md / .mcp.json / AGENTS.md above the headless cwd. The reviewer CLI loads it, giving that account prompt injection into the dissent voice and MCP server execution, which is the exact vector this module was written to close.",
+      "suggested_fix": "Call `_acl_extended(path)` on every ancestor regardless of the S_IWGRP bit (treat any `system.*acl*` xattr as untrusted unless parsed), or at minimum do so when the path is on a network filesystem. Keep the current fast-path only when `listxattr` reports no ACL names.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "private_workspace",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "path = os.path.join(private_workspace_base(), name)",
+      "cross_file_justification": "The `name` argument is supplied by adapter subclasses outside this diff; if any of them derive it from the catalog `type`/cli identifier or an environment override, the value is operator- or repo-controlled rather than a constant.",
+      "description": "`private_workspace(name)` joins `name` onto the vetted base without checking it is a single path component. The ancestor-trust walk (`_chain_private`, `_project_marker`) runs on the base only, and the final `os.lstat` verifies owner and mode of the leaf but not of any ancestors that `name` introduces. A `name` containing `/` or `..` yields a 0700 directory under an unvetted ancestor that passes every check in the function.",
+      "failure_mode": "A value such as `../../tmp/x` relocates the 'private' cwd under world-writable `/tmp`, so any local user can again plant `/tmp/CLAUDE.md` on the CLI's discovery path. Exploitability depends on how callers build `name`; with a hard-coded constant the gap is latent.",
+      "suggested_fix": "Reject `name` unless `name == os.path.basename(name)` and it matches `^[A-Za-z0-9_.-]+$`, and assert `os.path.dirname(os.path.realpath(path)) == base` after the mkdir before returning.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "private_workspace_base",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "raise ProviderUnavailableError(\n                self.provider, f\"{self._command_label} could not prepare its run: {exc}\",",
+      "cross_file_justification": null,
+      "description": "The OSError messages built in `private_workspace_base` and `private_workspace` enumerate every candidate directory ($XDG_RUNTIME_DIR, $TMPDIR, `/home/<user>/.cache/loa`, the project-marker path, mkdir strerror) and are interpolated verbatim into ProviderUnavailableError. The diff states that error text reaches the MODELINV row and the companion diagnostic, which are review artifacts that may be committed or posted on a pull request.",
+      "failure_mode": "Local usernames, home-directory layout, runtime-dir paths, and reviewed-tree location of the reviewer's host leak into shared review output. Low direct impact, but it is free reconnaissance for anyone targeting that host.",
+      "suggested_fix": "Log the full candidate list at DEBUG or stderr and put only a short reason in the typed error (e.g. 'no private workspace base available; see adapter log'), or redact `$HOME` to `~` and drop the marker path before wrapping.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_TRUSTED_ABOVE: Optional[str] = None",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_TRUSTED_ABOVE` is a mutable module global in production code that, when non-None, short-circuits both `_chain_private` and `_project_marker` for the named root and every ancestor via `_trusted_stop`. Nothing restricts it to a test context and nothing logs when it is active, so a conftest leaking into a non-test import, a monkeypatch left behind, or future env plumbing silently disables the entire ancestor-trust and project-marker check.",
+      "failure_mode": "The isolation guarantee is turned off without any visible signal; an operator reading the diagnostics cannot tell that the headless cwd was never vetted.",
+      "suggested_fix": "Honour the hook only when an explicit test marker is present (e.g. `PYTEST_CURRENT_TEST` in the environment), emit a WARNING whenever it is non-None, or pass the trusted root as a function parameter from the tests instead of a module global.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:53:44Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16643,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "7011c3817809ffb45829d6510b04b41811df3cafd9319d43334afa23b73dde35",
+      "run_tag": "d-cheval"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

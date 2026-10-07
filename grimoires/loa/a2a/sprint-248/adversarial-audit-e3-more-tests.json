@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "setup",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "tests/integration/adversarial-review-e2e.bats",
+      "cross_file_justification": null,
+      "description": "Twenty suites now export XDG_RUNTIME_DIR to BATS_TEST_TMPDIR so the CLI's per-user lock is never contended with a live adversarial-review run. The lock exists to serialize access to shared operator state (.run/ ledgers, a2a sidecars). Bypassing it is only safe when every resource the lock guards is also redirected. adversarial-review.bats and adversarial-review-e2e.bats redirect both ledger paths; the other eighteen suites (bug-809, cycle-109-*, cycle-124, cycle-baseline-capture, model-adapter-probe-integration, wire-schemas-api-safe, input-size-consumers, butterfreezone, spiral-harness, kf-011-debug, degraded-on-rejection, hallucination-filter, ledger-isolation-discovery) only redirect the lock. Any of them that execs the CLI in a mode that writes shared state can now interleave with a concurrent live run instead of blocking on it. Separately, bats creates BATS_TEST_TMPDIR with mkdir under a 0700 run dir, so the test dir itself is typically 0755. If the CLI validates XDG_RUNTIME_DIR per the XDG spec (owner, mode 0700) and falls back on rejection, the override silently resolves to the shared lock path and the isolation the comments promise does not happen. The new e3 lint checks only that no suite uses a mktemp fallback for XDG_RUNTIME_DIR; it does not check that a suite overriding the lock also redirects the state the lock protects.",
+      "failure_mode": "A suite that overrides the lock dir but not every shared path the lock serializes writes into the operator's live ledgers or sidecars concurrently with a real dissent run, corrupting them; or the CLI rejects the non-0700 dir and quietly falls back to the shared lock, so tests block on or steal a live run's lock despite the override.",
+      "suggested_fix": "Extend the e3 lint in tests/unit/adversarial-review.bats so any suite exporting XDG_RUNTIME_DIR must also export LOA_MODELINV_LOG_PATH and LOA_COST_LEDGER_PATH, or appear in ledger-isolation-discovery's covered list. In the shared setup, chmod 700 \"$XDG_RUNTIME_DIR\" after exporting it. In the CLI, fail loudly when the resolved lock dir does not meet its ownership and mode checks instead of falling back to a shared path, so a misconfigured override is visible in test output.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:20:18Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 9401,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "24e25d7c49efaa79d41a16c130ef06982a1bdb951972be9d20de98b6471e274d",
+      "run_tag": "e3-more-tests"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

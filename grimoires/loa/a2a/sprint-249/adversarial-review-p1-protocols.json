@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/constructs-integration.md:@@ -1,404 +1,4 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new stub states \"this stub keeps the old path and its anchors stable\", but it retains only the H1 heading. Every H2 anchor from the original file is gone: #skill-loading-priority, #license-validation-flow, #exit-codes, #environment-variables, #version-control-automatic-gitignore, #security-considerations, #troubleshooting, and the rest. The implementation report says anchor preservation was done only for recommended-hooks §4 and the session-continuity notes-guard recipes, so for this file the stub's own text overstates what it preserves.",
+      "failure_mode": "Any inbound link of the form constructs-integration.md#exit-codes (or any other H2 fragment) now resolves to the stub with no matching heading, so the fragment silently lands at the top of a four-line file. A reader or agent following such a link gets no content and no indication the section moved. The stub's wording also misleads future maintainers into believing fragment links are safe.",
+      "suggested_fix": "Either (a) amend the stub text to say only the path is stable and anchors have moved, or (b) keep the original H2 headings in the stub as one-line pointers to the reference file so fragments still resolve. In both cases grep the repo for 'constructs-integration.md#' and repoint any fragment links to .claude/protocols/reference/constructs-integration.md#<anchor>.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T20:51:37Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 5263,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "58fdfbdae1907d5c6677885099307629fbd064bf74a687cc9bd2d2a75873c1b2",
+      "run_tag": "p1-protocols"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/model-adapter.bats:MA-9",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "MA-9's second case is commented as \"main() exits while the stderr file is live \u2014 both handlers run\", but with MI_EXIT=3 the adapter takes `result=$(...) || exit_code=$?`, then `rm -f`, then restores the prior trap via `eval \"$prev_exit_trap\"`, and only exits later. By the time EXIT fires the chained handler has already been replaced by the original one. The assertion `PRIOR-EXIT-RAN` therefore only proves the restore path (already proven by the success case), not that the chained `rm -f -- \"$err_file\"; <prior body>` string is well-formed and runs both halves when the process dies with the file live. MA-8 covers TERM-mid-call but without a prior trap, so the one code path this change actually adds (chained body executing) has no test.",
+      "failure_mode": "A future regression in the chained trap string (e.g. quoting of `prev_exit_body`, a prior body ending in `&` or starting with a comment that swallows the rest) would pass MA-9 and MA-8 unnoticed, and surface only as a lost caller EXIT handler or an orphaned stderr file in production under TERM.",
+      "suggested_fix": "Add a third case modelled on MA-8: set a prior EXIT trap, run the adapter with a `mi` shim that sleeps, send TERM to the adapter mid-call, then assert both that `PRIOR-EXIT-RAN` is on stderr and that `compgen -G \"$priv/model-adapter-stderr.*\"` finds nothing. Correct the comment on the existing MI_EXIT=3 case to say it exercises the restore path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "s3-shell"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff updates the `rule_key` function comment to include `Bash(:*)` as universal, but the file's header block \u2014 the normative grammar statement cited as cycle-126 SDD D-4.5 (\"A universal rule (bare Bash, or Bash(*) after trimming) covers every Bash requirement\") \u2014 still lists only bare `Bash` and `Bash(*)`. The usage text and the header are what operators read when a preflight passes or fails unexpectedly; they now disagree with the implementation on which rules are treated as allow-all / deny-all.",
+      "failure_mode": "An operator with `Bash(:*)` in a deny list sees every requirement reported denied and, consulting the header, concludes the checker is wrong rather than the settings; conversely a reviewer auditing the grammar against the SDD misses that the empty-prefix form is universal.",
+      "suggested_fix": "Update the header grammar paragraph (and the SDD D-4.5 text if it is quoted there) to read: \"A universal rule (bare Bash, Bash(*), or the empty prefix Bash(:*) after trimming) covers every Bash requirement\".",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "s3-shell"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -76,20 +82,37 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new URL guard builds the preceding token with `re.search(r'\\S*$', body[max(0, m.start() - 4096):m.start()])`. Without re.MULTILINE, Python's `$` matches at end of string OR immediately before a string-final '\\n'. When a path:line citation is the first token on its line and the previous line ends with a URL (any token containing `://`, or one starting with `//`), the window ends in `...url\\n`, so `\\S*$` returns the previous line's last token instead of the empty string. `tok` becomes e.g. `https://example.com/pr/1c.sh`, `URL.search(tok)` matches, and the legitimate citation is skipped via `continue`. Concrete input: `see https://example.com/pr/1\\nc.sh:7 returns early\\n` against pr-x reports D3 missed; the same text with a blank line between, a `- ` prefix, or CRLF endings detects D3. The header comment's spec is 'a match inside any URL token is not a citation'; a citation on the next line is not inside the URL token. None of RG-21..RG-24 exercise a line-leading citation after a URL line, so the suite passes with the bug in place.",
+      "failure_mode": "Silent false negative: a correct review that lists `path:line` at line start under a line ending in a reference URL is graded as missing the defect. The defect-fixture gate fails for a correct review, recall is under-reported, and A/B comparisons driven by this grader (the pre-registered revert rule in the report) are skewed by a formatting artefact rather than review content.",
+      "suggested_fix": "Anchor at true end of string: `re.search(r'\\S*\\Z', window)`, or replace the regex with a backward scan to the last whitespace character (`j = len(pre); while j and not pre[j-1].isspace(): j -= 1; tok = pre[j:] + m.group('path')`). Add a bats case: a line ending in a URL followed directly (single LF) by a line-leading `c.sh:7`, expecting D3.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "e3-eval"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "performance",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -76,20 +82,37 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`re.search(r'\\S*$', window)` is O(k^2) in the length k of each non-whitespace run inside the 4096-char window: at every start position `\\S*` consumes the run, `$` fails, and sre backtracks one character at a time. It is evaluated once per path-branch match. A review containing a long unbroken token (minified line, base64, a long URL list without spaces) followed by many citations pays up to ~8M steps per citation.",
+      "failure_mode": "Grader wall time grows super-linearly on reviews with long unbroken tokens; in the eval harness this shows as slow or timed-out grading rather than a wrong answer.",
+      "suggested_fix": "Use the manual backward scan from DISS-001 (O(k)), or `pre.rsplit(None, 1)` semantics guarded by `pre[-1].isspace()`; `\\S*\\Z` alone fixes correctness but keeps the quadratic backtracking.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "e3-eval"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -27,6 +27,12 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk documents a new parser generation (run 2: URL-token rule, unspaced ranges, number-boundary lookahead on every number, narrowed bare-`:N` guard, unified trailer pattern), and these change which citations are credited (e.g. `a.sh:12-2026-10-05` and `a.sh:12 - 40` no longer cite 40, `\"head:40\"` now binds). The emitted `grader_version` in the success JSON and both `err()` paths remains \"1.1.1\", the same value used for the run-1 parser whose A/B results are recorded in replay-ab-rerun.md.",
+      "failure_mode": "Grader outputs produced before and after this change are indistinguishable by version field, so the recorded A/B gate results and any re-run cannot be attributed to the correct parser semantics; a replay that mixes versions looks consistent when it is not.",
+      "suggested_fix": "Bump `grader_version` (e.g. 1.1.2) in the output dict and both `err()`/missing-review printf strings, and note the version in the header comment next to the 'Run 2' paragraph.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "e3-eval"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T10:02:24Z",
+    "status": "reviewed",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar \u2014 not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 24797,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1d17bf8010962051896b61c2c2bfffb48c2724614a91f58ed336e804918d6ce4",
+      "run_tag": "e3-eval"
+    },
+    "merged_from_chunks": [
+      {
+        "chunk": "s3-shell",
+        "file": "adversarial-review-s3-shell.json",
+        "status": "clean",
+        "findings": 2,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "e3-eval",
+        "file": "adversarial-review-e3-eval.json",
+        "status": "clean",
+        "findings": 3,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      }
+    ],
+    "head": "64c2eb09",
+    "note": "per-chunk dissent (each chunk under the voice's 24K input budget); findings are the union of every chunk's latest run; the per-chunk envelopes and rejected sidecars stay beside this file"
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

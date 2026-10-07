@@ -1,0 +1,153 @@
+.claude/scripts/red-team-model-adapter.sh:72:    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+.claude/scripts/red-team-model-adapter.sh:73:    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+.claude/scripts/red-team-model-adapter.sh:74:    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+.claude/scripts/red-team-model-adapter.sh:75:    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+.claude/scripts/red-team-model-adapter.sh:101:                       claude-opus-4-7, gemini-3.1-pro, kimi, qwen, etc.).
+.claude/scripts/generated-model-maps.sh:29:    ["claude-opus-4-8"]="anthropic"
+.claude/scripts/generated-model-maps.sh:30:    ["claude-opus-4-7"]="anthropic"
+.claude/scripts/generated-model-maps.sh:31:    ["claude-opus-4-6"]="anthropic"
+.claude/scripts/generated-model-maps.sh:33:    ["claude-sonnet-4-6"]="anthropic"
+.claude/scripts/generated-model-maps.sh:34:    ["claude-sonnet-4-5-20250929"]="anthropic"
+.claude/scripts/generated-model-maps.sh:37:    ["us.anthropic.claude-opus-4-8"]="bedrock"
+.claude/scripts/generated-model-maps.sh:38:    ["us.anthropic.claude-opus-4-7"]="bedrock"
+.claude/scripts/generated-model-maps.sh:39:    ["us.anthropic.claude-sonnet-4-6"]="bedrock"
+.claude/scripts/generated-model-maps.sh:79:    ["claude-opus-4-8"]="anthropic"
+.claude/scripts/generated-model-maps.sh:81:    ["claude-opus-4-7"]="anthropic"
+.claude/scripts/generated-model-maps.sh:84:    ["claude-opus-4-6"]="anthropic"
+.claude/scripts/generated-model-maps.sh:86:    ["claude-opus-4-5"]="anthropic"
+.claude/scripts/generated-model-maps.sh:88:    ["claude-opus-4-1"]="anthropic"
+.claude/scripts/generated-model-maps.sh:90:    ["claude-opus-4-0"]="anthropic"
+.claude/scripts/generated-model-maps.sh:111:    ["claude-opus-4-8"]="claude-opus-4-8"
+.claude/scripts/generated-model-maps.sh:112:    ["claude-opus-4-7"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:113:    ["claude-opus-4-6"]="claude-opus-4-6"
+.claude/scripts/generated-model-maps.sh:115:    ["claude-sonnet-4-6"]="claude-sonnet-4-6"
+.claude/scripts/generated-model-maps.sh:116:    ["claude-sonnet-4-5-20250929"]="claude-sonnet-4-5-20250929"
+.claude/scripts/generated-model-maps.sh:119:    ["us.anthropic.claude-opus-4-8"]="us.anthropic.claude-opus-4-8"
+.claude/scripts/generated-model-maps.sh:120:    ["us.anthropic.claude-opus-4-7"]="us.anthropic.claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:121:    ["us.anthropic.claude-sonnet-4-6"]="us.anthropic.claude-sonnet-4-6"
+.claude/scripts/generated-model-maps.sh:161:    ["claude-opus-4-8"]="claude-opus-4-8"
+.claude/scripts/generated-model-maps.sh:162:    ["claude-opus-4.8"]="claude-opus-4-8"
+.claude/scripts/generated-model-maps.sh:163:    ["claude-opus-4-7"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:164:    ["claude-opus-4.7"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:165:    ["claude-opus-4.6"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:166:    ["claude-opus-4-6"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:167:    ["claude-opus-4.5"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:168:    ["claude-opus-4-5"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:169:    ["claude-opus-4.1"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:170:    ["claude-opus-4-1"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:171:    ["claude-opus-4.0"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:172:    ["claude-opus-4-0"]="claude-opus-4-7"
+.claude/scripts/generated-model-maps.sh:197:    ["claude-opus-4-8"]="http_api"
+.claude/scripts/generated-model-maps.sh:198:    ["claude-opus-4-7"]="http_api"
+.claude/scripts/generated-model-maps.sh:199:    ["claude-opus-4-6"]="http_api"
+.claude/scripts/generated-model-maps.sh:201:    ["claude-sonnet-4-6"]="http_api"
+.claude/scripts/generated-model-maps.sh:202:    ["claude-sonnet-4-5-20250929"]="http_api"
+.claude/scripts/generated-model-maps.sh:205:    ["us.anthropic.claude-opus-4-8"]="aws_iam"
+.claude/scripts/generated-model-maps.sh:206:    ["us.anthropic.claude-opus-4-7"]="aws_iam"
+.claude/scripts/generated-model-maps.sh:207:    ["us.anthropic.claude-sonnet-4-6"]="aws_iam"
+.claude/scripts/generated-model-maps.sh:232:    ["claude-opus-4-8"]="anthropic-claude"
+.claude/scripts/generated-model-maps.sh:233:    ["claude-opus-4-7"]="anthropic-claude"
+.claude/scripts/generated-model-maps.sh:234:    ["claude-opus-4-6"]="anthropic-claude"
+.claude/scripts/generated-model-maps.sh:236:    ["claude-sonnet-4-6"]="anthropic-claude"
+.claude/scripts/generated-model-maps.sh:237:    ["claude-sonnet-4-5-20250929"]="anthropic-claude"
+.claude/scripts/generated-model-maps.sh:240:    ["us.anthropic.claude-opus-4-8"]="bedrock-anthropic"
+.claude/scripts/generated-model-maps.sh:241:    ["us.anthropic.claude-opus-4-7"]="bedrock-anthropic"
+.claude/scripts/generated-model-maps.sh:242:    ["us.anthropic.claude-sonnet-4-6"]="bedrock-anthropic"
+.claude/scripts/generated-model-maps.sh:266:    ["claude-opus-4-8"]="128000"
+.claude/scripts/generated-model-maps.sh:267:    ["claude-opus-4-7"]="128000"
+.claude/scripts/generated-model-maps.sh:268:    ["claude-opus-4-6"]="128000"
+.claude/scripts/generated-model-maps.sh:270:    ["claude-sonnet-4-6"]="128000"
+.claude/scripts/generated-model-maps.sh:286:    claude-opus-4-0
+.claude/scripts/generated-model-maps.sh:287:    claude-opus-4-1
+.claude/scripts/generated-model-maps.sh:288:    claude-opus-4-5
+.claude/scripts/generated-model-maps.sh:289:    claude-opus-4-6
+.claude/scripts/generated-model-maps.sh:290:    claude-opus-4-7
+.claude/scripts/generated-model-maps.sh:291:    claude-opus-4-8
+.claude/scripts/generated-model-maps.sh:301:    claude-sonnet-4-5-20250929
+.claude/scripts/generated-model-maps.sh:302:    claude-sonnet-4-6
+.claude/scripts/generated-model-maps.sh:339:    us.anthropic.claude-opus-4-7
+.claude/scripts/generated-model-maps.sh:340:    us.anthropic.claude-opus-4-8
+.claude/scripts/generated-model-maps.sh:341:    us.anthropic.claude-sonnet-4-6
+.claude/scripts/loa-substrate-recalibrate.sh:23:#   loa-substrate-recalibrate.sh anthropic:claude-opus-4-7 \
+.claude/scripts/loa-substrate-recalibrate.sh:43:  <model-id>            provider:model_id form (e.g. anthropic:claude-opus-4-7)
+.claude/scripts/flatline-orchestrator.sh:703:    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+.claude/scripts/flatline-orchestrator.sh:704:    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+.claude/scripts/flatline-orchestrator.sh:705:    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+.claude/scripts/flatline-orchestrator.sh:706:    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
+.claude/scripts/flatline-orchestrator.sh:707:    ["claude-sonnet-4-6"]="anthropic:claude-sonnet-4-6"
+.claude/scripts/loa-substrate-health.sh:16:#   .claude/scripts/loa-substrate-health.sh --model claude-opus-4-7
+.claude/scripts/lib/model-resolver.sh:26:#   # → "claude-opus-4-7"
+.claude/scripts/lib/model-resolver.sh:30:#   # → "anthropic:claude-opus-4-7"
+.claude/scripts/lib-provider-parse.sh:37:#   "anthropic:claude-opus-4-7"        → ("anthropic", "claude-opus-4-7")        exit 0
+.claude/scripts/lib-provider-parse.sh:38:#   "bedrock:us.anthropic.claude-opus-4-7" → ("bedrock", "us.anthropic.claude-opus-4-7") exit 0
+.claude/scripts/flatline-learning-extractor.sh:315:    # catalog's `cheap` alias, not the retired gpt-4o-mini id.
+.claude/scripts/model-adapter.sh:118:    ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:119:    ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:120:    ["claude-opus-4.6"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:121:    ["claude-opus-4-6"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:122:    ["claude-opus-4.5"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:123:    ["claude-opus-4-5"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:124:    ["claude-opus-4.1"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:125:    ["claude-opus-4-1"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:126:    ["claude-opus-4.0"]="anthropic:claude-opus-4-7"
+.claude/scripts/model-adapter.sh:127:    ["claude-opus-4-0"]="anthropic:claude-opus-4-7"
+.claude/skills/autonomous-agent/resources/operator-detection.md:101:Agent: claude-opus-4-7
+.claude/skills/bridgebuilder-review/resources/adapters/index.ts:64:  // (e.g. claude-opus-4-7) — intentional, same KF-010 root cause applies.
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:24:  "claude-opus-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:25:  "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:26:  "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:29:  "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:30:  "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:33:  "us.anthropic.claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:34:  "us.anthropic.claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts:35:  "us.anthropic.claude-sonnet-4-6": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.ts:665:  "claude-sonnet-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.ts:666:  "claude-sonnet-4-5-20250929": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.ts:667:  "claude-opus-4-7": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/truncation.ts:668:  "claude-opus-4-6": { maxInput: 160_000, maxOutput: 8_192, coefficient: 0.25 },
+.claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:50: * headless hops). Non-reasoning variants (e.g. claude-sonnet-4-5-20250929,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:55:  "claude-opus-4-6": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:57:    modelId: "claude-opus-4-6",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:63:  "claude-opus-4-7": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:65:    modelId: "claude-opus-4-7",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:71:  "claude-opus-4-8": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:73:    modelId: "claude-opus-4-8",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:95:  "claude-sonnet-4-5-20250929": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:97:    modelId: "claude-sonnet-4-5-20250929",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:103:  "claude-sonnet-4-6": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:105:    modelId: "claude-sonnet-4-6",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:127:  "us.anthropic.claude-opus-4-7": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:129:    modelId: "us.anthropic.claude-opus-4-7",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:135:  "us.anthropic.claude-opus-4-8": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:137:    modelId: "us.anthropic.claude-opus-4-8",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:143:  "us.anthropic.claude-sonnet-4-6": {
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:145:    modelId: "us.anthropic.claude-sonnet-4-6",
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:284:  "claude-opus-4-6": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:285:  "claude-opus-4-7": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:286:  "claude-opus-4-8": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:289:  "claude-sonnet-4-5-20250929": false,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:290:  "claude-sonnet-4-6": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:293:  "us.anthropic.claude-opus-4-7": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:294:  "us.anthropic.claude-opus-4-8": true,
+.claude/skills/bridgebuilder-review/resources/config.generated.ts:295:  "us.anthropic.claude-sonnet-4-6": false,
+.claude/skills/cost-budget-enforcer/SKILL.md:135:.claude/scripts/budget/budget-cli.sh record 1.42 --provider anthropic --model-id claude-opus-4-7
+.claude/skills/loa-aleph/SKILL.md:34:  --model claude-opus-4-8 \
+.claude/data/trajectory-schemas/budget-events/budget-record-call.payload.schema.json:42:      "description": "Optional model/SKU charged (e.g., 'claude-opus-4-7')."
+.claude/data/trajectory-schemas/model-resolver-output.schema.json:63:      "description": "Canonical model_id (e.g., 'claude-opus-4-7'). Required on success. Pattern matches the model_aliases_extra.id pattern from cycle-099 Sprint 2A."
+.claude/data/model-permissions.yaml:147:  anthropic:claude-opus-4-7:
+.claude/data/model-permissions.yaml:178:  anthropic:claude-opus-4-6:
+.claude/data/model-permissions.yaml:201:      use `anthropic:claude-opus-4-6` in .loa.config.yaml overrides. Trust
+.claude/data/model-permissions.yaml:340:  anthropic:claude-opus-4-8:
+.claude/data/model-permissions.yaml:366:  anthropic:claude-sonnet-4-6:
+.claude/data/model-permissions.yaml:388:      bedrock:us.anthropic.claude-sonnet-4-6.
+.claude/data/model-permissions.yaml:393:  anthropic:claude-sonnet-4-5-20250929:
+.claude/data/model-permissions.yaml:622:  bedrock:us.anthropic.claude-opus-4-8:
+.claude/data/model-permissions.yaml:644:      anthropic:claude-opus-4-8; scopes copied from the 4.7 entry.
+.claude/data/model-permissions.yaml:646:  bedrock:us.anthropic.claude-opus-4-7:
+.claude/data/model-permissions.yaml:668:      anthropic:claude-opus-4-7 — high trust_level (Anthropic safety
+.claude/data/model-permissions.yaml:673:  bedrock:us.anthropic.claude-sonnet-4-6:
+.claude/data/model-permissions.yaml:694:      Bedrock-routed Claude Sonnet 4.6. Mirrors anthropic:claude-sonnet-4-6
+.claude/data/personas/alternative-model.md:30:Operators MAY swap the model (e.g., to `bedrock:us.anthropic.claude-opus-4-8`, `gemini-2.5-pro`, etc.) but should keep at least one cross-family panelist when the decision_class is novel.
+.claude/defaults/aliases-legacy.yaml:26:  cheap: "anthropic:claude-sonnet-4-6"
+.claude/defaults/aliases-legacy.yaml:27:  opus: "anthropic:claude-opus-4-7"
+lines 152

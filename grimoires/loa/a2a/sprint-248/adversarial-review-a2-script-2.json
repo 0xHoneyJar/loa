@@ -1,0 +1,114 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "type-error",
+      "anchor": ".claude/scripts/adversarial-review.sh:repair_metadata_json",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "`repair_metadata_json` binds `rhs` with `--argjson`, but the value is a plain space-separated string from `sort | tr | sed`, or an empty string when no repair hops were skipped. `jq --argjson rhs \"\"` and `jq --argjson rhs \"claude:over_budget\"` are invalid JSON, so envelope construction fails even on normal runs with no skip file.",
+      "failure_mode": "A review can complete validation and then abort while building metadata, producing no adversarial envelope. With `set -e`, the failed command substitution can terminate the script before `write_output`; without it, later `--argjson repairmeta \"$repair_metadata_json\"` receives an empty/non-JSON value and fails as well.",
+      "suggested_fix": "Change `--argjson rhs ...` to `--arg rhs ...` and keep the existing jq expression treating `$rhs` as a string, or emit a real JSON array from the shell and adjust the jq expression accordingly.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_take_run_lock",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the takeover section the verdict `stuck` is emitted whenever `mv -- \"$dir\" \"$_stale\"` fails, which conflates two different states: the dead lock directory could not be renamed (permissions), and the directory vanished between the `[[ -d \"$dir\" ]] || { echo released; }` check and the rename (the holder released unserialised after its own 5 s flock wait, or without flock installed). After the loop, `stuck` is mapped to `_adv_run_lock_unguarded` and the run proceeds. If a `stuck` verdict lands on round 3 and the round-4 `mkdir` then loses to a fresh run that took the freed key, the code reports a dead lock that could not be moved aside and runs unguarded beside a live holder, whereas the same round-4 loss after `takeover`/`released` is correctly refused.",
+      "failure_mode": "Two live runs for the same (sprint, gate) write the single-writer envelope and sidecars concurrently, in exactly the window the lock exists to close. Requires the vanish-during-section race to occur on round 3 specifically plus a lost round-4 mkdir, so the likelihood is low.",
+      "suggested_fix": "After the failed `mv`, distinguish the states: `if mv ...; then ...; echo takeover; elif [[ ! -d \"$dir\" ]]; then echo released; else echo stuck; fi`. `released` already routes a lost round-4 mkdir to a refusal rather than an unguarded run.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-04T23:40:23Z",
+    "tokens_input": 78957,
+    "tokens_output": 62078,
+    "cost_usd": 0,
+    "latency_ms": 24487,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a2-script-2.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a2-script-2.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "03bb835aaf528a7bfa38677903fd658afd47cc687e36cdcde45ed86c96a585d2",
+      "run_tag": "a2-script-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

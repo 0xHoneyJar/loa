@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/data/model-permissions.yaml:anthropic:claude-headless",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new anthropic:claude-headless row records a static posture (execution_mode: remote_model; file_read/file_write/command_execution/network_access all false) for an adapter that spawns a local `claude -p` process in the operator's environment. The row's own notes concede that the posture only holds while the catalog's `extra.allowed_tools` stays empty. Nothing in test_trust_scopes.py ties this registry row to that adapter configuration, and `claude -p` also loads project-level settings from the cwd (hooks, .mcp.json servers) which `--tools \"\"` is not documented to exclude. In a P0 trust registry, a capability that is actually governed by a sibling config field is being asserted as a constant.",
+      "failure_mode": "A later sprint or an operator sets extra.allowed_tools on the claude-headless catalog entry, or the repo gains an MCP server config. The CLI hop now has real tool, file or network capability while the registry still says all-false and grants context_access.security: redacted on that basis. Every trust-scope test stays green because none of them read the adapter config.",
+      "suggested_fix": "Add a test alongside test_every_anthropic_catalog_entry_has_a_row that loads the catalog's claude-headless entry and asserts extra.allowed_tools is absent or empty (and, if the adapter supports it, that --strict-mcp-config is passed with no servers), with a failure message that points at this registry row. Alternatively give CLI-transport hops a distinct execution_mode (e.g. local_cli) so consumers can distinguish them from pure HTTP remotes rather than relying on prose in notes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/data/model-permissions.yaml:@@ -201,6 +201,274 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "This change adds eleven near-identical rows across two sections of a hand-maintained security registry. yaml.safe_load, used by _load_permissions and presumably by the runtime consumer, silently resolves duplicate mapping keys to the last occurrence. Neither the existing schema tests nor the two new tests detect duplicates, so a second definition of a key such as anthropic:claude-sonnet-4-6 or anthropic:claude-opus-5-5 placed later in the file (a likely copy-paste outcome given the row shape) would shadow the intended row while test_current_generation_rows_mirror_the_4_7_scopes and test_every_anthropic_catalog_entry_has_a_row both keep passing against the surviving definition.",
+      "failure_mode": "Silent widening or narrowing of a model's trust scopes via a duplicate key in the registry, with CI green and no diagnostic.",
+      "suggested_fix": "In _load_permissions, load with a yaml.SafeLoader subclass whose construct_mapping raises on duplicate keys, and add a test that asserts the file loads under that loader. This is a few lines and closes the gap for every future row addition, not just this one.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_trust_scopes.py:test_current_generation_rows_mirror_the_4_7_scopes",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The mirror test pins only six of the eleven rows this diff adds. anthropic:claude-fable-5, anthropic:claude-sonnet-4-6, anthropic:claude-sonnet-4-5-20250929, anthropic:claude-haiku-4-5-20251001 and anthropic:claude-headless each carry a note saying their scopes were copied from the 4.7 entry, but they are only checked for schema validity by the generic tests. The all-none guarantee that D-4.2 relies on for remote Anthropic models is therefore unenforced for those five rows; setting data_access: high or network_access: true on any of them passes the suite.",
+      "failure_mode": "A later edit widens one of the unpinned rows. CI passes. The model is granted operational scopes the registry design did not intend, and the drift is only discoverable by manual reading.",
+      "suggested_fix": "Derive the key list from the catalog (reuse the `served` computation from test_every_anthropic_catalog_entry_has_a_row) or from every anthropic:/bedrock:*anthropic.* key in self.models, and assert trust_scopes, trust_level, execution_mode and capabilities equal the 4.7 reference for all of them, with an explicit allow-list for any row that is meant to differ. Also consider asserting the reference row itself is all-none inside this test rather than relying transitively on test_anthropic_opus_4_7_all_none.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:02:19Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 14908,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d0f03970d0d7e956f81b4b1b3dc251731d62a3a30bf83d7e4e933820323c0273",
+      "run_tag": "r-perms"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

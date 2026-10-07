@@ -1,0 +1,139 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_aliases_retargeted_to_the_new_generation",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/defaults/model-config.yaml:@@ -1059,10 +1099,10 @@ aliases:",
+      "cross_file_justification": "The test (in diff) asserts on catalog['backward_compat_aliases'] keys that the model-config.yaml hunks (in diff) do not add. The yaml diff shows exactly two hunks (the new claude-opus-5-5 model entry at 467 and the aliases block at 1059→1099, offset +40 consistent with no intervening hunk, trailing context ends the file diff), so no backward_compat_aliases change ships in this diff.",
+      "description": "The new assertion `compat[\"claude-opus-5-5\"] == compat[\"claude-opus-5.5\"] == \"anthropic:claude-opus-5-5\"` requires two new backward_compat_aliases entries. The catalog diff adds the claude-opus-5-5 model entry and retargets `opus`/`cheap`, but touches no backward_compat_aliases key. The existing `claude-opus-5` compat self-map pattern (pinned on the next line) was added when that model landed; the 5.5 equivalent is missing here.",
+      "failure_mode": "`compat[\"claude-opus-5-5\"]` raises KeyError and the Anthropic catalog-floor suite goes red on every CI run. Beyond the test, operators who pin the bare id `claude-opus-5-5` or the dotted `claude-opus-5.5` (the form the test deliberately covers) do not get the compat resolution that every other served generation has, so pins written against the migration guide's new id can fail alias resolution or diverge from the generated bash maps.",
+      "suggested_fix": "Add `claude-opus-5-5: \"anthropic:claude-opus-5-5\"` and `claude-opus-5.5: \"anthropic:claude-opus-5-5\"` under backward_compat_aliases in .claude/defaults/model-config.yaml, then regenerate generated-model-maps.sh and the BB registry so test_generated_aliases_match_python_resolution stays green. If the keys already exist on the branch, include that hunk in the review diff so the assertion is traceable.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_advisor_tier_points_at_opus_5",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/tests/test_anthropic_catalog_floor.py:test_advisor_tier_points_at_opus_5",
+      "cross_file_justification": "The diff-touched test adds two substring assertions against .loa.config.yaml.example, a file that is not in the diff. The implementation report lists regenerated maps, registry, permissions and six script/skill pins but never mentions updating the example config.",
+      "description": "Two new assertions require the literal strings `opus: \"anthropic:claude-opus-5-5\"` and `cheap: \"anthropic:claude-sonnet-5\"` to appear in .loa.config.yaml.example. The previous assertion pinned `opus: \"anthropic:claude-opus-5\"`, so the example file must have been edited for the test to pass, yet no such edit is in the diff or the report.",
+      "failure_mode": "If the example file still carries the cycle-124 `opus` line, the assertion fails and the suite is red. If it was edited but with different quoting or spacing than the catalog, the exact-substring match fails the same way while the semantic content is correct.",
+      "suggested_fix": "Include the .loa.config.yaml.example hunk in the change set (or confirm it on the branch), and consider parsing the example with yaml.safe_load and asserting on the resolved alias value rather than an exact substring, matching how the catalog side of the same test is checked.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/defaults/model-config.yaml:@@ -467,6 +467,46 @@ providers:",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The claude-opus-5-5 entry omits a `long_context` pricing tier on the stated rationale that the vendor puts \"Claude 4.6 and later\" on the full 1M window at standard pricing. The same catalog keeps a 2.0x input / 1.5x output `long_context` tier (threshold 200K, verified: false) on claude-opus-5, claude-sonnet-5, claude-fable-5 and claude-fable-5-1, all of which are also 4.6-and-later, and test_five_family_declares_the_beta_header_list_and_the_long_context_tier pins that tier while test_opus_5_5_has_the_1m_window_at_standard_pricing pins its absence. The vendor claim is applied to exactly one entry.",
+      "failure_mode": "One side of the catalog mis-meters input above 200K tokens by 2x for cost-ledger and budget-enforcement purposes. Today the 180K effective_input_ceiling keeps cheval below the threshold, but the ceiling is explicitly a placeholder slated to be raised by the live probe, and LOA_CHEVAL_MAX_INPUT_TOKENS can lift it now; once inputs cross 200K either the default `opus` target under-bills or the rest of the family over-bills.",
+      "suggested_fix": "Resolve the vendor pricing question once for the whole 4.6+ family and make the catalog consistent: either drop the `verified: false` long_context tiers from the FIVE_FAMILY entries (updating the pinning test), or give claude-opus-5-5 the same unverified tier until a probe or invoice confirms standard pricing. Record the outcome in catalog-evidence.md alongside the existing pricing provenance.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/defaults/model-config.yaml:@@ -1059,10 +1099,10 @@ aliases:",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `opus` alias, the framework's default high-quality tier, now resolves to a model id (`claude-opus-5-5`) and wire shape (explicit `thinking: {type: adaptive}`, 64K default max_tokens, `xhigh` effort, 1M context with no beta header) that no live dispatch in this cycle's evidence exercised. The G-1 real call ran through claude-headless to claude-fable-5-1; the opus-5-5 coverage is a --dry-run and unit tests over the catalog.",
+      "failure_mode": "If the vendor rejects the id, the explicit thinking shape, or the effort value for this model, every `opus` consumer silently falls through the chain to claude-opus-5 at $5/$25 instead of $4/$20, so the cost ledger diverges from the catalog's expected price and the fallback is only visible in logs. The `cheap` retarget to claude-sonnet-5 also newly drops caller temperature with a once-per-process warning, a behaviour change for budget-tier callers.",
+      "suggested_fix": "Before merging, run one live smoke call with `--model opus` and attach the MODELINV row to the e2e/ evidence (as was done for G-1), confirming the id resolves, the explicit adaptive thinking block is accepted, and the returned model string matches. Note the `cheap` temperature-drop change in the migration addendum.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T06:51:44Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21235,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8b3f6c545e05f1405af19fad112953b41133c7618fe69c893d0664b1b1554b5d",
+      "run_tag": "c1-catalog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

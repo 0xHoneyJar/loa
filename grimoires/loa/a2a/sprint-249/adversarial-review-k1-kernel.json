@@ -1,0 +1,163 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/loa/CLAUDE.loa.md:agent_teams_constraints",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The generated Agent Teams constraint block in `CLAUDE.loa.md` was not regenerated after the corresponding rationales changed in `.claude/data/constraints.json`. The file still contains the old shorter rationale text and the old generated hash (`c020-teamcreate`) for `agent_teams_constraints`.",
+      "failure_mode": "Generated instruction artifacts drift from their source of truth. Any validation that checks generated constraint blocks against `.claude/data/constraints.json` will fail, and agents consuming `CLAUDE.loa.md` receive stale rationale text despite the source update.",
+      "suggested_fix": "Regenerate `CLAUDE.loa.md` from `.claude/data/constraints.json` so the `agent_teams_constraints` block text and hash match the updated source, or revert the source rationale edits if they were not intended to affect generated instructions.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:@@ -1,7 +1,7 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Sprint AC 'Replay A/B: no gold case loses recall' is not met by the change under review. The pre-registered gate (pooled n=9, after >= before per case, fixed before extra trials ran) failed on five cases: review-pr-02 .926->.815, review-pr-05 .963->.852, audit-pr-02 .852->.815, audit-pr-03 1->.963, audit-pr-05 .926->.889. Missed-defect slots doubled from 5/144 to 10/144, concentrated on D13-find-exec-multi-root (0/6 -> 3/6) and D06-prerelease-tags-rejected (1/6 -> 3/6). The pre-registered remedy (revert or retune the implicated change) was not applied; a post-hoc LLM adjudication was substituted as the measure, and even on that measure audit-pr-02 still loses (.963 vs 1.000). The ablation commit c9b7bdc0 restored only this include and left the long-class thresholds table in tool-result-clearing.md, the five protocol moves, and the CLAUDE.loa.md diet in place, so 'the include is not what moves the grader' does not exclude the other diff-touched changes (kernel truenames/Reference collapse, constraint rationale cuts) as the cause; the before arm (main 2079e719) has none of them.",
+      "failure_mode": "reviewing-code and auditing-security ship with a measured recall regression on the gold set. Defects of the D13 (multi-root find -exec) and D06 (prerelease tag rejection) classes pass the review and audit gates in roughly half of trials instead of 0-1 in 6. The gates are the framework's only check that code meets acceptance and security criteria (per C-PROC rationale in this same diff), so the regression is a production quality exposure, not a test artefact.",
+      "suggested_fix": "Treat the pre-registered gate as binding. Either (a) revert the default to standard thresholds (or the full Sprint 3 diet) until bd-ewrc lands and a re-baselined A/B passes the registered gate on the fixed grader, or (b) run a proper component ablation: after-tree minus include, after-tree minus protocol thresholds table, after-tree minus kernel diet, each at n=9 on the five losing cases, and revert the component that moves recall. Do not accept a post-hoc adjudicated measure as the AC gate; record the decision in the audit, not the implementer report.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/loa/CLAUDE.loa.md:<!-- @constraint-generated: start agent_teams_constraints | hash:c020-teamcreate -->",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:@@ -1232,7 +1232,7 @@",
+      "cross_file_justification": "The diff edits the why field of the five C-TEAM constraints (constraints.json hunks at 1232, 1253, 1274, 1295, 1316). The rendered agent_teams_constraints block in CLAUDE.loa.md, which claims to be generated from constraints.json, was not touched by the regeneration and its Why text matches neither the old nor the new why.",
+      "description": "Five of the twelve tightened rationales have no rendered effect. generate-constraints.sh was re-run and the process_compliance_never/always hashes changed (74e01d57->2fe3c087, bcb45bf9->811c6b84), but the agent_teams_constraints block kept the static non-hash marker 'hash:c020-teamcreate' and Why text such as 'Planning skills assume single-writer semantics' and 'SQLite single-writer prevents lock contention', which match neither the pre- nor post-diff why. Either the block is hand-maintained under a 'DO NOT EDIT - generated from constraints.json' marker, or the generator renders it from a different field. prompt-audit-generated-blocks passed 3/3 with this divergence, so the drift check does not cover the block. The report's 'twelve rationales tightened ... golden tables re-rendered' holds for seven.",
+      "failure_mode": "Future edits to C-TEAM why strings silently never reach the kernel prompt, and the generated/DO-NOT-EDIT marker gives a false guarantee. Anyone correcting an Agent Teams rationale in constraints.json (e.g. after an incident) will believe the kernel updated when it did not.",
+      "suggested_fix": "Either make generate-constraints.sh render agent_teams_constraints from why (or a declared short-why field) with a real content hash and add the block to the prompt-audit-generated-blocks drift check, or remove the generated marker from that section and revert the five no-op constraints.json edits so the source of truth is not misleading.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:@@ -1,7 +1,7 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The include fixes long as the default class, and per the report the SessionStart hook resolves every error path to long. The permissive class is therefore the fail-open outcome for a <=200K model whenever detection fails: payload lacks .model, catalog alias miss, yq absent, or the hook not wired in a consumer repo that only merged one of the two settings files. Long thresholds are 20K single / 50K accumulated / 30K full file / 150K session, i.e. 75% of a 200K window before the extraction rule fires, on top of kernel, skills, and includes.",
+      "failure_mode": "On a 200K-window session (e.g. Haiku 4.5) with detection failure, the agent follows long-class discipline, never extracts to NOTES.md, exhausts context, and compacts mid-task. The compaction destroys exactly the cross-session state the discipline exists to preserve, and Run Mode Recovery then resumes from a NOTES.md that was never updated.",
+      "suggested_fix": "Fail closed: resolve unknown model and error paths to standard, select long only on a positive catalog match >200K or an explicit LOA_CONTEXT_CLASS=long, and change the include wording to 'standard when the class is unknown'. Add a CC test for the no-.model / no-catalog path asserting standard.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:@@ -1,7 +1,7 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two pieces of operative guidance were dropped from the include without a skill-reachable replacement. (a) The NOTES.md routing clause 'decisions -> Decision Log, issues -> Technical Debt' is gone; with session-continuity.md moved to .claude/protocols/reference/ behind a stub in this same sprint, the routing rule is now two hops from any skill. (b) The protocol reference shrank from .claude/protocols/tool-result-clearing.md to the bare tool-result-clearing.md. This sprint created a second protocols directory (protocols/reference/), so a bare name is now ambiguous, and bare names are invisible to protocol-refs-resolve, so a future move of that file would not be caught.",
+      "failure_mode": "Agents append decisions and debt into Session Continuity or arbitrary sections; notes-guard section reads and Decision Log consumers miss them, and the 'reason from the synthesis' step degrades. A skill loaded without the protocols tree in context may fail to locate the thresholds file by bare name.",
+      "suggested_fix": "Restore the full protocol path (19 bytes) and a short routing clause such as 'decisions -> Decision Log, debt -> Technical Debt' (about 45 bytes, within the include's headroom), or move the routing rule into the NOTES.md template header where notes-guard surfaces it on every read.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T21:02:58Z",
+    "tokens_input": 52785,
+    "tokens_output": 16489,
+    "cost_usd": 0,
+    "latency_ms": 21450,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-k1-kernel.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-k1-kernel.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "9fbb9ca46e1fea3a26fa512d6e013556066c7a062f537b5c0205f4c65198b198",
+      "run_tag": "k1-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

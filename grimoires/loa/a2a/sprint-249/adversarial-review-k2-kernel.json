@@ -1,0 +1,139 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/data/constraints.json:@@ -16,6 +16,8 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The sprint's own acceptance criterion for this change (sprint.md Sprint 3: 'Replay A/B: no gold case loses recall') failed on the pre-registered metric. Pooled n=9 graded recall dropped on five of the gold cases (review-pr-02 .926→.815, review-pr-05 .963→.852, audit-pr-02 .852→.815, audit-pr-03 1→.963, audit-pr-05 .926→.889) and missed-defect slots doubled (5/144 → 10/144), concentrated on D13 and D06. The pre-registered remedy ('revert or retune the implicated change') was not applied. Instead the gate was re-adjudicated after the fact by an Opus 5.5 model judge, which is the same model family as the implementing subagent, and 38 of 44 misses were reclassified as grader defects. Pre-registration exists precisely so a failed gate cannot be rescued by post-hoc reinterpretation; the grader defects claimed (a '(' swallowed into a path, ignored continuation citations, a single-anchor D13) are mechanical and should be demonstrated deterministically, not by model judgement. The changelog entry added in this hunk records the context-discipline change as shipped without noting the failed gate.",
+      "failure_mode": "The context-discipline change (long-class thresholds as default, parallelism gates removed, five protocols moved out of the loaded set) merges with a measured recall regression on the gold corpus that the sprint's own gate was designed to catch. If the adjudication is wrong, reviewers and auditors downstream miss more defects (D13-class multi-root find/exec and D06-class prerelease-tag bugs) on every subsequent sprint, with no further gate to catch it.",
+      "suggested_fix": "Do not merge on the post-hoc adjudication alone. Either (a) fix the grader test-first under bd-ewrc (unit tests pinning the three parsing failures named in the report), re-baseline both arms with the fixed grader, and re-run the pre-registered gate on all five losing cases; or (b) apply the pre-registered remedy for the implicated move and re-run. Record whichever path is taken, and the gate outcome, in the changelog entry and the sprint report rather than only in replay-ab.md.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tools/check-prompt-budget.sh:@@ -50,7 +50,7 @@ done",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The re-chosen thresholds are calibrated against the current tree with no operating margin in either direction. PROTO_WARN is 114,688 B while the protocols total after the diet is 131,078 B, so the human-mode run prints 'WARN: protocols total ... exceeds the 114688 B warning threshold' on every CI run from day one, which is the same persistent-warning state the old 143,360 threshold produced against 199,593 B. LOA_LIMIT is 9,216 B against a CLAUDE.loa.md of 9,199 B, leaving 17 bytes; any single-word rationale edit or an added table row breaks CI.",
+      "failure_mode": "A warning that fires unconditionally is ignored, so the warn tier stops functioning as an early signal. A 17-byte ceiling turns every ordinary edit to CLAUDE.loa.md into a budget breach, which pushes contributors to trim unrelated text or move content into uncounted files to land changes.",
+      "suggested_fix": "Either set PROTO_WARN above the post-diet total (e.g. 140,000 B) so the warn tier means 'growth since the diet', or trim protocols below 114,688 B before landing. Give CLAUDE.loa.md a documented margin (a few hundred bytes) or trim the file further so the limit is a ceiling rather than the current size plus 17.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tools/check-prompt-budget.sh:@@ -7,8 +7,8 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header now states '(reference/ is not counted)' and the tool's own charging rule says 'the byte budget cannot be met by moving text into a file the skill still always loads'. The exclusion is implemented only by the non-recursive glob '.claude/protocols/*.md', and the charging regex RES matches only 'resources/<name>.md'. A SKILL.md, a counted protocol, or CLAUDE.loa.md that says 'Read `.claude/protocols/reference/helper-scripts.md`' with no guard word is not charged anywhere. Roughly 68 KB of protocol text left the counted set in this sprint behind stubs that point at the new location; nothing in the tool or the test suite asserts the moved files are reached only via guarded pointers, so the diet is enforced by convention.",
+      "failure_mode": "The always-loaded surface can grow without bound through protocols/reference/ while check-prompt-budget.sh reports green, defeating the gate this change tightens. A future unguarded 'Read reference/X' in a skill silently reintroduces the context pressure the sprint set out to remove.",
+      "suggested_fix": "Extend the charging rule so an unguarded read imperative naming '.claude/protocols/reference/<name>.md' in a SKILL.md or in a counted protocol charges that file's bytes to the referrer, and add a bats case that an unguarded reference/ read breaches. Alternatively add a lint test asserting every occurrence of 'protocols/reference/' in SKILL.md, protocols/*.md and CLAUDE.loa.md is on a line containing a GUARD word.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/data/constraints.json:@@ -16,6 +16,8 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:@@ -16,6 +16,8 @@ ### Changed",
+      "cross_file_justification": "The hook .claude/hooks/session-start/loa-context-class.sh is not in the diff, but this diff-touched hunk states its contract: 'it never blocks and every error path is `long`'. The report confirms the hook depends on yq, the model catalog and the session payload's model field.",
+      "description": "The context class fails open. 'long' selects thresholds ten times larger than 'standard' (20K/50K/30K/150K vs 2K/5K/3K/15K). Every error path (yq absent, catalog unreadable, payload missing .model, alias unresolved, unknown model id) resolves to 'long' rather than to the conservative class. A session on a 200K-window model whose hook hits any of those paths is told it may keep 30K full-file reads and a 150K session, which is the wrong direction to fail on exactly the class of model the discipline exists to protect.",
+      "failure_mode": "On a host without yq or with a stale catalog, a 200K-window session adopts long-class thresholds, fills its context, and degrades mid-sprint with no record that the class was a fallback rather than a resolution.",
+      "suggested_fix": "When the model cannot be resolved to a catalog entry (as opposed to resolving to one with context_window > 200000), fall back to 'standard', or at minimum write the reason into .run/context-class alongside the class so /loa prints 'long (fallback: yq missing)' and the operator can pin LOA_CONTEXT_CLASS. Add a CC case covering the yq-absent and unknown-model paths.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T21:06:57Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 14230,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "43c539135259e52e25e1e087cb9975f20f2586a20c116ca6ec7f363ad18d4213",
+      "run_tag": "k2-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

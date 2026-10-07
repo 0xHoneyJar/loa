@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "if (isHeadlessModelId(model.model_id, model.provider) || process.env[envVar]) {",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/config.ts:validateApiKeys",
+      "cross_file_justification": "The gate change in config.ts is consumed by executeMultiModelReview in core/multi-model-pipeline.ts, which now constructs a ChevalDelegateAdapter for a keyless entry. That adapter spawns a local CLI that authenticates with whatever credentials are cached on the host (OAuth login, keychain). Whether an untrusted party can select the headless voice depends on how multiModel.models is populated; BridgebuilderConfig exposes repoOverridePath, which suggests per-repo overrides may feed this field.",
+      "description": "Before this change the environment was the sole opt-in for a provider: no API key in process.env meant no dispatch, in both graceful and strict modes. After this change a config entry whose model_id is a registry headless alias (claude-headless, codex-headless, gemini-headless) is dispatched with no environment opt-in at all, routing the PR diff and prompt through the operator's ambient CLI credentials. The allowlist is tight (exact case-sensitive registry key, provider pairing, unknown providers still rejected), so this is not an arbitrary bypass, but it does shift the trust boundary from 'operator provisioned a key' to 'config names a headless id'. If multiModel.models can be set or overridden from a reviewed repository, a PR author can cause the reviewer host to consume the operator's personal quota and have usage attributed to the operator's identity rather than a service key. The strict api_key_mode, which operators may rely on as a fail-fast, now passes silently for headless entries.",
+      "failure_mode": "A reviewed repository or a shared config supplies a headless model id. On a host where the operator deliberately did not provision an API key for that provider, the review still runs and bills against the operator's personal CLI login. In strict mode no error is raised, so the operator has no signal that a provider they did not opt into was engaged.",
+      "suggested_fix": "Require an explicit environment opt-in for headless dispatch, for example an allow-list env var such as BB_HEADLESS_PROVIDERS=anthropic,openai that validateApiKeys consults alongside the registry check. Alternatively, only honor headless entries from the operator-owned top-level config and reject them when they originate from a repo override. Log at warn level whenever a voice is dispatched via the headless path so the credential source is visible in run output.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "const apiKey = (envVar ? process.env[envVar] : undefined) ?? \"\";",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts:executeMultiModelReview",
+      "cross_file_justification": "The empty string is passed into createAdapter in adapters/adapter-factory.ts and on to ChevalDelegateAdapter in adapters/cheval-delegate.ts, neither of which is in the diff. Whether an empty key is forwarded into the child CLI environment or into any direct HTTP path cannot be confirmed from the diff.",
+      "description": "The previous code enforced an invariant that createAdapter always received a non-empty apiKey because keyless entries were skipped with continue. The new code passes an empty string for headless entries. If the cheval adapter sets the provider env var unconditionally (for example env: { ...process.env, ANTHROPIC_API_KEY: apiKey }), the child CLI will see an empty key, which some CLIs prefer over their cached login and will then fail or behave unexpectedly. If adapter-factory ever selects a non-cheval adapter for a provider, an empty key would produce an unauthenticated API request. The new test multi-model-headless-key.test.ts mocks generateReview on the prototype and only inspects this.opts.model, so it does not assert what apiKey value the adapter was constructed with.",
+      "failure_mode": "A headless voice is constructed with apiKey set to an empty string. The adapter forwards it into the child environment, shadowing the CLI's own authentication and causing the hop to fail, or a non-cheval adapter path sends a request with an empty bearer token.",
+      "suggested_fix": "Pass undefined rather than an empty string for headless entries and have the adapter omit the env var when the key is falsy. Extend the headless test to capture the createAdapter arguments (or the adapter constructor opts) and assert that no key is forwarded for the headless route.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "export function isHeadlessModelId(modelId: string, provider?: string): boolean {",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When provider is omitted the function skips the provider pairing check and returns true for any registry headless alias. Both callers in this diff (validateApiKeys and executeMultiModelReview) pass the provider, and the test asserts the paired behavior, so there is no current bypass. The optional parameter is still a footgun: a future call site that omits it will accept gemini-headless under provider anthropic, which is exactly the pairing the thirty-ninth-run comment says must keep the key gate's fail-fast.",
+      "failure_mode": "A new caller invokes isHeadlessModelId(modelId) without a provider, and a mis-paired headless entry passes the key gate for a provider the operator never configured.",
+      "suggested_fix": "Make provider a required parameter. If a provider-agnostic check is genuinely needed for tests, expose it under a distinct name such as isHeadlessAlias so the weaker semantics are explicit at the call site.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:22:43Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8237,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0b8b7816f9a775450bdf301ed533565a6ef404b117a76047135ec71f7d7de5eb",
+      "run_tag": "e4-bb"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

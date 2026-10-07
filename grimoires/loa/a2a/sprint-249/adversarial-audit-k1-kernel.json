@@ -1,0 +1,164 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "injection",
+      "title": "Default long context window weakens prompt-injection containment for untrusted file reads",
+      "description": "The updated context-discipline include changes the default clearing thresholds from standard-sized limits to `long` limits of 20K single result, 50K accumulated, 30K full file, and 150K session before extraction to NOTES.md. Because this guidance applies to large tool results and file reads, untrusted repository content can now remain live in the agent context at sizes large enough to carry detailed prompt-injection instructions instead of being reduced to bounded findings. The sink is subsequent agent reasoning and tool use under the Loa workflow, including writes and command execution. This materially weakens the documented containment control for prompt-injection/context-poisoning attacks.",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "file": ".claude/data/skill-includes/context_discipline.md",
+      "line": 3,
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The updated context-discipline include changes the default clearing thresholds from standard-sized limits to `long` limits of 20K single result, 50K accumulated, 30K full file, and 150K session before",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "line_number",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "CHANGELOG.md:15",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:15",
+      "cross_file_justification": "The changelog entry added in this diff records that cheval's gemini-headless adapter now forces GEMINI_SANDBOX=false and treats an operator --sandbox in gemini_extra_flags as a downgrade, to keep the prompt off argv. The adapter source is not in the diff, so the tool-approval posture the adapter runs gemini-cli with (default, auto_edit, or yolo) could not be verified.",
+      "description": "The dissent pipeline feeds attacker-influenced input (a PR diff) to a gemini-cli reviewer that is now deliberately run with its sandbox disabled. The documented mitigation is an isolated empty cwd, which stops CLAUDE.md/GEMINI.md context planting but does not contain shell execution, file writes outside the cwd, or outbound web_fetch calls. A diff containing prompt-injection text therefore reaches a CLI with tool access and no sandbox. Whether confirmation-gated tools (shell, write_file) are actually reachable depends on the approval mode the adapter passes, which is not visible here; read-only tools such as web_fetch run without confirmation in gemini-cli and are enough for exfiltration of the reviewed diff.",
+      "failure_mode": "A reviewed diff containing injected instructions drives gemini-cli tool calls on the reviewer host with no sandbox containment, enabling data exfiltration or command execution.",
+      "suggested_fix": "Prefer keeping the sandbox and solving the argv exposure another way (write the prompt to a 0700 file inside the private per-hop workspace, as the grok adapter does, and pass the path). If the sandbox must stay off, pin the headless gemini hop to a read-only approval mode, disable shell/write tools and web_fetch via a project settings file in the isolated cwd, and record the chosen posture in multi-model-reference.md so operators adding gemini_extra_flags know the trade-off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "CHANGELOG.md:15",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:15",
+      "cross_file_justification": "The changelog added in this diff states that the agy headless adapter still passes its prompt on argv and that gemini does so again whenever gemini_extra_flags requests a sandbox, with the exposure documented rather than removed. Adapter code is not in the diff.",
+      "description": "The headless prompt contains the diff under review plus the reviewer instructions. On argv it is readable by any local user through /proc/<pid>/cmdline for the life of the process (900 s timeouts are now permitted). Claude, codex, cursor, grok and default gemini were moved off argv for exactly this reason; agy remains the one default argv prompt, and the gemini sandbox path reintroduces it. On shared CI runners or multi-user hosts this leaks source and any secrets present in the diff.",
+      "failure_mode": "An unprivileged local user reads another account's review prompt, including the full diff, from /proc/<pid>/cmdline while the agy or sandboxed-gemini hop is running.",
+      "suggested_fix": "Move agy to stdin or a prompt file inside its private workspace like the other adapters; refuse (not just warn on) argv prompts when a sandbox is requested for gemini unless the operator explicitly opts in; note hidepid=2 on /proc as a host-level mitigation in the reference doc.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/loa/CLAUDE.loa.md:101",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:1235",
+      "cross_file_justification": "This diff edits the why text of all five Agent Teams constraints in constraints.json (lines 1235, 1256, 1277, 1298, 1319) but the generated Agent Teams block in CLAUDE.loa.md is unchanged, and its marker reads hash:c020-teamcreate rather than a content hash like the other blocks regenerated in this same diff.",
+      "description": "The constraint-generated blocks in CLAUDE.loa.md carry a 16-hex content hash so drift between constraints.json and the agent's instruction file can be detected; the process_compliance blocks were regenerated with new hashes in this diff. The agent_teams_constraints block uses a static label instead, so its integrity marker can never change and the drift check cannot detect edits to it. Those rows are the ones that tell teammates they must not touch .claude/ (System Zone) or .run/ state; a hand edit to that block, accidental or planted, would pass the same check the other blocks are held to. This diff demonstrates the gap by changing the source rows without the output moving.",
+      "failure_mode": "Edits to the Agent Teams rule table in the managed instruction file go undetected because its marker is a fixed string rather than a hash of the generated content.",
+      "suggested_fix": "Have the generator emit a real content hash for agent_teams_constraints like the other sections, regenerate the block from constraints.json in this change, and add a test that every @constraint-generated start marker's hash matches a recomputation over the block body.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "cross_file_justification": null,
+      "description": "The include now derives behaviour from a new runtime knob, .run/context-class, with LOA_CONTEXT_CLASS as an override and long as the default. .run/ is the Read/Write State Zone, and in Agent Teams mode only the lead is supposed to write it, but that is a prose rule rather than a hook-enforced one. The script that reads and parses this file is not in the diff, so it is not possible to confirm that an unexpected value (anything other than long or standard, or a multi-line file) is rejected rather than interpolated into a command or silently treated as long. The default also raises every tool-result retention threshold tenfold, which keeps more raw tool output, including content CLAUDE.loa.md classifies as UNTRUSTED (L5/L6/L7 bodies, external-model envelopes), in context before it is distilled.",
+      "failure_mode": "A malformed or planted .run/context-class value is consumed by the reader without validation, or the 10x default silently relaxes a discipline that skills previously relied on for untrusted-content handling.",
+      "suggested_fix": "Have the reader accept exactly long or standard (first line, trimmed), fall back to standard on anything else with one WARN, and never pass the value to a shell. Consider whether skills that surface untrusted content (adversarial review, agent-network L5-L7) should pin standard regardless of the class file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:33:17Z",
+    "tokens_input": 54727,
+    "tokens_output": 15664,
+    "cost_usd": 0,
+    "latency_ms": 20348,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-249/adversarial-rejected-audit-k1-kernel.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-249/adversarial-rejected-audit-k1-kernel.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "38a4402e8dd96d6a65132e7e67bc73f4fde4a11777a5b544798f3a60eb623cc0",
+      "run_tag": "k1-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

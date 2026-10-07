@@ -1,0 +1,8 @@
+{
+  "agent": "reviewing-code",
+  "resolved_provider": "anthropic",
+  "resolved_model": "claude-fable-5-1",
+  "temperature": 0.3,
+  "max_tokens": 64000,
+  "effort": null
+}

@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "_vd_fifo_watchdog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_vd_fifo_watchdog` validates its deadline (`VD_FIFO_DEADLINE` must match `^[1-9][0-9]*$`) but never validates the `reader` PID it is handed. `_vd_tree \"$reader\"` echoes the argument back unchanged, so an empty, `0`, or negative value flows straight into `kill -TERM $t` and `kill -KILL $t ...`. `kill -KILL 0` kills the whole process group (the entire bats run); `kill -KILL -1` kills every process the user can signal. The function also snapshots the tree into `$t`, sleeps one second, then re-sends SIGKILL to the stale `$t` list alongside a fresh snapshot; any PID in `$t` that exited and was recycled during that second now belongs to an unrelated process. The helper runs detached in the background with the test's privileges. No caller is visible in the shown hunk parts (1-4 of 8), so it is either dead code or invoked from the unshown remainder.",
+      "failure_mode": "A caller passing a stale or unset `$!` (e.g. the reader's `&` did not execute and `$!` still names an earlier background job such as the watchdog's own `sleep`), or an empty variable, makes the watchdog SIGKILL the wrong process tree: the bats runner itself, a sibling CI job owned by the same user, or an arbitrary recycled PID. On a shared CI runner this is a denial of service against other jobs and loses the test report.",
+      "suggested_fix": "Validate `reader` with the same regex used for `dl` (`[[ \"$reader\" =~ ^[1-9][0-9]*$ ]] || return 1`) and refuse `1`, `$$`, `$PPID`, and `$BATS_ROOT_PID`-style ancestors. Drop the stale `$t` from the final `kill -KILL` and re-derive the tree only. Better: start the reader in its own process group (`setsid`) and kill the group with `kill -- -\"$pgid\"`, which has no recycling window. If no test in this file calls the helper, remove it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_vd_git",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `_vd_git` isolation is incomplete and the comment overstates it. The `$(command git rev-parse --local-env-vars)` substitution is expanded as an argument of `unset`, so that git invocation runs under the caller's unscrubbed environment before anything is removed (benign for `--local-env-vars`, but the opposite order from what the comment describes). Variables outside git's local-repo list survive into `git init`/`add`/`commit`: `GIT_TEMPLATE_DIR` (hooks copied into the fixture repo on `init` and executed on `commit`), `GIT_EXEC_PATH` (alternate `git-*` binaries), `GIT_EDITOR`/`GIT_SEQUENCE_EDITOR`, and `XDG_CONFIG_HOME` (`git/ignore` and `git/attributes` still load even with `GIT_CONFIG_GLOBAL=/dev/null`). If `rev-parse --local-env-vars` fails, the hardcoded fallback omits `GIT_CONFIG_PARAMETERS` and `GIT_CONFIG_COUNT`, which a hook environment carries whenever the outer git was invoked with `-c`, and which can inject `core.hooksPath` or `core.fsmonitor`. Like the watchdog, no caller appears in the visible hunk parts.",
+      "failure_mode": "A test run from inside a git hook or from a dotfiles shell with `GIT_TEMPLATE_DIR` or `GIT_CONFIG_PARAMETERS` set produces fixture commits that execute the caller's hooks or config-selected commands, or an `add -A` that silently drops fixture files via a user ignore file, yielding fixture state the test did not write. The attacker must already control the shell environment, so this is hardening rather than a trust boundary.",
+      "suggested_fix": "Run fixture git under an allowlisted environment: `env -i PATH=\"$PATH\" HOME=/nonexistent GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TEMPLATE_DIR=/nonexistent git -C \"$1\" -c user.email=t@t -c user.name=t \"${@:2}\"`, or at minimum also unset `GIT_TEMPLATE_DIR GIT_EXEC_PATH XDG_CONFIG_HOME GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT` and pass `--template=` to `init`. Remove the helper if the remaining hunk parts do not use it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:41:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 13784,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "612fd7c88486a0488c414bf78f3cd133c2ec518fbfbf07407554c00bc2074b00",
+      "run_tag": "c2c-vdbats-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

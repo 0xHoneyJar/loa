@@ -1,0 +1,15 @@
+1..13
+ok 1 RES-1 the catalog: opus → claude-opus-5-5 (priced from the vendor page), cheap → claude-sonnet-5, opus-5 still pinnable
+ok 2 RES-2 every bash opus map agrees with the catalog's aliases.opus
+ok 3 RES-3 script defaults are catalog aliases: flatline-proposal-review / validate-learning / learning-extractor / red-team-pipeline
+ok 4 RES-4 example pins: hitl-jury-panel uses opus, alternative-model names the Bedrock Opus 4.8 id the catalog serves
+ok 5 RES-5 Gemini agents name served ids: deep-thinker → gemini-3.1-pro (thinking_traces), fast-thinker stays gemini-3-flash (no 3.1 flash served)
+ok 6 RES-6 the acceptance grep: no previous-generation model is a default or described as current in live scripts, skills and data
+ok 7 RES-7 flatline-readiness's pin-form example names the catalog's current opus target, not a previous generation
+ok 8 MA-1 MODEL_TO_ALIAS: opus → the current Opus (claude-opus-5-5); the 5-family names resolve to themselves
+ok 9 MA-2 MODEL_TO_ALIAS agrees with the catalog's backward_compat_aliases for every name both define (4.x history included)
+ok 10 MA-3 --help names the current generation, and no 4.x model as current
+ok 11 MA-4 opus resolves to anthropic:claude-opus-5-5 end to end through the shim
+ok 12 MA-5 (bd-pw7e LOW-001) the agy argv WARN reaches the shim's stderr; other cheval stderr stays out
+ok 13 MA-6 (bd-pw7e LOW-001) the WARN is forwarded on a failed hop too, and the exit code is kept
+EXIT 0

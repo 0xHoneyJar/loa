@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": "tests/unit/adversarial-review-companion.bats:_sweep_stale_suite_dirs",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The stale sweep decides an owner is dead once at the top of its per-marker loop (`_sweep_alive \"$p\" && continue`) and removes the marker only at the bottom (`(( left )) || rm -f -- \"$m\"`). Between those two points a sibling test's setup can start with that very pid (pid reuse after a crashed run), find its OUT_DIR already renamed away by the sweep, and in `_place_marker` take the EEXIST branch: the stale marker is not foreign, so `mv -f` replaces it with the live run's marker. The sweep then finishes emptying the renamed directory, sees `left == 0`, and `rm -f`s the marker it originally judged stale, which is now the live test's marker. The liveness verdict is never re-checked against the file that is actually deleted.",
+      "failure_mode": "Under `bats --jobs` (or any concurrent run of this suite over one checkout) with a prior crashed run and a reused pid, the live test's a2a directory runs unmarked. No data is wrongly deleted and the test's own teardown still removes its directory, but if that test is killed mid-run the leftover `sprint-comp-<pid>` is permanent: no sweep will ever claim it (no marker) and the next run that lands on that pid fails setup with `stands and is not this suite's` until an operator removes it by hand.",
+      "suggested_fix": "Re-check liveness immediately before removing the marker, and only remove the marker you read: e.g. capture the marker's inode (`stat -c %i` / `ls -i`) or its full content when first judged stale, then at the bottom do `if ! _sweep_alive \"$p\" && [[ \"$(stat …)\" == \"$saved\" ]]; then rm -f -- \"$m\"; fi`. Alternatively have `_place_marker` write a fresh content token (e.g. append the start token from `_sweep_start \"$$\"`) and have the sweep `rm` only when the marker still carries the token it read at the top.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:27:07Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 44826,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f397b3cf3ee8561d9adf27365f531403afd7bb98e6990703d3e81c5b61cc4615",
+      "run_tag": "c1a-companion-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "GeminiHeadlessAdapter._run_subprocess",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "The gemini adapter now injects GEMINI_SANDBOX=false into the child environment on every hop unless the operator's gemini_extra_flags ask for a sandbox. gemini-cli reads that variable ahead of both --sandbox and the user's settings.json tools.sandbox, so any sandbox the operator configured globally is suppressed for these hops. The adapter feeds untrusted review content to a CLI that still exposes read-only tools (file reads bounded in-process to the workspace, web fetch and search), and the project's own cursor adapter treats OS confinement as part of the hardening for exactly this threat. The override happens with no check for an ambient sandbox and no log line, so an operator who believes their global sandbox applies has no runtime signal that it does not.",
+      "failure_mode": "An operator relies on a globally configured gemini sandbox (GEMINI_SANDBOX=docker or tools.sandbox=true) to confine a CLI that processes attacker-authored diffs. The hop silently disables it. A tool-boundary bug or prompt-injected tool use in plan mode now runs against the host filesystem instead of a container, and nothing in the logs shows the sandbox was dropped.",
+      "suggested_fix": "Keep the stdin prompt path but surface the trade-off: when the inherited environment carries a non-false GEMINI_SANDBOX, or settings.json sets tools.sandbox, log a WARNING that the hop is overriding it and why. Alternatively expose an explicit model-config knob (for example gemini_sandbox: keep) that accepts the argv exposure and routes through the existing warning-and-bound path, so the override is an operator decision rather than an implicit default.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_asks_sandbox",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "_asks_sandbox re-implements yargs boolean semantics (short-option groups, =value, following true/false literal, --no- negation, end-of-options) to decide whether to leave an operator sandbox active. When it returns True the adapter does not set GEMINI_SANDBOX=false, and a sandboxed gemini run folds the stdin prompt back into the sandbox child's argv, where any local user can read it through /proc/<pid>/cmdline. The adapter warns and bounds the prompt length, but the exposure itself is accepted. Any mismatch between this emulation and the real CLI parser (version drift in gemini-cli's option table, yargs config changes, tokens like --s or -s1 that yargs treats as the alias and this function ignores or misreads) either spuriously leaves the ambient sandbox enabled or drops the warning.",
+      "failure_mode": "gemini-cli changes how it registers the sandbox option, or an operator writes a flag form this emulation reads differently than yargs. The hop either keeps a sandbox the operator did not ask for, putting the review prompt on a world-readable argv, or disables one they did ask for.",
+      "suggested_fix": "Fail closed instead of emulating the parser: raise ConfigError when any token in gemini_extra_flags matches sandbox-shaped forms (-s, --sandbox*, --no-sandbox, short groups containing s), with the message explaining that a gemini sandbox puts the prompt on argv. If operator sandboxes must remain supported, gate them behind an explicit config key and keep GEMINI_SANDBOX pinned (true or false) by the adapter so the outcome never depends on reproducing yargs.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "CodexHeadlessAdapter._prepare_invocation",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "Two codex error messages now interpolate the raw exception: the workspace-creation failure (`failed to create isolated workspace: {type}: {exc}`) and the new OSError branch in _raise_spawn_error (`spawn failed ... {exc}`). For OSError the str() includes the filename argument, which here is the private workspace path under $XDG_RUNTIME_DIR or ~/.cache/loa, or the resolved CLI binary path. ProviderUnavailableError text is walkable and tends to be logged or written into review artifacts shared beyond the host.",
+      "failure_mode": "A hop fails on a developer or CI host and the error, carrying the local home-directory path and username, is written into a committed review report or a shared log stream.",
+      "suggested_fix": "Include errno and strerror rather than the full str(exc) (for example `{type(exc).__name__}: {exc.strerror or exc}` with the filename omitted), or route the path through the existing logger at DEBUG and keep the raised message path-free.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "CursorHeadlessAdapter._prepare_invocation",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py",
+      "cross_file_justification": null,
+      "description": "In the cursor adapter, tempfile.mkdtemp runs and then hold_hop_workspace(workspace) is called before the try block that owns cleanup. If the lock acquisition raises (flock unsupported on the base filesystem, EMFILE, or any OSError), the freshly created workspace is never removed by this hop and persists until a later hop's one-day sweep. The codex adapter places the same call inside its try and does clean up. The leaked directory is empty for cursor, so this is a hygiene gap rather than data exposure, but it is an inconsistency in the new cleanup contract.",
+      "failure_mode": "On a filesystem where directory flock fails, every cursor hop leaks one empty 0700 directory under the private base; over a day of heavy use the base fills with entries the sweep then has to remove.",
+      "suggested_fix": "Move hold_hop_workspace into the try block (as codex does) or wrap it so that on failure the workspace is rmtree'd before the exception propagates.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:01:31Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 28329,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "117d39976b8728cbf45ac1ef90bb91fc56dd93e64c7d26c95af8e5721c8be2b7",
+      "run_tag": "e1b-adapters-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

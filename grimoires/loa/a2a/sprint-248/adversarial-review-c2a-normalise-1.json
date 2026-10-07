@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": "tests/unit/adversarial-review-normalise.bats:_sweep_stale_suite_dirs",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_claim_sprint_dir` runs `chmod u+w -- \"$d\"` before `find -mindepth 1 -delete` and its comment says this is \"the sweep's rule\" (CMP-187's `chmod a-w` on a killed run). The sweep in this same file does not implement that rule: `_sweep_stale_suite_dirs` renames the dead owner's directory to `.reap-<pid>-<tok>` and then runs `find \"$d\" -mindepth 1 -delete 2>/dev/null || true; rmdir \"$d\" 2>/dev/null || left=1` with no permission repair, and teardown's own-dir path (`find \"$d\" -mindepth 1 -delete; rmdir \"$d\"`) likewise does not restore write permission. A killed run whose sprint-norm directory holds a non-writable subtree therefore fails `find -delete`, sets `left=1`, keeps the marker, and on every later teardown the `.reap-*` entry is re-examined (the dead reaper pid lets it through) and fails again — the leftover and its marker persist indefinitely, which is the accumulation the header comment says the sweep prevents.",
+      "failure_mode": "A read-only subtree under `grimoires/loa/a2a/sprint-norm-<pid>` left by a killed test is never cleared: every subsequent run's teardown re-attempts the delete, fails silently (`2>/dev/null || true`), and the `.reap-<pid>-<tok>` directory plus `.sprint-norm-<pid>.owner` marker accumulate in the checkout's a2a directory. In teardown's own-dir path the unguarded `find -delete` fails the test instead.",
+      "suggested_fix": "Apply the same rule the claim path uses: before `find \"$d\" -mindepth 1 -delete` in `_sweep_stale_suite_dirs` (after the `mv` to `.reap-*`) and in teardown's own-dir branch, run `chmod -R u+w -- \"$d\" 2>/dev/null || true` (or `find \"$d\" -type d ! -perm -u+w -exec chmod u+w {} +`). Alternatively drop the \"the sweep's rule\" wording from `_claim_sprint_dir` so the file does not claim a guarantee the sweep lacks.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:59:57Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 40851,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "30051d1ae405766fd8aec5b4c0af3648ed5f966c6629637d1515c7507c6729f7",
+      "run_tag": "c2a-normalise-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

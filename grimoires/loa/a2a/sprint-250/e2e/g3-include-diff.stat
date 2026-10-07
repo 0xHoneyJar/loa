@@ -1,0 +1,18 @@
+ .claude/protocols/citations.md                     |   2 +-
+ .claude/protocols/constructs-integration.md        | 404 +---------------
+ .claude/protocols/continuous-learning.md           |   4 +-
+ .claude/protocols/grounding-enforcement.md         |   4 +-
+ .claude/protocols/helper-scripts.md                | 523 +-------------------
+ .claude/protocols/recommended-hooks.md             | 522 +-------------------
+ .../protocols/reference/constructs-integration.md  | 404 ++++++++++++++++
+ .claude/protocols/reference/helper-scripts.md      | 523 ++++++++++++++++++++
+ .claude/protocols/reference/recommended-hooks.md   | 526 +++++++++++++++++++++
+ .claude/protocols/reference/session-continuity.md  | 440 +++++++++++++++++
+ .../protocols/reference/trajectory-evaluation.md   | 338 +++++++++++++
+ .claude/protocols/ride-translation.md              |   2 +-
+ .claude/protocols/session-continuity.md            | 444 +----------------
+ .claude/protocols/structured-memory.md             |   2 +-
+ .claude/protocols/synthesis-checkpoint.md          |   4 +-
+ .claude/protocols/tool-result-clearing.md          |  24 +-
+ .claude/protocols/trajectory-evaluation.md         | 338 +------------
+ 17 files changed, 2272 insertions(+), 2232 deletions(-)

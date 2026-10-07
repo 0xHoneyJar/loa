@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review.bats:setup",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Sixteen setups (adversarial-review.bats, adversarial-review-e2e.bats, bug-809-status-note.bats, cycle-109-*.bats, cycle-124-dispatch-budgets.bats, cycle-baseline-capture.bats, ledger-isolation-discovery.bats, model-adapter-probe-integration.bats, spiral-harness-adversarial-dissent.bats, wire-schemas-api-safe.bats, input-size-consumers.bats, butterfreezone-gen-sha256-portability.bats, adversarial-review-degraded-on-rejection.bats, adversarial-review-kf-011-debug.bats, adversarial-review-hallucination-filter.bats) export XDG_RUNTIME_DIR=\"$BATS_TEST_TMPDIR\" with the comment 'the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)'. The reviewer context for the thirty-eighth run (round 1am, CMP-255) records that the dissent script's locks 'move to a private ~/.cache/loa/headless-locks-<uid>'. If that move made ~/.cache the primary lock base rather than a fallback below $XDG_RUNTIME_DIR, every one of these exports is a no-op for lock isolation and the comment is stale: the suites would again resolve the operator's per-user lock directory, which is exactly the queue-behind-a-live-claude.lock failure the run-16/run-23 notes describe (NRM-26). The diff cannot show which reading is right because adversarial-review.sh is not in it.",
+      "failure_mode": "A suite that reaches a *-headless hop (or whose stubbed hop still takes the per-binary flock) waits up to the lock-wait cap behind a live dissent's claude.lock, or holds that lock and delays the live run; the comment misleads the next reader into assuming isolation that is not there.",
+      "suggested_fix": "Confirm how adversarial-review.sh resolves the CLI lock directory after CMP-255. If $XDG_RUNTIME_DIR is still the first candidate, leave the exports and shorten the comment to cite the resolution order. If ~/.cache/loa/headless-locks-<uid> is now primary, isolate through the script's lock-directory knob (or a per-test HOME) in a shared helper instead of sixteen copies of the export, and have the e3 lint check that knob rather than XDG_RUNTIME_DIR.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review.bats:@@ -762,3 +764,76 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The e3 lint's patterns have gaps that let the fallback it forbids back in, and one over-match. (1) _e3_xdg_fallback uses 'XDG_RUNTIME_DIR[=][^;]*mktemp': the assign-default form ': \"${XDG_RUNTIME_DIR:=$(mktemp -d)}\"' has ':' before '=' and does not match, yet it creates exactly the unswept per-test mktemp directory the lint exists to refuse. (2) _e3_tmpdir_fallback ('[{]BATS_TEST_TMPDIR[:]?[-]') and the case-branch grep ('BATS_TEST_TMPDIR[:]?[-][^}]*mktemp') miss '${BATS_TEST_TMPDIR:=$(mktemp -d)}' for the same reason, and that spelling also satisfies none of _e3_guarded's alternatives, so a suite written that way passes both the guard check and the fallback check while behaving like the old ':-' fallback. (3) '[^;]*' stops only at ';', not at '&&', '||' or '|', so 'export XDG_RUNTIME_DIR=\"$BATS_TEST_TMPDIR\" && T=\"$(mktemp -d)\"' is reported as a fallback although the mktemp belongs to another statement, the case the thirty-third-run fix (DISS-C-003) meant to exclude. None of the fixture legs in the test exercise ':=' or an '&&'-joined statement, so the gaps are not pinned.",
+      "failure_mode": "A future setup that defaults XDG_RUNTIME_DIR or BATS_TEST_TMPDIR with ':=' and mktemp passes the lint and leaves an unswept temp directory per test; conversely a legitimate '&&'-joined setup line fails adversarial-review.bats with a false 'falls back to an unswept mktemp XDG_RUNTIME_DIR'.",
+      "suggested_fix": "Use 'XDG_RUNTIME_DIR[:]?[=][^;&|]*mktemp' in _e3_xdg_fallback, '[{]BATS_TEST_TMPDIR[:]?[-=]' in _e3_tmpdir_fallback and 'BATS_TEST_TMPDIR[:]?[-=][^}]*mktemp' in the case branch, and add fixture legs for ': \"${XDG_RUNTIME_DIR:=$(mktemp -d)}\"' (must trip) and 'export XDG_RUNTIME_DIR=\"$BATS_TEST_TMPDIR\" && T=\"$(mktemp -d)\"' (must not trip), each with the '%s' splice so the lines never match themselves.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/adversarial-review-hallucination-filter.bats:setup",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new pre-source check _jq_pair_extracted_whole validates only the second extraction (the '/^_adv_jq_pair() {/,/^}/' range). The first extraction, ext.sh from the banner range '/# Dissenter Hallucination Filter/,/# Finding ID Computation/', is still concatenated into filter-fns.sh and sourced unchecked. If either banner is renamed, the sed range runs to end-of-file or yields nothing, and the failure surfaces as the same opaque 'unexpected end of file' or 'command not found' from source that e3 DISS-C-003 was raised against; the self-lint test added in this hunk ('setup checks the _adv_jq_pair extraction before it sources it') pins ordering only for the jq-pair extraction. Separately, the next-line heuristic in _jq_pair_extracted_whole treats any indented non-blank line after the closing brace as body, so an indented comment such as '  # next helper' following the function in adversarial-review.sh would fail every test's setup with 'extraction ended inside its body' although the extraction is whole and bash -n would have passed it.",
+      "failure_mode": "A banner rename or a cut inside the hallucination-filter block fails all 20 tests in setup with an uninformative shell parse error; an indented comment line after _adv_jq_pair's closing brace fails all tests in setup with a false 'ended inside its body'.",
+      "suggested_fix": "Before 'source filter-fns.sh', run 'bash -n filter-fns.sh' and name the file on failure, and assert ext.sh is non-empty and contains both banners (grep -c for each, expecting 1). In _jq_pair_extracted_whole, let a next line matching '^[[:space:]]*#' count as not-body (or drop the heuristic and rely on bash -n alone, since any column-0 '}' that is not the function's own leaves its '{' open and fails bash -n).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T05:33:14Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 38177,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "327ffd7b4d34cb450427e61f9edec3c4c2ae001a7178b8d82c898d4e67c32b21",
+      "run_tag": "e3-more-tests"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

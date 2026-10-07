@@ -1,0 +1,133 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the hunk `@@ -1961,15 +2979,82 @@`, the new aggregator-failure branch does `local _vq_err; _vq_err=$(grep -v '^[[:space:]]*$' \"$_vq_err_file\" 2>/dev/null | tail -1 | cut -c1-240)` with no `|| true`. When `_adv_aggregate_envelopes` returns non-zero without writing any non-blank line to stderr (the 'aggregator unavailable' case, e.g. a `command -v python3 || return 1` style guard, or an empty/missing `.err` file), `grep -v` selects nothing and exits 1. Under the script's `set -e -o pipefail` strict mode that makes the pipeline, and therefore the assignment, fail, and errexit aborts `main` on that line. Every sibling substitution in this diff (`_psid`, `_cid_x`, `primary_succeeded_ids`, `_ff_final`) carries `|| true`; this one was missed.",
+      "failure_mode": "The branch that exists to be fail-soft (\"result emitted without verdict_quality\") instead kills the script before `result` is written: the review envelope, both voices' findings, the companion's paid-for answer and the `rejected_sidecars` listing are all lost, the EXIT trap removes the workdir, and the caller sees a non-zero exit with no envelope. Triggered precisely when the aggregator is absent or fails silently.",
+      "suggested_fix": "`_vq_err=$(grep -v '^[[:space:]]*$' \"$_vq_err_file\" 2>/dev/null | tail -1 | cut -c1-240) || true` (or `|| _vq_err=\"\"`), and add a test that stubs `_adv_aggregate_envelopes` to `return 1` with no stderr and asserts the envelope is still emitted with `metadata.verdict_quality_error` set.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "data-loss",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The primary now cedes a shared hop (`skipped_shared_with_companion`) once `_adv_shared_hop_verdict` reports the companion *answered* with it, i.e. the model returned and the walker is in `post`. That decision is irreversible, but the post-walk wait loop (hunk `@@ -1953,6 +2856,121 @@`) can still reap that same companion on the `post|done` phase deadline (`companion_post_budget`, default 60 s) or the global ceiling, and the reap path then does `command rm -f companion.result.json`, records `rc=124` and `status=wait_timeout`. In that combination the run ends with no voice at all: the primary skipped its last resort on the strength of an answer that the reaper subsequently discarded, and `_primary_ceded` is set so the fold reports `primary_voice: ceded` next to a timed-out companion.",
+      "failure_mode": "Post-hop work that overruns the post budget (repair round-trips through `claude -p` on a contended host, KF-037 territory) turns a two-voice run into a zero-voice `api_failure` envelope even though a complete model answer was in hand, and the primary never gets a chance to run the hop itself.",
+      "suggested_fix": "When `_primary_ceded` is non-empty, do not reap on the `post|done` phase deadline; wait to the global ceiling instead (or extend the post budget by the repair budget). If a reap does happen after a cede, either keep the already-written `companion.result.json` when the walker had reached `done`, or fall back to running the ceded hop on the primary before folding.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`companion_shared_hops` is built by comparing bare names literally: `[[ \"${_pm#*:}\" == \"${_cm#*:}\" ]]`. The rest of this round routes CLI hops through `_adv_hop_canon` (the wait cap, the lock wait, `_q_allow`, `_adv_cli_bin_for`) precisely because a prefixed or aliased hop resolves to the same binary. An aliased `claude-headless` on either chain (operator `companion_chain`, catalog alias) is therefore not detected as shared, so the tenth-run guard (`skipped_shared_with_companion`) never fires for it.",
+      "failure_mode": "Both walks run `claude -p` on the same prompt, serialised by the per-binary flock: the primary queues behind the companion for up to the hop bound, then produces a duplicate voice that the fold has to demote (`counted_as: duplicate_voice`). This is exactly the double-run CMP-33 was meant to remove, reappearing for any non-canonical spelling.",
+      "suggested_fix": "Compare `$(_adv_hop_canon \"${_pm#*:}\")` with `$(_adv_hop_canon \"${_cm#*:}\")` when building `companion_shared_hops`, and match `try_model` against the list via its canonical name in the primary loop as well.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the `prompt_copy_failed` branch the companion is not forked, but `companion_shared_hops` stays populated and `companion_workdir` already exists from the preceding `mkdir -p`. The primary loop's shared-hop guard only checks `-n companion_shared_hops` and `-d companion_workdir`, so for the shared hop it still calls `_adv_shared_hop_verdict` with `companion_started=0` and logs that the companion 'finished without it' for a companion that never started.",
+      "failure_mode": "Misleading diagnostics on a path that already indicates a local setup fault, and a dependency on `_adv_shared_hop_verdict` behaving sanely for an epoch-0 start and no PID; if that helper ever waits on the workdir's phase files rather than the PID, the primary stalls for the wait cap.",
+      "suggested_fix": "In the `else` branch that sets `companion_skip_reason=\"prompt_copy_failed\"`, also clear `companion_shared_hops=\"\"` (and remove the empty `$companion_workdir`), so the primary walk treats the run as single-voice.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-09-29T04:46:40Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 40931,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

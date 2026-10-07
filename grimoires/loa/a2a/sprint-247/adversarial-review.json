@@ -1,0 +1,102 @@
+{
+  "findings": [],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-247",
+    "timestamp": "2026-09-25T04:26:00Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar \u2014 not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "hallucination_filter": {
+      "applied": false,
+      "downgraded": 0,
+      "reason": "no_findings"
+    },
+    "merged_from_chunks": [
+      {
+        "chunk": "a-ceiling-core",
+        "file": "adversarial-review-a-ceiling-core.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": "adversarial-rejected-review-a-ceiling-core.jsonl"
+      },
+      {
+        "chunk": "b-cheval-gate",
+        "file": "adversarial-review-b-cheval-gate.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": "adversarial-rejected-review-b-cheval-gate.jsonl"
+      },
+      {
+        "chunk": "c-adapters-metering",
+        "file": "adversarial-review-c-adapters-metering.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": "adversarial-rejected-review-c-adapters-metering.jsonl"
+      },
+      {
+        "chunk": "d-scripts-tools",
+        "file": "adversarial-review-d-scripts-tools.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "e-bb-catalog",
+        "file": "adversarial-review-e-bb-catalog.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "f-tests",
+        "file": "adversarial-review-f-tests.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless"
+        ],
+        "rejected_sidecar": null
+      }
+    ],
+    "head": "0df687c8",
+    "note": "per-chunk dissent (each chunk under the voice's 24K input budget); findings are the union of every chunk's latest run; the per-chunk envelopes and rejected sidecars stay beside this file"
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 1,
+    "voices_succeeded": 1,
+    "voices_succeeded_ids": [
+      "codex-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (1/1 succeeded); chain_health=ok",
+    "single_voice_call": true,
+    "status": "APPROVED"
+  }
+}

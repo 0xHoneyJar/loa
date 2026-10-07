@@ -1,0 +1,8 @@
+G-2 verdict-derive pair — 2026-10-06T08:06:28Z at d785fc9a; envelope = sprint-250 c1-catalog two-voice envelope + one rejected_summary row
+--- fail.md
+the dissent envelope adversarial-review.json carries 1 schema-rejected payload(s) (metadata.rejected_summary) but this file has no '## Rejected dissent payloads' section — triage each entry there (real defect → count it; not a defect → say why) so a dropped finding is never silently lost (cycle-126 FR-2.3)
+INCONSISTENT: gate=review verdict=APPROVED
+exit 1
+--- pass.md
+CONSISTENT: gate=review verdict=APPROVED
+exit 0

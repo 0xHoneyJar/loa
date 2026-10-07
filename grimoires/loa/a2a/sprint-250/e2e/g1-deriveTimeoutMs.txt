@@ -1,0 +1,4 @@
+claude-opus-5-5 1800000
+claude-opus-5 1800000
+claude-sonnet-5 1800000
+claude-fable-5-1 1800000

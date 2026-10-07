@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "@test \"CMP-93 the run lock fails open on a lock directory that is not ours, and on no hash tool",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-companion.bats: CMP-93",
+      "cross_file_justification": "The test pins the behavior of _adv_take_run_lock in the production adversarial-review script ($ADVERSARIAL_REVIEW): when the per-user lock directory is a symlink or not owned by the invoking user, or when neither sha256sum nor shasum exists, the run proceeds with _ADV_RUN_LOCK_DIR empty and only a single stderr warning.",
+      "description": "The run lock is the only guard around the envelope move-aside (.prev) and rewrite sequence pinned by CMP-64/CMP-69. CMP-93 asserts that an unusable lock directory (symlink, wrong owner) plus an unavailable XDG_CACHE_HOME fallback results in fail-open: the review runs unguarded. Refusing to follow the symlink is correct, but on a shared host where the primary lock directory sits under a world-writable tmp, a local user can plant that symlink to switch off mutual exclusion for the victim's runs.",
+      "failure_mode": "Two concurrent runs against the same output directory interleave move-aside and write. The final adversarial-review.json or its rejected sidecar can belong to the wrong round or be torn, and verdict-derive.sh (exercised in CMP-64) consumes it as authoritative.",
+      "suggested_fix": "Fail closed when both the primary lock directory and the XDG_CACHE_HOME fallback are unusable, or add a last-resort private directory under $HOME (mode 700, ownership-checked). If fail-open must remain, gate it behind an explicit opt-in such as LOA_ADVERSARIAL_LOCK_OPTIONAL=1 and keep the warning.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "@test \"CMP-82 the reaper KILLs a pid only while it is still the process it collected",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-companion.bats: CMP-82 (_adv_kill_same \"$q\" \"\") and CMP-71",
+      "cross_file_justification": "CMP-82 pins that _adv_kill_same with an empty token signals the bare pid, and CMP-71 pins that an unreadable start token at fork keeps the companion tracked by pid alone. Both describe the reaper in the production script.",
+      "description": "The reaper's pid-reuse defense (start-time token compare, pinned by CMP-62/CMP-100/CMP-109) is bypassed whenever a token could not be read: the fallback is to TERM and then KILL the bare pid. For the direct child this is safe because the pid cannot be recycled before wait. For collected tree descendants it is not: a descendant whose /proc/<pid>/stat read failed during the frozen collection is later signalled by number alone, after a grace window that can follow a wait of up to the global ceiling (~1000 s per CMP-65).",
+      "failure_mode": "On a busy host a recycled pid belonging to an unrelated same-user process receives SIGTERM and SIGKILL from the reaper.",
+      "suggested_fix": "When the frozen-collection token read fails, retry via the ps lstart fallback (_adv_lstart_token, CMP-97) before recording the pid, and if still no token is available, restrict the fallback to the direct child only and skip signalling untokenised descendants after the grace window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "@test \"CMP-99 the fold survives its redactor under errexit and pipefail",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/adversarial-review-companion.bats: CMP-99 (_ADV_REDACTOR_BIN=...) and CMP-107 (_ADV_FLOCK_BIN=...)",
+      "cross_file_justification": "The tests drive production helpers by setting _ADV_REDACTOR_BIN and _ADV_FLOCK_BIN as variables visible to the sourced script, which indicates the script resolves these binaries from an overridable variable rather than a fixed path.",
+      "description": "The redactor is the control that keeps raw companion log lines (which can carry provider error bodies, paths, or tokens) out of stderr and envelopes; CMP-99 shows the fold pipes the diagnostic through whatever _ADV_REDACTOR_BIN names. If the production script initialises these with an environment default (for example ${_ADV_REDACTOR_BIN:-...}), any caller or CI step that can set environment variables can replace the redactor with cat, or point _ADV_FLOCK_BIN at a script that always succeeds and silently disables the per-key takeover section. Verify how the script initialises these variables; if they are assigned unconditionally inside the script this finding does not apply.",
+      "failure_mode": "Unredacted companion diagnostics reach stderr and logs, or the lock takeover runs without its flock, through nothing more than an environment variable.",
+      "suggested_fix": "Assign the helper paths unconditionally in the script and expose a test seam only when an explicit test-mode variable is set (for example LOA_ADVERSARIAL_TEST_HOOKS=1 and a check that BATS_TEST_FILENAME is non-empty). Alternatively, resolve the redactor relative to the script directory and ignore external overrides.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:28:38Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 8811,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "6dec97ce8e7c787a537d459df24e09245dbf69c12c6f81067de50febeaf62489",
+      "run_tag": "c1b-companion-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

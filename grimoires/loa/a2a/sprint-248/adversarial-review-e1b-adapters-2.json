@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py:CursorHeadlessAdapter._prepare_invocation",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the cursor adapter the per-hop directory is created by tempfile.mkdtemp and then hold_hop_workspace(workspace) is called, both OUTSIDE the try/finally that owns the rmtree. The codex adapter in the same diff places the hold inside its outer try so its finally always removes the directory. If hold_hop_workspace raises an OSError (os.open or flock failure, e.g. EMFILE under many concurrent hops, or a filesystem that refuses flock on a directory) the freshly created cursor workspace is never removed by this hop.",
+      "failure_mode": "A hold failure after mkdtemp leaks one 0700 directory under the private base per failed hop. It is only reclaimed by a later cursor hop's sweep once it is a day old, so a burst of hold failures accumulates directories under $XDG_RUNTIME_DIR or ~/.cache/loa for up to 24 hours. The error itself is still surfaced correctly by the base complete().",
+      "suggested_fix": "Mirror the codex shape: create the workspace and acquire the hold inside the outer try so the finally's shutil.rmtree(workspace, ignore_errors=True) and release_hop_workspace(hold) cover a failing hold. Initialise workspace = None / hold = None before the try and guard the rmtree on workspace is not None.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py:GeminiHeadlessAdapter._prepare_invocation",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The sandbox warning and the 124 KiB argv refusal are decided from argv alone via _asks_sandbox(command[1:]). The module's own design note states that GEMINI_SANDBOX in the environment outranks --sandbox in gemini-cli. When the operator passes --sandbox in gemini_extra_flags while the ambient environment carries GEMINI_SANDBOX=false or GEMINI_SANDBOX=0 (which _run_subprocess leaves untouched because _asks_sandbox is true), gemini-cli runs with no sandbox and the prompt stays on stdin, yet the hop still logs the exposure warning and refuses any prompt over _SANDBOX_ARGV_CAP.",
+      "failure_mode": "Under that contradictory but plausible configuration, prompts between 124 KiB and 8 MiB are refused as ProviderUnavailableError before any spawn, dropping the gemini voice from a dissent that gemini-cli would have completed on stdin. The warning also misreports an argv exposure that does not occur.",
+      "suggested_fix": "Compute the effective sandbox once: treat _asks_sandbox(...) as true only when os.environ.get('GEMINI_SANDBOX', '').strip().lower() is not in ('false', '0') (and optionally when SANDBOX is unset, since gemini-cli never re-sandboxes inside one). Use that single predicate for the warning, the argv cap and the env injection in _run_subprocess so all three agree with what gemini-cli will actually do.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/tests/test_headless_workspace.py:root",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The root fixture calls monkeypatch.delenv('XDG_RUNTIME_DIR', raising=False) and the tests then assign os.environ['XDG_RUNTIME_DIR'] = ... directly, relying on the fixture's undo to restore it. pytest's MonkeyPatch.delitem records nothing when the key is absent, so on a host where XDG_RUNTIME_DIR is not set (most CI containers; it IS set on the developer host, which masks this) the direct assignments are never undone and leak into every later test module in the session. The last test in the file leaves XDG_RUNTIME_DIR='run-dir' (a relative path); other orderings leave an absolute path under pytest's basetemp that still exists during the session and would be chosen by private_workspace_base() in unrelated adapter tests.",
+      "failure_mode": "Order-dependent test pollution: subsequent suites that exercise the real private_workspace_base() (claude, codex, cursor, grok adapter tests) run against a leaked base instead of the host's, which can flip a passing or failing result depending on collection order and whether the host sets XDG_RUNTIME_DIR. Not a production defect, but a flaky-CI source in a suite that pins security behaviour.",
+      "suggested_fix": "Set the variable through the fixture's monkeypatch everywhere (monkeypatch.setenv('XDG_RUNTIME_DIR', ...) and monkeypatch.setenv('HOME', ...)) instead of assigning os.environ directly, or have the root fixture call monkeypatch.setenv('XDG_RUNTIME_DIR', '') followed by delenv so the key is recorded and restored. Apply the same to the direct HOME assignments for symmetry.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T05:02:56Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 35772,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "c63e7af9b1d149e68e75571a79bdb76a3c0ce49f656cf9f674bd4694fa97d8ae",
+      "run_tag": "e1b-adapters-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

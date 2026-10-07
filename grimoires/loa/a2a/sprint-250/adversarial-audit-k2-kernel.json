@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "SKILL_LIMIT, LOA_LIMIT, PROTO_FAIL, PROTO_WARN = 16384, 10240, 160000, 114688",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tools/check-prompt-budget.sh",
+      "cross_file_justification": null,
+      "description": "The hard CI ceiling for the always-loaded CLAUDE.loa.md was raised from 9,216 B to 10,240 B in the same change that re-adds the content it must fit (Reference Files table, truenames table, NOTES clause, longer rationales). The gate was moved to fit the payload rather than the payload trimmed to fit the gate. The rationale (replay A/B ablation on audit-pr-02/05 showed the trim degraded audit recall) is security-positive and is written in the bats header, but the tool header still cites only cycle-124 FR-8 and gives no reason for the new ceiling. The literal is duplicated in the header comment, the Python constant, and two bats assertions.",
+      "failure_mode": "The next prompt growth cites this PR as precedent and ratchets the limit again without ablation evidence; the budget degrades from a control into a number that tracks current size.",
+      "suggested_fix": "Record the ablation reference (sprint-250 replay-ab-rerun) beside LOA_LIMIT in the tool header. Source the limit from one place (e.g. a constant the bats file reads via --json .claude_loa.limit) so changes are a single, reviewable edit.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "RES = re.compile(r\"resources/([A-Za-z0-9_.-]+\\.md)\")",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tools/check-prompt-budget.sh",
+      "cross_file_justification": null,
+      "description": "Resource charging fires only when a single SKILL.md line both matches resources/<flat-name>.md and contains an imperative with no guard word. A skill evades the budget with any of: a nested path (resources/sub/X.md, '/' is not in the class), a non-.md resource (X.yaml, X.txt), a multi-line form ('Read the following:' then '- resources/X.md'), or a guard token used as emphasis ('Read only `resources/X.md`', 'Read `resources/X.md`; see §2'). Separately, os.path.getsize and open() follow symlinks: a SKILL.md or resource symlinked to a FIFO or /dev/stdin blocks the CI job indefinitely, and a directory named CLAUDE.loa.md yields present=False, bytes=0, ok=True and passes. The header already acknowledges guard-word pointers as accepted behaviour, so this is a hardening note rather than a bypass of a security boundary.",
+      "failure_mode": "Always-loaded prompt bytes exceed budget undetected, or a crafted fixture/PR stalls the budget CI step. Impact limited to prompt hygiene and CI availability.",
+      "suggested_fix": "Use os.lstat and reject symlinks and non-regular files (treat as breach). Broaden RES to resources/[^`'\" )]+ and charge any existing file regardless of extension. Treat a missing or non-regular CLAUDE.loa.md as a violation instead of ok=True with 0 bytes. Consider charging a resource when it is named within N lines of an unguarded imperative.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "python3 - \"$ROOT\" \"$JSON\" \"$QUIET\" <<'PY'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/instruction-diet-revert.bats",
+      "cross_file_justification": null,
+      "description": "Both tools/check-prompt-budget.sh and the new IDR-3 test run `python3 -` with the script on stdin. In that mode sys.path[0] is '' (the current working directory), so `import glob, json, os, re, sys` resolves against cwd before the stdlib. When the checker is run from inside an untrusted checkout (fork PR CI, or cd into a downloaded fixture tree before passing --root) a planted json.py or glob.py executes with the CI job's privileges. Because bats already executes repository shell code in the same job, the marginal exposure is small, but the fix is a single flag.",
+      "failure_mode": "Arbitrary code execution in the CI job from a shadowed stdlib module placed at the repo root of a PR branch; primarily a concern for forks or fixture trees executed in-place.",
+      "suggested_fix": "Invoke `python3 -I -` in both the tool and the bats test (-I implies -E -s and drops cwd/script dir from sys.path).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "run python3 - \"$R/.claude/data/constraints.json\" \"$R/tests/fixtures/constraint-rationales-pre-diet.json\" <<'PY'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tests/unit/instruction-diet-revert.bats",
+      "cross_file_justification": null,
+      "description": "As rendered in the diff, .claude/data/constraints.json is a flat {\"C-PROC-001\": \"<why>\", ...} map. IDR-3's walker only records objects that carry both an \"id\" and a \"why\" key, and IDR-4's jq filter is `select(.id? == $id) | .why`. Against the diffed shape both produce nothing: IDR-3 reports all twelve ids as mismatched and exits 1; IDR-4 greps for '| null |' and fails. The referenced fixture tests/fixtures/constraint-rationales-pre-diet.json is also absent from the diff. The hunk header `@@ -0,0 +1,14 @@` paired with a non-empty-blob index suggests the diff view is condensed and the real file may be the id/why array the tests expect; this should be confirmed before merge. Failure is loud (CI red), not a silent pass, so there is no gate-bypass risk, only a broken pin on the revert this PR exists to protect.",
+      "failure_mode": "The new tests fail on first run, or are 'fixed' by relaxing the assertion, leaving the reverted rationales unpinned.",
+      "suggested_fix": "Verify the committed constraints.json shape matches the walkers; add tests/fixtures/constraint-rationales-pre-diet.json to the change; or make the walker accept both the flat map and the id/why object form.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:37:42Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10160,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8295d5d501085404903836551ea74230082218b6293161d32d7ed736446a19e0",
+      "run_tag": "k2-kernel"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

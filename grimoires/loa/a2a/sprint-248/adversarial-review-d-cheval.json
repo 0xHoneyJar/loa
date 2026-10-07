@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": ".claude/adapters/loa_cheval/providers/headless_cli.py:_acl_extended",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_acl_extended only recognises a POSIX ACL by the presence of the `system.posix_acl_access` xattr. On an NFSv4 mount the Linux client lists `system.nfs4_acl` instead (and never `system.posix_acl_access`), so listxattr succeeds with no POSIX name and the function returns False (\"no ACL\"). knfsd materialises a named-user write grant as a POSIX ACL on the server, which raises the client-visible S_IWGRP mask bit; the directory then reaches the group-writable branch of _dir_trustworthy, passes the UPG test, and is trusted even though another account has write via the NFSv4 ACL.",
+      "failure_mode": "A group-writable user-private-group directory on an NFSv4-mounted home (or an NFSv4 TMPDIR) carrying an NFSv4 ACL grant to another user is accepted as an ancestor of the headless CLI's cwd, so that user can plant a CLAUDE.md / AGENTS.md on the discovery path. Requires NFSv4 + g+w UPG directory + an explicit ACL grant, so low likelihood.",
+      "suggested_fix": "Treat `system.nfs4_acl` in the listxattr result as 'no proof' (return True), or refuse the group-writable branch entirely when the filesystem reports any `system.*acl*` name other than a POSIX one. Note the limitation beside the macOS one in the docstring.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/providers/headless_cli.py:HeadlessCLIAdapter.complete",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new outer `except OSError` turns every OSError that is not FileNotFoundError into `ProviderUnavailableError(\"... could not prepare its run: ...\")`. That label is wrong for exec-time failures that CPython raises with filename=executable: a CLI binary that is present but not executable (PermissionError, EACCES) or an argv that is too long (E2BIG) now reads as a workspace/slot preparation failure. The FileNotFoundError branch already distinguishes a vanished cwd from a missing binary via exc.filename; PermissionError gets no such treatment and never reaches the ConfigError path that carries the `<CLI>_BIN` env hint and install hint.",
+      "failure_mode": "An operator whose `claude`/`codex` binary lost its execute bit (or whose PATH resolves to a non-executable shim) sees the hop dropped as PROVIDER_UNAVAILABLE with 'could not prepare its run: [Errno 13] Permission denied', with no install hint and no pointer to the `*_BIN` override; the companion diagnostic and MODELINV row record a misleading cause. Behaviour is still walkable (an improvement over the previous bare OSError), so this is diagnostic quality only.",
+      "suggested_fix": "Catch `PermissionError` beside `FileNotFoundError` in the inner try and, when `exc.filename` is not the cwd (reuse cwd_vanished), raise the same ConfigError with the env-name and install hint; alternatively, branch the outer handler on whether `exc.filename` names the executable and word the message 'could not start' for that case.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:45:14Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 46504,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "75b4e5f27ec29e00f98ae3f5d1dd879098d47df845c9d8d2a11f00ff5e62e89e",
+      "run_tag": "d-cheval"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

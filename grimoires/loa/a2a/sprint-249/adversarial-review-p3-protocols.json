@@ -1,0 +1,211 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/citations.md:@@ -1,438 +1,10 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The diff replaces `.claude/protocols/citations.md` with a Session Continuity stub pointing to `reference/session-continuity.md`. That leaves the citation protocol path no longer containing citation rules, while other protocol text still treats `citations.md` as the citation-format source.",
+      "failure_mode": "Agents or validators that load `.claude/protocols/citations.md` for citation requirements will read session-continuity guidance instead, so citation enforcement can silently stop applying or apply the wrong protocol.",
+      "suggested_fix": "Restore the word-for-word citation protocol at `.claude/protocols/citations.md`, or if the intent was to stub a moved citation protocol, point it to the correct citation reference file and keep the title/content aligned with citations rather than session continuity.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/trajectory-evaluation.md:@@ -1,338 +1,4 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The sprint acceptance criterion 'Replay A/B: no gold case loses recall' is unmet on its own pre-registered terms. The gate fixed before extra trials (pooled n=9 after >= before, per losing case) fails on all five losing cases (review-pr-02, review-pr-05, audit-pr-02, audit-pr-03, audit-pr-05). Missed-defect slots doubled from 5/144 to 10/144. The pre-registered remedy ('revert or retune the implicated change') was not applied; instead a post-hoc blind adjudication re-scored the misses, and even on that measure audit-pr-02 still loses (0.963 vs 1.000). The adjudication itself attributes the grader drops to citation-format changes in the after arm (paren swallowed into path, continuation citations `:776,807`, `head:468`), which means the instruction diet did change output format, not just grader luck. The ablation only clears the context_discipline include; the protocol stubs (this hunk and session-continuity), the CLAUDE.loa.md trim, and the constraints rationale rewrite remain un-bisected.",
+      "failure_mode": "Measured recall regression in the reviewing-code and auditing-security skills ships to every consumer of the framework; downstream parsers that rely on the citation format (grader, verdict-trailer tooling) see more unparseable citations. The gate was moved after the result was known.",
+      "suggested_fix": "Hold the merge until one of: (a) bisect the remaining suspects (protocol stubs vs CLAUDE.loa.md trim vs constraints rationales) with the same 6-trial protocol and revert the implicated move per the pre-registered remedy; or (b) obtain explicit human sign-off to amend the AC, land the grader fix (bd-ewrc) test-first, re-baseline, and re-run the five losing cases before COMPLETED. Do not let the post-hoc adjudicated measure replace the pre-registered one without that sign-off.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/protocols/tool-result-clearing.md:@@ -4,12 +4,18 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new protocol text fails open: 'when it is absent, assume `long`', and the report states every hook error path (yq missing, catalog miss, alias unresolved, sanitiser rejecting the model id) also resolves to `long`. `long` thresholds are 10x the `standard` ones (150,000-token session total). On a <=200K model such as claude-haiku-4-5-20251001, 150K of accumulated tool results plus system prompt and skills exceeds Claude Code's auto-compact trigger, so compaction fires before the protocol's STOP-and-synthesize point. That is exactly the information loss the 'Clear, Don't Compact' paradigm exists to prevent.",
+      "failure_mode": "Haiku 4.5 (or any <=200K catalog model) on a machine without yq, or any session where SessionStart hooks did not run (hooks disabled, hook-guard skip, missing .run/), silently operates under long-class thresholds and loses un-synthesized decisions to auto-compaction.",
+      "suggested_fix": "Invert the fail-safe direction: unknown or error -> `standard`; only an affirmative catalog lookup with context_window > 200000 (or LOA_CONTEXT_CLASS=long) selects `long`. If the default must stay `long` for the Claude 5 majority, at minimum emit a visible warning line in `/loa` and the hook stderr when the class was chosen by fallback rather than lookup, and add a CC test for the yq-absent path on a 200K model.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/protocols/tool-result-clearing.md:@@ -4,12 +4,18 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/protocols/tool-result-clearing.md:@@ -4,12 +4,18 @@",
+      "cross_file_justification": "The protocol text in this hunk instructs agents to trust `.run/context-class`; that file is written by `.claude/hooks/session-start/loa-context-class.sh`, which the report says is registered behind hook-guard.sh with `once` and only on SessionStart.",
+      "description": "`.run/context-class` is computed once per session at SessionStart. Claude Code allows switching models mid-session via `/model`, and `LOA_CONTEXT_CLASS` can change between prompts; neither re-fires SessionStart. The record therefore goes stale: a session that starts on a 1M model and switches to a 200K model keeps `long` thresholds for the rest of the session. Two concurrent sessions in the same checkout with different models also race on the single file, last writer wins.",
+      "failure_mode": "Agent reads a stale `long` record on a 200K model after a mid-session model switch and over-accumulates tool results (see DISS-002 failure mode).",
+      "suggested_fix": "Record the model id alongside the class in `.run/context-class` (or a sibling file) and have the context_discipline include tell the agent to re-derive when the current model differs; or re-run the hook from a UserPromptSubmit hook with a cheap model-id compare. Document the staleness window in tool-result-clearing.md if not fixed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/session-continuity.md:@@ -1,438 +1,10 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/protocols/session-continuity.md:@@ -1,438 +1,10 @@",
+      "cross_file_justification": "The removed text states that `pre-compact-marker.sh` and `post-compact-reminder.sh` 'inject the recovery sequence' and point at this protocol; `/run sprint-plan` unattended recovery and `br sync --flush-only` at session end were specified only here.",
+      "description": "The stub drops operational instructions that are not reference material: (1) Phase 1 step 0 'Run mode first: if `.run/sprint-plan-state.json` has state RUNNING, resume sprints.current immediately, no interactive recovery, no confirmation', which the removed text says 'is what lets /run sprint-plan survive context compaction during unattended execution'; (2) 'Always run `br sync --flush-only` at session end'; (3) Fork Detection / ledger-wins rule. These are now outside the prompt budget behind a pointer. The report claims 'No enforcement text was removed' but these are behavioral directives, not rationales. Unless post-compact-reminder.sh, CLAUDE.loa.md, or the run-state-surface hook output carry the run-mode resume instruction verbatim, an agent recovering from compaction mid-run sees only the notes-guard table and may stop to ask for confirmation.",
+      "failure_mode": "Unattended `/run sprint-plan` stalls on a confirmation prompt after compaction, or ends a session without flushing beads, losing task state.",
+      "suggested_fix": "Either keep the run-mode step 0 and the `br sync --flush-only` line in the stub (they are under 300 bytes), or verify and cite in the report that post-compact-reminder.sh / CLAUDE.loa.md emit them independently, with a test that greps the hook output for `sprint-plan-state.json` and `RUNNING`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/tool-result-clearing.md:@@ -4,12 +4,18 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/protocols/tool-result-clearing.md:@@ -4,12 +4,18 @@",
+      "cross_file_justification": "The thresholds became class-dependent in this hunk, but the texts moved verbatim to `.claude/protocols/reference/trajectory-evaluation.md` and `.claude/protocols/reference/session-continuity.md` (and, per synthesis-checkpoint.md's link, `attention-budget.md`) still hardcode the old single-class numbers.",
+      "description": "The moved reference text still says 'apply Tool Result Clearing if result_count > 20 or tokens_estimated > 2000', 'delta_sync phase is logged at the 5,000-token accumulated threshold (see tool-result-clearing.md)', and 'Run Delta-Synthesis at the Yellow threshold (5,000 tokens)'. Under the `long` class the live protocol says 20,000 / 50,000. An agent that follows the stub's pointer gets contradictory numbers, and the delta_sync trajectory field `tokens: 5000` no longer describes when the sync actually fires.",
+      "failure_mode": "Agents and the reviewing-code trajectory audit disagree on when clearing and delta-sync were required; audit flags compliant long-class sessions as late, or agents on `long` clear at 2K anyway, negating the diet.",
+      "suggested_fix": "Replace the hardcoded numbers in the moved reference files and attention-budget.md with 'the class threshold in tool-result-clearing.md' or with both class values; add the two reference files to the protocol-refs-resolve or a threshold-consistency test.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/protocols/citations.md:@@ -1,438 +1,10 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The first hunk is labeled `a/.claude/protocols/citations.md` but its removed content is the Session Continuity Protocol and its replacement is the session-continuity stub, while the supplied full-file context for citations.md shows the intact Word-for-Word Citation Protocol (with only the trajectory-evaluation pointer repointed). One of the two inputs is wrong. If the diff path is accurate, the citations protocol (grounding ratio rule, negative grounding, self-audit) was overwritten with a stub; if the full file is accurate, the diff was mislabeled by the review harness and the real citations.md change is a one-line repoint.",
+      "failure_mode": "If the diff path is literal, the citation protocol that synthesis-checkpoint Step 1 and the grounding-check script depend on is gone from the live tree.",
+      "suggested_fix": "Run `git show --stat 41b783a1 -- .claude/protocols/citations.md .claude/protocols/session-continuity.md` and confirm citations.md changed by one line and session-continuity.md is the 438->10 line stub. Fix the review-harness path mapping if that is the cause.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/session-continuity.md:@@ -1,438 +1,10 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The stub says it 'keeps the old path and its anchors stable' but changes the Level 2 recovery recipe: the removed text (and therefore the moved reference file) defines Level 2 as `ck --hybrid \"...\" grimoires/loa/ --top-k 3 --jsonl` (~200-500 tokens), while the stub defines Level 2 as `notes-guard.sh read --file F --section <H>` with `--index`. The in-budget stub and the out-of-budget reference now disagree on what Level 2 is, and the stub relies on `--file`, `--section`, and `--index` flags whose existence in notes-guard.sh is not evidenced in the report.",
+      "failure_mode": "An agent following the stub runs a notes-guard.sh invocation that may be rejected if those flags do not exist; an agent following the reference runs ck instead; recovery behavior differs by which file was read.",
+      "suggested_fix": "Confirm `notes-guard.sh read --file --section --index` exist (and are covered by notes-template.bats); update the Level 2 row in reference/session-continuity.md to match the stub, or restore the ck recipe in the stub.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T20:57:59Z",
+    "tokens_input": 60284,
+    "tokens_output": 21122,
+    "cost_usd": 0,
+    "latency_ms": 24695,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-p3-protocols.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-p3-protocols.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5cdd285e4bde2bb72672fea7eeed1db8dd60ed7d57517c0b0f7c5cdd58be5b81",
+      "run_tag": "p3-protocols"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

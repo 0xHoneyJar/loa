@@ -1,0 +1,147 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "injection",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_range_diff",
+      "anchor_type": "function",
+      "scope": "diff",
+      "description": "`_adv_range_diff` passes the user-controlled diff range as a positional argument before `--`. If `--diff-range` begins with `-`, Git parses it as another `git diff` option rather than a revision range. That can redirect output, alter diff semantics, or trigger unexpected modes before the script parses the review content.",
+      "failure_mode": "A crafted or accidental range such as `--output=/path/file` or another git-diff option can change where the diff is written or make the reviewer consume an empty/misleading diff, violating the review scope contract.",
+      "suggested_fix": "Validate `diff_range` before calling `_adv_range_diff` so only the intended revision grammar is accepted, then pass it in a way Git treats as a revision, for example after strict allowlisting of `rev...rev` / `rev..rev` forms. Reject any range beginning with `-` before invoking `git diff`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_cont_watchdog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_adv_kill_tree cancels the CONT watchdog with `kill -TERM -- -$pgid`, but on every signal/exit path the reapers run after `trap '' INT TERM` (_adv_cleanup_on_exit sets it as its first statement, and the report states both INT/TERM trap bodies begin the same way). A process forked while SIGTERM is ignored inherits SIG_IGN, and POSIX forbids a non-interactive sh from trapping or resetting a signal ignored on entry; `sleep` inherits SIG_IGN across exec as well. So the `setsid sh -c '...; sleep; kill -CONT ...'` watchdog (and the no-setsid subshell fallback) cannot be cancelled: the TERM is silently dropped and the watchdog always fires after ${_ADV_CONT_WATCHDOG_SECONDS:-10} s. This defeats the thirty-third-run fix whose whole point was that a pid resumed by our own CONT pass, then stopped by its owner or recycled, is never resumed later. The watchdog is also spawned via `$(...)` from the reaper, so it outlives the script as a detached orphan for the full delay.",
+      "failure_mode": "Every INT/TERM/EXIT reap leaves one or two uncancellable `sh`+`sleep` pairs that, 10 s after the run has exited, send SIGCONT to every pid of the former companion/primary tree. A pid recycled in that window to a process its owner deliberately stopped (job-control Ctrl-Z, a debugger, another reaper's freeze) is resumed by us. Test sweeps and pid-scoped assertions also see stray processes for 10 s after each signalled run.",
+      "suggested_fix": "Cancel with a signal that cannot be ignored: `kill -KILL -- \"$x\"` for the setsid group (both `sh` and `sleep` die) and `kill -KILL \"$!\"` in the fallback (the CONT loop lives in the subshell, so killing it is a complete cancel). Alternatively, have the watchdog poll a cancel file in the workdir before each CONT. Do not try `trap - TERM` inside the child: a signal ignored at entry cannot be reset there, and restoring default TERM in the parent would reopen the second-signal window the `trap ''` closes. Add a bats case that runs the reaper from inside a `trap '' INT TERM` context and asserts no watchdog survives the kill_tree return.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_cont_watchdog",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_ADV_CONT_WATCHDOG_SECONDS` is read raw into `sleep \"$0\"`, unlike every sibling knob (grace, wait caps, budgets) which goes through `_conf_uint`. An empty, non-numeric or negative value makes `sleep` fail immediately, so the watchdog runs its CONT loop at once, while _adv_kill_tree still has the tree frozen and before the token read and the TERM pass. The freeze that the token-while-frozen rule (a4 DISS-C-002) depends on is then silently absent.",
+      "failure_mode": "With a malformed knob, descendants are resumed between the STOP and TERM passes; a pid can exit and be freed before its token is taken, so the KILL identity check is computed against the wrong process, which is the race the freeze was introduced to close.",
+      "suggested_fix": "Resolve the delay once via `_conf_uint \"LOA_ADVERSARIAL_CONT_WATCHDOG_SECONDS\" ... <default 10> <floor 1>` (or the existing `_ADV_CONT_WATCHDOG_SECONDS` name) and pass the validated integer; refuse or clamp values below the longest expected freeze pass.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_range_diff",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The subshell unsets GIT_DIFF_OPTS and GIT_ATTR_SOURCE but leaves git's repository-discovery environment in place (GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES, GIT_NAMESPACE). verdict-derive's `_vd_committed` already clears this set for the same reason. When the script is launched from a git hook or by a wrapper that exports an absolute GIT_DIR (git sets GIT_DIR/GIT_INDEX_FILE for hooks), `git -C \"$1\" diff` and `hash-object` operate on that repository, not on the tree at `$1`; GIT_NAMESPACE silently changes which commits the range's ref names resolve to.",
+      "failure_mode": "The reviewed diff and the empty-tree attribute source are taken from a different repository or ref namespace than PROJECT_ROOT, so both voices review the wrong change while `metadata.scope.diff_oids` records oids consistent with that wrong repository.",
+      "suggested_fix": "In the same `( unset ... )` subshell, also unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_CEILING_DIRECTORIES (mirroring `_vd_committed`), and apply the same set wherever `_ADV_RANGE_OIDS` is resolved so the oids and the diff come from one discovery.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T02:33:47Z",
+    "tokens_input": 71678,
+    "tokens_output": 40165,
+    "cost_usd": 0,
+    "latency_ms": 26936,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a4b-script-4b.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-review-a4b-script-4b.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0f4de401113fc79d8a7802e401f2b7d2c38686feaa5db1badcb0bc4b27f55e32",
+      "run_tag": "a4b-script-4b"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

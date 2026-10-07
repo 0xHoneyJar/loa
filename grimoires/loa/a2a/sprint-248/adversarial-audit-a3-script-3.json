@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "_adv_lock_dir_ours",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_adv_with_cli_lock",
+      "cross_file_justification": null,
+      "description": "_adv_lock_dir_ours accepts any directory that is a non-symlink owned by the current uid and never inspects the mode, yet the comments in _adv_lock_dir and _adv_with_cli_lock (\"the directory is ours (0700, not a symlink)\") treat 0700 as established. `mkdir -m 700` only applies when this script creates the directory; a pre-existing `${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/loa-headless-locks-<uid>` left by an older version, another tool, or a permissive umask that is group/world-writable passes the check. Inside such a directory the per-file guard `[[ -L \"$lock\" || ( -e \"$lock\" && ! -O \"$lock\" ) ]]` is a check-then-use race against `exec 9>>\"$lock\"`, which follows symlinks and carries O_CREAT. Another local account can swap a symlink into place between the test and the open.",
+      "failure_mode": "On a shared host a local attacker plants a symlink named <bin>.lock in a user-owned but writable lock directory. The review then opens or creates an attacker-chosen path writable by the user (zero-byte create, flock taken on it), or the open fails and every CLI hop silently runs unserialised, defeating the KF-037 protection the lock exists for.",
+      "suggested_fix": "Extend _adv_lock_dir_ours to require mode 0700 (e.g. `[[ \"$(stat -c %a -- \"$1\" 2>/dev/null || stat -f %Lp -- \"$1\")\" == \"700\" ]]`), or chmod 700 and re-verify before use. After `exec 9>>\"$lock\"`, re-validate the opened file rather than the path: compare `stat -c %u /dev/fd/9` to `id -u` and confirm `stat -c %i /dev/fd/9` equals the inode of a fresh `lstat` of $lock that is not a symlink; fall back to _adv_run_unlocked on mismatch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_adv_repair_wall_for",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_companion_post_budget",
+      "cross_file_justification": null,
+      "description": "_adv_repair_wall_for evaluates `$(( ADV_REPAIR_MAX_PER_RUN * $2 * 2 ))` with the variable raw, while _companion_post_budget guards the same variable with `_adv_num_or \"${ADV_REPAIR_MAX_PER_RUN:-5}\" 5`. Bash arithmetic expands variable contents recursively, so a value such as `x[$(cmd)]` is a command-substitution sink and a plain non-numeric value is an arithmetic error. The caller invokes the function with `2>/dev/null`, so the error is hidden and `wall` becomes empty, which the following `(( sum > wall + hmax ))` reads as 0 and silently collapses the repair budget. The repair timeout `$2` / `t` flows into _adv_hop_charge and _adv_repair_wall_for with the same lack of validation.",
+      "failure_mode": "An operator pin or a mis-set environment variable either executes embedded command substitution during budget arithmetic or silently zeroes the repair wall so the companion is reaped mid-repair, with no log line explaining why.",
+      "suggested_fix": "Validate ADV_REPAIR_MAX_PER_RUN and the repair timeout once where they are read, using the existing _conf_uint helper exactly as _adv_cli_hop_timeout_load does, and consume only the validated copies in every arithmetic context. Drop the `2>/dev/null` on the _adv_repair_wall_for call so a failure is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_adv_cli_hop_bound",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_companion_deadline_why",
+      "cross_file_justification": null,
+      "description": "_adv_cli_hop_bound clamps only `headless_timeout_seconds` (`v`) to _ADV_CLI_HOP_CEILING. `connect_timeout` and `read_timeout` pass through _adv_pos_ceil, which admits values up to 999999999999999, and are summed into the bound unclamped (`echo $(( ct + rt ))`). That bound becomes `flock -w \"$wait_s\"` in _adv_with_cli_lock, the per-hop share in _companion_wait_cap, the queue budget cached in _companion_deadline_why, and therefore the global ceiling. The catalog is a repo file (`.claude/defaults/model-config.yaml` or LOA_MODEL_CONFIG), so anyone who can change repo config controls the review's wall-clock despite the ceiling the code says it enforces.",
+      "failure_mode": "A catalog entry such as `read_timeout: 1e15` makes a contended CLI lock wait and the companion reaper deadlines effectively infinite; the review hangs until the outer CI or operator kills it, the eight-hour-hang shape the deadline logic was added to prevent.",
+      "suggested_fix": "Clamp `ct`, `rt`, and the final `ct + rt` to _ADV_CLI_HOP_CEILING (or a separate documented ceiling that mirrors cheval's actual clamp for those fields), and log once when a catalog value is reduced, as _adv_cli_hop_timeout_load already does for the env knob.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "_adv_error_summary",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_adv_error_summary",
+      "cross_file_justification": null,
+      "description": "The summary is meant to be an allowlist so that provider raw text (request ids, account ids, echoed headers) never reaches the tracked envelope's last_error. Two branches are broad: `catalog headless_timeout_seconds [^()]{1,100}` admits up to 100 arbitrary characters other than parentheses, and `\\b[A-Z][A-Z_]{4,}\\b` admits any all-caps word. `grep -vE '^REDACTED'` removes only tokens that start with REDACTED. Any identifier or secret fragment the upstream redactor misses that sits after the catalog phrase, or any upper-case org/account/env-var-like token, is copied into the committed envelope.",
+      "failure_mode": "A provider or adapter diagnostic that embeds an upper-case identifier or free text after the catalog note is persisted in the tracked envelope and shipped with the review artefacts, bypassing the redaction boundary the design describes.",
+      "suggested_fix": "Narrow the catalog branch to the exact shape cheval emits (numeric value plus a fixed phrase, e.g. `catalog headless_timeout_seconds [0-9._eE+-]{1,20} (not applied|clamped to [0-9]{1,6})`), and replace the generic all-caps branch with an explicit set of known cheval error tokens (PROVIDER_UNAVAILABLE, RATE_LIMITED, AUTH_FAILED, etc.).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "if [[ -z \"${BATS_TEST_FILENAME:-}${BATS_VERSION:-}\" ]]; then unset _ADV_FLOCK_BIN _ADV_PGREP_BIN _ADV_REDACTOR_BIN",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "_adv_with_cli_lock",
+      "cross_file_justification": null,
+      "description": "The test-seam guard clears _ADV_FLOCK_BIN, _ADV_PGREP_BIN, _ADV_REDACTOR_BIN and the wait/repair overrides only when no BATS marker is present. Anyone who can set the process environment re-enables every seam by exporting `BATS_VERSION=1`, after which `_ADV_FLOCK_BIN=true` turns each per-binary lock into a silent no-op and `_ADV_REDACTOR_BIN=cat` disables redaction of provider output. The seams are then used as executables (`\"${_ADV_FLOCK_BIN:-flock}\" -w ...`). Because environment control is operator-level in this script's normal invocation, this is a hardening note rather than a boundary bypass, but the guard offers less protection than the comment implies.",
+      "failure_mode": "A CI job or wrapper that inherits a stale or attacker-influenced environment with a BATS marker set runs with locking disabled and redaction replaced, without any warning line.",
+      "suggested_fix": "Gate the seams on a single explicit opt-in that tests set deliberately (e.g. `_ADV_TEST_SEAMS=1` checked together with the BATS marker), log one WARN line whenever any seam is honoured, and restrict _ADV_*_BIN values to absolute paths under the repository's test fixtures.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:00:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 20876,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f8a2c7c3d2979e5695c946a43ac0de22826e8a6ca85dcc1b7a64893aa5df44d2",
+      "run_tag": "a3-script-3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

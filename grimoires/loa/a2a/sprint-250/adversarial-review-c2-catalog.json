@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/cheval.py:backward_compat_aliases",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The three hunks attributed to `.claude/adapters/cheval.py` are YAML (`backward_compat_aliases:`, `agents:`, `tier_groups:`) and clearly belong to `.claude/defaults/model-config.yaml`. Meanwhile the actual cheval.py change the report describes for fd8aaae3 (the `--help` text now saying 'other providers min(16000, catalog max_output_tokens)') is absent from the diff, even though new test c124-1.4-3b asserts on exactly that string. The hunk offsets (+40 lines before line 1173) also show the new `claude-opus-5-5` / `claude-sonnet-5` catalog entries and the `aliases.opus` / `aliases.cheap` retargets were omitted. If cheval.py genuinely embeds a YAML copy of the catalog, that is a second source of truth that the yq-reading tests would not see.",
+      "failure_mode": "Reviewers cannot verify the change that c124-1.4-3b depends on, nor the catalog entries that every other updated test depends on; a stale help string or missing entry would only surface as a test failure after merge.",
+      "suggested_fix": "Re-submit the diff with the correct path for the YAML hunks and include the cheval.py / base.py help-text and comment changes plus the omitted catalog hunks (claude-opus-5-5 entry, claude-sonnet-5 entry, aliases.opus, aliases.cheap).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/cheval.py:agents",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`deep-thinker` is rebound from the GA `gemini-2.5-pro` to the alias `gemini-3.1-pro` (backed by `gemini-3.1-pro-preview`) while keeping `requires: thinking_traces: required`. The neighbouring `gemini-3-flash` comment explicitly documents a `fallback_chain` to `gemini-2.5-flash` so `_resolve_active_model` can demote on UNAVAILABLE; the new deep-thinker comment asserts thinking_traces but says nothing about a fallback. No test in the diff dry-runs `--agent deep-thinker`, and the E2E table lists no deep-thinker evidence.",
+      "failure_mode": "If the preview entry's capabilities do not declare thinking_traces, or if its probe state goes UNAVAILABLE with no fallback_chain, every `cheval --agent deep-thinker` call hard-fails at resolve time instead of demoting to gemini-2.5-pro as it did before this change.",
+      "suggested_fix": "Confirm `gemini-3.1-pro-preview` carries `thinking_traces: true` and a `fallback_chain: [gemini-2.5-pro]`; add a bats case that runs `cheval --dry-run --agent deep-thinker` and asserts the resolved model and that `requires` is satisfied.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/adapters/cheval.py:backward_compat_aliases",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk adds bare self-maps for `claude-opus-5-5` and `claude-opus-5.5`, citing the rule that 'BB and advisor tier_aliases pass the bare id'. The report says `cheap` now resolves to `claude-sonnet-5`, which per the cycle-124 header comment was not part of that generation's self-maps. No `claude-sonnet-5` / `claude-sonnet-5.5` self-map is added in this hunk, and the visible context lines show none.",
+      "failure_mode": "If `claude-sonnet-5` lacks a bare self-map, any BB or advisor path that passes the bare id (the exact case the comment describes) fails to resolve the new `cheap` tier, while the dotted `claude-sonnet-5.5` form that users will type by analogy with `claude-opus-5.5` is also unresolvable.",
+      "suggested_fix": "Verify `backward_compat_aliases` contains `\"claude-sonnet-5\": \"anthropic:claude-sonnet-5\"` (and the dotted form if a 5.x exists); add a `c124-1.3-2`-style self-map test and a generated-maps grep for it, mirroring what c124-1.3-3 does for opus.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/cycle-124-effort-flag.bats:c124-1.4-1",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two suites gain a hard runtime dependency on a `yq` CLI (c124-1.4-1 and `_expected_max_output` in gen-bb-registry-codegen.bats) with no `command -v yq || skip` guard and no declared dependency. Two mutually incompatible `yq` implementations exist (mikefarah Go yq v4 and kislyuk python-yq); older mikefarah releases reject `-r`. The rest of this test tree already reads the catalog through `$PYTHON_BIN`. Separately, c124-1.4-1 now derives its expected value from `aliases.opus` in the same file cheval reads, so it no longer pins `opus → claude-opus-5-5` in this suite; the report's 'none was weakened' claim relies on c124-1.3-1 and gen-adapter-maps for that pin.",
+      "failure_mode": "On a CI or contributor host without `yq` (or with an old mikefarah build), five tests fail with an unrelated 'command not found' / 'unknown shorthand flag' error, masking real regressions in the effort-flag and BB codegen suites.",
+      "suggested_fix": "Read the catalog with `$PYTHON_BIN -c 'import yaml,sys; ...'` as the schema suite does, or add `command -v yq >/dev/null || skip \"yq not installed\"` in setup(); keep at least one literal `claude-opus-5-5` assertion in c124-1.4-1 so the test retains regression value.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/model-config-v3-schema.bats:V3 (c126): every beta-header value the schema accepts, the adapter accepts (never looser)",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The cross-check reaches into the private `anthropic_adapter._BETA_HEADER_RE` and applies `.match()` (prefix-anchored) rather than calling the adapter's actual validation entry point. If production validates with `.fullmatch()` or applies additional checks (length, allowlist membership), the test can print OK for a value such as `a-2025-01-01-` that the schema accepts and runtime rejects, which is precisely the gap the test exists to close. The test also assumes the schema stores the pattern at a hard-coded JSON path.",
+      "failure_mode": "A schema-valid `params.beta_headers` entry passes `validate_v3` and this guard, then cheval refuses the model at load with a beta-header error; the test silently stops guarding when the adapter renames or relocates the regex.",
+      "suggested_fix": "Expose and call the adapter's public validator (e.g. `is_valid_beta_header()` or whatever `_apply_beta_headers` actually uses) instead of `_BETA_HEADER_RE.match`, and assert the schema path exists with a clear message before indexing into it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/cycle-124-anthropic-catalog.bats:c124-1.3-3",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The generated-maps assertion adds `[\"claude-opus-5-5\"]=\"anthropic\"` (provider map) but not the `MODEL_IDS` self-map `[\"claude-opus-5-5\"]=\"claude-opus-5-5\"`, unlike the paired checks it sits next to for `claude-opus-5`. The report states BB and advisor tier_aliases pass bare ids through `MODEL_IDS`.",
+      "failure_mode": "A generator regression that emits the provider row but drops the MODEL_IDS self-map for the new id passes this test while bash callers passing the bare `claude-opus-5-5` fail to resolve.",
+      "suggested_fix": "Add `grep -q '\\[\"claude-opus-5-5\"\\]=\"claude-opus-5-5\"' \"$GENERATED_MAPS\"` alongside the provider check, and the same pair for `claude-sonnet-5`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T06:56:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 22955,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "fbd0ee4d214162bc03cc81d2292e81b773b93ef7e51347395e65995ad3ea3fb2",
+      "run_tag": "c2-catalog"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

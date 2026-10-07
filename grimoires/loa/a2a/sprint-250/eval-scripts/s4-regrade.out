@@ -1,0 +1,50 @@
+case           arm       n   g1.0   g1.1  adjud |1.1-adj|
+audit-pr-01    before    3  1.000  1.000  1.000         0
+audit-pr-01    after     3  1.000  1.000  1.000         0
+audit-pr-02    before    9  0.852  0.926  1.000         2
+audit-pr-02    after     9  0.815  0.926  0.963         1
+audit-pr-02    ablate    6  0.889  1.000  0.944         1
+audit-pr-03    before    9  1.000  1.000  1.000         0
+audit-pr-03    after     9  0.963  0.963  1.000         1
+audit-pr-04    before    3  0.889  1.000  1.000         0
+audit-pr-04    after     3  1.000  1.000  1.000         0
+audit-pr-05    before    9  0.926  0.963  1.000         1
+audit-pr-05    after     9  0.889  1.000  1.000         0
+audit-pr-05    ablate    6  0.833  0.944  1.000         1
+audit-pr-06    before    3  1.000  1.000  1.000         0
+audit-pr-06    after     3  1.000  1.000  1.000         0
+audit-pr-07    before    3  0.778  1.000  0.778         2
+audit-pr-07    after     3  0.778  1.000  0.778         2
+audit-pr-08    before    3  1.000  1.000  1.000         0
+audit-pr-08    after     3  1.000  1.000  1.000         0
+review-pr-01   before    3  1.000  1.000  1.000         0
+review-pr-01   after     3  1.000  1.000  1.000         0
+review-pr-02   before    9  0.926  1.000  1.000         0
+review-pr-02   after     9  0.815  1.000  1.000         0
+review-pr-02   ablate    6  0.833  1.000  1.000         0
+review-pr-03   before    3  1.000  1.000  1.000         0
+review-pr-03   after     3  1.000  1.000  1.000         0
+review-pr-04   before    2  1.000  1.000  1.000         0
+review-pr-04   after     3  1.000  1.000  1.000         0
+review-pr-05   before    9  0.963  1.000  1.000         0
+review-pr-05   after     9  0.852  1.000  1.000         0
+review-pr-05   ablate    6  0.833  1.000  1.000         0
+review-pr-06   before    3  0.889  0.889  0.889         0
+review-pr-06   after     3  1.000  1.000  1.000         0
+review-pr-07   before    3  1.000  1.000  1.000         0
+review-pr-07   after     3  1.000  1.000  1.000         0
+review-pr-08   before    3  1.000  1.000  1.000         0
+review-pr-08   after     3  1.000  1.000  1.000         0
+disagreements:
+  9f274235:audit-pr-07:t2:D21-blind-dotdot-rejection grader1.1=found adjudication=missed
+  9f274235:audit-pr-07:t3:D21-blind-dotdot-rejection grader1.1=found adjudication=missed
+  4605c788:audit-pr-02:t1:D06-prerelease-tags-rejected grader1.1=missed adjudication=found
+  4605c788:audit-pr-03:t1:D09-release-merge-misclassified grader1.1=missed adjudication=found
+  4605c788:audit-pr-07:t2:D21-blind-dotdot-rejection grader1.1=found adjudication=missed
+  4605c788:audit-pr-07:t3:D21-blind-dotdot-rejection grader1.1=found adjudication=missed
+  d107c6f1:audit-pr-05:t1:D14-billing-400-terminal grader1.1=missed adjudication=found
+  51adc68a:audit-pr-02:t3:D06-prerelease-tags-rejected grader1.1=missed adjudication=found
+  51adc68a:audit-pr-02:t4:D06-prerelease-tags-rejected grader1.1=missed adjudication=found
+  bd9fb888:audit-pr-05:t5:D14-billing-400-terminal grader1.1=missed adjudication=found
+  4c816102:audit-pr-02:t1:D06-prerelease-tags-rejected grader1.1=found adjudication=missed
+max per-case/arm slot gap: 2

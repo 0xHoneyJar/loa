@@ -1,0 +1,132 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "authz",
+      "title": "Validator trusts AGENT_TYPES_FILE environment override for write-capable agent policy",
+      "file": ".claude/data/agent-types.yaml",
+      "line": 111,
+      "description": "The write-capable agent allowlist is loaded from AGENT_TYPES_FILE when that environment variable is set. If this validator is used as a security gate for SKILL.md capabilities, an attacker who can influence the execution environment can point AGENT_TYPES_FILE at a crafted YAML file marking a read-only agent type as write_capable: true, causing the validator to accept a skill that should be rejected. That bypasses the intended authorization invariant tying write_files capability to approved write-capable agents.",
+      "evidence": "The changed code uses AGENT_TYPES_FILE=\"${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}\" and then trusts yq output from that file to populate WRITE_CAPABLE_AGENTS. The new SC-T-AGENT-8 test demonstrates the override can make Plan pass and general-purpose fail.",
+      "recommendation": "Do not honor AGENT_TYPES_FILE in production validation paths, or restrict it to explicit test mode. Prefer reading only $PROJECT_ROOT/.claude/data/agent-types.yaml after resolving it within the repository, and fail closed on unreadable or unparsable policy files rather than accepting environment-supplied policy.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The write-capable agent allowlist is loaded from AGENT_TYPES_FILE when that environment variable is set.",
+      "failure_mode_derived": true,
+      "anchor_status": "needs_triage",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "AGENT_TYPES_FILE=\"${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The write-capable agent allowlist that backs the Issue #553 skill invariant is now read from a path taken verbatim from the environment, and the yq read discards stderr and masks failure with '|| true'. Any caller environment can redirect the validator to an arbitrary YAML file without touching a tracked, reviewer-visible file. Separately, a missing yq binary, a yq variant without the 'eval' subcommand (the Python yq), a null or misspelled 'agent_types' key, or a malformed data file all collapse the list to general-purpose with no diagnostic. The fallback is fail-closed, so no privilege is gained, but skills pinned to 'claude' or 'fork' then fail with an error that lists only '(general-purpose)', which pushes authors to drop 'write_files: true' or re-pin to general-purpose instead of fixing the environment, eroding the capability metadata the invariant exists to keep honest. Note also that the diff header labels this hunk as a new file at .claude/data/agent-types.yaml with /dev/null as the old side, yet its content is shell from the validator script; the real path of the changed script should be confirmed before merge so the anchor is stable.",
+      "failure_mode": "Misconfiguration or missing tooling silently changes validator results and produces misleading errors; the environment override lets the reviewed allowlist be replaced without a tracked-file change.",
+      "suggested_fix": "Emit a warning or fail when the data file exists but yields zero write_capable entries, and when yq is absent or does not support 'eval'. Honor AGENT_TYPES_FILE only when a test-harness variable is set, or require it to resolve under PROJECT_ROOT. Fix the commit so the validator change is attributed to the correct script path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "A wildcard rule covers a requirement when its key equals the requirement's key or the requirement's first word; deny precedence is unchanged.",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "@test \"CP-13 table: mixed forms across layers, whitespace and escaping, and a dangerous-shape deny fuzz set behave per the grammar\"",
+      "cross_file_justification": "The CP-11 to CP-14 tests in tests/unit/check-permissions.bats pin the matching grammar implemented in the check-permissions script, which is not in the diff; the tests are the trigger and the script is the affected sink.",
+      "description": "The grammar pinned by the new tests detects a deny only when the deny key equals the requirement key, equals the requirement's first word, or is universal. Claude Code applies a deny to any command that starts with the rule body, so a deny whose key is a multi-word prefix of a longer requirement (for example deny 'Bash(gh pr *)' against a requirement 'Bash(gh pr merge:*)') would block the run at execution time but pass this preflight with total_denied == 0. CP-14 also pins 'Bash(**)' and any rule with a '*' in a non-trailing position as literal exact bodies, so such a deny is likewise reported as a no-op. The 16 current requirements appear to be one or two words, so the gap is not exercised today, but the next three-word requirement reopens the class the n29 review fix addressed, where a deny passed the preflight and the run stalled later. Impact is availability only; no privilege is gained.",
+      "failure_mode": "The preflight reports a clean permission set and the run later stalls on a permission prompt or deny.",
+      "suggested_fix": "Treat a wildcard deny as covering a requirement when the requirement key equals the deny key or starts with the deny key followed by a space (word-boundary prefix), not only first-word equality. Either model '*' at any position or report such rules as unrecognised instead of silently exact. Add a three-word requirement fixture to the CP-13 table so the case is pinned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:24:08Z",
+    "tokens_input": 48902,
+    "tokens_output": 16707,
+    "cost_usd": 0,
+    "latency_ms": 29967,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-p2-platform.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-p2-platform.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "53b2d5a20b9bf1d9054ad9f47f0da6d3b3bef706a34e8f8ca00bcfd3b4c7c147",
+      "run_tag": "p2-platform"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,41 @@
+WARN: protocols total 131189 B exceeds the 114688 B warning threshold
+skill                             SKILL.md   charged     total  limit 16384
+auditing-security                    16268         0     16268
+autonomous-agent                     16211         0     16211
+bridgebuilder-review                  7729         0      7729
+browsing-constructs                   8077         0      8077
+bug-triaging                         16181         0     16181
+butterfreezone-gen                    3918         0      3918
+continuous-learning                  15747         0     15747
+cost-budget-enforcer                  8934         0      8934
+cross-repo-status-reader              6417         0      6417
+deploying-infrastructure             16294         0     16294
+designing-architecture               15006         0     15006
+discovering-requirements             16304         0     16304
+enhancing-prompts                     7948         0      7948
+eval-running                          2204         0      2204
+flatline-knowledge                    6299         0      6299
+graduated-trust                      10863         0     10863
+hitl-jury-panel                      10536         0     10536
+implementing-tasks                   16221         0     16221
+loa-aleph                             6705         0      6705
+loa-setup                            16289         0     16289
+managing-credentials                  4273         0      4273
+mounting-framework                   11327         0     11327
+planning-sprints                     16370         0     16370
+red-teaming                           6264         0      6264
+reviewing-code                       16287         0     16287
+riding-codebase                      16346         0     16346
+rtfm-testing                         15317         0     15317
+run-bridge                           14237         0     14237
+run-mode                             15372         0     15372
+scheduled-cycle-template             16049         0     16049
+simstim-workflow                     16368         0     16368
+soul-identity-doc                     7652         0      7652
+spiraling                             9108         0      9108
+structured-handoff                    5418         0      5418
+translating-for-executives           14531         0     14531
+validating-construct-manifest         7432         0      7432
+CLAUDE.loa.md 10225 B (limit 10240)
+protocols total 131189 B over 27 files (fail > 160000)  WARN (> 114688)
+EXIT 0

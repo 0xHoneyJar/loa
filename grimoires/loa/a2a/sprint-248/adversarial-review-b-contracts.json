@@ -1,0 +1,100 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/lib-content.sh:prepare_content",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the new nothing-fitted block, `total_hunks=$(grep -c '^@@ ' FILE 2>/dev/null || echo 0)` and `kept_hunks=$(printf '%s\\n' \"$partial\" | grep -c '^@@ ' 2>/dev/null || echo 0)` double-emit on a zero count: GNU grep -c prints `0` AND exits 1 when nothing matches, so `|| echo 0` appends a second `0` and the variable becomes the two-line string `0<LF>0`. A chunk with no `@@` lines is reachable (a `git diff --binary` literal patch, or a mode/rename-only section large enough to exceed the budget), and the same `|| echo 0` idiom is repeated on the `kept_hunks` line.",
+      "failure_mode": "The PARTIAL marker is meant to be one line the voice can read; with a zero count it renders as `(0\\n0 of 0\\n0 hunks; ...)`, splitting the marker across lines and injecting a bare `0` line into the diff body the model reviews. The `$_log_fn` line is likewise malformed. Cosmetic in the common case, but the marker is the only signal telling the voice the diff is incomplete.",
+      "suggested_fix": "Drop the `|| echo 0` (grep already prints the count) and coerce instead: `total_hunks=$(grep -c '^@@ ' \"$f\" 2>/dev/null); total_hunks=${total_hunks:-0}` — or `|| true` followed by `[[ \"$total_hunks\" =~ ^[0-9]+$ ]] || total_hunks=0`. Apply the same to `kept_hunks`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/lib-content.sh:prepare_content",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The partial-file fallback is gated on `included -eq 0`, so it only covers the case where every file overflowed. The greedy loop above it still skips a P0 file whose diff alone exceeds `max_tokens` and then fills the budget with lower-priority files (P2 config, P3 docs/tests) that do fit, listing the P0 file under `--- TRUNCATED ---`. The block's stated purpose is that a voice never reviews an incomplete diff as clean; in the mixed case the security-critical file is still omitted entirely while the voice receives a non-empty, apparently reviewable diff of the least important files.",
+      "failure_mode": "A sprint whose only large change is a `.sh` or `.claude/` script plus small doc/config edits produces a dissent that reviews the docs and reports the script only as 'omitted' — the exact silent-clean outcome the cycle-126 c1 C-001 finding was about, now shifted from the empty case to the mixed case. On this repo every script is P0, so a 60–90 KB script diff with a CHANGELOG line hits it.",
+      "suggested_fix": "Apply the hunk-boundary partial cut to the first skipped file that outranks (lower P number than) any included file, using the remaining budget (`max_tokens - current_tokens`) when that remainder is above a floor (e.g. 25% of the budget); alternatively, reserve the budget for the top-priority file first (partial if needed) and only then fill with lower-priority files. Keep the PARTIAL marker so the voice knows which hunks it did not see.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-09-29T04:55:09Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 33723,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

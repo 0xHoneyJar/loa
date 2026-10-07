@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "top_path_log=$(printf '%s' \"$top_path\" | LC_ALL=C tr -d '\\000-\\037\\177')",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new stderr sanitization of the diff-header path in .claude/scripts/lib-content.sh prepare_content() is a blacklist that removes only C0 controls (0x00-0x1F) and DEL. Bytes 0x80-0x9F pass through raw, and UTF-8 encoded C1 controls (e.g. C2 9B = U+009B CSI, C2 9D = U+009D OSC) pass through intact; xterm-family terminals in UTF-8 mode interpret U+009B/U+009D as CSI/OSC by default (allowC1Printable=false). Unicode bidi overrides (U+202E) and zero-width characters also pass. The accompanying test CMP-278 pins this gap rather than catching it: its final assertion explicitly permits every byte in \\200-\\377 to remain in stderr. The path comes from a `diff --git a/<path> b/` header in the reviewed content, which is attacker-influenced when the pipeline reviews third-party PRs. The raw top_path is still embedded in the PARTIAL/TRUNCATED markers on stdout; that is acceptable since the payload already contains the raw header, but any caller `log` function that writes to a terminal or log file receives the unsanitized C1 range.",
+      "failure_mode": "A PR containing a file whose path carries UTF-8 encoded C1 sequences (C2 9B ... or C2 9D ...) can inject cursor movement, screen clearing, or title-setting sequences into the reviewer's stderr on xterm-like terminals, hiding or forging adjacent log lines such as the 'shown partially (N of M hunks)' notice that tells the operator the review was incomplete.",
+      "suggested_fix": "Whitelist instead of blacklist: `top_path_log=$(printf '%s' \"$top_path\" | LC_ALL=C tr -cd '\\040-\\176')` (printable ASCII only), or use `printf '%q'` to render the path unambiguously. Tighten CMP-278 to assert that only `[ -~]`, newline and tab remain in stderr (drop `\\200-\\377` from the allowed set) and add a case with a C2 9B byte pair in the path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "echo \"[hook-guard] WARN: hook $target failed to parse (bash -n) and did not run — failing OPEN (a PreToolUse fence allows the tool); repair the hook, retrying will not help\" >&2",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In .claude/hooks/hook-guard.sh the only check before fail-open is `\"${BASH:-bash}\" -n \"$target\"`. That command also fails when the target does not exist (exit 127) or is unreadable (exit 126), so a missing, renamed, or permission-stripped safety hook takes the same branch as a syntax error: the edited WARN line reports 'failed to parse (bash -n)' and the guard exits 0, allowing the tool. Design note (b) in the header states the guard covers parse failures only, but in practice a vanished hook is also failed open, and the diagnostic sends the operator looking for a syntax error in a file that is not there. This is not a regression: Claude Code already treats a non-2 hook exit (including 127) as non-blocking, so the net posture is unchanged. It is a diagnostics and defense-in-depth gap on a file the header itself calls a single point of failure for every wrapped hook, and the diff extends the guard's remit to SessionStart hooks as well.",
+      "failure_mode": "A bad merge, `git clean`, or an agent Edit that removes or renames block-destructive-bash.sh or zone-write-guard.sh silently disables that fence for every subsequent tool call. The WARN misattributes the cause, so the operator may spend time hunting a syntax error while the fence stays down. A strict-mode (LOA_REQUIRE_ZONES) user, whose zone-write-guard is designed to fail CLOSED when its config is missing, instead gets fail-OPEN when the hook file itself is missing.",
+      "suggested_fix": "Before `bash -n`, add `if [[ ! -r \"$target\" ]]; then echo \"[hook-guard] WARN: hook $target not found or unreadable — did not run — failing OPEN\" >&2; exit 0; fi` so the two causes are distinguished. Optionally, when LOA_REQUIRE_ZONES (strict mode) is set, exit 2 for a missing target since there is no fence to protect and strict-mode users have opted into fail-closed. Add a hook-guard.bats case with a nonexistent target asserting the distinct WARN text.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:27:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 14496,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3e709b5878f2590f0b8ec59b2fde066715cb1254c9df07f12d30d3e29f30bb00",
+      "run_tag": "x-misc"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

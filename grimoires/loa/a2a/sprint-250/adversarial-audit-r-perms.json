@@ -1,0 +1,149 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "authz",
+      "title": "Headless Claude CLI is classified as a side-effect-free remote model",
+      "location": {
+        "file": ".claude/data/model-permissions.yaml",
+        "anchor": "anthropic:claude-headless"
+      },
+      "description": "The new `anthropic:claude-headless` row grants `trust_level: high` while declaring `execution_mode: remote_model` and all tool capabilities false. The notes admit this path is actually a local `claude -p` CLI hop whose tools can be widened through `extra.allowed_tools`. If enforcement or routing trusts this registry row, a locally executable CLI adapter can be treated as a no-side-effect remote oracle, bypassing capability/trust checks when operator config enables tools. This is exploitable as an authorization boundary confusion between remote inference and local tool-capable execution.",
+      "recommendation": "Do not model `anthropic:claude-headless` as `remote_model` with false capabilities unless the adapter hard-enforces empty tools and plan mode independent of user config. Either remove this row from remote parity tests or classify it as a separate CLI/native execution mode with capabilities derived from the effective adapter config.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new `anthropic:claude-headless` row grants `trust_level: high` while declaring `execution_mode: remote_model` and all tool capabilities false.",
+      "failure_mode_derived": true,
+      "anchor_status": "needs_triage",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "anthropic:claude-headless:",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": "test_current_generation_rows_mirror_the_4_7_scopes",
+      "cross_file_justification": null,
+      "description": "The new `anthropic:claude-headless` row declares a local `claude -p` subprocess (the row's own notes say `kind: cli`) as `execution_mode: remote_model` with every capability false. The notes admit the real tool surface is operator-configurable via `extra.allowed_tools`, and a Claude Code process additionally loads project-level settings (hooks, MCP servers) from its working directory, so 'pure inference, no tool loop' is a property of the adapter's current flags and cwd, not of this row. The registry is a static declaration that is neither derived from nor validated against the adapter config. The new mirror test then hard-codes `execution_mode == \"remote_model\"` for every served Anthropic key, so it structurally prevents this row from ever being labeled as a local CLI hop even if someone tries to correct it.",
+      "failure_mode": "Any governance logic that gates on `execution_mode` or `capabilities` from model-permissions.yaml (e.g., deciding to hand over `security: redacted` context, permit delegation, or skip sandboxing) treats a tool-capable local process with the operator's credentials and filesystem as a side-effect-free remote oracle. An operator who sets `extra.allowed_tools`, or a checkout whose `.claude/settings.json` / `.mcp.json` the CLI picks up, gains file/command/network access with no registry change and a green test suite.",
+      "suggested_fix": "Give `anthropic:claude-headless` a distinct `execution_mode` (e.g., `local_cli`) and either exclude it from the remote_model mirror assertion or assert it explicitly. In the headless adapter, fail closed when `extra.allowed_tools` is non-empty while the registry row's capabilities are all false, and invoke the CLI with `--strict-mcp-config` and an isolated settings directory so repo-controlled hooks or MCP config cannot widen the tool surface. Add a test that cross-checks the adapter's declared tool flags against this row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "test_current_generation_rows_mirror_the_4_7_scopes",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "test_anthropic_opus_4_7_parity_with_4_6",
+      "cross_file_justification": null,
+      "description": "The mirror test compares every served row to the live `anthropic:claude-opus-4-7` row rather than to literal expected values. The only literal pins in the suite are the six operational dimensions == \"none\" (`test_anthropic_opus_4_7_all_none`). The reference row's `capabilities` (file_read/file_write/command_execution/network_access) and `context_access.security: redacted` are asserted only by parity with 4-6, which is itself never pinned. The in-test comment claims 'a widened scope on any served row fails here', but that is true only for single-row drift.",
+      "failure_mode": "A change flipping `command_execution: true` or `security: full` on 4-6 and 4-7 propagates to all 16+ mirrored rows with the entire suite passing; the registry's most consequential fields have no literal guard.",
+      "suggested_fix": "Pin the reference literally: assert every capability is False and `context_access.security == \"redacted\"` for `anthropic:claude-opus-4-7` (or for every row with `execution_mode: remote_model`), then keep the parity check for structural drift.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_served_anthropic_keys",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "test_every_anthropic_catalog_entry_has_a_row",
+      "cross_file_justification": null,
+      "description": "The coverage check enumerates only `providers.anthropic.models` plus Bedrock IDs containing the substring `anthropic.`. Every other provider the catalog serves (openai, google, moonshot, qwen-local, non-Anthropic Bedrock) is not checked for a registry row, so the 'no current model is unscoped' guarantee the docstring claims applies to one vendor only.",
+      "failure_mode": "A new catalog entry for another provider can be routed to with no trust boundary defined; whatever the runtime does on a missing row (default-allow or crash) is untested and invisible to CI.",
+      "suggested_fix": "Generalize the helper to iterate every provider in model-config.yaml and assert a `provider:model` row exists for each, with an explicit allowlist for any entries intentionally left unregistered.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:08:01Z",
+    "tokens_input": 49931,
+    "tokens_output": 10153,
+    "cost_usd": 0,
+    "latency_ms": 29577,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-r-perms.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-r-perms.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "69b39152064308af2631b04720d8194172b8fab59cc1bf9aa622d752a15b7900",
+      "run_tag": "r-perms"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

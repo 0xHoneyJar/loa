@@ -1,0 +1,164 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "secrets",
+      "title": "Untrusted review prompt is passed on argv and exposed to local users",
+      "stable_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py::_build_command returns [self._cli_bin(), \"-p\", prompt, ...]",
+      "description": "The agy adapter still places the full flattened review prompt in the process argument vector via `agy -p <prompt>`. The new comments explicitly acknowledge that argv is readable through `/proc/<pid>/cmdline` and `ps` while the process runs. Review prompts commonly contain private diffs, source snippets, redacted-but-sensitive diagnostics, and occasionally secrets from the reviewed tree. On a shared host, any local user can race-read those arguments without needing access to the repository or Loa logs.",
+      "impact": "A malicious or compromised local account on the cheval host can steal prompt contents for every agy-backed Gemini review, including proprietary code and any credentials accidentally present in diffs. This is a direct cross-user information disclosure.",
+      "recommendation": "Do not dispatch agy with the prompt in argv. Re-probe whether `agy -p` can read from stdin, or add a secure prompt-file transport inside a 0700 private workspace if the CLI supports it. Until then, disable agy on shared hosts or route oversized/sensitive reviews to providers that use stdin or private prompt files.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The agy adapter still places the full flattened review prompt in the process argument vector via `agy -p <prompt>`.",
+      "failure_mode_derived": true,
+      "anchor_status": "needs_triage",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "HIGH",
+      "category": "injection",
+      "anchor": "AgyHeadlessAdapter.complete",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py::AgyHeadlessAdapter.complete (workspace = private_workspace(\"loa-agy-ws\") / cwd=workspace)",
+      "cross_file_justification": "The diff-touched agy adapter newly pins every hop to one stable cwd and passes it to run_subprocess_pgkill. The only defenses named in the new comments live in loa_cheval/providers/headless_cli.py (private_workspace's project-file check), which is imported by the diff but not shown, and in agy's --sandbox behaviour, which the comments state is 'not yet probed live'.",
+      "description": "The agy hop runs an agentic CLI with `--dangerously-skip-permissions` on untrusted content (the review diff is a prompt-injection vector) and, as of this change, does so inside a single persistent directory shared by every hop on the host. The previous per-hop directory bounded a hijacked hop's side effects to itself; a stable cwd turns any write the agent performs into state that every later hop inherits. The comments rest on two unverified claims: (a) `--sandbox` denies cwd writes (explicitly unprobed, and gemini-lineage sandboxes normally mount the project cwd read-write so the agent can edit it), and (b) `private_workspace` refuses a planted GEMINI.md or .gemini directory. Claim (b) cannot be verified from the diff and must cover everything a gemini-lineage CLI loads from cwd: `.gemini/settings.json` (which can declare `mcpServers` with arbitrary `command` entries and tooling/sandbox settings), `.env` and `.gemini/.env`, `GEMINI.md`, and `.geminiignore`. The sibling `loa-claude-ws` sits under the same base; if cwd writes are not denied, a relative write into `../loa-claude-ws/.claude/settings.json` (hooks) or `.mcp.json` carries from an agy hop into the next claude hop.",
+      "failure_mode": "A crafted diff under review prompt-injects the agy agent, which writes configuration or instruction files into the persistent workspace (or a sibling workspace). The next hop loads attacker-controlled settings: MCP server commands or hooks execute arbitrary code on the cheval host, or the reviewer's instructions are silently rewritten so later reviews approve malicious changes.",
+      "suggested_fix": "Keep agy disabled until the T4.1 re-probe demonstrates that `--sandbox` denies writes to the cwd and to its parent. Independently of that probe: make the stable workspace non-writable between hops (chmod 0500 after creation; the gemini project registry only needs the path to exist), have `private_workspace` fail closed when the directory contains any entry at all rather than a fixed denylist, and apply the same emptiness check to every sibling workspace before each hop. Add tests that plant `.gemini/settings.json`, `.env`, `GEMINI.md`, and `.claude/settings.json` in the base and assert the hop is refused.",
+      "anchor_status": "cross_file",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "AgyHeadlessAdapter._build_command",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py::AgyHeadlessAdapter._build_command",
+      "cross_file_justification": null,
+      "description": "The agy adapter still places the entire flattened prompt (the review diff) as an argv element after `-p`. On Linux `/proc/<pid>/cmdline` is world-readable unless /proc is mounted with hidepid, so any local user can read the full prompt with `ps -o args` for the whole life of the hop, which can last up to the catalog timeout. The same change closes this exposure for claude-headless by moving its prompt to stdin, and the new module doc acknowledges agy's exposure remains open because stdin delivery for `-p` was never probed.",
+      "failure_mode": "Another local account on the cheval host reads the code under review, including any secrets, pre-release code, or customer data present in the diff, without any privilege beyond a shell on the same machine.",
+      "suggested_fix": "Probe `agy -p` with the prompt delivered on stdin via `input=` (communicate() writes then closes the pipe, so the later permission-prompt read still sees EOF). If agy accepts it, drop the positional prompt from argv as the claude adapter did. If agy cannot read the prompt from stdin, keep agy disabled on shared hosts or require /proc hidepid=2 as a documented deployment precondition.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "f\"{type(exc).__name__}: {exc}\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py::GrokHeadlessAdapter.complete (workspace staging except OSError)",
+      "cross_file_justification": null,
+      "description": "The grok staging-failure message previously reported only the exception class name, a deliberate redaction. The diff appends the full exception text, which for an OSError includes the absolute path of the private workspace base (for example a /run/user/<uid> or home-directory path that reveals the username). The agy adapter likewise interpolates the workspace path and `exc.filename` into its new vanished-cwd and exec-failure messages. These strings travel inside ProviderUnavailableError into the MODELINV ledger, chain diagnostics, and potentially the review output returned to the caller.",
+      "failure_mode": "Local filesystem layout, usernames, and runtime directory paths of the cheval host leak into logs and review artifacts that are shared more widely than the host itself.",
+      "suggested_fix": "Log the full exception at debug level and keep the operator-facing message to the errno name plus the basename of the offending path. If the full path is needed for triage, gate it behind an explicit verbose-diagnostics setting.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "sweep_stale_hop_workspaces(base, \"loa-grok-ws-\")",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py::GrokHeadlessAdapter.complete (sweep / mkdtemp / hold_hop_workspace sequence)",
+      "cross_file_justification": "The staleness rule and the hold mechanism live in loa_cheval/providers/headless_cli.py, which the diff imports but does not show. The ordering that opens the window is in the diff-touched grok adapter.",
+      "description": "The grok adapter now sweeps un-held workspaces under the shared private base, then creates its own directory, then takes the hold. The comment says a held workspace is 'never swept', implying the hold is the liveness marker. Two concurrent grok hops can interleave so that hop B's sweep runs after hop A's mkdtemp but before hop A's hold, in which case A's fresh directory looks stale and is removed. If the staleness rule has no age threshold, this is a reachable race under the default concurrency limit of 50 slots.",
+      "failure_mode": "A concurrent hop deletes another hop's fresh workspace; the victim hop's prompt write or spawn fails and is converted into a walkable ProviderUnavailableError, so the review diff is forwarded to the next provider in the chain, possibly a different vendor than the operator intended for that hop.",
+      "suggested_fix": "Create and hold the directory before sweeping, or have the sweep skip directories younger than a grace period (for example two minutes) in addition to skipping held ones. Add a test that interleaves two hops and asserts neither loses its workspace.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:57:54Z",
+    "tokens_input": 59267,
+    "tokens_output": 15670,
+    "cost_usd": 0,
+    "latency_ms": 24073,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-e1-adapters.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-e1-adapters.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "16f61d08aee3bf2366daf95ae0672f259a10f395ecefe7854b8b541d4e9bb558",
+      "run_tag": "e1-adapters"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

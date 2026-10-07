@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "_context_window_of",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/session-start/loa-context-class.sh",
+      "cross_file_justification": null,
+      "description": "The caller-supplied model id is sanitised to [A-Za-z0-9._:-] before the first yq lookup, but the alias target read back from the catalog (`target=$(yq eval \".aliases.\\\"$m\\\"\" ...)`, then `m=${target#*:}`) is interpolated unsanitised into the second yq expression `.providers[].models.\"$m\".context_window`. A catalog alias value containing a double quote can break out of the quoted key and run arbitrary yq (mikefarah yq v4 exposes load(), strenv(), env()). Impact is bounded: the result is only used if it matches ^[0-9]+$, and the catalog ships inside the same repo as the hook, so an attacker who can edit it can already edit the hook. It is still an unsanitised second hop behind a sanitised first hop.",
+      "failure_mode": "A malicious or corrupted alias entry in .claude/defaults/model-config.yaml (or a file passed via --catalog) executes attacker-chosen yq during every SessionStart, with a one-bit oracle on the result (numeric or not), and can silently force the context class to standard or long.",
+      "suggested_fix": "Re-apply the same character whitelist to the resolved alias before the second lookup, e.g. `m=\"${m//[^A-Za-z0-9._:-]/}\"` after `m=\"${target#*:}\"`, and bail to \"\" if it becomes empty. Optionally pass the key as a yq variable (`yq eval --arg` is not available, but `strenv(M)` with `M=\"$m\"` exported avoids string interpolation entirely).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:26:44Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 4,
+    "tokens_output": 9203,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5f1d630d895d03da4535c3b6ab1bf24f121509aa46712f9a5337097c3fd66005",
+      "run_tag": "h-hook"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

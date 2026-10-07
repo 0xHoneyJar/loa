@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "if [[ -n \"$record_fallback\" ]]; then local _rf=0; _adv_record_fallback \"$type\" \"$sprint_id\" \"$record_fallback\" \"$fallback_reason\" \"$fallback_since\" || _rf=$?; exit \"$_rf\"; fi",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new --record-fallback branch exits main right after the sprint-id emptiness check. It runs before config load, before the CONF_ENABLED gate, before _adv_take_run_lock, and before the envelope move-aside logic. The caller supplies status, reason and since verbatim. Nothing in the diff restricts the status to a failure class, and --since is optional, so a record written without it displaces whatever envelope stands at the path, including a fresh one from a completed run. The script's own comments treat the invoking skill as the adversary (a skill granted `git diff *`), and this branch hands that skill a write to the gate record that skips every control the review path enforces, with no lock held.",
+      "failure_mode": "A skill that wants to avoid or overwrite an adversarial review calls --record-fallback <status> with no --since. If _adv_record_fallback accepts any status the downstream verdict reads as non-blocking, the gate is bypassed without a model call. Even with a failure-only status set, the record can clobber a concurrent run's envelope because the run lock is never taken, and an unvalidated --since string can defeat the newer-envelope guard if the comparison is lexical.",
+      "suggested_fix": "Take the run lock, or refuse while it is held, before writing the record. Whitelist the status to failure-class values the verdict treats as blocking. Require --since whenever an envelope already stands at the path and reject anything that is not a strict ISO-8601 UTC timestamp. Apply the same sprint-id shape check the review path relies on before this branch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "if ! _ADVERSARIAL_WORKDIR=$(mktemp -d \"${TMPDIR:-/tmp}/adversarial-${sprint_id}-XXXXXX\" 2>/dev/null); then",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "sprint_id is only checked for emptiness in main, yet the diff interpolates it into several new filesystem sinks: the mktemp -d template, the lock directory passed to _adv_take_run_lock, both sidecar paths, the envelope path handed to _adv_move_aside, and the record path inside the --record-fallback branch. _run_tag from _adv_resolve_run_tag is spliced into the sidecar names with no visible shape check either. A value containing / or .. redirects the lock, the rename and the workdir outside grimoires/loa/a2a/. The rename is the sink that matters: _adv_move_aside renames <path>/adversarial-<type>.json to .prev wherever the traversal points.",
+      "failure_mode": "--sprint-id '../../../other/dir' makes the run rename a file named adversarial-review.json in an arbitrary directory the user can write, create a lock there, and create the workdir under an unexpected parent. If a loader not shown in this hunk already validates the shape, this drops to LOW.",
+      "suggested_fix": "Validate sprint_id and the run tag against ^[A-Za-z0-9][A-Za-z0-9._-]*$ immediately after the emptiness check and before the --record-fallback branch. Reject .. and / explicitly so every downstream path builder can trust the component.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "trap '_adv_cleanup_on_exit' EXIT",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The --diff-range block installs `trap 'command rm -f -- \"$_ADV_RANGE_DIFF\"' EXIT` to remove the generated diff. The workdir block later installs `trap '_adv_cleanup_on_exit' EXIT`, and bash replaces rather than chains EXIT traps. Unless _adv_cleanup_on_exit also removes _ADV_RANGE_DIFF, every range run leaves the full diff of the reviewed commits under TMPDIR after exit. mktemp creates it 0600, so exposure is limited to the same user and root, but the diff can carry secrets committed in the range.",
+      "failure_mode": "Diffs accumulate under /tmp across runs on a long-lived or shared host. Any process running as the same user, or a later --diff-file pointed at a stale file, reads commit content the run was supposed to discard.",
+      "suggested_fix": "Have _adv_cleanup_on_exit remove ${_ADV_RANGE_DIFF:-} as well, or create the range diff inside the workdir after the workdir exists so one trap covers both.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_adv_range_diff \"$PROJECT_ROOT\" \"$_rr\" > \"$_ADV_RANGE_DIFF\" || {",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The two sides of the range are resolved to commit OIDs before the diff so metadata.scope pins what was reviewed. When _adv_range_oid fails for either side, or returns something outside the hex shape, the code silently falls back to _rr=\"$diff_range\" and diffs by ref name, leaving _ADV_RANGE_OIDS empty. The scope then names only moving refs. The comments say a skill refused by the run lock adopts the standing envelope when the scope matches, so an unpinned scope can match a later run that reviewed different commits under the same ref names. The diff sha256 in scope mitigates this only if the adopter compares it.",
+      "failure_mode": "A review of main...feature recorded with ref names only is adopted for a later main...feature after feature moved, if the adopter matches on range text rather than OIDs or hash.",
+      "suggested_fix": "Treat an OID resolution failure as a refusal, the same way a failed diff is, instead of falling back to ref names. Emit a diff_range_failed refusal with the unresolved side named.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "result=$(echo \"$result\" | jq --arg e \"${_vq_err:-aggregator returned no output}\" '.metadata.verdict_quality_error = $e')",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The last non-blank stderr line of the Python aggregator, up to 240 characters, is copied into the envelope under metadata.verdict_quality_error. The envelope is written under grimoires/loa/a2a/, a repository path that is likely committed. Python exception text routinely includes absolute paths under TMPDIR and the home directory, and may echo field values from the sidecars it parsed, some of which derive from model output.",
+      "failure_mode": "Local filesystem layout or model-authored text lands in a committed artefact that other tooling reads as trusted metadata.",
+      "suggested_fix": "Record a fixed error class on the envelope and keep the raw stderr line in the run log only, or strip absolute paths before recording it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:12:46Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 24255,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "fe68ffb85713a989f406210ab1493785dbd8a233ef20201ae4b8146e5daaeab5",
+      "run_tag": "a5-script-5"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "sre='(^|[^A-Za-z0-9_./-])(ba)?sh[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*c[A-Za-z]*[[:space:]]+'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "_vd_shsrc() {  # <file> → the lines that hand a shell an interpolated program",
+      "cross_file_justification": null,
+      "description": "The _vd_shsrc lint exists to stop suite code from re-parsing a tmpdir path as shell source (the suite deliberately uses a directory named with a double quote, a dollar sign and backticks). Its regex only recognises `sh`/`bash` followed by a `-c` flag group and then a quote or line continuation. It does not match: other shells (`zsh -c`, `dash -c`, `ksh -c`, `\"$SHELL\" -c`), `bash -c -- \"x $d\"` (the `--` is not `-[A-Za-z]+`), an unquoted program (`bash -c $prog` / `bash -c x$d`), an expansion after the closing quote (`bash -c \"x\"$d` — the first grep cannot cross the closing double quote and the second requires a single quote), or a program fed on stdin or via process substitution (`bash -s <<EOF … $d`, `bash <<<\"x $d\"`, `bash <(printf … \"$d\")`, `source \"$d/x\"`). A future test written in any of these forms would reintroduce the exact injection class the lint guards against and still pass the suite.",
+      "failure_mode": "A test author writes `run zsh -c \"cd $d && …\"` or `bash -c \"x\"$d`; the lint reports nothing, and a tmpdir or checkout path containing shell metacharacters is executed as code when the suite runs.",
+      "suggested_fix": "Broaden the shell matcher to `(ba|da|z|k|a)?sh|\\$\\{?SHELL` and accept `--` in the flag run; add a pattern for an unquoted or post-quote expansion (`-c[[:space:]]+[^'\"[:space:]]*\\$` and `-c[[:space:]]+\"[^\"]*\"\\$`); add patterns for `bash -s`, `<<<`, `<(`, and `source`/`.` with an expansion; and add each bypass as a fixture line in the refused list so the lint is tested against them.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "@test \"verdict-derive: an envelope as the writer before cycle-126 shaped it (rejected_count and a singular rejected_sidecar, since #832) is pre-FR-2, and a sidecar git tracks with its committed bytes is history whatever a checkout's write order made its mtime — a row appended since is a later run's and counts (thirty-fifth run, e2a DISS-C-004)\"",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "[ \"$status\" -eq 0 ] || { echo \"the pre-cycle-126 shape is not legacy: $output\"; return 1; }",
+      "cross_file_justification": "The behaviour lives in the verdict-derive script (not in the diff), but this diff-touched test pins it: an envelope carrying `rejected_count: 2` and a singular `rejected_sidecar`, beside a sidecar holding two rejected rows and a feedback file with no triage section, must exit 0 with `consistent == true`.",
+      "description": "The gate decides whether to enforce the rejected-payload triage contract from keys in the envelope itself. Dropping `metadata.rejected_sidecars` / `rejected_summary` and writing the pre-cycle-126 keys instead downgrades the envelope to \"legacy\", and the only output is a warning (\"predates the rejected-payload contract\"). The sibling sidecar's rows are then skipped whenever the sidecar is older than the envelope or byte-identical to HEAD, both of which the same writer controls (`touch -t`, or committing the sidecar alongside). This is a schema-downgrade switch on a file produced by the party the gate is checking. It is inherent to a gate that reads producer-controlled files with no provenance, so the realistic impact is a careless or adversarial agent silently passing the triage requirement rather than a security boundary being crossed.",
+      "failure_mode": "A dissent run or a later edit writes the envelope in the pre-FR-2 shape (or the FR-2 keys are stripped during a merge); the feedback file omits the `## Rejected dissent payloads` section; verdict-derive exits 0 and the rejected payloads are never triaged, with only a warning that nothing in the pipeline fails on.",
+      "suggested_fix": "Treat the legacy shape as a violation (not a warning) when the envelope's own `model`/`status` or a `schema_enforced`/writer-version field proves it was produced after the FR-2 cut-over, or gate on the writer version recorded in the envelope rather than on key presence. At minimum, surface the legacy warning as a non-zero exit under a strict flag used in CI, and add a test asserting the strict path refuses this fixture.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "for gv in \"GIT_DIR=$o/.git\" \"GIT_WORK_TREE=$o\" \"GIT_INDEX_FILE=$o/.git/index\"; do",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "@test \"verdict-derive: a fixture repository's git never acts on a caller's: under a hook's GIT_DIR, GIT_WORK_TREE or GIT_INDEX_FILE, _vd_git builds the fixture in its own directory and leaves the caller's repository as it was (thirty-ninth run, c2d DISS-C-001)\"",
+      "cross_file_justification": null,
+      "description": "The isolation test for the fixture git helper only proves that GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE from the caller's environment do not reach the fixture repository. The suite's own s35 test lists the rest of git's repository set as variables that must not decide anything (GIT_OBJECT_DIRECTORY, GIT_COMMON_DIR, GIT_CEILING_DIRECTORIES, GIT_NAMESPACE), but only for the script under test, never for `_vd_git`, which runs `init`, `add`, `commit` and `rm --cached`. If `_vd_git` scrubs only the three tested variables, a suite run inside a hook or a wrapper that exports GIT_OBJECT_DIRECTORY or GIT_COMMON_DIR would write fixture objects into the caller's object store, and with GIT_COMMON_DIR the fixture's `commit` would update `refs/heads/*` in the caller's repository. GIT_CONFIG_GLOBAL / XDG_CONFIG_HOME are likewise unasserted, so a caller's `core.hooksPath` or `init.templateDir` could run hooks during the fixture commit.",
+      "failure_mode": "The suite is invoked from a git hook or CI wrapper that exports GIT_COMMON_DIR or GIT_OBJECT_DIRECTORY; fixture commits land in the caller's object store and, under GIT_COMMON_DIR, move the caller's branch ref to a fixture commit. The existing isolation test stays green because it never sets those variables.",
+      "suggested_fix": "Extend the `gv` loop to GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES, GIT_COMMON_DIR, GIT_CEILING_DIRECTORIES, GIT_NAMESPACE, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM and XDG_CONFIG_HOME, pointing each at the caller fixture, and assert `before == after` and that no new objects appear under the caller's `.git/objects`. In `_vd_git`, prefer `env -i PATH=… HOME=… GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C \"$1\" …` over unsetting a list.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:44:58Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 15746,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "795f7dca5b20757f3b95eb8cabb299b86ed085d134f18f5858058263568444ad",
+      "run_tag": "c2d-vdbats-2"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

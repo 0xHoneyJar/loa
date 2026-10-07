@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "validate-skill-capabilities.sh:@@ -104,8 +104,17 @@ should_skip()",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new WRITE_CAPABLE_AGENTS loader falls back to (\"general-purpose\") whenever the array is empty, without distinguishing why it is empty. The header comment and SC-T-AGENT-9 describe the fallback as applying to 'a missing or unparsable file', but a present, well-formed agent-types.yaml in which every entry is write_capable: false (or in which .agent_types has no entries) also triggers it, silently re-enabling general-purpose for write-capable skills. The same branch swallows a missing `yq` binary or a yq syntax incompatibility (2>/dev/null || true) with no diagnostic, so the only visible symptom is the validator rejecting every `agent: claude` / `agent: fork` write skill with an error that lists only '(general-purpose)'. Note: the diff attributes this hunk to a `new file` header for .claude/data/agent-types.yaml, but the content is the validator script; the real path was not in the diff, so the anchor is by hunk header.",
+      "failure_mode": "An operator who edits agent-types.yaml to mark general-purpose write_capable: false with no other true entries expects general-purpose to be rejected, but the validator accepts it. Separately, on a CI host without yq (or with the Python yq wrapper, where `yq eval` fails), skills that legitimately set agent: claude or agent: fork fail validation with a misleading message and no indication that the data file was never read.",
+      "suggested_fix": "Capture yq's exit status separately from the result: run yq into a variable, fall back to general-purpose only when the file is absent or yq exited non-zero, and honour an empty parsed set as 'no agent may be named'. Emit a one-line stderr warning when the fallback is taken (e.g. 'agent-types.yaml unreadable; using built-in default general-purpose') so the misconfiguration is visible in CI logs. Add a test for the all-false file case to pin whichever semantics are intended.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/skill-capabilities.bats:SC-T-AGENT-7",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "agent-types.yaml is now the single source of truth for which agent types have Write/Edit, but nothing verifies that its write_capable flags agree with the agent definitions they describe. SC-T-AGENT-7 asserts that every .claude/agents/*.md has a row and pins the exact current key/value string, but it does not read each agent's `tools:` frontmatter and compare. The invariant behind Issue #553 is precisely that a skill declaring write capability must not be bound to an agent whose allowlist lacks Write/Edit; with the flag now a hand-maintained boolean, a one-line edit to either file can desynchronise them and the test suite stays green.",
+      "failure_mode": "A future change marks a project agent write_capable: true in the YAML (or adds Write to an agent's tools without updating the YAML, or vice versa). In the fail-open direction, a skill with write_files: true and agent: <that type> passes validate-skill-capabilities.sh, then fails silently at runtime because the agent cannot call Write/Edit, which is the exact #553 symptom this mechanism exists to prevent. The hard-coded exact-string assertion also means every new agent file requires an unrelated test edit, encouraging reviewers to update the string reflexively rather than check the flag.",
+      "suggested_fix": "In SC-T-AGENT-7 (or a new SC-T-AGENT-10), for each .claude/agents/*.md parse the frontmatter `tools:` list and assert that `write_capable` equals whether Write or Edit appears in it; keep the harness-only types (general-purpose, claude, fork, Plan, Explore) as the explicitly enumerated exceptions. Replace the brittle exact-string equality with per-key assertions so adding an agent file only requires the derived check to pass.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:28:06Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 20176,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "528e9c57669d6f67ac6acae749c1b1e293f04831b3ee032403759e839e7138aa",
+      "run_tag": "p2-platform"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "@test \"CMP-186 --diff-range's diff reads no system-wide gitattributes — GIT_ATTR_NOSYSTEM reaches git — while the repository's own .git/info/attributes still applies",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "@test \"CMP-186 --diff-range's diff reads no system-wide gitattributes — GIT_ATTR_NOSYSTEM reaches git — while the repository's own .git/info/attributes still applies",
+      "cross_file_justification": "The behaviour under test is _adv_range_diff in .claude/scripts/adversarial-review.sh. CMP-164 and CMP-180 in this same diff pin that every other local, uncommitted diff-shaping source (diff.* config, core.attributesFile, diff.ignoreSubmodules, committed and worktree .gitattributes via the empty-tree attr source) is neutralised so 'the operator's config never hides what the range changed'. CMP-186 pins the one exception.",
+      "description": "CMP-186's second half asserts that a `*.txt -diff` line in `.git/info/attributes` turns the reviewed range diff into `Binary files ... differ`, and fixes this as the intended contract. Every other local source that could shape or hide the diff is deliberately ignored by the sibling tests, because the adversarial reviewer must see what the range actually changed. `.git/info/attributes` sits in the same local-only `.git/` directory as `.git/config`, is written by the same actor working in the checkout, and is the only attribute source left after GIT_ATTR_NOSYSTEM and the empty-tree attr source. A single `* -diff` line there blinds both the primary and the companion to every text change while the run still finishes as `reviewed` with a `metadata.model`, which is exactly what the COMPLETED gate checks (CMP-182).",
+      "failure_mode": "An agent, or prompt-injected code run during the sprint, writes `* -diff` to `.git/info/attributes`. The reviewed diff contains only binary markers, both voices return zero findings, the envelope is written as `reviewed`, and the adversarial-review gate opens on code nobody reviewed.",
+      "suggested_fix": "Treat `.git/info/attributes` like the other local sources. Either pass `--text` to the range diff so `-diff` attributes cannot hide hunks, or detect `Binary files` lines whose blobs `git diff --numstat` reports as text and refuse the run with its own status. Then flip the second half of CMP-186 to assert the `+b` hunk is still shown under `.git/info/attributes`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "@test \"CMP-170 both resources say a --record-fallback record never opens the COMPLETED gate, with its remedy; both skills allowlist the br and log-discovered-issue steps they prescribe, narrowly",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "grep -q 'LOA_ADVERSARIAL_REVIEW_ENFORCE=false' \"$r\" || { echo \"$s: no remedy named\"; return 1; }",
+      "cross_file_justification": "The files the test constrains are the agent-facing .claude/skills/{reviewing-code,auditing-security}/resources/ADVERSARIAL-REVIEW.md. The gate they describe is .claude/hooks/safety/adversarial-review-gate.sh (asserted by CMP-182 in this diff).",
+      "description": "CMP-170 requires both agent-facing skill resources to contain the literal `LOA_ADVERSARIAL_REVIEW_ENFORCE=false` as the remedy when a fallback record leaves the COMPLETED gate closed. The gate exists to stop the agent from marking a sprint complete without an independent review. Documenting the enforcement-off switch in the instructions the constrained party reads reduces the gate to an advisory control. Whether the hook reads that variable from an environment the agent can influence (a project .env, settings, or an exported shell variable) is not verifiable from this diff, so the reach of the bypass is uncertain, but the test guarantees the instruction is present.",
+      "failure_mode": "A review fails, the agent records a fallback, the gate stays closed, and the agent follows the documented remedy and disables enforcement. The sprint completes with no adversarial review and no record that enforcement was switched off.",
+      "suggested_fix": "Keep the operator switch out of agent-facing resources and prescribe STOP-and-escalate, as CMP-182 already requires of Phase 0. If the switch must be named, mark it operator-only and have the gate hook write an audit row whenever it honours the variable. Change CMP-170 to assert the escalation text rather than the env-var literal.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "@test \"CMP-171 the kept-workdir sweep in TMPDIR never follows nor fails on a symlink at a workdir path — the suite's one link rule",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": "lnk=\"${TMPDIR:-/tmp}/adversarial-${SPRINT}-lnk171\"",
+      "cross_file_justification": null,
+      "description": "The test creates a symlink at a predictable name under the shared `${TMPDIR:-/tmp}`; the sprint id embeds only the pid. The `[[ -L \"$lnk\" ]]` check followed by `ln -s` is a time-of-check/time-of-use window in a world-writable directory, so another local user can pre-place a directory or link at that path. The no-follow teardown being tested bounds the damage to a spurious failure or a link dropped inside a foreign directory, but the suite deliberately writes to a shared path it does not own.",
+      "failure_mode": "A local user pre-creates `/tmp/adversarial-sprint-comp-<pid>-lnk171` as a directory. `ln -s` places the link inside it, teardown sweeps a path the test did not create, and the trailing `rm -f -- \"$lnk\"` leaves the link behind.",
+      "suggested_fix": "Point TMPDIR for the teardown call at a private `mktemp -d` under `$T` so the sweep runs against a directory only this test owns, or use an unpredictable `mktemp -u` name and assert `ln -s` succeeded before invoking teardown.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:31:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 16348,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a0b0c7b494d093cff2197a7a5d1afb587bc4509c6ea0e293979655daaf3613a4",
+      "run_tag": "c1c-companion-3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

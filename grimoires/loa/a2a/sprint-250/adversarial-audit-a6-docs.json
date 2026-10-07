@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "CHANGELOG.md: \"**Audit-round hardening** (cycle-126 sprint-250 audit round r250-6\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "CHANGELOG.md: \"`validate-skill-capabilities.sh` honours the `AGENT_TYPES_FILE` override only under the bats markers\"",
+      "cross_file_justification": null,
+      "description": "The changelog records two test seams that are gated on environment variables: `validate-skill-capabilities.sh` honours the `AGENT_TYPES_FILE` path override only when bats marker variables are present, and the cost-budget enforcer's stub-script argv seam additionally requires `LOA_BUDGET_TEST_MODE=1`. Bats markers (`BATS_TEST_FILENAME`, `BATS_RUN_TMPDIR`, etc.) are ordinary environment variables. Any actor able to inject `AGENT_TYPES_FILE` or the stub-script path into the hook or enforcer environment can inject the marker variables in the same way, so the gate does not raise the bar against the threat it is described as addressing. Unverified against the scripts themselves; derived from the documented behaviour only.",
+      "failure_mode": "An attacker who can set environment variables for the process that runs the hook or enforcer (for example through a settings `env` block, a wrapper script, or a CI job definition) sets the bats markers alongside the override, points `AGENT_TYPES_FILE` at a file that marks a read-only agent type as `write_capable`, and the capability check accepts it. The 'double gate' provides no additional protection in that scenario.",
+      "suggested_fix": "Tie the seam to something the environment cannot supply: accept the override only when the resolved path lies under the repository's `tests/fixtures/` tree, or only when `$0` / `BASH_SOURCE` resolves to a bats invocation under `tests/`. Alternatively drop the override entirely and have tests copy the fixture into a temp repo root that the script reads from its normal location. Document in the script header that the env gate is a convenience, not a security boundary.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "CHANGELOG.md: \"**The implement gate's authoritative mode can only tighten**\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "CHANGELOG.md: \"writes one `compliance.mode.model_signal` row to `.run/audit.jsonl` (`file_path` and `active_skill` stripped of control characters first)\"",
+      "cross_file_justification": null,
+      "description": "Two sanitisers were introduced or amended in the same round with different documented scopes. The `lib-content.sh` diff-header log sanitiser was explicitly extended to also drop UTF-8 C1 controls (U+0080–U+009F), while the new `.run/audit.jsonl` row for the implement gate is described only as having `file_path` and `active_skill` 'stripped of control characters'. Both fields are model-authored (the `active_skill` claim is by definition a model-controlled value in `tool_input`). If the audit-row sanitiser strips only C0 controls, then C1 controls, U+2028/U+2029 line and paragraph separators, and bidi override characters (U+202A–U+202E, U+2066–U+2069) reach the audit log. Proper JSON encoding prevents newline-based row injection, but it does not prevent visual spoofing when the log is rendered with `jq -r`, `cat`, or a terminal pager. Unverified against `implement-gate.sh`; inferred from the two differing descriptions in the diff.",
+      "failure_mode": "A model emits a PreToolUse payload with `active_skill` containing a bidi override followed by text that visually reads as a legitimate skill name or audit verdict. The row is written and later reviewed by an operator or a grader reading `.run/audit.jsonl` with `jq -r`, where the displayed string differs from the stored bytes. Compliance review of the authoritative-mode signal is misled.",
+      "suggested_fix": "Reuse the same sanitiser as `lib-content.sh` for the audit row so both drop C0 and C1 controls, and additionally strip or escape U+2028, U+2029 and the Unicode bidi control range before writing. Add a payload-corpus case in `tests/fixtures/pretooluse-payloads/expected.tsv` with a C1 byte and a bidi override in `active_skill` and assert the written row contains neither.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T02:43:38Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 7362,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d6441e56e30be8725c4db5ca0e322ca53835e5af68650e0e8a47a9f2eaf11229",
+      "run_tag": "a6-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

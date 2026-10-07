@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/adversarial-review.sh:_adv_reap_companion_timed_out",
+      "cross_file_justification": null,
+      "description": "The thirty-seventh-run guard against borrowing the lock holder's MODELINV row keys only on the attempts file: `if [[ -n \"$final\" && \"${_lastrow##*:}\" != lock_wait ]]; then _diag=$(_companion_ledger_message ...)`. But `_adv_reap_companion_timed_out` records a companion reaped while in `queue` by writing `lock_wait` to companion.status and copying companion.current to companion.final without appending a `<hop>:lock_wait` row to companion.attempts (the walker was TERM/KILLed and did not write one). The fold then sees `status=lock_wait` yet `_lastrow` is the previous hop's row (or empty when attempts is absent), so the ledger lookup still runs for a hop that never sent a request, over a window (`hop_started_iso`/`started_iso` to `ended_iso`) in which the primary, holding the same shared CLI lock, wrote its own rows for that model.",
+      "failure_mode": "On the documented host shape (primary and companion both ending on claude-headless, companion queued behind the primary's lock and reaped at bound+30), a failed primary call's provider message is attributed to the companion as `last_error`, and `_companion_failure_class` may classify from that borrowed text instead of the reaper's `lock_wait` status.",
+      "suggested_fix": "Also skip the ledger lookup when the recorded status is lock_wait: `if [[ -n \"$final\" && \"$status\" != lock_wait && \"${_lastrow##*:}\" != lock_wait ]]`. Alternatively have `_adv_reap_companion_timed_out` append `${final}:lock_wait` to companion.attempts when it writes the lock_wait status, so the attempts record and the status agree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_reap_companion_inner",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The comment states that a pid forked before the freeze 'carries the token kill_tree took while it was frozen'. The code does the opposite. `_ADV_REAP_TREE_TOKENS` is first filled by `_adv_pid_tokens` on the unfrozen tree, and the merge loop `[[ \" $_ADV_REAP_TREE_TOKENS\" == *\" ${_e%%=*}=\"* ]] || _ADV_REAP_TREE_TOKENS+=\"$_e \"` keeps the pre-freeze entry for every pid already present, discarding the frozen token from `_kt`. When the pre-freeze `_adv_proc_start` read failed transiently (token \"\"), that empty token is what `_adv_kill_same` consults five seconds later, so the pid alone decides the KILL even though a valid frozen token was available.",
+      "failure_mode": "A descendant that exited on TERM and whose pid was reused within the grace period is KILLed by pid alone in exactly the case the frozen-token design was meant to close; low likelihood (requires a failed /proc read plus pid reuse within the grace), but the intended safeguard is not in effect.",
+      "suggested_fix": "In the merge loop, replace an existing entry whose token is empty with the frozen one from `_kt` (e.g. rebuild `_ADV_REAP_TREE_TOKENS` from `_kt` first and only then append pre-freeze entries for pids `_kt` lacks), and update the comment to match.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "type-error",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_shared_hop_verdict",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both `_adv_shared_hop_verdict` (`[[ -s result.json && canon == hop ]] && jq empty result.json` → `skip answered_with_it`) and `_fold_companion` (`jq empty < companion.result.json` → `comp_status=succeeded`) treat any syntactically valid JSON as a companion answer. `jq empty` passes for `null`, a number, a string or an array. `_adv_inv5_rewrite` in the same hunk already uses the stricter `jq -e 'type == \"object\"'`, so the three validators disagree.",
+      "failure_mode": "A companion.result.json holding `null` (e.g. a walker that captured an empty jq result and wrote it) makes the primary cede its shared last hop to a companion that produced no findings; in the fold, `null` yields a 'succeeded' companion with zero findings and cost 0, while a string or array result fails inside the fold's jq and surfaces only as `fold_failed`.",
+      "suggested_fix": "Use `jq -e 'type == \"object\" and (.findings // [] | type) == \"array\"' companion.result.json >/dev/null 2>&1` in both places, matching `_adv_inv5_rewrite`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/adversarial-review.sh:_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The companion diagnostic is withheld when the shared redactor exits non-zero, but when `$_redactor` is not executable (`[[ -x \"$_redactor\" ]]` false, including an `_ADV_REDACTOR_BIN` override pointing at a missing path) the raw line skips the shared redactor entirely and only the sk/xai/gsk/AIza mask runs before `log \"Companion voice diagnostic ($final): $last_error\"` writes it to stderr. The comment lists the shapes the shared redactor alone covers: URL credentials, AKIA keys, Bearer tokens, PEM material. The envelope value is still allowlisted by `_adv_error_summary`, so exposure is limited to the operator-facing log.",
+      "failure_mode": "On a checkout or override where lib/log-redactor.sh is absent, a provider error line echoing a Bearer token or a credentialed URL from the companion log or MODELINV row is printed to stderr unredacted.",
+      "suggested_fix": "Fail closed consistently: if the redactor is not executable, set `last_error=\"[diagnostic withheld: no redactor]\"` (and log a WARN once) instead of passing the raw line through the narrower mask.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-04T19:20:33Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 54428,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "de8ef766e0a9a2ec6e2b4559fd8bdeb8510c3b19a3d9779ae4faff22f50ea501",
+      "run_tag": "a4-script-4"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

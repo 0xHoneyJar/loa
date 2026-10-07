@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/model-adapter.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new block installs `trap 'rm -f -- \"$err_file\"' EXIT` inside main() and then runs `trap - EXIT` on the normal path. `trap ... EXIT` replaces whatever EXIT trap the script (or a sourced lib-*.sh) had already registered, and `trap - EXIT` then removes it entirely rather than restoring it. The diff does not show the rest of model-adapter.sh, so whether a prior EXIT trap exists cannot be confirmed from the hunk; if one does, every successful call now skips that cleanup.",
+      "failure_mode": "If model-adapter.sh or a sourced library registers an EXIT trap (lock file, temp dir, ledger flush), that handler stops running after the first model-invoke hop on every normal exit, leaking the resource per call. If the script is ever sourced rather than executed, the caller's EXIT trap is cleared as well.",
+      "suggested_fix": "Verify with `grep -n 'trap' .claude/scripts/model-adapter.sh` and its sourced libs. Either (a) register one top-level EXIT trap at script start that removes a global `_MA_ERR_FILE` when non-empty and never clear it, or (b) capture the prior trap with `prev=$(trap -p EXIT)` and `eval \"${prev:-trap - EXIT}\"` instead of `trap - EXIT`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/model-adapter.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When mktemp fails the fallback discards cheval's stderr with `2>/dev/null` and emits nothing. The comment calls this 'as before', but the agy argv-exposure WARN pass-through (bd-pw7e LOW-001) is described in the same block as 'the operator-facing half of that mitigation'. The fallback silently disables that half with no indication to the operator, and it gives up immediately rather than retrying the default location when a user-set TMPDIR is the only thing that is broken.",
+      "failure_mode": "On a host with an unusable TMPDIR (common in sandboxed CI and some container images), a gemini-headless dispatch that places the whole prompt on argv runs with the LOW-001 warning suppressed and no trace that suppression occurred; the operator believes the mitigation is active.",
+      "suggested_fix": "Retry mktemp against `/tmp` when `${TMPDIR}` fails before falling back, and in the final fallback write a one-line WARN to stderr (e.g. 'model-adapter: stderr capture disabled, TMPDIR unusable; agy argv-exposure WARN will not be relayed') so the degraded mode is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/fixtures/ensure_license_fixtures.sh:_elf_future",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The freshness margin is 300 s, justified in the comment as 'a window that closes mid-suite is as stale'. The implementation report for the same sprint records the full tests/unit run at roughly 38 minutes (05:40Z to 06:18Z). A grace fixture whose offline_valid_until is between 5 and 38 minutes away passes the guard and then expires while the suite is still running, reproducing exactly the test_license_validator / test_constructs_loader / test_pack_support failures this sprint fixed, just with a narrower trigger window.",
+      "failure_mode": "Intermittent red in the license/constructs/pack suites when the guard runs between ~11h22m and ~11h55m after the grace fixture was generated; the 12-hour window regenerates on the next run so the failure does not reproduce, presenting as a flake.",
+      "suggested_fix": "Raise the margin to at least the longest observed suite duration with headroom, e.g. 3600 s (the window is 12 h so regeneration frequency barely changes), or make it a parameter `${_ELF_MARGIN_S:-3600}` and have LFF-3 pass a small value.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/check-permissions.sh:rule_key",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Universal handling now covers bare `Bash` and `Bash(*)`, but a prefix wildcard with an empty prefix, `Bash(:*)`, still goes through the wildcard branch: `:*` is stripped, the body is empty, and RULE_KEY becomes the bare string `*`. No requirement key or base ever equals `*`, so that rule covers nothing in the checker even though an empty-prefix `prefix:*` rule matches every command under Claude Code's prefix grammar. The CP-14 near-miss list does not exercise this form, so the gap is unpinned either way.",
+      "failure_mode": "A `Bash(:*)` deny in any layer is reported as not covering the 16 requirements, so the preflight passes and the unattended run stalls on the first Bash call, which is the same symptom n29 fixed for `Bash(*)`. A `Bash(:*)` allow is reported as 16 missing, a false failure.",
+      "suggested_fix": "In the wildcard branch, after stripping and trimming, treat an empty body as universal (`[[ -z \"$b\" ]] && RULE_KEY=ALL`), or if Claude Code does not accept that form, add `Bash(:*)` to the CP-14 not-universal case so the decision is pinned.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/implement-gate.bats:IG-11",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `! grep` to `run ! grep` conversions (IG-11, FMT-6, PR-3, RES-4, hook-guard) correctly make the absence checks able to fail, but `run !` accepts any non-zero exit. grep returns 2 when a target path is missing or unreadable, so if `.loa.config.yaml.example`, `docs/`, `protocols-summary.md`, or the hook-guard stderr file is moved or renamed, these assertions pass vacuously instead of flagging that the file they guard no longer exists. IG-11 is the sharpest case because it is the only assertion that the undocumented authoritative gate mode stays undocumented.",
+      "failure_mode": "A refactor that relocates one of the grepped files leaves the residue/undocumented-key invariants unenforced while the suite stays green, the same silent-pass class n20 set out to remove.",
+      "suggested_fix": "Use `run -1 grep ...` for absence checks so only 'no match' (exit 1) passes and 'cannot read' (exit 2) fails, or precede each with `[ -e \"$path\" ]`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T09:13:24Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 42609,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a4d37fade33493bbdeb48671512de78dce71318e58f106987ddea45269d7c6b1",
+      "run_tag": "s-shell"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

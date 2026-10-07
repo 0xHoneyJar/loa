@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "complete() now runs agy in one stable, reused directory (private_workspace(\"loa-agy-ws\")) while passing --dangerously-skip-permissions, and the module docstring states that whether --sandbox blocks writes to that cwd was never probed. The prompt is untrusted review content. If the sandbox permits cwd writes (gemini-cli's sandbox mounts the project dir read-write), a prompt-injected tool call can plant GEMINI.md / .gemini/settings.json in the stable dir, and the next hop starts in that directory. The prior per-hop or caller-cwd layouts did not carry state between hops. The refusal of a stable cwd holding a project file (headless_cli, not in diff) only helps if its list covers agy's own context files, and it then turns one injected write into a permanent refusal of gemini-headless until an operator cleans the directory.",
+      "failure_mode": "Either persistent cross-hop prompt injection into the Gemini voice (sandbox allows cwd writes and the planted file is not in the refusal list), or a self-inflicted permanent walk of gemini-headless after a single injected write (refusal fires on every later hop with no self-heal).",
+      "suggested_fix": "At hop start, list the stable dir; if non-empty, log and remove its entries instead of refusing (it is meant to be empty), or recreate it. Add agy's context/config filenames to the refusal list. Make 'sandbox denies writes to cwd' an explicit pass criterion of the T4.1 re-probe before re-enabling agy.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py:GrokHeadlessAdapter.complete",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "sweep_stale_hop_workspaces(base, \"loa-grok-ws-\") is called inside the staging try whose `except OSError` raises ProviderUnavailableError for this hop. The sweep walks a base shared by every concurrent grok hop (n_slots defaults to 50) and by parallel dissent runs. If two hops sweep the same stale entry and the sweep does not swallow per-entry errors (a stat or rmdir on an entry the other sweeper just removed raises FileNotFoundError, a leftover with a changed mode raises PermissionError), the second hop fails as 'failed to stage isolated workspace' although its own mkdtemp would have succeeded. The sweep's directory scan is also paid on every hop rather than occasionally.",
+      "failure_mode": "Spurious walkable grok-headless hop failures under concurrent dissents, surfacing as PROVIDER_UNAVAILABLE with a misleading 'failed to stage isolated workspace' reason.",
+      "suggested_fix": "Make the sweep best-effort: catch OSError per entry inside sweep_stale_hop_workspaces and log at debug, and call it outside the try that maps staging errors to a hop failure (or after the hop's own mkdtemp has succeeded). Optionally rate-limit it (e.g., once per process or once per N minutes).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py:AgyHeadlessAdapter.complete",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Adding cwd=workspace widens the set of OSErrors Popen can raise at spawn: a NotADirectoryError (workspace replaced by a regular file), a PermissionError on chdir, or an ENOENT on a vanished workspace whose filename does not match (cwd_vanished returns False). All but the FileNotFoundError branch fall into the generic `except OSError`, whose message is fixed as 'exec failed (likely ARG_MAX on an oversized prompt)'. That text becomes last_error in the MODELINV row and the dissent envelope's companion diagnostics, so a cwd problem is reported and triaged as an oversized diff.",
+      "failure_mode": "Misleading operator diagnostics and potential misclassification of the hop's failure in the dissent envelope; the chain still walks, but the recorded reason points at the wrong cause.",
+      "suggested_fix": "Qualify the message by errno: only E2BIG says ARG_MAX; otherwise report `exec/chdir failed ({errno name}): {exc}` and include exc.filename so a cwd problem is visible.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:56:06Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 29687,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "174169e2e21c273ce5412c7f82ae67b891593a73d9a6520f1cc7a9c895122ae9",
+      "run_tag": "e1-adapters"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

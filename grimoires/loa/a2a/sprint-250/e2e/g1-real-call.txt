@@ -1,0 +1,33 @@
+start 2026-10-06T06:35:16Z head fd8aaae3 input_bytes 912908
+exit 1 end 2026-10-06T06:35:27Z
+[cheval] WARNING: No persona.md found for agent 'reviewing-code'. Searched: .claude/skills/reviewing-code/persona.md, .claude/reviewing-code/persona.md
+[cheval] WARNING: No system prompt loaded for agent 'reviewing-code'. Expected persona at: .claude/skills/reviewing-code/persona.md — create this file to define the agent's identity and output schema.
+[cheval] WARNING: Provider anthropic unavailable (attempt 1/4): [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p failed (exit 1): API Error: 400 Access to Anthropic models is not allowed from unsupported countries, regions, or territories. Please refer to https://www.anthropic.com/supported-countries for more information on the countries and regions Anthropic currently supports. (api_status=400)
+{"error": true, "code": "RETRIES_EXHAUSTED", "message": "[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p failed (exit 1): API Error: 400 Access to Anthropic models is not allowed from unsupported countries, regions, or territories. Please refer to https://www.anthropic.com/supported-countries for more information on the countries and regions Anthropic currently supports. (api_status=400)", "retryable": false}
+{"model":null,"provider":null,"status":null,"usage":null,"input_tokens":null,"output_tokens":null}
+--- attempt 2 (CLAUDE_HEADLESS_BIN=claude-fallback) ---
+start 2026-10-06T06:39:04Z head fd8aaae3 input_bytes 912908
+exit 1 end 2026-10-06T06:39:13Z
+[cheval] WARNING: No persona.md found for agent 'reviewing-code'. Searched: .claude/skills/reviewing-code/persona.md, .claude/reviewing-code/persona.md
+[cheval] WARNING: No system prompt loaded for agent 'reviewing-code'. Expected persona at: .claude/skills/reviewing-code/persona.md — create this file to define the agent's identity and output schema.
+[cheval] WARNING: Provider anthropic unavailable (attempt 1/4): [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p failed (exit 1): API Error: 400 Access to Anthropic models is not allowed from unsupported countries, regions, or territories. Please refer to https://www.anthropic.com/supported-countries for more information on the countries and regions Anthropic currently supports. (api_status=400)
+{"error": true, "code": "RETRIES_EXHAUSTED", "message": "[cheval] RETRIES_EXHAUSTED: Failed after 1 attempts: [cheval] PROVIDER_UNAVAILABLE: Provider 'anthropic' unavailable: claude -p failed (exit 1): API Error: 400 Access to Anthropic models is not allowed from unsupported countries, regions, or territories. Please refer to https://www.anthropic.com/supported-countries for more information on the countries and regions Anthropic currently supports. (api_status=400)", "retryable": false}
+{"model":null,"provider":null,"status":null,"usage":null,"input_tokens":null,"output_tokens":null}
+--- attempt 3 (CLAUDE_HEADLESS_BIN=claude-bedrock; attempt 2 via claude-fallback got the same geo 400: the wrapper falls back on usage limits only) ---
+start 2026-10-06T06:40:51Z head fd8aaae3 input_bytes 912908
+exit 0 end 2026-10-06T06:41:11Z
+{
+  "content": "OSPREY-7412 | .claude/scripts/cluster-skills.sh",
+  "usage": {
+    "input_tokens": 2,
+    "output_tokens": 350,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 415028
+  },
+  "model": "global.anthropic.claude-fable-5-1",
+  "provider": "anthropic"
+}
+[cheval] WARNING: No persona.md found for agent 'reviewing-code'. Searched: .claude/skills/reviewing-code/persona.md, .claude/reviewing-code/persona.md
+[cheval] WARNING: No system prompt loaded for agent 'reviewing-code'. Expected persona at: .claude/skills/reviewing-code/persona.md — create this file to define the agent's identity and output schema.
+[cheval] WARNING: claude-headless: non-zero CLI-reported cost recorded; actual billing is unverified (KF-020). LOA_HEADLESS_MODE=api-only excludes subscription CLI dispatch.
+{"model":null,"provider":null,"status":null,"usage":null,"input_tokens":null,"output_tokens":null}

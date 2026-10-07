@@ -1,0 +1,11 @@
+1..9
+ok 1 FMT-1 a 128K entry (claude-opus-5) is capped at the 64000 streaming default, for every mode
+ok 2 FMT-2 a smaller entry passes its own catalog value (gpt-5.2 → 16000, gemini-3.1-pro-preview → 32000)
+ok 3 FMT-3 an alias resolves through MODEL_IDS (opus → claude-opus-5-5 → 64000)
+ok 4 FMT-4 an entry without a declared budget passes no --max-tokens (cheval's per-model default applies)
+ok 5 FMT-5 --per-call-max-tokens still overrides the catalog-bounded value
+ok 6 FMT-6 no per-call-kind literal remains in the orchestrator
+ok 7 flatline-orchestrator: --per-call-max-tokens 4096 is parsed (no Unknown option error)
+ok 8 flatline-orchestrator: default behavior preserved when --per-call-max-tokens unset
+ok 9 flatline-orchestrator: emits warning for >100KB doc when --per-call-max-tokens unset
+EXIT 0

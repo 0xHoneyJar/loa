@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The supplied diff is one CHANGELOG.md hunk labelled 'part 1/2' and every visible line is context; there is no '+' or '-' line. None of the code the implementation report describes (implement-gate.sh active_skill evidence, the claude-opus-5-5 catalog entry and its 180K ceiling, model-permissions.yaml rows, the 5-family regexes in model-adapter and Flatline, the recall grader parser) is in the diff. This review therefore covers only the FR-2 changelog prose.",
+      "failure_mode": "If this envelope is read as a dissent on the Sprint 4 code, verdict quality is overstated: nothing here confirms or refutes the code changes, and a defect in any of the listed files would pass unseen.",
+      "suggested_fix": "Re-run the dissent with --diff-range <base>...<head> over the Sprint 4 commits so the content preparer sends the code files, and check that lib-content.sh's partial view did not place the CHANGELOG's changed lines in an unsent part.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "cross_file_justification": "CHANGELOG.md is the only diff-touched file and the report says it documents the Sprint 4 pin changes; the conflict is between two claims in the same report that the changelog is meant to record (the deep-thinker retarget and the Flatline allowlist assertion).",
+      "description": "The implementation report states that the deep-thinker pin is now gemini-3.1-pro and, in the same report, that the Flatline allowlist test 'still forbids the bare gemini-3.1-pro' because only the -preview id is listed. If any Flatline path (flatline-proposal-review, flatline-validate-learning, flatline-learning-extractor are all listed as re-pinned to aliases) resolves deep-thinker to that bare id, validate_model rejects it.",
+      "failure_mode": "A Flatline skill pinned to deep-thinker fails model validation on every invocation, or silently falls back to another model, after this merge.",
+      "suggested_fix": "Either add the bare gemini-3.1-pro to the Flatline allowlist and update flatline-model-allowlist.bats, or point deep-thinker at the listed -preview id. Add a test that resolves each pinned alias and passes the result through validate_model.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two defaults change meaning for existing configurations with only an upgrade note as the signal: budget_cents becomes a per-voice cap (a dissent can now spend up to twice the configured value, since cost_usd is the sum of two voices), and on a single-family host every security_audit is DEGRADED_SECURITY_REVIEW until companion_voice: false is added to the block.",
+      "failure_mode": "Operators who set budget_cents as a run ceiling overspend by up to 2x with no change on their side; single-family hosts see every security audit degraded after upgrade until they discover the opt-out.",
+      "suggested_fix": "Emit a one-time WARN when a block has no explicit companion_voice key and a companion is planned, and either rename the knob (budget_cents_per_voice) or keep budget_cents as the run total and split it across voices.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The run lock fails open in several enumerated cases: mkdir fails for a reason other than contention, flock exits with a code other than 1, flock is absent during a dead-holder takeover, or the takeover section cannot be opened. In each case the run proceeds unguarded for the same (sprint, gate) with only a WARN.",
+      "failure_mode": "Two unguarded runs move each other's envelope and sidecars aside as .prev or hit workdir_unavailable mid-run; verdict-derive.sh then reports dissent_aborted for a run that completed, or the review adopts an envelope from the other run's voice set.",
+      "suggested_fix": "Fail closed with a distinct status when the lock cannot be established, behind an explicit opt-in to run unguarded. Write the envelope to a run_tag-suffixed path and rename atomically so a concurrent run never observes a half-written file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:@@ -13,3 +13,3 @@ ### Changed",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "To keep the prompt off argv, the gemini adapter forces GEMINI_SANDBOX=false and overrides an operator's tools.sandbox setting. The agy adapter leaves the whole prompt on argv, readable through /proc/<pid>/cmdline and subject to E2BIG above roughly 128 KiB; unlike gemini's argv path it has no stated size refusal.",
+      "failure_mode": "If the gemini hop does not also disable tool execution, a prompt-injected diff can drive unsandboxed tool calls on the operator host. An agy companion hop on a large chunk fails at execve and the voice is dropped.",
+      "suggested_fix": "Confirm the gemini hop runs with tools disabled or in a read-only approval mode and document that beside the GEMINI_SANDBOX note. Give agy the stdin path, or at minimum the 124 KiB refusal that gemini's argv path has.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:52:02Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 17241,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "8d3e1bb153925d450b2f72dc68ec818864c66f52aad198a58e6c17a0432b79ab",
+      "run_tag": "d1-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "info-disclosure",
+      "anchor": "CHANGELOG.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "the agy adapter documents that its prompt, still on argv, is readable through `/proc/<pid>/cmdline`",
+      "cross_file_justification": null,
+      "description": "The changelog records that the claude and gemini headless adapters were moved to stdin precisely because an argv prompt is world-readable via /proc/<pid>/cmdline, yet it ships the agy adapter with the prompt still on argv, and gemini falls back to argv whenever an operator puts --sandbox (or -sd / --sandbox=true) in gemini_extra_flags. The prompt is the full diff under review plus repair payloads, so on any multi-user host every local account can read proprietary code, embedded secrets in the diff, and the reviewer instructions for the lifetime of the CLI process. The fix only 'documents' the exposure rather than closing it. Note: only the changelog is in this diff; verify against cheval's agy and gemini adapters.",
+      "failure_mode": "Any unprivileged local user reads the review prompt (the code under review, including any secrets it contains) from /proc/<pid>/cmdline while an agy hop or a sandboxed gemini hop runs.",
+      "suggested_fix": "Deliver the agy prompt on stdin or via a 0600 prompt file inside the private per-hop workspace (as grok already does). For gemini, refuse to start when gemini_extra_flags requests a sandbox instead of silently falling back to argv, or write the prompt to a 0600 file and pass it by path.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "CHANGELOG.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "a git older than 2.41 ignores it, which is said once as a WARN: a committed `-diff` line hid a hunk from both voices",
+      "cross_file_justification": null,
+      "description": "--diff-range reads attributes from the empty tree via GIT_ATTR_SOURCE so a committed .gitattributes cannot hide hunks, but the changelog states that on git < 2.41 the variable is ignored and the only mitigation is a one-time WARN. On such hosts an author can commit a `*.sh -diff` (or path-specific) attribute line in the same range, and the audited code shows as 'Binary files differ' to both the primary and companion voice. The security audit then passes with no findings for code it never saw. A warning in a log is not a control for a review-bypass primitive. Verify in adversarial-review.sh's --diff-range path.",
+      "failure_mode": "On a host with git < 2.41, a reviewer-hostile commit adds a -diff attribute and the dissent/security audit silently reviews a diff with the hidden files reduced to 'Binary files differ', producing a clean verdict for unreviewed code.",
+      "suggested_fix": "When git < 2.41 is detected, either refuse --diff-range (status line, exit 1) or pass `--text --no-textconv --no-ext-diff` so attribute-driven binary classification cannot suppress hunks; additionally emit a finding or set DEGRADED_SECURITY_REVIEW rather than only a WARN.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "CHANGELOG.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "a run lock that cannot be made for a reason other than contention (or an unopenable takeover section) runs unguarded at once with that reason",
+      "cross_file_justification": null,
+      "description": "Several lock paths are fail-open: a run lock that cannot be created for a non-contention reason runs unguarded, a flock exiting with anything other than 1 runs unguarded, and without flock a dead holder's takeover runs unserialised. Two unguarded runs for the same (sprint, gate) race on the envelope, .prev move-aside and rejected sidecars, so one run's findings can be displaced by another's and verdict-derive.sh can read a mixed or truncated state. On a shared host, conditions that make lock creation fail (quota, permissions on the runtime dir) can be induced by another account. Fail-closed (refuse with workdir_unavailable) is the safer default for a review gate.",
+      "failure_mode": "Lock creation or flock fails for an environmental reason, two dissent runs proceed concurrently, and the envelope or sidecars at the shared path reflect a mix of runs or a displaced result.",
+      "suggested_fix": "Refuse the run (status workdir_unavailable / lock_unavailable, exit 1) when the lock cannot be established for any reason other than a confirmed dead holder, or require an explicit --allow-unguarded override.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "CHANGELOG.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "`adversarial-review.sh --record-fallback <status> --reason <text>` writes the documented fallback envelope under the run lock (the review and audit skills' allowlists can run it",
+      "cross_file_justification": null,
+      "description": "The LLM-driven review and audit skills are now allowlisted to run --record-fallback with caller-chosen --status, --reason and --since. The only guard against displacing a real envelope is that an envelope newer than --since is refused, but --since is supplied by the same caller. A prompt-injected or misbehaving skill invocation can therefore move aside a standing envelope that holds findings and replace it with a fallback record of its choosing. The result is suppression of findings rather than a forged pass, since verdict-derive.sh will see a fallback status, but it converts a completed audit into a 'failed/aborted' one on demand.",
+      "failure_mode": "The skill (or an injected instruction in the reviewed diff) runs --record-fallback with a future --since, displacing an envelope containing findings and leaving a fallback record in its place.",
+      "suggested_fix": "Have --record-fallback refuse to displace any envelope whose status is a completed run, or require --since to match the `run started <ts>` recorded in the run's own state file rather than accepting an arbitrary timestamp; do not allowlist displacement for the skill, only recording when no envelope exists.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "CHANGELOG.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": "gemini runs with `GEMINI_SANDBOX=false` (an ambient `GEMINI_SANDBOX` or `tools.sandbox` asks for none)",
+      "cross_file_justification": null,
+      "description": "To keep the prompt off argv the gemini headless hop now forces GEMINI_SANDBOX=false and overrides any operator sandbox setting. The reviewer CLI consumes an untrusted diff as its prompt; prompt injection in reviewed code could drive gemini-cli tool calls, and the sandbox was the layer limiting what such calls could touch. The isolated empty cwd under a private base mitigates file-system reach, but network and any auto-approved tools remain available. Trading sandboxing for argv confidentiality is a reasonable call, but it should be an explicit, documented default with yolo/auto-approve modes verified off in headless mode.",
+      "failure_mode": "Injected instructions in the reviewed diff cause the unsandboxed gemini-cli to execute a tool call with host-level reach that the sandbox would have contained.",
+      "suggested_fix": "Confirm headless gemini runs with tool approval disabled (no --yolo / auto-approve), pass the prompt via a 0600 file so the sandbox can stay on, and document the tradeoff on the gemini-headless catalog entry.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:40:20Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 6765,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a54f25a701f438b4477394963dfcba7ff1a2e79b4626dbbcef3d2a751d2b8afa",
+      "run_tag": "d1-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

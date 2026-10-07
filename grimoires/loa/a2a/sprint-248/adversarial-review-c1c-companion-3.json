@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-204",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The setsid leg of CMP-204 never asserts that the victim was actually frozen. It polls up to 3 s for a `T*` state, then polls up to 4 s for it to clear, then asserts `!= T*`. If `_adv_kill_tree` fails at once inside the `setsid bash -c` body (the body carries only four functions via `declare -f`; any other helper `_adv_kill_tree` or `_adv_tree_pids` calls, such as a logger or a pid-liveness check, is `command not found` there), the victim is never stopped, both loops fall through immediately and the final check passes. CMP-193 guards the same scenario with an explicit \"the stub never ran inside the freeze\" assertion; this leg has no equivalent, so the property it claims to pin (the CONT watchdog survives a process-group KILL of the reviewer) is not actually exercised on a host where the inlined body cannot run.",
+      "failure_mode": "A regression that drops the watchdog's own-session detachment, or a refactor that adds a helper to the kill-tree path, leaves this leg green while the guarantee it names is gone; a frozen `claude -p` can then hold the per-binary lock indefinitely after a group kill, exactly the failure the test exists to catch.",
+      "suggested_fix": "Record whether `T*` was observed (set a flag in the first loop) and fail with a message when it was not, mirroring CMP-193; or run the body through `bash -c \"$(declare -f $(compgen -A function _adv_))...\"` so every script helper is present, and additionally assert the watchdog pid appeared (e.g. via the `wd-calls`-style seam used in CMP-209).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/adversarial-review-companion.bats:CMP-210",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "CMP-210 ages the `companion.phase` file with `touch -d \"@$(( now - 700 ))\"` (three times). `-d @<epoch>` is GNU coreutils syntax; BSD/macOS `touch -d` takes an ISO-8601 string and rejects `@…`. The implementation report records that the tenth run removed every GNU-only primitive (`date +%s%N`, `touch -d`, unguarded `flock`) from this suite as a standing rule, and CMP-183 in this same slice is titled as pinning the suite's own portability floor. This test reintroduces the retired primitive with no `skip` guard.",
+      "failure_mode": "On a non-GNU host the three `touch` calls exit non-zero under bats errexit and CMP-210 reports red for a reason unrelated to the queue-phase bound it tests, breaking the suite's documented contract that GNU-only tooling is either avoided or skipped.",
+      "suggested_fix": "Use the python3 the suite already requires (`python3 -c 'import os,sys; t=int(sys.argv[2]); os.utime(sys.argv[1],(t,t))' \"$T/dq210/companion.phase\" $((now-700))`), or drive `_companion_deadline_why` through its fake-clock seam the repair-loop tests use, so no mtime manipulation is needed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T03:50:31Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 40637,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "700e5b9b2b8861b2367d6c58e03927069d297118ed3dd09922d153836e38e1c8",
+      "run_tag": "c1c-companion-3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

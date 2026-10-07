@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:_companion_deadline_why",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The queue-phase budget is `_adv_cli_hop_bound(cur) + 30` for every hop in phase `queue`. `_walk_companion_chain` puts an HTTP hop whose catalog fallback_chain reaches a CLI binary into `queue` too, but `_adv_with_cli_lock` waits for that hop's lock only `${CONF_TIMEOUT:-60}` (the non-`*-headless` branch), not `_adv_cli_hop_bound`. For a listed HTTP hop with no headless_timeout_seconds the bound is max(connect,10)+max(read,600) = 610, so the queue budget is 640 s regardless of the configured call timeout. The wait-cap and post-budget rules in the same hunk charge that lock wait as `t` (the call timeout), so the three rules disagree for this hop class.",
+      "failure_mode": "With `timeout_seconds` configured above ~640 s (plausible on this host, where CLI hops run 910 s), a companion on e.g. `claude-bedrock` queued behind the primary's `claude -p` is reaped by main at 640 s with `phase 'queue' deadline` while `flock -w` would still legitimately wait up to CONF_TIMEOUT. The voice is dropped as lock_wait/timeout although its own budget allowed the wait.",
+      "suggested_fix": "In the `queue` branch, derive the budget from the same rule `_adv_with_cli_lock` uses: when `_adv_hop_canon \"$cur\"` is not `*-headless`, use `${CONF_TIMEOUT:-60} + 30` (or the walker's actual `$timeout`, published alongside `companion.current`); keep `_adv_cli_hop_bound ... strict` only for `*-headless` hops.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_alias_target",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_adv_cli_hop_bound ... strict` is meant to return 1 on any failed catalog read so `_companion_deadline_why` never latches the 610 fallback over a yq hiccup (thirty-fourth run fix). But the first catalog read on that path is inside `_adv_hop_canon` → `_adv_alias_target`, where a yq failure is swallowed (`|| t=\"\"`). For a hop spelled as a catalog alias, a transient yq failure leaves the hop un-canonicalised; the subsequent `has()` read legitimately answers `false` for the alias name, `from_catalog` stays false, and the function returns 0 with `_ADV_CLI_HOP_TIMEOUT` — which the caller then caches as the queue budget for the rest of that hop.",
+      "failure_mode": "An aliased `*-headless` companion hop with a 910 s catalog bound gets a cached 640 s queue budget after one failed alias read and is reaped inside its legitimate lock wait — the exact shape a3 DISS-C-002 was meant to close, reopened for aliased spellings only.",
+      "suggested_fix": "Give `_adv_alias_target`/`_adv_hop_canon` a strict mode (or return 1 when the yq alias read itself fails, distinguishing a failed read from `null`), and have `_adv_cli_hop_bound` propagate that as `return 1` when `strict` is set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "concurrency",
+      "anchor": ".claude/scripts/adversarial-review.sh:_adv_cli_lock_dir",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The per-binary lock directory is `${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/loa-headless-locks-<uid>`, with `~/.cache/loa/headless-locks-<uid>` only as a fallback when that path is not ours. Two dissents run by the same user in different environments — one from a systemd session (XDG_RUNTIME_DIR set) and one from cron/CI/ssh-without-session (unset) — therefore lock in different directories (`/run/user/<uid>/...` vs `/tmp/...`, both legitimately ours) and never see each other's `claude.lock`.",
+      "failure_mode": "Two `claude -p` invocations overlap on the host (the KF-037 contention shape the lock exists to prevent) with no WARN, because each process believes it holds the only lock.",
+      "suggested_fix": "Use one environment-independent location as the primary (e.g. always the private `~/.cache/loa/headless-locks-<uid>` path, which is already created 0700 and ownership-checked), and treat `$XDG_RUNTIME_DIR` as an optimisation only when a stable per-user path cannot be made.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T00:28:41Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 60938,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "885f1bceab3c32d567c104fdef45e6098ab2dd56744c96776d74f9762329f56b",
+      "run_tag": "a3-script-3"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

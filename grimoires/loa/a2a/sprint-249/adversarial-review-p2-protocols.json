@@ -1,0 +1,179 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/citations.md:@@ -1,523 +1,6 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The diff replaces `.claude/protocols/citations.md` with a helper-scripts stub pointing to `.claude/protocols/reference/helper-scripts.md`. This removes the active citation protocol from the canonical citations path and redirects consumers to unrelated helper-script documentation.",
+      "failure_mode": "Any workflow, test, or agent instruction that loads `.claude/protocols/citations.md` will no longer receive the word-for-word citation requirements. That silently disables the grounding/citation contract and causes downstream review/audit outputs to violate the documented citation spec.",
+      "suggested_fix": "Do not replace `.claude/protocols/citations.md` with the helper-scripts stub. Restore the citation protocol at that path, or if it is being moved, create `.claude/protocols/reference/citations.md` and make the stub point to that citation reference, not `helper-scripts.md`.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/protocols/reference/trajectory-evaluation.md",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/protocols/reference/trajectory-evaluation.md",
+      "cross_file_justification": "The sprint AC 'Replay A/B: no gold case loses recall' is evaluated on commit 41b783a1, which includes this protocol relocation. Moving trajectory-evaluation, session-continuity, helper-scripts, recommended-hooks and constructs-integration out of the always-loaded protocol set is a variable in the after arm that the ablation (c9b7bdc0) did not isolate; only the context_discipline include was ablated.",
+      "description": "The pre-registered gate (per losing case, pooled n=9 after recall >= pooled before recall) failed on all five losing cases: review-pr-02 .926->.815, review-pr-05 .963->.852, audit-pr-02 .852->.815, audit-pr-03 1->.963, audit-pr-05 .926->.889. Missed-defect slots doubled, 5/144 -> 10/144. The pre-registered remedy ('revert or retune the implicated change') was not applied. Instead a post-hoc blind adjudication re-scored 38 of 44 misses as grader defects and the AC is reported as 'met on blind adjudication'. Pre-registration exists precisely to prevent substituting a new measure after seeing the result. The adjudicator's own explanation of the misses (a '(' swallowed into the cited path, continuation citations ':776,807' and 'head:468' that the grader does not parse) describes a change in the after arm's citation output format. That is a behavioural regression in grounding-format compliance, plausibly caused by relocating grounding-adjacent protocols out of the prompt, and it was never ablated. The only ablation tested the include, not the protocol move.",
+      "failure_mode": "Sprint marked COMPLETED while the production grader (the measure of record until bd-ewrc lands) reports lower recall on five gold cases and the after arm emits citation formats the grader cannot parse. A later re-baseline on bd-ewrc would bake the lower number in and hide whether the protocol move changed model output.",
+      "suggested_fix": "Treat the AC as unmet, as the report itself states. Either (a) apply the pre-registered remedy: build a second ablation that restores the five protocols to .claude/protocols/ while keeping the context-class work, re-run the five losing cases at n=6, and only then decide whether the move is implicated; or (b) record an explicit human ruling in the review record accepting the deviation, and make bd-ewrc (grader fix plus re-baseline) a blocker for COMPLETED rather than a follow-up. Do not accept 'met on blind adjudication' as satisfying a pre-registered gate.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: trigger_anchor not in diff",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/protocols/citations.md:@@ -1,523 +1,6 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk labelled a/.claude/protocols/citations.md has the context line '# Helper Scripts Reference', removes 517 lines, and installs the helper-scripts stub ('The full text lives at .claude/protocols/reference/helper-scripts.md ... Quick index: .claude/loa/reference/scripts-reference.md'). That is the helper-scripts.md -> stub conversion wearing the wrong path. The supplied full-file context for citations.md shows the Word-for-Word Citation Protocol intact with its Related Protocols line repointed to reference/trajectory-evaluation.md, so this is most likely a diff-generation artefact. If it is real, the citation protocol that reviewing-code and grounding-enforcement.md depend on has been overwritten with an unrelated stub.",
+      "failure_mode": "If real: loss of the citation protocol, breaking the grounding/citation enforcement chain. If an artefact: the review record attributes the helper-scripts change to citations.md and the actual helper-scripts.md stub diff is absent from the record.",
+      "suggested_fix": "Run `git diff f4531477 41b783a1 --stat -- .claude/protocols/citations.md .claude/protocols/helper-scripts.md` and confirm citations.md changed only in its Related Protocols line while helper-scripts.md is the 523->6 line stub conversion. Fix the diff rendering if the label is wrong.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/protocols/recommended-hooks.md:@@ -1,526 +1,8 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Every stub asserts 'this stub keeps the old path and its anchors stable', but only the anchors that existing tests grep survive. recommended-hooks.md keeps only '### 4. Memory Injection Hook'; the Setup Hook, once/async, Context Cleanup Hook, Hook Development Guidelines, Disabling Hooks and Provenance anchors are gone from the old path. constructs-integration.md keeps none. The protocol-refs-resolve test checks file paths, not '#fragment' anchors, so a link such as recommended-hooks.md#async-hooks-v210 now resolves to a stub without that section and no test notices. Separately, section 4 now exists verbatim in both the stub and reference/recommended-hooks.md, and the reference copy still carries the Provenance paragraph about section 4. The wording of section 4 is pinned by dead-recall-relabel, so there are now two files that must be edited in lockstep.",
+      "failure_mode": "Silently broken deep links into the five moved protocols; section 4 wording drifts between stub and reference copy, and a future edit to one file flips dead-recall-relabel or no-history-in-rule-text depending on which path the test reads.",
+      "suggested_fix": "Grep for fragment links into the moved files, e.g. `grep -rn -E '(recommended-hooks|helper-scripts|trajectory-evaluation|session-continuity|constructs-integration)\\.md#' .claude grimoires tests`, and repoint them to reference/ or keep the headings as one-line pointers in the stub. Reduce the stub's section 4 to a one-line pointer at the reference copy (or drop section 4 from the reference copy) so the pinned text lives in exactly one place. Reword the stub sentence to say which anchors are kept.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/protocols/reference/helper-scripts.md",
+      "anchor_type": "file",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/protocols/reference/helper-scripts.md",
+      "cross_file_justification": "reference/ is the first nested directory under .claude/protocols/. Any script that enumerates protocols with a non-recursive glob now silently excludes these five files.",
+      "description": "The report concedes that migrate-skill-names.sh and loa-eject.sh loop over .claude/protocols/*.md without reference/. The same pattern is likely in check-loa.sh (System Zone sha256 integrity), update.sh step 6 Restore Overrides and step 8 Generate Checksums, and the enumerator behind tools/check-prompt-budget.sh. The budget drop (199,593 -> 131,078 B) matches the budget tool excluding reference/, which is intended. The same exclusion in the integrity path is not: if the checksum manifest is built from a non-recursive glob, the five moved protocols fall outside System Zone integrity checking, and reference/helper-scripts.md documents the exact curl-pipe-bash install and update command lines users are told to run.",
+      "failure_mode": "Tampering with any reference/ protocol goes undetected by check-loa.sh; update.sh's restore-overrides or atomic swap treats nested files differently from top-level ones; eject leaves an orphan reference/ tree.",
+      "suggested_fix": "Run `grep -rn 'protocols/\\*\\.md' .claude/scripts tools .claude/hooks` and decide recursive vs. non-recursive explicitly for each hit. Ensure the checksum manifest includes reference/*.md and add a test asserting every file under .claude/protocols/**/*.md appears in the manifest.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/protocols/session-continuity.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff for .claude/protocols/session-continuity.md (index e57ff4ae..08c01032) is cut off after the +++ header, so the stub content is not reviewable. The report says this stub retains the notes-guard recipes that the notes-template tests grep. In the reference copy, exactly one hard-coded threshold ('Yellow threshold (5,000 tokens)') was replaced with the context-class pointer; 5,000 is the standard-class accumulated value and contradicts the long default of 50K. Any recipe text retained in the stub, or any other threshold mention in the reference copy outside the single changed hunk, that still reads 5,000 would tell a long-class session to run Delta-Synthesis at a tenth of its budget.",
+      "failure_mode": "Stub and reference copy disagree with tool-result-clearing.md on when Delta-Synthesis fires; agents reading the stub apply standard-class thresholds in long-class sessions.",
+      "suggested_fix": "Run `grep -n -E '5,?000|8,?000|Yellow|Red threshold' .claude/protocols/session-continuity.md .claude/protocols/reference/session-continuity.md` and replace remaining fixed numbers with the class-table pointer. Include the full stub diff in the review record.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T20:53:00Z",
+    "tokens_input": 57582,
+    "tokens_output": 22044,
+    "cost_usd": 0,
+    "latency_ms": 21959,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-p2-protocols.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-249/adversarial-rejected-review-p2-protocols.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2a8277a64496d6e7562bbeb1c92b87824ab8bf84bd63cf3a17c44c1707728dfb",
+      "run_tag": "p2-protocols"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/skills/auditing-security/resources/BEADS-WORKFLOW.md:@@ -0,0 +1,20 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new audit workflow records the verdict with additive labels only: `br label add <task-id> security-approved` or `br label add <task-id> security-blocked`, 'exactly one of' per run. `br label add` never removes the other label, and a sprint task is routinely audited more than once (CHANGES_REQUIRED, then a re-audit that approves — this very sprint has had 38 review rounds). After the second audit the task carries both `security-blocked` and `security-approved`, and the flushed JSONL commits that contradictory state. The reviewing-code copy has the same shape for `review-approved` / `needs-revision` (pre-existing), so any label-driven consumer (ledger, gate, dashboard, `br list --label`) cannot tell the current verdict from the labels.",
+      "failure_mode": "A task blocked by an earlier audit and approved by a later one (or the reverse) carries both terminal labels; a consumer that checks for `security-blocked` wrongly holds the sprint, one that checks for `security-approved` wrongly passes a task whose latest audit blocked it. The comment line carries the truth but nothing in the workflow says the labels are not authoritative.",
+      "suggested_fix": "Make the label step idempotent: `br label remove <task-id> security-blocked` before `br label add <task-id> security-approved` (and vice versa), or document that the latest `SECURITY AUDIT:` comment is the source of truth and the labels are advisory. Apply the same to the reviewing-code resource. Keep the added `br label remove` spans inside the skill's `br` allowlist so CMP-188 stays green under `deny_raw_shell`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".loa.config.yaml:@@ -303,7 +313,17 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Flatline's primary (gates prd/sdd/sprint all true) and the Bridgebuilder primary (`@@ -254,7 +261,10 @@`) move to `claude-headless`, and the hunk's own comment states the hop's auth 'follows CLAUDE_HEADLESS_BIN: the claude-bedrock wrapper for Bedrock, else the plain CLI's own login'. Which account pays for every PRD/SDD/sprint Flatline run and every BB sweep is therefore decided by an environment variable at run time, not by the config. The dissent companion in every recent run was pinned to the `claude-bedrock` alias instead, so the two consumers that the comment says share one CLI can in fact run on two different accounts. With `CLAUDE_HEADLESS_BIN` unset (a fresh shell, cron once `scheduling.enabled` flips, a CI runner) Flatline and BB land on the operator's subscription: the plan window of KF-038 and the metering exposure of KF-020.",
+      "failure_mode": "A Flatline or BB run launched without the wrapper in the environment silently bills the operator's plan and consumes the same window the interactive sessions use; the first symptom is RATE_LIMITED in Flatline Phase 1 followed by the KF-038 breaker cascade into the next dissent, with no config-level indication that the route differed from the intended Bedrock one.",
+      "suggested_fix": "Pin the route in the config rather than the environment: set `flatline_protocol.models.primary` and the BB primary to the `claude-bedrock` catalog alias the companion already uses (if it passes the BB floor / `isHeadlessModelId` checks), or have the headless adapter fail closed when a Bedrock `compliance_profile` is configured and `CLAUDE_HEADLESS_BIN` does not name the wrapper. At minimum record the resolved binary in the MODELINV row so a plan-billed hop is visible after the fact.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".loa.config.yaml:@@ -303,7 +313,17 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hunk's comment says Flatline 'shares the anthropic headless circuit breaker with the dissent companion: a rate limit on either opens it for both' and treats this as one quota. It is not necessarily one quota: per DISS-002 the Flatline hop may run on the plain CLI (operator plan) while the companion runs via the `claude-bedrock` wrapper (Bedrock, no plan window). The breaker is keyed `anthropic/headless` (`.run/circuit-breaker-anthropic-headless.json`), so a plan-window RATE_LIMITED on Flatline refuses the companion's Bedrock hop that would have succeeded. KF-038's run mode ('wait for the plan window to reset') is then the wrong remedy because the Bedrock route was never limited. This config change is what first puts two auth routes behind one breaker key.",
+      "failure_mode": "After a Flatline rate limit, the next review's companion is refused as `Circuit open for anthropic/headless` (failure_class model_unavailable), the envelope reads single-voice with `degraded false`, and the operator waits out a plan window that does not gate the companion's actual route. In the unattended harness nothing re-runs the chunk.",
+      "suggested_fix": "Key the headless breaker by resolved binary or auth route (e.g. `anthropic/headless/<basename of CLAUDE_HEADLESS_BIN>`) or by consumer, as the cycle-end 'per-consumer headless breaker' bead already proposes; until then, state in the KF-038 reading guide that a Bedrock-routed companion refused by the breaker can be re-run at once with `breaker_cli --reset` rather than after the window.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".loa.config.yaml:@@ -189,16 +189,23 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`executor_model` and `advisor_model` become the bare alias `fable`, passed verbatim as `claude -p --model fable` by `spiral-harness.sh _invoke_claude`. The comment asserts 'the CLI resolves `fable`' but, unlike the Flatline hunk ('fleet-measured, search 2026-10-01'), cites no measurement. Under the Bedrock route the CLI resolves short aliases through its per-alias default-model env vars, and the comment itself says the harness reaches Bedrock only from a claude-bedrock parent; whether that wrapper maps `fable` to `global.anthropic.claude-fable-5-1` for a child `-p` call is unverified in this diff. The harness is unattended, so an unresolvable alias fails every phase, each retried `max_phase_retries` times.",
+      "failure_mode": "Every harness phase exits at model resolution (or resolves to a different model than intended), the gate fails after 1 + max_phase_retries attempts, and the only trace is the harness log; the operator reads it as a Bedrock outage rather than a config alias.",
+      "suggested_fix": "Record one live probe as evidence in the config comment or NOTES: run the harness's exact invocation (`claude -p --model fable` through the claude-bedrock parent) and quote the `model` field the CLI reports. If the alias is not resolved on the Bedrock route, pass the full model id the catalog already carries for `cli_model fable`, or have `_invoke_claude` resolve the alias through the catalog before exec.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T05:14:43Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 27335,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "87080e82d7efb3c552f5c1fdf21ca0f6d2fe02d4320494644a62c10f9dfbbf81",
+      "run_tag": "e2b-docs-state"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

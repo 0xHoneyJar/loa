@@ -1,0 +1,155 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -58,17 +65,31 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The bare-citation branch of CITE accepts any `:N` whose preceding character is not in `[A-Za-z0-9_./:]`. That admits quotes, brackets, braces and asterisks, so compact JSON/YAML/code in the review body becomes a line citation bound to the last cited path: `\"critical\":0`, `\"high\":2`, `{\"line\":40}`, `]:7`. The review's own `<!-- LOA-VERDICT {\"counts\":{\"critical\":0,\"high\":1,...}} -->` trailer, when emitted compactly (which is what json.dumps-with-separators or a template typically produces), adds one bare citation per count value to whichever file was cited last. The header contract added in this diff says a `:N` that is not a citation \"credits nothing\"; the regex does not implement that for non-word punctuation.",
+      "failure_mode": "After any path citation, the trailer's count values are credited as lines 0..k on that file. A defect anchored within ±3 of those values (lines 1–8 of the last-cited file: shebang, `set -euo pipefail`, import/header guard defects) is marked detected without being mentioned, inflating recall on the A/B gate this grader decides. `details.citations` is wrong on every review that has a trailer. RG-11..14 pass only because the fixture anchors sit at 7 and 40 and the helper's trailer counts are small; a `\"high\":4..10` or a `\"critical\":N` colliding with a low anchor flips the result.",
+      "suggested_fix": "Tighten the bare branch so the colon must be preceded by whitespace, start-of-text, `(`, `[` or a backtick, e.g. replace `(?<![A-Za-z0-9_./:])` with `(?<![^\\s(\\[`])` (fixed-width negated-class lookbehind; succeeds at position 0). Additionally strip the `<!-- LOA-VERDICT ... -->` trailer from `text` before running CITE.finditer, since it is parsed separately anyway. Add a bats case: `c.sh:100 is odd` followed by `{\"counts\":{\"critical\":7}}` must detect nothing.",
+      "anchor_status": "valid",
+      "anchor_stability": "hunk_header",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -58,17 +65,31 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "When a path is wrapped in inline code or bold and the line follows the closing delimiter (`` `b.sh`:40 ``, `**b.sh**:40`, `(b.sh):40`), alternative 1 fails because the delimiter sits between the extension and the colon, and alternative 2 then binds `:40` to the previously cited file. Under 1.0.0 these forms yielded no citation; under 1.1.0 they credit the wrong file. Separately, alternative 1 matches non-file tokens such as `example.com:8080` or `v1.2.3:40` (anything with a dot-suffix before a colon) and overwrites `last`, so later bare `:N` references bind to a URL host instead of the real prior file.",
+      "failure_mode": "A review that writes `a.sh:1 ... `c.sh`:7` is scored as citing a.sh:7 (possible spurious hit on a.sh, guaranteed miss on c.sh). A URL between a citation and a bare `:N` silently drops the bare reference. Both are deterministic scoring errors in the A/B measure, in opposite directions.",
+      "suggested_fix": "In alternative 1 allow optional closing delimiters between path and colon: `(?P<path>...)[`*)]{0,3}:`. For `last`, only update it when `path_matches` succeeds against at least one manifest file, or skip tokens whose extension is not a plausible source extension (e.g. reject when the path contains `//` or the ext is all digits).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -58,17 +65,31 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The comma continuation `(?:\\s*,\\s*RNG)*` in the `first` group has no boundary check after the number and `\\s*` spans newlines, so any number that follows a citation and a comma is credited as another line on that path: `a.sh:40, 3 other sites`, `fixed in b.py:10, 2 commits ago`, `a.sh:40,\\n2. Next finding`. With RNG's range syntax, `b.py:10, 2026-10-06` yields the range 10–2026 on b.py, which covers every defect in the file.",
+      "failure_mode": "Spurious line citations and, in the date case, a whole-file range that detects every planted defect in that file regardless of what the review said. The grader's stated rule is a ±3 window around a cited line; a swallowed prose number or date defeats it.",
+      "suggested_fix": "Require each continued number to be followed by a boundary that is not a word, hyphen or digit continuation, e.g. append `(?![A-Za-z0-9-])` after each RNG in the comma list, restrict the separator to `[ \\t]*,[ \\t]*` (no newlines), and cap ranges to a sane width (e.g. ignore a range wider than 200 lines or treat it as its first line only).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "injection",
+      "anchor": "evals/graders/recall-vs-defects.sh",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The grader runs `python3 - ... <<'PY'` and imports `json` and `re`. With a stdin script, `sys.path[0]` is the current directory, and neither module is frozen, so a `json.py` or `re.py` in whatever directory the harness runs the grader from is imported in place of the stdlib. The grader reads an agent-produced review inside `$workspace`; if the eval harness invokes the grader with cwd set to that workspace (not ruled out by the script, which takes the workspace as an argument), the agent under evaluation can plant a module that prints a passing verdict. Pre-existing in 1.0.0, but this diff is the parser rewrite and the right moment to close it.",
+      "failure_mode": "Eval-integrity bypass: an agent writes `json.py` next to review.md, the grader executes it, and the recall gate reports pass/score=100 for any review. Also a correctness hazard if an unrelated `re.py` happens to exist in cwd.",
+      "suggested_fix": "Invoke as `python3 -I - \"$manifest\" \"$review\" \"$executor\" <<'PY'` (isolated mode: no cwd on sys.path, no user site, ignores PYTHON* env). Optionally `cd \"$SCRIPT_DIR\"` before the call.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "evals/graders/recall-vs-defects.sh:@@ -79,8 +100,9 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`sites = d.get(\"anchors\") or [d[\"anchor_line\"]]` ignores `anchor_line` entirely when `anchors[]` is non-empty and performs no type check. A manifest whose `anchors` omits `anchor_line` silently narrows detection; one with a string or null element raises TypeError inside the heredoc, so the grader prints a Python traceback with no JSON and exits 1, which the harness cannot distinguish from a legitimate recall failure. The documented contract is exit 2 with a JSON error for a bad manifest, and the only guard is RG-16, which checks the two committed manifests rather than the grader.",
+      "failure_mode": "A hand-edited or future manifest with a typo in `anchors` either under-counts detections without any signal, or crashes the grader into a non-JSON, exit-1 state that the A/B pipeline records as a failed review.",
+      "suggested_fix": "Compute `sites = {d[\"anchor_line\"]} | set(d.get(\"anchors\") or [])`, validate every site is an int (`isinstance(s, int) and not isinstance(s, bool)`), and on violation emit the standard error JSON and `sys.exit(2)` so the bash `err` contract holds.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:38:41Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 26023,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2201176fe1d73dbefd4651982ef2634c1e0d275430fc905cf74180ae76d99b2e",
+      "run_tag": "e-eval"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

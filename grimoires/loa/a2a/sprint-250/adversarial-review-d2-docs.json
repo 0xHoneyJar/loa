@@ -1,0 +1,154 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:### Changed (cycle-126 sprint-250 entry, 'Residue' sentence)",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:### Changed (cycle-126 sprint-250 entry)",
+      "cross_file_justification": "The CHANGELOG (in diff) states the deep-thinker agent now runs the bare id `gemini-3.1-pro`. The sprint report for the same commit says the Flatline allowlist test 'still forbids the bare gemini-3.1-pro, now anchored so the listed -preview id does not match', i.e. the allowlist and (by the test's rationale) the catalog carry only `gemini-3.1-pro-preview`. The agent definition and allowlist are outside the diff but the CHANGELOG line asserts their state.",
+      "description": "The residue sweep replaced the deep-thinker pin with `gemini-3.1-pro`, while the project's own allowlist test treats that bare id as something that must not appear and only the `-preview` id is listed. Either the catalog serves the bare id (and the allowlist test's premise is stale) or the agent now names an id the catalog does not serve.",
+      "failure_mode": "If the catalog serves only `gemini-3.1-pro-preview`, any hop the deep-thinker agent issues fails model resolution (or passes the orchestrator's forward-compat regex and then fails at cheval), so the agent is silently unusable after the residue sweep that was meant to make it current.",
+      "suggested_fix": "Check `.claude/defaults/model-config.yaml` for which 3.1 pro id it serves. If only `-preview`, set deep-thinker to `gemini-3.1-pro-preview` (or an alias) and correct the CHANGELOG line; if the bare id is served, update the allowlist test and its anchoring comment so the two agree.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "CHANGELOG.md:### Changed (cycle-126 sprint-250 entry, 'Aliases' sentence)",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "docs/migration/v2.0-model-generation-floor.md:### Cycle-126 addendum ('Opus 5.5 is the opus alias' bullet)",
+      "cross_file_justification": "Both diff-touched docs record `claude-opus-5-5` at $4 / $20 per MTok with a $0.20 cache read; the catalog entry and `test_anthropic_catalog_floor.py` that pin these figures are outside the diff, but the docs are the operator-facing statement of what the ledger prices.",
+      "description": "Every other Anthropic entry prices cache reads at 10% of input (e.g. $3 to $0.30, $5 to $0.50). A $0.20 cache read against $4 input is 5%, which departs from the vendor's consistent ratio and may be a transcription error for $0.40. The floor test pins the catalog to itself, not to the vendor page, so it would not catch this.",
+      "failure_mode": "The `opus` alias is the fleet default with prompt caching on. If cache-read is wrong by 2x, every cached hop under-reports cost in `.run/cost-ledger.jsonl`, and `cost-budget-enforcer` certifies `allow` against understated spend.",
+      "suggested_fix": "Re-read the vendor pricing page for claude-opus-5-5 and confirm the cache-read figure. If it is $0.40, correct the catalog entry, both docs, and the floor test's expected value in the same commit.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "docs/migration/v2.0-model-generation-floor.md:### Cycle-126 addendum (Old way / New way table, Bridgebuilder row)",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The addendum table says the Bridgebuilder default is 'the opus alias, 200,000 in / 32,000 out'. The same addendum and the CHANGELOG say the `opus` alias resolves to `claude-opus-5-5` with a 1M window and a 180,000 probed input bound, and the report says the BB registry is regenerated from the catalog with maxOutput = min(32000, catalog). The 200,000 input figure matches neither the catalog window nor the probed ceiling and looks carried over from the previous-generation row.",
+      "failure_mode": "An operator sizing Bridgebuilder review input to this doc either over-sends (if BB truly caps at 200K but cheval's bound is 180K, requests are refused with the calibrate-first error) or under-uses the model (if the registry row is 1M). The doc gives a third number for one alias within a single release note set.",
+      "suggested_fix": "Read the regenerated `*.generated.ts` BB registry row for claude-opus-5-5 and state that exact input figure, naming whether it is a BB-side cap or the catalog window. If BB has its own 200K cap, say so explicitly next to the 180K probed bound so the two are not read as contradictory.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "CHANGELOG.md:### Changed (cycle-126 sprint-250 entry, 'Implement gate' sentence)",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:### Changed (cycle-126 sprint-250 entry)",
+      "cross_file_justification": "The CHANGELOG (in diff) says 'nothing in .run/ selects authoritative mode any more' and that CH-T8 to CH-T10 were 'rewritten for the opt-in-only mode'. The sprint report says `implement_gate.mode: authoritative` is 'not documented' rather than removed. The gate script is outside the diff, but the CHANGELOG is the user-facing claim about its trust boundary.",
+      "description": "The sprint's own research concludes the only skill signal available is model-authored and forgeable. Yet a config-selectable authoritative mode that trusts that signal appears to remain in `implement-gate.sh`, undocumented. The CHANGELOG narrows the statement to `.run/` files, which reads as complete when it is not: an operator (or a model editing the project config) can still opt the gate into trusting `tool_input.active_skill`.",
+      "failure_mode": "A session that writes `implement_gate.mode: authoritative` into config, then emits a PreToolUse payload with `tool_input.active_skill: implementing-tasks`, bypasses the heuristic gate. The forged-payload test only pins that `.run/` cannot select the mode, so this path is untested and unadvertised.",
+      "suggested_fix": "Either delete the authoritative branch from `implement-gate.sh` and say so in the CHANGELOG, or document the config key in the migration addendum with an explicit statement that it trusts a model-authored field, and add an IG test that the forged payload is still refused when the key is set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "grimoires/loa/known-failures.md:## KF-040 ('Current workaround' and 'Reading guide')",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "KF-040 records an Anthropic 400 'not allowed from unsupported countries, regions, or territories' and gives the standing workaround as routing the hop through Bedrock. The reading guide does say to check egress first, but the 'Current workaround' field, which is what a hurried operator and the ledger lint read, presents the route-around as the remedy. The 400 is a policy refusal, not a transport fault; if the host's egress genuinely terminates in an unsupported region, routing the same request through Bedrock is a terms-of-access bypass rather than an environmental fix.",
+      "failure_mode": "The ledger institutionalises 'use claude-bedrock' as the fix for a compliance refusal. Future recurrences get resolved by swapping routes with no record that the egress region was ever confirmed as permitted.",
+      "suggested_fix": "Reword 'Current workaround' to: confirm the host's egress region is permitted (VPN exit, cloud region); only then route through claude-bedrock for the run. Keep the Bedrock route in the Attempts row as what happened, not as the standing remedy.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-06T07:56:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 34,
+    "tokens_output": 23681,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "39569a83d4b3958419847189421830e3cf49d5fb101602f4e7851afe56c7505a",
+      "run_tag": "d2-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

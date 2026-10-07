@@ -1,0 +1,180 @@
+{
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "authz",
+      "title": "Model-writable config can enable authoritative mode and bypass the App Zone gate",
+      "file": ".claude/hooks/compliance/implement-gate.sh",
+      "line": 111,
+      "description": "The new mode switch trusts `$PROJECT_ROOT/.loa.config.yaml` to select `implement_gate.mode: authoritative`, but `.loa.config.yaml` is outside the App Zone and this hook allows non-App-Zone writes. A model/tool run can first write or edit `.loa.config.yaml` to set authoritative mode, then send a Write/Edit payload with `tool_input.active_skill` set to `implement`, which the same file documents as model-authored and untrusted. That reaches the allow branch at the active_skill case and exits 0 for App Zone writes, bypassing the intended review gate.",
+      "recommendation": "Do not let a repo-local, model-writable file enable authoritative mode. Require an out-of-band trusted source such as an environment variable set by the harness, a root-owned config outside the workspace, or a signed/permission-checked config. If `.loa.config.yaml` remains supported, treat changes to it as protected and never trust `tool_input.active_skill` for allow decisions.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new mode switch trusts `$PROJECT_ROOT/.loa.config.yaml` to select `implement_gate.mode: authoritative`, but `.loa.config.yaml` is outside the App Zone and this hook allows non-App-Zone writes.",
+      "failure_mode_derived": true,
+      "anchor_status": "needs_triage",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "active_skill=$(echo \"$input\" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=\"\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "configured_mode=$(yq '.implement_gate.mode // \"\"' \"$PROJECT_ROOT/.loa.config.yaml\" 2>/dev/null) || configured_mode=\"\"",
+      "cross_file_justification": null,
+      "description": "Authoritative mode treats tool_input.active_skill as proof that an implementation skill is active, but the diff's own header states tool_input is model-authored. The fixture write-src-active-implement.json and the expected.tsv row 'ask allow yes' codify that a payload carrying active_skill=implement is silently allowed in this mode. The new mode selector is .loa.config.yaml at PROJECT_ROOT. That path is not under src/, lib/, or app/, so this same hook exits 0 for a Write to it without asking. The model that the gate is meant to constrain can therefore (1) Write .loa.config.yaml with implement_gate.mode: authoritative, then (2) Write src/anything with active_skill=implement, and never trigger an ask. The only control is that the key is undocumented (IG-11), but the key name is readable in the hook source and test files in the repo.",
+      "failure_mode": "A prompt-injected or misbehaving model performs two Write calls and gains unprompted write access to the App Zone. The operator is never asked and the audit log records nothing because the authoritative allow path exits 0 silently. The gate's stated purpose (catching App Zone writes outside /implement or /bug) is fully defeated by self-attestation.",
+      "suggested_fix": "Do not allow model-authored tool_input to select the allow path. If the authoritative branch must exist, require a harness-set field (none exists today) or remove the branch until one does. If the config opt-in stays, treat .loa.config.yaml as a protected path in this hook (ask on any Write/Edit to it) and have the authoritative branch only ever downgrade to ask, never upgrade to allow, on a model-supplied skill name.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "check_implementation_active",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "compliance_mode=\"heuristic\"",
+      "cross_file_justification": null,
+      "description": "The diff makes heuristic mode the default for every installation. Heuristic mode allows App Zone writes when .run/sprint-plan-state.json has state RUNNING, a non-empty plan_id, and a last_activity under 24h, or when .run/simstim-state.json has phase implementation, or .run/state.json has state RUNNING. All of these files live under .run/, which is not an App Zone path, so this hook exits 0 on a Write to any of them. The integrity checks (plan_id present, fresh timestamp) are trivially satisfiable by the forger. The header claims ATK-005 (state tampering) is addressed, but IG-5 only verifies that .run/ cannot select the authoritative mode, not that .run/ cannot produce an allow.",
+      "failure_mode": "A model writes a one-line sprint-plan-state.json with state RUNNING, a plan_id, and the current UTC timestamp, then writes freely to src/, lib/, or app/ with no ask and no audit entry.",
+      "suggested_fix": "Treat .run/ state files as protected paths in this hook (ask on direct Write/Edit to them), or bind RUNNING state to something the model cannot author, such as an HMAC over the state keyed from a file outside the model's write scope, or a marker created only by the skill runner process.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "echo '{\"decision\":\"ask\",\"reason\":\"[ADVISORY] App Zone write outside active implementation. Verify this is intentional.\"}'",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "decision() { [[ \"$output\" == *'\"decision\":\"ask\"'* ]] && echo ask || echo allow; }",
+      "cross_file_justification": "tests/unit/implement-gate.bats and tests/unit/compliance-hook.bats (both diff-touched) assert only on the literal string in stdout, so they would pass even if the harness ignores this field.",
+      "description": "The hook signals its block by emitting a top-level decision field with value ask. In the Claude Code PreToolUse hook schema, the top-level decision field is the legacy form and accepts approve or block; the value ask is only defined under hookSpecificOutput.permissionDecision. If the harness does not recognize decision=ask it falls back to normal permission flow, which in auto-accept modes means the write proceeds. The header promises FAIL-ASK, not fail-open, and the diff's new tests cement this output format without exercising the harness. This is pre-existing but the diff standardizes the test suite around it.",
+      "failure_mode": "Every ask path in the gate, including the advisory and authoritative asks, becomes a silent allow in environments where the legacy decision field does not accept ask. The compliance gate provides no protection while tests report green.",
+      "suggested_fix": "Emit the current schema: {\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"...\"}}. Optionally also emit the legacy field. Add a test that validates the output against the documented hook schema rather than a substring match.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "echo \"[AUTHORITATIVE] App Zone write to '$file_path' detected during /$active_skill (not an implementation skill).\" >&2",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "compliance_mode=\"authoritative\"",
+      "cross_file_justification": null,
+      "description": "Both file_path and active_skill come from model-authored tool_input and are interpolated into stderr without sanitization. active_skill can contain newlines, ANSI escape sequences, or instruction-like text. The authoritative branch that prints active_skill is newly reachable via the config opt-in. The header lists ATK-007 (prompt injection via file path) as addressed, but no filtering is applied to either value in this message or the ADVISORY message.",
+      "failure_mode": "Hook stderr is surfaced to the operator and may be fed back to the model. A crafted active_skill or file_path value can spoof additional log lines, hide the warning with terminal escapes, or inject instructions into the transcript.",
+      "suggested_fix": "Strip control characters and truncate both values before echoing (for example, printf '%q' or tr -d '\\000-\\037\\177'), or omit the model-supplied skill name from the message and log it only as a jq-escaped JSON field in audit.jsonl.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "if [[ -z \"${LOA_TEAM_MEMBER:-}\" && -d \"$RUN_DIR\" ]] \\",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": "'$b + {active_skill_available: false, active_skill_seen_at: $ts, active_skill_source: \"tool_input\"}'",
+      "cross_file_justification": "IG-10 in tests/unit/implement-gate.bats shows detect-platform-features.sh renders this evidence in the /loa status line that operators read.",
+      "description": "The evidence recorder fires on any payload carrying tool_input.active_skill, before the file_path or App Zone check, and writes active_skill_seen_at into .run/platform-features.json. The trigger is model-authored. The written values are fixed strings so there is no injection, but the resulting status line reads 'active_skill evidence: seen <ts> via tool_input'. An operator who sees that line may conclude the harness supports the field and opt into authoritative mode, which is the weaker mode per IG-SEC-1. The recorder also runs with no path restriction, so a Bash or other tool payload with a stray active_skill key would record evidence too, depending on the hook matcher.",
+      "failure_mode": "A model can manufacture evidence that nudges an operator toward enabling the self-attesting authoritative mode. Low direct impact, but it is a social-engineering step toward the HIGH finding.",
+      "suggested_fix": "Gate the recorder on tool_name being Write or Edit and on the payload passing the App Zone check, or drop the recorder entirely since the diff already concludes the field is never harness-set. If kept, make the status line state plainly that the evidence is model-supplied and must not be used to justify the opt-in.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:16:40Z",
+    "tokens_input": 52995,
+    "tokens_output": 12643,
+    "cost_usd": 0,
+    "latency_ms": 29135,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-g-gate.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-g-gate.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2cab6e306a326621c90d50646bb6051142e59d94661ba20af154f11043c0ff72",
+      "run_tag": "g-gate"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

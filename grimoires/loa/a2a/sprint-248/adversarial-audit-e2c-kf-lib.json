@@ -1,0 +1,106 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "if (any(unicodedata.category(c) in (\"No\", \"Cf\", \"Cn\") or any(a <= ord(c) <= b for a, b in oa) for c in h)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "gh_anchor(){",
+      "cross_file_justification": null,
+      "description": "The new Unicode gate in gh_anchor refuses categories No, Cf and Cn but admits Cc and Zl/Zp. san1 (the only sanitizer the title passes through) strips C0 control bytes and flattens \\t \\n \\r, but it works on bytes under LC_ALL=C and never sees Unicode line terminators or C1 controls: NEL U+0085 (Cc), LINE SEPARATOR U+2028 (Zl), PARAGRAPH SEPARATOR U+2029 (Zp) and U+0080–U+009F (Cc) all survive into the heading line written by op_new and into the log/die messages that echo the title. Because `word()` returns false for these, the anchor is unaffected and the writer's own grep/awk/`\\n`-based checks (duplicate check, next_kf_id, verify_and_swap's drop guard) see one physical line, so the write succeeds. Any consumer that splits on Unicode line boundaries (Python str.splitlines(), Java BufferedReader, many editors) sees `## KF-003: foo<U+2028>## KF-999: fake` as two headings, so a caller can smuggle a phantom `## KF-NNN:` heading or `| [KF-NNN](#…) |` Index row into such a reader while the shell-side integrity checks stay green. C1 controls (e.g. U+009B CSI, U+009D OSC) additionally reach the operator's terminal via `log`/`die` on xterm-class terminals that honour UTF-8-encoded C1.",
+      "failure_mode": "The single-line / control-free invariant that san1 is meant to enforce is ASCII-only; the new Unicode category filter was the natural place to close that gap and does not. A crafted --title injects extra logical lines for Unicode-aware readers of known-failures.md and can carry terminal control sequences into stderr output.",
+      "suggested_fix": "In the python3 gate, also exit 4 (or strip) for any c with unicodedata.category(c) in (\"Cc\", \"Zl\", \"Zp\") — this covers U+0085 and U+0080–U+009F as well as U+2028/U+2029 — and apply the same check to the ASCII/byte path by routing every non-ASCII title through python3 before the C1 bytes can be echoed. Alternatively extend san1 to delete the UTF-8 byte sequences \\xC2[\\x80-\\x9F], \\xE2\\x80\\xA8 and \\xE2\\x80\\xA9.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "printf '\\n### Reading guide\\n\\n%s\\n' \"$(san1 \"${A[reading-guide]-TODO: what a future agent should do on this symptom.}\")\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "gh_title_renders_raw \"$title\"",
+      "cross_file_justification": null,
+      "description": "The diff adds gh_title_renders_raw so a --title cannot carry Markdown that changes how the heading renders (`<!` and `<[A-Za-z/!?]` are refused, among others), and adds a ledger lint whose stated invariant is that every Index link resolves to a rendered heading. But the two values op_new and op_notes_header write as FREE-STANDING lines — --reading-guide and --note — get only san1, which trims leading whitespace and so places the value at column 0. A value of ``` or ~~~ opens a fenced block, and a value of <!-- opens a CommonMark type-2 HTML block that ends only at a later line containing -->. Since a new entry is appended at the end of the file, every entry written afterwards sits inside that block: on GitHub its `## KF-NNN:` heading is not a heading, its anchor does not exist, and the Evidence rows are invisible. The new lint skips fenced blocks (so a ``` reading guide would at least fail CI) but does not model HTML blocks, so the <!-- variant passes the lint, passes verify_and_swap (grep still sees the headings) and passes kf-auto-link.py-style `^##\\s+KF-` readers, while hiding the ledger from human readers on GitHub — the exact anti-tamper property the file header says this helper exists to protect.",
+      "failure_mode": "A single kf-write new --reading-guide '<!--' (or notes-header --note '<!--') call by the automation that is supposed to be constrained by this helper renders all later known-failures entries invisible on GitHub without tripping the writer's guards or the new link lint.",
+      "suggested_fix": "Gate free-standing values the way titles are now gated: refuse (or prefix with inline text so they are never at column 0) any --reading-guide/--note value matching a CommonMark block starter at line start — ^ {0,3}(```|~~~|<!--|<\\?|<![A-Z]|<[A-Za-z]|#{1,6}( |$)|[-*+] |[0-9]{1,9}[.)] |>|\\||[-*_]{3,}\\s*$). Teach _kf_link_lint to skip HTML blocks (type 1 and 2 at minimum: lines from `<!--` to a line containing `-->`, and `<pre|<script|<style|<textarea` to their closing tag) exactly as it skips fences, so the shipped-ledger test detects a hidden tail.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:14:55Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21146,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2c637b5412454e5ac58c91da6fa245e2d5c003e1baa714f444fedee528b27e2a",
+      "run_tag": "e2c-kf-lib"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

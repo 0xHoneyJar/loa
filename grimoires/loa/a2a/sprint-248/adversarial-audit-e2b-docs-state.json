@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "primary: claude-headless",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In .loa.config.yaml, flatline_protocol.models.primary (was `opus`) and run_bridge models[0].model_id (was `claude-opus-5`) are switched to `claude-headless`. The previous http_api ids failed INVALID_CONFIG without ANTHROPIC_API_KEY, i.e. fail-closed. The new CLI-backed entry resolves its binary, auth route, and billed account from CLAUDE_HEADLESS_BIN at runtime. The diff's own comments state that a shell without that variable (cron, CI, a fresh login) silently runs Flatline and Bridgebuilder hops, which carry repo source and diffs, on the plain claude CLI's consumer login rather than the Bedrock route the 2026-10-01 operator directive requires. Nothing in the config or the envelope pins, verifies, or records the route actually taken. This is the KF-016 class (Bedrock-only operators silently degrading to another route) re-introduced for two more consumers, plus the KF-020 per-token billing exposure on the consumer plan. Verified from the diff text and comments only; the cheval adapter code was not readable in this audit.",
+      "failure_mode": "Unattended runs (spiral harness, CI, cron) send repository content through an unintended account and provider route outside the operator's Bedrock compliance boundary, with no error, no degraded marker, and no envelope field that distinguishes the route; spend lands on a personal subscription.",
+      "suggested_fix": "Fail closed again: have the headless adapter refuse to start when providers.bedrock.compliance_profile demands Bedrock and CLAUDE_HEADLESS_BIN is unset, or declare the wrapper path in the model catalog entry instead of the environment. Record the resolved binary and route in the MODELINV row and the adversarial/Flatline envelope. Export the wrapper explicitly in every CI/cron shell as an interim measure and add a startup assertion to spiral-harness.sh.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "A re-review or re-audit adds its round's label and `br label add` never removes the other",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new .claude/skills/auditing-security/resources/BEADS-WORKFLOW.md (and the mirrored reviewing-code copy) instructs adding exactly one of `security-approved` / `security-blocked` per round but explicitly never removes the prior round's label, so a task blocked in round 2 still carries `security-approved` from round 1. The doc declares the latest free-text `SECURITY AUDIT:` comment to be the verdict of record, but comments are not machine-queryable; labels are the only structured state, and the sibling reviewing-code doc titles its table 'Using Labels for Status'. Any consumer that filters on label presence (br list --label, a merge/ready gate, the autonomous harness) will read a stale approval. The flushed JSONL is committed, so the stale approval persists in history.",
+      "failure_mode": "A sprint whose most recent security audit verdict is CHANGES_REQUIRED passes any label-based gate as security-approved; downstream automation or a human skimming labels proceeds to merge on a superseded approval.",
+      "suggested_fix": "Make the labels mutually exclusive: run `br label remove <task-id> security-approved` before `br label add <task-id> security-blocked` (and vice versa), or use round-scoped labels (security-approved-r2) and have gates read the COMPLETED marker / verdict-derive.sh output rather than label presence. Update both BEADS-WORKFLOW.md files so 'exactly one of' is actually true after a re-audit.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "| Sprint review/audit (`reviewing-code`, `auditing-security`; `write_files: true`) | `NotebookEdit` |",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The updated row in .claude/rules/skill-invariants.md enumerates every Bash use these two skills need: adversarial-review.sh, the verdict check, and qmd-context-query.sh. None is a git mutation, yet their disallowed-tools remains `NotebookEdit` alone, while the adjacent report-authoring row mechanically removes `Bash(git add/commit/push *)` as 'implementation-only git mutations'. The doc itself says disallowed-tools is 'a harness-level barrier that instructions cannot override' whereas zones are prose. reviewing-code and auditing-security are the skills most exposed to untrusted input: they read the diff under review and forward it to models, so a prompt injection embedded in reviewed code or comments reaches an agent that can still Write and run `git add/commit/push`.",
+      "failure_mode": "An injected instruction in a reviewed PR causes the review or audit agent to commit and push altered feedback files, ledgers, checkmarks, or application code; C-PROC-001 is enforced only by prose for exactly the skills that process adversarial content.",
+      "suggested_fix": "Add `Bash(git add/commit/push *)` to disallowed-tools for reviewing-code and auditing-security to match red-teaming and bridgebuilder-review, and extend validate-skill-capabilities.sh to WARN on any role: review skill that keeps git mutations. If a commit is required after `br sync --flush-only`, perform it in the orchestrator or a pre-commit hook rather than inside the review skill.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "single-voice: its companion is refused by the open breaker, the envelope reads companion_voice.status failed (not degraded)",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "primary: claude-headless",
+      "cross_file_justification": "Before this diff Flatline's primary was the http_api id `opus` and Bridgebuilder's was `claude-opus-5`, so neither shared a circuit-breaker bucket with adversarial-review.sh's claude-headless companion. The .loa.config.yaml change places all three on anthropic/headless. grimoires/loa/known-failures.md KF-038 (added in this diff) documents the consequence: a companion refused by the open breaker yields companion_voice.status failed with degraded false and status clean/reviewed, and nothing in the unattended harness re-runs it; verdict-derive.sh (per sprint.md's amended criterion) does not refuse such an envelope.",
+      "description": "Switching Flatline and Bridgebuilder primaries to `claude-headless` puts them on the same anthropic/headless circuit breaker as the adversarial-review companion voice. The .loa.config.yaml comment added in this diff states that a Flatline rate limit opens that breaker for both, and the security audit that follows then runs single-voice: the companion is refused, the envelope reports companion_voice.status failed with degraded false, and the status remains clean or reviewed. KF-038 confirms this is the designed behaviour and that the unattended harness never re-runs the chunk. The audit gate therefore fails open to reduced coverage whenever a preceding phase on the same account trips the shared breaker, with no envelope field that an automated consumer treats as a failure signal.",
+      "failure_mode": "In the spiral harness a security audit that follows a Flatline phase on the same account records a clean or reviewed verdict with degraded:false while only the primary voice ran; the gate passes on halved coverage and no field an unattended consumer checks flags it. Anyone able to drive claude -p load on the host or exhaust the plan window can force the audit into single-voice mode.",
+      "suggested_fix": "Mark companion failure_class quota/model_unavailable/timeout as degraded:true in the envelope, or have verdict-derive.sh refuse an approval when voices_succeeded < voices_planned unless an explicit single-voice override is recorded in the feedback file. Give Flatline/Bridgebuilder a separate breaker bucket or per-consumer breaker (the KF-037 follow-up bead), and have the harness check the breaker state before opening the audit phase.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "executor_model: fable # PRD, SDD, Sprint, Implementation",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both executor_model and advisor_model become `fable`, collapsing the Advisor Strategy's cross-model judgment for the independent review and audit sessions; the only remaining independent voice is the OpenAI dissent companion, which KF-037/KF-038 show is frequently lost. The four budget caps stay sized for sonnet/opus; the new comment acknowledges Fable costs 5x sonnet per token and that a phase ending on `--max-budget-usd` is retried up to (1 + max_phase_retries) times, so audit sessions are predictably truncated and spend multiplies. Deferred as an operator spend decision, but it is a review-quality and cost-exposure gap introduced by this diff.",
+      "failure_mode": "Review and audit sessions hit the cap before writing COMPLETED, leaving partial feedback and up to four identical under-budgeted retries per gate; when the companion voice also drops, the security audit becomes same-model self-review of same-model output.",
+      "suggested_fix": "Resize planning/implement/review/audit budgets for Fable pricing, and stop retrying a phase whose exit reason is the budget cap. If same-model execution is policy, require two-voice evidence for audit approval or keep the advisor on a different model family.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "the criterion only, never the finding text or its file (the flushed JSONL is committed; the location stays in the feedback file)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new auditing-security BEADS-WORKFLOW.md keeps vulnerability location out of the beads JSONL because that file is committed, but routes the full finding (file, line, code_snippet, remediation per OUTPUT-SCHEMA.md) into grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md and grimoires/loa/a2a/audits/. This diff itself modifies tracked files under grimoires/loa/ and cites a2a envelopes by commit hash, which suggests grimoires/loa/a2a/ is also tracked. If so, the control only relocates committed disclosure of unfixed vulnerabilities, and on a public remote (the repo links to github.com/0xHoneyJar/loa) they are published before the fix lands. Tracking status could not be verified from the diff alone.",
+      "failure_mode": "Unremediated vulnerability locations and snippets are committed and pushed alongside the sprint, while the workflow doc gives reviewers false assurance that location is being withheld from committed state.",
+      "suggested_fix": "Run `git check-ignore -v grimoires/loa/a2a` and, if tracked, gitignore audit findings until the fix merges or redact file/line/code_snippet from committed copies; rewrite the rationale in BEADS-WORKFLOW.md to describe the actual boundary.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T08:09:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 34,
+    "tokens_output": 23991,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "d84f1d3795f404ee977548396aae2de41db2654448eecda7b3c66329ad6d3d8b",
+      "run_tag": "e2b-docs-state"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_cmp_git",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The scratch-repository helper passes `-c protocol.file.allow=always` to every git invocation. This switches off the file-transport restriction Git added for CVE-2022-39253 (submodule clones from local paths). In the shown hunks the helper is only defined, so it is not yet clear which fixtures depend on it; if any fixture ever clones or updates a submodule from a path it did not create itself, the protection is gone for that operation.",
+      "failure_mode": "A fixture that clones a repository containing a .gitmodules pointing at a local path would follow it, which the default `protocol.file.allow=user` would refuse.",
+      "suggested_fix": "Drop the override unless a specific fixture needs it; if one does, pass it only on that call rather than in the shared wrapper, and add a comment naming the fixture.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "_sweep_stale_suite_dirs",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Ownership of a leftover `sprint-comp-<n>` directory is proven by a marker file `.sprint-comp-<n>.owner` in the shared a2a directory inside the checkout. Any local writer of that directory can create such a marker with a `where` line copied from this host and a dead pid, and the next teardown will recursively delete `grimoires/loa/a2a/sprint-comp-<n>` and any `.reap-*` siblings. The naming convention makes a real sprint collision unlikely, and the deletion requires write access the attacker already holds, so impact is confined to confusing or destroying test artefacts.",
+      "failure_mode": "A planted marker causes the suite's teardown to delete a directory it did not create.",
+      "suggested_fix": "Record the owner's start token (already computed by _sweep_start) in the marker and require it to match the dead pid's recorded token, or restrict the sweep to directories whose inode was recorded in the marker at setup.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "secrets",
+      "anchor": "invoke_dissenter",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `errlog` stub arm emits `sk-ant-api03-SECRETSECRETSECRETSECRET1234`, a string in the real Anthropic key format, and CMP-13 exports `ANTHROPIC_API_KEY=sk-ant-presence-only-never-printed` without the leak assertions that CMP-4 and CMP-6 apply. Both values are obvious canaries, but the committed key-shaped literal is the kind of string that repository secret scanners flag, and CMP-13 leaves one credential path unasserted.",
+      "failure_mode": "Secret-scanning tooling raises a false positive on the committed fixture; a regression that prints the key in the CMP-13 path would go unnoticed because that test does not check stdout or stderr for the canary.",
+      "suggested_fix": "Keep the key-shaped canary (it is needed to exercise the mask) but build it at runtime from parts, and add the same `[[ \"$result\" != *canary* ]]` and stderr assertions to CMP-13 that CMP-6 already has.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:26:57Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 7368,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3dd33253135667026fa1b2d3d069f6ddb5607c671ac2974051d041d1bc676180",
+      "run_tag": "c1a-companion-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/verdict-observations-section.bats:VO-8",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "VO-8 previously distinguished a usage error (--review-file with --gate review, exit 2) from an INCONSISTENT verdict (exit 1). After the retarget both branches of the test assert exit 1, and the same @test already asserts exit 1 for a genuine inconsistency two lines above. The usage-error assertion can no longer fail if a regression routes the bad flag combination into ordinary verdict processing that happens to find the review file inconsistent.",
+      "failure_mode": "A future change that silently accepts --review-file on the review gate (and reports an INCONSISTENT verdict for unrelated reasons) passes VO-8 unchanged; the usage-error guard is no longer pinned by any assertion in this file.",
+      "suggested_fix": "Keep the exit-1 assertion but also assert the usage-error marker the script emits (the round-1 notes say usage errors speak JSON with usage_error: true), e.g. [[ \"$output\" == *usage_error* ]] or a --json run checked with jq '.usage_error == true', so the two exit-1 paths remain distinguishable.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/adversarial-review-normalise.bats:NRM-20",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "NRM-20's comment claims the rc file is 'one file per repaired payload (its hops share it), never one per process', but the assertion is `sort -u rc-paths | grep -c . -ge 6`. The rc-paths file accumulates across the three rc_case iterations (2 payloads each, 5+5+6 hop calls), so a per-hop mktemp would yield 16 unique paths and also satisfy -ge 6. The only shape the assertion actually excludes is a single process-wide path, which the adjacent 'adv-repair-rc.' name check does not exclude either.",
+      "failure_mode": "A regression to one mktemp per hop (losing the shared-file semantics that lets a later hop read the earlier hop's exit code, or doubling temp-file churn) passes NRM-20 while the comment still asserts the opposite.",
+      "suggested_fix": "Pin the count exactly: with three iterations of two payloads the unique-path count is 6 under the per-payload rule, so assert `[ \"$(sort -u \"$TEST_DIR/rc-paths\" | grep -c .)\" = \"6\" ]` (and optionally that each path appears at least twice, proving the hops of one payload share it).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-09-29T05:02:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 27952,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

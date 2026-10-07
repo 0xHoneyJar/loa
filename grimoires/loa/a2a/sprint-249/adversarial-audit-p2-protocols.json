@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/protocols/citations.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/citations.md",
+      "cross_file_justification": null,
+      "description": "The first hunk of the diff is labeled `a/.claude/protocols/citations.md` but every removed line belongs to the recommended-hooks document (hook tables, Setup hook, async hooks, git-safety example) and the added lines are the recommended-hooks stub. The accompanying full-file view of citations.md still shows the Word-for-Word Citation Protocol with only its Related Protocols link changed. The patch therefore either targets the wrong file or was mislabeled when generated. If applied as labeled, the citation/grounding protocol that agents load to keep review claims evidence-backed would be silently replaced by a two-line hooks stub.",
+      "failure_mode": "Agents operating under this framework lose the mandatory citation and grounding-ratio rules, so security reviews and implementation reports can assert unverified claims without the protocol flagging them as assumptions. The change would not be caught by the existing anchor test, which only pins section 4 of the hooks document.",
+      "suggested_fix": "Confirm the real target of the stubbing hunk is `.claude/protocols/recommended-hooks.md`, regenerate the diff, and add a smoke test that asserts citations.md still contains the `## Citation Format Template` and `## Self-Audit Checkpoint` headings.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "Path Format",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/citations.md",
+      "cross_file_justification": null,
+      "description": "The citation protocol mandates absolute filesystem paths (examples use `/home/user/project/src/auth/jwt.ts`) in every citation across PRDs, SDDs, implementation reports, code reviews, and the trajectory JSONL `path` field. Those artifacts live under `grimoires/` and are committed and shared, so they embed the local username and directory layout of whoever generated them. The requirement is pre-existing but the file is touched by this change and the rule is being re-linked rather than revisited.",
+      "failure_mode": "Committed review and planning documents leak host usernames and workspace layout to anyone with repository or artifact access, aiding targeted phishing or path-based attacks against developer machines.",
+      "suggested_fix": "Require `${PROJECT_ROOT}`-prefixed paths literally (not expanded) in committed artifacts and have the validation step expand them at verification time, or strip the root prefix when writing trajectory and report files.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/protocols/reference/recommended-hooks.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/reference/recommended-hooks.md",
+      "cross_file_justification": null,
+      "description": "The hooks reference copied into the new reference directory documents a 'Git Safety Hook' and a 'Full Configuration Example' using the PreToolUse matcher `Bash.*git push.*`, plus PostToolUse matchers like `Write.*COMPLETED.*` and `Edit.*\\\\.(py|js|ts)$`. Claude Code evaluates `matcher` against the tool name only (for example `Bash`, `Edit|Write`), not the command or file argument. A regex that requires the substring `git push` can never match the string `Bash`, so the documented push-prevention hook never executes. The same applies to the other content-based matchers.",
+      "failure_mode": "Anyone who adopts the documented configuration believes pushes to the upstream template are guarded when no hook fires at all, giving a false sense of a safety control. The example is now duplicated in two locations, increasing the chance it is copied.",
+      "suggested_fix": "Change the matcher to `Bash` and have `git-safety.sh check-push` inspect the tool input from stdin (the `tool_input.command` field) to decide whether to block. Update the PostToolUse examples the same way, and add a note that matchers do not see command text.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:30:10Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 7144,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "e0d808fb3890046be8507ed153723f0538f575cf43bf4f399ec0dc89f81a3507",
+      "run_tag": "p2-protocols"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

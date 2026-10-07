@@ -1,0 +1,134 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "title": "Empty explicit --envelope falls back to default sibling instead of failing closed",
+      "description": "The new rejected-payload contract documents that a missing explicit --envelope path is a usage error, but the parser accepts `--envelope \"\"`, records a warning, and later silently falls back to `$(dirname -- \"$FILE\")/adversarial-${GATE}.json`. In automation where the envelope path is assembled from an upstream variable, an empty value can cause the validator to check the wrong envelope and miss rejected dissent payloads that should block the gate. This is a security-control bypass for the review/audit validation layer, though it requires control over the validator invocation or a caller bug that produces an empty path.",
+      "details": "The new rejected-payload contract documents that a missing explicit --envelope path is a usage error, but the parser accepts `--envelope \"\"`, records a warning, and later silently falls back to `$(dirname -- \"$FILE\")/adversarial-${GATE}.json`. In automation where the envelope path is assembled from an upstream variable, an empty value can cause the validator to check the wrong envelope and miss rejected dissent payloads that should block the gate. This is a security-control bypass for the review/audit validation layer, though it requires control over the validator invocation or a caller bug that produces an empty path.",
+      "anchor": ".claude/scripts/verdict-derive.sh:109",
+      "trigger": ".claude/scripts/verdict-derive.sh",
+      "recommendation": "Treat an empty value for --envelope as a usage_error when the flag is explicitly present, matching the help text. Do not default explicit-but-empty security inputs to sibling files.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The new rejected-payload contract documents that a missing explicit --envelope path is a usage error, but the parser accepts `--envelope \"\"`, records a warning, and later silently falls back to `$(dir",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "_lc_chunk_tok",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_lc_chunk_tok \"$temp_dir\" \"$chunk_idx\" chunk_tokens",
+      "cross_file_justification": null,
+      "description": "The new memo helper `_lc_chunk_tok` indexes the bash indexed array `_lc_tok` with its second argument twice: `[[ -n \"${_lc_tok[$2]:-}\" ]]` and `_lc_tok[$2]=...`. Bash evaluates an indexed-array subscript as an arithmetic expression and performs a second round of expansion on it, so a subscript of the form `x[$(cmd)]` runs `cmd`. The value passed is `chunk_idx` from the manifest, which is parsed with `IFS=$'\\t' read -r priority filepath chunk_idx` over lines written as `pri<TAB>filepath<TAB>idx`. `filepath` is the capture of `^diff --git a/(.+) b/` over the untrusted diff, so a header such as `diff --git a/x<TAB>q[$(id>/tmp/p)] b/x` yields `chunk_idx='q[$(id>/tmp/p)]<TAB>0'`. The two pre-scans skip such rows because they test `-f \"$temp_dir/chunk_${c_idx}\"` first, but the main include loop only tests `-n` before calling `cat` and then `_lc_chunk_tok`. Callers capture `prepare_content` via `$(...)`; without `shopt -s inherit_errexit` errexit is off inside the substitution, so the failed `cat` does not abort and the subscript is evaluated with the attacker string. The only thing currently blocking the trigger is that git C-quotes tabs in diff headers (`\"a/x\\tq\"`), which is incidental: any caller that feeds a hand-built or API-assembled diff, or a reviewer given a `.patch` file, removes that barrier and this becomes remote command execution in the review environment (which holds model API keys and git credentials).",
+      "failure_mode": "A PR or patch whose diff header path contains a raw tab followed by `name[$(command)]` causes arbitrary command execution in the reviewing process when the diff exceeds the token budget. With git-quoted input the same malformed row instead aborts or mis-parses the manifest, folding that file into a neighbouring chunk and silently removing it from per-file prioritisation.",
+      "suggested_fix": "Make the index the field that can never absorb a tab: write the manifest as `pri<TAB>idx<TAB>filepath` and read it as `read -r priority chunk_idx filepath` so the path is the remainder. In addition, guard the sink: at the top of `_lc_chunk_tok` require `[[ \"$2\" =~ ^[0-9]+$ ]] || return 1`, and in the main include loop add the same `-f \"$temp_dir/chunk_${chunk_idx}\"` test the two pre-scans already use before `cat`/`_lc_chunk_tok`. Optionally reject or quote any captured path containing a tab at parse time and log it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_vd_committed",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM",
+      "cross_file_justification": null,
+      "description": "`_vd_committed` runs `git ls-files` and `git diff --quiet HEAD` inside the directory of the dissent envelope (`--envelope` or the sibling of `--file`). Before doing so it unsets not only the variables that redirect the repository (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_COMMON_DIR, object dirs, namespace) but also the two that bound repository discovery, `GIT_CEILING_DIRECTORIES` and `GIT_DISCOVERY_ACROSS_FILESYSTEM`, and, via `$(git rev-parse --local-env-vars)`, `GIT_CONFIG_PARAMETERS`/`GIT_CONFIG_COUNT`, which is how a parent process passes protective config such as `safe.directory` or `core.fsmonitor=false`. Git then walks up from an arbitrary caller-supplied directory to whatever `.git` it finds and honours that repository's `.git/config` (core.fsmonitor, core.hooksPath, core.pager, diff.external all execute commands). In a CI runner where scratch directories live under an untrusted checkout, or where the operator deliberately set a ceiling to stop exactly this walk, the script removes that control for a check whose only purpose is to decide whether a sidecar's rows are 'history'.",
+      "failure_mode": "A verdict check pointed (by `--envelope`, or by placing the feedback file) at a directory beneath a repository with hostile or unexpected config runs that repository's configured commands during `git ls-files`/`git diff`, and a caller-set discovery ceiling or `-c` safety config is silently discarded.",
+      "suggested_fix": "Unset only the variables that name a repository (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, GIT_COMMON_DIR, GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES, GIT_NAMESPACE, GIT_IMPLICIT_WORK_TREE); keep GIT_CEILING_DIRECTORIES, GIT_DISCOVERY_ACROSS_FILESYSTEM and GIT_CONFIG_PARAMETERS/GIT_CONFIG_COUNT intact. Pass `-c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.pager=cat -c diff.external=` on the two git calls so repository config cannot execute commands, and consider verifying `git rev-parse --show-toplevel` is an ancestor of the envelope directory the caller expects before trusting the 'committed' answer.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:18:38Z",
+    "tokens_input": 63083,
+    "tokens_output": 25086,
+    "cost_usd": 0,
+    "latency_ms": 22117,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-b1-contracts-code.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 23,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-b1-contracts-code.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5b9a6df58fc958d345051f7b42106fbf9a042a682371d79a690faa5d09b18761",
+      "run_tag": "b1-contracts-code"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

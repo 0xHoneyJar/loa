@@ -1,0 +1,122 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new flag-presence rule (comment: 'a flag's presence, never its value, decides') is enforced for --record-fallback (empty value is a usage error) and for --reason without --record-fallback, but not for --since. `--since) fallback_since=\"${2:-}\"; _since_given=1; ...` followed by `_adv_record_fallback ... \"$fallback_since\"` means `--record-fallback failed --since \"\"` (or `--since` as the last argument) is accepted and passed through as 'no --since'. The --since guard is what refuses to displace an envelope newer than the aborted run's start (CMP-146); a skill that composes the command from a captured start timestamp that came back empty loses that guard silently and the failed record displaces whatever envelope stands, including a later retry's completed one.",
+      "failure_mode": "An automated caller passes an empty --since value; the fallback record is written without the newer-envelope refusal and overwrites a completed envelope with a failed record (moved to .prev, not restored).",
+      "suggested_fix": "Mirror the --record-fallback check: `if [[ -n \"$_since_given\" && -z \"$fallback_since\" ]]; then error \"--since needs a timestamp\"; exit 2; fi` before the `_adv_record_fallback` call, so an empty value is a usage error rather than a dropped guard.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "resource-leak",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "In the --diff-range block main registers `trap 'command rm -f -- \"$_ADV_RANGE_DIFF\"' EXIT`. A few lines later, after the workdir is created, main registers `trap '_adv_cleanup_on_exit' EXIT`, which replaces (not chains) the earlier EXIT trap. From that point the range-diff temp file under TMPDIR is removed only if `_adv_cleanup_on_exit` (outside this diff) knows about `_ADV_RANGE_DIFF`. The diff itself gives no evidence that it does; if it does not, every --diff-range run leaves a copy of the reviewed diff in TMPDIR.",
+      "failure_mode": "Each --diff-range run (the skills' default path since the audit's git-diff grant was replaced) leaks a `adversarial-range-XXXXXX` file containing the full reviewed diff in a shared TMPDIR.",
+      "suggested_fix": "Either have `_adv_cleanup_on_exit` remove `${_ADV_RANGE_DIFF:-}` (guarded with `|| true`), or move the range file into the run workdir once it exists, so the single cleanup trap covers it. Add a test asserting no `adversarial-range-*` file survives a --diff-range run.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/adversarial-review.sh:main",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The synthetic 'every hop of the primary chain was ceded to the companion' envelope hardcodes `status: \"api_failure\", degraded: false` for both gates. process_findings sets `degraded: true` for an audit API failure (the nineteenth-run refutation of a3 C-003 states this rule). When the subsequent fold fails (`companion_voice.status: fold_failed`), the audit envelope written to disk says `api_failure` with `degraded: false`, which the audit gate's DEGRADED_SECURITY_REVIEW rule and verdict-derive read differently from a process_findings-produced api_failure envelope.",
+      "failure_mode": "An audit run whose primary chain was entirely ceded and whose fold then failed writes an api_failure envelope with degraded:false, inconsistent with every other audit api_failure envelope and with the audit resource's degraded rule.",
+      "suggested_fix": "Set `degraded` from the gate in the synthetic: `--argjson degraded \"$([[ \"$type\" == audit ]] && echo true || echo false)\"`, matching process_findings' api_failure shape; or route the synthetic through the same helper process_findings uses to build its failure envelope.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T02:42:53Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 44677,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "057961d2f65b3a84ac6f4a6c526983b6cdeed4524b3eb172f3d4cf141057ad65",
+      "run_tag": "a5-script-5"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

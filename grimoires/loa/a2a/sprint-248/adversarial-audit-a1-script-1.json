@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "(( _rb > _rmax )) && { _rmax=$_rb; _rmaxh=\"$_rh\"; }",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "_rb=$(_adv_hop_charge \"$_rh\" \"${CONF_TIMEOUT:-60}\")",
+      "cross_file_justification": "The diff introduces two arithmetic sinks in process_findings, `(( _rb > _rmax ))` and `(( _repair_wall_budget < _rmax ))`, fed by _adv_hop_charge and _adv_repair_wall_for, which are defined outside this diff. _adv_repair_wall_for reads LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS (the WARN line echoes it as the budget) and _adv_hop_charge reads cheval catalog values (headless_timeout_seconds + connect).",
+      "description": "Bash `(( ))` evaluates its operands as expressions, so a non-numeric string such as `x[$(cmd)]` executes `cmd`. The diff adds _conf_uint precisely to keep config scalars out of arithmetic, but the new repair-budget block compares `_rb` and `_repair_wall_budget` without applying that guard. Both values originate from a config catalog and an environment variable that this diff does not validate.",
+      "failure_mode": "An operator-controlled catalog entry or LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS value that is not a plain integer reaches `(( ))` and either silently evaluates to 0 (disabling the wall budget) or, if it carries `$(...)` inside an array subscript, runs arbitrary commands in the reviewer's shell.",
+      "suggested_fix": "Guard both values at the point of use in process_findings with the same regex _conf_uint applies (`^(0|[1-9][0-9]{0,14})$`), falling back to a safe default and logging the key by name, before any `(( ))` comparison.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "rejected_sidecar=\"$rej_dir/adversarial-rejected-${type}${_ADV_SIDECAR_TAG:+-$_ADV_SIDECAR_TAG}${_run_tag:+-$_run_tag}.jsonl\"",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "_adv_resolve_run_tag; local _run_tag=\"$_ADV_RUN_TAG\"",
+      "cross_file_justification": "The diff splices _ADV_RUN_TAG (resolved from LOA_ADVERSARIAL_RUN_TAG by _adv_resolve_run_tag, not shown) into a file path that is immediately truncated with `: >` and later appended to with model-controlled JSON. Whether the tag is restricted to a safe token depends entirely on _adv_resolve_run_tag.",
+      "description": "The sidecar file name now embeds an environment-supplied run tag. The path is opened with `: > \"$rejected_sidecar\"`, which truncates whatever it names and follows symlinks, and _write_rejected_sidecar then appends the dissenter's raw payload to it. If _adv_resolve_run_tag does not reject `/`, `..`, whitespace, and empty-after-strip values, a tag such as `../../../../home/user/.bashrc` escapes the a2a directory.",
+      "failure_mode": "A hostile or mistyped LOA_ADVERSARIAL_RUN_TAG truncates an arbitrary file writable by the reviewer and fills it with model-controlled text; because stderr is suppressed and the fallback is `rejected_sidecar=\"\"`, the damage is never reported.",
+      "suggested_fix": "In _adv_resolve_run_tag (or at this call site) accept only `^[A-Za-z0-9._-]{1,64}$`, log and drop anything else, and consider creating the sidecar with `set -o noclobber`-style or `mktemp`-in-dir semantics so a pre-existing symlink is not followed.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_repair_diff_ok",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "| [(\"id\", \"failure_mode\") | select($orig[. + \"_derived\"] == true) | [.]] as $free",
+      "cross_file_justification": "The comment says 'the caller restores it', but the caller of _repair_diff_ok is outside the diff and cannot be verified to overwrite the repair model's id/failure_mode with the original derived values or to strip model-supplied *_derived markers.",
+      "description": "The mutation check now deletes `.id_derived` and `.failure_mode_derived` from both sides and treats any field the normaliser derived as free text. Two consequences follow: the repair model may rewrite a derived `id` or `failure_mode` and still pass, and it may add `id_derived: true` / `failure_mode_derived: true` to fields it actually authored without failing the comparison. Provenance of those fields then rests on code outside this diff.",
+      "failure_mode": "If the caller does not restore the original derived values and strip injected markers, a finding in the envelope carries repair-model text labelled as script-derived, and a model-chosen `id` can collide with or impersonate an already-used identifier after the dedup pass has run.",
+      "suggested_fix": "Have _repair_diff_ok (or its caller) explicitly copy `$orig.id`, `$orig.failure_mode`, and both markers back onto the accepted repair, and reject a repair whose `*_derived` keys differ from the original's.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "load_adversarial_config",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "*) log \"WARN: flatline_protocol.${config_key}.companion_voice='${_cv}' is not a boolean — the companion voice stays on",
+      "cross_file_justification": null,
+      "description": "A malformed `companion_voice` value defaults to on, which spawns the second-model chain and its spend. The sibling `budget_cents` path was deliberately made fail-closed in this same diff; the companion switch is the one cost-bearing toggle that still fails open.",
+      "failure_mode": "A typo in the config (e.g. `companion_voice: flase`) keeps paying for a second model on every run while the operator believes it is disabled.",
+      "suggested_fix": "Treat an unrecognised value as `false` and log the warning, matching the fail-closed convention used for budget_cents.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "_conf_uint",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "log \"WARN: ${key}='${raw}' is not a whole number of at least ${floor} — ${def} applies\"",
+      "cross_file_justification": null,
+      "description": "_conf_uint and the companion_voice branch echo the raw config scalar into the log unsanitised. The rest of the diff is careful to never log model text raw and to strip C1 controls from quoted values, but config scalars are not given the same treatment; a value containing newlines or ANSI escape sequences is written verbatim to stderr.",
+      "failure_mode": "A crafted YAML scalar injects fake log lines or terminal control sequences into the reviewer's output, which matters when logs are parsed by the chunk driver or displayed in a terminal.",
+      "suggested_fix": "Pass the raw value through the same capped, control-stripping excerpt the diff uses for finding values (slice to ~32 chars, replace `[\\x00-\\x1f\\x7f-\\x9f]` with a space) before logging.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "#   --diff-range <base>...<head>",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "#                             Instead of --diff-file: the script runs `git diff` on the range itself (ref names only)",
+      "cross_file_justification": "The diff adds the --diff-range option to the usage contract, but the parsing and the `git diff` invocation are not in the hunks shown; the documented 'ref names only' guarantee cannot be confirmed.",
+      "description": "A range argument handed to `git diff` without an explicit `--` separator and a leading-dash check is an option-injection sink: values such as `--output=<path>` or `--ext-diff` change git's behaviour rather than selecting a range. The comment promises ref-name-only input, so the implementation must enforce it.",
+      "failure_mode": "An unvalidated range value beginning with `-` makes git write its output to an attacker-chosen path or run an external diff driver instead of producing the review input.",
+      "suggested_fix": "Validate the range against `^[A-Za-z0-9._/^~@{}-]+\\.\\.\\.?[A-Za-z0-9._/^~@{}-]+$`, reject anything starting with `-`, resolve both ends with `git rev-parse --verify`, and call `git diff -- \"$base\" \"$head\"`-style with the separator present.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T06:51:13Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 18591,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "72d8423339a375e14d418a43aade173a9c5ed2909f4ad7336f4de59164e1c9c5",
+      "run_tag": "a1-script-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

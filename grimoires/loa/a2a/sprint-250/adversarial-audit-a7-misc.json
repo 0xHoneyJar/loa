@@ -1,0 +1,180 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "file": ".claude/scripts/lib-content.sh",
+      "line": 303,
+      "title": "Fixed-point C1 stripping can be forced into quadratic CPU work",
+      "description": "`top_path_log` is derived from an attacker-controlled diff header path and the new sanitizer repeatedly scans the whole string until no UTF-8 C1 pairs remain. Inputs like many `0xc2` bytes followed by many `0x9b` bytes create a new adjacent pair each pass, so convergence takes O(n) full-string passes, each doing 32 global replacements. A crafted oversized diff can make `prepare_content` spend excessive CPU before producing stderr.",
+      "recommendation": "Replace the fixed-point Bash substitution loop with a single linear byte-filter implementation, or cap the sanitized log path length before the loop and before repeated replacements.",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "`top_path_log` is derived from an attacker-controlled diff header path and the new sanitizer repeatedly scans the whole string until no UTF-8 C1 pairs remain.",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "prepare_content",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib-content.sh: if [[ \"$line\" =~ ^diff\\ --git\\ a/(.+)\\ b/ ]]; then",
+      "cross_file_justification": null,
+      "description": "The diff splitter in prepare_content recognises only the bare `diff --git a/<p> b/<p>` header. Two attacker-reachable header shapes fail that regex: (a) git's default core.quotePath=true emits `diff --git \"a/...\" \"b/...\"` for any path containing a non-ASCII byte, a double quote, a backslash or a control character, which never matches `--git a/`; (b) with quoting off, a header carrying an invalid UTF-8 byte fails the match under a UTF-8 locale because glibc's `.` only accepts single-byte chars below 0x80 there — the new CMP-280 test comment documents exactly this (\"under a UTF-8 locale the header regex's `.` does not match the invalid C2 C2 lead, so the path never reaches the strip\"). An unrecognised header falls into the `else current_content+=...` branch, so the whole file's hunks are folded into the PRECEDING file's chunk and inherit its priority and its `is_excluded` verdict; if the unrecognised header is the first line of the diff, `current_file` is empty and the content is discarded outright when the next real header arrives (never in the manifest, never in the skipped list). A PR author who can make the diff exceed the token budget (any lockfile or generated file does) can therefore name a file `.claude/hooks/x\".sh` preceded by `.about.md` (P3, or a `.reviewignore`d path), or `!x\".sh` to sort first, and have a P0 hook change removed from the review payload while the summary names only the decoy.",
+      "failure_mode": "Review evasion: a security-critical file's diff is classified under another file's priority/scope or silently dropped, so the adversarial reviewer never sees the change and reports the diff clean.",
+      "suggested_fix": "Fail closed on header shapes the parser does not understand: match `^diff --git (\"?)a/` and unquote git's C-style octal escapes for the quoted form (or run `git diff -z`/`-c core.quotePath=false` and parse under `LC_ALL=C`); treat any line starting with `diff --git ` that still does not yield a path as its own P0 chunk with the raw header as the name rather than appending it to the previous chunk; never discard pre-header content — emit it as a P0 chunk. Add a bats case for a quoted header and for an invalid-UTF-8 header under LC_ALL=C.UTF-8 asserting the file lands in the manifest at P0.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "injection",
+      "anchor": "top_path_log=${top_path_log//\"$_lc_c1_seq\"/}",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib-content.sh:@@ -295,10 +295,16 @@ prepare_content()",
+      "cross_file_justification": null,
+      "description": "The stderr sanitiser hardened in this hunk strips C0/DEL and UTF-8 C1 only. Unicode format and bidi controls — U+202A–U+202E (E2 80 AA–AE), U+2066–U+2069 (E2 81 A6–A9), U+200B–U+200F (E2 80 8B–8F), U+FEFF — are valid UTF-8, so they pass the header regex in both locales, pass `tr -d '\\000-\\037\\177'`, pass the C2 xx loop, and reach the `Top-priority file ${top_path_log} ... shown partially` / `listed as omitted` lines unchanged. There is also no length cap, so the line can be padded arbitrarily. A PR author can craft a path containing RLO/isolates so the operator-facing log names a different file than the one actually shown partially or omitted (Trojan Source reordering), hiding what SEC-001-style truncation dropped. The same changeset's CHANGELOG entry describes implement-gate's `strip_controls` as dropping C0, C1 and the Unicode format/bidi code points to a fixed point and cutting to 256 bytes (IG-13); this sanitiser, revised in the same round, lacks both.",
+      "failure_mode": "Log spoofing: the stderr audit line misrepresents which file was truncated or omitted, defeating the operator's only signal that the review payload was incomplete.",
+      "suggested_fix": "Reuse (or port) implement-gate's `strip_controls` for `top_path_log`: add the E2 80 8B–8F, E2 80 AA–AE, E2 81 A6–A9 and EF BB BF sequences to the fixed-point loop and cut the result to 256 bytes before logging. Extend CMP-279/280 with an RLO case asserting the sequence never reaches stderr.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "top_path_log=$(printf '%s' \"$top_path\" | LC_ALL=C tr -d '\\000-\\037\\177')",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib-content.sh:@@ -295,10 +295,16 @@ prepare_content()",
+      "cross_file_justification": null,
+      "description": "Raw 8-bit C1 bytes (0x80–0x9F without a C2 lead) are not removed: `tr` deletes only `\\000-\\037\\177`, and the C1 loop targets the two-byte UTF-8 form. Under LC_ALL=C (the CI path the new test deliberately exercises) the header regex matches arbitrary bytes, so a path containing a bare 0x9B or 0x9D reaches stderr; the loop itself can also leave one behind (C2 9B 9B → 9B). Terminals or log viewers in 8-bit/ISO-2022 mode interpret 0x9B as CSI and 0x9D as OSC. UTF-8 terminals render these as U+FFFD, which is why this is a hardening gap rather than an immediate exploit.",
+      "failure_mode": "Terminal control injection into operator stderr on 8-bit-mode consoles; the sanitiser's stated contract (\"stderr never gets a header's raw controls\") does not hold.",
+      "suggested_fix": "After the C1 loop, verify the result is valid UTF-8 (`printf '%s' \"$top_path_log\" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1`); on failure, replace every byte ≥0x80 with `?` (or `LC_ALL=C tr -c '[:print:]' '?'`). Add a CMP case feeding a bare 0x9B under LC_ALL=C and asserting it never reaches stderr.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "rate-limiting",
+      "anchor": "while :; do",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/lib-content.sh:@@ -295,10 +295,16 @@ prepare_content()",
+      "cross_file_justification": null,
+      "description": "The new fixed-point loop runs 32 whole-string `${var//pat/}` substitutions per pass and needs one pass per nesting level; a header path of the form C2^k 9B^k forces k passes, i.e. O(32·k·n) work on attacker-controlled input with no length bound. Git's PATH_MAX-ish limit keeps a checked-out tree's names to a few KiB (seconds of CPU at worst), but a diff from `git diff <ref>..<ref>` or any non-git source has no such bound, and the loop runs before the budget cut. Termination is guaranteed (the string strictly shrinks), so this is a cost issue, not a hang.",
+      "failure_mode": "Unbounded CPU time in the review pipeline from a crafted diff header; the sanitiser's cost is set by the attacker rather than by the budget.",
+      "suggested_fix": "Cut `top_path_log` to a fixed byte length (256, matching strip_controls) BEFORE the loop, or replace the loop with a single O(n) pass that deletes `C2 [80-9F]` pairs with a stack (awk under LC_ALL=C), which yields the same fixed point.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "if [[ -n \"${BATS_TEST_FILENAME:-}${BATS_VERSION:-}\" && -n \"${AGENT_TYPES_FILE:-}\" ]]; then",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/scripts/validate-skill-capabilities.sh:@@ -107,8 +107,10 @@ should_skip()",
+      "cross_file_justification": null,
+      "description": "The test seam that lets AGENT_TYPES_FILE redirect WRITE_CAPABLE_AGENTS is gated only on BATS_TEST_FILENAME/BATS_VERSION being non-empty — two ordinary environment variables any caller can set (`BATS_VERSION=1 AGENT_TYPES_FILE=/tmp/x.yaml`). This diff changes only the comment, which now states that a hardened invocation runs the validator with a scrubbed environment, but no caller in the changeset performs that scrubbing (`env -i`, explicit allow-list), so the asserted mitigation is documentation rather than mechanics. Anyone who controls the validator's environment can make it accept skills that delegate writes to non-write-capable agents.",
+      "failure_mode": "The agent-type validation is bypassable by environment, and the written safety claim (\"a hardened invocation runs the validator with a scrubbed environment\") has no enforcing code behind it.",
+      "suggested_fix": "Either remove the env override outside tests entirely (tests pass the file via an explicit `--agent-types-file` argument), or have every production entry point (CI step, hook, `/loa` command) invoke the validator via `env -i PATH=... bash validate-skill-capabilities.sh` and add a test asserting the override is ignored when the markers are set outside bats (e.g. compare against a sentinel YAML).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T03:17:02Z",
+    "tokens_input": 55009,
+    "tokens_output": 25387,
+    "cost_usd": 0,
+    "latency_ms": 29301,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-a7-misc.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-250/adversarial-rejected-audit-a7-misc.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "078e4b8fc618e1a85d6b67d1e75cca6ab3ed24dd5225066d81d3b70de76d1dca",
+      "run_tag": "a7-misc"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

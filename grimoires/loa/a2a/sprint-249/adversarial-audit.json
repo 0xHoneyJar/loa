@@ -1,0 +1,377 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "injection",
+      "anchor": "_context_window_of",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": ".claude/hooks/session-start/loa-context-class.sh",
+      "cross_file_justification": null,
+      "description": "The caller-supplied model id is sanitised to [A-Za-z0-9._:-] before the first yq lookup, but the alias target read back from the catalog (`target=$(yq eval \".aliases.\\\"$m\\\"\" ...)`, then `m=${target#*:}`) is interpolated unsanitised into the second yq expression `.providers[].models.\"$m\".context_window`. A catalog alias value containing a double quote can break out of the quoted key and run arbitrary yq (mikefarah yq v4 exposes load(), strenv(), env()). Impact is bounded: the result is only used if it matches ^[0-9]+$, and the catalog ships inside the same repo as the hook, so an attacker who can edit it can already edit the hook. It is still an unsanitised second hop behind a sanitised first hop.",
+      "failure_mode": "A malicious or corrupted alias entry in .claude/defaults/model-config.yaml (or a file passed via --catalog) executes attacker-chosen yq during every SessionStart, with a one-bit oracle on the result (numeric or not), and can silently force the context class to standard or long.",
+      "suggested_fix": "Re-apply the same character whitelist to the resolved alias before the second lookup, e.g. `m=\"${m//[^A-Za-z0-9._:-]/}\"` after `m=\"${target#*:}\"`, and bail to \"\" if it becomes empty. Optionally pass the key as a yq variable (`yq eval --arg` is not available, but `strenv(M)` with `M=\"$m\"` exported avoids string interpolation entirely).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "h-hook"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/protocols/citations.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/citations.md",
+      "cross_file_justification": null,
+      "description": "The first hunk of the diff is labeled `a/.claude/protocols/citations.md` but every removed line belongs to the recommended-hooks document (hook tables, Setup hook, async hooks, git-safety example) and the added lines are the recommended-hooks stub. The accompanying full-file view of citations.md still shows the Word-for-Word Citation Protocol with only its Related Protocols link changed. The patch therefore either targets the wrong file or was mislabeled when generated. If applied as labeled, the citation/grounding protocol that agents load to keep review claims evidence-backed would be silently replaced by a two-line hooks stub.",
+      "failure_mode": "Agents operating under this framework lose the mandatory citation and grounding-ratio rules, so security reviews and implementation reports can assert unverified claims without the protocol flagging them as assumptions. The change would not be caught by the existing anchor test, which only pins section 4 of the hooks document.",
+      "suggested_fix": "Confirm the real target of the stubbing hunk is `.claude/protocols/recommended-hooks.md`, regenerate the diff, and add a smoke test that asserts citations.md still contains the `## Citation Format Template` and `## Self-Audit Checkpoint` headings.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "p2-protocols"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "Path Format",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/citations.md",
+      "cross_file_justification": null,
+      "description": "The citation protocol mandates absolute filesystem paths (examples use `/home/user/project/src/auth/jwt.ts`) in every citation across PRDs, SDDs, implementation reports, code reviews, and the trajectory JSONL `path` field. Those artifacts live under `grimoires/` and are committed and shared, so they embed the local username and directory layout of whoever generated them. The requirement is pre-existing but the file is touched by this change and the rule is being re-linked rather than revisited.",
+      "failure_mode": "Committed review and planning documents leak host usernames and workspace layout to anyone with repository or artifact access, aiding targeted phishing or path-based attacks against developer machines.",
+      "suggested_fix": "Require `${PROJECT_ROOT}`-prefixed paths literally (not expanded) in committed artifacts and have the validation step expand them at verification time, or strip the root prefix when writing trajectory and report files.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "p2-protocols"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/protocols/reference/recommended-hooks.md",
+      "anchor_type": "file",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/reference/recommended-hooks.md",
+      "cross_file_justification": null,
+      "description": "The hooks reference copied into the new reference directory documents a 'Git Safety Hook' and a 'Full Configuration Example' using the PreToolUse matcher `Bash.*git push.*`, plus PostToolUse matchers like `Write.*COMPLETED.*` and `Edit.*\\\\.(py|js|ts)$`. Claude Code evaluates `matcher` against the tool name only (for example `Bash`, `Edit|Write`), not the command or file argument. A regex that requires the substring `git push` can never match the string `Bash`, so the documented push-prevention hook never executes. The same applies to the other content-based matchers.",
+      "failure_mode": "Anyone who adopts the documented configuration believes pushes to the upstream template are guarded when no hook fires at all, giving a false sense of a safety control. The example is now duplicated in two locations, increasing the chance it is copied.",
+      "suggested_fix": "Change the matcher to `Bash` and have `git-safety.sh check-push` inspect the tool input from stdin (the `tool_input.command` field) to decide whether to block. Update the PostToolUse examples the same way, and add a note that matchers do not see command text.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "p2-protocols"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "## Thresholds",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": ".claude/protocols/tool-result-clearing.md",
+      "cross_file_justification": null,
+      "description": "The new context-class selection fails open. The protocol tells the agent to read `.run/context-class`, and \"when it is absent, assume `long`\", which raises every clearing threshold 10x (e.g. session total 15,000 -> 150,000 tokens). `.run/` is untracked, agent-written state. If the SessionStart hook `loa-context-class.sh` does not run, is disabled, errors, or the directory is wiped, a `standard` (<=200K) session silently inherits `long` limits. The same file is also a trivially writable override: any process or repo content that can create `.run/context-class` controls which thresholds the agent enforces, with no integrity or provenance check described.",
+      "failure_mode": "On a standard-context model with the hook missing, the agent accumulates up to 150K tokens of raw tool output before mandatory synthesis, exhausting context and losing un-synthesized decisions. This is an availability and information-loss concern rather than a confidentiality or integrity breach, which is why it is rated LOW.",
+      "suggested_fix": "Invert the default: when `.run/context-class` is absent or unreadable, assume `standard` (the conservative thresholds) and emit a one-line warning. Have `loa-context-class.sh` write the file with the resolved model id and timestamp so `/loa` can show provenance, and have the protocol tell the agent to fall back to `standard` if the file's model id does not match the session model.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "p3-protocols"
+    },
+    {
+      "severity": "HIGH",
+      "category": "injection",
+      "title": "Default long context window weakens prompt-injection containment for untrusted file reads",
+      "description": "The updated context-discipline include changes the default clearing thresholds from standard-sized limits to `long` limits of 20K single result, 50K accumulated, 30K full file, and 150K session before extraction to NOTES.md. Because this guidance applies to large tool results and file reads, untrusted repository content can now remain live in the agent context at sizes large enough to carry detailed prompt-injection instructions instead of being reduced to bounded findings. The sink is subsequent agent reasoning and tool use under the Loa workflow, including writes and command execution. This materially weakens the documented containment control for prompt-injection/context-poisoning attacks.",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "file": ".claude/data/skill-includes/context_discipline.md",
+      "line": 3,
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "The updated context-discipline include changes the default clearing thresholds from standard-sized limits to `long` limits of 20K single result, 50K accumulated, 30K full file, and 150K session before",
+      "failure_mode_derived": true,
+      "anchor_status": "valid",
+      "anchor_stability": "line_number",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless",
+      "chunk": "k1-kernel"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": "CHANGELOG.md:15",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:15",
+      "cross_file_justification": "The changelog entry added in this diff records that cheval's gemini-headless adapter now forces GEMINI_SANDBOX=false and treats an operator --sandbox in gemini_extra_flags as a downgrade, to keep the prompt off argv. The adapter source is not in the diff, so the tool-approval posture the adapter runs gemini-cli with (default, auto_edit, or yolo) could not be verified.",
+      "description": "The dissent pipeline feeds attacker-influenced input (a PR diff) to a gemini-cli reviewer that is now deliberately run with its sandbox disabled. The documented mitigation is an isolated empty cwd, which stops CLAUDE.md/GEMINI.md context planting but does not contain shell execution, file writes outside the cwd, or outbound web_fetch calls. A diff containing prompt-injection text therefore reaches a CLI with tool access and no sandbox. Whether confirmation-gated tools (shell, write_file) are actually reachable depends on the approval mode the adapter passes, which is not visible here; read-only tools such as web_fetch run without confirmation in gemini-cli and are enough for exfiltration of the reviewed diff.",
+      "failure_mode": "A reviewed diff containing injected instructions drives gemini-cli tool calls on the reviewer host with no sandbox containment, enabling data exfiltration or command execution.",
+      "suggested_fix": "Prefer keeping the sandbox and solving the argv exposure another way (write the prompt to a 0700 file inside the private per-hop workspace, as the grok adapter does, and pass the path). If the sandbox must stay off, pin the headless gemini hop to a read-only approval mode, disable shell/write tools and web_fetch via a project settings file in the isolated cwd, and record the chosen posture in multi-model-reference.md so operators adding gemini_extra_flags know the trade-off.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k1-kernel"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "CHANGELOG.md:15",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md:15",
+      "cross_file_justification": "The changelog added in this diff states that the agy headless adapter still passes its prompt on argv and that gemini does so again whenever gemini_extra_flags requests a sandbox, with the exposure documented rather than removed. Adapter code is not in the diff.",
+      "description": "The headless prompt contains the diff under review plus the reviewer instructions. On argv it is readable by any local user through /proc/<pid>/cmdline for the life of the process (900 s timeouts are now permitted). Claude, codex, cursor, grok and default gemini were moved off argv for exactly this reason; agy remains the one default argv prompt, and the gemini sandbox path reintroduces it. On shared CI runners or multi-user hosts this leaks source and any secrets present in the diff.",
+      "failure_mode": "An unprivileged local user reads another account's review prompt, including the full diff, from /proc/<pid>/cmdline while the agy or sandboxed-gemini hop is running.",
+      "suggested_fix": "Move agy to stdin or a prompt file inside its private workspace like the other adapters; refuse (not just warn on) argv prompts when a sandbox is requested for gemini unless the operator explicitly opts in; note hidepid=2 on /proc as a host-level mitigation in the reference doc.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k1-kernel"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": ".claude/loa/CLAUDE.loa.md:101",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/data/constraints.json:1235",
+      "cross_file_justification": "This diff edits the why text of all five Agent Teams constraints in constraints.json (lines 1235, 1256, 1277, 1298, 1319) but the generated Agent Teams block in CLAUDE.loa.md is unchanged, and its marker reads hash:c020-teamcreate rather than a content hash like the other blocks regenerated in this same diff.",
+      "description": "The constraint-generated blocks in CLAUDE.loa.md carry a 16-hex content hash so drift between constraints.json and the agent's instruction file can be detected; the process_compliance blocks were regenerated with new hashes in this diff. The agent_teams_constraints block uses a static label instead, so its integrity marker can never change and the drift check cannot detect edits to it. Those rows are the ones that tell teammates they must not touch .claude/ (System Zone) or .run/ state; a hand edit to that block, accidental or planted, would pass the same check the other blocks are held to. This diff demonstrates the gap by changing the source rows without the output moving.",
+      "failure_mode": "Edits to the Agent Teams rule table in the managed instruction file go undetected because its marker is a fixed string rather than a hash of the generated content.",
+      "suggested_fix": "Have the generator emit a real content hash for agent_teams_constraints like the other sections, regenerate the block from constraints.json in this change, and add a test that every @constraint-generated start marker's hash matches a recomputation over the block body.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k1-kernel"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/data/skill-includes/context_discipline.md:3",
+      "cross_file_justification": null,
+      "description": "The include now derives behaviour from a new runtime knob, .run/context-class, with LOA_CONTEXT_CLASS as an override and long as the default. .run/ is the Read/Write State Zone, and in Agent Teams mode only the lead is supposed to write it, but that is a prose rule rather than a hook-enforced one. The script that reads and parses this file is not in the diff, so it is not possible to confirm that an unexpected value (anything other than long or standard, or a multi-line file) is rejected rather than interpolated into a command or silently treated as long. The default also raises every tool-result retention threshold tenfold, which keeps more raw tool output, including content CLAUDE.loa.md classifies as UNTRUSTED (L5/L6/L7 bodies, external-model envelopes), in context before it is distilled.",
+      "failure_mode": "A malformed or planted .run/context-class value is consumed by the reader without validation, or the 10x default silently relaxes a discipline that skills previously relied on for untrusted-content handling.",
+      "suggested_fix": "Have the reader accept exactly long or standard (first line, trimmed), fall back to standard on anything else with one WARN, and never pass the value to a shell. Consider whether skills that surface untrusted content (adversarial review, agent-network L5-L7) should pin standard regardless of the class file.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k1-kernel"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "other",
+      "anchor": "- [x] Replay A/B: no gold case loses recall; report attached.",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "grimoires/loa/sprint.md ticks the Sprint 3 acceptance criterion 'Replay A/B: no gold case loses recall' while the ruling recorded directly beneath it states the pre-registered graded gate FAILED on five cases and that one slot in 27 was lost on audit-pr-02 (D06) under blind adjudication. The replay A/B gate measures whether the review and audit skills still catch gold defects after the prompt diet (CLAUDE.loa.md trim, constraint-rationale rewrite, skill gate removal). The repo's own NEVER table, re-rendered in this diff, names those skills as 'the only check that code meets its acceptance criteria and security standards'. A measured recall regression on a security-audit gold case is therefore a weakened detective control. It ships under a waiver whose binding conditions (grader fix bd-ewrc, two-arm re-baseline, ablation and revert) live in a prose document and a future Task 4.8 rather than in any mechanical merge gate.",
+      "failure_mode": "The cycle PR merges with the audit skill measurably less likely to surface a defect class it previously caught, and the self-contradictory acceptance record makes the regression invisible to anyone reading the checklist rather than the ruling. If Task 4.8 slips or the re-run is skipped, the degradation becomes permanent with no CI signal.",
+      "suggested_fix": "Leave the criterion unchecked or reword it to 'waived, see ruling' so the record is not self-contradictory. Make Task 4.8 a hard merge blocker (a CI job that runs the fixed grader and both arms, or a branch-protection check) instead of a prose condition. Since the ablation of the CLAUDE.loa.md trim versus the rationale rewrite can be run before merge, do it now and revert the implicated component rather than after the fact.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k2-kernel"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "session-start/loa-context-class.sh",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "A new SessionStart hook, `session-start/loa-context-class.sh`",
+      "cross_file_justification": "The CHANGELOG hunk (mislabeled in the diff as .claude/data/constraints.json) introduces and specifies the behaviour of a SessionStart hook, its registration in settings.json and settings.hooks.json, and the .run/context-class write. The hook script, the settings changes, tool-result-clearing.md, the regenerated skills and context-class.bats are not present in the reviewed diff, so the specified behaviour cannot be verified against code.",
+      "description": "The changelog describes the highest-privilege artifact of this sprint: a hook that executes on every session start, reads LOA_CONTEXT_CLASS from the environment, parses the stdin payload's session model name with alias-aware catalog resolution, falls back from timeout to gtimeout to a plain read, and writes .run/context-class atomically. None of that code is in the audited changeset (possibly because the diff was chunked). Claims such as 'never blocks', 'atomically', and alias-aware parsing of an externally supplied model string are exactly the ones an audit needs to see implemented: an unquoted model string interpolated into a shell or jq expression would be an injection sink, a plain read with no timeout can hang session start, and a non-atomic or wrong-directory temp write can be raced via a symlink in .run/.",
+      "failure_mode": "If the hook interpolates the payload model string into a shell command, a crafted payload could execute commands at session start. If the plain-read fallback has no timeout on a system without timeout or gtimeout, every session start blocks. If .run/ is pre-seeded with a symlink, the 'atomic' write could land outside the repo. None of these can be confirmed or excluded from this diff.",
+      "suggested_fix": "Include the hook script, both settings files and context-class.bats in the audited diff. In the hook, extract the model name with jq -r and pass it only as a quoted argument or jq --arg, never via eval or unquoted expansion. Create .run with restrictive permissions, write via mktemp in the same directory and mv -f, and refuse to follow a symlink at the target. Add a CC test case with a hostile model name containing quotes, backticks and $( ) to pin the no-injection property.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "k2-kernel"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "| SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` |",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The diff makes `.run/context-class` a behavior-governing input: every skill's generated context_discipline block (auditing-security, implementing-tasks, reviewing-code) and ride.md instruct the agent to read it and apply thresholds based on its value. The script that writes it, `session-start/loa-context-class.sh`, is not part of the diff, is listed in the README Hook Registry but not in the README 'Active (registered in settings.hooks.json)' table, and `settings.hooks.json` is not updated in the diff. No consumer constrains the value to the two expected tokens (`long` / `standard`).",
+      "failure_mode": "If the hook is not actually registered, is blocked by hook-guard, or the file is stale, hand-edited, or committed into a target repo where `.run/` is not ignored, the agent reads arbitrary file content as trusted configuration. Unexpected content yields undefined threshold behavior at best and, if read verbatim into context, a small prompt-injection surface at worst.",
+      "suggested_fix": "Have `loa-context-class.sh` write only the literal token `long` or `standard`. Make consumers (skills, `/loa` display, workflow-state.sh) accept only those two tokens and fall back to `long` on anything else, rather than echoing the file into context. Confirm `.run/` is gitignored in mounted repos. Add the hook to the README active-files table and to `settings.hooks.json` so documentation matches registration.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless",
+      "chunk": "s-skills"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-249",
+    "timestamp": "2026-10-05T22:39:36Z",
+    "status": "reviewed",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar \u2014 not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 3860,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "3811190af74df1eb73434aafd9cedc0ddc90d108a8164e8df7dadce49ddf84a5",
+      "run_tag": "s-skills"
+    },
+    "merged_from_chunks": [
+      {
+        "chunk": "h-hook",
+        "file": "adversarial-audit-h-hook.json",
+        "status": "clean",
+        "findings": 1,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "p1-protocols",
+        "file": "adversarial-audit-p1-protocols.json",
+        "status": "clean",
+        "findings": 0,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "p2-protocols",
+        "file": "adversarial-audit-p2-protocols.json",
+        "status": "clean",
+        "findings": 3,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "p3-protocols",
+        "file": "adversarial-audit-p3-protocols.json",
+        "status": "clean",
+        "findings": 1,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "k1-kernel",
+        "file": "adversarial-audit-k1-kernel.json",
+        "status": "reviewed",
+        "findings": 5,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": "adversarial-rejected-audit-k1-kernel.jsonl"
+      },
+      {
+        "chunk": "k2-kernel",
+        "file": "adversarial-audit-k2-kernel.json",
+        "status": "clean",
+        "findings": 2,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      },
+      {
+        "chunk": "s-skills",
+        "file": "adversarial-audit-s-skills.json",
+        "status": "clean",
+        "findings": 1,
+        "voices_succeeded_ids": [
+          "codex-headless",
+          "claude-headless"
+        ],
+        "rejected_sidecar": null
+      }
+    ],
+    "head": "24fc1c7d",
+    "note": "per-chunk dissent (each chunk under the voice's 24K input budget); findings are the union of every chunk's latest run; the per-chunk envelopes and rejected sidecars stay beside this file"
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

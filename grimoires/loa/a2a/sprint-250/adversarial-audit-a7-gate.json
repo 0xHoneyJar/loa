@@ -1,0 +1,186 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "if [[ \"$canonical_path\" == \"${canonical_root%/}/\"* ]]; then",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "&& { realpath -m -- \"$file_path\" 2>/dev/null || readlink -f -- \"$file_path\" 2>/dev/null; }) || canonical_path=\"\"",
+      "cross_file_justification": null,
+      "description": "The zone check now uses only the physically canonicalised path. realpath -m (and the readlink -f fallback) resolves every symlink including the final component, so a write addressed to $ROOT/src/x.ts is classified by where the symlink points, not by the path the model asked to write. If src/, lib/ or app/ is a symlink resolving outside the root (shared-code monorepo layouts, vendored trees), or a file inside them is a symlink to a non-App-Zone location (src/config.ts -> ../config/real.ts), the canonical form falls outside the root or outside the patterns and the write is allowed silently. The previous textual prefix match asked for all of these, so the diff fixes outside-in symlinks (now caught) while regressing inside-out symlinks (now missed). The comment 'a path that canonicalises outside the root is not App Zone' encodes the regression as intended behaviour.",
+      "failure_mode": "An App-Zone path that is, or traverses, a symlink resolving elsewhere receives an allow with no ask and no audit row; before this diff it asked.",
+      "suggested_fix": "Compute both forms and OR them (tighten-only): the physical form via realpath -m as now, and a logical form that does not follow symlinks (realpath -m -s -- \"$file_path\" against pwd -L, or a pure-bash ./.. normaliser applied to the root-relative text). Set is_app_zone=true if either root-relative form matches the patterns. Add an IG-15 case that does ln -s \"$BATS_TEST_TMPDIR/elsewhere\" \"$ROOT/src\" and expects ask for $ROOT/src/x.ts.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "src/*|lib/*|app/*|*/src/*|*/lib/*|*/app/*)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "normalized_path=\"${canonical_path#\"${canonical_root%/}\"/}\"",
+      "cross_file_justification": null,
+      "description": "The App-Zone patterns are case-sensitive and none of pwd -P, realpath -m or readlink -f fold case. On the case-insensitive filesystems this hook explicitly supports (macOS APFS/HFS+ defaults, reached through the compat-lib date -jf and stat -f fallbacks; ext4 casefold directories on Linux), $ROOT/Src/index.ts, $ROOT/LIB/x.js and $ROOT/App/y.py are the same files as their lowercase spellings but normalise to Src/... and miss every pattern. A single Write call with one capitalised letter in the directory name is allowed silently. This is the same class as run-2 finding 1 (a non-canonical spelling of an App-Zone file reaching the file unseen) and remains open after the canonicalisation rewrite.",
+      "failure_mode": "On a case-insensitive filesystem any App-Zone write spelled with different case bypasses the gate with no ask and no audit row.",
+      "suggested_fix": "Match on a lowercased copy: case \"${normalized_path,,}\" in ... (bash 4+), or wrap the case in shopt -s nocasematch / shopt -u nocasematch. On case-sensitive filesystems this only adds asks for directories literally named Src/, which is tighten-only. Add a fixture with $ROOT/Src/x.ts expecting ask.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "check_implementation_active",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "# a path that canonicalises outside the root is not App Zone",
+      "cross_file_justification": null,
+      "description": "Every decision the gate makes rests on files the gated tool may write freely, because they are not App Zone and non-App-Zone writes exit 0 silently: .run/state.json (state: RUNNING, no integrity check at all), .run/simstim-state.json (phase: implementation, no integrity check), .run/sprint-plan-state.json (needs only a non-empty plan_id and a fresh timestamp, exactly what test IG-12 forges), .loa.config.yaml (removing authoritative mode drops the tighten-only ask) and .run/audit.jsonl (the only trace, overwritable). A model that wants to edit src/ without an ask first writes {\"state\":\"RUNNING\"} to .run/state.json with the same Write tool; the second write is allowed, and in the default heuristic mode nothing is logged. The header lists ATK-005 (state tampering) as addressed, but the fail-ask paths hardened in this diff (unparsable payload, un-canonicalisable path, symlinked root) are all strictly harder to reach than this two-call sequence. Pre-existing rather than introduced here, but it bounds the value of everything the diff hardens.",
+      "failure_mode": "Two Write calls neutralise the gate on every platform with no ask and, in heuristic mode, no audit row.",
+      "suggested_fix": "Treat the gate's own trust inputs as a sensitive zone: when normalized_path is .run/state.json, .run/sprint-plan-state.json, .run/simstim-state.json, .run/audit.jsonl or .loa.config.yaml, emit an ask and append a compliance.state_write row. Apply the plan_id and 24h staleness checks to state.json and simstim-state.json as well. Longer term, have the skill runner place a per-session nonce somewhere the Write tool cannot reach and require it in the state file before RUNNING is honoured.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "strip_controls",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "_IG_STRIP_SEQS=()",
+      "cross_file_justification": null,
+      "description": "strip_controls is a blocklist and misses several format and bidi-adjacent code points that still hide or reorder text in stderr and the audit row: U+00AD soft hyphen (C2 AD, one past the C1 loop), U+061C Arabic letter mark (a bidi control, D8 9C), U+180E, U+206A-U+206F deprecated format controls (E2 81 AA-AF, adjacent to the a0-a9 loop), U+FFF9-U+FFFB interlinear annotation, U+FE00-U+FE0F variation selectors, and the four-byte U+E0001 / U+E0020-U+E007F tag characters. Separately, ${s:0:256} under LC_ALL=C cuts bytes, so a multibyte character straddling byte 256 leaves invalid UTF-8 in the copy; jq --arg rewrites it to U+FFFD in the row while stderr receives the raw bytes. detect-platform-features.sh --line already uses the stronger allowlist approach (tr -cd '[:print:]').",
+      "failure_mode": "A crafted skill name or path still renders misleadingly in stderr and .run/audit.jsonl, and the row can carry invalid UTF-8.",
+      "suggested_fix": "Prefer an allowlist for the display copy: keep printable ASCII and escape everything else. For the audit row, run jq with -a (ASCII output) so every non-ASCII code point is written as \\uXXXX, which is both faithful and terminal-safe. For stderr, either apply the same escaping or add the sequences above and truncate on a character boundary (drop a trailing incomplete lead byte and its continuation bytes after the 256-byte cut).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "log_model_signal",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "safe_skill=$(strip_controls \"$active_skill\")",
+      "cross_file_justification": null,
+      "description": "The case statement classifies the raw active_skill, but the row stores the stripped copy. A claim of implement<U+200B> or implement<U+009B> correctly misses the implementation patterns and asks, yet the row reads active_skill: \"implement\", decision: \"ask\", a combination the header documents as impossible, and stderr says 'detected during /implement (not an implementation skill)'. A reviewer reading the log cannot distinguish an honest implement claim from a padded one, and the one-row-per-claim guarantee from run-2 finding 6 loses its diagnostic value for exactly the claims that matter.",
+      "failure_mode": "Audit rows and stderr misreport what the model actually claimed whenever the claim carried stripped characters.",
+      "suggested_fix": "Emit the row with jq -nca so the raw active_skill can be logged faithfully with all non-ASCII escaped as \\uXXXX, or keep the stripped value and add sanitized: true plus raw_bytes: N whenever strip_controls changed the string (compare lengths under LC_ALL=C).",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "canonical_path=$(cd \"$PROJECT_ROOT\" 2>/dev/null \\",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "# reach an App-Zone file unseen. Relative paths resolve from PROJECT_ROOT.",
+      "cross_file_justification": null,
+      "description": "A relative file_path is resolved from PROJECT_ROOT, which defaults to the hook process's cwd, while the harness resolves it from its own working directory (the payload's cwd field, which follows cd in the Bash tool). Claude Code documents Write and Edit paths as absolute, so a relative path is itself anomalous. When the two bases differ (cd src in Bash, then Write index.ts), the hook classifies index.ts against the root as non-App-Zone and allows, while the harness writes src/index.ts. The diff makes the PROJECT_ROOT base explicit without closing the mismatch.",
+      "failure_mode": "A relative path that is App Zone from the harness's cwd is allowed when the hook's cwd differs.",
+      "suggested_fix": "Tighten-only: treat any non-absolute file_path as un-classifiable and ask. If relative support is wanted, resolve from the payload's cwd (jq -r '.cwd // empty') and derive the root from ${CLAUDE_PROJECT_DIR:-$(pwd)}.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "emit_ask",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"%s\"}}\\n' \"$1\"",
+      "cross_file_justification": null,
+      "description": "emit_ask interpolates its argument into a JSON literal with %s and no escaping. All four current call sites pass fixed strings, so this is safe today, but the 'never model-authored text' rule is enforced only by convention. A future reason containing a double quote or backslash would emit malformed hook output, which Claude Code treats as a non-blocking hook error rather than an ask, turning the fail-ask path into fail-open for that branch.",
+      "failure_mode": "A future reason string with a quote silently downgrades an ask to a hook-output error and the write proceeds.",
+      "suggested_fix": "Build the reply with jq when available: jq -nc --arg r \"$1\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"ask\",permissionDecisionReason:$r}}', keeping the printf literal only as the fallback for the jq-missing branch. Alternatively assert in a test that every emit_ask argument in the file is a literal without quote characters.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T03:09:12Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 32733,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4ae4e960ca9a2115804827a5295e987fc8a7c184859a5b0001bb9e7e6f218626",
+      "run_tag": "a7-gate"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

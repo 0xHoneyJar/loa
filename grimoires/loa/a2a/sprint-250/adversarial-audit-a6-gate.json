@@ -1,0 +1,171 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "elif [[ \"$file_path\" == /* ]]; then",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "file_path=$(echo \"$input\" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || file_path=\"\"",
+      "cross_file_justification": null,
+      "description": "The App Zone check in implement-gate.sh (.claude/hooks/compliance/implement-gate.sh) is a string-prefix comparison against $PROJECT_ROOT, not a canonical path comparison. Any absolute path that does not start with the literal \"$PROJECT_ROOT/\" is kept as-is and then explicitly excluded from the src/|lib/|app/ patterns (\"don't match against App Zone patterns\"), so the hook exits 0 silently. tool_input.file_path is model-authored (the diff's own threat model, n17/n18), so a prompt-injected or misbehaving model can write any App Zone file without the gate ever asking by spelling the path non-canonically, e.g. `/proc/self/cwd/src/index.ts`, `/run/user/1000/../1000/loa-claude-ws/src/index.ts`, `//run/user/1000/loa-claude-ws/src/index.ts`, `/run/user//1000/loa-claude-ws/src/index.ts`, or the realpath of a symlinked project root. The Write/Edit tool resolves all of these to the real App Zone file. This is pre-existing (T4.5), but the whole purpose of this diff is to make the gate tighten-only against model-authored input, and this bypass sits one line above the code the diff hardens. Note the heuristic and authoritative branches both run only after is_app_zone=true, so this defeats every control in the file, including the new model_signal logging.",
+      "failure_mode": "Model writes `/proc/self/cwd/src/x.ts` (or any `..`/`//`/symlink spelling outside the PROJECT_ROOT prefix). Hook: prefix test fails, path is absolute, is_app_zone stays false, `exit 0` with empty stdout = allow. User is never prompted; no audit row is written. The App Zone file is modified outside an implementation skill and outside RUNNING state.",
+      "suggested_fix": "Canonicalize before comparing: `root=$(cd \"$PROJECT_ROOT\" 2>/dev/null && pwd -P)`; `canon=$(realpath -m -- \"$file_path\" 2>/dev/null)` (fall back to `readlink -f` / compat-lib helper on macOS); if canon is empty treat as App Zone and ask (fail-ask, per the header). Then test `[[ \"$canon\" == \"$root/\"* ]]` and apply the src/|lib/|app/ patterns to `${canon#\"$root\"/}`. Additionally, any absolute path that resolves *inside* the root but was spelled outside the prefix should ask rather than allow. Add a bats case for `/proc/self/cwd/src/x`, `//$ROOT/src/x`, and `$ROOT/../$(basename $ROOT)/src/x` expecting ask.",
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "check_implementation_active",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "if [[ \"$is_app_zone\" == \"false\" ]]; then",
+      "cross_file_justification": null,
+      "description": "The diff makes authoritative mode strictly tighter than the heuristic, but the heuristic itself trusts files the same untrusted author can write. check_implementation_active() allows an App Zone write if .run/state.json has state==\"RUNNING\", .run/simstim-state.json has phase==\"implementation\", or .run/sprint-plan-state.json has state==\"RUNNING\" plus any non-empty plan_id. Writes to .run/ are not App Zone, so this very hook allows them silently (expected.tsv: `write-state-active-review.json allow allow`). The only integrity controls are the plan_id presence check and a 24h staleness check that applies to one of the three files and is skipped entirely when last_activity is absent or unparseable (last_epoch=0 short-circuits the age test). The header claims ATK-005 (state tampering) is addressed; it is not. Consequently the \"tighten-only\" guarantee in this diff is relative to a baseline the model can flip to allow in one extra tool call. I could not verify whether a separate hook protects .run/ writes; if one exists, downgrade to LOW.",
+      "failure_mode": "Model issues Write to `.run/state.json` with `{\"state\":\"RUNNING\"}` (allowed silently, non-App-Zone). Next Write to `src/anything.ts` hits check_implementation_active → return 0 → `exit 0` allow. No ask, no audit row. Same with `.run/simstim-state.json` `{\"phase\":\"implementation\"}` or sprint-plan-state.json with a fabricated plan_id and no timestamps.",
+      "suggested_fix": "Treat Write/Edit/MultiEdit whose normalized path is under .run/ (and .loa.config.yaml) as ask in this hook rather than always-allow, or have the skill runner that legitimately sets RUNNING sign the state (HMAC with a key held outside the model's write reach, e.g. $RUN_DIR/../.loa-secrets or an env var set by the harness) and verify it here. At minimum apply the staleness check to all three state files and fail the check (return 1) when last_activity is missing or unparseable instead of skipping it.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "safe_file_path=$(printf '%s' \"$file_path\" | LC_ALL=C tr -d '[:cntrl:]')",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "active_skill=$(echo \"$input\" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=\"\"",
+      "cross_file_justification": null,
+      "description": "The n21 sanitizer in implement-gate.sh strips only C-locale control bytes (0x00-0x1F, 0x7F). Multi-byte UTF-8 sequences pass through, so Unicode bidi/format characters (U+202E RLO, U+200B ZWSP, U+2066-2069 isolates) in a model-authored active_skill or file_path reach both the [AUTHORITATIVE]/[ADVISORY] stderr lines and the audit.jsonl model_signal row. The sibling fix in the same diff (detect-platform-features.sh --line, n24) deliberately uses `tr -cd '[:print:]'` for exactly this reason, so the two sanitizers are inconsistent. The structured JSON is safe (jq --arg), but anything that renders the row or stderr (terminal, /loa status, log viewers) can show a reversed/spoofed skill name or path. IG-13 only asserts on \\x01-\\x1f\\x7f so it does not catch this.",
+      "failure_mode": "Model sends active_skill \"‮tnemelpmi\" and file_path with embedded RLO. Stderr and audit row display as \"implement\"/a benign-looking path to an operator, masking which skill/path was actually claimed while still being recorded as an ask.",
+      "suggested_fix": "Use the same filter as the --line path for the display/log copies: `LC_ALL=C tr -cd '[:print:]'` (optionally `cut -c1-N` to bound length). If non-ASCII paths must be preserved in the audit row, keep the raw value in a separate `file_path_raw` field and put the printable-only version in the human-readable fields. Extend IG-13 with a U+202E case and a `grep '[^[:print:]]'` assertion on stderr and the row.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "evidence=$(jq -r 'if (.active_skill_seen_at // \"\") != \"\" then \"seen \\(.active_skill_seen_at) via \\(.active_skill_source // \"unknown\")\" else empty end' \\",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "active_skill_source: ($b.active_skill_source | if . == \"tool_input\" then . else null end),",
+      "cross_file_justification": null,
+      "description": "In detect-platform-features.sh the n24 whitelist (timestamp regex, source must equal \"tool_input\") is applied only on the hourly refresh. The --line path, which produces the operator-visible /loa status line, reads active_skill_seen_at and active_skill_source raw from .run/platform-features.json and only filters to printable ASCII. .run/ is writable by the model (non-App-Zone, always allowed by implement-gate.sh), so until the next refresh the line can read e.g. \"seen 2026-01-01T00:00:00Z via harness\" or \"seen <any 120 printable chars>\". IG-14 confirms the refresh drops a forged source but does not test that --line rejects it.",
+      "failure_mode": "Model writes .run/platform-features.json with `{\"active_skill_seen_at\":\"now\",\"active_skill_source\":\"harness signal confirmed\"}`; for up to an hour `/loa` shows that string as evidence, nudging the operator toward opting into authoritative mode on false pretenses.",
+      "suggested_fix": "Apply the identical validation in the --line jq expression: `if (.active_skill_seen_at|type==\"string\" and test(\"\\\\A[0-9]{4}-...Z\\\\z\")) and .active_skill_source==\"tool_input\" then ... else empty end`. Factor the two filters into one jq snippet (or a small function in compat-lib.sh) so they cannot drift.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "if [[ -z \"$file_path\" ]]; then",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "input=$(cat 2>/dev/null) || input=\"\"",
+      "cross_file_justification": null,
+      "description": "The header states \"FAIL-ASK for App Zone writes (not fail-open)\" and \"Parse/read errors on App Zone writes → ask\", but file_path extraction has no fallback: if jq is absent, stdin is unreadable, or the payload is not valid JSON, file_path is empty and the hook exits 0 (allow) before any zone check. The fallback-logging branch later checks `command -v jq`, showing jq absence is an anticipated condition, yet the decision path does not handle it. Pre-existing; the diff restates the FAIL-ASK claim in the header without making it true.",
+      "failure_mode": "jq missing or broken on the runner → every Write/Edit, including App Zone, is silently allowed with no audit row.",
+      "suggested_fix": "Distinguish \"jq unavailable / parse failed\" from \"field absent\": if `command -v jq` fails or `jq -e . <<<\"$input\"` fails, emit the ask JSON with a reason like \"[GATE] could not evaluate tool_input\" and exit 0. Only treat a genuinely absent file_path on a parsed payload as allow.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "implement|/implement|bug|/bug|run|/run|simstim|/simstim)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "'{timestamp: $ts, event: \"compliance.mode.model_signal\", mode: \"authoritative\", active_skill: $skill, file_path: $path, decision: \"ask\"}' \\",
+      "cross_file_justification": null,
+      "description": "Audit-trail gaps in the new tighten-only branch. (1) A model-authored *implementation* claim (implement/bug/run/simstim) now falls through to the heuristic but writes no audit row, whereas an absent field writes compliance.mode.fallback and a non-implementation claim writes model_signal. The n17/n18 concern is precisely that the model may claim \"implement\" to look legitimate; that is the one case that leaves no trace in audit.jsonl, so an operator cannot later see how often the model asserted an implementation skill while RUNNING state allowed the write. (2) The comment says the model signal is logged \"once\", but the row is appended on every invocation, so model-authored input drives unbounded growth of .run/audit.jsonl with unbounded-length skill/path strings (only control chars are stripped).",
+      "failure_mode": "Post-incident review of audit.jsonl shows no evidence that the model repeatedly claimed /implement during App Zone writes; alternatively a looping model fills the log with multi-KB rows.",
+      "suggested_fix": "Log a compliance.mode.model_signal row with decision \"heuristic\" (or a distinct event) for the implementation-claim branch too, so every non-empty model claim under authoritative mode is recorded. Bound `safe_skill`/`safe_file_path` with `cut -c1-256` before logging, and either dedupe per (skill,path) within a session or fix the \"once\" comment to match behavior.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T02:34:15Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 15005,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "94bd1218cb081d6542fa70bf2256f488db0ceeadd9fb18534e878b079d049b17",
+      "run_tag": "a6-gate"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

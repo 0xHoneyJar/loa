@@ -1,0 +1,138 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "CHANGELOG.md: Cycle-126 addendum bullet '**Implement-gate evidence on `/loa`.**'",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md: Cycle-126 addendum bullet '**Implement-gate evidence on `/loa`.**'",
+      "cross_file_justification": "grimoires/loa/sdd.md D-4.4 (context lines in this diff) still specifies an `implement_gate.mode: authoritative` branch tested against PreToolUse payloads 'with and without `active_skill`'. The new CHANGELOG text states the harness sets no skill field, `tool_input` is model-written, and `active_skill` 'never changes the gate's decision'. The two documents now disagree on whether a model-controlled field can drive the gate.",
+      "description": "The CHANGELOG correctly documents that `tool_input.active_skill` is untrusted (written by the model, not the harness) and is recorded as evidence only. The SDD D-4.4 design, unchanged in this diff, still describes an opt-in authoritative mode whose decision input is that same field. Nothing in the diff withdraws D-4.4 or records that authoritative mode was abandoned.",
+      "failure_mode": "If the authoritative branch exists in `implement-gate.sh`, or is later implemented from the SDD as written, the model can include `active_skill: implementing` (or whatever value the gate expects) in its own tool call input and satisfy the implement gate without the `.run/` state the heuristic path requires. The gate's purpose (blocking write tools outside an active implementation run) would be bypassable by the agent it constrains.",
+      "suggested_fix": "Amend SDD D-4.4 in this change to state that authoritative mode is withdrawn until the harness provides a harness-set skill field, and that `implement_gate.mode` is not honoured. Add a unit test asserting the gate decision is identical for payloads with and without `tool_input.active_skill`. Verify no `authoritative` branch remains in `.claude/hooks/implement-gate.sh` or `detect-platform-features.sh`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "CHANGELOG.md: Cycle-126 addendum bullet '**A host with one provider family.**'",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The guidance tells operators on single-provider hosts to set `flatline_protocol.security_audit.companion_voice: false` so audits stop being marked `DEGRADED_SECURITY_REVIEW`. On such a host the companion voice cannot run either way, so the config change does not restore two-voice coverage. It only removes the marker that records the audit ran at reduced assurance.",
+      "failure_mode": "Security audits on single-family hosts are produced without the degradation marker while remaining single-voice. Any downstream consumer that keys on `DEGRADED_SECURITY_REVIEW` (merge gates, envelope verifiers, the Decision Log) accepts a reduced-assurance audit as a full one, and the audit trail no longer distinguishes a deliberate two-voice review from one that silently lost its second voice.",
+      "suggested_fix": "Keep a visible status in the envelope whenever a `security_audit` completes with one voice, regardless of why (e.g. `companion_voice: disabled_by_config` alongside `planned: false, reason: no_route`). Reword the addendum to say the marker is correct on one-family hosts and that disabling the companion is a recorded assurance downgrade, not a fix. Add a test that a config-disabled companion on `security_audit` still produces a distinguishable degraded status.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "grimoires/loa/known-failures.md: KF-040 '**Current workaround**' line and '### Reading guide'",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "KF-040 documents that the direct Anthropic API refused a request with a 400 'not allowed from unsupported countries, regions, or territories', and records as the current workaround routing the same hop through `~/.local/bin/claude-bedrock`. The second attempt row adds a caveat to confirm the Bedrock region, but the entry still presents Bedrock as the standard run mode for this condition and leaves open whether `claude-fallback` should auto-switch on this 400.",
+      "failure_mode": "Operators treat a provider-side regional access-control refusal as a routing problem and send the same workload through another provider from the same egress location. If the Bedrock region or the operator's AWS terms do not permit that location either, the organisation is out of compliance with both providers while the run succeeds. If `claude-fallback` is later changed to fall back on this 400, the restriction is bypassed silently with no operator decision recorded.",
+      "suggested_fix": "Reorder the reading guide so the first instruction is to resolve the host egress (VPN/region) and confirm the direct route works, with Bedrock presented as a conditional route that requires a recorded region and terms check. State explicitly that `claude-fallback` must not auto-fallback on the geo 400 and that this is a deliberate decision. Have the E2E evidence record the egress region used for any Bedrock-routed hop.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "authz",
+      "anchor": "CHANGELOG.md: Cycle-126 addendum bullet '**Opus 5.5 is the `opus` alias.**', sentence beginning 'Every Anthropic entry in the catalog, direct or through Bedrock, now has a `model-permissions.yaml` row'",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "CHANGELOG.md: 'Every Anthropic entry in the catalog ... now has a `model-permissions.yaml` row with the same trust scopes as `claude-opus-4-7`'",
+      "cross_file_justification": "grimoires/loa/sdd.md D-4.2 (context in this diff) records that `model-permissions.yaml` is read by `routing/context_filter.py` and is covered by no signature, digest or trust-store reference. The D-4.1 amendment added in this diff introduces `claude-opus-5-5` sourced from vendor web pages with a `fallback_chain` to `claude-opus-5`, and the CHANGELOG states every catalog entry, including Bedrock routes, inherited the 4.7 scopes.",
+      "description": "Trust scopes governing which context classes may be sent to a model were copied wholesale from `claude-opus-4-7` to every Anthropic catalog entry, including Bedrock-routed ones and the newly added `claude-opus-5-5`. The registry is unsigned and the only test asserts a row exists, not that its scopes were reviewed. The CHANGELOG notes the rows have no runtime effect unless `hounfour.feature_flags.context_filtering` is enabled.",
+      "failure_mode": "When `context_filtering` is turned on, sensitive context classes are released to models and routes (including third-party-hosted Bedrock endpoints) that were never individually assessed, because the registry says they are trusted at the same level as a reviewed model. A future catalog addition that passes `test_trust_scopes.py` by copying a row gains the same access automatically. An unsigned registry means an unreviewed edit to those scopes is indistinguishable from a reviewed one.",
+      "suggested_fix": "Record a per-entry review note in `model-permissions.yaml` for each new row (who reviewed, date, basis), and extend `test_trust_scopes.py` to fail on a row with no review annotation. Distinguish Bedrock routes from direct routes in scope assignment. Consider adding the registry to the signed trust store or a checksummed sidecar so edits require operator signing, since it becomes a runtime authorisation input once the feature flag is enabled.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-250",
+    "timestamp": "2026-10-07T01:43:01Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 10940,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1535b84baf6005b20f90bc230613f841eded96da32f3c2ee31d2dac04b6b1842",
+      "run_tag": "d3-docs"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

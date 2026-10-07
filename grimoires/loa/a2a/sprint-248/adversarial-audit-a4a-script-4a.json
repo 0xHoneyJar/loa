@@ -1,0 +1,183 @@
+{
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "title": "Untrusted companion metadata can delete arbitrary empty files",
+      "body": "`_fold_companion` trusts `.metadata.rejected_sidecar` from `companion.result.json`, accepts absolute paths, resolves relative paths under `PROJECT_ROOT`, and then runs `rm -f` on the target when it exists and is empty. A malicious or malformed companion result can set `metadata.rejected_sidecar` to an arbitrary empty file path such as a lock, sentinel, or config marker writable by the review runner, causing file deletion outside the intended sidecar area. Constrain sidecar paths to a dedicated work/output directory, reject absolute paths and `..` traversal, and avoid deleting files named by untrusted JSON.",
+      "description": "`_fold_companion` trusts `.metadata.rejected_sidecar` from `companion.result.json`, accepts absolute paths, resolves relative paths under `PROJECT_ROOT`, and then runs `rm -f` on the target when it exists and is empty. A malicious or malformed companion result can set `metadata.rejected_sidecar` to an arbitrary empty file path such as a lock, sentinel, or config marker writable by the review runner, causing file deletion outside the intended sidecar area. Constrain sidecar paths to a dedicated work/output directory, reject absolute paths and `..` traversal, and avoid deleting files named by untrusted JSON.",
+      "file": ".claude/scripts/adversarial-review.sh",
+      "line": 3263,
+      "anchor": "_fold_companion: command rm -f -- \"$_sc_abs\"",
+      "id": "DISS-001",
+      "id_derived": true,
+      "failure_mode": "`_fold_companion` trusts `.metadata.rejected_sidecar` from `companion.result.json`, accepts absolute paths, resolves relative paths under `PROJECT_ROOT`, and then runs `rm -f` on the target when it ex",
+      "failure_mode_derived": true,
+      "anchor_status": "out_of_scope",
+      "demotion_reason": "Demoted: anchor not in diff scope",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "[[ -f \"$_sc_abs\" && ! -s \"$_sc_abs\" ]] && command rm -f -- \"$_sc_abs\"",
+      "cross_file_justification": null,
+      "description": "`metadata.rejected_sidecar` is read out of companion.result.json and used as a filesystem path with no normalization: an absolute value is used verbatim, a relative one is joined to PROJECT_ROOT without rejecting `..` components. The only guard before `rm -f` is 'regular file and zero bytes'. Empty regular files are common and meaningful (CLI lock files such as the one the surrounding comments describe, `.keep`/sentinel files, other runs' `companion.duplicate` markers, flag files). Anyone who can influence the companion envelope or write into the workdir can delete any empty file the process can reach. The check-then-delete is also a TOCTOU window.",
+      "failure_mode": "A crafted or corrupted companion envelope deletes an unrelated empty file, e.g. the CLI lock for another hop or run, breaking mutual exclusion or a sentinel another process relies on.",
+      "suggested_fix": "Do not trust the path in the envelope. Compute the sidecar path the fold itself expects, or resolve the given value with `realpath -m` and require the result to be under the a2a rejected-sidecar directory, rejecting absolute values and any `..` segment before `rm`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": "_fold_companion",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "if [[ -s \"$workdir/companion.result.json\" ]] && jq -e 'type == \"object\"' < \"$workdir/companion.result.json\" >/dev/null 2>&1; then",
+      "cross_file_justification": "The trigger is in the diff-touched .claude/scripts/adversarial-review.sh. The impact depends on the companion walker (elsewhere in the same script) writing companion.result.json on failure the way the primary path does; the fold already assumes primary envelopes can carry status api_failure/malformed_response, so the same must be assumed for companion envelopes.",
+      "description": "`comp_status` becomes `succeeded` on mere presence of a JSON object. The companion's own `metadata.status` is never inspected, even though the same jq program treats a primary envelope with `api_failure` or `malformed_response` as a failed voice. If the companion walker emits its envelope on failure (as the primary path evidently does), a companion that never produced a review is folded as a succeeded voice: its empty findings are merged, `independent` may evaluate true, `counted_as` becomes `independent_voice`, and the synthetic FAILED vq envelope that would have told the aggregator about the dropped voice is never written.",
+      "failure_mode": "Fail-open in a security review gate: verdict quality credits a second, independent voice that reviewed nothing, so a run with one working model reports cross-family consensus and a clean verdict.",
+      "suggested_fix": "Treat `($c.metadata.status // \"\") | IN(\"api_failure\",\"malformed_response\")` exactly like a missing companion.result.json and route to the failure branch (synthetic FAILED envelope, failure class). Also require `.findings | type == \"array\"` as part of the success test.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "info-disclosure",
+      "anchor": "_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "grep -Ev 'model-invoke failed with exit code|^\\[model-adapter:shim\\]' | tail -1 | cut -c1-300",
+      "cross_file_justification": null,
+      "description": "The diagnostic line is cut to 300 characters BEFORE it reaches the shared redactor and the sk-/xai-/gsk_/AIza sed. Truncation can shorten a credential below the patterns' minimum lengths (`{12,}`, `{20,}`, and whatever the shared redactor requires for Bearer/URL credentials), so a partial key survives into the operator-facing stderr line. The same line is logged with no control-character stripping, so a provider error body carrying ANSI or CR sequences can rewrite or forge log lines in the operator's terminal (e.g. a fake 'Companion voice: independent' message).",
+      "failure_mode": "Partial API key or a forged status line lands in the stderr log that operators read to judge the run.",
+      "suggested_fix": "Redact first, then truncate. Strip non-printables (e.g. `tr -cd '[:print:]'`) before passing the line to `log`. Consider making the redactor's minimum-length patterns tolerant of truncated tails or redact anything after a known key prefix regardless of length.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "cost_cents=$(echo \"$cres\" | jq -r '((.metadata.cost_usd // 0) * 10000 | round) / 100')",
+      "cross_file_justification": null,
+      "description": "Only `type == \"object\"` is verified on the companion envelope. Under errexit+pipefail, a `cost_usd` that is a string, a `findings` value that is not an array of objects (`.value + {...}` on a non-object errors), or a non-numeric `rejected_count` makes jq fail inside an assignment and aborts the fold, taking the whole review with it instead of degrading. Separately, `companion.rc` is validated with `^[0-9]+$`, which admits `08`/`09`; `$(( rc <= 255 ? rc : 1 ))` then raises an octal 'value too great for base' error and `--argjson e \"\"` fails the synthetic-envelope write.",
+      "failure_mode": "A malformed companion envelope or rc file crashes the aggregation (review denial of service) rather than producing a degraded envelope, so the gate neither passes nor reports.",
+      "suggested_fix": "Validate shape in one `jq -e` (`.findings|type==\"array\" and (.findings|all(type==\"object\")) and ((.metadata.cost_usd//0)|type==\"number\")`) and route failures to the failed branch. Use `10#$rc` in arithmetic or tighten the rc regex to `^(0|[1-9][0-9]{0,2})$`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "_fold_companion",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": "local _redactor=\"${_ADV_REDACTOR_BIN:-$PROJECT_ROOT/.claude/scripts/lib/log-redactor.sh}\"",
+      "cross_file_justification": null,
+      "description": "An environment variable selects the executable that receives the UNREDACTED diagnostic line (the provider's raw error text, which is precisely where credentials show up). Any environment the script inherits, including CI job environments that untrusted workflow changes can influence, can point this at an arbitrary program and capture the pre-redaction text. The existing `-x` check does not constrain location or ownership.",
+      "failure_mode": "Pre-redaction diagnostic text, potentially containing a provider key, is handed to an attacker-chosen binary.",
+      "suggested_fix": "Drop the override in non-test builds, or restrict it to a path under PROJECT_ROOT/.claude/scripts/lib owned by the invoking user; alternatively only honor it when an explicit test flag is set.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T07:05:16Z",
+    "tokens_input": 95007,
+    "tokens_output": 15406,
+    "cost_usd": 0,
+    "latency_ms": 35586,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-a4a-script-4a.jsonl",
+    "repaired_count": 1,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 20,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [
+      "claude-headless:shared_with_companion"
+    ],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-248/adversarial-rejected-audit-a4a-script-4a.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "a8e6ae291bbb8c724ea2fe4efd2c10de7579c1d89d4c3fe19b9016a3e44b315f",
+      "run_tag": "a4a-script-4a"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

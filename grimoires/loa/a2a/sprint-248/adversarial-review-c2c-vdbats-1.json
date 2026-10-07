@@ -1,0 +1,90 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/verdict-derive.bats:@test \"verdict-derive: the section must carry one triage line per rejected payload — an empty or short section is INCONSISTENT (sprint-248 review, chunk b BLOCKING)\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The third leg of this test (bullets before the section and in the next one) is the only review fixture in the file whose body omits the prose verdict marker 'Sprint 9 has been reviewed and approved.' that every sibling leg carries (s4 legs 1/2/4, s7, s11, s12, s16, _vd_approved_review). Without it the review gate's prose/trailer comparison can produce its own violation against the APPROVED trailer, so the guard `[ \"$status\" -eq 1 ] || { echo \"bullets outside the section were counted: $output\"; return 1; }` is satisfied whether or not the counter stopped at the next heading. The following substring assertion (`holds 1 top-level triage line(s)`…`2 rejected payload(s)`) still discriminates a counter that reads past the section, so the leg is not vacuous — but its diagnostic names the wrong cause on failure and the leg cannot show that the section-scoped count is the sole violation, which is exactly the class the s12 leg was corrected for ('the siblings' prose verdict marker too — the leg exercises the same prose/trailer path').",
+      "failure_mode": "A regression in the heading-scoped counter would be reported by this leg as the substring mismatch only; a reader following the custom message would be told bullets outside the section were counted when the exit-1 could equally come from the missing prose marker. A future edit that relaxes the substring assertion (e.g. to `[ \"$status\" -eq 1 ]` alone) would leave the leg green for the wrong reason.",
+      "suggested_fix": "Add `echo \"Sprint 9 has been reviewed and approved. All acceptance criteria met.\"` to the third leg's body as the other legs do, and pin the claim under --json: `run _vd_quiet \"$SCRIPT\" --file \"$d/engineer-feedback.md\" --gate review --json; echo \"$output\" | jq -e '(.violations | length) == 1 and (.violations[0] | test(\"holds 1 top-level triage line.*2 rejected payload\"))'` so the triage count is shown to be the only violation.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-248",
+    "timestamp": "2026-10-05T04:17:50Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 29448,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "85b224e31a88eebd6ad165deedafca9d2d2db8f2f0031f447530525062a9bced",
+      "run_tag": "c2c-vdbats-1"
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}
