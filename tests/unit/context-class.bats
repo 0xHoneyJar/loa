@@ -72,7 +72,7 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
   ! grep -q ';' "$T/.run/context-class"
 }
 
-@test "CC-7 --show prints the recorded class without recomputing or rewriting; with no record it computes like --line" {
+@test "CC-7 --show prints the recorded class without recomputing or rewriting; with no record it says so and writes nothing" {
   run bash "$HOOK" --root "$T" --model claude-haiku-4-5-20251001 < /dev/null
   [ "$(_class)" = "standard" ]
   local before; before=$(stat -c %Y "$T/.run/context-class" 2>/dev/null || stat -f %m "$T/.run/context-class")
@@ -86,8 +86,22 @@ _basis() { sed -n 2p "$T/.run/context-class" | grep -o 'basis=[a-z]*' | cut -d= 
   rm -f "$T/.run/context-class"
   run bash "$HOOK" --root "$T" --show < /dev/null
   [ "$status" -eq 0 ]
-  [[ "$output" == "Context: long (default; thresholds 20K/50K/30K/150K"* ]]
-  [ "$(_class)" = "long" ]
+  [[ "$output" == "Context: no record"* ]]
+  [ ! -e "$T/.run/context-class" ]
+}
+
+@test "CC-18 --show with no record is read-only: no stdin read, no .run/context-class, exit 0 at once (BB-010)" {
+  mkfifo "$T/stdin.fifo"
+  # a writer that never writes: a --show that reads stdin would wait on it (and a --line fallback writes the record)
+  sleep 30 > "$T/stdin.fifo" &
+  local writer=$! start=$SECONDS
+  run timeout 5 bash "$HOOK" --root "$T" --show < "$T/stdin.fifo"
+  kill "$writer" 2>/dev/null; wait "$writer" 2>/dev/null || true
+  [ "$status" -eq 0 ]
+  [[ "$output" == "Context: no record"* ]]
+  (( SECONDS - start < 2 ))
+  [ ! -e "$T/.run/context-class" ]
+  [ ! -d "$T/.run" ]
 }
 
 @test "CC-8 hook wiring: present in both settings files, behind hook-guard.sh (re-fires are handled by the hook, CC-17)" {

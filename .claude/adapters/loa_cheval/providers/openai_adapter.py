@@ -29,6 +29,7 @@ from loa_cheval.providers.openai_streaming import (
     parse_openai_chat_stream,
     parse_openai_responses_stream,
 )
+from loa_cheval.routing.ceiling import is_token_limit_message
 from loa_cheval.streaming import StreamingRecoveryAbort
 from loa_cheval.types import (
     CompletionRequest,
@@ -201,7 +202,7 @@ class OpenAIAdapter(ProviderAdapter):
                         }
                     }
                 if status == 429:
-                    raise RateLimitError(self.provider)
+                    raise _rate_limit_error(self.provider, err_json)
                 if status >= 500:
                     raise ProviderUnavailableError(
                         self.provider,
@@ -304,7 +305,7 @@ class OpenAIAdapter(ProviderAdapter):
             if isinstance(resp, dict) and "error" in resp:
                 # Some providers include retry-after hint in error body
                 pass
-            raise RateLimitError(self.provider, retry_after)
+            raise _rate_limit_error(self.provider, resp, retry_after)
 
         if status >= 500:
             msg = _extract_error_message(resp)
@@ -800,3 +801,14 @@ def _extract_error_message(resp: Dict[str, Any]) -> str:
     else:
         raw = str(resp)
     return sanitize_provider_error_message(raw)
+
+
+def _rate_limit_error(provider: str, resp: Any, retry_after: Optional[float] = None) -> RateLimitError:
+    """A 429 as a RateLimitError, marked token_limited when the body names a
+    token or context budget rather than a request rate (cycle-126 D-1.1b,
+    BB-003: only that class short-circuits a hop above its probed bound)."""
+    code = ""
+    if isinstance(resp, dict) and isinstance(resp.get("error"), dict):
+        code = str(resp["error"].get("code") or resp["error"].get("type") or "")
+    return RateLimitError(provider, retry_after,
+                          token_limited=is_token_limit_message(f"{_extract_error_message(resp)} {code}"))

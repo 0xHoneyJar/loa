@@ -343,10 +343,17 @@ class ModelNotFoundError(ProviderUnavailableError):
 
 
 class RateLimitError(ChevalError):
-    """Provider returned 429 Too Many Requests."""
+    """Provider returned 429 Too Many Requests.
 
-    def __init__(self, provider: str, retry_after: Optional[float] = None):
-        super().__init__("RATE_LIMITED", f"Rate limited by {provider}", retryable=True, context={"provider": provider, "retry_after": retry_after})
+    ``token_limited`` is True when the provider's message says the limit hit is
+    a token (input/context) one rather than a request rate — only that class
+    ends the chain for a hop above its probed bound (cycle-126 D-1.1b, BB-003).
+    """
+
+    def __init__(self, provider: str, retry_after: Optional[float] = None, token_limited: bool = False):
+        super().__init__("RATE_LIMITED", f"Rate limited by {provider}", retryable=True,
+                         context={"provider": provider, "retry_after": retry_after, "token_limited": bool(token_limited)})
+        self.token_limited = bool(token_limited)
 
 
 class BudgetExceededError(ChevalError):
@@ -666,7 +673,12 @@ def dispatch_provider_stream_error(
     detail = error.message_detail
 
     if category == "rate_limit":
-        return RateLimitError(provider=provider or "unknown")
+        try:
+            from loa_cheval.routing.ceiling import is_token_limit_message
+            _token_limited = is_token_limit_message(detail)
+        except Exception:  # noqa: BLE001 — classification must not fail the dispatch; unknown = request-rate (walks)
+            _token_limited = False
+        return RateLimitError(provider=provider or "unknown", token_limited=_token_limited)
     if category == "overloaded":
         return ProviderUnavailableError(
             provider=provider or "unknown",

@@ -2350,11 +2350,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     )
                 continue
             except RateLimitError as _e:
-                if _hop_unverified:
-                    # cycle-126 D-1.1b: a 429 on a request that proceeded above
-                    # the probed bound (the token-limit class) is not walked and
-                    # is recorded for calibration; the bound is NOT lowered from
-                    # a 429 (a request-rate limit must not poison it). The
+                if _hop_unverified and getattr(_e, "token_limited", False):
+                    # cycle-126 D-1.1b: a token-limit 429 (the provider's message
+                    # names a token or context budget) on a request that proceeded
+                    # above the probed bound is not walked and is recorded for
+                    # calibration; the bound is NOT lowered from a 429. Any other
+                    # 429 — a request rate — says nothing about the payload's size
+                    # and walks like it does under the bound (BB-003). The
                     # transport layer already retried it with backoff.
                     return _calibration_needed_exit(
                         _entry, _entry_target, _e, error_class="RATE_LIMIT_UNVERIFIED",

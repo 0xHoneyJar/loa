@@ -12,7 +12,8 @@
   provider limit (opt-in)   → CEILING_UNVERIFIED_LIMIT, NO chain walk, an
                               observed-bound row, preempt on the next call
   provider limit (default)  → PROVIDER_CONTEXT_LIMIT, no walk, recorded
-  429 while unverified      → RATE_LIMIT_UNVERIFIED, no walk, bound unchanged
+  token-limit 429 unverified → RATE_LIMIT_UNVERIFIED, no walk, bound unchanged
+  request-rate 429 unverified → walks to the next hop (BB-003)
   170K on a 200K entry      → max_tokens shrunk 64,000 → 30,000, recorded
 """
 from __future__ import annotations
@@ -246,7 +247,7 @@ def test_provider_limit_under_the_probed_bound_is_the_catalogs_error_and_still_n
 
 def test_429_while_unverified_is_recorded_not_walked_and_never_lowers_the_bound(monkeypatch):
     monkeypatch.setenv("LOA_CHEVAL_UNCALIBRATED_CEILING", "derived")
-    code, dispatched, cap = _run(SIX, errors=[RateLimitError("anthropic")])
+    code, dispatched, cap = _run(SIX, errors=[RateLimitError("anthropic", token_limited=True)])
     assert code == cheval.EXIT_CODES["RATE_LIMITED"] and len(dispatched) == 1
     assert _classes(cap) == ["RATE_LIMIT_UNVERIFIED"] and "calibration_needed" in _cap(cap)
     assert observed_for("anthropic", "claude-opus-5") is None and len(load_observed(observed_store_path())["entries"]) == 1
@@ -254,6 +255,18 @@ def test_429_while_unverified_is_recorded_not_walked_and_never_lowers_the_bound(
     monkeypatch.delenv("LOA_CHEVAL_UNCALIBRATED_CEILING")
     code, dispatched, cap = _run(_prompt_of_tokens(100_000), errors=[RateLimitError("anthropic")])
     assert code == cheval.EXIT_CODES["SUCCESS"] and len(dispatched) == 2 and _classes(cap) == ["PROVIDER_OUTAGE"]
+
+
+def test_request_rate_429_while_unverified_walks_to_the_next_hop(monkeypatch):
+    """Bridgebuilder BB-003: the short-circuit is for a token-limit 429 (PRD FR-1 ceiling policy). A plain
+    requests-per-minute 429 on a hop above its probed bound says nothing about the payload's size, so the
+    chain walks to the next voice instead of ending the invocation, and no calibration row is written."""
+    monkeypatch.setenv("LOA_CHEVAL_UNCALIBRATED_CEILING", "derived")
+    code, dispatched, cap = _run(SIX, errors=[RateLimitError("anthropic")])
+    assert len(dispatched) == 2, "the fallback hop is tried"
+    assert code == cheval.EXIT_CODES["SUCCESS"] and _classes(cap) == ["PROVIDER_OUTAGE"]
+    assert "calibration_needed" not in _cap(cap)
+    assert len(load_observed(observed_store_path())["entries"]) == 0
 
 
 def test_170k_on_a_200k_entry_shrinks_the_output_budget_instead_of_failing(capsys):

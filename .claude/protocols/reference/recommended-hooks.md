@@ -335,7 +335,7 @@ Sync Beads when sprint is marked complete.
 
 ---
 
-### 5. Test Auto-Run Hook (PostToolUse)
+### 6. Test Auto-Run Hook (PostToolUse)
 
 Run tests after code modifications (optional - can be noisy).
 
@@ -371,7 +371,7 @@ fi
 
 ---
 
-### 6. Documentation Drift Hook (PostToolUse)
+### 7. Documentation Drift Hook (PostToolUse)
 
 Check for drift after significant code changes.
 

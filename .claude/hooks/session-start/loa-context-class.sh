@@ -23,7 +23,7 @@
 # Payload: the hook's stdin JSON is read only when stdin is not a terminal.
 # `--show` (what /loa uses) prints the line for the class already recorded in
 # .run/context-class without recomputing or rewriting it; with no record it
-# behaves like --line.
+# prints a "no record" line — read-only either way: no stdin read, no write.
 # =============================================================================
 set -uo pipefail
 
@@ -69,7 +69,11 @@ if [[ "$MODE" == "show" && -f "$ROOT/.run/context-class" ]]; then
     long|standard) _print_line "$rec_class" "${rec_basis:-recorded}" "$rec_model"; exit 0 ;;
   esac
 fi
-[[ "$MODE" == "show" ]] && MODE="line"
+# no (usable) record: say so; --show never reads the payload or writes .run/ (BB-010)
+if [[ "$MODE" == "show" ]]; then
+  echo "Context: no record (the SessionStart hook has not recorded a class here; long is the default)"
+  exit 0
+fi
 
 # --- the session model: --model, else the payload's .model (when piped) -----
 if [[ -z "$MODEL" && ! -t 0 ]]; then

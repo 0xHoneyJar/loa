@@ -74,29 +74,33 @@ emit_ask() {
 # Byte sequences strip_controls removes: UTF-8 C1 controls (C2 80..C2 9F) and the format/bidi code points
 # U+200B-U+200F, U+2028-U+202E, U+2060-U+2064, U+2066-U+206F, U+FEFF, U+00AD, U+061C, U+180E, U+FE00-U+FE0F,
 # U+FFF9-U+FFFB and the tag characters U+E0001, U+E0020-U+E007F (run-3 finding 5); each sequence starts with a lead
-# byte, so a byte-wise match never lands inside another character; printf -v keeps this portable (no GNU-sed \x)
+# byte, so a byte-wise match never lands inside another character
+# printf -v keeps this portable (no GNU-sed \x); built on first use, not on every Write/Edit (BB-008)
 _IG_STRIP_SEQS=()
-for (( _ig_i = 128; _ig_i < 160; _ig_i++ )); do
-    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xc2\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for _ig_hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do
-    printf -v _ig_seq "\\xe2\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for _ig_hex in a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af; do
-    printf -v _ig_seq "\\xe2\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for _ig_seq in '\xef\xbb\xbf' '\xc2\xad' '\xd8\x9c' '\xe1\xa0\x8e' '\xef\xbf\xb9' '\xef\xbf\xba' '\xef\xbf\xbb' '\xf3\xa0\x80\x81'; do
-    printf -v _ig_seq "$_ig_seq"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for (( _ig_i = 128; _ig_i < 144; _ig_i++ )); do   # U+FE00-U+FE0F = EF B8 80..EF B8 8F
-    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xef\\xb8\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for (( _ig_i = 160; _ig_i < 192; _ig_i++ )); do   # U+E0020-U+E003F = F3 A0 80 A0..F3 A0 80 BF
-    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
-for (( _ig_i = 128; _ig_i < 192; _ig_i++ )); do   # U+E0040-U+E007F = F3 A0 81 80..F3 A0 81 BF
-    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
-done
+_ig_strip_seqs_init() {
+    local _ig_i _ig_hex _ig_seq
+    for (( _ig_i = 128; _ig_i < 160; _ig_i++ )); do
+        printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xc2\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for _ig_hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do
+        printf -v _ig_seq "\\xe2\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for _ig_hex in a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af; do
+        printf -v _ig_seq "\\xe2\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for _ig_seq in '\xef\xbb\xbf' '\xc2\xad' '\xd8\x9c' '\xe1\xa0\x8e' '\xef\xbf\xb9' '\xef\xbf\xba' '\xef\xbf\xbb' '\xf3\xa0\x80\x81'; do
+        printf -v _ig_seq "$_ig_seq"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for (( _ig_i = 128; _ig_i < 144; _ig_i++ )); do   # U+FE00-U+FE0F = EF B8 80..EF B8 8F
+        printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xef\\xb8\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for (( _ig_i = 160; _ig_i < 192; _ig_i++ )); do   # U+E0020-U+E003F = F3 A0 80 A0..F3 A0 80 BF
+        printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+    for (( _ig_i = 128; _ig_i < 192; _ig_i++ )); do   # U+E0040-U+E007F = F3 A0 81 80..F3 A0 81 BF
+        printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+    done
+}
 
 # Sets the variable named $1 to at most 256 bytes of $2, never ending inside a UTF-8 character: a trailing lead byte
 # whose sequence the cut left short, or stray continuation bytes, are dropped (run-3 finding 5; jq would read a split
@@ -125,6 +129,7 @@ strip_controls() {
     local LC_ALL=C s prev seq
     cut_utf8_256 s "$1"
     s=$(printf '%s' "$s" | tr -d '\000-\037\177')
+    (( ${#_IG_STRIP_SEQS[@]} )) || _ig_strip_seqs_init
     while :; do
         prev=$s
         for seq in "${_IG_STRIP_SEQS[@]}"; do s=${s//"$seq"/}; done
@@ -246,9 +251,12 @@ fi
 
 # The root-relative forms, lowercased: on a case-insensitive filesystem (macOS default, ext4 casefold) Src/ is src/,
 # and on a case-sensitive one this only adds asks for a directory literally named Src/ — tighten-only (run-3 finding 2)
+# bash 3.2 has no lowercase parameter expansion (BB-001: a bad substitution there left rel_forms empty and the hook exited 0); LC_ALL=C so a
+# BSD tr never stops at a byte that is not valid UTF-8 ("Illegal byte sequence") — the patterns are ASCII
+_ig_lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 rel_forms=()
-if rel=$(_ig_under_root "$canonical_path" "$canonical_root"); then rel_forms+=("${rel,,}"); fi
-if rel=$(_ig_under_root "$logical_path" "$logical_root"); then rel_forms+=("${rel,,}"); fi
+if rel=$(_ig_under_root "$canonical_path" "$canonical_root"); then rel_forms+=("$(_ig_lower "$rel")"); fi
+if rel=$(_ig_under_root "$logical_path" "$logical_root"); then rel_forms+=("$(_ig_lower "$rel")"); fi
 
 # Audit-row copy of a model-authored value: raw, cut to 256 bytes on a character boundary; jq -a escapes the rest
 cut_utf8_256 audit_file_path "$file_path"

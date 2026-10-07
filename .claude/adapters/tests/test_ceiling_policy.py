@@ -12,6 +12,7 @@ bound is a policy over the catalog entry, not a literal:
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -170,6 +171,36 @@ def test_context_limit_messages_are_classified_and_parsed():
     assert parse_context_limit("request_too_large") == {"input_tokens": None, "limit": None, "max_tokens": None}
 
 
+def test_token_limit_429_messages_are_told_apart_from_request_rate_ones():
+    """BB-003: a 429 is the token-limit class only when the provider's message says so."""
+    from loa_cheval.routing.ceiling import is_token_limit_message
+    for msg in ("This request would exceed the rate limit for your organization of 30,000 input tokens per minute.",
+                "Rate limit reached for gpt-5.5-pro on tokens per min (TPM): Limit 30000, Requested 612000.",
+                "Request too large for gpt-5.5-pro on tokens per min (TPM)",
+                "context_length_exceeded",
+                "prompt is too long: 612000 tokens > 400000 maximum"):
+        assert is_token_limit_message(msg), msg
+    for msg in ("Rate limit reached for gpt-5.5-pro on requests per min (RPM): Limit 500",
+                "This request would exceed the rate limit for your organization of 50 requests per minute.",
+                "", None):
+        assert not is_token_limit_message(msg), msg
+
+
+def test_adapters_mark_a_token_limit_429(monkeypatch):
+    """The Anthropic and OpenAI adapters set RateLimitError.token_limited from the 429 body."""
+    from loa_cheval.providers import anthropic_adapter, openai_adapter
+    from loa_cheval.types import RateLimitError, dispatch_provider_stream_error, ProviderStreamError
+    assert RateLimitError("anthropic").token_limited is False
+    assert RateLimitError("anthropic", token_limited=True).token_limited is True
+    assert anthropic_adapter._rate_limit_error("anthropic", {"error": {"message": "30,000 input tokens per minute"}}).token_limited
+    assert not anthropic_adapter._rate_limit_error("anthropic", {"error": {"message": "50 requests per minute"}}).token_limited
+    assert openai_adapter._rate_limit_error("openai", {"error": {"message": "on tokens per min (TPM): Limit 30000"}}).token_limited
+    assert not openai_adapter._rate_limit_error("openai", {"error": {"message": "on requests per min (RPM)"}}).token_limited
+    assert not openai_adapter._rate_limit_error("openai", "not a dict").token_limited
+    assert dispatch_provider_stream_error(ProviderStreamError("rate_limit", "input tokens per minute"), provider="anthropic").token_limited
+    assert not dispatch_provider_stream_error(ProviderStreamError("rate_limit", "429 received"), provider="anthropic").token_limited
+
+
 def test_observed_store_records_atomically_and_reduces_to_the_tightest_bound(tmp_path, monkeypatch):
     path = tmp_path / "run" / "ceiling-observed.json"  # parent missing on a fresh mount → created
     monkeypatch.setenv(OBSERVED_PATH_ENV, str(path))
@@ -308,3 +339,37 @@ def test_record_observed_never_follows_a_planted_symlink_at_the_lock_path(tmp_pa
     with pytest.raises(OSError):
         record_observed(provider="anthropic", model="m", observed_input_tokens=1, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
     assert target.read_text() == "keep" and not path.exists()
+
+
+def test_record_observed_refuses_a_lock_symlink_without_o_nofollow(tmp_path, monkeypatch):
+    """Bridgebuilder F3: on a platform without O_NOFOLLOW the open would follow a planted symlink;
+    the lstat before the open and the fstat/lstat identity check after it refuse it anyway, and the
+    target (or a dangling target's path) is never touched."""
+    monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+    path = tmp_path / "ceiling-observed.json"
+    target = tmp_path / "elsewhere.txt"
+    target.write_text("keep")
+    lock = tmp_path / "ceiling-observed.json.lock"
+    lock.symlink_to(target)
+    with pytest.raises(OSError):
+        record_observed(provider="anthropic", model="m", observed_input_tokens=1, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
+    assert target.read_text() == "keep" and not path.exists()
+    lock.unlink()
+    dangling = tmp_path / "never-created.txt"
+    lock.symlink_to(dangling)
+    with pytest.raises(OSError):
+        record_observed(provider="anthropic", model="m", observed_input_tokens=1, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
+    assert not dangling.exists() and not path.exists()
+    # the normal path still records
+    lock.unlink()
+    row = record_observed(provider="anthropic", model="m", observed_input_tokens=7, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
+    assert row["observed_input_tokens"] == 7 and observed_for("anthropic", "m", load_observed(str(path))) == 7
+    assert lock.is_file() and not lock.is_symlink()
+
+
+def test_record_observed_refuses_a_lock_that_is_not_a_regular_file(tmp_path):
+    path = tmp_path / "ceiling-observed.json"
+    os.mkfifo(tmp_path / "ceiling-observed.json.lock")
+    with pytest.raises(OSError):
+        record_observed(provider="anthropic", model="m", observed_input_tokens=1, error_class="PROVIDER_CONTEXT_LIMIT", path=str(path))
+    assert not path.exists()

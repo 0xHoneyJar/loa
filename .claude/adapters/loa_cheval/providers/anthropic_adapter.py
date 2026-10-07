@@ -43,7 +43,7 @@ from loa_cheval.types import (
     dispatch_provider_stream_error,
 )
 from loa_cheval.routing import EmptyContentError
-from loa_cheval.routing.ceiling import is_context_limit_message, parse_context_limit
+from loa_cheval.routing.ceiling import is_context_limit_message, is_token_limit_message, parse_context_limit
 
 logger = logging.getLogger("loa_cheval.providers.anthropic")
 
@@ -343,7 +343,7 @@ class AnthropicAdapter(ProviderAdapter):
                 except Exception:
                     err_json = {"error": {"message": err_bytes.decode("utf-8", errors="replace")[:500]}}
                 if status == 429:
-                    raise RateLimitError(self.provider)
+                    raise _rate_limit_error(self.provider, err_json)
                 if status >= 500:
                     raise ProviderUnavailableError(
                         self.provider,
@@ -489,7 +489,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         # Handle errors
         if status == 429:
-            raise RateLimitError(self.provider)
+            raise _rate_limit_error(self.provider, resp)
 
         if status >= 500:
             msg = _extract_error_message(resp)
@@ -811,3 +811,14 @@ def _extract_error_message(resp: Dict[str, Any]) -> str:
     else:
         raw = str(resp)
     return sanitize_provider_error_message(raw)
+
+
+def _rate_limit_error(provider: str, resp: Any, retry_after: Optional[float] = None) -> RateLimitError:
+    """A 429 as a RateLimitError, marked token_limited when the body names a
+    token or context budget rather than a request rate (cycle-126 D-1.1b,
+    BB-003: only that class short-circuits a hop above its probed bound)."""
+    code = ""
+    if isinstance(resp, dict) and isinstance(resp.get("error"), dict):
+        code = str(resp["error"].get("code") or resp["error"].get("type") or "")
+    return RateLimitError(provider, retry_after,
+                          token_limited=is_token_limit_message(f"{_extract_error_message(resp)} {code}"))

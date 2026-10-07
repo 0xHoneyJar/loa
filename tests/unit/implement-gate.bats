@@ -133,7 +133,7 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
 @test "IG-9 detect-platform-features.sh: the env var and the probe file no longer set the flag; the evidence is reported, never promoted" {
     printf 'confirmed\n' > "$ROOT/.run/.active-skill-probe"
     printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z","active_skill_source":"tool_input"}\n' > "$ROOT/.run/platform-features.json"
-    touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
+    touch -t 202601010000 "$ROOT/.run/platform-features.json"
     run bash -c 'cd "$1" && CLAUDE_ACTIVE_SKILL_AVAILABLE=1 PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
     [ "$status" -eq 0 ]
     run jq -r '[.active_skill_available, .harness_signal, .active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
@@ -258,13 +258,13 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" --line' _ "$ROOT" "$DETECT"
     [ "$output" = "Implement gate: heuristic (active_skill evidence: seen 2026-01-01T00:00:00Z via unknown; no harness skill signal)" ]
     printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z\\u202e","active_skill_source":"tool\\u200b_input"}\n' > "$ROOT/.run/platform-features.json"
-    touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
+    touch -t 202601010000 "$ROOT/.run/platform-features.json"
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
     run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
     [ "$output" = "null null" ]
     # a well-shaped seen_at with an unknown source keeps the seen_at only
     printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z","active_skill_source":"forged"}\n' > "$ROOT/.run/platform-features.json"
-    touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
+    touch -t 202601010000 "$ROOT/.run/platform-features.json"
     run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
     run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
     [ "$output" = "2026-01-01T00:00:00Z null" ]
@@ -454,6 +454,21 @@ state_aged() {
     state_aged sprint-plan-state.json 0 '{plan_id: "p", state: "RUNNING"}'
     gate_path "$ROOT/src/x.ts"
     [ "$(decision)" = allow ] || { echo "sprint-plan fresh: expected allow, got $(decision)" >&2; return 1; }
+}
+
+@test "IG-23 the gate runs on bash 3.2: no bash-4 case-conversion expansion, and on a 3.x bash LIB/x.js still asks (BB-001)" {
+    # \${v,,} is a "bad substitution" on macOS bash 3.2; with no set -e the hook would carry on with no root-relative
+    # form, skip both zone loops and exit 0 — fail-open on the path the header documents as fail-ask
+    run -1 grep -nE '\$\{[A-Za-z_][A-Za-z_0-9]*(,,|\^\^|,|\^)\}' "$GATE"
+    local b old_bash=""
+    for b in /bin/bash /usr/local/bin/bash /opt/homebrew/bin/bash $(type -ap bash 2>/dev/null); do
+        [[ -x "$b" ]] || continue
+        if "$b" -c '[[ ${BASH_VERSINFO[0]} -lt 4 ]]' 2>/dev/null; then old_bash="$b"; break; fi
+    done
+    [[ -n "$old_bash" ]] || return 0   # no 3.x binary here: the lint pin alone
+    jq -nc --arg p "$ROOT/LIB/x.js" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr "$old_bash" -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$4" "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json" "$old_bash"
+    [ "$(decision)" = ask ]
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {

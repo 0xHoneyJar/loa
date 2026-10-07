@@ -220,7 +220,7 @@ FR-1.1, FR-1.5, FR-2.1, FR-2.2, FR-3.1 — the five changes that stop the curren
 
 - G-1: the 600K fixture passes pre-flight; BB table and reasoning flag correct for the 5-family; Flatline caps catalog-derived.
 - G-2: two voices on this host; the three fixtures produce findings; the feedback section is enforced.
-- G-3: budgets green with headroom; A/B not worse; include regenerated.
+- G-3: budgets green with headroom; A/B not worse; include regenerated. **Outcome 2026-10-07 (Bridgebuilder PR #1274 BB-015):** budgets green (`CLAUDE.loa.md` 10,225 / 10,240 B; protocols 131,189 B, down from 199,593 B); the A/B gate held only after the pre-registered revert of the `CLAUDE.loa.md` trim (Sprint 4 Task 4.8, `bf988a43`), so the headroom goal is met for the protocols and not for `CLAUDE.loa.md`, whose Sprint 3 "≤ 9,216 B" criterion was given up for recall (sprint.md Sprint 3 ACs; `a2a/sprint-250/replay-ab-rerun.md`).
 - G-4: no 4.x id as default or "current" in live code; registry has the 5-family.
 - G-5: fence corpus 100 % dangerous / ≥ 80 % benign unchanged; every existing suite green; kill switches tested.
 

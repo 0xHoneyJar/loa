@@ -32,6 +32,7 @@ import fcntl
 import json
 import os
 import re
+import stat as _stat
 import tempfile
 from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, List, Optional
@@ -176,6 +177,26 @@ def is_context_limit_message(message: str) -> bool:
     return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS)
 
 
+# A 429 whose message names a token budget (Anthropic: "... 30,000 input tokens
+# per minute"; OpenAI: "... on tokens per min (TPM)") or a context limit; a
+# requests-per-minute 429 names none of these (BB-003).
+_TOKEN_RATE_LIMIT_MARKERS = (
+    "tokens per min",   # also "tokens per minute", "input tokens per minute", "output tokens per minute"
+    "tokens per day",
+    "(tpm)",
+    "context_length_exceeded",
+    "max_tokens",
+)
+
+
+def is_token_limit_message(message: Optional[str]) -> bool:
+    """True when a 429's message is of the token/context-limit class rather
+    than a request-rate one (cycle-126 D-1.1b: only that class short-circuits
+    the chain for a hop above its probed bound)."""
+    low = (message or "").lower()
+    return any(marker in low for marker in _TOKEN_RATE_LIMIT_MARKERS) or is_context_limit_message(low)
+
+
 def _num(text: str) -> int:
     return int(text.replace(",", ""))
 
@@ -262,6 +283,29 @@ def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = Non
     return best
 
 
+def _refuse_unsafe_lock(lock_path: str, fd: Optional[int]) -> None:
+    """Raise OSError unless ``lock_path`` is a regular file (not a symlink)
+    owned by this user; with ``fd``, also unless it is the file ``fd`` opened.
+    A missing path before the open is fine (O_CREAT makes it)."""
+    try:
+        st = os.lstat(lock_path)
+    except FileNotFoundError:
+        if fd is None:
+            return
+        raise
+    if _stat.S_ISLNK(st.st_mode):
+        raise OSError(f"refusing a symlink at the observed-store lock path: {lock_path}")
+    if not _stat.S_ISREG(st.st_mode):
+        raise OSError(f"refusing a non-regular file at the observed-store lock path: {lock_path}")
+    getuid = getattr(os, "getuid", None)
+    if getuid is not None and st.st_uid != getuid():
+        raise OSError(f"refusing an observed-store lock owned by another user: {lock_path}")
+    if fd is not None:
+        fst = os.fstat(fd)
+        if (fst.st_ino, fst.st_dev) != (st.st_ino, st.st_dev):
+            raise OSError(f"the observed-store lock path changed while it was opened: {lock_path}")
+
+
 def record_observed(
     *,
     provider: str,
@@ -286,8 +330,17 @@ def record_observed(
     # still makes every write atomic for readers, which take no lock.
     lock_path = path + ".lock"
     # O_NOFOLLOW: a symlink planted at the lock path is refused, never followed
-    # (the repo's atomic-write symlink defence; the caller fails soft).
+    # (the repo's atomic-write symlink defence; the caller fails soft). Where
+    # the platform has no O_NOFOLLOW the lstat before the open refuses a
+    # symlink (so a dangling one's target is never created) and the identity
+    # check after it closes the swap window (Bridgebuilder F3).
+    _refuse_unsafe_lock(lock_path, None)
     lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o644)
+    try:
+        _refuse_unsafe_lock(lock_path, lock_fd)
+    except BaseException:
+        os.close(lock_fd)
+        raise
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
         return _record_observed_locked(path, directory, provider, model, observed_input_tokens,
