@@ -55,6 +55,15 @@ Serial bats and pytest in the real tree (`env -u CLAUDE_HEADLESS_BIN -u AWS_BEAR
 
 ---
 
+### Flatline review integration (2026-10-07; scoring degraded — KF-041 — integrated by judgment)
+- **Clean vs partial probe outcome (AC 3, SDD D-3.7/3.8).** *Clean*: an attempt at N accepted and verified by the echoed needle, a size-class rejection at the next step within `--tolerance-tokens`, and no `other` classification anywhere in the bisection. *Partial*: any `other` failure, a budget abort, an unverified completion counted as the bound, or inconsistent classifications (accept above a rejection). Only a clean outcome writes the catalog; a partial one writes the record and keeps 180K, and the entry's `ceiling_calibration.reprobe_trigger` gains a pointer to the attempt record.
+- **Budget (Task 1.5).** Before the first call the probe prints the worst-case per-step cost and the step count that fits in `--budget-usd 20` at the catalog price; spend is cumulative across attempts and retries; the lead runs with `CLAUDE_HEADLESS_BIN=$HOME/.local/bin/claude-bedrock` and `AWS_BEARER_TOKEN_BEDROCK` present (the wrapper reads its own secret), then re-runs the affected suites under the usual `env -u CLAUDE_HEADLESS_BIN -u AWS_BEARER_TOKEN_BEDROCK` isolation.
+- **Conformance.** One fixture config pair (opt-in on / off) is read by every reader — the agy adapter, `adversarial-review.sh`, `flatline-orchestrator.sh`, Bridgebuilder, `run-preflight.sh`, `loa-status.sh` — and a conformance test asserts they agree; a non-boolean value fails loudly at the loader. With agy off and a *different* voice failing, verdict quality still reports DEGRADED (negative test).
+- **SC ↔ AC map.** SC-1 ↔ AC 1 (gate and planners), SC-2 ↔ AC 2 (effort), SC-3 ↔ AC 3 (probe), SC-4 ↔ AC 4 plus the review/audit gates.
+- **Loop stop condition.** The unattended loop is `/run sprint-plan`'s: at most the circuit breaker's cycles per gate; CHANGES_REQUIRED → `/implement` round; APPROVED review → `/audit-sprint`; APPROVED audit → COMPLETED → PR. Dissent ≤ 2 runs per gate for this one-sprint cycle.
+- **Scope-cut order if blocked.** FR-1 > FR-2 > FR-3 transport code > FR-3 live run (the live run may end as "attempt recorded, 180K kept" and still satisfy AC 3).
+- **Rollback.** FR-1: unset or set the key to false (default-off is the safe state); FR-2: delete the `default_effort` line from the `claude-opus-5-5` entry; FR-3: revert the catalog diff and keep the report.
+
 ## MVP Definition
 All three FRs; the probe may legitimately end with "attempt recorded, 180K kept" if the bound is unclean — that outcome still satisfies the AC.
 
@@ -62,4 +71,4 @@ All three FRs; the probe may legitimately end with "attempt recorded, 180K kept"
 See SDD §9. The probe is the only step with external uncertainty; it is bounded by budget and by the no-write-on-partial rule.
 
 ## Success Metrics
-PRD KPIs: verdict quality on this host not DEGRADED on the google voice's account; `effort: high` by default for `opus`; a measured Opus 5.5 bound or a documented attempt.
+PRD KPIs: verdict quality on this host not DEGRADED on the agy route's account (the google-family voice, which reaches Gemini only through agy here); `effort: high` by default for `opus`; a measured Opus 5.5 bound or a documented attempt.
