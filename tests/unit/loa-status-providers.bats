@@ -9,6 +9,9 @@ bats_require_minimum_version 1.5.0
 # =============================================================================
 
 setup() {
+  # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+  # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+  umask 022
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   STATUS="$PROJECT_ROOT/.claude/scripts/loa-status.sh"
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/lsp.XXXXXX")"
@@ -250,4 +253,14 @@ YAML
   run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check
   [ "$status" -eq 0 ]
   [ "$(grep -c 'agy-gate-lib.sh.*not loaded' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+}
+
+@test "LSP-COLD (r251-5 U4, audit LOW-004) loa-status --json on a cold workflow-state cache is one valid JSON document" {
+  # (the AGC-6 batch flake: the first --json call after a grimoire edit missed the workflow-state cache, cache-manager's
+  # "v Cached result for key" line led workflow-state's stdout, and the final jq merge exited 5 — no retry hides it here:
+  # CACHE_DIR is a fresh directory, so this call is always the miss)
+  run --separate-stderr env CACHE_DIR="$T/cold-cache" LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" \
+      timeout 180 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+  jq -e '.providers.providers | type == "object"' >/dev/null <<<"$output" || { printf '%s\n' "$output" | head -5 | cat -v; return 1; }
 }

@@ -49,6 +49,9 @@ _place_marker() {  # <tmp> <marker> → 0 placed; 1 (named, SPRINT cleared) when
     mv -f -- "$1" "$2"
 }
 setup() {
+    # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+    # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+    umask 022
     # the sprint id and its directory come FIRST: teardown runs on any setup failure, and a delete
     # target derived from an unset id would be the a2a root (fourth run, chunk c C-001)
     SPRINT="sprint-comp-$$"

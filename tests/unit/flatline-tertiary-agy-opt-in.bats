@@ -9,6 +9,9 @@
 bats_require_minimum_version 1.5.0
 
 setup() {
+    # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+    # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+    umask 022
     REPO="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     source "$REPO/.claude/scripts/flatline-orchestrator.sh"
     CONFIG_FILE="$BATS_TEST_TMPDIR/loa.config.yaml"

@@ -82,6 +82,14 @@ export declare function loaConfigPathFor(repoRoot?: string): string;
  * never sees a merge key's). */
 export declare const AGY_YQ_HAS = ".hounfour | (kind == \"map\" and (.headless | (kind == \"map\" and has(\"agy_opt_in\"))))";
 /**
+ * Why the opt-in config is not the current user's alone to write, or undefined when it is (review r251-5 U1/U2, audit
+ * MED-001/LOW-001): ONE permission rule with cheval's `loader._config_untrusted_reason` and the bash lib's
+ * `_agy_config_untrusted` — owned by the current user and neither group- nor world-writable (group-writable refused
+ * unconditionally). `statSync` follows a symlink: the target decides, as in the other readers. A config that cannot be
+ * stat'ed is untrusted (fail closed). Where the platform has no uid (`process.getuid` absent), the owner half is skipped.
+ */
+export declare function agyConfigUntrustedReason(configPath: string): string | undefined;
+/**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
  * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.

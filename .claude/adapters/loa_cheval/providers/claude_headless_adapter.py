@@ -160,6 +160,10 @@ def build_headless_argv(
     return cmd
 
 
+# r251-5 U3: the static-auth markers that outrank a `please wait`-only throttle match in _raise_for_error
+_STATIC_AUTH_MARKERS = ("not logged in", "/login", "authentication", "invalid api key", "unauthorized")
+
+
 class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `claude -p` (non-interactive).
 
@@ -558,9 +562,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         # "Too many tokens, please wait before trying again" carries the context marker `too many tokens`, and a
         # 429 / 529 counts only in status position (never digits inside a stated token count).
         from loa_cheval.routing.ceiling import (
-            is_context_limit_message, is_throttle_message, is_token_limit_message, parse_context_limit,
+            is_context_limit_message, is_throttle_beyond_wait, is_throttle_message, is_token_limit_message,
+            parse_context_limit,
         )
         _throttle = is_throttle_message(full_diag)
+        # r251-5 U3 (audit LOW-003): a static-auth marker outranks a throttle that rests on `please wait` alone ("Not
+        # logged in · please wait, then run /login" is an auth failure, never retried and walked); a 429 / 529 status or
+        # a named rate / token / overload / quota marker still wins as the throttle.
+        if _throttle and any(m in diag_lower for m in _STATIC_AUTH_MARKERS) and not is_throttle_beyond_wait(full_diag):
+            _throttle = False
         if is_context_limit_message(full_diag) and not _throttle:
             _nums = parse_context_limit(full_diag)
             raise ProviderContextLimitError(
@@ -600,6 +610,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         if (
             "not logged in" in diag_lower
             or "/login" in diag_lower
+            or "invalid api key" in diag_lower   # (r251-5 U3: one of the static-auth markers above)
             or "unauthorized" in diag_lower
             or "401" in full_diag
             or "authentication" in diag_lower

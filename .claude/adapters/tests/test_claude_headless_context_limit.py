@@ -244,3 +244,46 @@ def test_a_cli_hop_without_an_anthropic_http_entry_gets_no_calibrate_hint(chain)
 def test_a_non_claude_cli_hop_gets_no_calibrate_hint():
     head, cli = _hop("openai", "gpt-5.5", "http"), _hop("openai", "codex-headless", "cli")
     assert cheval._calibrate_hint(cli, [head, cli]) is None
+
+
+# --- review r251-5 U3 (audit LOW-003): a static-auth marker outranks a throttle match that rests on `please wait` alone ----
+
+from loa_cheval.types import AuthRevokedError, ConfigError  # noqa: E402
+
+
+@pytest.mark.parametrize("stderr,parsed,want", [
+    # the auth marker first, then `please wait` — and the reverse order: the auth class either way
+    ("Not logged in · please wait, then run /login", None, ConfigError),
+    ("Please wait — not logged in. Run /login", None, ConfigError),
+    ("", {"is_error": True, "result": "Not logged in · please wait, then run /login"}, ConfigError),
+    ("Authentication failed, please wait and retry", None, ConfigError),
+    ("Please wait: authentication required", None, ConfigError),
+    ("Invalid API key · please wait, then run /login", None, ConfigError),
+    ("Please wait. Invalid API key", None, ConfigError),
+    # `unauthorized` keeps its existing walkable class (runtime revocation) — it is not a throttle either
+    ("Unauthorized — please wait", None, AuthRevokedError),
+    ("Please wait: unauthorized", None, AuthRevokedError),
+])
+def test_r251_5_u3_an_auth_failure_saying_please_wait_is_not_a_throttle(stderr, parsed, want):
+    adapter = ClaudeHeadlessAdapter(_make_config())
+    with pytest.raises(want):
+        adapter._raise_for_error(returncode=1, stderr=stderr, parsed=parsed)
+
+
+@pytest.mark.parametrize("stderr,parsed", [
+    # a throttle that rests on more than `please wait` still wins over an auth marker, in either order
+    ("API Error: 429 not logged in? please wait", None),
+    ("not logged in? API Error: 429. please wait", None),
+    ("", {"is_error": True, "result": "Not logged in · please wait", "api_error_status": 429}),
+    ("API Error: 529 authentication service overloaded, please wait", None),
+    ("rate limit reached — please wait, then run /login", None),
+    ("please wait, then run /login: rate limit reached", None),
+    ("Authentication ok but input tokens per minute exceeded, please wait", None),
+    ("please wait: tokens per min exceeded (authentication fine)", None),
+    # and with no auth marker a bare `please wait` is a throttle as before (Bedrock)
+    ("Too many tokens, please wait before trying again", None),
+])
+def test_r251_5_u3_a_status_or_named_rate_limit_still_wins_as_a_throttle(stderr, parsed):
+    adapter = ClaudeHeadlessAdapter(_make_config())
+    with pytest.raises(RateLimitError):
+        adapter._raise_for_error(returncode=1, stderr=stderr, parsed=parsed)

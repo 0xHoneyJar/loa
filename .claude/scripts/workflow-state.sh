@@ -351,10 +351,12 @@ store_cache() {
         [[ -f "${SDD_FILE}" ]] && paths="${paths:+${paths},}${SDD_FILE}"
         [[ -f "${SPRINT_FILE}" ]] && paths="${paths:+${paths},}${SPRINT_FILE}"
 
+        # (r251-5 U4, audit LOW-004: `set` prints its own status line — "v Cached result for key: …" — on stdout; it
+        # led this script's --json output on every cache miss and broke loa-status --json's merge with jq exit 5)
         "${CACHE_MANAGER}" set \
             --key "${cache_key}" \
             --condensed "${result}" \
-            --sources "${paths}" 2>/dev/null || true
+            --sources "${paths}" >/dev/null 2>&1 || true
     fi
 }
 

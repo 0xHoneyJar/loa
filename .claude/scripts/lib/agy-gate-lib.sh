@@ -16,7 +16,9 @@
 #                                       (`*t`) or a merge key (`<<: *b`) on the path reads off, as in Python and BB). The yq
 #                                       flavour is chosen by `yq --version` (K5): mikefarah → the typed go-yq read only;
 #                                       any other yq (python yq, which wraps PyYAML) → a PyYAML node read of the source
-#                                       text, never an untyped `== true`.
+#                                       text, never an untyped `== true`. r251-5 U1/U2: a config not owned by the
+#                                       current user, or group- / world-writable, reads off (the Python and TS readers'
+#                                       rule); agy_gate_warn_once names the reason.
 #   agy_headless_mode <config>        → prints the effective hounfour.headless.mode: env LOA_HEADLESS_MODE wins (as in
 #                                       cheval), then the config, then prefer-api
 #   routes_to_agy <model> [<mode>] [<config>]
@@ -58,7 +60,36 @@ _agy_yq_is_mikefarah() {  # (review r251-2 K5) select the reader by flavour, nev
 # real mapping — `kind` is "alias" for an alias node — and `has` sees the explicit key only, never a merge key's (r251-4 S3)
 _AGY_YQ_HAS='.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))'
 
-_agy_opt_in_node() {  # <config> → "<kind> <source text>" of agy_opt_in (kind: bool | str | int | null | map | alias | <tag> …); nothing when absent/unreadable
+_agy_config_untrusted() {  # <config> → prints why the config is not the current user's alone to write and returns 0; 1 when trusted
+  # (review r251-5 U1/U2, audit MED-001/LOW-001: ONE permission rule with cheval's loader._config_untrusted_reason and
+  # Bridgebuilder's agyConfigUntrustedReason — owned by the current user and neither group- nor world-writable; group-
+  # writable is refused unconditionally, no private-group exception. stat -L: a symlink's TARGET decides, as in Python.
+  # GNU `stat -c '%u %a'`, else BSD `stat -f '%u %Lp'`; a config that cannot be stat'ed is untrusted — fail closed)
+  local cfg="${1:-}" st uid mode me
+  st=$(stat -L -c '%u %a' -- "$cfg" 2>/dev/null) || st=$(stat -L -f '%u %Lp' -- "$cfg" 2>/dev/null) || st=""
+  read -r uid mode <<<"$st"
+  if [[ ! "$uid" =~ ^[0-9]+$ || ! "$mode" =~ ^[0-7]{3,4}$ ]]; then
+    printf '%s could not be stat'"'"'ed (owner and mode unknown)\n' "$cfg"; return 0
+  fi
+  me="${EUID:-$(id -u)}"
+  if [[ "$uid" != "$me" ]]; then printf '%s is not owned by the current user (uid %s, euid %s)\n' "$cfg" "$uid" "$me"; return 0; fi
+  if (( 8#$mode & 8#002 )); then printf '%s is world-writable (mode %04o)\n' "$cfg" "$(( 8#$mode & 8#7777 ))"; return 0; fi
+  if (( 8#$mode & 8#020 )); then printf '%s is group-writable (mode %04o)\n' "$cfg" "$(( 8#$mode & 8#7777 ))"; return 0; fi
+  return 1
+}
+
+_agy_opt_in_node() {  # <config> → "<kind> <source text>" of agy_opt_in (kind: bool | str | int | null | map | alias | <tag> …); nothing when absent/unreadable;
+  # "untrusted <reason>" when the value would opt in but others can write the config (r251-5 U1 — it reads off;
+  # agy_gate_warn_once says why). The permission rule decides only a value that would opt in, as in the Python and TS
+  # readers: a config that reads off anyway is not flagged (a umask-002 host that never opted in hears nothing)
+  local n why
+  n=$(_agy_opt_in_node_raw "${1:-}")
+  if [[ "$n" == "bool true" ]] && why=$(_agy_config_untrusted "$1"); then printf 'untrusted %s\n' "$why"; return 0; fi
+  [[ -n "$n" ]] && printf '%s\n' "$n"
+  return 0
+}
+
+_agy_opt_in_node_raw() {  # <config> → the node read of _agy_opt_in_node, without the permission rule
   local cfg="${1:-}" has k t v
   [[ -n "$cfg" && -f "$cfg" ]] || return 0
   if command -v yq >/dev/null 2>&1 && _agy_yq_is_mikefarah; then
@@ -206,6 +237,9 @@ agy_gate_warn_once() {
   _LOA_AGY_GATE_WARNED=1
   t=$(_agy_opt_in_node "$cfg")
   case "$t" in
+    untrusted\ *)   # (r251-5 U1: the one WARN for this config — the availability WARN below would only repeat "off")
+      printf 'WARN: %s: %s — a config others can write never opts in (own it and `chmod go-w` it); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t#untrusted }" >&2
+      return 0 ;;
     ""|"bool true"|"bool false"|null\ *) ;;
     bool\ *) printf 'WARN: %s is %s, a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t#bool }" >&2 ;;
     *) printf 'WARN: %s is present but not a YAML boolean (%s) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t%% *}" >&2 ;;

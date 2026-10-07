@@ -16,6 +16,9 @@ bats_require_minimum_version 1.5.0
 # =============================================================================
 
 setup() {
+  # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+  # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+  umask 022
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   PF="$PROJECT_ROOT/.claude/scripts/run-preflight.sh"
   GEN="$PROJECT_ROOT/tests/fixtures/notes/make-large-notes.sh"

@@ -292,6 +292,17 @@ def is_throttle_message(message: Optional[str]) -> bool:
     return any(marker in low for marker in _THROTTLE_MARKERS) or bool(_RE_THROTTLE_STATUS.search(text))
 
 
+def is_throttle_beyond_wait(message: Optional[str]) -> bool:
+    """True when the throttle verdict rests on more than the bare `please wait` — a 429 / 529 in status position or a
+    named rate / token / overload / quota marker (review r251-5 U3, audit LOW-003). The headless adapter lets a static-auth
+    marker (`not logged in`, `/login`, `authentication`, `invalid api key`, `unauthorized`) outrank a throttle that rests
+    on `please wait` alone: an auth failure that also says "please wait" is not retried and walked as a throttle."""
+    text = message or ""
+    low = text.lower()
+    return (any(marker in low for marker in _THROTTLE_MARKERS if marker != "please wait")
+            or bool(_RE_THROTTLE_STATUS.search(text)))
+
+
 # A 429 whose message names a token budget (Anthropic: "... 30,000 input tokens
 # per minute"; OpenAI: "... on tokens per min (TPM)") or a context limit; a
 # requests-per-minute 429 names none of these (BB-003).

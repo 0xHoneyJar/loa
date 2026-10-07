@@ -7,6 +7,7 @@ opt_in_required, naming the key and the reason. On: today's path (discovery, the
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loa_cheval.config.loader import agy_opt_in_enabled
 from loa_cheval.providers import get_adapter
 from loa_cheval.types import AgyOptInRequiredError, ConfigError, ModelConfig, ProviderConfig, CompletionRequest
+
+@pytest.fixture(autouse=True)
+def _owner_only_umask():
+    """The fixtures' configs are written owner-only (umask 022): under a host umask of 002 a written config is
+    group-writable, which never opts in (r251-5 U2) — these tests are about the key, not the permission rule
+    (test_agy_opt_in_r251_4.py holds that)."""
+    old = os.umask(0o022)
+    try:
+        yield
+    finally:
+        os.umask(old)
+
 
 _MOD = "loa_cheval.providers.agy_headless_adapter"
 _REFUSAL = ("agy headless route is opt-in: set hounfour.headless.agy_opt_in: true (the prompt travels on the CLI's argv, "

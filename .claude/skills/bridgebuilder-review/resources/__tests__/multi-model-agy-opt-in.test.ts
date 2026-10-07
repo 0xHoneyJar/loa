@@ -1,10 +1,10 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
-import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor, agyGateStartupLines } from "../config.js";
+import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor, agyGateStartupLines, agyConfigUntrustedReason } from "../config.js";
 import { GENERATED_MODEL_REGISTRY } from "../config.generated.js";
 import { ChevalDelegateAdapter } from "../adapters/cheval-delegate.js";
 import { executeMultiModelReview } from "../core/multi-model-pipeline.js";
@@ -18,7 +18,9 @@ import type { PRReviewTemplate } from "../core/template.js";
 function withConfig(body: string | null, fn: (path: string, root: string) => void | Promise<void>) {
   const root = mkdtempSync(join(tmpdir(), "bb-agy-gate-"));
   const path = join(root, ".loa.config.yaml");
-  if (body !== null) writeFileSync(path, body);
+  // (r251-5 U1/U2: owner-only, whatever the host umask — a group-writable config never opts in, and these tests are about
+  // the key; the permission rule has its own describe below)
+  if (body !== null) { writeFileSync(path, body); chmodSync(path, 0o644); }
   return Promise.resolve(fn(path, root)).finally(() => rmSync(root, { recursive: true, force: true }));
 }
 
@@ -547,5 +549,75 @@ describe("readAgyGate shapes (r251-4 S3: the exact bool tag; an alias or a merge
     for (const body of ["hounfour:\n  headless:\n    agy_opt_in: !<x:bool> true\n", "x: &t true\nhounfour:\n  headless:\n    agy_opt_in: *t\n"]) {
       await withConfig(body, (path) => assert.match(String(readAgyGate(path).typeWarning), /not a YAML boolean/));
     }
+  });
+});
+
+describe("readAgyGate permissions (r251-5 U1/U2, audit MED-001/LOW-001: one rule with the bash and Python readers)", () => {
+  const ON = "hounfour:\n  headless:\n    agy_opt_in: true\n";
+  for (const [mode, reason] of [[0o666, "world-writable"], [0o646, "world-writable"], [0o664, "group-writable"], [0o660, "group-writable"], [0o620, "group-writable"]] as const) {
+    it(`a ${mode.toString(8).padStart(4, "0")} true config reads off with one warning naming the key and ${reason}`, async () => {
+      await withConfig(ON, (path) => {
+        chmodSync(path, mode);
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false, JSON.stringify(g));
+        assert.equal(g.readError, undefined, "an untrusted config reads off; it is not a read error (no merge block)");
+        assert.match(String(g.typeWarning), /^hounfour\.headless\.agy_opt_in: .* is (world|group)-writable \(mode 0\d{3}\)/);
+        assert.match(String(g.typeWarning), new RegExp(reason));
+        assert.equal(agyGateStartupLines(g, { valid: [], missing: [], notPlanned: [] }).filter((l) => /agy_opt_in/.test(l)).length, 1);
+      });
+    });
+  }
+
+  for (const mode of [0o644, 0o600, 0o444]) {
+    it(`an owned ${mode.toString(8).padStart(4, "0")} true config opts in, silently`, async () => {
+      await withConfig(ON, (path) => {
+        chmodSync(path, mode);
+        assert.deepEqual({ optIn: readAgyGate(path).optIn, w: readAgyGate(path).typeWarning }, { optIn: true, w: undefined });
+      });
+    });
+  }
+
+  it("a symlink to a world-writable target: the target decides", async () => {
+    await withConfig(null, (path, root) => {
+      writeFileSync(join(root, "target.yaml"), ON);
+      chmodSync(join(root, "target.yaml"), 0o666);
+      symlinkSync("target.yaml", path);
+      const g = readAgyGate(path);
+      assert.equal(g.optIn, false);
+      assert.match(String(g.typeWarning), /world-writable/);
+    });
+  });
+
+  it("a config owned by another user reads off (process.getuid mocked: ownership cannot be faked without root)", async () => {
+    if (typeof process.getuid !== "function") return;
+    const real = process.getuid();
+    const stub = mock.method(process, "getuid", () => real + 1);
+    try {
+      await withConfig(ON, (path) => {
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false);
+        assert.match(String(g.typeWarning), /not owned by the current user/);
+      });
+    } finally {
+      stub.mock.restore();
+    }
+  });
+
+  it("only a value that would opt in is judged: a 0664 config with the key absent, false or \"true\" is never flagged", async () => {
+    for (const body of ["hounfour: {}\n", "hounfour:\n  headless:\n    agy_opt_in: false\n", 'hounfour:\n  headless:\n    agy_opt_in: "true"\n']) {
+      await withConfig(body, (path) => {
+        chmodSync(path, 0o664);
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false);
+        assert.doesNotMatch(String(g.typeWarning ?? ""), /writable/);
+      });
+    }
+  });
+
+  it("agyConfigUntrustedReason: a missing file is untrusted (fail closed); an owned 0644 file is trusted", async () => {
+    await withConfig(ON, (path, root) => {
+      assert.equal(agyConfigUntrustedReason(path), undefined);
+      assert.match(String(agyConfigUntrustedReason(join(root, "nope.yaml"))), /could not be stat'ed/);
+    });
   });
 });

@@ -1,7 +1,7 @@
 import { execFile, execFileSync, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod/v4";
 import type { BridgebuilderConfig, MultiModelConfig } from "./core/types.js";
@@ -169,6 +169,28 @@ export function loaConfigPathFor(repoRoot?: string): string {
 export const AGY_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))';
 
 /**
+ * Why the opt-in config is not the current user's alone to write, or undefined when it is (review r251-5 U1/U2, audit
+ * MED-001/LOW-001): ONE permission rule with cheval's `loader._config_untrusted_reason` and the bash lib's
+ * `_agy_config_untrusted` — owned by the current user and neither group- nor world-writable (group-writable refused
+ * unconditionally). `statSync` follows a symlink: the target decides, as in the other readers. A config that cannot be
+ * stat'ed is untrusted (fail closed). Where the platform has no uid (`process.getuid` absent), the owner half is skipped.
+ */
+export function agyConfigUntrustedReason(configPath: string): string | undefined {
+  let st: { uid: number; mode: number };
+  try {
+    st = statSync(configPath);
+  } catch {
+    return `${configPath} could not be stat'ed (owner and mode unknown)`;
+  }
+  const me = typeof process.getuid === "function" ? process.getuid() : undefined;
+  if (me !== undefined && st.uid !== me) return `${configPath} is not owned by the current user (uid ${st.uid}, euid ${me})`;
+  const mode = `mode ${(st.mode & 0o7777).toString(8).padStart(4, "0")}`;
+  if (st.mode & 0o002) return `${configPath} is world-writable (${mode})`;
+  if (st.mode & 0o020) return `${configPath} is group-writable (${mode})`;
+  return undefined;
+}
+
+/**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
  * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.
@@ -194,7 +216,14 @@ export function readAgyGate(configPath: string): AgyGate {
       const alias = parsed.kind === "alias";
       optIn = present && !alias && parsed.opt === true;
       mode = typeof parsed.mode === "string" ? parsed.mode : "";
-      if (present && alias) {
+      // (r251-5 U1: a config others can write never opts in — one WARN naming the key and the reason; not a readError:
+      // the gate reads off, exactly as the bash and Python readers, rather than blocking the merge. Only a value that
+      // would opt in is judged, as there: a config that reads off anyway is not flagged)
+      const untrusted = optIn ? agyConfigUntrustedReason(configPath) : undefined;
+      if (untrusted !== undefined) {
+        optIn = false;
+        typeWarning = `hounfour.headless.agy_opt_in: ${untrusted} — a config others can write never opts in (own it and \`chmod go-w\` it); the agy route stays off`;
+      } else if (present && alias) {
         typeWarning = "hounfour.headless.agy_opt_in is present but not a YAML boolean (an alias) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off";
       } else if (present && typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
         typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;

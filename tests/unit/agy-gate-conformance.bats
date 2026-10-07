@@ -19,6 +19,9 @@ setup() {
     # the per-user one a live dissent holds; adversarial-review-companion.bats CMP-121)
     mkdir -p "$BATS_TEST_TMPDIR/xdg"; chmod 700 "$BATS_TEST_TMPDIR/xdg"
     export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR/xdg"
+    # (r251-5 U1/U2: every reader refuses a group- or world-writable config, so the fixtures are written owner-only —
+    # under a host umask of 002 a `>` redirect makes 0664; AGC-19/20 set the modes they test explicitly)
+    umask 022
 }
 
 _cfg() {  # <mode> [agy_opt_in value|absent]
@@ -122,13 +125,16 @@ TABLE
     printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
     _cfg cli-only
     local t0=$SECONDS
-    run --separate-stderr env LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" PATH="$T/bin:$PATH" \
+    # (r251-5 U4, audit LOW-004: the batch flake was workflow-state.sh's cache MISS — cache-manager's "v Cached result"
+    # line led its --json stdout and loa-status's jq merge exited 5. A fresh CACHE_DIR makes this call the miss every time,
+    # and keeps the suite out of the checkout's .claude/cache)
+    run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" PATH="$T/bin:$PATH" \
         timeout 180 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check --json
     # (r251-4 S9, review round-2 Obs 2: on failure say WHICH failure — a `timeout 180` expiry (status 124, elapsed ≈ 180 s)
     # is not a gate mismatch (status 0 and a google block that disagrees))
     echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || {
         echo "status=$status elapsed=$(( SECONDS - t0 ))s ($([[ $status == 124 ]] && echo 'timeout 180 expired' || echo 'gate mismatch or loa-status failure'))"
-        echo "--- stderr (last 20 lines)"; printf '%s\n' "$stderr" | tail -20
+        echo "--- stderr (full)"; printf '%s\n' "$stderr"
         echo "--- google block"; jq -c '.providers.providers.google' <<<"$output" 2>/dev/null || echo "(not JSON)"
         echo "--- stdout (last 20 lines)"; printf '%s\n' "$output" | tail -20
         return 1
@@ -189,7 +195,7 @@ _three() {  # <which> → writes $CFG with mode cli-only and the opt-in absent |
         [ "$(grep -c 'not a YAML boolean' <<<"$stderr")" = "$([[ $w == string ]] && echo 1 || echo 0)" ] || { echo "dissent $w stderr=$stderr"; return 1; }
         # /loa Providers
         T="$BATS_TEST_TMPDIR/lsp-$w"; mkdir -p "$T/run" "$T/env"
-        run --separate-stderr env LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" \
+        run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" \
             timeout 120 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check --json
         if [[ "$w" == bool ]]; then
             jq -e '.providers.providers.google | has("cli_hop_note") | not' >/dev/null <<<"$output" || { echo "loa-status bool"; return 1; }
@@ -198,7 +204,7 @@ _three() {  # <which> → writes $CFG with mode cli-only and the opt-in absent |
         fi
         # (--json keeps stderr quiet for callers that merge the streams; the human Providers block says it once)
         ! grep -Eq 'not a YAML boolean|agy route is available here|agy_opt_in: true' <<<"$stderr" || { echo "loa-status --json $w warned: $stderr"; return 1; }
-        run --separate-stderr env LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" \
+        run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" \
             timeout 120 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check
         [ "$(grep -c 'not a YAML boolean' <<<"$stderr")" = "$([[ $w == string ]] && echo 1 || echo 0)" ] || { echo "loa-status $w stderr=$stderr"; return 1; }
     done
@@ -370,4 +376,101 @@ TABLE
     [ "$output" = disabled_by_opt_in ] || { echo "flatline → $output"; return 1; }
     run --separate-stderr bash -c 'PROJECT_ROOT="$1"; source "$1/.claude/scripts/adversarial-review.sh"; CONFIG_FILE="$2"; log() { echo "$*" >&2; }; _adv_agy_filter_chain code_review anthropic myg claude-headless' _ "$REPO" "$CFG"
     [ "$output" = claude-headless ] || { echo "dissent → $output ($stderr)"; return 1; }
+}
+
+# --- review r251-5 U1/U2 (audit MED-001, LOW-001): ONE permission rule in all three readers -------------------------------
+# The opt-in config must be owned by the current user and be neither group- nor world-writable; otherwise the opt-in reads
+# OFF in the bash lib, in cheval's Python loader and in Bridgebuilder's readAgyGate, and each says so once naming the key and
+# the reason. The mode half is asserted on real files (0666 0646 0664 0660 and a symlink to a 0666 target); the owner half
+# cannot be faked without root — the bash leg shims `stat` to report a foreign uid, the Python leg is
+# test_agy_opt_in_r251_4.py (geteuid monkeypatched), the TS leg multi-model-agy-opt-in.test.ts (process.getuid mocked).
+
+_ts_gate() {  # <config>... → one "on|off<TAB><typeWarning>" line per config from Bridgebuilder's readAgyGate (one tsx run)
+    local bb="$REPO/.claude/skills/bridgebuilder-review/resources"
+    (cd "$bb" && npx --no-install tsx -e '
+import { readAgyGate } from "./config.ts";
+for (const p of process.argv.slice(1)) { const g = readAgyGate(p); console.log(`${g.optIn ? "on" : "off"}\t${g.typeWarning ?? ""}`); }
+' "$@")
+}
+
+_py_gate() {  # <project root> → "on|off" from cheval's loader; its stderr to $BATS_TEST_TMPDIR/py.err
+    python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from loa_cheval.config.loader import agy_opt_in_enabled; agy_opt_in_enabled(sys.argv[2]); print("on" if agy_opt_in_enabled(sys.argv[2]) else "off")' \
+        "$REPO/.claude/adapters" "$1" 2>"$BATS_TEST_TMPDIR/py.err"
+}
+
+@test "AGC-19 (r251-5 U1/U2) a group- or world-writable \`true\` config reads off in the lib, Python and Bridgebuilder, one WARN each naming the key and the reason; 0644 / 0600 opt in" {
+    command -v npx >/dev/null 2>&1 || skip "npx not on PATH (the TS leg needs tsx)"
+    local m root want reason out err py tsv=() roots=() ms=(0666 0646 0664 0660 0620 symlink 0644 0600)
+    for m in "${ms[@]}"; do
+        root="$BATS_TEST_TMPDIR/perm-$m"; mkdir -p "$root"; roots+=("$root")
+        if [[ "$m" == symlink ]]; then
+            printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/target.yaml"; chmod 0666 "$root/target.yaml"
+            ln -s target.yaml "$root/.loa.config.yaml"
+        else
+            printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/.loa.config.yaml"; chmod "$m" "$root/.loa.config.yaml"
+        fi
+    done
+    mapfile -t tsv < <(_ts_gate "${roots[@]/%//.loa.config.yaml}")
+    [ "${#tsv[@]}" = "${#ms[@]}" ] || { echo "TS leg printed ${#tsv[@]} lines: ${tsv[*]}"; return 1; }
+    local i
+    for i in "${!ms[@]}"; do
+        m="${ms[$i]}"; root="${roots[$i]}"
+        case "$m" in 0644|0600) want=on; reason="" ;; 0664|0660|0620) want=off; reason=group-writable ;; *) want=off; reason=world-writable ;; esac
+        run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
+        py=$(_py_gate "$root"); err=$(cat "$BATS_TEST_TMPDIR/py.err")
+        [ "$output" = "$want" ] && [ "$py" = "$want" ] && [ "${tsv[$i]%%$'\t'*}" = "$want" ] || { echo "$m: bash=$output python=$py ts=${tsv[$i]} want=$want"; return 1; }
+        if [[ -n "$reason" ]]; then
+            [ "$(grep -c "hounfour.headless.agy_opt_in.*$reason" <<<"$stderr")" = 1 ] || { echo "$m bash stderr=$stderr"; return 1; }
+            [ "$(grep -c 'hounfour.headless.agy_opt_in' <<<"$stderr")" = 1 ] || { echo "$m bash said it more than once: $stderr"; return 1; }
+            [ "$(grep -c "hounfour.headless.agy_opt_in.*$reason" <<<"$err")" = 1 ] || { echo "$m python stderr=$err"; return 1; }
+            [[ "${tsv[$i]#*$'\t'}" == *hounfour.headless.agy_opt_in*"$reason"* ]] || { echo "$m ts warning=${tsv[$i]}"; return 1; }
+        else
+            [ -z "$stderr" ] || { echo "$m bash warned: $stderr"; return 1; }
+            ! grep -q 'agy_opt_in' <<<"$err" || { echo "$m python warned: $err"; return 1; }
+            [ -z "${tsv[$i]#*$'\t'}" ] || { echo "$m ts warned: ${tsv[$i]}"; return 1; }
+        fi
+    done
+}
+
+@test "AGC-20 (r251-5 U1) the bash lib refuses a config the current user does not own (stat shimmed: GNU and BSD shapes), and a stat failure reads off" {
+    _cfg prefer-api true
+    local shim="$BATS_TEST_TMPDIR/statshim" form
+    mkdir -p "$shim"
+    for form in gnu bsd fail; do
+        case "$form" in
+            gnu)  printf '#!/usr/bin/env bash\n[[ "$*" == *" -c "* ]] && { echo "%s 644"; exit 0; }\nexit 1\n' "$(( $(id -u) + 1 ))" > "$shim/stat" ;;
+            bsd)  printf '#!/usr/bin/env bash\n[[ "$*" == *" -c "* ]] && exit 1\n[[ "$*" == *" -f "* ]] && { echo "%s 644"; exit 0; }\nexit 1\n' "$(( $(id -u) + 1 ))" > "$shim/stat" ;;
+            fail) printf '#!/usr/bin/env bash\nexit 1\n' > "$shim/stat" ;;
+        esac
+        chmod +x "$shim/stat"
+        run --separate-stderr env PATH="$shim:$PATH" bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG"
+        [ "$output" = off ] || { echo "$form: a foreign-owned config opted in"; return 1; }
+        if [[ "$form" == fail ]]; then
+            grep -q 'hounfour.headless.agy_opt_in.*could not be stat' <<<"$stderr" || { echo "$form stderr=$stderr"; return 1; }
+        else
+            grep -q "hounfour.headless.agy_opt_in.*not owned by the current user" <<<"$stderr" || { echo "$form stderr=$stderr"; return 1; }
+        fi
+    done
+    # and the real stat on an owned 0644 file: on
+    run bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG"
+    [ "$output" = on ]
+}
+
+@test "AGC-21 (r251-5 U1) the permission rule judges only a value that would opt in: a 0664 config with the key absent, false or \"true\" is never flagged as writable by others" {
+    command -v npx >/dev/null 2>&1 || skip "npx not on PATH (the TS leg needs tsx)"
+    local w root roots=() tsv=() i
+    for w in absent false '"true"'; do
+        root="$BATS_TEST_TMPDIR/quiet-${#roots[@]}"; mkdir -p "$root"; roots+=("$root")
+        { printf 'hounfour:\n  headless:\n    mode: prefer-api\n'; [[ "$w" == absent ]] || printf '    agy_opt_in: %s\n' "$w"; } > "$root/.loa.config.yaml"
+        chmod 0664 "$root/.loa.config.yaml"
+    done
+    mapfile -t tsv < <(_ts_gate "${roots[@]/%//.loa.config.yaml}")
+    for i in "${!roots[@]}"; do
+        root="${roots[$i]}"
+        run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
+        [ "$output" = off ] && [ "$(_py_gate "$root")" = off ] && [ "${tsv[$i]%%$'\t'*}" = off ] || { echo "row $i: bash=$output ts=${tsv[$i]}"; return 1; }
+        ! grep -q 'writable' <<<"$stderr" || { echo "row $i bash flagged: $stderr"; return 1; }
+        ! grep -q 'writable' "$BATS_TEST_TMPDIR/py.err" || { echo "row $i python flagged: $(cat "$BATS_TEST_TMPDIR/py.err")"; return 1; }
+        [[ "${tsv[$i]}" != *writable* ]] || { echo "row $i ts flagged: ${tsv[$i]}"; return 1; }
+    done
 }

@@ -150,29 +150,20 @@ def _opt_in_root() -> str:
     return _install_root()
 
 
-def _group_is_private(gid: int) -> bool:
-    """The file's group is the current user's own (a user-private group, umask 002): their primary group, with no member
-    but them."""
-    if gid != os.getegid():
-        return False
-    try:
-        import grp
-        import pwd
-        me = pwd.getpwuid(os.geteuid()).pw_name
-        return all(m == me for m in grp.getgrgid(gid).gr_mem)
-    except (ImportError, KeyError):
-        return False
-
-
 def _config_untrusted_reason(path: Path) -> Optional[str]:
-    """None when only the current user can write `path`; else why not (r251-4 S2)."""
+    """None when only the current user can write `path`; else why not (r251-4 S2). ONE permission rule with the bash lib's
+    `_agy_config_untrusted` and Bridgebuilder's `agyConfigUntrustedReason` (r251-5 U1/U2, audit MED-001/LOW-001): owned by
+    the euid, and neither group- nor world-writable — group-writable is refused unconditionally (no private-group
+    exception: `gr_mem` lists supplementary members only, so it never proved a group private). The file is stat'ed
+    through symlinks — the target's owner and mode are what decide."""
     st = path.stat()
     if st.st_uid != os.geteuid():
         return f"not owned by the current user (uid {st.st_uid}, euid {os.geteuid()})"
+    mode = f"mode {st.st_mode & 0o7777:04o}"
     if st.st_mode & 0o002:
-        return "world-writable"
-    if st.st_mode & 0o020 and not _group_is_private(st.st_gid):
-        return f"group-writable by a shared group (gid {st.st_gid})"
+        return f"world-writable ({mode})"
+    if st.st_mode & 0o020:
+        return f"group-writable ({mode})"
     return None
 
 
@@ -206,14 +197,24 @@ def _agy_opt_in_raw(project_root: Optional[str]) -> Tuple[bool, str, str]:
     for an alias node, else the tag's short name (str / int / null / map …) and `text` the scalar's SOURCE text — the
     node, not the constructed value (review r251-2 K1: PyYAML resolves YAML 1.1, so `yes` / `on` / `True` construct to
     True; the source text tells them from `true`). A merge key (`<<: *b`) is not the key: absent (r251-4 S3). Raises on an
-    unreadable config and `_UntrustedConfig` on one others can write; callers fail closed."""
+    unreadable config and `_UntrustedConfig` when a value that would opt in sits in a config others can write; callers
+    fail closed."""
     root = project_root or _opt_in_root()
     config_path = Path(root) / ".loa.config.yaml"
     if not config_path.exists():
         return False, "", ""
-    why = _config_untrusted_reason(config_path)
-    if why:
-        raise _UntrustedConfig(f"{config_path} is {why}")
+    result = _agy_opt_in_node_of(config_path)
+    # (r251-5 U1: the permission rule decides only a value that would opt in — a config that reads off anyway is not
+    # flagged, so a umask-002 host that never opted in hears nothing; the same order in the bash and TS readers)
+    if result == (True, "bool", "true"):
+        why = _config_untrusted_reason(config_path)
+        if why:
+            raise _UntrustedConfig(f"{config_path} is {why}")
+    return result
+
+
+def _agy_opt_in_node_of(config_path: Path) -> Tuple[bool, str, str]:
+    """(present, kind, text) of `agy_opt_in` in `config_path` (an existing file) — the node read, no permission rule."""
     if not _HAS_YAML:
         return _agy_opt_in_raw_yq(str(config_path))
     with open(config_path) as f:
@@ -269,7 +270,8 @@ def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
     Read from the project config (`.loa.config.yaml`) only — never the System defaults (review r251-1 G9). With no
     `project_root`, the root is this cheval's project (`_opt_in_root`: the cwd walk's root only when its
     `.claude/adapters` is this cheval, else the install root — r251-4 S2), and a config others can write (not owned by
-    the euid, world-writable, group-writable by a shared group) reads as off with one WARN. No environment override — a
+    the euid, group- or world-writable — r251-5 U2) reads as off with one WARN; the bash and TS readers apply the same
+    rule (r251-5 U1). No environment override — a
     planner is never talked into the agy voice by ambient env. A config that cannot be read reads as off: the gate fails
     closed, and the adapter's refusal names the key. A present value not written exactly `true` / `false` reads as off
     with one WARN per process naming the key and the accepted spelling (G12, K1).
@@ -281,7 +283,8 @@ def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
     except _UntrustedConfig as e:
         if not _AGY_TRUST_WARNED:
             _AGY_TRUST_WARNED = True
-            logger.warning("%s: %s — a config others can write never opts in; the agy route stays off", _AGY_OPT_IN_KEY, e)
+            logger.warning("%s: %s — a config others can write never opts in (own it and `chmod go-w` it); "
+                           "the agy route stays off", _AGY_OPT_IN_KEY, e)
         return False
     except Exception:  # noqa: BLE001 — fail closed
         return False
