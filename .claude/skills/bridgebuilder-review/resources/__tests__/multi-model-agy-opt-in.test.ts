@@ -1,10 +1,11 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
-import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor, agyGateStartupLines, agyConfigUntrustedReason } from "../config.js";
+import { MultiModelConfigSchema, validateApiKeys, readAgyGate, isAgyRouted, loaConfigPathFor, agyGateStartupLines, agyConfigUntrustedReason, agyGroupNotPrivate } from "../config.js";
 import { GENERATED_MODEL_REGISTRY } from "../config.generated.js";
 import { ChevalDelegateAdapter } from "../adapters/cheval-delegate.js";
 import { executeMultiModelReview } from "../core/multi-model-pipeline.js";
@@ -22,6 +23,38 @@ function withConfig(body: string | null, fn: (path: string, root: string) => voi
   // the key; the permission rule has its own describe below)
   if (body !== null) { writeFileSync(path, body); chmodSync(path, 0o644); }
   return Promise.resolve(fn(path, root)).finally(() => rmSync(root, { recursive: true, force: true }));
+}
+
+/** A fake `getent` first on PATH for the duration of `fn` (r251-6 V1): this user is `loa-me` (uid / primary gid = the
+ * process's), the file's group is `group` with the listed `members`, and `othersPrimary` adds an account whose primary group
+ * is the same gid. The real account database cannot be bent without root; the bash and TS readers both read it via getent. */
+async function withGetent(
+  opts: { group?: string; members?: string; othersPrimary?: boolean; pgid?: number },
+  fn: () => void | Promise<void>,
+) {
+  const dir = mkdtempSync(join(tmpdir(), "bb-getent-"));
+  const uid = process.getuid!();
+  const gid = process.getgid!();
+  const me = `loa-me:x:${uid}:${opts.pgid ?? gid}::/nonexistent:/bin/sh`;
+  const other = opts.othersPrimary ? `staffer:x:${uid + 1}:${gid}::/nonexistent:/bin/sh` : "";
+  writeFileSync(join(dir, "getent"), [
+    "#!/bin/sh",
+    'case "$1" in',
+    `  passwd) if [ -n "$2" ]; then [ "$2" = "${uid}" ] && echo '${me}' || exit 2; else echo '${me}'; ${other ? `echo '${other}';` : ""} fi ;;`,
+    `  group) [ "$2" = "${gid}" ] && echo '${opts.group ?? "loa-me"}:x:${gid}:${opts.members ?? ""}' || exit 2 ;;`,
+    "  *) exit 1 ;;",
+    "esac",
+    "",
+  ].join("\n"));
+  chmodSync(join(dir, "getent"), 0o755);
+  const saved = process.env.PATH;
+  process.env.PATH = `${dir}:${saved ?? ""}`;
+  try {
+    await fn();
+  } finally {
+    process.env.PATH = saved;
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 describe("readAgyGate", () => {
@@ -556,7 +589,8 @@ describe("readAgyGate permissions (r251-5 U1/U2, audit MED-001/LOW-001: one rule
   const ON = "hounfour:\n  headless:\n    agy_opt_in: true\n";
   for (const [mode, reason] of [[0o666, "world-writable"], [0o646, "world-writable"], [0o664, "group-writable"], [0o660, "group-writable"], [0o620, "group-writable"]] as const) {
     it(`a ${mode.toString(8).padStart(4, "0")} true config reads off with one warning naming the key and ${reason}`, async () => {
-      await withConfig(ON, (path) => {
+      // (r251-6 V1: the group is a shared `users` — a user-private group is the exception, pinned below)
+      await withGetent({ group: "users" }, () => withConfig(ON, (path) => {
         chmodSync(path, mode);
         const g = readAgyGate(path);
         assert.equal(g.optIn, false, JSON.stringify(g));
@@ -564,7 +598,7 @@ describe("readAgyGate permissions (r251-5 U1/U2, audit MED-001/LOW-001: one rule
         assert.match(String(g.typeWarning), /^hounfour\.headless\.agy_opt_in: .* is (world|group)-writable \(mode 0\d{3}\)/);
         assert.match(String(g.typeWarning), new RegExp(reason));
         assert.equal(agyGateStartupLines(g, { valid: [], missing: [], notPlanned: [] }).filter((l) => /agy_opt_in/.test(l)).length, 1);
-      });
+      }));
     });
   }
 
@@ -620,4 +654,117 @@ describe("readAgyGate permissions (r251-5 U1/U2, audit MED-001/LOW-001: one rule
       assert.match(String(agyConfigUntrustedReason(join(root, "nope.yaml"))), /could not be stat'ed/);
     });
   });
+});
+
+describe("readAgyGate: the user-private-group exception (r251-6 V1, BB #1 — one rule with the bash and Python readers)", () => {
+  const ON = "hounfour:\n  headless:\n    agy_opt_in: true\n";
+  const hasIds = typeof process.getuid === "function" && typeof process.getgid === "function";
+
+  for (const mode of [0o664, 0o660, 0o620]) {
+    it(`a ${mode.toString(8).padStart(4, "0")} true config of the owner's private group opts in, silently`, async () => {
+      if (!hasIds) return;
+      await withGetent({}, () => withConfig(ON, (path) => {
+        chmodSync(path, mode);
+        const g = readAgyGate(path);
+        assert.deepEqual({ optIn: g.optIn, w: g.typeWarning, e: g.readError }, { optIn: true, w: undefined, e: undefined });
+      }));
+    });
+  }
+
+  for (const [label, opts, needle] of [
+    ["another member", { members: "bob" }, "'loa-me' has other members (bob)"],
+    ["named differently (a shared users)", { group: "users" }, "'users' is not named for the owner 'loa-me'"],
+    ["another account's primary group", { othersPrimary: true }, "the primary group of another account (staffer)"],
+    ["not the owner's primary group", { pgid: 4242424 }, "is not the owner's primary group"],
+  ] as const) {
+    it(`0664 + ${label}: off, one warning naming the group`, async () => {
+      if (!hasIds) return;
+      await withGetent(opts, () => withConfig(ON, (path) => {
+        chmodSync(path, 0o664);
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false, JSON.stringify(g));
+        assert.match(String(g.typeWarning), /group-writable \(mode 0664\) and /);
+        assert.ok(String(g.typeWarning).includes(needle), String(g.typeWarning));
+      }));
+    });
+  }
+
+  it("the owner listed as its own member is still private", async () => {
+    if (!hasIds) return;
+    await withGetent({ members: "loa-me" }, () => withConfig(ON, (path) => {
+      chmodSync(path, 0o664);
+      assert.equal(readAgyGate(path).optIn, true);
+    }));
+  });
+
+  it("0666 stays refused for a private group; no getent on PATH refuses a group-writable config", async () => {
+    if (!hasIds) return;
+    await withGetent({}, () => withConfig(ON, (path) => {
+      chmodSync(path, 0o666);
+      assert.match(String(readAgyGate(path).typeWarning), /world-writable/);
+    }));
+    assert.match(String(agyGroupNotPrivate(process.getuid!(), 4242424)), /could not be looked up/);
+  });
+
+  it("an ACL on a private-group config is refused (the group bits are the mask)", async () => {
+    if (!hasIds) return;
+    try { execFileSync("setfacl", ["--version"], { stdio: "ignore" }); } catch { return; }
+    await withGetent({}, () => withConfig(ON, (path) => {
+      chmodSync(path, 0o600);
+      try { execFileSync("setfacl", ["-m", "u:nobody:rw", path], { stdio: "ignore" }); } catch { return; }
+      const g = readAgyGate(path);
+      assert.equal(g.optIn, false);
+      assert.match(String(g.typeWarning), /extended ACL/);
+    }));
+  });
+});
+
+describe("readAgyGate reads one open file (r251-6 V3, BB #2)", () => {
+  it("a config swapped for an owned 0644 file while yq parses is judged on the file that was read (off)", async () => {
+    let realYq = "";
+    try { realYq = execFileSync("sh", ["-c", "command -v yq"], { encoding: "utf8" }).trim(); } catch { return; }
+    await withConfig("hounfour:\n  headless:\n    agy_opt_in: true\n", (path, root) => {
+      chmodSync(path, 0o666);
+      const bin = join(root, "bin");
+      mkdirSync(bin);
+      writeFileSync(join(root, "repl.yaml"), "hounfour:\n  headless:\n    agy_opt_in: true\n");
+      chmodSync(join(root, "repl.yaml"), 0o644);
+      writeFileSync(join(bin, "yq"), `#!/bin/sh\n"${realYq}" "$@"; rc=$?\nmv "${join(root, "repl.yaml")}" "${path}"\nexit $rc\n`);
+      chmodSync(join(bin, "yq"), 0o755);
+      const saved = process.env.PATH;
+      process.env.PATH = `${bin}:${saved ?? ""}`;
+      try {
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false, JSON.stringify(g));
+        assert.match(String(g.typeWarning), /world-writable/);
+      } finally {
+        process.env.PATH = saved;
+      }
+    });
+  });
+});
+
+describe("readAgyGate: an alias / non-mapping ancestor is said once (r251-6 V5, BB #5)", () => {
+  for (const [label, body, msg] of [
+    ["aliased headless", "h: &h\n  agy_opt_in: true\nhounfour:\n  headless: *h\n", /^hounfour\.headless is a YAML alias — hounfour\.headless\.agy_opt_in cannot be read/],
+    ["aliased hounfour", "h: &h\n  headless:\n    agy_opt_in: true\nhounfour: *h\n", /^hounfour is a YAML alias — /],
+    ["a sequence headless", "hounfour:\n  headless: [1]\n", /^hounfour\.headless is not a mapping \(seq\) — /],
+    ["a string hounfour", "hounfour: foo\n", /^hounfour is not a mapping \(str\) — /],
+  ] as const) {
+    it(`${label}: off with the ancestor warning`, async () => {
+      await withConfig(body, (path) => {
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, false);
+        assert.equal(g.readError, undefined, JSON.stringify(g));
+        assert.match(String(g.typeWarning), msg);
+        assert.match(String(g.typeWarning), /write the mapping inline/);
+      });
+    });
+  }
+
+  for (const body of ["hounfour: {}\n", "hounfour:\n  headless:\n", "x: 1\n"]) {
+    it(`${JSON.stringify(body)}: silent`, async () => {
+      await withConfig(body, (path) => assert.equal(readAgyGate(path).typeWarning, undefined));
+    });
+  }
 });

@@ -120,18 +120,31 @@ def test_s2_a_config_owned_by_another_user_reads_off_with_one_warn(tmp_path, mon
     assert len(warns) == 1 and "not owned by the current user" in warns[0], warns
 
 
+def _shared_group(monkeypatch):
+    """The file's group as a SHARED primary group (`users`): never a user-private group (r251-6 V1 keeps the exception for
+    the owner's own private group only — test_agy_r251_6.py pins both sides)."""
+    import grp
+    import pwd
+    from types import SimpleNamespace
+    me = SimpleNamespace(pw_name="loa-me", pw_uid=os.getuid(), pw_gid=os.getgid())
+    monkeypatch.setattr(pwd, "getpwuid", lambda u: me)
+    monkeypatch.setattr(pwd, "getpwall", lambda: [me])
+    monkeypatch.setattr(grp, "getgrgid", lambda g: SimpleNamespace(gr_name="users", gr_mem=[], gr_gid=g))
+
+
 @pytest.mark.parametrize("mode", [0o664, 0o660, 0o620])
-def test_r251_5_u2_any_group_writable_config_reads_off_with_one_warn(tmp_path, caplog, mode):
-    """Audit LOW-001 (r251-5 U2): group-writable is refused unconditionally — `gr_mem` lists supplementary members only,
-    so an empty one never proved the group private (users sharing a primary group `users`). The file is owned by this
-    user and its group is this user's own primary group here: still off, one WARN naming the key and the reason."""
+def test_r251_5_u2_a_shared_group_writable_config_reads_off_with_one_warn(tmp_path, monkeypatch, caplog, mode):
+    """Audit LOW-001 (r251-5 U2): `gr_mem` lists supplementary members only, so an empty one never proved the group
+    private (users sharing a primary group `users`). r251-6 V1: such a group fails the user-private rule's NAME check —
+    still off, one WARN naming the key and the reason."""
+    _shared_group(monkeypatch)
     _cfg(tmp_path, _ON, mode)
     with caplog.at_level(logging.WARNING):
         for _ in range(3):
             assert agy_opt_in_enabled(str(tmp_path)) is False
     warns = [r.getMessage() for r in caplog.records if "agy_opt_in" in r.getMessage()]
     assert len(warns) == 1, warns
-    assert "group-writable" in warns[0] and "hounfour.headless.agy_opt_in" in warns[0], warns[0]
+    assert "group-writable" in warns[0] and "hounfour.headless.agy_opt_in" in warns[0] and "'users'" in warns[0], warns[0]
 
 
 @pytest.mark.parametrize("body", ["hounfour: {}\n", "hounfour:\n  headless:\n    agy_opt_in: false\n",
@@ -145,13 +158,10 @@ def test_r251_5_u1_the_permission_rule_judges_only_a_value_that_would_opt_in(tmp
     assert not any("writable" in r.getMessage() for r in caplog.records), [r.getMessage() for r in caplog.records]
 
 
-def test_r251_5_u2_no_private_group_exception_remains():
-    assert not hasattr(loader, "_group_is_private")
-
-
-def test_r251_5_u2_the_reason_names_the_mode(tmp_path):
+def test_r251_5_u2_the_reason_names_the_mode(tmp_path, monkeypatch):
+    _shared_group(monkeypatch)
     p = _cfg(tmp_path, _ON, 0o664)
-    assert loader._config_untrusted_reason(p) == "group-writable (mode 0664)"
+    assert loader._config_untrusted_reason(p).startswith("group-writable (mode 0664) and its group 'users'")
     p.chmod(0o646)
     assert loader._config_untrusted_reason(p) == "world-writable (mode 0646)"
     p.chmod(0o644)
@@ -181,8 +191,12 @@ def test_s2_an_owned_0644_config_is_honoured(tmp_path):
 def test_s3_one_strict_rule(tmp_path, monkeypatch, label, body, want, reader):
     if reader == "yq":
         import shutil
+        import subprocess
         if not shutil.which("yq"):
             pytest.skip("yq not installed")
+        # (r251-6 V6, BB #6: the fallback reads through mikefarah yq only — under python yq it reads off, said once)
+        if "mikefarah" not in subprocess.run(["yq", "--version"], capture_output=True, text=True).stdout:
+            pytest.skip("yq is not mikefarah/yq")
         monkeypatch.setattr(loader, "_HAS_YAML", False, raising=False)
     _cfg(tmp_path, body)
     assert agy_opt_in_enabled(str(tmp_path)) is want, (label, reader)

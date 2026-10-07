@@ -387,7 +387,9 @@ TABLE
 
 _ts_gate() {  # <config>... → one "on|off<TAB><typeWarning>" line per config from Bridgebuilder's readAgyGate (one tsx run)
     local bb="$REPO/.claude/skills/bridgebuilder-review/resources"
-    (cd "$bb" && npx --no-install tsx -e '
+    # the BB skill's pinned tsx (devDependency) — never `npx tsx`, which on a bare runner asks to fetch a release and prints nothing
+    local tsx="$REPO/.claude/skills/bridgebuilder-review/node_modules/.bin/tsx"
+    (cd "$bb" && "$tsx" -e '
 import { readAgyGate } from "./config.ts";
 for (const p of process.argv.slice(1)) { const g = readAgyGate(p); console.log(`${g.optIn ? "on" : "off"}\t${g.typeWarning ?? ""}`); }
 ' "$@")
@@ -399,7 +401,7 @@ _py_gate() {  # <project root> → "on|off" from cheval's loader; its stderr to 
 }
 
 @test "AGC-19 (r251-5 U1/U2) a group- or world-writable \`true\` config reads off in the lib, Python and Bridgebuilder, one WARN each naming the key and the reason; 0644 / 0600 opt in" {
-    command -v npx >/dev/null 2>&1 || skip "npx not on PATH (the TS leg needs tsx)"
+    [ -x "$REPO/.claude/skills/bridgebuilder-review/node_modules/.bin/tsx" ] || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review (BB-1275 #7)"
     local m root want reason out err py tsv=() roots=() ms=(0666 0646 0664 0660 0620 symlink 0644 0600)
     for m in "${ms[@]}"; do
         root="$BATS_TEST_TMPDIR/perm-$m"; mkdir -p "$root"; roots+=("$root")
@@ -410,14 +412,18 @@ _py_gate() {  # <project root> → "on|off" from cheval's loader; its stderr to 
             printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/.loa.config.yaml"; chmod "$m" "$root/.loa.config.yaml"
         fi
     done
-    mapfile -t tsv < <(_ts_gate "${roots[@]/%//.loa.config.yaml}")
+    # (r251-6 V1: the group-writable rows are judged against a SHARED group `users` — the same fake account database for
+    # the three legs; the user-private-group exception has its own rows, AGC-22..24)
+    _getent_shim users ""
+    local shim="$BATS_TEST_TMPDIR/getent-shim"
+    mapfile -t tsv < <(PATH="$shim:$PATH" _ts_gate "${roots[@]/%//.loa.config.yaml}")
     [ "${#tsv[@]}" = "${#ms[@]}" ] || { echo "TS leg printed ${#tsv[@]} lines: ${tsv[*]}"; return 1; }
     local i
     for i in "${!ms[@]}"; do
         m="${ms[$i]}"; root="${roots[$i]}"
         case "$m" in 0644|0600) want=on; reason="" ;; 0664|0660|0620) want=off; reason=group-writable ;; *) want=off; reason=world-writable ;; esac
-        run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
-        py=$(_py_gate "$root"); err=$(cat "$BATS_TEST_TMPDIR/py.err")
+        run --separate-stderr env PATH="$shim:$PATH" bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
+        py=$(_py_gate_db "$root"); err=$(cat "$BATS_TEST_TMPDIR/py.err")
         [ "$output" = "$want" ] && [ "$py" = "$want" ] && [ "${tsv[$i]%%$'\t'*}" = "$want" ] || { echo "$m: bash=$output python=$py ts=${tsv[$i]} want=$want"; return 1; }
         if [[ -n "$reason" ]]; then
             [ "$(grep -c "hounfour.headless.agy_opt_in.*$reason" <<<"$stderr")" = 1 ] || { echo "$m bash stderr=$stderr"; return 1; }
@@ -457,7 +463,7 @@ _py_gate() {  # <project root> → "on|off" from cheval's loader; its stderr to 
 }
 
 @test "AGC-21 (r251-5 U1) the permission rule judges only a value that would opt in: a 0664 config with the key absent, false or \"true\" is never flagged as writable by others" {
-    command -v npx >/dev/null 2>&1 || skip "npx not on PATH (the TS leg needs tsx)"
+    [ -x "$REPO/.claude/skills/bridgebuilder-review/node_modules/.bin/tsx" ] || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review (BB-1275 #7)"
     local w root roots=() tsv=() i
     for w in absent false '"true"'; do
         root="$BATS_TEST_TMPDIR/quiet-${#roots[@]}"; mkdir -p "$root"; roots+=("$root")
@@ -473,4 +479,167 @@ _py_gate() {  # <project root> → "on|off" from cheval's loader; its stderr to 
         ! grep -q 'writable' "$BATS_TEST_TMPDIR/py.err" || { echo "row $i python flagged: $(cat "$BATS_TEST_TMPDIR/py.err")"; return 1; }
         [[ "${tsv[$i]}" != *writable* ]] || { echo "row $i ts flagged: ${tsv[$i]}"; return 1; }
     done
+}
+
+# --- review r251-6 (the Bridgebuilder pass on PR #1275) ---------------------------------------------------------------
+# V1 (BB #1): a group-writable config is trusted only for the owner's USER-PRIVATE group — gid = the owner's primary gid, the
+# group named for the owner, no other member, no other account with it as its primary group, no ACL (the group bits would be
+# the mask). Ubuntu's umask 002 makes every checkout 0664. The account database is faked ONCE per row (a `getent` shim the
+# bash and TS legs find on PATH; the Python leg's pwd/grp answer from the same shim).
+
+_getent_shim() {  # <group name> <members> [others] → $BATS_TEST_TMPDIR/getent-shim/getent: this user is `loa-me` (the real uid
+    # and primary gid), the process's gid is the group <name> with <members>; [others] adds `staffer`, whose primary group it is
+    local d="$BATS_TEST_TMPDIR/getent-shim" uid gid other=""
+    uid=$(id -u); gid=$(id -g)
+    [[ -n "${3:-}" ]] && other="echo 'staffer:x:$(( uid + 1 )):$gid::/nonexistent:/bin/sh';"
+    mkdir -p "$d"
+    cat > "$d/getent" <<SHIM
+#!/bin/sh
+case "\$1" in
+  passwd) if [ -n "\$2" ]; then [ "\$2" = "$uid" ] && echo 'loa-me:x:$uid:$gid::/nonexistent:/bin/sh' || exit 2
+          else echo 'loa-me:x:$uid:$gid::/nonexistent:/bin/sh'; $other fi ;;
+  group) [ "\$2" = "$gid" ] && echo '$1:x:$gid:$2' || exit 2 ;;
+  *) exit 1 ;;
+esac
+SHIM
+    chmod +x "$d/getent"
+}
+
+_py_gate_db() {  # <project root> → as _py_gate, with pwd / grp answered by the getent shim (the bash and TS legs' database)
+    python3 -I -c '
+import subprocess, sys, types, grp, pwd
+shim = sys.argv[3]
+def ge(*a):
+    r = subprocess.run([shim, *a], capture_output=True, text=True)
+    if r.returncode:
+        raise KeyError(a)
+    return [l.split(":") for l in r.stdout.splitlines() if l]
+acct = lambda f: types.SimpleNamespace(pw_name=f[0], pw_uid=int(f[2]), pw_gid=int(f[3]))
+pwd.getpwuid = lambda u: acct(ge("passwd", str(u))[0])
+pwd.getpwall = lambda: [acct(f) for f in ge("passwd")]
+def getgrgid(g):
+    f = ge("group", str(g))[0]
+    return types.SimpleNamespace(gr_name=f[0], gr_gid=int(f[2]), gr_mem=[m for m in f[3].split(",") if m])
+grp.getgrgid = getgrgid
+sys.path.insert(0, sys.argv[1])
+from loa_cheval.config.loader import agy_opt_in_enabled
+agy_opt_in_enabled(sys.argv[2]); print("on" if agy_opt_in_enabled(sys.argv[2]) else "off")' \
+        "$REPO/.claude/adapters" "$1" "$BATS_TEST_TMPDIR/getent-shim/getent" 2>"$BATS_TEST_TMPDIR/py.err"
+}
+
+_tsx_present() { [ -x "$REPO/.claude/skills/bridgebuilder-review/node_modules/.bin/tsx" ]; }
+
+_three_legs() {  # <config dir> → "bash=<on|off> py=<on|off> ts=<on|off>" with the getent shim on PATH; WARNs to $BATS_TEST_TMPDIR/{bash,py,ts}.err
+    local root="$1" shim="$BATS_TEST_TMPDIR/getent-shim" b p t
+    b=$(PATH="$shim:$PATH" bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml" 2>"$BATS_TEST_TMPDIR/bash.err")
+    p=$(_py_gate_db "$root")
+    t=$(PATH="$shim:$PATH" _ts_gate "$root/.loa.config.yaml")
+    printf '%s\n' "${t#*$'\t'}" > "$BATS_TEST_TMPDIR/ts.err"
+    echo "bash=$b py=$p ts=${t%%$'\t'*}"
+}
+
+@test "AGC-22 (r251-6 V1) a 0664 / 0660 \`true\` config of the owner's user-private group opts in on every reader, silently" {
+    _tsx_present || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review"
+    _getent_shim loa-me ""
+    local m root got
+    for m in 0664 0660; do
+        root="$BATS_TEST_TMPDIR/upg-$m"; mkdir -p "$root"
+        printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/.loa.config.yaml"; chmod "$m" "$root/.loa.config.yaml"
+        got=$(_three_legs "$root")
+        [ "$got" = "bash=on py=on ts=on" ] || { echo "$m: $got"; cat "$BATS_TEST_TMPDIR"/{bash,py,ts}.err; return 1; }
+        ! grep -q 'agy_opt_in' "$BATS_TEST_TMPDIR/bash.err" "$BATS_TEST_TMPDIR/py.err" "$BATS_TEST_TMPDIR/ts.err" || { echo "$m warned"; cat "$BATS_TEST_TMPDIR"/{bash,py,ts}.err; return 1; }
+    done
+    # the owner listed as its own member is still private
+    _getent_shim loa-me "loa-me"
+    got=$(_three_legs "$BATS_TEST_TMPDIR/upg-0664")
+    [ "$got" = "bash=on py=on ts=on" ] || { echo "self-member: $got"; return 1; }
+}
+
+@test "AGC-23 (r251-6 V1) 0664 + a group with another member / named differently / another account's primary group, and 0666: off on every reader, one WARN naming the group" {
+    _tsx_present || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review"
+    local root="$BATS_TEST_TMPDIR/shared" row name members others mode needle got f
+    mkdir -p "$root"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/.loa.config.yaml"
+    while IFS='|' read -r name members others mode needle; do
+        _getent_shim "$name" "$members" "$others"
+        chmod "$mode" "$root/.loa.config.yaml"
+        got=$(_three_legs "$root")
+        [ "$got" = "bash=off py=off ts=off" ] || { echo "$name/$members/$others/$mode: $got"; return 1; }
+        for f in bash py ts; do
+            [ "$(grep -c 'hounfour.headless.agy_opt_in' "$BATS_TEST_TMPDIR/$f.err")" = 1 ] || { echo "$f ($name $mode): $(cat "$BATS_TEST_TMPDIR/$f.err")"; return 1; }
+            grep -qF -- "$needle" "$BATS_TEST_TMPDIR/$f.err" || { echo "$f ($name $mode) lacks [$needle]: $(cat "$BATS_TEST_TMPDIR/$f.err")"; return 1; }
+        done
+    done <<'ROWS'
+loa-me|bob||0664|group-writable (mode 0664) and its group 'loa-me' has other members (bob)
+users|||0664|group-writable (mode 0664) and its group 'users' is not named for the owner 'loa-me'
+loa-me||x|0664|group-writable (mode 0664) and its group 'loa-me' is the primary group of another account (staffer)
+loa-me|||0666|world-writable (mode 0666)
+ROWS
+}
+
+@test "AGC-24 (r251-6 V1) the real account database: the three readers agree on a 0664 \`true\` config; an ACL grant is refused everywhere" {
+    _tsx_present || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review"
+    local root="$BATS_TEST_TMPDIR/real" b p t
+    mkdir -p "$root"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$root/.loa.config.yaml"; chmod 0664 "$root/.loa.config.yaml"
+    b=$(bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml")
+    p=$(_py_gate "$root"); t=$(_ts_gate "$root/.loa.config.yaml"); t="${t%%$'\t'*}"
+    [ "$b" = "$p" ] && [ "$p" = "$t" ] || { echo "real database: bash=$b python=$p ts=$t"; return 1; }
+    command -v setfacl >/dev/null 2>&1 || skip "setfacl not installed (the ACL row)"
+    chmod 0600 "$root/.loa.config.yaml"
+    setfacl -m u:nobody:rw "$root/.loa.config.yaml" 2>/dev/null || skip "setfacl refused here"
+    _getent_shim loa-me ""   # (a private group on every leg — only the ACL can refuse)
+    b=$(_three_legs "$root")
+    [ "$b" = "bash=off py=off ts=off" ] || { echo "ACL: $b"; return 1; }
+    grep -q 'extended ACL' "$BATS_TEST_TMPDIR/bash.err" && grep -q 'extended ACL' "$BATS_TEST_TMPDIR/py.err" && grep -q 'extended ACL' "$BATS_TEST_TMPDIR/ts.err" || { cat "$BATS_TEST_TMPDIR"/{bash,py,ts}.err; return 1; }
+}
+
+@test "AGC-25 (r251-6 V3) the bash lib judges the file it read: a world-writable \`true\` config swapped for an owned 0644 one mid-read stays off" {
+    local real; real=$(command -v yq) || skip "yq not installed"
+    local d="$BATS_TEST_TMPDIR/swapyq"; mkdir -p "$d"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$CFG"; chmod 0666 "$CFG"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$BATS_TEST_TMPDIR/repl.yaml"; chmod 0644 "$BATS_TEST_TMPDIR/repl.yaml"
+    # (every yq call runs the real yq, then moves the owned replacement over the config path — before the trust check)
+    printf '#!/bin/sh\n"%s" "$@"; rc=$?\n[ -e "%s" ] && mv "%s" "%s"\nexit $rc\n' "$real" "$BATS_TEST_TMPDIR/repl.yaml" "$BATS_TEST_TMPDIR/repl.yaml" "$CFG" > "$d/yq"
+    chmod +x "$d/yq"
+    # (ONE read: the first yq call of this read performs the swap; a later read would rightly see the owned replacement)
+    run env PATH="$d:$PATH" bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG"
+    [ ! -e "$BATS_TEST_TMPDIR/repl.yaml" ] || { echo "the swap never happened"; return 1; }
+    [ "$output" = off ] || { echo "judged the replacement: $output"; return 1; }
+    [ "$(stat -L -c '%a' -- "$CFG")" = 644 ]   # (the path now holds the owned replacement)
+    run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG"
+    [ "$output" = on ] && [ -z "$stderr" ] || { echo "the replacement itself: $output ($stderr)"; return 1; }
+}
+
+@test "AGC-26 (r251-6 V5) an alias / non-mapping ancestor of the key: off on every reader (go-yq lib, python-yq lib, Python, Bridgebuilder), ONE WARN naming the path" {
+    python3 -c 'import yaml' 2>/dev/null || skip "PyYAML not installed"
+    _tsx_present || skip "the TS leg needs the BB skill's pinned tsx — run npm ci in .claude/skills/bridgebuilder-review"
+    _fake_yq 'yq 3.4.3' true
+    local body path what root out f
+    while IFS='|' read -r body path what; do
+        root="$BATS_TEST_TMPDIR/anc-$RANDOM"; mkdir -p "$root"
+        printf '%b' "$body" > "$root/.loa.config.yaml"
+        run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
+        [ "$output" = off ] || { echo "go-yq $path: $output"; return 1; }
+        printf '%s\n' "$stderr" > "$BATS_TEST_TMPDIR/go.err"
+        run --separate-stderr env PATH="$BATS_TEST_TMPDIR/fyq:$PATH" bash -c 'source "$1"; agy_gate_warn_once "$2"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$root/.loa.config.yaml"
+        [ "$output" = off ] || { echo "python-yq $path: $output"; return 1; }
+        printf '%s\n' "$stderr" > "$BATS_TEST_TMPDIR/pyq.err"
+        [ "$(_py_gate "$root")" = off ] || { echo "python $path on"; return 1; }
+        out=$(_ts_gate "$root/.loa.config.yaml")
+        [ "${out%%$'\t'*}" = off ] || { echo "ts $path: $out"; return 1; }
+        printf '%s\n' "${out#*$'\t'}" > "$BATS_TEST_TMPDIR/ts.err"
+        for f in go pyq py ts; do
+            [ "$(grep -c "$path is $what — hounfour.headless.agy_opt_in cannot be read" "$BATS_TEST_TMPDIR/$f.err")" = 1 ] || { echo "$f $path: $(cat "$BATS_TEST_TMPDIR/$f.err")"; return 1; }
+        done
+    done <<'ROWS'
+h: &h\n  agy_opt_in: true\nhounfour:\n  headless: *h\n|hounfour.headless|a YAML alias
+h: &h\n  headless:\n    agy_opt_in: true\nhounfour: *h\n|hounfour|a YAML alias
+hounfour:\n  headless: [1]\n|hounfour.headless|not a mapping (seq)
+hounfour: foo\n|hounfour|not a mapping (str)
+ROWS
+    # an absent or null ancestor stays silent everywhere
+    printf 'hounfour:\n  headless:\n' > "$CFG"
+    run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"' _ "$LIB" "$CFG"
+    ! grep -q 'cannot be read' <<<"$stderr" || { echo "null headless warned: $stderr"; return 1; }
 }

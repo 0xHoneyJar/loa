@@ -82,19 +82,37 @@ export declare function loaConfigPathFor(repoRoot?: string): string;
  * never sees a merge key's). */
 export declare const AGY_YQ_HAS = ".hounfour | (kind == \"map\" and (.headless | (kind == \"map\" and has(\"agy_opt_in\"))))";
 /**
- * Why the opt-in config is not the current user's alone to write, or undefined when it is (review r251-5 U1/U2, audit
- * MED-001/LOW-001): ONE permission rule with cheval's `loader._config_untrusted_reason` and the bash lib's
- * `_agy_config_untrusted` — owned by the current user and neither group- nor world-writable (group-writable refused
- * unconditionally). `statSync` follows a symlink: the target decides, as in the other readers. A config that cannot be
- * stat'ed is untrusted (fail closed). Where the platform has no uid (`process.getuid` absent), the owner half is skipped.
+ * Why the file's group is not its owner's USER-PRIVATE group, or undefined when it is (review r251-6 V1, BB #1). ONE rule with
+ * cheval's `loader._not_private_group` and the bash lib's `_agy_group_not_private`: the file's gid is the owner's primary gid,
+ * the group is NAMED for the owner (a shared `users` / macOS `staff` fails — their member lists are empty for primary members,
+ * so emptiness alone never proved privacy: audit LOW-001), no account but the owner is a listed member, no other account has
+ * it as its primary group (enumerated last), and no ACL makes the group bits a mask over named grants (`ls -ldL`'s `+`, on
+ * the read's own descriptor when one is given). Accounts come from `getent`; a host without it, or one that cannot answer,
+ * is no proof: not private.
  */
-export declare function agyConfigUntrustedReason(configPath: string): string | undefined;
+export declare function agyGroupNotPrivate(uid: number, gid: number, fd?: number, configPath?: string): string | undefined;
+/**
+ * Why the opt-in config is not the current user's alone to write, or undefined when it is (review r251-5 U1/U2, r251-6 V1):
+ * ONE permission rule with cheval's `loader._config_untrusted_reason` and the bash lib's `_agy_config_untrusted` — owned by
+ * the current user, never world-writable, and group-writable only for the owner's user-private group (`agyGroupNotPrivate`;
+ * Ubuntu's umask 002 makes every checkout 0664). `st` / `fd` are the read's own open file (r251-6 V3, BB #2: the bytes read
+ * and the inode judged are one); without them `statSync` follows a symlink: the target decides, as in the other readers. A
+ * config that cannot be stat'ed is untrusted (fail closed). Where the platform has no uid (`process.getuid` absent), the
+ * owner half is skipped.
+ */
+export declare function agyConfigUntrustedReason(configPath: string, st?: {
+    uid: number;
+    gid: number;
+    mode: number;
+}, fd?: number): string | undefined;
 /**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
  * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.
  */
 export declare function readAgyGate(configPath: string): AgyGate;
+/** The ancestors' kind and tag (r251-6 V5): `hounfour`, and `hounfour.headless` only below a real mapping. */
+export declare const AGY_YQ_ANCESTORS = "\"k1\": (.hounfour | kind), \"t1\": (.hounfour | tag), \"k2\": ((.hounfour | select(kind == \"map\") | .headless | kind) // \"\"), \"t2\": ((.hounfour | select(kind == \"map\") | .headless | tag) // \"\")";
 /**
  * A voice cheval would dispatch through agy: a google headless id of the generated registry (today `gemini-headless`), or
  * any google model when the effective headless mode is cli-only (the bash/Python predicate's shape — lib/agy-gate-lib.sh).

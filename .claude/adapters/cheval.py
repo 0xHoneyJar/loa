@@ -408,16 +408,15 @@ def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Di
     _loader.warn_agy_available_once()   # (SDD D-1.7 / r251-1 G18: once per process, a PATH lookup only)
     if len(agy) == len(chain.entries):
         return chain, []
-    from loa_cheval.routing.types import ResolvedChain as _RC
-    kept = tuple(e for e in chain.entries if e not in agy)
+    kept = [e for e in chain.entries if e not in agy]
     skipped = [{"model": e.canonical, "provider": e.provider, "reason": "opt_in_required"} for e in agy]
     if not _AGY_NOT_PLANNED_WARNED:
         _AGY_NOT_PLANNED_WARNED = True
         logger.warning(
             "agy hop(s) %s not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — "
             "walking the remaining hop(s) %s", ", ".join(x["model"] for x in skipped), ", ".join(e.canonical for e in kept))
-    return _RC(primary_alias=chain.primary_alias, entries=kept, headless_mode=chain.headless_mode,
-               headless_mode_source=chain.headless_mode_source), skipped
+    # (r251-6 V8, BB #4: every other ResolvedChain field is carried, and `entries` keeps its container type)
+    return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
 
 
 def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
@@ -965,14 +964,16 @@ def resolve_effort(
       ``none``    — nothing on the wire, the vendor default applies.
     The catalog is not schema-validated at load, so an invalid `default_effort`
     is skipped with one WARN (never a crash); an entry setting both
-    `params.default_effort` and `extra.effort` gets one WARN too.
+    `params.default_effort` and `extra.effort` gets one WARN too — a CLI entry only,
+    the one whose extra rung is read (r251-6 V7).
     """
     explicit = getattr(args, "effort", None)
     entry = entry if isinstance(entry, dict) else {}
     params = entry.get("params") if isinstance(entry.get("params"), dict) else {}
     extra = entry.get("extra") if isinstance(entry.get("extra"), dict) else {}
     extra_raw = extra.get("effort") or extra.get("reasoning_effort")
-    if "default_effort" in params and extra_raw:
+    # (r251-6 V7, BB #10: only a CLI entry reads the extra rung — on an HTTP entry it is inert, so there is no conflict)
+    if "default_effort" in params and extra_raw and _is_cli_entry(entry):
         _effort_warn_once((model_key, "both"),
                           "%s sets both params.default_effort and extra.effort; params.default_effort wins "
                           "(cycle-127 FR-2) — drop one", model_key)

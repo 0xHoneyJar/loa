@@ -16,9 +16,10 @@
 #                                       (`*t`) or a merge key (`<<: *b`) on the path reads off, as in Python and BB). The yq
 #                                       flavour is chosen by `yq --version` (K5): mikefarah → the typed go-yq read only;
 #                                       any other yq (python yq, which wraps PyYAML) → a PyYAML node read of the source
-#                                       text, never an untyped `== true`. r251-5 U1/U2: a config not owned by the
-#                                       current user, or group- / world-writable, reads off (the Python and TS readers'
-#                                       rule); agy_gate_warn_once names the reason.
+#                                       text, never an untyped `== true`. r251-5 U1/U2, r251-6 V1: a config not owned by
+#                                       the current user, world-writable, or group-writable for any group but the
+#                                       owner's user-private one reads off (the Python and TS readers' rule);
+#                                       agy_gate_warn_once names the reason. r251-6 V3: the config is opened once (fd 9).
 #   agy_headless_mode <config>        → prints the effective hounfour.headless.mode: env LOA_HEADLESS_MODE wins (as in
 #                                       cheval), then the config, then prefer-api
 #   routes_to_agy <model> [<mode>] [<config>]
@@ -60,13 +61,47 @@ _agy_yq_is_mikefarah() {  # (review r251-2 K5) select the reader by flavour, nev
 # real mapping — `kind` is "alias" for an alias node — and `has` sees the explicit key only, never a merge key's (r251-4 S3)
 _AGY_YQ_HAS='.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))'
 
-_agy_config_untrusted() {  # <config> → prints why the config is not the current user's alone to write and returns 0; 1 when trusted
-  # (review r251-5 U1/U2, audit MED-001/LOW-001: ONE permission rule with cheval's loader._config_untrusted_reason and
-  # Bridgebuilder's agyConfigUntrustedReason — owned by the current user and neither group- nor world-writable; group-
-  # writable is refused unconditionally, no private-group exception. stat -L: a symlink's TARGET decides, as in Python.
-  # GNU `stat -c '%u %a'`, else BSD `stat -f '%u %Lp'`; a config that cannot be stat'ed is untrusted — fail closed)
-  local cfg="${1:-}" st uid mode me
-  st=$(stat -L -c '%u %a' -- "$cfg" 2>/dev/null) || st=$(stat -L -f '%u %Lp' -- "$cfg" 2>/dev/null) || st=""
+_agy_group_not_private() {  # <uid> <gid> <open file> → prints why the group is not the owner's user-private group and returns 0; 1 when it is
+  # (review r251-6 V1, BB #1: ONE rule with cheval's loader._not_private_group and Bridgebuilder's agyGroupNotPrivate — the
+  # file's gid is the owner's primary gid, the group is NAMED for the owner (a shared `users` / macOS `staff` fails: their
+  # member lists are empty for primary members, so emptiness alone never proved privacy — audit LOW-001), no account but the
+  # owner is a listed member, no other account has it as its primary group (enumerated last), and no ACL makes the group
+  # bits a mask over named grants (`ls -ldL`'s `+`). The account database is NSS through `getent`; a host without it, or
+  # one that cannot answer, is no proof: not private)
+  local uid="$1" gid="$2" f="$3" pw gr owner pgid gname members m others="" acct a_name a_uid a_gid ls_mode
+  pw=$(getent passwd "$uid" 2>/dev/null) || pw=""
+  IFS=: read -r owner _ _ pgid _ <<<"$pw"
+  if [[ -z "$owner" || ! "$pgid" =~ ^[0-9]+$ ]]; then printf 'its owner uid %s could not be looked up\n' "$uid"; return 0; fi
+  gr=$(getent group "$gid" 2>/dev/null) || gr=""
+  IFS=: read -r gname _ _ members <<<"$gr"
+  if [[ -z "$gname" ]]; then printf 'its group could not be looked up (gid %s)\n' "$gid"; return 0; fi
+  if [[ "$gid" != "$pgid" ]]; then printf "its group '%s' (gid %s) is not the owner's primary group\n" "$gname" "$gid"; return 0; fi
+  if [[ "$gname" != "$owner" ]]; then printf "its group '%s' is not named for the owner '%s' (not a user-private group)\n" "$gname" "$owner"; return 0; fi
+  local IFS_save="$IFS"; IFS=,
+  for m in $members; do [[ -n "$m" && "$m" != "$owner" ]] && others="${others:+$others, }$m"; done
+  IFS="$IFS_save"
+  if [[ -n "$others" ]]; then printf "its group '%s' has other members (%s)\n" "$gname" "$others"; return 0; fi
+  acct=$(getent passwd 2>/dev/null) || { printf "the accounts of group '%s' could not be enumerated\n" "$gname"; return 0; }
+  while IFS=: read -r a_name _ a_uid a_gid _; do
+    [[ "$a_gid" == "$gid" && "$a_uid" != "$uid" ]] && others="${others:+$others, }$a_name"
+  done <<<"$acct"
+  if [[ -n "$others" ]]; then printf "its group '%s' is the primary group of another account (%s)\n" "$gname" "$others"; return 0; fi
+  ls_mode=$(ls -ldL -- "$f" 2>/dev/null) || ls_mode=""
+  ls_mode="${ls_mode%% *}"
+  if [[ ${#ls_mode} -lt 10 ]]; then printf 'its ACL could not be read\n'; return 0; fi
+  if [[ "${ls_mode:10:1}" == "+" ]]; then printf "it carries an extended ACL (the group bits are the ACL mask over other accounts' grants)\n"; return 0; fi
+  return 1
+}
+
+_agy_config_untrusted() {  # <config> [<open file>] → prints why the config is not the current user's alone to write and returns 0; 1 when trusted
+  # (review r251-5 U1/U2, r251-6 V1: ONE permission rule with cheval's loader._config_untrusted_reason and Bridgebuilder's
+  # agyConfigUntrustedReason — owned by the current user, never world-writable, and group-writable only for the owner's
+  # user-private group (_agy_group_not_private; Ubuntu's umask 002 makes every checkout 0664). <open file> is the read's
+  # own descriptor (/dev/fd/9 — r251-6 V3: the bytes read and the inode judged are one); default the config path. stat -L:
+  # a symlink's TARGET decides, as in Python. GNU `stat -c`, else BSD `stat -f`; a config that cannot be stat'ed is
+  # untrusted — fail closed)
+  local cfg="${1:-}" f="${2:-${1:-}}" st uid mode me gid why
+  st=$(stat -L -c '%u %a' -- "$f" 2>/dev/null) || st=$(stat -L -f '%u %Lp' -- "$f" 2>/dev/null) || st=""
   read -r uid mode <<<"$st"
   if [[ ! "$uid" =~ ^[0-9]+$ || ! "$mode" =~ ^[0-7]{3,4}$ ]]; then
     printf '%s could not be stat'"'"'ed (owner and mode unknown)\n' "$cfg"; return 0
@@ -74,47 +109,75 @@ _agy_config_untrusted() {  # <config> → prints why the config is not the curre
   me="${EUID:-$(id -u)}"
   if [[ "$uid" != "$me" ]]; then printf '%s is not owned by the current user (uid %s, euid %s)\n' "$cfg" "$uid" "$me"; return 0; fi
   if (( 8#$mode & 8#002 )); then printf '%s is world-writable (mode %04o)\n' "$cfg" "$(( 8#$mode & 8#7777 ))"; return 0; fi
-  if (( 8#$mode & 8#020 )); then printf '%s is group-writable (mode %04o)\n' "$cfg" "$(( 8#$mode & 8#7777 ))"; return 0; fi
+  if (( 8#$mode & 8#020 )); then
+    gid=$(stat -L -c '%g' -- "$f" 2>/dev/null) || gid=$(stat -L -f '%g' -- "$f" 2>/dev/null) || gid=""
+    if [[ ! "$gid" =~ ^[0-9]+$ ]]; then why="its group could not be stat'ed"
+    else why=$(_agy_group_not_private "$uid" "$gid" "$f") || why=""
+    fi
+    if [[ -n "$why" ]]; then printf '%s is group-writable (mode %04o) and %s\n' "$cfg" "$(( 8#$mode & 8#7777 ))" "$why"; return 0; fi
+  fi
   return 1
 }
 
-_agy_opt_in_node() {  # <config> → "<kind> <source text>" of agy_opt_in (kind: bool | str | int | null | map | alias | <tag> …); nothing when absent/unreadable;
-  # "untrusted <reason>" when the value would opt in but others can write the config (r251-5 U1 — it reads off;
-  # agy_gate_warn_once says why). The permission rule decides only a value that would opt in, as in the Python and TS
-  # readers: a config that reads off anyway is not flagged (a umask-002 host that never opted in hears nothing)
-  local n why
-  n=$(_agy_opt_in_node_raw "${1:-}")
-  if [[ "$n" == "bool true" ]] && why=$(_agy_config_untrusted "$1"); then printf 'untrusted %s\n' "$why"; return 0; fi
+_agy_opt_in_node() (  # <config> → "<kind> <source text>" of agy_opt_in (kind: bool | str | int | null | map | alias | <tag> …;
+  # `ancestor <path>:<alias|kind>` for an alias / non-mapping hounfour or hounfour.headless — r251-6 V5); nothing when
+  # absent/unreadable; "untrusted <reason>" when the value would opt in but others can write the config (r251-5 U1 — it
+  # reads off; agy_gate_warn_once says why). The permission rule decides only a value that would opt in, as in the Python
+  # and TS readers: a config that reads off anyway is not flagged (a umask-002 host that never opted in hears nothing).
+  # (r251-6 V3, BB #2: a subshell — the config is opened ONCE on fd 9; its bytes are parsed from that descriptor and its
+  # owner / mode / group / ACL judged through /dev/fd/9, so a swap of the path between read and check changes nothing)
+  cfg="${1:-}"
+  [[ -n "$cfg" && -f "$cfg" ]] || exit 0
+  exec 9<"$cfg" 2>/dev/null || exit 0
+  doc=$(cat <&9) || exit 0
+  n=$(_agy_opt_in_node_raw "$doc")
+  if [[ "$n" == "bool true" ]] && why=$(_agy_config_untrusted "$cfg" /dev/fd/9); then printf 'untrusted %s\n' "$why"; exit 0; fi
   [[ -n "$n" ]] && printf '%s\n' "$n"
-  return 0
-}
+  exit 0
+)
 
-_agy_opt_in_node_raw() {  # <config> → the node read of _agy_opt_in_node, without the permission rule
-  local cfg="${1:-}" has k t v
-  [[ -n "$cfg" && -f "$cfg" ]] || return 0
+_agy_opt_in_node_raw() {  # <document text> → the node read of _agy_opt_in_node, without the permission rule
+  local doc="${1:-}" has k t v lvl kt
+  [[ -n "$doc" ]] || return 0
   if command -v yq >/dev/null 2>&1 && _agy_yq_is_mikefarah; then
-    has=$(yq eval "$_AGY_YQ_HAS" "$cfg" 2>/dev/null) || return 0
-    [[ "$has" == true ]] || return 0
-    k=$(yq eval '.hounfour.headless.agy_opt_in | kind' "$cfg" 2>/dev/null) || return 0
+    has=$(yq eval "$_AGY_YQ_HAS" - 2>/dev/null <<<"$doc") || return 0
+    if [[ "$has" != true ]]; then
+      # (r251-6 V5, BB #5: an alias / non-mapping ancestor is said, never read silently as absent — one level at a time:
+      # a level below a non-mapping is never traversed)
+      for lvl in hounfour hounfour.headless; do
+        kt=$(yq eval ".$lvl | kind + \" \" + tag" - 2>/dev/null <<<"$doc") || return 0
+        k="${kt%% *}"; t="${kt#* }"
+        [[ "$k" == map ]] && continue
+        [[ "$k" == alias ]] && { printf 'ancestor %s:alias\n' "$lvl"; return 0; }
+        [[ "$t" == '!!null' || -z "$t" || "$t" == "$kt" ]] && return 0
+        printf 'ancestor %s:%s\n' "$lvl" "${t#!!}"; return 0
+      done
+      return 0
+    fi
+    k=$(yq eval '.hounfour.headless.agy_opt_in | kind' - 2>/dev/null <<<"$doc") || return 0
     [[ "$k" == alias ]] && { printf 'alias \n'; return 0; }
-    t=$(yq eval '.hounfour.headless.agy_opt_in | tag' "$cfg" 2>/dev/null) || return 0
-    v=$(yq eval '.hounfour.headless.agy_opt_in' "$cfg" 2>/dev/null) || return 0
+    t=$(yq eval '.hounfour.headless.agy_opt_in | tag' - 2>/dev/null <<<"$doc") || return 0
+    v=$(yq eval '.hounfour.headless.agy_opt_in' - 2>/dev/null <<<"$doc") || return 0
     [[ "$v" == *$'\n'* ]] && v=""
     printf '%s %s\n' "${t#!!}" "$v"
     return 0
   fi
   # any other yq flavour (python yq wraps PyYAML) or none: the PyYAML node — its tag and SOURCE text, as the Python twin
   command -v python3 >/dev/null 2>&1 || return 0
-  python3 -I - "$cfg" 2>/dev/null <<'PY' || return 0
+  python3 -I -c '
 import sys, yaml
-class L(yaml.SafeLoader):  # (r251-4 S3: an alias reads as a sentinel, never as the anchored value — the Python twin's loader)
+class L(yaml.SafeLoader):  # (r251-4 S3: an alias reads as a sentinel, never as the anchored value — the Python twin loader)
     def compose_node(self, parent, index):
         if self.check_event(yaml.AliasEvent):
             self.get_event()
             return yaml.ScalarNode("!loa/alias", "")
         return super().compose_node(parent, index)
-with open(sys.argv[1]) as f:
-    node = yaml.compose(f, Loader=L)
+core = "tag:yaml.org,2002:"
+def kind_of(tag):
+    return ("bool" if tag == core + "bool" else "alias" if tag == "!loa/alias"
+            else tag[len(core):] if tag.startswith(core) else (tag or "?"))
+node = yaml.compose(sys.stdin.buffer.read(), Loader=L)
+path = []
 for key in ("hounfour", "headless", "agy_opt_in"):
     if not isinstance(node, yaml.MappingNode):
         sys.exit(0)
@@ -124,14 +187,17 @@ for key in ("hounfour", "headless", "agy_opt_in"):
             found = v
     if found is None:
         sys.exit(0)
+    path.append(key)
+    if key != "agy_opt_in" and not isinstance(found, yaml.MappingNode):
+        kind = kind_of(found.tag or "")
+        if kind != "null":
+            print("ancestor", ".".join(path) + ":" + kind.replace(" ", "_"))
+        sys.exit(0)
     node = found
-tag = node.tag or ""
-core = "tag:yaml.org,2002:"
-kind = ("bool" if tag == core + "bool" else "alias" if tag == "!loa/alias"
-        else tag[len(core):] if tag.startswith(core) else (tag or "?"))
+kind = kind_of(node.tag or "")
 text = node.value if isinstance(node, yaml.ScalarNode) and "\n" not in node.value else ""
 print(kind.replace(" ", "_"), text)
-PY
+' 2>/dev/null <<<"$doc" || return 0
 }
 
 agy_opted_in() {
@@ -241,6 +307,11 @@ agy_gate_warn_once() {
       printf 'WARN: %s: %s — a config others can write never opts in (own it and `chmod go-w` it); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t#untrusted }" >&2
       return 0 ;;
     ""|"bool true"|"bool false"|null\ *) ;;
+    ancestor\ *)   # (r251-6 V5: an alias / non-mapping hounfour or hounfour.headless — the key cannot be read there)
+      local where="${t#ancestor }" what
+      what="${where##*:}"; where="${where%:*}"
+      if [[ "$what" == alias ]]; then what="a YAML alias"; else what="not a mapping ($what)"; fi
+      printf 'WARN: %s is %s — %s cannot be read through an alias or merge node (write the mapping inline); the agy route stays off\n' "$where" "$what" "$AGY_OPT_IN_KEY" >&2 ;;
     bool\ *) printf 'WARN: %s is %s, a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t#bool }" >&2 ;;
     *) printf 'WARN: %s is present but not a YAML boolean (%s) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t%% *}" >&2 ;;
   esac
