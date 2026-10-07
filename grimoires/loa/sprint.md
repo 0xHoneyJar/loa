@@ -186,11 +186,11 @@ No routing alias, fallback map, regex, trust entry, example pin or probe names t
 - Full `tests/unit/` run with ledger hashes; REPO-MAP + sidecar + checksums; `reviewer.md` with E2E table.
 
 ### Acceptance Criteria
-- [ ] `grep` for `claude-opus-4-`/`claude-sonnet-4-`/`gpt-4o` used as a default or described as current in live scripts, skills and data returns nothing (catalog fallback chains and tests excepted).
-- [ ] Every Anthropic catalog entry has a `model-permissions.yaml` row (pytest).
-- [ ] `implement-gate.bats`: a payload carrying `tool_input.active_skill` records `active_skill_seen_at` (lead session only; a teammate role writes nothing); the gate stays heuristic without `implement_gate.mode: authoritative`; with the opt-in, the authoritative branch passes the payload fixture corpus.
-- [ ] CP-11/12: `Bash(git push *)` in allow satisfies `Bash(git push:*)`, in deny denies it; CP-13: mixed forms across layers, whitespace and escaping cases, and the dangerous-shape fuzz set behave per the grammar (narrower denies never cover the generic requirement).
-- [ ] Docs present; budgets green; full unit run: no new red beyond the recorded pre-existing classes; ledger hashes unchanged.
+- [x] `grep` for `claude-opus-4-`/`claude-sonnet-4-`/`gpt-4o` used as a default or described as current in live scripts, skills and data returns nothing (catalog fallback chains and tests excepted).
+- [x] Every Anthropic catalog entry has a `model-permissions.yaml` row (pytest).
+- [x] `implement-gate.bats`: a payload carrying `tool_input.active_skill` records `active_skill_seen_at` (lead session only; a teammate role writes nothing); the gate stays heuristic without `implement_gate.mode: authoritative`; with the opt-in, the authoritative branch passes the payload fixture corpus.
+- [x] CP-11/12: `Bash(git push *)` in allow satisfies `Bash(git push:*)`, in deny denies it; CP-13: mixed forms across layers, whitespace and escaping cases, and the dangerous-shape fuzz set behave per the grammar (narrower denies never cover the generic requirement).
+- [x] Docs present; budgets green; full unit run: no new red beyond the recorded pre-existing classes; ledger hashes unchanged.
 
 ### Technical Tasks
 - **Task 4.1 — Failing tests.** `model-adapter.bats` (map), `flatline-model-validation.bats` (regexes admit the 5-family), `test_trust_scopes.py` coverage, `implement-gate.bats` probe, `check-permissions.bats` CP-11/12.

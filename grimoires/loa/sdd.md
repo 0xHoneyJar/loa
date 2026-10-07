@@ -54,7 +54,7 @@ Every size-related decision (input ceiling, output default, reasoning budget, re
 | Flatline review voice (Opus 5) | ≤ 180K in × $5 + 16K out × $25 ≈ $1.30 | same input; output ≤ 64K ≈ $2.50 | 872K in (premium) + 64K out ≈ $10 + premium |
 | Dissent (review/audit) | 1 voice, `budget_cents` 150/200 | 2 voices, each ≤ `budget_cents` | same |
 | Scorer (`cheap` → `tiny`) | Sonnet 4.6 per call | Haiku 4.5 per call (cheaper) | — |
-| Bridgebuilder pass | Opus 4.7, 160K in / 8K out | Opus 5, ≤ 200K in / ≤ 32K out ≈ $1.8 | — |
+| Bridgebuilder pass | Opus 4.7, 160K in / 8K out | Opus 5.5 (`opus` → `claude-opus-5-5`, D-4.1 amendment; BB alias budget 160K in / ≤ 32K out at $4 / $20 per MTok) ≈ $1.3 | — |
 
 The budget enforcer's per-day cap and the breaker are unchanged and now see correct prices for large calls; the SDD records that the operator sets `cost_budget_enforcer` if daily spend must be capped.
 
@@ -146,7 +146,7 @@ Sprint 1 FR-1 (D-1.1 … D-1.7) · Sprint 2 FR-2 (D-2.1 … D-2.4) · Sprint 3 F
 ## 11. Appendix
 
 ### A. Catalog values used by the ceiling formula
-Fable 5.1 / Opus 5 / Sonnet 5: `context_window 1,000,000`, `max_output_tokens 128,000` → derived 872,000; 4.x entries: `context_window 200,000`, probed 180,000 → 180,000; Haiku 4.5: 200,000 − 64,000 = 136,000 < probed → 180,000.
+Fable 5.1 / Opus 5 / Sonnet 5: `context_window 1,000,000`, `max_output_tokens 128,000` → derived 872,000; Opus 5.5 (`claude-opus-5-5`, the `opus` default after the D-4.1 amendment): the same 1,000,000 / 128,000 → derived 872,000, held at the conservative `probed_ceiling` 180,000 (`loa:shortcut`) until the operator-only live probe raises it; 4.x entries: `context_window 200,000`, probed 180,000 → 180,000; Haiku 4.5: 200,000 − 64,000 = 136,000 < probed → 180,000.
 
 ### B. Byte headroom at design time
 `CLAUDE.loa.md` 10,225 / 10,240; protocols 199,593 / 200,000; 12 skills within 400 B of 16,384 (audit §3).
