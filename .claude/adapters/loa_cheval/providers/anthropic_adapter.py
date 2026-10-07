@@ -78,8 +78,11 @@ _NONSTREAMING_TIMEOUT_FLOOR_TOKENS = 4096
 # value may take — a dated feature flag such as `context-1m-2025-08-07`. The
 # values are joined into ONE `anthropic-beta` header; a request can never add
 # one, and anything outside the allowlist is a configuration error (an
-# operator typo must not become a silent "the beta did not apply").
-_BETA_HEADER_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-\d{4}-\d{2}-\d{2}$")
+# operator typo must not become a silent "the beta did not apply"). The pattern
+# is the schema's own string (model-config-v3 `beta_headers.items.pattern`) and is
+# applied with `fullmatch` — ASCII `[0-9]` and no trailing newline, the exact
+# equal of the schema's ECMA-262 reading (audit dissent run 1, n1/n4).
+_BETA_HEADER_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
 def _nonstreaming_read_timeout(configured: float, max_tokens: Any) -> float:
@@ -171,7 +174,7 @@ def _beta_header_value(params: Dict[str, Any], model: str) -> Optional[str]:
         raise ConfigError(f"{model}: params.beta_headers must be a list of dated beta flags, got {type(raw).__name__}")
     values: List[str] = []
     for item in raw:
-        if not isinstance(item, str) or not _BETA_HEADER_RE.match(item):
+        if not isinstance(item, str) or not _BETA_HEADER_RE.fullmatch(item):
             raise ConfigError(
                 f"{model}: params.beta_headers value {item!r} is outside the allowlist "
                 f"(lowercase words joined by '-' ending in a YYYY-MM-DD date)"

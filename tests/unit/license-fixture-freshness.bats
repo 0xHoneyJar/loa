@@ -32,7 +32,7 @@ _is_future() {
 
 @test "LFF-1: a grace fixture past its offline window is regenerated even when valid_license.json is fresh" {
     # Age only the grace fixture: its window closed yesterday.
-    python3 - "$WORK/grace_period_license.json" <<'PY'
+    python3 -I - "$WORK/grace_period_license.json" <<'PY'
 import json, sys
 p = sys.argv[1]
 d = json.load(open(p))
@@ -55,7 +55,7 @@ PY
     # seconds later, and the fixture then expired mid-suite. Run 2, #8: the
     # margin is 3600 s (the full unit run takes ~38 min), so a window closing
     # in 30 minutes — past the old 300 s margin — is regenerated too.
-    python3 - "$WORK/grace_period_license.json" <<'PY'
+    python3 -I - "$WORK/grace_period_license.json" <<'PY'
 import json, sys, datetime as dt
 p = sys.argv[1]
 d = json.load(open(p))
@@ -73,7 +73,7 @@ PY
     # reads it as local time, so on AEDT (UTC+11) every JWT exp landed 11 hours
     # early and the pro tier's 24h grace closed 1 hour after generation.
     ( cd "$WORK" && TZ=Australia/Sydney python3 generate_test_licenses.py >/dev/null )
-    python3 - "$WORK/grace_period_license.json" "$WORK/valid_license.json" <<'PY'
+    python3 -I - "$WORK/grace_period_license.json" "$WORK/valid_license.json" <<'PY'
 import base64, json, sys, datetime as dt
 for p in sys.argv[1:]:
     d = json.load(open(p))

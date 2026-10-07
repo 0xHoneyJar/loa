@@ -11,6 +11,11 @@
 #      .loa.config.yaml sets implement_gate.mode: authoritative. The PreToolUse
 #      payload carries no harness-set skill field (cycle-126 D-4.4) and tool_input
 #      is model-authored, so nothing in .run/ selects this mode.
+#      TIGHTEN-ONLY (sprint-250 audit n17/n18): the model-authored claim can only
+#      add an ask, never grant an allow. A claimed implementation skill falls
+#      through to the heuristic exactly like an absent field; a claimed
+#      non-implementation skill asks and logs compliance.mode.model_signal to
+#      .run/audit.jsonl (plain hook log, not the signed audit_emit chain).
 #
 # Evidence recorder (cycle-126 D-4.4): a lead-session payload carrying
 # tool_input.active_skill records active_skill_seen_at once in
@@ -18,6 +23,13 @@
 #
 # Failure mode: FAIL-ASK for App Zone writes (not fail-open).
 # Non-App-Zone writes always allowed.
+#
+# Output (Claude Code PreToolUse contract, sprint-250 audit n20): allow = silent
+# exit 0 with empty stdout; ask = exit 0 with
+#   {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}
+# A top-level "decision" accepts approve|block only, so "ask" never goes there.
+# file_path and active_skill are stripped of control characters before they
+# reach stderr or the audit row (n21).
 #
 # IMPORTANT: No set -euo pipefail — hook must never crash-block.
 # Parse/read errors on App Zone writes → ask (not allow).
@@ -107,6 +119,9 @@ if [[ "$is_app_zone" == "false" ]]; then
     exit 0
 fi
 
+# Display/log copy only: control characters never reach stderr or the audit row (n21)
+safe_file_path=$(printf '%s' "$file_path" | LC_ALL=C tr -d '[:cntrl:]')
+
 # ---------------------------------------------------------------------------
 # Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)
 # ---------------------------------------------------------------------------
@@ -123,33 +138,41 @@ if [[ "$compliance_mode" == "authoritative" ]]; then
     active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=""
 
     if [[ -n "$active_skill" ]]; then
-        # Allow implementation skills
         case "$active_skill" in
             implement|/implement|bug|/bug|run|/run|simstim|/simstim)
+                # Tighten-only (n17/n18): a model-authored implementation claim never
+                # allows by itself — fall through to the heuristic check below
+                ;;
+            *)
+                # Non-implementation skill — ask, and log the model signal once
+                safe_skill=$(printf '%s' "$active_skill" | LC_ALL=C tr -d '[:cntrl:]')
+                echo "[AUTHORITATIVE] App Zone write to '$safe_file_path' detected during /$safe_skill (not an implementation skill)." >&2
+                jq -nc \
+                    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+                    --arg skill "$safe_skill" \
+                    --arg path "$safe_file_path" \
+                    '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: "ask"}' \
+                    >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+                echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."}}'
                 exit 0
                 ;;
         esac
-
-        # Non-implementation skill — ask
-        echo "[AUTHORITATIVE] App Zone write to '$file_path' detected during /$active_skill (not an implementation skill)." >&2
-        echo '{"decision":"ask","reason":"[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."}'
-        exit 0
-    fi
-
-    # active_skill field absent despite authoritative mode — fall back to heuristic
-    # Log the downgrade
-    log_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || log_ts="unknown"
-    if command -v jq &>/dev/null; then
-        jq -nc \
-            --arg ts "$log_ts" \
-            --arg from "authoritative" \
-            --arg to "heuristic" \
-            --arg reason "active_skill field absent in hook input" \
-            '{timestamp: $ts, event: "compliance.mode.fallback", from_mode: $from, to_mode: $to, reason: $reason}' \
-            >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
     else
-        echo "{\"timestamp\":\"$log_ts\",\"event\":\"compliance.mode.fallback\",\"from_mode\":\"authoritative\",\"to_mode\":\"heuristic\",\"reason\":\"active_skill field absent in hook input\"}" \
-            >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+        # active_skill field absent despite authoritative mode — fall back to heuristic
+        # Log the downgrade
+        log_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || log_ts="unknown"
+        if command -v jq &>/dev/null; then
+            jq -nc \
+                --arg ts "$log_ts" \
+                --arg from "authoritative" \
+                --arg to "heuristic" \
+                --arg reason "active_skill field absent in hook input" \
+                '{timestamp: $ts, event: "compliance.mode.fallback", from_mode: $from, to_mode: $to, reason: $reason}' \
+                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+        else
+            echo "{\"timestamp\":\"$log_ts\",\"event\":\"compliance.mode.fallback\",\"from_mode\":\"authoritative\",\"to_mode\":\"heuristic\",\"reason\":\"active_skill field absent in hook input\"}" \
+                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+        fi
     fi
     # Fall through to heuristic check below
 fi
@@ -225,8 +248,8 @@ if check_implementation_active; then
     exit 0
 else
     # No active implementation detected — ADVISORY ask
-    echo "[ADVISORY] App Zone write to '$file_path' detected outside active /implement or /bug." >&2
+    echo "[ADVISORY] App Zone write to '$safe_file_path' detected outside active /implement or /bug." >&2
     echo "No RUNNING state found in .run/ state files. This may bypass review gates." >&2
-    echo '{"decision":"ask","reason":"[ADVISORY] App Zone write outside active implementation. Verify this is intentional."}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"[ADVISORY] App Zone write outside active implementation. Verify this is intentional."}}'
     exit 0
 fi

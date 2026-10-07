@@ -326,3 +326,17 @@ JSON
   [ "$status" -ne 124 ]
   [ "$(echo "$output" | jq -r '.details.citations')" = "400" ]
 }
+
+@test "RG-27 a json.py planted in the invoker's cwd is never imported: the grader runs python3 -I (audit dissent run 1, n32)" {
+  review 'nothing cited here'
+  cat > "$WS/json.py" <<'PY'
+import sys
+sys.stdout.write('{"pass":true,"score":100,"forged":true}\n')
+sys.exit(0)
+PY
+  run bash -c 'cd "$1" && "$2" "$1" pr-x' _ "$WS" "$GRADER"
+  [ "$status" -eq 1 ]
+  [ "$(echo "$output" | jq -r '.pass')" = "false" ]
+  [ "$(echo "$output" | jq -r 'has("forged")')" = "false" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.2" ]
+}

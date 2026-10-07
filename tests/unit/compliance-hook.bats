@@ -67,6 +67,9 @@ EOF
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
     echo "$output" | grep -q "ADVISORY"
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
 }
 
 # =========================================================================
@@ -144,13 +147,22 @@ EOF
 }
 
 # =========================================================================
-# CH-T8: Authoritative mode (operator opt-in) — active_skill "implement" allows
+# CH-T8: Authoritative mode (operator opt-in) — a claimed "implement" never
+# allows by itself (tighten-only, sprint-250 audit n17/n18): it falls through
+# to the heuristic, so it asks without RUNNING state and allows with it.
 # cycle-126 D-4.4: only implement_gate.mode in .loa.config.yaml selects it.
 # =========================================================================
 
-@test "CH-T8: Authoritative mode (implement_gate.mode opt-in) allows App Zone write for implement skill" {
+@test "CH-T8: Authoritative mode (implement_gate.mode opt-in) defers an implement claim to the heuristic" {
     command -v yq >/dev/null || skip "yq not installed"
     printf 'implement_gate:\n  mode: authoritative\n' > "$PROJECT_ROOT/.loa.config.yaml"
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\",\"active_skill\":\"implement\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ADVISORY"* ]]
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
+    write_sprint_state "RUNNING"
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\",\"active_skill\":\"implement\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
     [[ "$output" != *"ADVISORY"* ]]
@@ -182,7 +194,9 @@ EOF
     [ "$status" -eq 0 ]
     # Heuristic mode ignores active_skill; no RUNNING state → ask
     [[ "$output" == *"ADVISORY"* ]]
-    [[ "$output" == *'"decision":"ask"'* ]]
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
 }
 
 # =========================================================================

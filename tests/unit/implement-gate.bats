@@ -32,7 +32,15 @@ gate_with() {
     run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
 }
 
-decision() { [[ "$output" == *'"decision":"ask"'* ]] && echo ask || echo allow; }
+# Claude Code PreToolUse contract: "ask" is only valid as hookSpecificOutput.permissionDecision; a top-level
+# "decision" takes approve|block only (sprint-250 audit n20). Allow = silent exit 0 with empty stdout.
+decision() {
+    if [[ -z "$output" ]]; then echo allow
+    elif jq -e '(has("decision") | not) and .hookSpecificOutput.hookEventName == "PreToolUse"
+                and .hookSpecificOutput.permissionDecision == "ask"
+                and (.hookSpecificOutput.permissionDecisionReason | type == "string" and length > 0)' <<<"$output" >/dev/null 2>&1; then echo ask
+    else echo "invalid:$output"; fi
+}
 
 opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.config.yaml"; }
 
@@ -146,6 +154,57 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     fi
     grep -q 'display_gate_line' "$REPO/.claude/scripts/loa-status.sh"
     grep -A1 '^      display_context_line$' "$REPO/.claude/scripts/loa-status.sh" | grep -q 'display_gate_line'
+}
+
+@test "IG-12 authoritative is strictly tighter than heuristic: with RUNNING state a non-implementation claim asks and logs one model_signal row" {
+    command -v yq >/dev/null || skip "yq not installed"
+    printf '{"plan_id":"p","state":"RUNNING","timestamps":{"last_activity":"%s"}}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ROOT/.run/sprint-plan-state.json"
+    gate_with write-app-active-review.json
+    [ "$(decision)" = allow ]
+    [ ! -e "$ROOT/.run/audit.jsonl" ]
+    opt_in
+    gate_with write-app-active-review.json
+    [ "$(decision)" = ask ]
+    [[ "$stderr" == *"[AUTHORITATIVE]"* ]]
+    run jq -sc '[.[] | select(.event == "compliance.mode.model_signal")] | map([.mode, .active_skill, .file_path, .decision, (.timestamp | test("\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z\\z"))])' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "[[\"authoritative\",\"review-sprint\",\"$ROOT/app/main.py\",\"ask\",true]]" ]
+    # a claimed implementation skill never allows by itself: with RUNNING it allows (heuristic), without it asks
+    gate_with write-src-active-implement.json
+    [ "$(decision)" = allow ]
+    rm "$ROOT/.run/sprint-plan-state.json"
+    gate_with write-src-active-implement.json
+    [ "$(decision)" = ask ]
+    [[ "$stderr" == *"[ADVISORY]"* ]]
+    [ "$(jq -sc '[.[] | select(.event == "compliance.mode.model_signal")] | length' "$ROOT/.run/audit.jsonl")" = 1 ]
+}
+
+@test "IG-13 control characters in a claimed skill or path are stripped from stderr and the audit row (n21)" {
+    command -v yq >/dev/null || skip "yq not installed"
+    opt_in
+    printf '{"tool_input":{"file_path":"%s/src/a\\u001b[31mb\\u007f.py","active_skill":"rev\\u0007iew\\r\\n"}}\n' "$ROOT" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    [[ "$stderr" == *"'$ROOT/src/a[31mb.py' detected during /review (not an implementation skill)."* ]]
+    run -1 env LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]' <<<"$stderr"
+    run jq -r 'select(.event == "compliance.mode.model_signal") | .active_skill + " " + .file_path' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "review $ROOT/src/a[31mb.py" ]
+}
+
+@test "IG-14 the /loa evidence line and the refresh never carry Unicode format characters (U+202E, U+200B)" {
+    printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z\\u202e","active_skill_source":"tool\\u200b_input"}\n' > "$ROOT/.run/platform-features.json"
+    run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" --line' _ "$ROOT" "$DETECT"
+    [ "$output" = "Implement gate: heuristic (active_skill evidence: seen 2026-01-01T00:00:00Z via tool_input; no harness skill signal)" ]
+    run -1 env LC_ALL=C grep -q '[^[:print:]]' <<<"$output"
+    touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
+    run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
+    run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
+    [ "$output" = "null null" ]
+    # a well-shaped seen_at with an unknown source keeps the seen_at only
+    printf '{"active_skill_seen_at":"2026-01-01T00:00:00Z","active_skill_source":"forged"}\n' > "$ROOT/.run/platform-features.json"
+    touch -d '2 hours ago' "$ROOT/.run/platform-features.json"
+    run bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2"' _ "$ROOT" "$DETECT"
+    run jq -r '[.active_skill_seen_at, .active_skill_source] | map(tostring) | join(" ")' "$ROOT/.run/platform-features.json"
+    [ "$output" = "2026-01-01T00:00:00Z null" ]
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {

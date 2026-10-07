@@ -890,3 +890,12 @@ cost-profile: moderate
     AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/broken.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-claude
     [ "$status" -eq 1 ]
 }
+
+@test "SC-T-AGENT-10: outside bats the AGENT_TYPES_FILE override is ignored (test-mode gate)" {
+    printf 'agent_types:\n  Plan:\n    write_capable: true\n' > "$BATS_TEST_TMPDIR/agent-types.yaml"
+    agent_skill w-plan Plan
+    run env -u BATS_TEST_FILENAME -u BATS_VERSION -u BATS_TEST_DIRNAME -u BATS_TEST_TMPDIR \
+        AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" "$VALIDATOR" --skill w-plan
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+}

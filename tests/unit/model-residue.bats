@@ -67,7 +67,7 @@ map_value() {
 
 @test "RES-5 Gemini agents name served ids: deep-thinker → gemini-3.1-pro (thinking_traces), fast-thinker stays gemini-3-flash (no 3.1 flash served)" {
     [ "$(yq_cat agents.deep-thinker.model)" = "gemini-3.1-pro" ]
-    python3 - "$CAT" <<'PY'
+    python3 -I - "$CAT" <<'PY'
 import sys, yaml
 d = yaml.safe_load(open(sys.argv[1]))
 target = d["aliases"]["gemini-3.1-pro"].split(":", 1)[1]

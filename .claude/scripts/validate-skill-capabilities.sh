@@ -107,8 +107,14 @@ should_skip() {
 # or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
 # D-4.4); a missing or unparsable file, or one with no `write_capable: true`
 # entry, leaves general-purpose only.
+# The AGENT_TYPES_FILE env override is a test seam: it is honoured only under
+# the bats markers (repo test-mode convention); otherwise the in-tree file is used.
 # See .claude/rules/skill-invariants.md.
-AGENT_TYPES_FILE="${AGENT_TYPES_FILE:-$PROJECT_ROOT/.claude/data/agent-types.yaml}"
+if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${AGENT_TYPES_FILE:-}" ]]; then
+    :
+else
+    AGENT_TYPES_FILE="$PROJECT_ROOT/.claude/data/agent-types.yaml"
+fi
 WRITE_CAPABLE_AGENTS=()
 if [[ -f "$AGENT_TYPES_FILE" ]]; then
     while IFS= read -r _agent; do

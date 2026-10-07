@@ -47,7 +47,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -d "$ROOT/.claude" ]] || { echo "check-prompt-budget.sh: no .claude/ under $ROOT" >&2; exit 2; }
 
-python3 - "$ROOT" "$JSON" "$QUIET" <<'PY'
+python3 -I - "$ROOT" "$JSON" "$QUIET" <<'PY'
 import glob, json, os, re, sys
 root, as_json, quiet = sys.argv[1], sys.argv[2] == "1", sys.argv[3] == "1"
 SKILL_LIMIT, LOA_LIMIT, PROTO_FAIL, PROTO_WARN = 16384, 10240, 160000, 114688

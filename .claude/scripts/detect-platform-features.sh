@@ -10,6 +10,10 @@
 # carries forward the evidence implement-gate.sh records (active_skill_seen_at,
 # active_skill_source) and states that it is not a harness signal.
 #
+# The refresh carries active_skill_seen_at forward only as an ISO-8601 UTC
+# timestamp and active_skill_source only as a value the recorder writes
+# ("tool_input"); anything else is dropped (sprint-250 audit n24).
+#
 # Outputs: .run/platform-features.json
 #   { "active_skill_available": false, "harness_signal": false,
 #     "active_skill_seen_at": "ISO8601"|null, "active_skill_source": str|null,
@@ -33,7 +37,7 @@ if [[ "${1:-}" == "--line" ]]; then
         [[ "${configured//\"/}" == "authoritative" ]] && label="authoritative (opt-in; "
     fi
     evidence=$(jq -r 'if (.active_skill_seen_at // "") != "" then "seen \(.active_skill_seen_at) via \(.active_skill_source // "unknown")" else empty end' \
-        "$FEATURES_FILE" 2>/dev/null | tr -d '[:cntrl:]' | cut -c1-120)
+        "$FEATURES_FILE" 2>/dev/null | LC_ALL=C tr -cd '[:print:]' | cut -c1-120)   # printable ASCII only: drops U+202E/U+200B too (sprint-250 audit n24)
     echo "Implement gate: ${label}active_skill evidence: ${evidence:-none}; no harness skill signal)"
     exit 0
 fi
@@ -63,7 +67,8 @@ base=$(jq -c 'select(type == "object") | {active_skill_seen_at, active_skill_sou
 tmp=$(mktemp "$RUN_DIR/.platform-features.XXXXXX" 2>/dev/null) || exit 0
 jq -n --argjson b "${base:-{\}}" --arg detected "$detected_at" \
     '{active_skill_available: false, harness_signal: false,
-      active_skill_seen_at: ($b.active_skill_seen_at // null), active_skill_source: ($b.active_skill_source // null),
+      active_skill_seen_at: ($b.active_skill_seen_at | if type == "string" and test("\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\\z") then . else null end),
+      active_skill_source: ($b.active_skill_source | if . == "tool_input" then . else null end),
       detected_at: $detected, schema_version: 2}' > "$tmp" 2>/dev/null \
     && mv -f "$tmp" "$FEATURES_FILE" 2>/dev/null
 rm -f "$tmp" 2>/dev/null

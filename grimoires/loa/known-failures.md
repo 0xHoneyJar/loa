@@ -1641,6 +1641,7 @@ Not a timeout or rate limit (KF-037/KF-038): an immediate failure with Errno 7 m
 |------|---------------|---------|----------|
 | 2026-10-06 | G-1 attempt 1 (bare subscription CLI), attempt 2 (claude-fallback), attempt 3 (claude-bedrock) | 1 and 2 geo 400 in about 10 s; 3 succeeded | commit fd8aaae3; a2a/sprint-250/e2e/g1-real-call.txt; MODELINV ts 2026-10-06T06:41:11Z |
 | 2026-10-06 | Review-dissent caveat: the claude-bedrock workaround assumes the host's egress region is supported by Bedrock for the model; confirm the region before routing a hop through it | documentation only; the sprint-250 review dissent run 1 ran its companion voice through claude-bedrock on all 14 chunks | a2a/sprint-250/review-dissent-run-1-verifier-B.md n63; e2e/g2-two-voice-envelopes.txt |
+| 2026-10-07 | sprint-250 audit dissent run 1, finding n48: reading check of this entry's workaround guidance | Reading note: the geo 400 is the vendor's access-control decision, not a transient fault — it must never become an automatic fallback trigger; the Bedrock route is an operator decision, valid only where the operator's AWS region and terms permit that location (the cycle-126 runs used it after the operator chose it) | grimoires/loa/a2a/sprint-250/audit-dissent-run-1-verifier-B.md n48; commit 4d37029e |
 
 ### Reading guide
 

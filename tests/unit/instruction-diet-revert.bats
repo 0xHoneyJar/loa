@@ -35,7 +35,7 @@ setup() {
 }
 
 @test "IDR-3 the twelve constraint rationales carry their pre-diet text" {
-    run python3 - "$R/.claude/data/constraints.json" "$R/tests/fixtures/constraint-rationales-pre-diet.json" <<'PY'
+    run python3 -I - "$R/.claude/data/constraints.json" "$R/tests/fixtures/constraint-rationales-pre-diet.json" <<'PY'
 import json, sys
 found = {}
 def walk(x):

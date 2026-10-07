@@ -484,7 +484,7 @@ _c126_model() {  # <model-entry-json> → a one-model v3 document
     done
 }
 
-@test "V3 (c126): every beta-header value the schema accepts, the adapter accepts (never looser)" {
+@test "V3 (c126): every beta-header value the schema accepts, the adapter accepts, and every value it rejects, the adapter rejects" {
     cd "$PROJECT_ROOT/.claude/adapters"
     run "$PYTHON_BIN" - "$SCHEMA_V3" <<'PYEOF'
 import json, re, sys
@@ -497,6 +497,26 @@ cases = ["context-1m-2025-08-07", "a-2025-01-01", "x1-y2-2030-12-31", "Context-1
 accepted = [c for c in cases if re.search(pat, c)]
 assert "context-1m-2025-08-07" in accepted, accepted
 bad = [c for c in accepted if not a._BETA_HEADER_RE.match(c)]
+# Converse (audit dissent run 1, n1/n4): every value the schema REJECTS, the adapter's
+# own check (_beta_header_value) rejects. The schema is read with JSON Schema's ECMA-262
+# semantics: non-multiline `$` is end of input (Python's `$` also matches before a final
+# newline, so it is rewritten to \Z) and `[0-9]` is ASCII only.
+assert pat.endswith("$") and "\\d" not in pat, pat
+assert a._BETA_HEADER_RE.pattern == pat, (a._BETA_HEADER_RE.pattern, pat)
+ecma = re.compile(pat[:-1] + r"\Z", re.ASCII)
+rejected = cases + ["context-1m-2025-08-07\n", "context-1m-2025-08-07\r\n", "context-1m-\u0662\u0660\u0662\u0665-08-07",
+                    "context-1m-2025-08-0\u0667", "context-1m-2025-08-07 ", "\ncontext-1m-2025-08-07"]
+rejected = [c for c in rejected if not ecma.search(c)]
+assert "context-1m-2025-08-07\n" in rejected and "context-1m-\u0662\u0660\u0662\u0665-08-07" in rejected, rejected
+loose = []
+for c in rejected:
+    try:
+        a._beta_header_value({"beta_headers": [c]}, "m")
+        loose.append(c)
+    except Exception as e:
+        if type(e).__name__ != "ConfigError":
+            raise
+bad += ["adapter-accepted %r" % c for c in loose]
 print("MISMATCH %r" % bad if bad else "OK")
 PYEOF
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }

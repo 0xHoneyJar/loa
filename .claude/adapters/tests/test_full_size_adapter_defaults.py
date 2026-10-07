@@ -123,7 +123,8 @@ def test_beta_headers_outside_the_allowlist_are_a_config_error(bad):
 
 
 def test_beta_header_allowlist_regex_is_the_documented_one():
-    assert aa._BETA_HEADER_RE.pattern == r"^[a-z0-9]+(-[a-z0-9]+)*-\d{4}-\d{2}-\d{2}$"
+    # the schema's own pattern string, ASCII digits (audit dissent run 1, n1/n4)
+    assert aa._BETA_HEADER_RE.pattern == r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 
 
 # --- D-1.7 health probe -----------------------------------------------------

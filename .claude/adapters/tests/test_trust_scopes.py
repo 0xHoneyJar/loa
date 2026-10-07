@@ -380,6 +380,19 @@ class TestModelCoverage(unittest.TestCase):
                 self.assertEqual(entry.get("execution_mode"), "remote_model")
                 self.assertEqual(entry.get("capabilities"), reference["capabilities"])
 
+    def test_mirror_reference_row_is_literally_pinned(self):
+        # audit dissent run 1, n7: the mirror above compares every served row to
+        # the live 4.7 row, so a correlated widening (the reference row and the
+        # rest together) would pass it. Pin the reference row's capabilities and
+        # context_access.security literally; the six operational dimensions are
+        # pinned "none" by test_anthropic_opus_4_7_all_none.
+        reference = self.models["anthropic:claude-opus-4-7"]
+        self.assertEqual(
+            reference.get("capabilities"),
+            {"file_read": False, "file_write": False, "command_execution": False, "network_access": False},
+        )
+        self.assertEqual(reference["trust_scopes"]["context_access"]["security"], "redacted")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -293,6 +293,13 @@ prepare_content() {
     c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
   local top_path_log; top_path_log=$(printf '%s' "$top_path" | LC_ALL=C tr -d '\000-\037\177')   # stderr never gets a header's raw controls (bd-pw7e LOW-003)
+  # ... nor UTF-8 C1 controls (U+0080..U+009F = C2 80..C2 9F, e.g. U+009B CSI; audit dissent run 1, n30); C2 is never a
+  # continuation byte, so legitimate UTF-8 (src/café.sh) is untouched; printf -v keeps this portable (no GNU-sed \x)
+  local _lc_c1 _lc_c1_hex _lc_c1_seq
+  for (( _lc_c1 = 128; _lc_c1 < 160; _lc_c1++ )); do
+    printf -v _lc_c1_hex '%02x' "$_lc_c1"; printf -v _lc_c1_seq "\\xc2\\x${_lc_c1_hex}"
+    top_path_log=${top_path_log//"$_lc_c1_seq"/}
+  done
   if [[ -n "$top_idx" ]]; then
     # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
     # of the budget — a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large

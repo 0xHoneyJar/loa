@@ -36,6 +36,8 @@
 # Parser 1.1.2 (the run 2 changes above, plus sprint-250 review run 3): the
 # URL look-back takes the text after the last whitespace — one linear split —
 # so a citation that opens a line never inherits the previous line's URL.
+# The parser runs as `python3 -I -` (audit dissent run 1, n32): a module planted
+# in the invoker's cwd (a forging json.py) is never imported (RG-27).
 #
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
@@ -75,7 +77,7 @@ if [[ ! -f "$review" ]]; then
   exit 1
 fi
 
-python3 - "$manifest" "$review" "$executor" <<'PY'
+python3 -I - "$manifest" "$review" "$executor" <<'PY'
 import json, re, sys
 manifest_path, review_path, executor_path = sys.argv[1:4]
 man = json.load(open(manifest_path))

@@ -5814,6 +5814,30 @@ EOF
     grep -q 'File ${top_path_log} exceeds what the rows that fit leave over' "$lib"
 }
 
+@test "CMP-279 a diff --git header path's UTF-8 C1 controls (C2 80..C2 9F, e.g. U+009B CSI) never reach stderr either, while legitimate UTF-8 such as café passes verbatim (audit dissent run 1, n30)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-c1.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name="$2"
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    rc=0; bash "$T/lc-c1.sh" "$lib" 'src/a'$'\xc2\x9b''2J'$'\xc2\x9d''b'$'\xc2\x80\xc2\x9f''.sh' 2>"$T/lc-c1.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-c1.err"; return 1; }
+    grep -q 'Top-priority file src/a2Jb\.sh exceeds the token budget' "$T/lc-c1.err"
+    local pair
+    for pair in $'\xc2\x80' $'\xc2\x9b' $'\xc2\x9d' $'\xc2\x9f'; do
+        ! LC_ALL=C grep -qF "$pair" "$T/lc-c1.err" || { echo "C1 pair reached stderr"; od -c "$T/lc-c1.err" | head; return 1; }
+    done
+    rc=0; bash "$T/lc-c1.sh" "$lib" 'src/café.sh' 2>"$T/lc-cafe.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-cafe.err"; return 1; }
+    grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-cafe.err"
+}
+
 @test "CMP-275 main refuses a --sprint-id that is not a plain name — a path in it never reaches mktemp, the run lock, the move-aside or the envelope's directory: a usage error (exit 2) and nothing written (audit run 1, a5 DISS-C-002)" {
     local esc="cmp275esc-$$" sid
     mkdir -p "$T/tmp/adversarial-x"   # the pre-made directory that lets mktemp -d walk out of TMPDIR
