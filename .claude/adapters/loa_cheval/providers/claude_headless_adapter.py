@@ -129,21 +129,20 @@ def build_headless_argv(
     cli_bin: str,
     cli_model: str,
     *,
-    prompt: Optional[str] = None,
     effort: Optional[str] = None,
     max_turns: Optional[int] = None,
 ) -> List[str]:
     """The headless `claude -p` argv: JSON output, plan mode (read-only), no
     session persistence, every tool disabled (`--tools ""` is the documented
     "disable all" sentinel), the model, then `--effort` when set.
-    ``prompt=None``: the prompt travels on stdin. ``max_turns`` is for callers
+    The prompt travels on stdin — the builder takes none (r251-4 S8, audit
+    n26: a prompt here would sit where an option is parsed). ``max_turns`` is for callers
     outside the adapter (tools/ceiling-probe-live.py pins 1); the adapter does
     not pass it. cycle-127 D-3.9: one builder, so the probe measures the shape
     the adapter dispatches."""
     cmd: List[str] = [
         cli_bin,
         "-p",
-        *([] if prompt is None else [prompt]),
         "--output-format",
         "json",
         "--permission-mode",
@@ -305,9 +304,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         # if declared so the operator can map the alias to a real CLI
         # model identifier (e.g. `sonnet`, `opus`).
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
-        cmd = build_headless_argv(
-            self._cli_bin(), cli_model, prompt=prompt, effort=self._resolve_effort(request, model_config),
-        )
+        cmd = build_headless_argv(self._cli_bin(), cli_model, effort=self._resolve_effort(request, model_config))
 
         # cycle-124 FR-7: forward the schema compactly when the CLI knows the
         # flag; otherwise the call proceeds unenforced (schema_enforced false).
@@ -349,6 +346,10 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
                 elif isinstance(entry, list):
                     cmd.extend(str(x) for x in entry)
 
+        # (r251-4 S8, audit n26: an argv prompt — the adapter itself sends none — goes LAST, after the option terminator,
+        # so a prompt that starts with "-" is never parsed as a flag)
+        if prompt is not None:
+            cmd.extend(["--", prompt])
         return cmd
 
     def _resolve_effort(

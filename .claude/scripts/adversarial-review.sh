@@ -2387,7 +2387,7 @@ _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain with
   mode=$(agy_headless_mode "${CONFIG_FILE:-}")
   for h in "$@"; do
     c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
-    if routes_to_agy "$h" "$mode" || routes_to_agy "$c" "$mode"; then
+    if routes_to_agy "$h" "$mode" "${CONFIG_FILE:-}" || routes_to_agy "$c" "$mode" "${CONFIG_FILE:-}"; then   # (r251-4: project aliases)
       log "WARN: companion hop ${h} not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — named by flatline_protocol.${key}.companion_chain.${fam}"
     else out+="$h "; fi
   done

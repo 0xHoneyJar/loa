@@ -77,8 +77,15 @@ def test_no_environment_override(tmp_path, monkeypatch):
     assert agy_opt_in_enabled(_project(tmp_path, "hounfour: {}\n")) is False
 
 
+def _this_cheval(tmp_path):
+    """(r251-4 S2) the cwd walk's root is honoured only when its .claude/adapters IS this cheval (the submodule mount's
+    symlink shape); a bare .claude/ is someone else's tree and the opt-in falls back to cheval's install root."""
+    (tmp_path / ".claude" / "adapters").symlink_to(Path(__file__).resolve().parent.parent, target_is_directory=True)
+
+
 def test_the_project_root_defaults_to_the_cwd_walk(tmp_path, monkeypatch):
     root = _project(tmp_path, "hounfour:\n  headless:\n    agy_opt_in: true\n")
+    _this_cheval(tmp_path)
     (tmp_path / "sub").mkdir()
     monkeypatch.chdir(tmp_path / "sub")
     assert agy_opt_in_enabled() is True
@@ -152,6 +159,7 @@ def test_on_dispatches_as_today(monkeypatch):
 def test_the_adapter_reads_the_real_project_config(tmp_path, monkeypatch):
     """No monkeypatch of the reader: a project whose config carries no key refuses; `true` dispatches."""
     _project(tmp_path, "hounfour:\n  headless:\n    mode: prefer-api\n")
+    _this_cheval(tmp_path)
     monkeypatch.chdir(tmp_path)
     pgkill = MagicMock(return_value=subprocess.CompletedProcess(["agy"], 0, "APPROVED", ""))
     with patch(f"{_MOD}.run_subprocess_pgkill", pgkill):

@@ -15,6 +15,10 @@ setup() {
     LIB="$REPO/.claude/scripts/lib/agy-gate-lib.sh"
     CFG="$BATS_TEST_TMPDIR/loa.config.yaml"
     unset LOA_HEADLESS_MODE
+    # (r251-4: the suite sources adversarial-review.sh — its CLI lock resolves under this suite's own runtime dir, never
+    # the per-user one a live dissent holds; adversarial-review-companion.bats CMP-121)
+    mkdir -p "$BATS_TEST_TMPDIR/xdg"; chmod 700 "$BATS_TEST_TMPDIR/xdg"
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR/xdg"
 }
 
 _cfg() {  # <mode> [agy_opt_in value|absent]
@@ -117,9 +121,18 @@ TABLE
     T="$BATS_TEST_TMPDIR/lsp"; mkdir -p "$T/run" "$T/env" "$T/bin"
     printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
     _cfg cli-only
+    local t0=$SECONDS
     run --separate-stderr env LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" LOA_STATUS_CONFIG_FILE="$CFG" PATH="$T/bin:$PATH" \
         timeout 180 bash "$REPO/.claude/scripts/loa-status.sh" --no-stale-check --json
-    echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || { echo "$output" | tail -5; return 1; }
+    # (r251-4 S9, review round-2 Obs 2: on failure say WHICH failure — a `timeout 180` expiry (status 124, elapsed ≈ 180 s)
+    # is not a gate mismatch (status 0 and a google block that disagrees))
+    echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || {
+        echo "status=$status elapsed=$(( SECONDS - t0 ))s ($([[ $status == 124 ]] && echo 'timeout 180 expired' || echo 'gate mismatch or loa-status failure'))"
+        echo "--- stderr (last 20 lines)"; printf '%s\n' "$stderr" | tail -20
+        echo "--- google block"; jq -c '.providers.providers.google' <<<"$output" 2>/dev/null || echo "(not JSON)"
+        echo "--- stdout (last 20 lines)"; printf '%s\n' "$output" | tail -20
+        return 1
+    }
 }
 
 # --- review r251-1 G12/G18, r251-2 K1 ---------------------------------------------------------------------------------
@@ -255,4 +268,106 @@ SHIM
         run env PATH="$BATS_TEST_TMPDIR/fyq:$PATH" bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG"
         [ "$output" = "$want" ] || { echo "python-yq $w → $output, want $want"; return 1; }
     done
+}
+
+# --- review r251-4 (the audit dissent) ---------------------------------------------------------------------------------
+
+_shape() {  # <label> → writes $CFG with one of the r251-4 S3 shapes
+    case "$1" in
+        foreign_tag) printf 'hounfour:\n  headless:\n    agy_opt_in: !<x:bool> true\n' ;;
+        local_tag)   printf 'hounfour:\n  headless:\n    agy_opt_in: !bool true\n' ;;
+        alias)       printf 'x: &t true\nhounfour:\n  headless:\n    agy_opt_in: *t\n' ;;
+        merge_key)   printf 'b: &b\n  agy_opt_in: true\nhounfour:\n  headless:\n    <<: *b\n' ;;
+        alias_map)   printf 'h: &h\n  agy_opt_in: true\nhounfour:\n  headless: *h\n' ;;
+        full_tag)    printf 'hounfour:\n  headless:\n    agy_opt_in: !<tag:yaml.org,2002:bool> true\n' ;;
+        anchored)    printf 'hounfour:\n  headless:\n    agy_opt_in: &a true\n' ;;
+    esac > "$CFG"
+}
+
+@test "AGC-13 (r251-4 S3) the exact bool tag, an alias and a merge key: the go-yq lib, the python-yq lib and Python agree (only full_tag / anchored opt in)" {
+    python3 -c 'import yaml' 2>/dev/null || skip "PyYAML not installed"
+    _fake_yq 'yq 3.4.3' true   # (the python-yq flavour shim: the lib takes its PyYAML node path)
+    local w want go pyq py
+    for w in foreign_tag local_tag alias merge_key alias_map full_tag anchored; do
+        _shape "$w"; want=off; [[ "$w" == full_tag || "$w" == anchored ]] && want=on
+        go=$(bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG")
+        pyq=$(env PATH="$BATS_TEST_TMPDIR/fyq:$PATH" bash -c 'source "$1"; agy_opted_in "$2" && echo on || echo off' _ "$LIB" "$CFG")
+        cp -- "$CFG" "$BATS_TEST_TMPDIR/.loa.config.yaml"
+        py=$(python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from loa_cheval.config.loader import agy_opt_in_enabled; print("on" if agy_opt_in_enabled(sys.argv[2]) else "off")' "$REPO/.claude/adapters" "$BATS_TEST_TMPDIR" 2>/dev/null)
+        [ "$go" = "$want" ] && [ "$pyq" = "$want" ] && [ "$py" = "$want" ] || { echo "$w: go-yq=$go python-yq=$pyq python=$py want=$want"; return 1; }
+    done
+}
+
+@test "AGC-14 (r251-4 S4) an exported include-guard variable never skips loading the lib, and an exported said-once flag never silences the WARN" {
+    _cfg cli-only '"true"'
+    run --separate-stderr env _LOA_AGY_GATE_LIB_LOADED=1 _LOA_AGY_GATE_WARNED=1 \
+        bash -c 'source "$1"; declare -F routes_to_agy agy_opted_in agy_route_planned >/dev/null || exit 9; agy_gate_warn_once "$2"; routes_to_agy gemini-2.5-pro cli-only && echo routed' _ "$LIB" "$CFG"
+    [ "$status" -eq 0 ] || { echo "status=$status (9 = lib skipped) stderr=$stderr"; return 1; }
+    [ "$output" = routed ]
+    [ "$(grep -c 'not a YAML boolean' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+    # sourcing twice is still a no-op: the said-once flag survives a re-source
+    run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"; source "$1"; agy_gate_warn_once "$2"' _ "$LIB" "$CFG"
+    [ "$(grep -c 'not a YAML boolean' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+}
+
+@test "AGC-15 (r251-4 S5, audit run-2 n7) a hostile model string never executes — with the real maps and with maps that declare no arrays" {
+    local pwn="$BATS_TEST_TMPDIR/pwned" m
+    local -a hostile=("x\$(touch $pwn)" "a[\$(touch $pwn)]" ']' '[' 'x`touch '"$pwn"'`' "a[\`touch $pwn\`]")
+    for m in "${hostile[@]}"; do
+        bash -c 'source "$1"; routes_to_agy "$2" cli-only; agy_catalog_provider "$2" >/dev/null' _ "$LIB" "$m" 2>/dev/null || true
+    done
+    [ ! -e "$pwn" ] || { echo "a hostile model string executed (real maps)"; return 1; }
+    # a lib copy whose maps file declares nothing (an old or broken install): the arrays would be indexed, not associative
+    local L="$BATS_TEST_TMPDIR/fake/scripts"; mkdir -p "$L/lib"
+    cp -- "$LIB" "$L/lib/agy-gate-lib.sh"; printf '# no arrays here\ntrue\n' > "$L/generated-model-maps.sh"
+    for m in "${hostile[@]}"; do
+        bash -c 'source "$1"; routes_to_agy "$2" cli-only; agy_catalog_provider "$2" >/dev/null' _ "$L/lib/agy-gate-lib.sh" "$m" 2>/dev/null || true
+    done
+    [ ! -e "$pwn" ] || { echo "a hostile model string executed (undeclared maps)"; return 1; }
+}
+
+@test "AGC-16 (r251-4 S5, review Obs 4) unreadable maps: routes_to_agy falls back to the name rule and says so ONCE per shell; readable maps are silent" {
+    local L="$BATS_TEST_TMPDIR/fake2/scripts"; mkdir -p "$L/lib"
+    cp -- "$LIB" "$L/lib/agy-gate-lib.sh"; printf 'exit_with_error() { return 1; }\nfalse\n' > "$L/generated-model-maps.sh"
+    run --separate-stderr bash -c 'source "$1"; routes_to_agy deep-research-pro cli-only && echo dr; routes_to_agy gemini-2.5-pro cli-only && echo g; routes_to_agy researcher cli-only && echo r' _ "$L/lib/agy-gate-lib.sh"
+    [ "$output" = g ] || { echo "out=$output"; return 1; }
+    [ "$(grep -c 'generated model maps .* could not be read' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+    run --separate-stderr bash -c 'source "$1"; routes_to_agy deep-research-pro cli-only && echo dr' _ "$LIB"
+    [ "$output" = dr ] && [ -z "$stderr" ] || { echo "out=$output stderr=$stderr"; return 1; }
+}
+
+@test "AGC-17 (r251-4 S8, audit n14) a project-config alias is resolved before the rule, as cheval resolves the hop: an alias of gemini-headless is agy-routed on any mode" {
+    source "$LIB"
+    {
+        printf 'hounfour:\n  headless:\n    mode: prefer-api\n  aliases:\n'
+        printf '    myg: "google:gemini-headless"\n    myh:\n      target: gemini-headless\n'
+        printf '    myr: "google:gemini-2.5-pro"\n    myo: "openai:gpt-5.5"\n'
+    } > "$CFG"
+    local m mode want got
+    while read -r m mode want; do
+        if routes_to_agy "$m" "$mode" "$CFG"; then got=True; else got=False; fi
+        [ "$got" = "$want" ] || { echo "routes_to_agy $m $mode <cfg> → $got, want $want"; return 1; }
+    done <<'TABLE'
+myg prefer-api True
+myh prefer-cli True
+myr prefer-api False
+myr cli-only True
+myo cli-only False
+gemini-headless prefer-api True
+gpt-5.5 cli-only False
+TABLE
+    # without the config the bash rule cannot see the project alias (the old behaviour, kept for config-less callers)
+    ! routes_to_agy myg prefer-api || { echo "myg routed without a config"; return 1; }
+    # agy_route_planned reads the config itself: opt-in off → the aliased hop is not planned
+    ! agy_route_planned myg "$CFG" || { echo "myg planned with the opt-in off"; return 1; }
+    agy_route_planned myo "$CFG"
+}
+
+@test "AGC-18 (r251-4 S8, audit n14) the planners resolve project aliases: the Flatline tertiary and the dissent companion chain" {
+    PROJECT_ROOT="$REPO"
+    printf 'hounfour:\n  headless:\n    mode: prefer-api\n  aliases:\n    myg: "google:gemini-headless"\nflatline_protocol:\n  models:\n    tertiary: myg\n' > "$CFG"
+    run bash -c 'source "$1/.claude/scripts/flatline-orchestrator.sh"; CONFIG_FILE="$2"; get_tertiary_status' _ "$REPO" "$CFG"
+    [ "$output" = disabled_by_opt_in ] || { echo "flatline → $output"; return 1; }
+    run --separate-stderr bash -c 'PROJECT_ROOT="$1"; source "$1/.claude/scripts/adversarial-review.sh"; CONFIG_FILE="$2"; log() { echo "$*" >&2; }; _adv_agy_filter_chain code_review anthropic myg claude-headless' _ "$REPO" "$CFG"
+    [ "$output" = claude-headless ] || { echo "dissent → $output ($stderr)"; return 1; }
 }

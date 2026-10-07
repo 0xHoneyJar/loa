@@ -23,11 +23,11 @@
   "budget_usd": 20.0,
   "spent_usd": 19.0976,
   "pricing_basis": "catalog_estimate",
-  "cli_bin": "/home/merlin/.local/bin/claude-bedrock",
+  "cli_bin": "~/.local/bin/claude-bedrock",
   "cli_version": "2.1.292 (Claude Code)",
   "cli_model": "global.anthropic.claude-opus-5-5",
   "argv": [
-    "/home/merlin/.local/bin/claude-bedrock",
+    "~/.local/bin/claude-bedrock",
     "-p",
     "--output-format",
     "json",

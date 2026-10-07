@@ -183,9 +183,9 @@ class TestCommandConstruction:
         cmd = adapter._build_command(_make_request(), ModelConfig(), "hello prompt")
         # Required flags
         assert cmd[0] == "claude"
-        # -p with the prompt
-        idx = cmd.index("-p")
-        assert cmd[idx + 1] == "hello prompt"
+        # -p (print mode); an argv prompt goes last, after the option terminator (r251-4 S8, audit n26)
+        assert "-p" in cmd
+        assert cmd[-2:] == ["--", "hello prompt"]
         # JSON output
         assert "--output-format" in cmd
         assert cmd[cmd.index("--output-format") + 1] == "json"

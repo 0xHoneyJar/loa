@@ -527,7 +527,7 @@ _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_
 
 _tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy (lib/agy-gate-lib.sh routes_to_agy:
     # the gemini-headless hop by name, or a Google model under hounfour.headless.mode cli-only — env wins, as cheval's)
-    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")"
+    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")" "$CONFIG_FILE"   # (r251-4: project aliases resolved first)
 }
 
 tertiary_opt_in_skip_reason() {  # prints the skip line and returns 0 when the configured tertiary is gated off

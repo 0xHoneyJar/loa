@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import os
+import shlex
 import stat
 import sys
 import traceback
@@ -362,15 +363,16 @@ def _calibrate_hint(entry: Any, chain_entries: Any) -> Optional[str]:
     claude-headless hop names the chain's Anthropic HTTP entry with `--transport claude-headless` (the transport that
     measured the payload), and any other CLI hop, or a chain with no such entry, gets no hint: the CLI's own window
     refused the payload."""
+    # (r251-4 S6, audit n4: the model id is shell-quoted — the hint is a command an operator pastes)
     if getattr(entry, "adapter_kind", "http") != "cli":
-        return _PROBE_COMMAND.format(model=entry.model_id)
+        return _PROBE_COMMAND.format(model=shlex.quote(str(entry.model_id)))
     if _CLI_ADAPTER_BY_PROVIDER.get(getattr(entry, "provider", "")) != "claude-headless":
         return None
     head = next((e for e in (chain_entries or ())
                  if getattr(e, "adapter_kind", "http") != "cli" and getattr(e, "provider", "") == entry.provider), None)
     if head is None:
         return None
-    return f"{_PROBE_COMMAND.format(model=head.model_id)} --transport claude-headless"
+    return f"{_PROBE_COMMAND.format(model=shlex.quote(str(head.model_id)))} --transport claude-headless"
 
 
 _AGY_NOT_PLANNED_WARNED = False
@@ -844,7 +846,8 @@ def _lookup_max_input_tokens(
             else _hop_max_tokens(None, provider, model_id, hounfour)
         )
         _decision = _ceiling_input_bound(
-            model_config, max_tokens=_hop_budget, observed=_observed_for(provider, model_id),
+            model_config, max_tokens=_hop_budget,
+            observed=_observed_for(provider, model_id, context_window=model_config.get("context_window")),
         )
         _bound = _decision.value if _decision is not None else v3_ceiling
         if _streaming_killed and provider == "anthropic":
@@ -1782,9 +1785,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # The finally-clause emits a single envelope at function exit (success or
     # failure). Pre-resolution failures (handled above) deliberately do NOT
     # emit because no model invocation occurred. `models_requested` enumerates
-    # the entire resolved chain so audit consumers see the FULL intended walk
-    # shape, not just whichever entry happened to succeed.
-    # cycle-127 review r251-1 G1: a gated agy hop is planned around before models_requested is taken.
+    # the PLANNED chain — every hop the walk may dispatch, not just whichever
+    # entry happened to succeed; `models_requested` ∪ `models_not_planned` is
+    # the full resolved chain (cycle-127 review r251-1 G1: a gated agy hop is
+    # planned around before models_requested is taken; r251-4 S8, audit n2).
     _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
     if _models_not_planned and _auth_type_resolved is not None:
         _auth_type_resolved = _chain.entries[0].auth_type
@@ -2055,7 +2059,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     _preflight_cli_override
                     if isinstance(_preflight_cli_override, int) and _preflight_cli_override > 0 else None
                 ),
-                observed=_observed_for(_preflight_head.provider, _preflight_head.model_id),
+                observed=_observed_for(_preflight_head.provider, _preflight_head.model_id,
+                                       context_window=_preflight_head_cfg.get("context_window")),
                 policy=_ceiling_policy,
                 counter=_counter,
             )
@@ -2358,7 +2363,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             ):
                 _hop_decision = _ceiling_input_bound(
                     _hop_entry, max_tokens=_hop_budget,
-                    observed=_observed_for(_entry.provider, _entry.model_id), policy=_ceiling_policy,
+                    observed=_observed_for(_entry.provider, _entry.model_id, context_window=_hop_entry.get("context_window")),
+                    policy=_ceiling_policy,
                 )
                 if _hop_decision is not None and not _hop_decision.calibrated and _hop_decision.probed:
                     _hop_unverified = (_walk_estimate or 0) > _hop_decision.probed
@@ -2932,6 +2938,21 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             # parallel-dispatch races. Fail-soft; no-op when env var unset.
             _vq_write_sidecar(_vq_envelope)
 
+            # cycle-127 D-2.6: the wire value on the hop that answered (the primary when none did), from that adapter's
+            # wire_effort hook (r251-1 C5). r251-4 S8 (audit n29/n30): evaluated in its OWN try — an exception here
+            # used to fall into the emit's handler and lose the whole envelope; now the field records None, said once.
+            try:
+                _effort_effective_emit = _effort_on_wire(
+                    *(_modelinv_state["final_model_id"].split(":", 1)
+                      if ":" in str(_modelinv_state.get("final_model_id") or "")
+                      else (resolved.provider, resolved.model_id)),
+                    _effort, hounfour,
+                )
+            except Exception as _ee:  # noqa: BLE001 — one field never costs the envelope
+                _effort_effective_emit = None
+                logger.warning("MODELINV effort_effective could not be derived (%s: %s) — recorded as None",
+                               type(_ee).__name__, _ee)
+
             try:
                 _emit_modelinv(
                     models_requested=_modelinv_models_requested,
@@ -2954,17 +2975,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     effort=_effort,
                     # cycle-127 FR-2 (SDD D-2.5): caller | catalog | extra | none.
                     effort_source=_effort_source,
-                    # cycle-127 D-2.6: the wire value on the hop that answered
-                    # (the primary when none did), from that adapter's wire_effort
-                    # hook (r251-1 C5) — None where the adapter sends no effort.
                     # cycle-127 review r251-1 G1: hops planned around (never dispatched).
                     models_not_planned=_models_not_planned or None,
-                    effort_effective=_effort_on_wire(
-                        *(_modelinv_state["final_model_id"].split(":", 1)
-                          if ":" in str(_modelinv_state.get("final_model_id") or "")
-                          else (resolved.provider, resolved.model_id)),
-                        _effort, hounfour,
-                    ),
+                    # cycle-127 D-2.6 — None where the adapter sends no effort (derived above, r251-4 S8).
+                    effort_effective=_effort_effective_emit,
                     # cycle-124 FR-4: prompt-cache telemetry.
                     tokens_cache_read=_modelinv_state.get("tokens_cache_read"),
                     tokens_cache_creation=_modelinv_state.get("tokens_cache_creation"),

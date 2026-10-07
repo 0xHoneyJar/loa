@@ -189,6 +189,13 @@ export async function executeMultiModelReview(
       logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
     }
   }
+  // (r251-4 S1, audit n22: a read error is a HOST fault, not a decision — strict mode promised every configured voice, so a
+  // voice the failed read removed refuses the review; graceful mode runs the rest but never clears the merge, below)
+  if (multiConfig.api_key_mode === "strict" && agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
+    throw new Error(
+      `Strict mode: the Loa config is unreadable (${agyGate.readError}) — the agy gate failed closed and configured voices will not run: ${notPlannedList} (hounfour.headless.agy_opt_in)`,
+    );
+  }
   if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
     throw new Error(
       `Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`,
@@ -381,6 +388,9 @@ export async function executeMultiModelReview(
       modelId: r.model,
       verdictQuality: r.response?.verdictQuality,
     })),
+    // (r251-4 S8, audit n21: the posted line names the voices that were not planned, and why)
+    keyStatus.notPlanned.map((np) => ({ provider: np.provider, modelId: np.modelId })),
+    agyGate.readError !== undefined ? "Loa config unreadable — the agy gate failed closed" : "agy opt-in off: hounfour.headless.agy_opt_in",
   );
   // cycle-118 bd-bb-degraded-verdict-ts — append a DEGRADED/FAILED trajectory
   // record (same channel/schema as the 3 bash gate writers). No-op when the
@@ -449,8 +459,13 @@ export async function executeMultiModelReview(
   if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
     reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
   }
-  // Incomplete or degraded participation can never clear a merge.
-  if (modelResults.length !== multiConfig.models.length - keyStatus.notPlanned.length ||
+  // Incomplete or degraded participation can never clear a merge. A voice the opt-in decision removed is not expected; a
+  // voice a READ ERROR removed still is (r251-4 S1, audit n22: a host fault never shrinks the quorum).
+  if (agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
+    reviewVerdict.mergeBlocked = true;
+    reviewVerdict.mergeBlockedReason = `Loa config unreadable (${agyGate.readError}): the agy gate failed closed and ${notPlannedList} did not run`;
+  }
+  if (modelResults.length !== multiConfig.models.length - (agyGate.readError !== undefined ? 0 : keyStatus.notPlanned.length) ||
       modelResults.some((result) => result.error || !result.response) ||
       computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
     reviewVerdict.mergeBlocked = true;
@@ -657,6 +672,8 @@ export function formatVerdictQualityHeader(
       chain_health?: string;
     };
   }>,
+  notPlanned: ReadonlyArray<{ provider: string; modelId: string }> = [],
+  notPlannedReason = "agy opt-in off: hounfour.headless.agy_opt_in",
 ): string {
   const band = computeVerdictBand(perModelResults);
   if (band === null) return "";
@@ -680,7 +697,10 @@ export function formatVerdictQualityHeader(
     banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
   }
 
-  return `**Verdict Quality**: ${banner}\n\n`;
+  const np = notPlanned.length > 0
+    ? ` · not planned: ${notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")} (${notPlannedReason})`
+    : "";
+  return `**Verdict Quality**: ${banner}${np}\n\n`;
 }
 
 /**

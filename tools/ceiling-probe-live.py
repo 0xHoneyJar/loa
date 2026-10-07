@@ -73,7 +73,20 @@ rate the CLI is billed at for the prompt (`pricing_basis: catalog_estimate`,
   output past the cap / interrupted
   not sent (spawn failed)           0
 The budget cap is checked BEFORE every attempt against the estimate
-(target × price): what an attempt will cost is unknown until it returns.
+(filler × ratio × price): what an attempt will cost is unknown until it
+returns. Until a step measures a ratio the estimate (only) assumes the Opus
+4.7+ tokenizer's 1.8 — the first step's filler is still sent blind. A CLI
+cost, token count or retry-after that is not a finite number in a sane range
+(cost < $1000, tokens < 10^9, retry-after < 3600 s) is dropped and noted in
+the sample's `dropped_values`.
+
+--host-route, the resolved --cli-model (an alias resolves through the
+wrapper's ANTHROPIC_DEFAULT_*_MODEL) and the CLI's --version reach the
+catalog's provenance text: a control or line-break character, or more than
+200 characters, is a usage error (exit 2) before any call. The writer
+re-parses the text it produced and refuses (nothing written) unless the
+entry's ceilings and calibration load as written and nothing else changed.
+The record names the binary resolved on PATH, `~`-relative under $HOME.
 
 Outcome `clean` = the largest accepted step is verified, a size rejection
 sits within --tolerance-tokens above it, and nothing was `other`,
@@ -118,6 +131,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import re
 import shutil
@@ -193,6 +207,7 @@ _TPM_WINDOW_S = 60
 if sum(_TPM_BACKOFF_S) < _TPM_WINDOW_S:  # r251-2 Q7: the schedule alone clears the window
     raise RuntimeError("ceiling-probe-live: _TPM_BACKOFF_S must sum to at least _TPM_WINDOW_S")
 _RETRY_WAIT_CAP_S = 180         # total sleep per step, every class
+_PRIOR_RATIO = 1.8              # measured/filler before any step measures (estimates only, r251-4 T3)
 _RETRY_AFTER = re.compile(r"retry[-_ ]after\W{0,4}(\d+(?:\.\d+)?)", re.I)
 # A throttle marker (verifier r251-1) wins over a context marker: Bedrock's token
 # throttle reads "Too many tokens, please wait before trying again" — it carries
@@ -232,6 +247,39 @@ def _adapters():
 
 def _cli_bin() -> str:
     return os.environ.get("CLAUDE_HEADLESS_BIN") or "claude"
+
+
+def _home_rel(path: str) -> str:
+    """r251-4 T4 (n40): a path under the operator's home, rendered `~/…` for the record."""
+    home = os.path.expanduser("~").rstrip("/")
+    if home and path.startswith(home + "/"):
+        return "~" + path[len(home):]
+    return path
+
+
+def _recorded_bin(cli_bin: str) -> str:
+    """r251-4 T4 (n43): the binary that ran — resolved on PATH when bare — `~`-relative."""
+    return _home_rel(shutil.which(cli_bin) or cli_bin)
+
+
+# r251-4 T1 (n52): values that reach the catalog's provenance comment must be one
+# short line. C0 controls, DEL, C1 controls (NEL \x85 is a YAML line break) and the
+# Unicode line / paragraph separators all end a YAML comment.
+_UNSAFE_CHARS = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+_FIELD_MAX = 200
+
+
+def _unsafe_field(value) -> str | None:
+    """Why `value` may not reach the catalog text, or None when it may."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return f"not a string ({type(value).__name__})"
+    if _UNSAFE_CHARS.search(value):
+        return "contains a control or line-break character"
+    if len(value) > _FIELD_MAX:
+        return f"is {len(value)} characters (max {_FIELD_MAX})"
+    return None
 
 
 def _cli_command(cli_bin: str, cli_model: str) -> list[str]:
@@ -302,6 +350,27 @@ def _run_capped(cmd: list[str], prompt: str, timeout: int) -> tuple[int, str, st
 
 
 _DETAIL_CHARS = 300             # the record's `detail`; classification reads the full text
+# r251-4 T2 (n56): numbers the CLI's JSON reports are kept only when finite and sane —
+# json.loads accepts Infinity / NaN, and int(inf * 1e6) raised OverflowError in _charge.
+_MAX_COST_USD = 1000
+_MAX_TOKENS = 10 ** 9
+_MAX_RETRY_AFTER_S = 3600
+
+
+def _bounded(name: str, value, upper, dropped: list) -> int | float | None:
+    """`value` when it is a finite number in [0, upper), else None (noted in `dropped`)."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        dropped.append(f"{name}={value!r:.60}: not a number")
+        return None
+    if isinstance(value, float) and not math.isfinite(value):
+        dropped.append(f"{name}={value!r}: not finite")
+        return None
+    if not 0 <= value < upper:
+        dropped.append(f"{name}={value!r:.60}: outside [0, {upper})")
+        return None
+    return value
 
 
 def _classify(rc: int, stdout: str, stderr: str, needle: str) -> dict:
@@ -323,9 +392,14 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
     except json.JSONDecodeError:
         parsed = None
     usage = parsed.get("usage") if isinstance(parsed, dict) else None
-    base = {"measured_input_tokens": _measured(usage),
-            "cli_reported_cost_usd": parsed.get("total_cost_usd") if isinstance(parsed, dict) else None,
+    dropped: list[str] = []
+    base = {"measured_input_tokens": _bounded("measured_input_tokens", _measured(usage), _MAX_TOKENS, dropped),
+            "cli_reported_cost_usd": _bounded("cli_reported_cost_usd",
+                                              parsed.get("total_cost_usd") if isinstance(parsed, dict) else None,
+                                              _MAX_COST_USD, dropped),
             "stop_reason": parsed.get("stop_reason") if isinstance(parsed, dict) else None}
+    if dropped:
+        base["dropped_values"] = dropped
     if rc == 0 and isinstance(parsed, dict) and not parsed.get("is_error"):
         result = str(parsed.get("result") or "")
         if needle in result:
@@ -341,7 +415,11 @@ def _classify_unguarded(rc: int, stdout: str, stderr: str, needle: str) -> dict:
     diag = full[:_DETAIL_CHARS]          # for the record only (r251-1 P4)
     hint = _RETRY_AFTER.search(full)
     if hint:
-        base["retry_after_s"] = float(hint.group(1))
+        wait_hint = _bounded("retry_after_s", float(hint.group(1)), _MAX_RETRY_AFTER_S, dropped)
+        if wait_hint is not None:
+            base["retry_after_s"] = wait_hint
+        if dropped:
+            base["dropped_values"] = dropped
     # r251-2 Q1: the throttle verdict reads the CLI's own answer (result + api_status);
     # stderr decides only when there is no result, so a stale "rate limit … please
     # wait" line on stderr cannot turn a genuine context-limit result into a transient
@@ -528,6 +606,11 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
                          f"force_partial=True (--write-partial-as-operator-set)")
     if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
         raise ValueError(f"{model}: sample_size must be a non-negative integer, got {sample_size!r}")
+    for field, value in (("host_route", host_route), ("cli_model", cli_model), ("cli_version", cli_version),
+                         ("transport", transport)):
+        why = _unsafe_field(value)
+        if why or (field in ("host_route", "cli_model", "transport") and not value):
+            raise ValueError(f"{model}: {field} {why or 'is empty'} — refused before it reaches the catalog text")
     lines = text.split("\n")
     start = next((i for i, l in enumerate(lines) if l.rstrip() == f"      {model}:"), None)
     if start is None:
@@ -582,9 +665,8 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
                   f"from the measured {measured}") if written < measured else ""
     partial_note = ("; probe outcome partial — the operator vouches for the last verified accept"
                     if probe_outcome == "partial" else "")
-    provenance = (f"        # cycle-127 FR-3: bound measured {day} by tools/ceiling-probe-live.py --transport "
-                  f"claude-headless ({route}, {cli_model}){clamp_note}{partial_note}; "
-                  f"see ceiling_calibration.reprobe_trigger.")
+    provenance = _PROVENANCE.format(day=day, route=route, cli_model=cli_model, clamp_note=clamp_note,
+                                    partial_note=partial_note)
     old_prov = next((i for i, l in enumerate(block) if l.startswith("        # cycle-127 FR-3: bound measured ")), None)
     if k is not None:
         e = k + 1
@@ -596,7 +678,66 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
         block[old_prov] = provenance
     else:
         block.insert(_find("probed_ceiling:", 8), provenance)
-    return "\n".join(lines[:start] + block + lines[end:])
+    new = "\n".join(lines[:start] + block + lines[end:])
+    _verify_operator_set(text, new, model, written=written, measured=measured, probe_outcome=probe_outcome)
+    return new
+
+
+# The one provenance comment line of an operator_set write (a template so a test can
+# prove the re-parse below catches a defect in it).
+_PROVENANCE = ("        # cycle-127 FR-3: bound measured {day} by tools/ceiling-probe-live.py --transport "
+               "claude-headless ({route}, {cli_model}){clamp_note}{partial_note}; "
+               "see ceiling_calibration.reprobe_trigger.")
+_WRITTEN_KEYS = ("probed_ceiling", "effective_input_ceiling", "ceiling_calibration")
+
+
+def _verify_operator_set(before: str, after: str, model: str, *, written: int, measured: int,
+                         probe_outcome: str) -> None:
+    """r251-4 T1 (n52 c): re-parse the produced catalog text before it is returned (and
+    so before any write): the entry's ceilings are `written`, its calibration says
+    operator_set / probed_headless / `probe_outcome` / `measured`, and nothing outside
+    the three written keys of this one entry changed. ValueError otherwise."""
+    import yaml
+
+    def fail(why: str):
+        raise ValueError(f"{model}: re-parse of the written catalog failed — {why}; nothing written")
+
+    try:
+        b, a = yaml.safe_load(before), yaml.safe_load(after)
+    except yaml.YAMLError as e:
+        fail(f"not YAML: {str(e).splitlines()[0] if str(e) else type(e).__name__}")
+
+    def entries(doc):
+        provs = doc.get("providers") if isinstance(doc, dict) else None
+        return [(p, (pv.get("models") or {})) for p, pv in (provs or {}).items() if isinstance(pv, dict)]
+
+    hits = [(p, ms[model]) for p, ms in entries(a) if isinstance(ms, dict) and isinstance(ms.get(model), dict)]
+    if len(hits) != 1:
+        fail(f"{len(hits)} `{model}` entries after the edit")
+    entry = hits[0][1]
+    cal = entry.get("ceiling_calibration")
+    for key in ("probed_ceiling", "effective_input_ceiling"):
+        if entry.get(key) != written or isinstance(entry.get(key), bool):
+            fail(f"{key} loads as {entry.get(key)!r}, expected {written}")
+    if not isinstance(cal, dict):
+        fail("ceiling_calibration is not a mapping")
+    want = {"source": "operator_set", "method": "probed_headless", "probe_outcome": probe_outcome,
+            "measured_input_tokens": measured}
+    for key, value in want.items():
+        if cal.get(key) != value:
+            fail(f"ceiling_calibration.{key} loads as {cal.get(key)!r}, expected {value!r}")
+
+    def strip(doc):
+        import copy
+        doc = copy.deepcopy(doc)
+        for _, ms in entries(doc):
+            if isinstance(ms, dict) and isinstance(ms.get(model), dict):
+                for key in _WRITTEN_KEYS:
+                    ms[model].pop(key, None)
+        return doc
+
+    if strip(a) != strip(b):
+        fail("a key outside the entry's probed_ceiling / effective_input_ceiling / ceiling_calibration changed")
 
 
 def _write_text_atomic(path: str, new: str) -> None:
@@ -779,7 +920,7 @@ def _charge(res: dict, *, est_micro: int, price_in: int) -> tuple[int, str]:
     measured = res.get("measured_input_tokens")
     reported = res.get("cli_reported_cost_usd")
     rep = int(reported * 1_000_000) if isinstance(reported, (int, float)) and not isinstance(reported, bool) \
-        and reported > 0 else 0
+        and 0 < reported < _MAX_COST_USD else 0     # a range test: NaN / ±inf / a huge int all fail it
     if res.get("not_sent"):
         return 0, "not_sent"
     if res.get("timed_out"):
@@ -845,14 +986,30 @@ def _main_cli(args) -> int:
     cli_bin = _cli_bin()
     cli_arg = args.cli_model or args.model
     host_route = args.host_route or _default_host_route(cli_bin)
+    cli_model = _resolved_cli_model(cli_arg)
+    # `--version` costs nothing; it runs first so the checks and the dry run below see
+    # the value the real write will carry (r251-4 T1 / n57)
+    cli_version = _cli_version(cli_bin)
+    # r251-4 T1 (n52): every value that reaches the catalog's provenance text is one short
+    # line — refused here, before the dry run and before any spend
+    alias_env = _CLI_ALIAS_ENV.get(cli_arg)
+    for flag, value in (("--host-route", host_route),
+                        (f"cli_model (resolved from {alias_env})" if alias_env and os.environ.get(alias_env)
+                         else "cli_model (--cli-model / --model)", cli_model),
+                        (f"cli_version (`{os.path.basename(cli_bin)} --version`)", cli_version)):
+        why = _unsafe_field(value)
+        if why:
+            print(f"ceiling-probe-live: {flag} {why} — no call made, nothing spent", file=sys.stderr)
+            return 2
     if args.write_catalog:
         # r251-1 P6: a write that cannot land must fail before any spend — dry-run
-        # the writer (block, positive context_window for the I2 clamp, fields).
+        # the writer (block, positive context_window for the I2 clamp, fields) with
+        # the same resolved kwargs as the real write (r251-4 T1 / n57).
         try:
             with open(args.write_catalog, "r", encoding="utf-8") as fh:
                 write_catalog_operator_set(fh.read(), args.model, ceiling=1, calibrated_at=started_at,
-                                           cli_model=cli_arg, host_route=host_route, probe_outcome="clean",
-                                           sample_size=0)
+                                           cli_model=cli_model, host_route=host_route, cli_version=cli_version,
+                                           probe_outcome="clean", sample_size=0)
             # r251-2 Q2: the atomic write needs the directory (mkstemp + replace) and an
             # operator-writable file; a read-only catalog must fail here, not after spend
             cat_dir = os.path.dirname(os.path.abspath(args.write_catalog))
@@ -873,14 +1030,18 @@ def _main_cli(args) -> int:
     price_in = _PRICE_IN.get(args.model, 10_000_000) * 5 // 4
     lo, hi, tol = args.min_tokens_probe, args.max_tokens_probe, args.tolerance_tokens
     budget_micro = int(args.budget_usd * 1_000_000)
-    worst_micro = hi * price_in // 1_000_000
+    # r251-4 T3 (n58): the first step sends `hi` filler tokens blind, which the Opus 4.7+
+    # tokenizer measures ≈1.8× heavier — the estimate (only) assumes that ratio until a
+    # step measures one; the filler sent is unchanged
+    worst_micro = int(hi * _PRIOR_RATIO) * price_in // 1_000_000
     print(f"ceiling-probe-live: worst-case step ≈ ${worst_micro / 1e6:.2f} at the catalog price "
           f"(${price_in * 4 / 5 / 1e6:.2f}/MTok input × 1.25 cache-write rate = ${price_in / 1e6:.2f}/MTok, "
-          f"catalog estimate × {hi} tokens; Bedrock bills separately); "
+          f"catalog estimate × {hi} filler tokens × {_PRIOR_RATIO:g}; the estimate assumes the Opus 4.7+ "
+          f"tokenizer ratio {_PRIOR_RATIO:g} until the first measured accept (or a rejection that states its "
+          f"count); Bedrock bills separately); "
           f"{budget_micro // worst_micro if worst_micro else 0} such steps fit in ${args.budget_usd:g} (the cap "
           f"is checked against this estimate before every attempt; a size rejection is charged $0 unless the "
           f"CLI reports a cost)", file=sys.stderr)
-    cli_version = _cli_version(cli_bin)
 
     # Sizes are MEASURED tokens (the CLI's usage, or the count a rejection states):
     # --max-tokens-probe / --min-tokens-probe / --tolerance-tokens mean measured
@@ -916,7 +1077,7 @@ def _main_cli(args) -> int:
                   "ok": False, "verified": False, "charged_usd": 0.0, "charge_basis": None, "retry_wait_s": 0,
                   "attempt_log": []}
         samples.append(sample)
-        est_measured = int(tokens * (ratio or 1.0))
+        est_measured = int(tokens * (ratio or _PRIOR_RATIO))
         est_micro = est_measured * price_in // 1_000_000
         charged_micro, waited, wait, kinds = 0, 0.0, 0.0, []
         attempt = 0
@@ -1070,10 +1231,10 @@ def _main_cli(args) -> int:
         "estimate_usd_per_mtok": price_in / 1e6,
         "stop": stop,
         "interrupted": interrupted_text,
-        "cli_bin": cli_bin,
+        "cli_bin": _recorded_bin(cli_bin),
         "cli_version": cli_version,
-        "cli_model": _resolved_cli_model(cli_arg),
-        "argv": argv,
+        "cli_model": cli_model,
+        "argv": [_home_rel(argv[0]), *argv[1:]],
         "host_route": host_route,
         "route_env": _route_env(),
         "samples": samples,

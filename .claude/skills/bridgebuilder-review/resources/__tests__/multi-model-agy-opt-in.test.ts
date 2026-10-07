@@ -163,6 +163,8 @@ describe("executeMultiModelReview with the agy opt-in off", () => {
         assert.equal(infos.filter((m) => m === "google voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)").length, 1);
         const summary = bodies.find((b) => b.includes("**Verdict Quality**"));
         assert.ok(summary && summary.includes("✓ APPROVED — 2/2 voices"), `summary: ${summary}`);
+        // (r251-4 S8, audit n21: the posted Verdict Quality line names the voice that was not planned, and why)
+        assert.ok(summary && /\*\*Verdict Quality\*\*:[^\n]*not planned: google\/gemini-3\.1-pro-preview \(agy opt-in off/.test(summary), `summary: ${summary}`);
         assert.ok(!result.reviewVerdict.mergeBlocked, "a not-planned voice never blocks the merge as a missing one would");
       } finally {
         stub.mock.restore();
@@ -407,7 +409,7 @@ describe("executeMultiModelReview with no voice left (r251-2 K7c/K7d)", () => {
     });
   });
 
-  it("strict mode under a read error: the warn still names the voices that will not run", async () => {
+  it("strict mode under a read error: the warn names the voices that will not run, then the review refuses (r251-4 S1)", async () => {
     await withConfig("hounfour: [unclosed\n", async (_p, repoRoot) => {
       const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", ok);
       try {
@@ -415,10 +417,14 @@ describe("executeMultiModelReview with no voice left (r251-2 K7c/K7d)", () => {
           { provider: "anthropic", model_id: "claude-headless", role: "primary" },
           { provider: "google", model_id: "gemini-3.1-pro-preview", role: "reviewer" },
         ] as MultiModelConfig["models"], "strict", repoRoot);
-        await executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment);
+        await assert.rejects(
+          executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment),
+          (err: Error) => /[Ss]trict mode/.test(err.message) && /unreadable/.test(err.message) && /google\/gemini-3\.1-pro-preview/.test(err.message),
+        );
         const w = f.warns.filter((m) => /agy gate unreadable/.test(m));
         assert.equal(w.length, 1, JSON.stringify(f.warns));
         assert.match(w[0], /google\/gemini-3\.1-pro-preview/);
+        assert.equal(stub.mock.callCount(), 0, "strict mode refuses before any dispatch");
       } finally {
         stub.mock.restore();
       }
@@ -465,4 +471,81 @@ describe("readAgyGate spelling (r251-2 K1: one strict rule with the bash and Pyt
       });
     });
   }
+});
+
+// --- review r251-4 (the audit dissent) ---------------------------------------------------------------------------------
+
+describe("a host fault never shrinks the quorum (r251-4 S1, audit n22)", () => {
+  const ok = async () => ({
+    content: "<!-- bridge-findings-start -->\n```json\n" + JSON.stringify({ schema_version: 1, findings: [] }) + "\n```\n<!-- bridge-findings-end -->\n\nVerdict: APPROVE",
+    inputTokens: 1, outputTokens: 1, model: "fixture",
+    verdictQuality: { status: "APPROVED", voices_planned: 1, voices_succeeded: 1, chain_health: "ok" },
+  });
+
+  it("graceful mode under a read error: the remaining voices APPROVE, yet the merge stays blocked and the summary says why", async () => {
+    await withConfig("hounfour: [unclosed\n", async (_p, repoRoot) => {
+      const savedKey = process.env.GOOGLE_API_KEY; process.env.GOOGLE_API_KEY = "fixture-not-a-key";
+      const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", ok);
+      try {
+        const bodies: string[] = [];
+        const f = pipelineFixture([
+          { provider: "anthropic", model_id: "claude-headless", role: "primary" },
+          { provider: "openai", model_id: "codex-headless", role: "reviewer" },
+          { provider: "google", model_id: "gemini-3.1-pro-preview", role: "reviewer" },
+        ] as MultiModelConfig["models"], "graceful", repoRoot);
+        (f.adapters.poster as { postComment: (c: { body: string }) => Promise<boolean> }).postComment = async (c) => { bodies.push(c.body); return true; };
+        const result = await executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment);
+        assert.deepEqual(result.modelResults.map((r) => r.provider), ["anthropic", "openai"]);
+        assert.equal(result.reviewVerdict.mergeBlocked, true, "a read-error not-planned voice must not be subtracted from the quorum");
+        assert.ok(result.reviewVerdict.mergeBlockedReason && /unreadable/.test(result.reviewVerdict.mergeBlockedReason), JSON.stringify(result.reviewVerdict));
+        const summary = bodies.find((b) => b.includes("**Verdict Quality**"));
+        assert.ok(summary && /not planned: google\/gemini-3\.1-pro-preview \(Loa config unreadable/.test(summary), `summary: ${summary}`);
+      } finally {
+        stub.mock.restore();
+        if (savedKey === undefined) delete process.env.GOOGLE_API_KEY; else process.env.GOOGLE_API_KEY = savedKey;
+      }
+    });
+  });
+
+  it("a read error with no google voice configured changes nothing: the full cohort still clears", async () => {
+    await withConfig("hounfour: [unclosed\n", async (_p, repoRoot) => {
+      const stub = mock.method(ChevalDelegateAdapter.prototype, "generateReview", ok);
+      try {
+        const f = pipelineFixture([
+          { provider: "anthropic", model_id: "claude-headless", role: "primary" },
+          { provider: "openai", model_id: "codex-headless", role: "reviewer" },
+        ] as MultiModelConfig["models"], "graceful", repoRoot);
+        const result = await executeMultiModelReview(f.item, "fixture", "fixture", f.config, f.adapters as never, f.enrichment);
+        assert.equal(result.reviewVerdict.mergeBlocked, false, JSON.stringify(result.reviewVerdict));
+      } finally {
+        stub.mock.restore();
+      }
+    });
+  });
+});
+
+describe("readAgyGate shapes (r251-4 S3: the exact bool tag; an alias or a merge key reads off — one rule with bash and Python)", () => {
+  for (const [label, body, want] of [
+    ["foreign tag !<x:bool>", "hounfour:\n  headless:\n    agy_opt_in: !<x:bool> true\n", false],
+    ["local tag !bool", "hounfour:\n  headless:\n    agy_opt_in: !bool true\n", false],
+    ["alias", "x: &t true\nhounfour:\n  headless:\n    agy_opt_in: *t\n", false],
+    ["merge key", "b: &b\n  agy_opt_in: true\nhounfour:\n  headless:\n    <<: *b\n", false],
+    ["aliased headless", "h: &h\n  agy_opt_in: true\nhounfour:\n  headless: *h\n", false],
+    ["full tag", "hounfour:\n  headless:\n    agy_opt_in: !<tag:yaml.org,2002:bool> true\n", true],
+    ["anchored definition", "hounfour:\n  headless:\n    agy_opt_in: &a true\n", true],
+  ] as const) {
+    it(`${label} → ${want ? "on" : "off"}`, async () => {
+      await withConfig(body, (path) => {
+        const g = readAgyGate(path);
+        assert.equal(g.optIn, want, JSON.stringify(g));
+        assert.equal(g.readError, undefined);
+      });
+    });
+  }
+
+  it("a foreign bool tag and an alias are flagged for one WARN as not a YAML boolean", async () => {
+    for (const body of ["hounfour:\n  headless:\n    agy_opt_in: !<x:bool> true\n", "x: &t true\nhounfour:\n  headless:\n    agy_opt_in: *t\n"]) {
+      await withConfig(body, (path) => assert.match(String(readAgyGate(path).typeWarning), /not a YAML boolean/));
+    }
+  });
 });

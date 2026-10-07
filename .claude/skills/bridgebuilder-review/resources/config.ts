@@ -163,6 +163,11 @@ export function loaConfigPathFor(repoRoot?: string): string {
   return repoRoot ? join(repoRoot, ".loa.config.yaml") : ".loa.config.yaml";
 }
 
+/** The go-yq "is the key present" program — the same text as the bash lib's `_AGY_YQ_HAS` and the Python loader's
+ * `_YQ_HAS` (r251-4 S3): every level a real mapping (`kind` is "alias" for an alias node) and the explicit key only (`has`
+ * never sees a merge key's). */
+export const AGY_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))';
+
 /**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
@@ -178,16 +183,22 @@ export function readAgyGate(configPath: string): AgyGate {
       const out = execFileSync(
         "yq",
         ["eval", "-o=json", "-I=0",
-          '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
+          `{"has": (${AGY_YQ_HAS}), "kind": (.hounfour.headless.agy_opt_in | kind), "opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}`,
           configPath],
         { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"] },
       );
-      const parsed = JSON.parse(out) as { opt?: unknown; canon?: unknown; tag?: unknown; mode?: unknown };
-      optIn = parsed.opt === true;
+      const parsed = JSON.parse(out) as { has?: unknown; kind?: unknown; opt?: unknown; canon?: unknown; tag?: unknown; mode?: unknown };
+      // (r251-4 S3: the key must be written at hounfour.headless itself — every level a real mapping, never an alias or a
+      // merge key's value — and its node a plain scalar of the exact bool tag; one rule with the bash and Python readers)
+      const present = parsed.has === true;
+      const alias = parsed.kind === "alias";
+      optIn = present && !alias && parsed.opt === true;
       mode = typeof parsed.mode === "string" ? parsed.mode : "";
-      if (typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
+      if (present && alias) {
+        typeWarning = "hounfour.headless.agy_opt_in is present but not a YAML boolean (an alias) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off";
+      } else if (present && typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
         typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;
-      } else if (parsed.tag === "!!bool" && parsed.canon !== true) {
+      } else if (present && parsed.tag === "!!bool" && parsed.canon !== true) {
         typeWarning = "hounfour.headless.agy_opt_in is a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off";
       }
     } catch (err) {

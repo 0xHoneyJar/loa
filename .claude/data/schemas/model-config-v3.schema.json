@@ -285,19 +285,23 @@
         "method": {
           "type": "string",
           "enum": ["probed_api", "probed_headless"],
+          "maxLength": 200,
           "description": "cycle-127 FR-3 (SDD D-3.8): how a probe measured the bound — tools/ceiling-probe-live.py through the API or through the headless CLI (--transport claude-headless). Absent on entries never probed by the tool."
         },
         "transport": {
           "type": "string",
           "enum": ["api", "claude-headless"],
+          "maxLength": 200,
           "description": "cycle-127 FR-3: the probe transport that measured the bound."
         },
         "cli_version": {
           "type": ["string", "null"],
+          "maxLength": 200,
           "description": "cycle-127 FR-3: `claude --version` of the CLI the headless probe ran (null when it could not be read)."
         },
         "cli_model": {
           "type": "string",
+          "maxLength": 200,
           "description": "cycle-127 FR-3: the model id the CLI ran (the Bedrock inference-profile id when the route is Bedrock)."
         },
         "measured_input_tokens": {
@@ -308,8 +312,14 @@
         "probe_outcome": {
           "type": "string",
           "enum": ["clean", "partial"],
-          "description": "cycle-127 r251-1: the outcome of the probe whose bound this entry carries — clean (a verified accept bracketed by a size rejection within the tolerance, nothing failed) or partial (budget cap, an unverified or failed attempt, or an unbracketed bound; written only when the operator vouches for the last verified accept: tools/ceiling-probe-live.py --write-partial-as-operator-set). Optional; absent on entries never written by the tool."
+          "description": "cycle-127 r251-1: the outcome of the probe whose bound this entry carries — clean (a verified accept bracketed by a size rejection within the tolerance, nothing failed) or partial (budget cap, an unverified or failed attempt, or an unbracketed bound; written only when the operator vouches for the last verified accept: tools/ceiling-probe-live.py --write-partial-as-operator-set). Required when method is probed_headless (r251-4); absent on entries never written by the tool."
         }
+      },
+      "if": {"required": ["method"], "properties": {"method": {"const": "probed_headless"}}},
+      "then": {
+        "$comment": "cycle-127 r251-4 (n35/n48): a headless-probed bound names its transport and the probe outcome it carries.",
+        "required": ["transport", "probe_outcome"],
+        "properties": {"transport": {"const": "claude-headless"}}
       }
     },
     "streamingRecovery": {

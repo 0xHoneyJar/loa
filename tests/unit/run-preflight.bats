@@ -423,3 +423,31 @@ YAML
   ! grep -q WARN <<<"$stderr" || { echo "json stderr=$stderr"; return 1; }
   echo "$output" | jq -e . >/dev/null
 }
+
+@test "PF-AGY-7 (review r251-4 S4, audit n15): without the agy-gate lib run-preflight fails closed — exit 2, the lib named, no P3 verdict" {
+  local S="$T/scripts-copy"; mkdir -p "$S/lib"
+  cp -- "$PF" "$S/run-preflight.sh"   # (no lib/agy-gate-lib.sh beside it)
+  run --separate-stderr bash "$S/run-preflight.sh" --root "$R" --unattended
+  [ "$status" -eq 2 ] || { echo "status=$status out=$output"; return 1; }
+  [[ "$stderr" == *"agy-gate-lib.sh"* ]] || { echo "stderr=$stderr"; return 1; }
+  ! grep -q 'P3' <<<"$output" || { echo "a P3 verdict without the predicate: $output"; return 1; }
+}
+
+@test "PF-AGY-8 (review r251-4 S8, audit n14): a project alias of gemini-headless is an agy-routed voice — not planned with the opt-in off" {
+  rm -f "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+hounfour:
+  aliases:
+    myg: "google:gemini-headless"
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: myg
+YAML
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -qF 'myg(agy: opt-in (disabled; hounfour.headless.agy_opt_in))' || { line_of P3; return 1; }
+}

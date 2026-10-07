@@ -173,14 +173,32 @@ def test_effort_on_wire_follows_the_adapter_mapping(catalog):
 
 # --- dry-run over the LIVE catalog (alias resolution included) ---------------
 
+def _no_claude_path() -> str:
+    """The host PATH minus every directory that holds a `claude` / `claude-bedrock`."""
+    keep = [d for d in os.environ.get("PATH", "").split(os.pathsep)
+            if d and not any(os.path.exists(os.path.join(d, n)) for n in ("claude", "claude-bedrock"))]
+    return os.pathsep.join(keep) or os.defpath
+
+
 def _dry(*argv: str) -> subprocess.CompletedProcess:
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("ANTHROPIC_API_KEY", "AWS_BEARER_TOKEN_BEDROCK", "CLAUDE_HEADLESS_BIN")}
+    # r251-4 T6 (n31): a regressed --dry-run that walks to the headless hop must never
+    # reach the real CLI — CLAUDE_HEADLESS_BIN points at a path that does not exist and
+    # no PATH directory holds a `claude`
+    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "AWS_BEARER_TOKEN_BEDROCK")}
+    env["CLAUDE_HEADLESS_BIN"] = str(REPO_ROOT / ".run" / "loa-test-claude-must-not-run")
+    env["PATH"] = _no_claude_path()
+    assert not os.path.exists(env["CLAUDE_HEADLESS_BIN"])
     return subprocess.run(
         [sys.executable, str(CHEVAL), "--agent", "reviewing-code", "--prompt", "c127-effort",
          "--dry-run", "--json-errors", *argv],
         capture_output=True, text=True, env=env, cwd=str(REPO_ROOT), timeout=120,
     )
+
+
+def test_dry_env_cannot_reach_a_real_claude():
+    import shutil
+    path = _no_claude_path()
+    assert shutil.which("claude", path=path) is None and shutil.which("claude-bedrock", path=path) is None
 
 
 def test_dry_run_opus_without_effort_reports_the_catalog_high():
@@ -424,3 +442,19 @@ def test_extra_rung_iterates_both_keys_in_the_adapter_order(caplog):
     warns = [r for r in caplog.records if "extra.effort" in r.getMessage() and "ignored" in r.getMessage()]
     assert len(warns) == 1, [r.getMessage() for r in caplog.records]
     assert cheval.resolve_effort(_ns(None), {"kind": "cli", "extra": {"effort": "high", "reasoning_effort": "low"}}) == ("high", "extra")
+
+
+def test_r251_4_a_wire_effort_failure_never_loses_the_modelinv_envelope(monkeypatch, caplog):
+    """r251-4 S8 (audit n29/n30): `_effort_on_wire` runs inside the MODELINV emit's try — an exception there used to lose
+    the whole envelope ([AUDIT-EMIT-FAILED]). It is now evaluated in its own try: the field records None, one WARN."""
+    import logging
+    def _boom(*_a, **_k):
+        raise RuntimeError("wire_effort exploded")
+    monkeypatch.setattr(cheval, "_effort_on_wire", _boom)
+    with caplog.at_level(logging.WARNING):
+        code, seen, captured = _invoke(monkeypatch)
+    assert code == 0
+    assert captured.get("effort") == "high" and captured.get("effort_source") == "catalog", captured
+    assert captured.get("effort_effective") is None
+    assert any("effort_effective" in r.getMessage() and "wire_effort exploded" in r.getMessage() for r in caplog.records), \
+        [r.getMessage() for r in caplog.records]

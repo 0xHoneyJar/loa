@@ -77,6 +77,10 @@ export interface AgyGate {
 }
 /** The Loa config the agy gate reads: the repo root's when one is known, else the cwd's (r251-1 G15 — one path for all callers). */
 export declare function loaConfigPathFor(repoRoot?: string): string;
+/** The go-yq "is the key present" program — the same text as the bash lib's `_AGY_YQ_HAS` and the Python loader's
+ * `_YQ_HAS` (r251-4 S3): every level a real mapping (`kind` is "alias" for an alias node) and the explicit key only (`has`
+ * never sees a merge key's). */
+export declare const AGY_YQ_HAS = ".hounfour | (kind == \"map\" and (.headless | (kind == \"map\" and has(\"agy_opt_in\"))))";
 /**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing

@@ -171,3 +171,20 @@ def test_model_output_quoting_the_rejection_phrase_is_not_retried(monkeypatch):
     assert run.call_count == 1
     assert mod._is_schema_rejection(SimpleNamespace(returncode=1, stdout="", stderr="Error: --json-schema is not a valid JSON Schema: x")) is True
     assert mod._is_schema_rejection(SimpleNamespace(returncode=1, stdout="", stderr="Error: not a valid JSON Schema (something else)")) is False
+
+
+# --- r251-4 S8 (audit n26): no prompt in the shared argv builder; an argv prompt is never an option ------------------
+
+def test_r251_4_build_headless_argv_takes_no_prompt():
+    import inspect
+    assert "prompt" not in inspect.signature(mod.build_headless_argv).parameters
+
+
+def test_r251_4_an_argv_prompt_follows_the_option_terminator_at_the_very_end(monkeypatch):
+    monkeypatch.setattr(mod, "_JSON_SCHEMA_FLAG", True)
+    adapter = ClaudeHeadlessAdapter(_config())
+    cmd = adapter._build_command(_req(), adapter.config.models["claude-opus-4-7"], "--dangerously-skip-permissions")
+    assert cmd[-2:] == ["--", "--dangerously-skip-permissions"], cmd
+    assert cmd.count("--dangerously-skip-permissions") == 1
+    stdin_cmd = adapter._build_command(_req(), adapter.config.models["claude-opus-4-7"], None)
+    assert "--" not in stdin_cmd, stdin_cmd

@@ -164,7 +164,10 @@ export declare function formatVerdictQualityHeader(perModelResults: Array<{
         voices_planned?: number;
         chain_health?: string;
     };
-}>): string;
+}>, notPlanned?: ReadonlyArray<{
+    provider: string;
+    modelId: string;
+}>, notPlannedReason?: string): string;
 /**
  * A degraded-verdict trajectory record — byte-compatible with the record
  * shape written by degraded-verdict-lib.sh (cycle-117 item D). Field set and

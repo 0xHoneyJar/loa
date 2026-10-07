@@ -35,7 +35,7 @@
 # Output: `[PASS|WARN|FAIL] Pn <name>: <detail> → fix: <fix>` per predicate, then
 # `run-preflight (<mode>): N pass, N warn, N fail`. --json: one object
 # {mode, ok, pass, warn, fail, checks:[{id,name,status,detail,fix}], ts}.
-# Exit: 0 no FAIL · 1 any FAIL · 2 usage. Reads settings, env and state only;
+# Exit: 0 no FAIL · 1 any FAIL · 2 usage, or the agy-gate lib missing. Reads settings, env and state only;
 # writes nothing; no network; never prints a credential value.
 # Test seam (bats-gated): LOA_PREFLIGHT_HELPERS_DIR overrides the directory of
 # the composed helper scripts so fixtures can drive P2/P7/P8.
@@ -45,8 +45,12 @@ export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate — agy_opted_in, agy_headless_mode, routes_to_agy
+# (review r251-4 S4, audit n15: fail closed — without the predicate P3 would report an agy-routed voice as usable)
 # shellcheck source=lib/agy-gate-lib.sh
-source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
+if ! source "$SCRIPT_DIR/lib/agy-gate-lib.sh" || ! declare -F routes_to_agy >/dev/null 2>&1; then
+  echo "run-preflight: cannot load $SCRIPT_DIR/lib/agy-gate-lib.sh (the agy route predicate) — reinstall the framework (/update-loa); refusing to judge the voices without it" >&2
+  exit 2
+fi
 MODE="interactive"; RESUME=0; JSON=0; ROOT=""
 usage() { sed -n '3,/^# Output:/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
@@ -192,13 +196,13 @@ else
       prov=$(provider_of "$m"); cli=$(cli_for "$m"); ok=0; n_voices=$((n_voices + 1))
       # (an agy-routed voice — the gemini-headless hop, or a Google model under cli-only — whose opt-in is off is not a
       # voice on any host: never usable on its credential, never "missing a CLI"; review r251-1 G2: the shared predicate)
-      if (( ! p3_agy_on )) && routes_to_agy "$m" "$p3_mode"; then
+      if (( ! p3_agy_on )) && routes_to_agy "$m" "$p3_mode" "$ROOT/.loa.config.yaml"; then   # (r251-4: project aliases resolved)
         n_gated=$((n_gated + 1))
         [[ " $p3_optin " == *" $m($AGY_OPT_IN_NOTE) "* ]] || p3_optin+="$m($AGY_OPT_IN_NOTE) "; continue
       fi
       # (review r251-2 K3: opted in, an agy-routed voice — a Google model under cli-only, any gemini-headless form — runs
       # on the agy CLI, so the agy binary decides its usability, never the Google credential)
-      routes_to_agy "$m" "$p3_mode" && cli=agy
+      routes_to_agy "$m" "$p3_mode" "$ROOT/.loa.config.yaml" && cli=agy
       if [[ -n "$cli" ]] && command -v "$cli" >/dev/null 2>&1; then ok=1
       elif [[ -z "$cli" && -n "$prov" ]] && cred_present "$prov"; then ok=1; fi
       if (( ok )); then usable=$((usable + 1)); USABLE_PROVIDERS["${prov:-$m}"]=1; provs+="${prov:-$m} "; usable_names+="$m${cli:+(cli $cli)} "

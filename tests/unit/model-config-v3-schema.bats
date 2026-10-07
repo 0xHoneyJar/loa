@@ -537,13 +537,16 @@ PYEOF
 
 # cycle-127 FR-3 (SDD D-3.8): the headless probe's provenance inside ceiling_calibration.
 @test "V3-add (c127): ceiling_calibration carries the probe provenance (method, transport, cli_version, cli_model, measured_input_tokens)" {
-    local ok='{"source": "operator_set", "calibrated_at": "2026-10-07T12:00:00Z", "sample_size": null, "stale_after_days": 90, "reprobe_trigger": "x", "method": "probed_headless", "transport": "claude-headless", "cli_version": "2.1.292 (Claude Code)", "cli_model": "global.anthropic.claude-opus-5-5", "measured_input_tokens": 640000}'
+    local ok='{"source": "operator_set", "calibrated_at": "2026-10-07T12:00:00Z", "sample_size": null, "stale_after_days": 90, "reprobe_trigger": "x", "method": "probed_headless", "transport": "claude-headless", "cli_version": "2.1.292 (Claude Code)", "cli_model": "global.anthropic.claude-opus-5-5", "measured_input_tokens": 640000, "probe_outcome": "clean"}'
     run validate_v3 "$(_c126_model "{\"context_window\": 1000000, \"ceiling_calibration\": $ok}")"
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
     run validate_v3 "$(_c126_model '{"context_window": 1000000, "ceiling_calibration": {"source": "operator_set", "cli_version": null}}')"
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    # r251-4 T5: a probed_headless method needs transport claude-headless AND a probe_outcome (schema if/then)
     for bad in '"method": "guessed"' '"transport": "smoke-signal"' '"measured_input_tokens": 0' \
-               '"measured_input_tokens": "640000"' '"cli_model": 5' '"source": "probed_headless"'; do
+               '"measured_input_tokens": "640000"' '"cli_model": 5' '"source": "probed_headless"' \
+               '"method": "probed_headless", "transport": "claude-headless"' \
+               '"method": "probed_headless", "transport": "api", "probe_outcome": "clean"'; do
         run validate_v3 "$(_c126_model "{\"context_window\": 1000000, \"ceiling_calibration\": {\"source\": \"operator_set\", $bad}}")"
         [ "$status" -ne 0 ] || { echo "accepted ceiling_calibration: $bad" >&2; return 1; }
     done

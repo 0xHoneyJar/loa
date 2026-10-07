@@ -35,12 +35,37 @@ from __future__ import annotations
 import datetime as _dt
 import fcntl
 import json
+import logging
 import os
 import re
 import stat as _stat
 import tempfile
 from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger("loa_cheval.routing.ceiling")
+
+# r251-4 S7 (audit run-2 n38): an observation outside [floor × context_window, context_window] is not a provider verdict
+# this route can act on (a stray `observed_input_tokens: 1` row would wedge it) — ignored, said once per process.
+OBSERVED_PLAUSIBILITY_FLOOR = 0.1
+_IMPLAUSIBLE_OBSERVED_WARNED = False
+
+
+def _plausible_observed(observed: int, context_window: Optional[int]) -> bool:
+    """True unless ``context_window`` is known and ``observed`` lies outside [0.1 × window, window]."""
+    if not context_window:
+        return True
+    return OBSERVED_PLAUSIBILITY_FLOOR * context_window <= observed <= context_window
+
+
+def _warn_implausible_once(observed: int, context_window: int, where: str) -> None:
+    global _IMPLAUSIBLE_OBSERVED_WARNED
+    if _IMPLAUSIBLE_OBSERVED_WARNED:
+        return
+    _IMPLAUSIBLE_OBSERVED_WARNED = True
+    logger.warning("ignoring an implausible observed provider limit (%s): %d tokens is outside [%d, %d] "
+                   "(%.1f × context_window .. context_window) — check .run/ceiling-observed.json", where, observed,
+                   int(OBSERVED_PLAUSIBILITY_FLOOR * context_window), context_window, OBSERVED_PLAUSIBILITY_FLOOR)
 
 FLOOR_MAX_TOKENS = 4_096
 _TRUTHY = ("1", "true", "yes", "on")
@@ -161,6 +186,10 @@ def input_bound(
 
     # An observation tightens an uncalibrated bound, or a calibration measured
     # on a foreign transport (r251-1); a same-route calibration ignores it.
+    # (r251-4 S7: an implausible one — below 0.1 × the window or above it — is ignored, said once)
+    if observed is not None and _pos_int(observed) and not _plausible_observed(observed, cw):
+        _warn_implausible_once(observed, cw or 0, "input_bound")
+        observed = None
     if (not calibrated or foreign) and observed is not None and _pos_int(observed) and observed - 1 < value:
         value, basis = observed - 1, "observed"
 
@@ -200,6 +229,11 @@ _RE_INPUT_PLUS_OUTPUT = re.compile(
 # cycle-127 r251-1 C9: the headless CLI's own pre-flight rejection (Claude Code
 # 2.1.292): "the request is ~1065182 tokens (limit 1000000) but …".
 _RE_CLI_TOKENS_LIMIT = re.compile(r"~?(\d[\d,]*)\s+tokens\s*\(\s*limit:?\s*(\d[\d,]*)\s*\)", re.I)
+# r251-4 S6 (audit run-2 n6): the bare "N tokens (limit M)" above is for READING the numbers only — as a classifier it
+# matched any batch counter ("processed 12 tokens (limit 100)"). Without a marker word, only the CLI's own sentence
+# ("the request is ~N tokens (limit M)") classifies a message as a context limit.
+_RE_CLI_REQUEST_SENTENCE = re.compile(
+    r"\b(?:request|prompt)\s+is\s+~?\d[\d,]*\s+tokens\s*\(\s*limit:?\s*\d[\d,]*\s*\)", re.I)
 _CONTEXT_LIMIT_MARKERS = (
     "prompt is too long",
     "too many tokens",
@@ -218,11 +252,12 @@ _CONTEXT_LIMIT_MARKERS = (
 def is_context_limit_message(message: str) -> bool:
     """True when a provider error message is of the prompt-too-long class
     (a marker, or one of the size statements ``parse_context_limit`` reads —
-    r251-3: the CLI's bare "~N tokens (limit M)" carries no marker word)."""
+    r251-3: the CLI's "the request is ~N tokens (limit M)" carries no marker
+    word; r251-4 S6: that sentence, never a bare "N tokens (limit M)")."""
     text = message or ""
     low = text.lower()
     return any(marker in low for marker in _CONTEXT_LIMIT_MARKERS) or any(
-        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_TOKENS_LIMIT))
+        rx.search(text) for rx in (_RE_INPUT_ONLY, _RE_INPUT_PLUS_OUTPUT, _RE_CLI_REQUEST_SENTENCE))
 
 
 # cycle-127 r251-3 R1 (SDD D-3.12): ONE throttle rule for the headless adapter and
@@ -232,7 +267,9 @@ def is_context_limit_message(message: str) -> bool:
 # throttle becomes a terminal size verdict. A 429 / 529 counts only in status
 # position: never inside a token count ("1,429,000 tokens", "~1052900 tokens",
 # "1,429.5k") and never as a count itself ("~429 tokens"); a status followed by
-# punctuation ("API Error: 429. Too many tokens") is still a status.
+# punctuation ("API Error: 429. Too many tokens") is still a status. r251-4 S6
+# (audit run-2 n5): a whole token only — never inside a request id or a hex
+# trace ("req_a529fz01", "0x529f", "error_529x").
 _THROTTLE_MARKERS = (
     "throttl",            # ThrottlingException, "throttled"
     "please wait",
@@ -243,7 +280,7 @@ _THROTTLE_MARKERS = (
     "too many requests",
     "quota",
 )
-_RE_THROTTLE_STATUS = re.compile(r"(?<![\d,.])(?:429|529)(?!\d|[,.]\d|\s*k?\s*tokens\b)", re.I)
+_RE_THROTTLE_STATUS = re.compile(r"(?<![\w,.])(?:429|529)(?!\w|[,.]\d|\s*k?\s*tokens\b)", re.I)
 
 
 def is_throttle_message(message: Optional[str]) -> bool:
@@ -341,10 +378,14 @@ def load_observed(path: Optional[str] = None) -> Dict[str, Any]:
     return data
 
 
-def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = None) -> Optional[int]:
+def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = None, *,
+                 context_window: Optional[int] = None) -> Optional[int]:
     """The tightest observed input for an entry: the smallest
     ``observed_input_tokens`` a provider refused, or ``provider_limit + 1``
-    when the provider stated its limit (so the bound becomes the limit)."""
+    when the provider stated its limit (so the bound becomes the limit).
+    With ``context_window``, a candidate outside [0.1 × window, window] is
+    skipped (said once) — a stray tiny row never masks a real one (r251-4 S7)."""
+    cw = _pos_int(context_window)
     data = data if data is not None else load_observed()
     best: Optional[int] = None
     for row in data.get("entries", []):
@@ -360,6 +401,9 @@ def observed_for(provider: str, model: str, data: Optional[Dict[str, Any]] = Non
         if lim:
             candidates.append(lim + 1)
         for c in candidates:
+            if not _plausible_observed(c, cw):
+                _warn_implausible_once(c, cw or 0, f"{provider}:{model}")
+                continue
             if best is None or c < best:
                 best = c
     return best

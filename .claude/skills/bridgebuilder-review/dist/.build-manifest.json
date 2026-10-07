@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-07T14:38:21Z",
-  "source_hash": "3ba946ae6d2b0401b76f5c9a651849ab695ddb41493f72c5ead899c8225e48af",
+  "generated_at": "2026-10-07T17:20:51Z",
+  "source_hash": "0b13c028279fb2fd9257945e270574ba06f929711407f2467f449779d10a5757",
   "file_count": 42,
   "files": [
     {
@@ -46,7 +46,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
-      "sha256": "bd01d514a061ae8288a8edf64b5c210d90d831430f9c94902f74fcbe47823d71"
+      "sha256": "e3b92e4108564f727d229074c89996ebd0e4bddbaa5944d75a3739d94c0438ef"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
@@ -86,7 +86,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
-      "sha256": "1ca6ee3c40bbf5709a9d398bc02adbe4416cd0e71d940bfadf82f5720f962ef9"
+      "sha256": "752c6c67d0e690cd565e99c027745e81216327476707540a745691979eb2dfbe"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -98,7 +98,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/review-verdict.ts",
-      "sha256": "be87841aa516aae732397ab2f1c469e3ca78c206bf4d04206641078bc92475ea"
+      "sha256": "819bc7019a60a01564de366ffadb8aa28fe06b2ad906849de773f1af1a44cf4d"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",

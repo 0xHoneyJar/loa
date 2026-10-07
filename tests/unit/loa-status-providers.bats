@@ -204,3 +204,50 @@ _lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $
   run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
   echo "$output" | jq -e '.providers.providers.google.cli_hop == "agy" and (.providers.providers.google | has("cli_hop_note") | not)' >/dev/null
 }
+
+@test "LSP-6 (r251-4 S8, audit n11) the opus target reaches yq as a value, never as expression text" {
+  # an alias crafted to rewrite the old interpolated expression into `… // 777 // …`
+  cat > "$T/catalog.yaml" <<'YAML'
+aliases:
+  opus: 'anthropic:zz" // 777 // ."zz'
+providers:
+  anthropic:
+    models:
+      claude-fixture-1:
+        context_window: 1000000
+        effective_input_ceiling: 200000
+        probed_ceiling: 200000
+YAML
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.value != 777' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+  # (and the printed probe command quotes the id, as cheval's hint does — audit n4)
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.calibrate == ("python3 tools/ceiling-probe-live.py --model " + ("zz\" // 777 // .\"zz" | @sh) + " --write-catalog")' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+}
+
+@test "LSP-7 (r251-4 S7 parity with routing.ceiling) an implausible observation (below 0.1 × the window) never becomes the displayed bound" {
+  _lsp5_catalog "$T/catalog.yaml" "" ""
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  local m=claude-fixture-1
+  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT 150000 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 149999' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "probed" and .value == 200000' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+}
+
+@test "LSP-8 (r251-4, sibling of S4) without lib/agy-gate-lib.sh /loa still answers: exit 0, the agy route reads off (fail closed), one WARN in human mode, --json quiet" {
+  local S="$T/copy/.claude/scripts"; mkdir -p "$S"
+  cp -- "$STATUS" "$S/loa-status.sh"   # (no lib/ beside it — a partial install)
+  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check --json
+  [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+  echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || { echo "$output" | jq -c '.providers.providers.google'; return 1; }
+  [[ "$stderr" != *"agy-gate-lib"* ]] || { echo "--json warned: $stderr"; return 1; }
+  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check
+  [ "$status" -eq 0 ]
+  [ "$(grep -c 'agy-gate-lib.sh.*not loaded' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+}
