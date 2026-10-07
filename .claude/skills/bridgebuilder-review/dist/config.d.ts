@@ -69,21 +69,30 @@ export declare function isHeadlessModelId(modelId: string, provider?: string): b
 export interface AgyGate {
     optIn: boolean;
     mode: string;
+    /** The config could not be read (yq missing, unparsable YAML): the gate failed closed for this reason (r251-1 G14). */
+    readError?: string;
+    /** `agy_opt_in` is present but not a YAML boolean (e.g. the string "true"): it reads off, said once (r251-1 G12). */
+    typeWarning?: string;
 }
+/** The Loa config the agy gate reads: the repo root's when one is known, else the cwd's (r251-1 G15 — one path for all callers). */
+export declare function loaConfigPathFor(repoRoot?: string): string;
 /**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
- * file, a missing yq or an unreadable config reads as off — the gate fails closed.
+ * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.
  */
-export declare function readAgyGate(configPath?: string): AgyGate;
-/** A voice cheval would dispatch through agy: the gemini-headless id, or any google model when headless mode is cli-only. */
+export declare function readAgyGate(configPath: string): AgyGate;
+/**
+ * A voice cheval would dispatch through agy: a google headless id of the generated registry (today `gemini-headless`), or
+ * any google model when the effective headless mode is cli-only (the bash/Python predicate's shape — lib/agy-gate-lib.sh).
+ */
 export declare function isAgyRouted(provider: string, modelId: string, mode: string): boolean;
 /**
  * Validate API keys for configured multi-model providers.
  * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
  * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export declare function validateApiKeys(config: MultiModelConfig, gate?: AgyGate): {
+export declare function validateApiKeys(config: MultiModelConfig, gate: AgyGate): {
     valid: Array<{
         provider: string;
         modelId: string;

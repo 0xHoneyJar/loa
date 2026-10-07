@@ -5976,9 +5976,13 @@ EOF
 # cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in (hounfour.headless.agy_opt_in, default
 # false). With it off, an operator companion_chain naming the hop does not plan it: read from the config, before any dispatch.
 _cmp_agy_chain() {  # <anthropic chain YAML list> [agy_opt_in YAML value | "absent"]
+    # (review r251-1 G13: exactly one anchor is replaced — a fixture that drifted fails here, never writes a no-op config)
     python3 -I - "$CONFIG_FILE" "$1" "${2:-absent}" <<'PY'
 import sys; p, chain, opt = sys.argv[1:4]; s = open(p, encoding="utf-8").read()
-s = s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: " + chain + "\n", 1)
+anchor = "  code_review:\n    enabled: true\n"
+if s.count(anchor) != 1:
+    sys.exit(f"_cmp_agy_chain: expected exactly one code_review anchor in {p}, found {s.count(anchor)}")
+s = s.replace(anchor, anchor + "    companion_chain:\n      anthropic: " + chain + "\n", 1)
 if opt != "absent":
     s = "hounfour:\n  headless:\n    agy_opt_in: " + opt + "\n" + s
 open(p, "w", encoding="utf-8").write(s)
@@ -5987,8 +5991,9 @@ PY
 
 @test "CMP-284 an operator companion_chain naming gemini-headless with the agy opt-in off → planned false, reason opt_in_required, never dispatched, a WARN naming both keys; verdict quality counts the planned voice only" {
     local opt
+    local orig="$BATS_TEST_TMPDIR/cmp284-config.orig"
+    cp -- "$CONFIG_FILE" "$orig"   # (review r251-1 G13: save/restore the file the helper edits — $CONFIG_FILE — and fail loudly)
     for opt in absent false '"true"'; do
-        cp "$T/loa.config.yaml" "$T/loa.config.yaml.orig" 2>/dev/null || true
         _cmp_agy_chain '[gemini-headless]' "$opt"
         : > "$CALLS"
         result=$(_run_main review)
@@ -5999,7 +6004,7 @@ PY
         ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
         grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log"
         grep 'hounfour.headless.agy_opt_in' "$T/stderr.log" | grep -q 'flatline_protocol.code_review.companion_chain.anthropic'
-        mv -f "$T/loa.config.yaml.orig" "$T/loa.config.yaml"
+        cp -- "$orig" "$CONFIG_FILE"
     done
 }
 

@@ -10,7 +10,7 @@ import path from "node:path";
 import { summarizeReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, isHeadlessModelId, readAgyGate, validateApiKeys } from "../config.js";
+import { PROVIDER_API_KEY_ENV, isHeadlessModelId, loaConfigPathFor, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 /**
  * Per-model timeout derivation — reasoning-class predicate (multi-provider).
@@ -94,9 +94,28 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
     const multiConfig = config.multiModel;
     const { poster, sanitizer, logger } = adapters;
     // Validate API keys (cycle-127 FR-1: and the agy opt-in, read from the repo's Loa config)
-    const keyStatus = validateApiKeys(multiConfig, readAgyGate(config.repoRoot ? path.join(config.repoRoot, ".loa.config.yaml") : ".loa.config.yaml"));
+    const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
+    const keyStatus = validateApiKeys(multiConfig, agyGate);
+    // (r251-1 G12/G14: an unreadable config or a non-boolean opt-in is said once, with its reason — not as "opt-in off")
+    if (agyGate.readError !== undefined) {
+        logger.warn(`[multi-model] agy gate unreadable (${agyGate.readError}) — failing closed: voices routed to agy are not planned (hounfour.headless.agy_opt_in)`);
+    }
+    if (agyGate.typeWarning !== undefined)
+        logger.warn(`[multi-model] ${agyGate.typeWarning}`);
     for (const np of keyStatus.notPlanned) {
-        logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+        // (review r251-1 G3, finding 20: strict mode promises every configured voice — one the gate removes is said at warn,
+        // never thrown: the voice cannot exist on this host, it is not a missing key)
+        if (agyGate.readError !== undefined)
+            continue; // (already said, with the reason)
+        if (multiConfig.api_key_mode === "strict") {
+            logger.warn(`[multi-model] strict mode: configured voice ${np.provider}/${np.modelId} will not run — not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true)`);
+        }
+        else {
+            logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+        }
+    }
+    if (keyStatus.notPlanned.length > 0 && keyStatus.notPlanned.length === multiConfig.models.length) {
+        throw new Error(`No models available for multi-model review: every configured voice is not planned (the agy route is opt-in: set hounfour.headless.agy_opt_in: true) — ${keyStatus.notPlanned.map((np) => `${np.provider}/${np.modelId}`).join(", ")}`);
     }
     if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
         throw new Error(`Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`);

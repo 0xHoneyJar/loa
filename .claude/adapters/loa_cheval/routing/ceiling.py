@@ -17,7 +17,12 @@ from the entry and the request:
             ``context_window − max_tokens`` (the catalog's own arithmetic);
         an observed provider limit (``.run/ceiling-observed.json``, written by
             the self-correction) caps an uncalibrated bound at
-            ``observed − 1`` until calibration;
+            ``observed − 1`` until calibration — and caps a calibrated one
+            whose ``ceiling_calibration.transport`` is FOREIGN to this route
+            (cycle-127 r251-1: present and not the HTTP transport, e.g.
+            ``claude-headless``; the HTTP adapter is the only consumer of
+            this module). A same-transport (``api``) or transport-less
+            calibration is authoritative and observations never lower it;
         ``LOA_CHEVAL_MAX_INPUT_TOKENS`` lowers any bound (basis ``guard``);
         ``LOA_CHEVAL_LEGACY_CEILING=1`` → today's single literal, no I1.
 
@@ -50,6 +55,10 @@ class CeilingDecision:
     derived: Optional[int]
     observed: Optional[int] = None
     policy: str = "probed"
+    # cycle-127 r251-1: the transport the calibration was measured on (None =
+    # absent / not calibrated); with basis ``observed`` and calibrated=True it
+    # says "calibrated on <transport>, a provider limit below it on this route".
+    calibration_transport: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +98,32 @@ def is_calibrated(entry: Dict[str, Any]) -> bool:
     return isinstance(cal, dict) and bool(cal.get("calibrated_at"))
 
 
+# The transport this module bounds: cheval's HTTP adapter. A calibration
+# carrying one of these (or no transport at all) was measured on this route.
+SAME_ROUTE_TRANSPORTS = frozenset({"api", "http"})
+
+
+def calibration_transport(entry: Dict[str, Any]) -> Optional[str]:
+    """``ceiling_calibration.transport`` stripped (None when absent/blank/not a string)."""
+    cal = entry.get("ceiling_calibration") if isinstance(entry, dict) else None
+    if not isinstance(cal, dict):
+        return None
+    t = cal.get("transport")
+    if not isinstance(t, str) or not t.strip():
+        return None
+    return t.strip()
+
+
+def is_foreign_transport_calibration(entry: Dict[str, Any]) -> bool:
+    """True when the entry is calibrated on a transport other than the HTTP
+    route (cycle-127 r251-1): a verified observed provider limit may then
+    tighten the calibrated bound on this route."""
+    if not isinstance(entry, dict) or not is_calibrated(entry):
+        return False
+    t = calibration_transport(entry)
+    return t is not None and t.lower() not in SAME_ROUTE_TRANSPORTS
+
+
 def input_bound(
     entry: Dict[str, Any],
     *,
@@ -109,10 +144,13 @@ def input_bound(
         derived = 0
     policy = policy or policy_from_env()
     calibrated = is_calibrated(entry)
+    cal_transport = calibration_transport(entry) if calibrated else None
+    foreign = is_foreign_transport_calibration(entry)
 
     if policy == "legacy":
         return CeilingDecision(value=ceiling or probed or 0, basis="legacy", calibrated=calibrated,
-                               probed=probed, derived=derived, observed=observed, policy=policy)
+                               probed=probed, derived=derived, observed=observed, policy=policy,
+                               calibration_transport=cal_transport)
 
     if calibrated and ceiling is not None:
         value, basis = ceiling, "calibrated"
@@ -121,7 +159,9 @@ def input_bound(
     else:
         value, basis = (probed or ceiling or 0), "probed"
 
-    if not calibrated and observed is not None and _pos_int(observed) and observed - 1 < value:
+    # An observation tightens an uncalibrated bound, or a calibration measured
+    # on a foreign transport (r251-1); a same-route calibration ignores it.
+    if (not calibrated or foreign) and observed is not None and _pos_int(observed) and observed - 1 < value:
         value, basis = observed - 1, "observed"
 
     if derived is not None and derived < value:  # I1 — never promise more than the window minus the output
@@ -132,7 +172,8 @@ def input_bound(
         value, basis = guard, "guard"
 
     return CeilingDecision(value=value, basis=basis, calibrated=calibrated, probed=probed,
-                           derived=derived, observed=observed, policy=policy)
+                           derived=derived, observed=observed, policy=policy,
+                           calibration_transport=cal_transport)
 
 
 def fit_max_tokens(*, context_window: int, estimate: int, requested: int) -> MaxTokensFit:
@@ -156,6 +197,9 @@ _RE_INPUT_ONLY = re.compile(r"(\d[\d,]*)\s+tokens\s*>\s*(\d[\d,]*)\s+maximum", r
 _RE_INPUT_PLUS_OUTPUT = re.compile(
     r"input length and\s+`?max_tokens`?\s+exceed context limit:\s*(\d[\d,]*)\s*\+\s*(\d[\d,]*)\s*>\s*(\d[\d,]*)", re.I
 )
+# cycle-127 r251-1 C9: the headless CLI's own pre-flight rejection (Claude Code
+# 2.1.292): "the request is ~1065182 tokens (limit 1000000) but …".
+_RE_CLI_TOKENS_LIMIT = re.compile(r"~?(\d[\d,]*)\s+tokens\s*\(\s*limit:?\s*(\d[\d,]*)\s*\)", re.I)
 _CONTEXT_LIMIT_MARKERS = (
     "prompt is too long",
     "too many tokens",
@@ -215,6 +259,10 @@ def parse_context_limit(message: str) -> Dict[str, Optional[int]]:
         out["input_tokens"], out["max_tokens"], out["limit"] = _num(m.group(1)), _num(m.group(2)), _num(m.group(3))
         return out
     m = _RE_INPUT_ONLY.search(message or "")
+    if m:
+        out["input_tokens"], out["limit"] = _num(m.group(1)), _num(m.group(2))
+        return out
+    m = _RE_CLI_TOKENS_LIMIT.search(message or "")
     if m:
         out["input_tokens"], out["limit"] = _num(m.group(1)), _num(m.group(2))
     return out
@@ -412,13 +460,17 @@ class GateOutcome:
 
     def as_envelope(self) -> Dict[str, Any]:
         d = self.decision
+        ceiling = None if d is None else {
+            "value": self.bound, "basis": self.basis, "calibrated": d.calibrated,
+            "probed": d.probed, "derived": d.derived, "observed": d.observed,
+        }
+        if d is not None and d.calibration_transport is not None:
+            # r251-1: additive — present only for a calibration that names its transport
+            ceiling["calibration_transport"] = d.calibration_transport
         return {
             "preflight_decision": self.action,
             "ceiling_policy": self.policy,
-            "input_ceiling": None if d is None else {
-                "value": self.bound, "basis": self.basis, "calibrated": d.calibrated,
-                "probed": d.probed, "derived": d.derived, "observed": d.observed,
-            },
+            "input_ceiling": ceiling,
             "estimator": self.estimate.as_envelope(),
             "max_tokens_shrunk": None if self.shrunk_from is None else {"from": self.shrunk_from, "to": self.max_tokens},
             "ceiling_unverified": self.unverified,
@@ -426,6 +478,14 @@ class GateOutcome:
 
 
 COUNT_NEAR_BOUND = 0.9
+# cycle-127 r251-1 C7 (the units gap): a calibrated bound is in provider-
+# MEASURED tokens, while the estimate is chars/3.5 (or cl100k) and under-counts
+# the Opus 4.7+ tokenizer by ≈1.4–1.8×. For a calibrated entry the provider
+# count replaces the estimate from HALF the bound — this covers an estimator
+# under-count of up to 2× on the Opus 4.7+ tokenizer; the count is free. With
+# no count there, the gate dispatches with `warn` (one upload at risk) and
+# says the estimate is uncertain. Uncalibrated entries keep COUNT_NEAR_BOUND.
+CALIBRATED_COUNT_NEAR_BOUND = 0.5
 
 
 def gate(
@@ -480,9 +540,11 @@ def gate(
     est = estimate
     probed = decision.probed
     in_unverified_zone = bool(policy == "derived" and not decision.calibrated and probed and est.tokens > probed)
+    near = CALIBRATED_COUNT_NEAR_BOUND if decision.calibrated else COUNT_NEAR_BOUND
+    in_count_band = policy != "legacy" and est.tokens >= near * bound
     # D-1.4: near the bound — or anywhere in the unverified zone, where the
     # count settles a `high` estimate — the provider's count is authoritative.
-    if policy != "legacy" and counter is not None and (est.tokens >= COUNT_NEAR_BOUND * bound or in_unverified_zone):
+    if policy != "legacy" and counter is not None and (in_count_band or in_unverified_zone):
         counted = counter()
         if _pos_int(counted):
             est = replace(est, tokens=int(counted), method="count_tokens", uncertainty="none")
@@ -490,6 +552,12 @@ def gate(
     if est.tokens > bound:
         return _out("preempt", f"estimated {est.tokens} input tokens > {bound} input bound ({basis})",
                     decision, bound, basis, est)
+
+    if decision.calibrated and in_count_band and est.method != "count_tokens":
+        # r251-1 C7: no provider count in the band where the estimator's under-count matters.
+        return _out("warn", f"estimated {est.tokens} input tokens ({est.method}) is uncertain against the "
+                    f"calibrated bound {bound} in provider-measured tokens (the estimate can under-count up to "
+                    f"~2x; no provider count was available) — dispatching", decision, bound, basis, est)
 
     if policy == "derived" and not decision.calibrated and probed and est.tokens > probed:
         model = entry.get("model_id") or entry.get("_model_id") or "<model>"

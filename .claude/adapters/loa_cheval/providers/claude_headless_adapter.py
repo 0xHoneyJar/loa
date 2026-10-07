@@ -184,6 +184,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
           cheap: claude-headless:claude-sonnet-5
     """
 
+    @classmethod
+    def wire_effort(cls, model_id, effort, extra=None):
+        """cycle-127 r251-1 C5: `--effort` (request.effort first, then the entry extra.effort) — the adapter's own resolver over a request
+        carrying ``effort`` and no metadata (cheval sets none), so the record
+        follows the argv builder."""
+        import types as _types
+        req = CompletionRequest(messages=[], model=model_id, effort=effort)
+        return cls._resolve_effort(cls.__new__(cls), req, _types.SimpleNamespace(extra=dict(extra or {})))
+
     # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
     # route to the (anthropic, headless) bucket.
     auth_type: str = "headless"

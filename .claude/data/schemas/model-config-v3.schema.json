@@ -271,7 +271,7 @@
         "sample_size": {
           "type": ["integer", "null"],
           "minimum": 0,
-          "description": "Number of probe runs that informed the ceiling. null when source != empirical_probe."
+          "description": "The number of probe samples taken (accepted + rejected) that informed the ceiling (cycle-127: tools/ceiling-probe-live.py writes the count of its record's samples for both transports). null when no probe ran (e.g. conservative_default, or an operator_set value not taken from a probe)."
         },
         "stale_after_days": {
           "type": "integer",
@@ -303,7 +303,12 @@
         "measured_input_tokens": {
           "type": "integer",
           "minimum": 1,
-          "description": "cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step — the value written to probed_ceiling / effective_input_ceiling."
+          "description": "cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step — the raw value; probed_ceiling / effective_input_ceiling carry min(this, context_window − default max_tokens) (cheval's I2 invariant)."
+        },
+        "probe_outcome": {
+          "type": "string",
+          "enum": ["clean", "partial"],
+          "description": "cycle-127 r251-1: the outcome of the probe whose bound this entry carries — clean (a verified accept bracketed by a size rejection within the tolerance, nothing failed) or partial (budget cap, an unverified or failed attempt, or an unbracketed bound; written only when the operator vouches for the last verified accept: tools/ceiling-probe-live.py --write-partial-as-operator-set). Optional; absent on entries never written by the tool."
         }
       }
     },

@@ -44,6 +44,9 @@ set -uo pipefail
 export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate — agy_opted_in, agy_headless_mode, routes_to_agy
+# shellcheck source=lib/agy-gate-lib.sh
+source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
 MODE="interactive"; RESUME=0; JSON=0; ROOT=""
 usage() { sed -n '3,/^# Output:/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
@@ -150,13 +153,9 @@ cred_present() {  # $1 = provider → 0 if a credential is present (env / .env.l
   done
   return 1
 }
-cli_for() { case "$1" in claude-headless) echo claude ;; codex-headless) echo codex ;; gemini-headless) echo agy ;; *) echo "" ;; esac; }
-agy_opted_in() {  # cycle-127 FR-1: true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
-  local v=""
-  have_yq && [[ -f "$ROOT/.loa.config.yaml" ]] || return 1
-  if [[ "$YQ_FLAVOUR" == "go" ]]; then v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$ROOT/.loa.config.yaml" 2>/dev/null) || v=""
-  else v=$(yq '.hounfour.headless.agy_opt_in == true' "$ROOT/.loa.config.yaml" 2>/dev/null) || v=""; fi
-  [[ "$v" == "true" ]]
+cli_for() {  # $1 = model id (bare or provider-prefixed) → the CLI binary of a *-headless hop, else ""
+  local m="$1"; case "$m" in anthropic:*|openai:*|google:*) m="${m#*:}" ;; esac
+  case "$m" in claude-headless) echo claude ;; codex-headless) echo codex ;; gemini-headless) echo agy ;; *) echo "" ;; esac
 }
 provider_of() {  # $1 = model id → openai|anthropic|google|""
   local id="$1" alias="" cat=""
@@ -176,32 +175,44 @@ provider_of() {  # $1 = model id → openai|anthropic|google|""
 }
 declare -A USABLE_PROVIDERS=()   # providers that have a usable voice in any stage
 declare -A STAGE_ONLY=()         # stage → the single usable provider (for P4)
-p3_status="PASS"; p3_detail=""; p3_fail_stages=""; p3_warn=""; p3_usable=""; p3_optin=""
+p3_status="PASS"; p3_detail=""; p3_fail_stages=""; p3_warn=""; p3_usable=""; p3_optin=""; p3_optin_stages=""
+p3_mode=$(agy_headless_mode "$ROOT/.loa.config.yaml")   # (env LOA_HEADLESS_MODE wins, as in cheval)
+p3_agy_on=0; agy_opted_in "$ROOT/.loa.config.yaml" && p3_agy_on=1
+(( JSON )) || agy_gate_warn_once "$ROOT/.loa.config.yaml"   # (r251-1 G12/G18: said once, on stderr; --json stays quiet)
 if ! have_yq || [[ ! -f "$ROOT/.loa.config.yaml" ]]; then
   p3_status="WARN"; p3_detail="yq or .loa.config.yaml missing: voices unchecked"
 else
   for stage in code_review security_audit; do
     en=$(cfg ".flatline_protocol.$stage.enabled"); [[ "$en" == "true" ]] || continue
     models=$(cfg ".flatline_protocol.$stage.model"); chain=$(cfg ".flatline_protocol.$stage.fallback_chain[]" | tr '\n' ' ')
-    usable=0; missing=""; provs=""; usable_names=""
+    usable=0; missing=""; provs=""; usable_names=""; n_voices=0; n_gated=0
     for m in $models $chain; do
-      prov=$(provider_of "$m"); cli=$(cli_for "$m"); ok=0
-      # (an agy hop whose opt-in is off is not a voice on any host — never usable, never "missing a CLI")
-      if [[ "$cli" == agy ]] && ! agy_opted_in; then [[ " $p3_optin " == *" $m(agy: opt-in (disabled; hounfour.headless.agy_opt_in)) "* ]] || p3_optin+="$m(agy: opt-in (disabled; hounfour.headless.agy_opt_in)) "; continue; fi
+      prov=$(provider_of "$m"); cli=$(cli_for "$m"); ok=0; n_voices=$((n_voices + 1))
+      # (an agy-routed voice — the gemini-headless hop, or a Google model under cli-only — whose opt-in is off is not a
+      # voice on any host: never usable on its credential, never "missing a CLI"; review r251-1 G2: the shared predicate)
+      if (( ! p3_agy_on )) && routes_to_agy "$m" "$p3_mode"; then
+        n_gated=$((n_gated + 1))
+        [[ " $p3_optin " == *" $m($AGY_OPT_IN_NOTE) "* ]] || p3_optin+="$m($AGY_OPT_IN_NOTE) "; continue
+      fi
       if [[ -n "$cli" ]] && command -v "$cli" >/dev/null 2>&1; then ok=1
       elif [[ -z "$cli" && -n "$prov" ]] && cred_present "$prov"; then ok=1; fi
       if (( ok )); then usable=$((usable + 1)); USABLE_PROVIDERS["${prov:-$m}"]=1; provs+="${prov:-$m} "; usable_names+="$m${cli:+(cli $cli)} "
       else missing+="$m${cli:+(cli $cli)} "; fi
     done
     provs_u=$(printf '%s\n' $provs | sort -u | tr '\n' ' ')
-    if (( usable == 0 )); then p3_fail_stages+="$stage "
+    if (( usable == 0 )); then
+      # (review r251-1 G8: every configured voice gated off by the opt-in is said as such — still FAIL, no voice runs)
+      if (( n_voices > 0 && n_gated == n_voices )); then p3_optin_stages+="$stage "; else p3_fail_stages+="$stage "; fi
     else
       [[ $(printf '%s\n' $provs | sort -u | wc -l) -eq 1 ]] && STAGE_ONLY["$stage"]="${provs_u% }"
       p3_usable+="$stage usable: ${usable_names% }; "
       [[ -n "$missing" ]] && p3_warn+="$stage missing: ${missing% }; "
     fi
   done
-  if [[ -n "$p3_fail_stages" ]]; then p3_status="FAIL"; p3_detail="no usable voice for ${p3_fail_stages% }: no credential present and no CLI hop on PATH"
+  if [[ -n "$p3_fail_stages$p3_optin_stages" ]]; then
+    p3_status="FAIL"
+    [[ -z "$p3_fail_stages" ]] || p3_detail="no usable voice for ${p3_fail_stages% }: no credential present and no CLI hop on PATH"
+    [[ -z "$p3_optin_stages" ]] || p3_detail+="${p3_detail:+; }no usable voice for ${p3_optin_stages% }: every configured voice is not planned (the agy route is opt-in: set $AGY_OPT_IN_KEY: true)"
   elif [[ -n "$p3_warn" ]]; then p3_status="WARN"; p3_detail="${p3_usable}${p3_warn%; }"
   else p3_detail="every configured voice has a credential or CLI hop (${p3_usable%; })"; fi
   # (cycle-127 FR-1: a hop not planned by its opt-in is said, never counted as a missing voice)

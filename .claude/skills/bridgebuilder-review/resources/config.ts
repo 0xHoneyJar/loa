@@ -1,6 +1,8 @@
 import { execFile, execFileSync, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod/v4";
 import type { BridgebuilderConfig, MultiModelConfig } from "./core/types.js";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
@@ -149,37 +151,62 @@ export function isHeadlessModelId(modelId: string, provider?: string): boolean {
 export interface AgyGate {
   optIn: boolean;
   mode: string;
+  /** The config could not be read (yq missing, unparsable YAML): the gate failed closed for this reason (r251-1 G14). */
+  readError?: string;
+  /** `agy_opt_in` is present but not a YAML boolean (e.g. the string "true"): it reads off, said once (r251-1 G12). */
+  typeWarning?: string;
+}
+
+/** The Loa config the agy gate reads: the repo root's when one is known, else the cwd's (r251-1 G15 — one path for all callers). */
+export function loaConfigPathFor(repoRoot?: string): string {
+  return repoRoot ? join(repoRoot, ".loa.config.yaml") : ".loa.config.yaml";
 }
 
 /**
  * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
  * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
- * file, a missing yq or an unreadable config reads as off — the gate fails closed.
+ * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.
  */
-export function readAgyGate(configPath = ".loa.config.yaml"): AgyGate {
+export function readAgyGate(configPath: string): AgyGate {
   let optIn = false;
   let mode = "";
-  try {
-    const out = execFileSync(
-      "yq",
-      ["eval", "-o=json", "-I=0",
-        '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "mode": (.hounfour.headless.mode // "")}',
-        configPath],
-      { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] },
-    );
-    const parsed = JSON.parse(out) as { opt?: unknown; mode?: unknown };
-    optIn = parsed.opt === true;
-    mode = typeof parsed.mode === "string" ? parsed.mode : "";
-  } catch {
-    // (fail closed: no opt-in)
+  let readError: string | undefined;
+  let typeWarning: string | undefined;
+  if (existsSync(configPath)) {
+    try {
+      const out = execFileSync(
+        "yq",
+        ["eval", "-o=json", "-I=0",
+          '{"opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // "")}',
+          configPath],
+        { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const parsed = JSON.parse(out) as { opt?: unknown; tag?: unknown; mode?: unknown };
+      optIn = parsed.opt === true;
+      mode = typeof parsed.mode === "string" ? parsed.mode : "";
+      if (typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
+        typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — expected true or false; the agy route stays off`;
+      }
+    } catch (err) {
+      // (fail closed: no opt-in — and say why, rather than reading as a plain "opt-in off")
+      const e = err as { stderr?: unknown; message?: string };
+      const stderr = typeof e.stderr === "string" ? e.stderr.trim() : Buffer.isBuffer(e.stderr) ? e.stderr.toString("utf8").trim() : "";
+      readError = (stderr || e.message || String(err)).split("\n")[0].slice(0, 300);
+    }
   }
-  return { optIn, mode: process.env.LOA_HEADLESS_MODE || mode || "prefer-api" };
+  return {
+    optIn, mode: process.env.LOA_HEADLESS_MODE || mode || "prefer-api",
+    ...(readError !== undefined ? { readError } : {}), ...(typeWarning !== undefined ? { typeWarning } : {}),
+  };
 }
 
-/** A voice cheval would dispatch through agy: the gemini-headless id, or any google model when headless mode is cli-only. */
+/**
+ * A voice cheval would dispatch through agy: a google headless id of the generated registry (today `gemini-headless`), or
+ * any google model when the effective headless mode is cli-only (the bash/Python predicate's shape — lib/agy-gate-lib.sh).
+ */
 export function isAgyRouted(provider: string, modelId: string, mode: string): boolean {
   if (provider !== "google") return false;
-  return modelId === "gemini-headless" || mode === "cli-only";
+  return isHeadlessModelId(modelId, "google") || mode === "cli-only";
 }
 
 /**
@@ -187,7 +214,7 @@ export function isAgyRouted(provider: string, modelId: string, mode: string): bo
  * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
  * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export function validateApiKeys(config: MultiModelConfig, gate: AgyGate = readAgyGate()): {
+export function validateApiKeys(config: MultiModelConfig, gate: AgyGate): {
   valid: Array<{ provider: string; modelId: string }>;
   missing: Array<{ provider: string; envVar: string }>;
   notPlanned: Array<{ provider: string; modelId: string; reason: "opt_in_required" }>;

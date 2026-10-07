@@ -110,20 +110,83 @@ def load_project_config(project_root: str) -> Dict[str, Any]:
     return {}
 
 
+_AGY_TYPE_WARNED = False
+_AGY_AVAILABLE_WARNED = False
+_AGY_OPT_IN_KEY = "hounfour.headless.agy_opt_in"
+
+
+def _agy_opt_in_raw(project_root: Optional[str]) -> Tuple[bool, Any]:
+    """(present, value) of `agy_opt_in` in the PROJECT config only (r251-1 G9: an operator decision — framework-shipped
+    System defaults never satisfy it). Raises on an unreadable config; callers fail closed."""
+    root = project_root or _find_project_root()
+    hounfour = load_project_config(root)
+    headless = hounfour.get("headless") if isinstance(hounfour, dict) else None
+    if not isinstance(headless, dict) or "agy_opt_in" not in headless:
+        return False, None
+    return True, headless.get("agy_opt_in")
+
+
 def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
     """`hounfour.headless.agy_opt_in` (cycle-127 FR-1): True only for a YAML boolean `true`, default False.
 
-    Read through the project-config layer merged over the System defaults, from the root cheval itself resolves (the cwd
-    walk). No environment override — a planner is never talked into the agy voice by ambient env. A config that cannot be
-    read reads as off: the gate fails closed, and the adapter's refusal names the key.
+    Read from the project config (`.loa.config.yaml`) only — never the System defaults (review r251-1 G9) — from the
+    root cheval itself resolves (the cwd walk). No environment override — a planner is never talked into the agy voice by
+    ambient env. A config that cannot be read reads as off: the gate fails closed, and the adapter's refusal names the
+    key. A present value that is not a YAML boolean (the string "true") reads as off with one WARN per process (G12).
     """
-    root = project_root or _find_project_root()
+    global _AGY_TYPE_WARNED
     try:
-        merged = _deep_merge(load_system_defaults(root), load_project_config(root))
+        # (review r251-1 G4: the root walk sits inside the fail-closed try — a discovery failure reads as off)
+        present, value = _agy_opt_in_raw(project_root)
     except Exception:  # noqa: BLE001 — fail closed
         return False
-    headless = merged.get("headless") if isinstance(merged, dict) else None
-    return isinstance(headless, dict) and headless.get("agy_opt_in") is True
+    if present and value is not None and not isinstance(value, bool) and not _AGY_TYPE_WARNED:
+        _AGY_TYPE_WARNED = True
+        logger.warning("%s is %r (%s), not a YAML boolean — expected true or false; the agy route stays off",
+                       _AGY_OPT_IN_KEY, value, type(value).__name__)
+    return value is True
+
+
+def warn_agy_available_once(project_root: Optional[str] = None) -> None:
+    """SDD D-1.7 (review r251-1 G18): with the opt-in off while the route looks usable here — `agy` on PATH, or a Gemini /
+    Google key set — say ONCE per process that the route is gated and why. A PATH lookup only: nothing is spawned."""
+    global _AGY_AVAILABLE_WARNED
+    if _AGY_AVAILABLE_WARNED or agy_opt_in_enabled(project_root):
+        return
+    import shutil
+    why = []
+    if shutil.which(os.environ.get("AGY_HEADLESS_BIN", "agy")):
+        why.append("agy on PATH")
+    if os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"):
+        why.append("a Google/Gemini key is set")
+    if not why:
+        return
+    _AGY_AVAILABLE_WARNED = True
+    logger.warning("the agy route is available here (%s) but not planned: %s is not true — opt in only knowingly "
+                   "(the prompt travels on the CLI's argv, readable by local users; the CLI must be OAuth-authed)",
+                   ", ".join(why), _AGY_OPT_IN_KEY)
+
+
+def routes_to_agy(model: str, mode: Optional[str] = None) -> bool:
+    """True when cheval would dispatch `model` through agy (cycle-127 review r251-1 G2) — the Python twin of
+    `.claude/scripts/lib/agy-gate-lib.sh` `routes_to_agy`, one rule for every reader:
+
+      * the `gemini-headless` hop by name — bare, provider-prefixed (`google:gemini-headless`) or as a provider
+        (`gemini-headless:<model>`), in any headless mode;
+      * a Google model (`gemini*`, `google:gemini*`) under `hounfour.headless.mode: cli-only`, where the chain resolver
+        keeps only the CLI hop (the caller resolves the mode — env `LOA_HEADLESS_MODE` wins, as in cheval).
+
+    Under `prefer-cli` a Google model is NOT agy-routed: its API hop stays planned (cheval's walk skips the gated hop).
+    """
+    m = (model or "").strip()
+    if not m:
+        return False
+    if m == "gemini-headless" or m.endswith(":gemini-headless") or m.startswith("gemini-headless:"):
+        return True
+    if mode != "cli-only":
+        return False
+    bare = m[len("google:"):] if m.startswith("google:") else m
+    return bare.startswith("gemini")
 
 
 def load_env_overrides() -> Dict[str, Any]:

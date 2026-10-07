@@ -79,6 +79,12 @@ _DEGRADED_VERDICT_LIB_PATH="$SCRIPT_DIR/lib/degraded-verdict-lib.sh"
 # shellcheck source=lib/degraded-verdict-lib.sh
 source "$_DEGRADED_VERDICT_LIB_PATH" 2>/dev/null || true
 
+# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy).
+# Same soft-source as the libs above; the planner below fails closed (every hop agy-checked) if the lib did not load.
+_AGY_GATE_LIB_PATH="$SCRIPT_DIR/lib/agy-gate-lib.sh"
+# shellcheck source=lib/agy-gate-lib.sh
+source "$_AGY_GATE_LIB_PATH" 2>/dev/null || true
+
 # Token budgets (with 80% safety margin per D-009)
 DEFAULT_PRIMARY_TOKEN_BUDGET=24000    # 80% of 30k — non-Anthropic dissenters
 DEFAULT_SECONDARY_TOKEN_BUDGET=12000  # 80% of 15k
@@ -2347,17 +2353,30 @@ _adv_cli_present() {  # <family> → 0 when the family's CLI hop binary is on PA
 
 # cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in. Read from the config with yq, never by
 # spawning cheval: true only for a YAML boolean true at hounfour.headless.agy_opt_in (absent, false, a string — off). No env override.
+_adv_agy_lib() {  # 0 when the shared predicate is loaded (sourced lazily from PROJECT_ROOT under eval-based test sourcing)
+  declare -F routes_to_agy >/dev/null && return 0
+  [[ -f "${PROJECT_ROOT:-}/.claude/scripts/lib/agy-gate-lib.sh" ]] && source "$PROJECT_ROOT/.claude/scripts/lib/agy-gate-lib.sh" 2>/dev/null
+  declare -F routes_to_agy >/dev/null
+}
 _adv_agy_opted_in() {
-  local v=""
-  [[ -f "${CONFIG_FILE:-}" ]] && command -v yq >/dev/null 2>&1 || return 1
-  v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
-  [[ "$v" == "true" ]]
+  _adv_agy_lib || return 1   # (lib missing: off — fail closed)
+  agy_opted_in "${CONFIG_FILE:-}"
 }
 _adv_agy_filter_chain() {  # <config key> <family> <chain…> → the chain without its agy hops when the opt-in is off; each drop is said once
-  local key="$1" fam="$2" h out=""; shift 2
+  # (review r251-1 G2: a hop is agy-routed by the shared routes_to_agy — by name, alias-resolved, or a Google model under
+  # hounfour.headless.mode cli-only — tested on the hop as written and on its catalog id)
+  local key="$1" fam="$2" h c out="" mode; shift 2
+  if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (no-op when the planner already said it)
   if _adv_agy_opted_in; then printf '%s' "$*"; return 0; fi
+  if ! _adv_agy_lib; then
+    # (no predicate to plan with: the chain is kept and cheval's own gate refuses or skips an agy hop)
+    log "WARN: lib/agy-gate-lib.sh not loaded — companion chain not agy-filtered; cheval's opt-in gate still applies"
+    printf '%s' "$*"; return 0
+  fi
+  mode=$(agy_headless_mode "${CONFIG_FILE:-}")
   for h in "$@"; do
-    if [[ "$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")" == "gemini-headless" ]]; then
+    c=$(_adv_hop_canon "$h" 2>/dev/null || printf '%s' "$h")
+    if routes_to_agy "$h" "$mode" || routes_to_agy "$c" "$mode"; then
       log "WARN: companion hop ${h} not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — named by flatline_protocol.${key}.companion_chain.${fam}"
     else out+="$h "; fi
   done
@@ -4079,6 +4098,7 @@ main() {
     companion_chain_str=$(_companion_chain "$companion_family")
     # cycle-127 FR-1: an agy hop with the opt-in off is not planned; a chain left empty by that is opt_in_required, not no_route
     local _agy_pre="$companion_chain_str"
+    if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (r251-1 G12/G18: once per run, on stderr — top level, not in $(...))
     # shellcheck disable=SC2086  # (a space-separated hop list, as everywhere it is walked)
     [[ -z "$companion_chain_str" ]] || companion_chain_str=$(_adv_agy_filter_chain "$([[ "$type" == "audit" ]] && echo security_audit || echo code_review)" "$companion_family" $companion_chain_str)
     if [[ -z "$companion_chain_str" && -n "$_agy_pre" ]]; then

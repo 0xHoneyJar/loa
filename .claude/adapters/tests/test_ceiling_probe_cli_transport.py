@@ -59,6 +59,8 @@ FAKE = textwrap.dedent('''\
         body = {{"type": "result", "is_error": True, "result": msg}}
         if status:
             body["api_error_status"] = status
+        if os.environ.get("FAKE_ERR_COST"):
+            body["total_cost_usd"] = float(os.environ["FAKE_ERR_COST"])
         print(json.dumps(body))
         sys.exit(1)
 
@@ -73,9 +75,19 @@ FAKE = textwrap.dedent('''\
         err("API Error: 500 internal server error")
     if mode == "flaky" and calls <= 2:
         err("API Error: 529 overloaded")
+    BEDROCK_THROTTLE = "Too many tokens, please wait before trying again."
+    if mode == "bedrock_flaky" and calls <= 1:
+        err(BEDROCK_THROTTLE)
+    if mode == "huge":
+        sys.stdout.write("x" * (2 << 20))
+        sys.exit(0)
     if measured > limit:
+        if mode == "bedrock_tpm":
+            err(BEDROCK_THROTTLE)
         if mode == "tpm":
-            err("API Error: 429 This request would exceed your organization's rate limit of 300,000 input tokens per minute")
+            hint = os.environ.get("FAKE_RETRY_AFTER")
+            err("API Error: 429 This request would exceed your organization's rate limit of 300,000 input tokens "
+                "per minute" + (f" (retry-after: {{hint}})" if hint else ""))
         if os.environ.get("FAKE_ORIGIN") == "cli":
             err(f"Prompt is too long: {{measured:,}} tokens > {{limit:,}} maximum")
         if os.environ.get("FAKE_BARE"):
@@ -104,6 +116,19 @@ def _zero_live_spend():
     assert _stat(MODELINV_LOG) == before, ".run/model-invoke.jsonl changed — a live call escaped the fake"
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _no_real_cli(tmp_path_factory):
+    """r251-1 P11 — fail-closed: this transport spawns ${CLAUDE_HEADLESS_BIN:-claude}
+    directly, so a real `claude -p` would never show in cheval's MODELINV ledger
+    (the guard above). Every test starts with CLAUDE_HEADLESS_BIN at a path that
+    does not exist; only the `fake` fixture points it at the recording fake."""
+    sentinel = tmp_path_factory.mktemp("loa-probe-no-real-cli") / "claude-must-not-run"
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("CLAUDE_HEADLESS_BIN", str(sentinel))
+        yield sentinel
+    assert not sentinel.exists()
+
+
 @pytest.fixture(scope="module")
 def tool():
     spec = importlib.util.spec_from_file_location("ceiling_probe_live_cli", TOOL)
@@ -126,7 +151,7 @@ def fake(tmp_path, monkeypatch, tool):
     monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(bin_path))
     monkeypatch.setenv("FAKE_LOG", str(log))
     for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_DEFAULT_OPUS_MODEL", "FAKE_MODE", "FAKE_LIMIT_TOKENS",
-                "FAKE_RATIO", "FAKE_BARE", "FAKE_ORIGIN", "FAKE_COST", "AWS_REGION", "ANTHROPIC_BEDROCK_REGION_PREFIX",
+                "FAKE_RATIO", "FAKE_BARE", "FAKE_ORIGIN", "FAKE_COST", "FAKE_ERR_COST", "FAKE_RETRY_AFTER", "AWS_REGION", "ANTHROPIC_BEDROCK_REGION_PREFIX",
                 "CLAUDE_CODE_USE_BEDROCK"):
         monkeypatch.delenv(var, raising=False)
     sleeps: list = []
@@ -145,7 +170,10 @@ def _limit(monkeypatch, tokens: int):
     monkeypatch.setenv("FAKE_LIMIT_TOKENS", str(tokens))
 
 
-def _run(tool, monkeypatch, tmp_path, *extra):
+def _run(tool, monkeypatch, tmp_path, *extra, expect_calls: bool = True):
+    """Run the probe in-process. r251-1 P11: a probe-running test proves the
+    recording fake was called (at least once) — or, with expect_calls=False,
+    that no CLI ran at all."""
     out = tmp_path / "record.json"
     argv = ["ceiling-probe-live.py", "--model", "claude-opus-5-5", "--transport", "claude-headless",
             "--min-tokens-probe", "100000", "--max-tokens-probe", "400000", "--budget-usd", "20",
@@ -153,6 +181,10 @@ def _run(tool, monkeypatch, tmp_path, *extra):
     monkeypatch.setattr(sys, "argv", argv)
     code = tool.main()
     record = json.loads(out.read_text()) if out.exists() else None
+    log = Path(os.environ.get("FAKE_LOG", "/nonexistent"))
+    ran = log.exists() and log.read_text().strip() != ""
+    assert ran is expect_calls, f"fake called: {ran}, expected {expect_calls} (CLAUDE_HEADLESS_BIN=" \
+                                f"{os.environ.get('CLAUDE_HEADLESS_BIN')})"
     return code, record
 
 
@@ -216,18 +248,22 @@ def test_the_probe_builds_its_argv_with_the_adapter_builder(tool):
     assert tool._cli_command(adapter_argv[0], "opus") == adapter_argv + ["--max-turns", "1"]
 
 
-def test_runs_from_another_cwd_under_python_isolated_mode(tmp_path, monkeypatch):
-    bin_path = _write_fake(tmp_path / "fake-claude")
+def test_runs_from_another_cwd_under_python_isolated_mode(fake, tmp_path, monkeypatch):
+    # r251-1 P11: the same recording fake as every other test (CLAUDE_HEADLESS_BIN and
+    # FAKE_LOG come from the `fake` fixture), and a PATH with no `claude` on it
     out = tmp_path / "r.json"
+    empty = tmp_path / "empty-path"
+    empty.mkdir()
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "PYTHONPATH")}
-    env.update(CLAUDE_HEADLESS_BIN=str(bin_path), FAKE_LOG=str(tmp_path / "c.jsonl"),
-               FAKE_LIMIT_TOKENS="250000")
+    env.update(FAKE_LIMIT_TOKENS="250000", PATH=str(empty))
+    assert env["CLAUDE_HEADLESS_BIN"] == fake["bin"]
     proc = subprocess.run([sys.executable, "-I", str(TOOL), "--model", "claude-opus-5-5", "--transport",
                            "claude-headless", "--min-tokens-probe", "100000", "--max-tokens-probe", "400000",
                            "--budget-usd", "20", "--output", str(out)],
                           cwd=str(tmp_path), env=env, capture_output=True, text=True, timeout=300)
     assert proc.returncode == 0, proc.stderr
     assert json.loads(out.read_text())["outcome"] == "clean"
+    assert fake["calls"](), "the isolated-mode run did not go through the recording fake"
 
 
 def test_default_binary_is_claude_on_path(tool, fake, monkeypatch, tmp_path):
@@ -235,7 +271,7 @@ def test_default_binary_is_claude_on_path(tool, fake, monkeypatch, tmp_path):
     bindir.mkdir()
     _write_fake(bindir / "claude")
     monkeypatch.delenv("CLAUDE_HEADLESS_BIN", raising=False)
-    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("PATH", str(bindir))     # r251-1 P11: no real `claude` is reachable
     _limit(monkeypatch, 250_000)
     code, record = _run(tool, monkeypatch, tmp_path)
     assert code == 0 and record["cli_bin"] == "claude"
@@ -271,7 +307,13 @@ def test_clean_bisection_measures_and_brackets_the_bound(tool, fake, monkeypatch
     assert len(fake["calls"]()) == record["sample_size"]
     # worst-case step cost and how many fit, printed before the first live call
     err = capsys.readouterr().err
-    assert "worst-case step ≈ $1.60" in err and "12 such steps fit in $20" in err
+    assert "worst-case step ≈ $2.00" in err and "10 such steps fit in $20" in err
+    assert "$4.00/MTok input × 1.25 cache-write rate = $5.00/MTok" in err and "Bedrock bills separately" in err
+    assert record["estimate_rate"] == "input × 1.25 (cache-write rate)"
+    # accepted steps without a CLI cost are charged at the measured size × the cache-write rate
+    for s in record["samples"]:
+        if s["kind"] == "ok":
+            assert s["charged_usd"] == pytest.approx(s["measured_input_tokens"] * 5e-6, abs=1e-5)
     assert err.index("worst-case step") < err.index("tokens (attempt 1)")
 
 
@@ -295,13 +337,13 @@ def test_tolerance_tokens_sets_the_stop(tool, fake, monkeypatch, tmp_path):
 def test_a_completion_without_the_needle_is_unverified_and_partial(tool, fake, monkeypatch, tmp_path):
     monkeypatch.setenv("FAKE_MODE", "noneedle")
     catalog = tmp_path / "model-config.yaml"
-    catalog.write_text(CATALOG.read_text())
+    catalog.write_text(SYNTH)
     code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
     assert code == 3
     assert record["outcome"] == "partial" and record["unverified"] is True
     assert record["largest_ok_input_tokens"] == 0, "an unverified completion is never counted as OK"
     assert any("unverified" in r for r in record["reasons"])
-    assert catalog.read_text() == CATALOG.read_text()
+    assert catalog.read_text() == SYNTH
 
 
 def test_top_accepted_without_a_rejection_is_not_clean(tool, fake, monkeypatch, tmp_path):
@@ -318,47 +360,58 @@ def test_transient_classes_retry_with_backoff_and_count_every_attempt(tool, fake
     top = record["samples"][0]
     assert top["tokens"] == 400_000 and top["attempts"] == 3
     assert fake["sleeps"] == [5, 15]
-    # three attempts at 400K are all paid for (two rejected at the requested size, one measured)
-    assert top["cost_usd"] >= 3 * 1.6 - 0.01
-    assert record["spent_usd"] == pytest.approx(sum(s["cost_usd"] for s in record["samples"]), abs=1e-3)
+    # r251-1 P1: the two 529s and the third attempt's size rejection (400K > the 250K limit)
+    # are provider-side rejections the CLI reported no cost for — none is billed
+    assert [a["kind"] for a in top["attempt_log"]] == ["transient", "transient", "size"]
+    assert [a["charge_basis"] for a in top["attempt_log"]] == ["provider_rejection_unbilled"] * 3
+    assert top["charged_usd"] == 0
+    ok = [s for s in record["samples"] if s["kind"] == "ok"]
+    assert ok and all(s["charge_basis"] == "completion" and s["charged_usd"] > 0 for s in ok)
+    assert record["spent_usd"] == pytest.approx(sum(s["charged_usd"] for s in record["samples"]), abs=1e-3)
 
 
 @pytest.mark.parametrize("mode", ["throttle", "5xx"])
 def test_a_transient_class_that_persists_is_other_after_three_attempts(tool, fake, monkeypatch, tmp_path, mode):
     monkeypatch.setenv("FAKE_MODE", mode)
     catalog = tmp_path / "model-config.yaml"
-    catalog.write_text(CATALOG.read_text())
+    catalog.write_text(SYNTH)
     code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
     assert code == 1 and record["outcome"] == "partial" and record["error"]
     assert len(fake["calls"]()) == 3 and record["samples"][0]["attempts"] == 3
-    assert catalog.read_text() == CATALOG.read_text()
+    assert fake["sleeps"] == [5, 15]          # the short schedule: not a token-budget 429
+    assert catalog.read_text() == SYNTH
 
 
 def test_a_token_budget_429_that_persists_at_a_size_is_a_size_rejection(tool, fake, monkeypatch, tmp_path):
     _limit(monkeypatch, 300_000)
     monkeypatch.setenv("FAKE_MODE", "tpm")
     code, record = _run(tool, monkeypatch, tmp_path)
-    assert code == 0, record["reasons"]
+    # verifier r251-1: a bound bracketed by a token-budget rejection is not a context limit — partial
+    assert code == 3 and record["outcome"] == "partial"
+    assert any("token_limit" in r and "context_limit" in r for r in record["reasons"])
     failed = [s for s in record["samples"] if s["kind"] == "size"]
-    assert failed and all(s["failure_class"] == "token_limit" and s["attempts"] == 3 for s in failed)
+    assert failed and all(s["failure_class"] == "token_limit" and s["attempts"] == 4 for s in failed)
+    assert all(s["retry_wait_s"] >= tool._TPM_WINDOW_S for s in failed)
     assert record["largest_ok_input_tokens"] < 300_000 <= record["smallest_failed_input_tokens"]
+    # r251-1 P2: each failed step waited out the tokens-per-minute window, 5 s / 15 s never could
+    assert fake["sleeps"] == [20, 45, 75] * len(failed)
 
 
 @pytest.mark.parametrize("mode", ["other", "garbage"])
 def test_any_other_failure_exits_1_with_the_error_recorded_and_writes_nothing(tool, fake, monkeypatch, tmp_path, mode):
     monkeypatch.setenv("FAKE_MODE", mode)
     catalog = tmp_path / "model-config.yaml"
-    catalog.write_text(CATALOG.read_text())
+    catalog.write_text(SYNTH)
     code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
     assert code == 1
     assert record["error"] and record["outcome"] == "partial"
-    assert catalog.read_text() == CATALOG.read_text()
+    assert catalog.read_text() == SYNTH
     assert len(fake["calls"]()) == 1   # not retried: neither size nor transient
 
 
 def test_missing_binary_is_other(tool, fake, monkeypatch, tmp_path):
     monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(tmp_path / "no-such-claude"))
-    code, record = _run(tool, monkeypatch, tmp_path)
+    code, record = _run(tool, monkeypatch, tmp_path, expect_calls=False)
     assert code == 1 and record["error"] and record["cli_version"] is None
 
 
@@ -367,7 +420,7 @@ def test_inconsistent_classifications_are_partial(tool):
     reasons = tool._outcome_reasons(samples, stop=None, largest_ok=300_000, measured=303_000,
                                     smallest_fail=250_000, hi=400_000, tol=16_000)
     assert any("inconsistent" in r for r in reasons)
-    clean = [{"tokens": 240_000, "kind": "ok"}, {"tokens": 250_000, "kind": "size"}]
+    clean = [{"tokens": 240_000, "kind": "ok"}, {"tokens": 250_000, "kind": "size", "failure_class": "context_limit"}]
     assert tool._outcome_reasons(clean, stop=None, largest_ok=240_000, measured=243_000,
                                  smallest_fail=250_000, hi=400_000, tol=16_000) == []
     assert tool._outcome_reasons(clean, stop=None, largest_ok=240_000, measured=None,
@@ -376,21 +429,22 @@ def test_inconsistent_classifications_are_partial(tool):
 
 # --- budget -----------------------------------------------------------------
 
-def test_budget_cap_stops_with_partial_and_writes_nothing(tool, fake, monkeypatch, tmp_path):
-    _limit(monkeypatch, 150_000)
+def test_budget_cap_stops_with_partial_and_writes_nothing(tool, fake, monkeypatch, tmp_path, capsys):
+    _limit(monkeypatch, 350_000)
     catalog = tmp_path / "model-config.yaml"
-    catalog.write_text(CATALOG.read_text())
-    # 400K top ($1.60) fits; the first mid (250K, $1.00) does not fit in $2
-    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "2", "--write-catalog", str(catalog),
-                        "--allow-partial")
+    catalog.write_text(SYNTH)
+    # the 400K top (est $2.00 at the cache-write rate) is rejected (free); 250K is accepted (≈$1.26);
+    # the next mid (≈327K, est ≈$1.64) no longer fits in $2 — the pre-check uses the estimate
+    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "2", "--write-catalog", str(catalog))
     assert code == 3
     assert record["outcome"] == "partial" and any("budget" in r for r in record["reasons"])
-    assert record["spent_usd"] <= 2
-    assert catalog.read_text() == CATALOG.read_text(), "a partial CLI-transport record is never written"
+    assert 0 < record["spent_usd"] <= 2
+    assert catalog.read_text() == SYNTH, "a partial CLI-transport record is never written"
+    assert (tmp_path / "record.json").exists()
 
 
 def test_budget_below_the_first_call_makes_no_call(tool, fake, monkeypatch, tmp_path):
-    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "0.5")
+    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "0.5", expect_calls=False)
     assert code == 3 and record["partial"] is True and record["sample_size"] == 0
     assert fake["calls"]() == []
 
@@ -400,7 +454,8 @@ def test_spend_is_the_larger_of_the_cli_cost_and_the_catalog_estimate(tool, fake
     monkeypatch.setenv("FAKE_COST", "9.0")          # an implausibly high CLI-reported cost wins
     code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "40")
     ok_steps = [s for s in record["samples"] if s["kind"] == "ok"]
-    assert ok_steps and all(s["cost_usd"] >= 9.0 for s in ok_steps)
+    assert ok_steps and all(s["charged_usd"] >= 9.0 for s in ok_steps)
+    assert all(s["charge_basis"] == "completion" for s in ok_steps)
 
 
 # --- cli_model / host_route / env -------------------------------------------
@@ -437,26 +492,43 @@ def test_attempt_timeout_scales_with_size_and_is_capped(tool):
     assert tool._attempt_timeout(10_000_000) == 1800
 
 
-def test_captured_output_is_capped_at_1mb(tool):
-    rc, out, err = tool._run_capped([sys.executable, "-c",
-                                     "import sys; sys.stdout.write('x' * 3000000); sys.stderr.write('y' * 2000000)"],
-                                    "", 60)
-    assert rc == 0 and len(out) == 1 << 20 and len(err) == 1 << 20
+def test_output_past_the_1mb_cap_raises_and_kills_the_group(tool):
+    # verifier r251-1 (P7): the probe runs through loa_cheval's run_subprocess_pgkill, which
+    # raises past its byte cap instead of truncating — a truncated answer never classifies
+    _adapters_base()
+    from loa_cheval.providers.base import SubprocessOutputCapExceeded
+    with pytest.raises(SubprocessOutputCapExceeded):
+        tool._run_capped([sys.executable, "-c", "import sys; sys.stdout.write('x' * 3000000)"], "", 60)
+    rc, out, err = tool._run_capped([sys.executable, "-c", "import sys; sys.stdout.write('x' * 1000)"], "", 60)
+    assert rc == 0 and len(out) == 1000
+
+
+def _adapters_base():
+    sys.path.insert(0, str(ROOT / ".claude" / "adapters"))
+
+
+def test_an_oversized_cli_answer_is_other(tool, fake, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_MODE", "huge")
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert code == 1 and record["samples"][0]["kind"] == "other"
+    assert "1 MB" in record["samples"][0]["detail"] and record["samples"][0]["attempts"] == 1
 
 
 # --- the operator_set write -------------------------------------------------
 
 def _w(tool, text, ceiling, **kw):
     args = dict(calibrated_at="2026-10-07T12:00:00Z", cli_model="global.anthropic.claude-opus-5-5",
-                host_route="bedrock (claude-bedrock)", cli_version="2.1.292 (Claude Code)")
+                host_route="bedrock (claude-bedrock)", cli_version="2.1.292 (Claude Code)",
+                probe_outcome="clean", sample_size=5)
     args.update(kw)
     return tool.write_catalog_operator_set(text, "claude-opus-5-5", ceiling=ceiling, **args)
 
 
 def test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut(tool):
-    before = CATALOG.read_text()
-    if "# loa:shortcut: Opus 5's measured bound, not probed on 5.5" not in before:
-        pytest.skip("the catalog is already calibrated (the lead's probe write landed)")
+    # r251-1 P9: on the synthetic pre-probe catalog — the live entry is calibrated, and a
+    # skip here would leave the shortcut-replacement path untested
+    before = SYNTH
+    assert "# loa:shortcut: Opus 5's measured bound, not probed on 5.5" in before
     after = _w(tool, before, 640_000)
     b, a = yaml.safe_load(before), yaml.safe_load(after)
     entry = a["providers"]["anthropic"]["models"]["claude-opus-5-5"]
@@ -469,7 +541,7 @@ def test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut(too
     assert cal["transport"] == "claude-headless" and cal["cli_version"] == "2.1.292 (Claude Code)"
     assert cal["cli_model"] == "global.anthropic.claude-opus-5-5" and cal["measured_input_tokens"] == 640_000
     assert cal["calibrated_at"] == "2026-10-07T12:00:00Z"
-    assert cal["sample_size"] is None and cal["stale_after_days"] == 90
+    assert cal["sample_size"] == 5 and cal["probe_outcome"] == "clean" and cal["stale_after_days"] == 90
     assert cal["reprobe_trigger"].startswith("API-transport probe (tools/ceiling-probe-live.py --transport api) "
                                              "from a host with ANTHROPIC_API_KEY;")
     assert "through claude-headless on Bedrock (global.anthropic.claude-opus-5-5) on 2026-10-07" in cal["reprobe_trigger"]
@@ -481,7 +553,7 @@ def test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut(too
     for k in set(be) | set(entry):
         if k not in ("probed_ceiling", "effective_input_ceiling", "ceiling_calibration"):
             assert entry.get(k) == be.get(k), k
-    assert a["aliases"] == b["aliases"]
+    assert a.get("aliases") == b.get("aliases")
     assert "loa:shortcut: Opus 5's measured bound" not in after
     assert sum(1 for l in after.splitlines() if l.strip().startswith("#")) == \
         sum(1 for l in before.splitlines() if l.strip().startswith("#")) - 1
@@ -522,7 +594,7 @@ def test_write_operator_set_keeps_stale_after_days_is_idempotent_and_refuses_bad
             _w(tool, text, bad)
     with pytest.raises(ValueError):
         tool.write_catalog_operator_set(text, "claude-nope-9", ceiling=1, calibrated_at="2026-10-07T00:00:00Z",
-                                        cli_model="x", host_route="y")
+                                        cli_model="x", host_route="y", probe_outcome="clean", sample_size=1)
 
 
 def test_cli_write_catalog_end_to_end_on_a_temp_copy(tool, fake, monkeypatch, tmp_path):
@@ -673,3 +745,413 @@ def test_opus_5_5_has_its_catalog_input_price(tool):
     cat = yaml.safe_load(CATALOG.read_text())
     assert cat["providers"]["anthropic"]["models"]["claude-opus-5-5"]["pricing"]["input_per_mtok"] == \
         tool._PRICE_IN["claude-opus-5-5"]
+
+
+# --- r251-1 (cross-model review of 8ad37c55) --------------------------------
+
+def test_p1_a_cli_local_rejection_is_never_charged(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    monkeypatch.setenv("FAKE_ORIGIN", "cli")
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert code == 0
+    rejected = [s for s in record["samples"] if s["kind"] == "size"]
+    assert rejected and all(s["charged_usd"] == 0 and s["charge_basis"] == "cli_local_rejection" for s in rejected)
+    ok = [s for s in record["samples"] if s["kind"] == "ok"]
+    assert record["spent_usd"] == pytest.approx(sum(s["charged_usd"] for s in ok), abs=1e-4)
+
+
+def test_p1_a_cli_local_rejection_alone_spends_nothing(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 1)                       # every size rejected, by the CLI's own pre-flight
+    monkeypatch.setenv("FAKE_ORIGIN", "cli")
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert record["samples"] and record["spent_usd"] == 0
+
+
+def test_p1_a_provider_rejection_is_free_unless_the_cli_reports_a_cost(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    code, record = _run(tool, monkeypatch, tmp_path)
+    rejected = [s for s in record["samples"] if s["kind"] == "size"]
+    assert rejected and all(s["size_origin"] == "provider" for s in rejected)
+    assert all(s["charged_usd"] == 0 and s["charge_basis"] == "provider_rejection_unbilled" for s in rejected)
+    monkeypatch.setenv("FAKE_ERR_COST", "0.25")
+    code, record = _run(tool, monkeypatch, tmp_path)
+    rejected = [s for s in record["samples"] if s["kind"] == "size"]
+    assert all(s["charged_usd"] == 0.25 and s["charge_basis"] == "cli_reported" for s in rejected)
+    assert record["spent_usd"] == pytest.approx(sum(s["charged_usd"] for s in record["samples"]), abs=1e-4)
+
+
+def test_p1_the_budget_precheck_still_uses_the_estimate(tool, fake, monkeypatch, tmp_path):
+    """A free rejection does not make the next attempt free in advance: the cap
+    is checked against the estimate before any attempt."""
+    _limit(monkeypatch, 1)
+    monkeypatch.setenv("FAKE_ORIGIN", "cli")
+    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "1.0", expect_calls=False)
+    # 400K ≈ $2.00 estimated > $1.00: never attempted although it would have cost nothing
+    assert code == 3 and record["sample_size"] == 0 and fake["calls"]() == []
+    # the estimate is the cache-write rate: $1.90 would have fit at the plain input price ($1.60)
+    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "1.9", expect_calls=False)
+    assert code == 3 and record["sample_size"] == 0
+
+
+def test_p2_a_retry_after_hint_is_honoured_and_the_total_wait_capped(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 300_000)
+    monkeypatch.setenv("FAKE_MODE", "tpm")
+    monkeypatch.setenv("FAKE_RETRY_AFTER", "100")
+    code, record = _run(tool, monkeypatch, tmp_path)
+    failed = [s for s in record["samples"] if s["kind"] == "size"]
+    assert failed
+    for s in failed:
+        assert s["retry_wait_s"] <= tool._RETRY_WAIT_CAP_S
+    # the hint (100 s) beats the 20 s schedule; the cap (180 s) truncates the second wait
+    assert fake["sleeps"][:2] == [100, 80]
+
+
+def test_p2_the_short_backoff_is_kept_for_5xx(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    monkeypatch.setenv("FAKE_MODE", "flaky")
+    _run(tool, monkeypatch, tmp_path)
+    assert fake["sleeps"] == [5, 15]
+
+
+def test_p3_a_token_limit_that_persists_without_the_window_cleared_is_other(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 300_000)
+    monkeypatch.setenv("FAKE_MODE", "tpm")
+    monkeypatch.setattr(tool, "_RETRY_WAIT_CAP_S", 30)       # the window (60 s) can never be waited out
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert code == 1 and record["samples"][0]["kind"] == "other"
+    assert "window" in record["samples"][0]["detail"]
+
+
+def test_p3_classification_unit(tool):
+    s = tool._persisted_transient({"kind": "transient", "token_limit": True, "detail": "429 tpm"},
+                                  attempt_kinds=["token_limit"] * 4, waited=140.0)
+    assert s["kind"] == "size" and s["failure_class"] == "token_limit" and s["size_origin"] == "provider"
+    s = tool._persisted_transient({"kind": "transient", "token_limit": True, "detail": "429 tpm"},
+                                  attempt_kinds=["transient", "token_limit", "token_limit"], waited=140.0)
+    assert s["kind"] == "other"                                # not every attempt was the token-limit class
+    s = tool._persisted_transient({"kind": "transient", "detail": "503"}, attempt_kinds=["transient"] * 3, waited=20)
+    assert s["kind"] == "other" and "persisted" in s["detail"]
+
+
+def test_p4_classification_reads_the_full_diagnostic(tool):
+    stderr = "x" * 400 + " Prompt is too long: 500,000 tokens > 400,000 maximum"
+    res = tool._classify(1, "", stderr, "abcdefabcdef")
+    assert res["kind"] == "size" and res["rejected_input_tokens"] == 500_000
+    assert len(res["detail"]) <= 300                       # truncated for the record only
+    tpm = "y" * 400 + " API Error: 429 rate limit of 300,000 input tokens per minute"
+    res = tool._classify(1, json.dumps({"type": "result", "is_error": True, "result": tpm}), "", "abcdefabcdef")
+    assert res["kind"] == "transient" and res["token_limit"] is True
+
+
+def test_p4_the_full_text_is_capped_at_the_capture_size(tool):
+    huge = "z" * (3 << 20) + " Prompt is too long"
+    # beyond the 1 MB capture the marker is never seen — the classifier never reads more than was captured
+    res = tool._classify(1, "", huge, "abcdefabcdef")
+    assert res["kind"] != "size"
+
+
+def test_p5_a_classifier_exception_is_other_and_the_record_survives(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    _, ceiling, _ = tool._adapters()
+
+    def boom(_msg):
+        raise RuntimeError("parse exploded")
+    monkeypatch.setattr(ceiling, "parse_context_limit", boom)
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert code == 1 and record is not None and record["outcome"] == "partial"
+    bad = [s for s in record["samples"] if s["kind"] == "other"]
+    assert bad and "parse exploded" in bad[0]["detail"] and "RuntimeError" in bad[0]["detail"]
+    assert "parse exploded" in record["error"]
+
+
+@pytest.mark.parametrize("mutate,why", [
+    (lambda t: t.replace("      claude-opus-5-5:\n", "      claude-opus-5-4:\n", 1), "no `      claude-opus-5-5:` block"),
+    (lambda t: t.replace("        context_window: 1000000\n", "", 1), "context_window"),
+    (lambda t: t.replace("        context_window: 1000000\n", "        context_window: 0\n", 1), "context_window"),
+    (lambda t: t.replace("        probed_ceiling: 180000\n", "", 1), "probed_ceiling"),
+])
+def test_p6_write_prerequisites_fail_fast_with_no_spend(tool, fake, monkeypatch, tmp_path, capsys, mutate, why):
+    _limit(monkeypatch, 250_000)
+    catalog = tmp_path / "model-config.yaml"
+    bad = mutate(SYNTH)
+    catalog.write_text(bad)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), expect_calls=False)
+    assert code == 2 and record is None
+    assert fake["calls"]() == []                           # no CLI call at all, not even --version
+    assert why in capsys.readouterr().err
+    assert catalog.read_text() == bad
+
+
+def test_p6_a_missing_catalog_file_fails_fast(tool, fake, monkeypatch, tmp_path):
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(tmp_path / "nope.yaml"), expect_calls=False)
+    assert code == 2 and fake["calls"]() == []
+
+
+GRANDCHILD = textwrap.dedent("""\
+    import os, subprocess, sys, time
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+    open(sys.argv[1], "w").write(str(child.pid))
+    time.sleep(300)
+    """)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        with open(f"/proc/{pid}/stat") as fh:
+            return fh.read().split(")")[-1].split()[0] != "Z"
+    except FileNotFoundError:
+        return False
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to observe the grandchild")
+def test_p7_a_timeout_kills_the_whole_process_group(tool, tmp_path):
+    import time
+    script = tmp_path / "wrapper.py"
+    script.write_text(GRANDCHILD)
+    pidfile = tmp_path / "gc.pid"
+    with pytest.raises(subprocess.TimeoutExpired):
+        tool._run_capped([sys.executable, str(script), str(pidfile)], "prompt on stdin", 2)
+    deadline = time.time() + 10
+    while not pidfile.exists() and time.time() < deadline:
+        time.sleep(0.05)
+    gc = int(pidfile.read_text())
+    while _alive(gc) and time.time() < deadline:
+        time.sleep(0.1)
+    if _alive(gc):
+        os.kill(gc, 9)
+        pytest.fail("the wrapper's grandchild survived the timeout")
+
+
+def test_p7_stdin_is_delivered_and_the_child_leads_its_own_group(tool):
+    rc, out, err = tool._run_capped([sys.executable, "-c",
+                                     "import os, sys; d = sys.stdin.read(); "
+                                     "print(len(d), os.getpgid(0) == os.getpid())"], "x" * 3_000_000, 60)
+    assert rc == 0 and out.split() == ["3000000", "True"]
+
+
+@pytest.mark.parametrize("text,transient", [
+    ("Request took 503 ms and then failed: something odd", False),
+    ("retrying 3 of 500 items", False),
+    ("API Error: 503", True),
+    ("HTTP 502 from upstream", True),
+    ("status 504", True),
+])
+def test_p8_the_5xx_heuristic_needs_a_status_context(tool, text, transient):
+    res = tool._classify(1, json.dumps({"type": "result", "is_error": True, "result": text}), "", "abcdefabcdef")
+    assert (res["kind"] == "transient") is transient, res
+
+
+def test_p8_api_status_field_counts(tool):
+    body = {"type": "result", "is_error": True, "result": "upstream trouble", "api_error_status": 503}
+    assert tool._classify(1, json.dumps(body), "", "abcdefabcdef")["kind"] == "transient"
+
+
+@pytest.mark.parametrize("flags", [["--allow-partial"], ["--tier", "3"], ["--itpm", "100000"]])
+def test_p9_api_only_flags_are_a_usage_error_on_the_headless_transport(tool, fake, monkeypatch, tmp_path, capsys, flags):
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), *flags, expect_calls=False)
+    assert code == 2 and record is None and catalog.read_text() == SYNTH
+    assert f"{flags[0]} is an api-transport flag" in capsys.readouterr().err
+
+
+def test_p9_the_headless_only_flag_is_a_usage_error_on_the_api_transport(tool, fake, monkeypatch, capsys):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-never-used")
+    monkeypatch.setattr(sys, "argv", ["ceiling-probe-live.py", "--model", "claude-opus-5-5", "--write-catalog",
+                                      "/nonexistent", "--write-partial-as-operator-set"])
+    assert tool.main() == 2
+    assert "--write-partial-as-operator-set applies to --transport claude-headless only" in capsys.readouterr().err
+
+
+def test_p10_the_docstring_describes_the_i2_clamp(tool):
+    doc = tool.__doc__
+    assert "raw — the api transport applies no safety margin either" not in doc
+    assert "min(measured, context_window − default_max_tokens)" in doc
+    assert "size_unit" in doc and "written_ceiling" in doc
+
+
+# --- r251-1 P11: the zero-spend guard is fail-closed for this transport -----
+
+def test_p11_the_module_default_binary_is_a_sentinel_that_does_not_exist():
+    """Without the `fake` fixture, CLAUDE_HEADLESS_BIN points at a path under a
+    tmp dir that does not exist: a probe test that forgets the fake fails on
+    spawn instead of reaching a real `claude -p`."""
+    sentinel = os.environ.get("CLAUDE_HEADLESS_BIN", "")
+    assert sentinel and "loa-probe-no-real-cli" in sentinel and not os.path.exists(sentinel)
+
+
+def test_p11_a_probe_without_the_fake_fails_on_spawn(tool, monkeypatch, tmp_path):
+    out = tmp_path / "r.json"
+    monkeypatch.setattr(sys, "argv", ["ceiling-probe-live.py", "--model", "claude-opus-5-5", "--transport",
+                                      "claude-headless", "--min-tokens-probe", "100000", "--max-tokens-probe",
+                                      "400000", "--budget-usd", "20", "--output", str(out)])
+    assert tool.main() == 1
+    record = json.loads(out.read_text())
+    assert "loa-probe-no-real-cli" in record["error"] and record["samples"][0]["charge_basis"] == "not_sent"
+
+
+# --- r251-1 P12: probe_outcome / sample_size provenance --------------------
+
+def _validate_cal(cal):
+    import jsonschema
+    schema = json.loads(SCHEMA_V3.read_text())
+    jsonschema.validate(cal, {**schema["$defs"]["ceilingCalibration"], "$defs": schema["$defs"]})
+
+
+def test_p12_a_clean_write_carries_probe_outcome_and_the_sample_count(tool):
+    after = _w(tool, SYNTH, 640_000, sample_size=7)
+    cal = yaml.safe_load(after)["providers"]["anthropic"]["models"]["claude-opus-5-5"]["ceiling_calibration"]
+    assert cal["probe_outcome"] == "clean" and cal["sample_size"] == 7
+    _validate_cal(cal)
+
+
+def test_p12_a_partial_record_is_refused_without_force(tool):
+    with pytest.raises(ValueError, match="partial"):
+        _w(tool, SYNTH, 640_000, probe_outcome="partial")
+    for bad in ("maybe", None, ""):
+        with pytest.raises(ValueError):
+            _w(tool, SYNTH, 640_000, probe_outcome=bad)
+    for bad in (-1, True, "5", None):
+        with pytest.raises(ValueError):
+            _w(tool, SYNTH, 640_000, sample_size=bad)
+
+
+def test_p12_a_forced_partial_write_says_partial(tool):
+    after = _w(tool, SYNTH, 972_887, probe_outcome="partial", sample_size=5, force_partial=True)
+    entry = yaml.safe_load(after)["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    cal = entry["ceiling_calibration"]
+    assert cal["probe_outcome"] == "partial" and cal["sample_size"] == 5
+    assert cal["measured_input_tokens"] == 972_887 and entry["effective_input_ceiling"] == 936_000
+    assert "partial" in next(l for l in after.splitlines() if "cycle-127 FR-3: bound measured" in l)
+    _validate_cal(cal)
+    # forcing a clean record is a no-op flag
+    assert _w(tool, SYNTH, 640_000, force_partial=True) == _w(tool, SYNTH, 640_000)
+
+
+def test_p12_the_schema_probe_outcome_is_optional_and_closed(tool):
+    import jsonschema
+    base = {"source": "operator_set", "calibrated_at": "2026-10-07T00:00:00Z", "sample_size": 5,
+            "stale_after_days": 90}
+    _validate_cal(base)                                          # optional: absent is valid
+    _validate_cal({**base, "probe_outcome": "partial"})
+    with pytest.raises(jsonschema.ValidationError):
+        _validate_cal({**base, "probe_outcome": "maybe"})
+    schema = json.loads(SCHEMA_V3.read_text())
+    cc = schema["$defs"]["ceilingCalibration"]
+    assert "probe_outcome" not in cc.get("required", [])
+    assert "number of probe samples taken (accepted + rejected)" in cc["properties"]["sample_size"]["description"]
+
+
+def test_p12_the_clean_cli_path_writes_probe_outcome_clean(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
+    assert code == 0 and record["outcome"] == "clean"
+    cal = yaml.safe_load(catalog.read_text())["providers"]["anthropic"]["models"]["claude-opus-5-5"]["ceiling_calibration"]
+    assert cal["probe_outcome"] == "clean" and cal["sample_size"] == record["sample_size"] == len(record["samples"])
+    _validate_cal(cal)
+
+
+def test_p12_write_partial_as_operator_set_writes_a_budget_capped_record(tool, fake, monkeypatch, tmp_path, capsys):
+    _limit(monkeypatch, 350_000)
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--budget-usd", "2", "--write-catalog", str(catalog),
+                        "--write-partial-as-operator-set")
+    assert code == 3 and record["outcome"] == "partial"     # the exit code still reports the partial probe
+    entry = yaml.safe_load(catalog.read_text())["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    cal = entry["ceiling_calibration"]
+    assert cal["probe_outcome"] == "partial" and cal["sample_size"] == record["sample_size"]
+    assert cal["measured_input_tokens"] == record["measured_input_tokens"] == entry["effective_input_ceiling"]
+    assert record["written_ceiling"] == entry["effective_input_ceiling"]
+    _validate_cal(cal)
+    assert "operator vouches" in capsys.readouterr().err
+
+
+def test_p12_write_partial_needs_a_verified_accept(tool, fake, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_MODE", "noneedle")
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), "--write-partial-as-operator-set")
+    assert code == 3 and catalog.read_text() == SYNTH and "no verified accept" in record["error"]
+
+
+def test_p12_write_partial_without_write_catalog_is_a_usage_error(tool, fake, monkeypatch, tmp_path):
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-partial-as-operator-set", expect_calls=False)
+    assert code == 2 and record is None
+
+
+# --- verifier additions (r251-1) -------------------------------------------
+
+BEDROCK_THROTTLE = "Too many tokens, please wait before trying again."
+
+
+@pytest.mark.parametrize("text", [
+    BEDROCK_THROTTLE,
+    "ThrottlingException: Too many tokens, please wait before trying again.",
+    "API Error: 429 prompt is too long for your rate limit",
+    "too many tokens per minute",
+])
+def test_a_throttle_marker_beats_a_context_marker(tool, text):
+    res = tool._classify(1, json.dumps({"type": "result", "is_error": True, "result": text}), "", "abcdefabcdef")
+    assert res["kind"] == "transient" and res.get("token_limit") is True, res
+
+
+def test_a_token_count_of_429_thousand_is_not_a_429(tool):
+    msg = "Prompt is too long: 429,000 tokens > 400,000 maximum"
+    res = tool._classify(1, json.dumps({"type": "result", "is_error": True, "result": msg}), "", "abcdefabcdef")
+    assert res["kind"] == "size" and res["rejected_input_tokens"] == 429_000
+
+
+def test_bedrock_throttle_is_retried_on_the_tpm_schedule(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    monkeypatch.setenv("FAKE_MODE", "bedrock_flaky")      # the first call answers Bedrock's throttle
+    code, record = _run(tool, monkeypatch, tmp_path)
+    assert code == 0 and record["outcome"] == "clean", record["reasons"]
+    top = record["samples"][0]
+    assert top["attempts"] == 2 and top["attempt_log"][0]["kind"] == "token_limit"
+    assert top["failure_class"] == "context_limit"          # the real bracket, after the retry
+    assert fake["sleeps"] == [20]
+
+
+def test_a_persisting_bedrock_throttle_never_writes_a_clean_bound(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 250_000)
+    monkeypatch.setenv("FAKE_MODE", "bedrock_tpm")
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog))
+    assert code == 3 and record["outcome"] == "partial"
+    assert any("token_limit" in r for r in record["reasons"])
+    assert all(s["failure_class"] == "token_limit" and s["attempts"] == 4
+               for s in record["samples"] if s["kind"] == "size")
+    assert catalog.read_text() == SYNTH
+
+
+def test_outcome_reasons_flag_a_non_context_bracket(tool):
+    samples = [{"tokens": 240_000, "kind": "ok"}, {"tokens": 250_000, "kind": "size", "failure_class": "token_limit"}]
+    reasons = tool._outcome_reasons(samples, stop=None, largest_ok=240_000, measured=243_000,
+                                    smallest_fail=250_000, hi=400_000, tol=16_000)
+    assert any("token_limit" in r for r in reasons)
+
+
+@pytest.mark.parametrize("exc,code", [(KeyboardInterrupt, 130), (RuntimeError, 1)])
+def test_an_interrupt_after_paid_steps_still_writes_the_record(tool, fake, monkeypatch, tmp_path, exc, code):
+    _limit(monkeypatch, 250_000)
+    real = tool._run_capped
+    n = {"calls": 0}
+
+    def flaky(*a, **kw):
+        n["calls"] += 1
+        if n["calls"] == 2:
+            raise exc("operator pressed ^C" if exc is KeyboardInterrupt else "unexpected boom")
+        return real(*a, **kw)
+    monkeypatch.setattr(tool, "_run_capped", flaky)
+    got, record = _run(tool, monkeypatch, tmp_path)
+    assert got == code and record is not None
+    assert record["outcome"] == "partial" and record["stop"] == "interrupted"
+    assert exc.__name__ in record["interrupted"] and exc.__name__ in " ".join(record["reasons"])
+    first, second = record["samples"][:2]
+    assert first["kind"] in ("ok", "size") and second["kind"] == "interrupted"
+    assert second["charge_basis"] == "interrupted_estimate" and second["charged_usd"] > 0
+    assert record["spent_usd"] == pytest.approx(sum(s["charged_usd"] for s in record["samples"]), abs=1e-4)

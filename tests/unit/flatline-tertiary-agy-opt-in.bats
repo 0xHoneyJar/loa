@@ -43,6 +43,8 @@ _cfg() {  # <tertiary> [agy_opt_in value|absent] [headless mode]
     [ "$(get_model_tertiary)" = "" ]
     [ "$(get_tertiary_status)" = "disabled_by_opt_in" ]
     _cfg gemini-3.1-pro absent prefer-api
+    _CACHED_TERTIARY_MODEL_SET=false
+    export GOOGLE_API_KEY="fixture-not-a-key"   # (hygiene: a prefer-api Google tertiary is an HTTP voice — it has a key)
     [ "$(get_model_tertiary)" = "gemini-3.1-pro" ]
     [ "$(get_tertiary_status)" = "active" ]
     run tertiary_opt_in_skip_reason
@@ -75,6 +77,11 @@ _cfg() {  # <tertiary> [agy_opt_in value|absent] [headless mode]
     log() { echo "$*" >&2; }
     printf '# doc\n' > "$BATS_TEST_TMPDIR/doc.md"
     run --separate-stderr run_phase1 "$BATS_TEST_TMPDIR/doc.md" prd "" 30 100
+    # (review r251-1 G13: Phase 1 succeeded and wrote its four artefacts; no tertiary artefact)
+    [ "$status" -eq 0 ] || { echo "run_phase1 rc=$status"; echo "$stderr" | tail -20; return 1; }
+    local f
+    for f in gpt-review opus-review gpt-skeptic opus-skeptic; do [ -s "$TEMP_DIR/$f.json" ] || { echo "missing $f.json"; ls "$TEMP_DIR"; return 1; }; done
+    [ ! -e "$TEMP_DIR/tertiary-review.json" ] && [ ! -e "$TEMP_DIR/tertiary-skeptic.json" ]
     ! grep -q gemini-headless "$CALLS" || { echo "unexpected: grep -q gemini-headless '$CALLS'"; return 1; }
     [ "$(grep -c '' "$CALLS")" = "4" ]
     [[ "$stderr" == *"disabled by opt-in"*"hounfour.headless.agy_opt_in"* ]] || { echo "$stderr"; return 1; }

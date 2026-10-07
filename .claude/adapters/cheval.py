@@ -30,6 +30,7 @@ if _ADAPTERS_DIR not in sys.path:
     sys.path.insert(0, _ADAPTERS_DIR)
 
 from loa_cheval.types import (
+    EFFORT_LEVELS,
     coerce_headless_timeout_seconds,
     headless_timeout_note,
     headless_read_floor,
@@ -68,7 +69,7 @@ from loa_cheval.routing.ceiling import (
     policy_from_env as _ceiling_policy_from_env,
     record_observed as _ceiling_record_observed,
 )
-from loa_cheval.providers import cli_adapter_types, get_adapter
+from loa_cheval.providers import adapter_class_for_type, cli_adapter_types, get_adapter
 from loa_cheval.providers.base import _legacy_wire, default_max_tokens  # cycle-124 FR-2/FR-4
 from loa_cheval.types import ProviderConfig, ModelConfig
 from loa_cheval.metering.budget import BudgetEnforcer
@@ -352,6 +353,51 @@ _CLI_ADAPTER_BY_PROVIDER: Dict[str, str] = {
     "openai": "codex-headless",
     "google": "gemini-headless",
 }
+
+
+_AGY_NOT_PLANNED_WARNED = False
+
+
+def _entry_routes_to_agy(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """True when THIS resolved hop would dispatch through agy (cycle-127 review r251-1 G1/G2): the hop is named
+    `gemini-headless` (loader.routes_to_agy, the rule the bash planners share), or it is a kind:cli hop whose CLI adapter
+    is gemini-headless (the Google CLI hop), or its provider block is itself `type: gemini-headless`."""
+    from loa_cheval.config.loader import routes_to_agy
+    if routes_to_agy(getattr(entry, "canonical", "") or ""):
+        return True
+    provider = getattr(entry, "provider", "")
+    ptype = ((hounfour.get("providers") or {}).get(provider) or {}).get("type") if isinstance(hounfour, dict) else None
+    if ptype == "gemini-headless":
+        return True
+    return getattr(entry, "adapter_kind", "http") == "cli" and _CLI_ADAPTER_BY_PROVIDER.get(provider) == "gemini-headless"
+
+
+def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Dict[str, Any]]]:
+    """cycle-127 review r251-1 G1 (SDD D-1.3/D-1.6): with hounfour.headless.agy_opt_in off, the agy hops of a chain that
+    also holds another hop are NOT PLANNED — dropped before the walk (never dispatched, never a breaker count, not in
+    models_requested) and returned as `[{model, provider, reason: opt_in_required}]` for MODELINV `models_not_planned`;
+    one WARN per process. A chain that is agy alone (`--model gemini-headless`, or a Google voice under cli-only) is left
+    whole: the operator asked for agy, and the adapter's INVALID_CONFIG refusal is the answer."""
+    global _AGY_NOT_PLANNED_WARNED
+    agy = [e for e in chain.entries if _entry_routes_to_agy(e, hounfour)]
+    if not agy:
+        return chain, []
+    from loa_cheval.config import loader as _loader
+    if _loader.agy_opt_in_enabled():
+        return chain, []
+    _loader.warn_agy_available_once()   # (SDD D-1.7 / r251-1 G18: once per process, a PATH lookup only)
+    if len(agy) == len(chain.entries):
+        return chain, []
+    from loa_cheval.routing.types import ResolvedChain as _RC
+    kept = tuple(e for e in chain.entries if e not in agy)
+    skipped = [{"model": e.canonical, "provider": e.provider, "reason": "opt_in_required"} for e in agy]
+    if not _AGY_NOT_PLANNED_WARNED:
+        _AGY_NOT_PLANNED_WARNED = True
+        logger.warning(
+            "agy hop(s) %s not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true) — "
+            "walking the remaining hop(s) %s", ", ".join(x["model"] for x in skipped), ", ".join(e.canonical for e in kept))
+    return _RC(primary_alias=chain.primary_alias, entries=kept, headless_mode=chain.headless_mode,
+               headless_mode_source=chain.headless_mode_source), skipped
 
 
 def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
@@ -861,7 +907,7 @@ def _hop_max_tokens(
     return explicit
 
 
-_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+_EFFORT_LEVELS = EFFORT_LEVELS  # cycle-127 r251-1 C5: defined once in loa_cheval.types
 # One WARN per (model, reason) per process: an invalid catalog value or an
 # entry setting both rungs is a config smell, not a per-call event.
 _EFFORT_WARNED: set = set()
@@ -918,10 +964,19 @@ def resolve_effort(
         _effort_warn_once((model_key, "invalid"),
                           "%s: params.default_effort %r is not one of %s — ignored (cycle-127 FR-2)",
                           model_key, params["default_effort"], ", ".join(_EFFORT_LEVELS))
-    if _is_cli_entry(entry) and extra_raw:
-        value = _valid_effort(str(extra_raw).strip().lower())
-        if value is not None:
-            return value, "extra"
+    if _is_cli_entry(entry):
+        # (review r251-1 G7: both keys, in the headless adapter's order — an invalid one is said once and does not hide
+        # a valid one after it)
+        for _key in ("effort", "reasoning_effort"):
+            _raw = extra.get(_key)
+            if not _raw:
+                continue
+            value = _valid_effort(str(_raw).strip().lower())
+            if value is not None:
+                return value, "extra"
+            _effort_warn_once((model_key, f"invalid_extra_{_key}"),
+                              "%s: extra.%s %r is not one of %s — ignored (cycle-127 FR-2)",
+                              model_key, _key, _raw, ", ".join(_EFFORT_LEVELS))
     return None, "none"
 
 
@@ -929,15 +984,32 @@ def _effort_on_wire(provider: str, model_id: str, effort: Optional[str], hounfou
     """What the dispatched hop puts on the wire for `effort` (cycle-127 D-2.6):
     the Anthropic HTTP adapter's per-family mapping (`xhigh` → `high` on
     4.6, omitted on Sonnet/Haiku 4.5); a CLI hop passes it through; other
-    providers' adapters do not read CompletionRequest.effort (None)."""
+    providers' adapters do not read CompletionRequest.effort (None).
+
+    r251-1 C5: adapter-derived. The adapter type is selected the way dispatch
+    selects it (`_get_adapter_for_entry`: a kind:cli entry → the provider's
+    CLI adapter; otherwise ``providers.<key>.type``, falling back to the key
+    for a block without ``type``), and that adapter's ``wire_effort`` hook
+    answers from its own resolver — the Anthropic HTTP mapping, claude-headless
+    `--effort`, codex/grok only their extra.reasoning_effort, the rest None."""
     if effort is None:
         return None
+    cls = adapter_class_for_type(_adapter_type_for(provider, model_id, hounfour))
+    if cls is None:
+        return None
+    extra = _raw_model_entry(provider, model_id, hounfour).get("extra")
+    return cls.wire_effort(model_id, effort, extra if isinstance(extra, dict) else None)
+
+
+def _adapter_type_for(provider: str, model_id: str, hounfour: Dict[str, Any]) -> str:
+    """The adapter registry type a (provider, model) dispatches through — the
+    same selection as `_get_adapter_for_entry` without building a config."""
+    prov = (hounfour.get("providers", {}) or {}).get(provider, {}) if isinstance(hounfour, dict) else {}
+    ptype = prov.get("type") if isinstance(prov, dict) else None
+    ptype = ptype if isinstance(ptype, str) and ptype else provider
     if _is_cli_entry(_raw_model_entry(provider, model_id, hounfour)):
-        return effort
-    if provider == "anthropic":
-        from loa_cheval.providers.anthropic_adapter import _effort_for_model
-        return _effort_for_model(model_id, effort)
-    return None
+        return _CLI_ADAPTER_BY_PROVIDER.get(provider) or ptype
+    return ptype
 
 
 def _entry_thinking_class(entry: Any, hounfour: Dict[str, Any]) -> bool:
@@ -1692,6 +1764,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # emit because no model invocation occurred. `models_requested` enumerates
     # the entire resolved chain so audit consumers see the FULL intended walk
     # shape, not just whichever entry happened to succeed.
+    # cycle-127 review r251-1 G1: a gated agy hop is planned around before models_requested is taken.
+    _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
+    if _models_not_planned and _auth_type_resolved is not None:
+        _auth_type_resolved = _chain.entries[0].auth_type
     _modelinv_capability_class = getattr(binding, "capability_class", None)
     _modelinv_models_requested = [e.canonical for e in _chain.entries]
     _modelinv_state: Dict[str, Any] = {
@@ -2068,6 +2144,7 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     capability_class=_modelinv_capability_class,
                     capability_evaluation=_modelinv_state.get("capability_evaluation"),
                     calling_primitive=(getattr(args, "skill", None) or agent_name),
+                    models_not_planned=_models_not_planned or None,
                 )
             except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask exit 7
                 print(
@@ -2543,13 +2620,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 continue
             except ChevalError as _e:
                 # Non-retryable typed cheval error — surface immediately.
-                _modelinv_state["models_failed"].append({
-                    "model": _entry_target,
-                    "provider": _entry.provider,
-                    "error_class": "UNKNOWN",
-                    "message_redacted": str(_e),
-                })
-                print(_error_json(_e.code, str(_e), retryable=_e.retryable), file=sys.stderr)
+                _fc = (getattr(_e, "context", None) or {}).get("failure_class")
+                if _fc == "opt_in_required":
+                    # cycle-127 review r251-1 G1/G5: agy asked for by name with the opt-in off — a refusal, not a
+                    # failed voice: recorded as not planned, and the envelope names the failure class.
+                    _models_not_planned.append({"model": _entry_target, "provider": _entry.provider, "reason": _fc})
+                else:
+                    _modelinv_state["models_failed"].append({
+                        "model": _entry_target,
+                        "provider": _entry.provider,
+                        "error_class": "UNKNOWN",
+                        "message_redacted": str(_e),
+                    })
+                print(_error_json(_e.code, str(_e), retryable=_e.retryable,
+                                  **({"failure_class": _fc} if isinstance(_fc, str) and _fc else {})), file=sys.stderr)
                 return EXIT_CODES.get(_e.code, 1)
             except Exception as _e:  # noqa: BLE001
                 # Catch-all: redact known env-var secrets before recording.
@@ -2831,10 +2915,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # cycle-124 FR-2: requested effort (schema field since cycle-114
                     # FR-8, never populated before this cycle).
                     effort=_effort,
-                    # cycle-127 FR-2: caller | catalog | none.
+                    # cycle-127 FR-2 (SDD D-2.5): caller | catalog | extra | none.
                     effort_source=_effort_source,
                     # cycle-127 D-2.6: the wire value on the hop that answered
-                    # (the primary when none did).
+                    # (the primary when none did), from that adapter's wire_effort
+                    # hook (r251-1 C5) — None where the adapter sends no effort.
+                    # cycle-127 review r251-1 G1: hops planned around (never dispatched).
+                    models_not_planned=_models_not_planned or None,
                     effort_effective=_effort_on_wire(
                         *(_modelinv_state["final_model_id"].split(":", 1)
                           if ":" in str(_modelinv_state.get("final_model_id") or "")
@@ -3043,7 +3130,7 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--effort", choices=["low", "medium", "high", "xhigh", "max"], default=None,
+        "--effort", choices=EFFORT_LEVELS, default=None,
         help=(
             "Anthropic output_config.effort (cycle-124 FR-2). Omitted on models that "
             "predate the control; xhigh is downgraded to high on the 4.6 generation."

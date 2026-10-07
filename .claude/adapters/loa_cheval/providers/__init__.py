@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Type
+from typing import Dict, Optional, Type
 
 from loa_cheval.providers.base import ProviderAdapter
 from loa_cheval.providers.openai_adapter import OpenAIAdapter
@@ -65,6 +65,12 @@ def get_adapter(config: ProviderConfig) -> ProviderAdapter:
     if adapter_cls is None:
         raise ConfigError(f"Unknown provider type: '{config.type}'. Supported: {list(_ADAPTER_REGISTRY.keys())}")
     return adapter_cls(config)
+
+
+def adapter_class_for_type(adapter_type: str) -> Optional[Type[ProviderAdapter]]:
+    """The registered adapter class for a provider ``type`` (None when unknown) —
+    cycle-127 r251-1 C5: cheval asks it what reaches the wire (``wire_effort``)."""
+    return _ADAPTER_REGISTRY.get(adapter_type)
 
 
 def cli_adapter_types() -> frozenset:

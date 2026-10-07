@@ -393,3 +393,34 @@ def test_modelinv_schema_declares_effort_source():
     assert schema["properties"]["effort_source"]["enum"] == ["caller", "catalog", "extra", "none"]
     assert schema["properties"]["effort_effective"]["enum"] == ["low", "medium", "high", "xhigh", "max"]
     assert not {"effort_source", "effort_effective"} & set(schema.get("required", []))
+
+
+# --- review r251-1 G7 (finding 25): an invalid CLI extra.effort is not silently skipped -------------------------------
+
+@pytest.mark.parametrize("key", ["effort", "reasoning_effort"])
+def test_invalid_extra_effort_warns_once_per_model_and_reason(key, caplog):
+    entry = {"kind": "cli", "extra": {key: "ultra"}}
+    with caplog.at_level("WARNING"):
+        for _ in range(3):
+            assert cheval.resolve_effort(_ns(None), entry, model_key="anthropic:claude-headless") == (None, "none")
+    warns = [r for r in caplog.records if "extra." in r.getMessage() and "ignored" in r.getMessage()]
+    assert len(warns) == 1, [r.getMessage() for r in caplog.records]
+    assert "anthropic:claude-headless" in warns[0].getMessage() and "'ultra'" in warns[0].getMessage()
+
+
+def test_invalid_extra_effort_on_an_http_entry_is_not_read_and_not_warned(caplog):
+    with caplog.at_level("WARNING"):
+        assert cheval.resolve_effort(_ns(None), {"auth_type": "http_api", "extra": {"effort": "ultra"}}) == (None, "none")
+    assert not [r for r in caplog.records if "extra." in r.getMessage()]
+
+
+def test_extra_rung_iterates_both_keys_in_the_adapter_order(caplog):
+    """r251-1 G7 (refined): like ClaudeHeadlessAdapter._resolve_effort — extra.effort, then extra.reasoning_effort — an
+    invalid first key does not hide a valid second one, and the invalid one is said once."""
+    entry = {"kind": "cli", "extra": {"effort": "ultra", "reasoning_effort": "low"}}
+    with caplog.at_level("WARNING"):
+        for _ in range(2):
+            assert cheval.resolve_effort(_ns(None), entry, model_key="anthropic:claude-headless") == ("low", "extra")
+    warns = [r for r in caplog.records if "extra.effort" in r.getMessage() and "ignored" in r.getMessage()]
+    assert len(warns) == 1, [r.getMessage() for r in caplog.records]
+    assert cheval.resolve_effort(_ns(None), {"kind": "cli", "extra": {"effort": "high", "reasoning_effort": "low"}}) == ("high", "extra")

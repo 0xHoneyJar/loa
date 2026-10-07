@@ -12,6 +12,13 @@
 // v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
 // gate instead of dispatching what exit 7 would reject), else context_window.
 //
+// Units (cycle-127 r251-1): a calibrated entry whose ceiling_calibration records
+// measured_input_tokens carries its ceiling in provider-measured tokens, while
+// maxInput is in BB's estimate units (coefficient tokens/char), which under-count
+// the Opus 4.7+ tokenizer — so for those entries
+// maxInput = floor((effective_input_ceiling − 20000) / MEASURED_TO_ESTIMATE_SAFETY / 1000) × 1000,
+// with MEASURED_TO_ESTIMATE_SAFETY = 1.8.
+//
 // GENERATED_MODEL_ALIASES maps the catalog's `aliases:` block to bare model
 // ids (provider-qualified targets only; self-maps dropped) so an alias such as
 // `opus` gets its target's budget. An operator alias overlay in
@@ -28,7 +35,7 @@ export const GENERATED_TOKEN_BUDGETS = {
     "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "claude-opus-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
-    "claude-opus-5-5": { maxInput: 916000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-opus-5-5": { maxInput: 508000, maxOutput: 32000, coefficient: 0.25 },
     "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "claude-sonnet-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },

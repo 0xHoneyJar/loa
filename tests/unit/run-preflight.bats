@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # =============================================================================
 # tests/unit/run-preflight.bats — cycle-125 Sprint 3 (PRD FR-3 AC 1, SDD D-3.1)
 #
@@ -302,4 +303,62 @@ YAML
   [ "$status" -eq 0 ]
   line_of P3 | grep -qF 'gemini-headless(cli agy)'
   ! line_of P3 | grep -q 'opt-in' || { echo "unexpected: line_of P3 | grep -q 'opt-in'"; return 1; }
+}
+
+@test "PF-AGY-2 P3 (review r251-1 G2): under hounfour.headless.mode cli-only a Google voice routes through agy — with the opt-in off it is not planned, not usable on its credential; under prefer-api the credential makes it usable" {
+  printf 'GOOGLE_API_KEY=not-a-real-key\n' > "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+hounfour:
+  headless:
+    mode: cli-only
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: gemini-2.5-pro
+YAML
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -q '^\[FAIL\] P3 '
+  line_of P3 | grep -qF 'gemini-2.5-pro(agy: opt-in (disabled; hounfour.headless.agy_opt_in))'
+  ! line_of P3 | grep -q 'usable: gemini-2.5-pro' || { echo "unexpected: usable"; line_of P3; return 1; }
+  python3 -I -c 'import sys; p=sys.argv[1]; s=open(p).read().replace("mode: cli-only", "mode: prefer-api"); open(p,"w").write(s)' "$R/.loa.config.yaml"
+  pf --unattended
+  [ "$status" -eq 0 ]
+  line_of P3 | grep -qF 'usable: gemini-2.5-pro'
+  ! line_of P3 | grep -q 'opt-in' || { echo "unexpected: opt-in"; line_of P3; return 1; }
+}
+
+@test "PF-AGY-3 P3 (review r251-1 G8): a stage whose every voice is a gated agy hop stays FAIL and says the voices are not planned, naming the key — not 'no credential present and no CLI hop on PATH'" {
+  rm -f "$R/.env.local"
+  cat > "$R/.loa.config.yaml" <<'YAML'
+run_mode:
+  enabled: true
+flatline_protocol:
+  code_review:
+    enabled: true
+    model: gemini-headless
+    fallback_chain: [google:gemini-headless]
+YAML
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -q '^\[FAIL\] P3 .*code_review'
+  line_of P3 | grep -q 'every configured voice is not planned.*hounfour.headless.agy_opt_in' || { line_of P3; return 1; }
+  ! line_of P3 | grep -q 'no credential present and no CLI hop on PATH' || { echo "unexpected wording"; line_of P3; return 1; }
+  # a stage with a gated hop AND an ordinary missing voice keeps the ordinary wording (plus the not-planned note)
+  python3 -I -c 'import sys; p=sys.argv[1]; s=open(p).read().replace("[google:gemini-headless]", "[google:gemini-headless, gpt-5.5]"); open(p,"w").write(s)' "$R/.loa.config.yaml"
+  pf --unattended
+  [ "$status" -eq 1 ]
+  line_of P3 | grep -q 'no credential present and no CLI hop on PATH'
+  line_of P3 | grep -qF 'not planned: gemini-headless(agy: opt-in'
+}
+
+@test "PF-AGY-4 (review r251-1 G12): a string agy_opt_in reads off with one WARN naming the key and the type; --json stays quiet on stderr" {
+  printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' >> "$R/.loa.config.yaml"
+  run --separate-stderr bash "$PF" --root "$R" --unattended
+  [ "$(grep -c 'hounfour.headless.agy_opt_in is present but not a YAML boolean (str)' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+  run --separate-stderr bash "$PF" --root "$R" --unattended --json
+  ! grep -q WARN <<<"$stderr" || { echo "json stderr=$stderr"; return 1; }
+  echo "$output" | jq -e . >/dev/null
 }

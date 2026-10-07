@@ -96,7 +96,9 @@ setup() {
 # T3: parity with hardcoded TOKEN_BUDGETS in resources/core/truncation.ts
 # ---------------------------------------------------------------------------
 
-# cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling (180000) − 20000.
+# cycle-124 FR-3: Anthropic maxInput = effective_input_ceiling − 20000 (the uncalibrated
+# entries' ceiling is the policy cap, so 160000 below); a calibrated entry recording
+# measured_input_tokens is further divided by 1.8 (T14, cycle-127 r251-1 C8).
 # cycle-126 FR-1.5 (SDD D-1.5): maxOutput = min(BB_OUTPUT_CAP 32000, the
 # catalog's max_output_tokens), so the expectation is read from the catalog.
 _expected_max_output() {
@@ -530,7 +532,8 @@ EOF
 # T13: catalog aliases resolve to their target's budget (cycle-126 sprint-250
 # round 2). BB's DEFAULTS.model is the alias `opus`; without an alias row the
 # budget lookup fell to the 100K default row and effectiveInputBudget kept the
-# operator's 200K — above cheval's 180K probed ceiling for claude-opus-5-5.
+# operator's 200K — above cheval's input bound for claude-opus-5-5 (180K probed
+# then; the catalog's calibrated value since cycle-127).
 # ---------------------------------------------------------------------------
 
 # The alias block the generator must emit, derived independently from the
@@ -602,4 +605,58 @@ YAML
     [ "$status" -eq 0 ]
     local generated; generated="$(_generated_alias_lines)"
     [ "$generated" = '  "fast": "m1",' ]
+}
+
+# ---------------------------------------------------------------------------
+# T14: units (cycle-127 r251-1 C8). A calibrated bound recording
+# measured_input_tokens is in provider-MEASURED tokens; BB's budget is in its
+# own estimate units (coefficient 0.25 tokens/char), which under-count the
+# Opus 4.7+ tokenizer, so the budget divides by MEASURED_TO_ESTIMATE_SAFETY 1.8
+# and rounds down to the nearest 1,000.
+# ---------------------------------------------------------------------------
+
+_measured_budget() {  # $1 effective_input_ceiling → floor((ceiling − 20000) / 1.8 / 1000) * 1000
+    echo $(( ( ($1 - 20000) * 10 / 18 ) / 1000 * 1000 ))
+}
+
+@test "T14: fixture yaml — a measured entry's budget divides by 1.8 and rounds down to 1,000; an unmeasured one does not" {
+    local y="$BATS_TEST_TMPDIR/units-fixture.yaml"
+    cat > "$y" <<'YAML'
+providers:
+  anthropic:
+    models:
+      measured-1:
+        context_window: 1000000
+        effective_input_ceiling: 936000
+        ceiling_calibration:
+          calibrated_at: "2026-10-07T09:29:07Z"
+          measured_input_tokens: 972887
+      plain-1:
+        context_window: 1000000
+        effective_input_ceiling: 400000
+aliases: {}
+YAML
+    run "$TSX" "$GEN_SCRIPT" --source-yaml "$y" --output-dir "$OUTPUT_DIR"
+    [ "$status" -eq 0 ]
+    grep -E '^  "measured-1": \{ maxInput: 508000, ' "$TRUNC_OUT"
+    grep -E '^  "plain-1": \{ maxInput: 380000, ' "$TRUNC_OUT"
+}
+
+@test "T14: the live catalog's measured entries get the divided budget (computed from the catalog)" {
+    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
+    local n=0 model eff
+    while read -r model eff; do
+        [ -n "$model" ] || continue
+        n=$((n + 1))
+        grep -E "^  \"$model\": \\{ maxInput: $(_measured_budget "$eff"), " "$TRUNC_OUT" || { echo "budget for $model"; return 1; }
+    done < <(yq -r '.providers.anthropic.models | to_entries | .[]
+                    | select(.value.ceiling_calibration.measured_input_tokens != null and .value.effective_input_ceiling != null)
+                    | .key + " " + (.value.effective_input_ceiling | tostring)' "$DEFAULTS_YAML")
+    [ "$n" -ge 1 ]   # the opus target is calibrated since cycle-127; a rollback would make this vacuous — fail loud
+}
+
+@test "T14: the generated header states the units and the divisor" {
+    "$TSX" "$GEN_SCRIPT" --output-dir "$OUTPUT_DIR"
+    grep -qF 'provider-measured tokens' "$TRUNC_OUT"
+    grep -qF 'MEASURED_TO_ESTIMATE_SAFETY = 1.8' "$TRUNC_OUT"
 }

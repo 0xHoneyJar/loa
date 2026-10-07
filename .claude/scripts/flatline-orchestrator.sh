@@ -54,6 +54,8 @@ source "$SCRIPT_DIR/lib/normalize-json.sh"
 source "$SCRIPT_DIR/lib/verdict-quality.sh"
 source "$SCRIPT_DIR/lib/invoke-diagnostics.sh"
 source "$SCRIPT_DIR/lib/context-isolation-lib.sh"
+# cycle-127 FR-1 (SDD D-1.5; review r251-1 G2): the one agy route predicate (agy_opted_in, agy_headless_mode, routes_to_agy)
+source "$SCRIPT_DIR/lib/agy-gate-lib.sh"
 # cycle-099 Sprint 1B parity (mirrors red-team-model-adapter.sh): exposes
 # `resolve_provider_id` from generated-model-maps.sh so flatline picks up
 # new model registry entries (gpt-5.5, gpt-5.5-pro, gemini-3.1-pro-preview,
@@ -519,21 +521,13 @@ _get_model_tertiary_configured() {  # the configured tertiary, before the agy op
     echo "$model"
 }
 
-_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (read with yq, no env override)
-    local v=""
-    [[ -f "$CONFIG_FILE" ]] && command -v yq &> /dev/null || return 1
-    v=$(yq eval '.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)' "$CONFIG_FILE" 2>/dev/null) || v=""
-    [[ "$v" == "true" ]]
+_agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (lib/agy-gate-lib.sh; no env override)
+    agy_opted_in "$CONFIG_FILE"
 }
 
-_tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy: the gemini-headless hop by name
-    # (bare, provider-prefixed, or as a provider), or a Google model under hounfour.headless.mode cli-only (env wins, as cheval's)
-    local m="$1" mode
-    case "$m" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac
-    mode="${LOA_HEADLESS_MODE:-$(read_config '.hounfour.headless.mode' 'prefer-api')}"
-    [[ "$mode" == "cli-only" ]] || return 1
-    case "${m#google:}" in gemini*) return 0 ;; esac
-    return 1
+_tertiary_routes_to_agy() {  # <model> → 0 when cheval would dispatch it through agy (lib/agy-gate-lib.sh routes_to_agy:
+    # the gemini-headless hop by name, or a Google model under hounfour.headless.mode cli-only — env wins, as cheval's)
+    routes_to_agy "$1" "$(agy_headless_mode "$CONFIG_FILE")"
 }
 
 tertiary_opt_in_skip_reason() {  # prints the skip line and returns 0 when the configured tertiary is gated off
@@ -2454,6 +2448,7 @@ main() {
     fi
 
     # FR-1 (cycle-045): Log tertiary model status for observability
+    agy_gate_warn_once "$CONFIG_FILE"   # (cycle-127 r251-1 G12/G18: once per run, on stderr)
     local tertiary_model_check
     tertiary_model_check=$(get_model_tertiary)
     if [[ -n "$tertiary_model_check" ]]; then

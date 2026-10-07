@@ -7,6 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 
+# cycle-127 r251-1 C5: the reasoning-effort levels, defined once. cheval's
+# resolver and its `--effort` choices, the Anthropic adapter's validation, the
+# v3 catalog schema (`params.default_effort`) and the MODELINV payload schema
+# (`effort` / `effort_effective`) all use this set
+# (tests/test_effort_levels_single_source.py pins the schemas to it).
+EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
 # --- Completion Request/Result ---
 
 
@@ -496,8 +504,8 @@ class ConnectionLostError(ChevalError):
 class ConfigError(ChevalError):
     """Invalid configuration."""
 
-    def __init__(self, message: str):
-        super().__init__("INVALID_CONFIG", message, retryable=False)
+    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__("INVALID_CONFIG", message, retryable=False, context=context)
 
 
 class AgyOptInRequiredError(ConfigError):
@@ -512,8 +520,8 @@ class AgyOptInRequiredError(ConfigError):
                "argv, readable by local users; the CLI must be OAuth-authed)")
 
     def __init__(self, message: str = MESSAGE):
-        super().__init__(message)
-        self.context = {"failure_class": self.failure_class}
+        # (review r251-1 G5: through the base constructor — cheval's error envelope and MODELINV read `context`)
+        super().__init__(message, context={"failure_class": self.failure_class})
 
 
 class AuthRevokedError(ChevalError):

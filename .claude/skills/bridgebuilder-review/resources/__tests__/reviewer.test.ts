@@ -5,6 +5,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline } from "../core/reviewer.js";
+import { getTokenBudget } from "../core/truncation.js";
 import { PRReviewTemplate } from "../core/template.js";
 import { BridgebuilderContext } from "../core/context.js";
 import { GitProviderError } from "../ports/git-provider.js";
@@ -1693,16 +1694,19 @@ describe("ReviewPipeline", () => {
 // 160–200K estimate used to pass the raw `> maxInputTokens` check untruncated
 // and reach cheval, whose probed ceiling for claude-opus-5-5 is 180K.
 describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
-  // 36 files × 20 000 patch chars ≈ 720 000 chars ≈ 180 000 tokens at 0.25:
-  // over the 160K claude-opus-5-5 row, under the 200K operator budget.
-  const bigFiles = Array.from({ length: 36 }, (_, i) => ({
+  // cycle-127 r251-1 C8: the claude-opus-5-5 row follows the catalog (160K while
+  // uncalibrated; the measured bound ÷ 1.8 since the probe), so the fixture is sized
+  // from it: ≈5 120 tokens per file at 0.25, enough files to land just over the row,
+  // and an operator budget 40K above the row so only the model clamp can cut it.
+  const CEILING = getTokenBudget("claude-opus-5-5").maxInput;
+  const OPERATOR_BUDGET = CEILING + 40_000;
+  const bigFiles = Array.from({ length: Math.ceil((CEILING + 10_000) / 5_120) }, (_, i) => ({
     filename: `src/mod${i}.ts`,
     status: "modified" as const,
     additions: 400,
     deletions: 0,
     patch: "@@ -1,1 +1,400 @@\n" + Array.from({ length: 400 }, () => "+" + "x".repeat(49)).join("\n"),
   }));
-  const CEILING = 160_000; // GENERATED_TOKEN_BUDGETS["claude-opus-5-5"].maxInput
   const PASS1_FINDINGS = [
     "<!-- bridge-findings-start -->",
     "```json",
@@ -1719,7 +1723,7 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
 
   for (const model of ["opus", "claude-opus-5-5"]) {
     for (const reviewMode of ["single-pass", "two-pass"] as const) {
-      it(`${model} / ${reviewMode}: a ~180K-token estimate is truncated below the model's budget, not sent raw`, async () => {
+      it(`${model} / ${reviewMode}: an estimate just over the model's budget is truncated below it, not sent raw`, async () => {
         const sent: number[] = [];
         let estimate = 0;
         const logger: ILogger = {
@@ -1734,9 +1738,9 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
           config: {
             model,
             reviewMode,
-            maxInputTokens: 200_000,
+            maxInputTokens: OPERATOR_BUDGET,
             maxDiffBytes: 10_000_000,
-            maxFilesPerPr: 100,
+            maxFilesPerPr: 1_000,
           },
           git: { getPRFiles: async () => bigFiles },
           llm: {
@@ -1754,7 +1758,8 @@ describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
         });
         await pipeline.run(`run-clamp-${model}-${reviewMode}`);
         // the fixture really lands in the 160–200K window
-        assert.ok(estimate > CEILING && estimate < 200_000, `fixture estimate ${estimate} outside (160K, 200K)`);
+        assert.ok(estimate > CEILING && estimate < OPERATOR_BUDGET,
+          `fixture estimate ${estimate} outside (${CEILING}, ${OPERATOR_BUDGET})`);
         assert.equal(sent.length, reviewMode === "two-pass" ? 2 : 1, `LLM calls: ${sent.join(", ")}`);
         // every call (Pass 1 and Pass 2), not just the first, stays under the ceiling
         assert.ok(sent.every((t) => t <= CEILING), `an LLM call exceeded ${CEILING}: ${sent.join(", ")}`);

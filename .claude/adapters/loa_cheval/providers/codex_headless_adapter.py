@@ -157,6 +157,15 @@ class CodexHeadlessAdapter(HeadlessCLIAdapter):
           reasoning: codex-headless:gpt-5.5
     """
 
+    @classmethod
+    def wire_effort(cls, model_id, effort, extra=None):
+        """cycle-127 r251-1 C5: `-c model_reasoning_effort=` comes from extra.reasoning_effort only (request.effort is not read) — the adapter's own resolver over a request
+        carrying ``effort`` and no metadata (cheval sets none), so the record
+        follows the argv builder."""
+        import types as _types
+        req = CompletionRequest(messages=[], model=model_id, effort=effort)
+        return cls._resolve_reasoning_effort(cls.__new__(cls), req, _types.SimpleNamespace(extra=dict(extra or {})))
+
     # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
     # route to the (openai, headless) bucket.
     auth_type: str = "headless"

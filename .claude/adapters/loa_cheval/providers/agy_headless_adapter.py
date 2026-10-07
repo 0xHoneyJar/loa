@@ -258,8 +258,9 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
     def validate_config(self) -> List[str]:
         """Validate that the agy CLI is on PATH. Auth is best-effort (CLI enforces)."""
         errors: List[str] = []
-        if not agy_opt_in_enabled():   # (cycle-127 FR-1)
+        if not agy_opt_in_enabled():   # (cycle-127 FR-1; review r251-1 G6: the binary is irrelevant while the route is off)
             errors.append(f"Provider '{self.provider}': {AgyOptInRequiredError.MESSAGE}")
+            return errors
         if self.config.type != "gemini-headless":
             errors.append(
                 f"Provider '{self.provider}': type must be 'gemini-headless' "

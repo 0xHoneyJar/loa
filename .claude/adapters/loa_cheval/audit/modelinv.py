@@ -495,11 +495,15 @@ def emit_model_invoke_complete(
     # cycle-114 FR-8; first populated this cycle). Optional/additive.
     effort: Optional[str] = None,
     # cycle-127 FR-2 (SDD D-2.3) — where `effort` came from:
-    # caller | catalog | none. Optional/additive.
+    # caller | catalog | extra | none (SDD D-2.5). Optional/additive.
     effort_source: Optional[str] = None,
-    # cycle-127 D-2.6 — the value the answering hop put on the wire (after
-    # the adapter's per-family mapping). Optional/additive.
+    # cycle-127 D-2.6 — the value the answering hop put on the wire (the
+    # adapter's ``wire_effort`` hook: per-family mapping on Anthropic HTTP,
+    # absent where the adapter sends none). Optional/additive.
     effort_effective: Optional[str] = None,
+    # cycle-127 review r251-1 G1 — hops cheval did not plan (never dispatched): [{model, provider, reason}].
+    # Optional/additive.
+    models_not_planned: Optional[List[Dict[str, Any]]] = None,
     # cycle-124 FR-4 — prompt-cache telemetry (U0 schema fields).
     tokens_cache_read: Optional[int] = None,
     tokens_cache_creation: Optional[int] = None,
@@ -584,6 +588,8 @@ def emit_model_invoke_complete(
         payload["effort_source"] = effort_source
     if effort_effective is not None:
         payload["effort_effective"] = effort_effective
+    if models_not_planned:
+        payload["models_not_planned"] = list(models_not_planned)
     if tokens_cache_read is not None:
         payload["tokens_cache_read"] = tokens_cache_read
     if tokens_cache_creation is not None:
