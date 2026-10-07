@@ -3,8 +3,8 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *)
-# Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001 enforced by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *)
+# Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -15,6 +15,22 @@ capabilities:
   execute_commands:
     allowed:
       - command: ".claude/scripts/verdict-derive.sh"
+        args: ["*"]
+      - command: ".claude/scripts/adversarial-review.sh"
+        args: ["*"]
+      - command: "br"
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
+      - command: ".claude/scripts/beads/log-discovered-issue.sh"
+        args: ["*"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
+        args: ["*"]
+      - command: ".claude/scripts/security-audit-scope.sh"
         args: ["*"]
     deny_raw_shell: true
   web_access: true
@@ -45,10 +61,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:46df906b | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:11663b90 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -57,8 +73,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -75,16 +91,16 @@ Audit code, architecture, infrastructure or sprint implementations for security 
 
 Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit (use `.claude/overrides/` or `.loa.config.yaml`); `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.
 
-Scope: app-zone files per `.reviewignore` and zone detection (`source .claude/scripts/review-scope.sh; detect_zones; load_reviewignore; is_excluded "path/to/file"`); `.claude/`, `grimoires/`, `.beads/` and `.run/` are excluded unless `--no-reviewignore` is passed.
+Scope: app-zone files less the `.reviewignore` patterns (read it); `.claude/`, `grimoires/`, `.beads/` and `.run/` are excluded unless `--no-reviewignore` is passed.
 </zone_constraints>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->
@@ -113,14 +129,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:8b81d75a | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
-full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
-and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
-`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
-update it (decisions → Decision Log, issues → Technical Debt).
+Class: `.run/context-class` (`long` default; `standard` via `LOA_CONTEXT_CLASS=standard` or a
+≤200K model). `.claude/protocols/tool-result-clearing.md` — long 20K/50K/30K/150K, standard 2K/5K/3K/15K (single /
+accumulated / full file / session) → extract ≤10 files, ≤20 words, file:line to NOTES.md; reason
+from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` first. Start: NOTES.md
+"Session Continuity"; end / pre-compaction: update it.
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -141,13 +157,13 @@ Read the actual implementation (never documentation alone) and cross-reference t
 </grounding_requirements>
 
 <workflow>
-## Phase -1: Context Assessment (do this first)
+## Phase -1: Scope (do this first)
 
-`find . -name "*.ts" -o -name "*.js" -o -name "*.tf" -o -name "*.py" | xargs wc -l 2>/dev/null | tail -1`: under 2,000 lines is SMALL (sequential, all 5 categories); 2,000–5,000 MEDIUM (consider category splitting); over 5,000 LARGE (parallel category agents — see `<parallel_execution>`).
+Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large scope splits per category (`<parallel_execution>`); otherwise run the 5 categories sequentially.
 
 ## Phase 0: Prerequisites Check
 
-Sprint audit: `grimoires/loa/a2a/sprint-N/` exists and its `engineer-feedback.md` says "All good"; otherwise STOP: "Sprint must be approved by senior lead before security audit". Deployment audit: `grimoires/loa/deployment/` exists; read `deployment-report.md` for context if present. Codebase audit: no prerequisites.
+Sprint audit: `grimoires/loa/a2a/sprint-N/` exists and its `engineer-feedback.md` says "All good"; otherwise STOP: "Sprint must be approved by senior lead before security audit". With `flatline_protocol.code_review.enabled: true`, its `adversarial-review.json` must carry `metadata.model` (the gate's `COMPLETED` check); otherwise STOP: re-run the review's Phase 2.5. Deployment audit: `grimoires/loa/deployment/` exists; read `deployment-report.md` for context if present. Codebase audit: no prerequisites.
 
 ## Phase 0.5: Scope Analysis
 
@@ -155,25 +171,25 @@ Run `.claude/scripts/security-audit-scope.sh` before detailed analysis. It categ
 
 ## Phase 1A: Recon Pass
 
-Catalog untrusted entry points and dangerous sinks without investigating yet (lists and trust levels: see `resources/REFERENCE.md` §Sources and Sinks). Track them in a working file, e.g. `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY_ANALYSIS_TODO.md`, with file:line, trust level and a status (`PENDING` → `CONFIRMED` / `SAFE` / `PARTIAL` / `N/A`) per item. On a large repo, prioritize by sink severity and route reachability; cap entries and log overflow rather than stalling.
+Catalog untrusted entry points and dangerous sinks without investigating yet (lists, trust levels: `resources/REFERENCE.md` §Sources and Sinks). Track them in a working file, e.g. `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY_ANALYSIS_TODO.md`, with file:line, trust level and a status (`PENDING` → `CONFIRMED` / `SAFE` / `PARTIAL` / `N/A`) per item. On a large repo, prioritize by sink severity and reachability; cap entries, log the overflow.
 
 ## Phase 1B: Investigate Pass
 
-Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Update the working file with each confirmed or dismissed path. If tracing outruns the audit's time budget, mark the rest deferred, log it, and continue with the findings gathered so far.
+Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Record each confirmed or dismissed path in the working file. If tracing outruns the time budget, mark the rest deferred, log it, and continue with what you have.
 
 ## Phase 1C: Security Dissenter Analysis
 
-Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh` enforces this at `PreToolUse:Write`). Emergency override only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes.
+Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
-Run `git diff main...HEAD > /tmp/adversarial-audit-diff.txt`, then `.claude/scripts/adversarial-review.sh --type audit --sprint-id "$sprint_id" --diff-file /tmp/adversarial-audit-diff.txt --json` — no `--context-file`, so the dissenter never sees your Phase 1A/1B findings. Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`. Merge rules and the failed-run record: see `resources/ADVERSARIAL-REVIEW.md`.
+Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 1: Systematic Audit
 
-Execute by category (sequential, or parallel per Phase -1), each per its `resources/REFERENCE.md` section: **Security**, **Architecture**, **Code Quality**, **DevOps**, and **Blockchain/Crypto** when applicable.
+Execute by category (sequential, or split per Phase -1), each per its `resources/REFERENCE.md` section: **Security**, **Architecture**, **Code Quality**, **DevOps**, and **Blockchain/Crypto** when applicable.
 
 ## Phase 2: Report Generation
 
-Use `resources/templates/audit-report.md`. Output stays in the State Zone: codebase audits → `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` plus a `remediation/` directory (`mkdir -p` it); sprint audits → `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`; deployment audits → `grimoires/loa/a2a/deployment-feedback.md`.
+Use `resources/templates/audit-report.md`. Output stays in the State Zone: codebase audits → `grimoires/loa/a2a/audits/YYYY-MM-DD/SECURITY-AUDIT-REPORT.md` plus files under `remediation/` (Write creates it); sprint audits → `grimoires/loa/a2a/sprint-N/auditor-sprint-feedback.md`; deployment audits → `grimoires/loa/a2a/deployment-feedback.md`.
 
 ### Coverage
 
@@ -231,9 +247,9 @@ and resolve any reported inconsistency before reporting completion to the user.
 </workflow>
 
 <parallel_execution>
-## Parallel Splitting (LARGE codebases)
+## Parallel Splitting (large scopes)
 
-When Phase -1 rates the codebase LARGE, split into 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to the files relevant to its category and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate by deduplicating overlapping findings, sorting CRITICAL → LOW, and recomputing the overall risk from the highest severity present.
+When splitting, use 5 parallel Explore agents — one per category (Security / Architecture / Code Quality / DevOps / Blockchain-Crypto) — each scoped to its category's files and returning findings with severity, file:line, and remediation (per-category file globs and prompts: see `resources/PARALLEL-SPLIT.md`). Consolidate: deduplicate overlaps, sort CRITICAL → LOW, take the overall risk from the highest severity present.
 </parallel_execution>
 
 <rubric_scoring>
@@ -245,7 +261,7 @@ Score each dimension 1–5 per `resources/RUBRICS.md` (Security weighted highest
 <structured_output>
 ## Structured JSONL Output
 
-Alongside the markdown report, write machine-parseable findings to `grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl` per the schema in `resources/OUTPUT-SCHEMA.md`. Each `reasoning_trace` states what was analyzed, the triggering pattern, the evidence chain from input to vulnerability, and the scoring rationale; append a summary record after the findings.
+Alongside the markdown report, write machine-parseable findings to `grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl` per `resources/OUTPUT-SCHEMA.md` (the schema, each `reasoning_trace`, the closing summary record).
 </structured_output>
 
 <communication_style>
@@ -255,7 +271,7 @@ Be direct and specific, with evidence: "Line 47: user input passed unsanitized t
 <documentation_audit>
 ## Documentation Audit
 
-For sprint audits, confirm each task has a documentation-coherence report (`ls grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: a missing report without manual verification; security-critical code without explanatory comments; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
+For sprint audits, confirm each task has a documentation-coherence report (Glob `grimoires/loa/a2a/subagent-reports/documentation-coherence-task-*.md`; sprint level: `documentation-coherence-sprint-*.md`) or was manually verified — checks and red-flag tables: `resources/REFERENCE.md` §Documentation. Blockers: an unverified missing report; uncommented security-critical code; a CHANGELOG omitting security changes; secrets or internal URLs in docs or comments; auth/crypto changes without security documentation; API changes that don't match the endpoint docs.
 </documentation_audit>
 
 <checklists>
@@ -263,9 +279,7 @@ Complete checklists for the five categories (Security, Architecture, Code Qualit
 </checklists>
 
 <beads_workflow>
-## Beads Workflow (beads_rust)
-
-When `br` is installed: `br sync --import-only` at session start, `br sync --flush-only` at session end. Record the result on the task/sprint epic — `br comments add <task-id> "SECURITY AUDIT: [verdict] - [summary]"`, labelled `security`, `security-approved` or `security-blocked`. Log a discovered vulnerability as its own issue: `.claude/scripts/beads/log-discovered-issue.sh "<sprint-epic-id>" "Security: [description]" bug 0`, then `br label add <new-issue-id> security`. Protocol: `.claude/protocols/beads-integration.md`.
+With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the audit comment, the `security*` labels, a discovered vulnerability).
 </beads_workflow>
 
 <retrospective_postlude>

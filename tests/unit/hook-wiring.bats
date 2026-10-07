@@ -9,13 +9,16 @@
 #   - zone-write-guard.sh: documented as actively running (zones.yaml,
 #     zone-hygiene runbook) but wired in NEITHER file
 #   - implement-gate.sh: opt-in by design, but hooks-reference.md listed it
-#     as registered (doc fix; stays PARKED below)
+#     as registered (doc fix). Since cycle-126 it is wired in both files
+#     through hook-guard.sh, so it is no longer PARKED and W6 pins the
+#     reference row to the wiring (sprint-250 audit LOW-002)
 # Plus: the issue's "duplicate hooks" claim was a matcher-blind false
 # positive — W3 pins the matcher-AWARE no-duplicates invariant so the real
 # defect class (same command twice under ONE matcher) is fenced without
 # breaking Write+Edit coverage.
 
 setup() {
+    bats_require_minimum_version 1.5.0   # `run -1 grep` in W6
     PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     TEMPLATE="$PROJECT_ROOT/.claude/hooks/settings.hooks.json"
     LIVE="$PROJECT_ROOT/.claude/settings.json"
@@ -27,7 +30,7 @@ setup() {
 # stop-input-probe.sh (cycle-117 item A): DIAGNOSTIC, ships UNREGISTERED by
 # design — gated by LOA_STOP_INPUT_PROBE=1, merged into settings.local.json for
 # one cap-hitting session only, never into settings.hooks.json.
-PARKED_HOOKS="implement-gate.sh stop-input-probe.sh"
+PARKED_HOOKS="stop-input-probe.sh"
 
 @test "W1 bug-1002: every template PreToolUse command is wired in live settings.json" {
     local missing=0
@@ -117,14 +120,19 @@ EOF
     [[ "$output" == *"ghost.sh"* ]]
 }
 
-@test "W6 bug-1002: hooks-reference registrations TABLE marks implement-gate.sh opt-in/unwired" {
-    # The registrations table row (was :134) listed implement-gate.sh as a
-    # plain PreToolUse registration — it is an opt-in prototype, wired
-    # nowhere. The table row itself must carry the caveat.
-    local row
+@test "W6 bug-1002: hooks-reference registrations TABLE matches implement-gate.sh's wiring (wired on Write|Edit|MultiEdit|NotebookEdit, no longer parked)" {
+    # The row once listed a parked prototype as registered; since cycle-126 the gate is wired in both files, and a
+    # row still reading opt-in/unwired/parked told operators it was off (sprint-250 audit LOW-002)
+    local row f
     row=$(grep -E '^\|.*implement-gate\.sh' "$PROJECT_ROOT/.claude/loa/reference/hooks-reference.md" || true)
     [ -n "$row" ]
-    echo "$row" | grep -qiE 'opt-in|unwired|parked'
+    run -1 grep -qiE 'opt-in|unwired|parked' <<<"$row"
+    [[ "$row" == *"Write/Edit/MultiEdit/NotebookEdit"* ]]
+    for f in "$TEMPLATE" "$LIVE"; do
+        jq -e '[.hooks.PreToolUse[] | select(.matcher == "Write|Edit|MultiEdit|NotebookEdit") | .hooks[].command
+                | select(test("hook-guard\\.sh .*compliance/implement-gate\\.sh\"?$"))] | length == 1' "$f" >/dev/null \
+            || { echo "implement-gate.sh not wired once on Write|Edit|MultiEdit|NotebookEdit in $f" >&2; return 1; }
+    done
 }
 
 @test "W7 bug-1002 iter-1: zone-write-guard BLOCKS .claude/ writes via the REAL stdin hook contract" {

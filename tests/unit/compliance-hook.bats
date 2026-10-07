@@ -42,19 +42,21 @@ write_platform_features() {
 EOF
 }
 
-# Helper: write simstim-state.json
+# Helper: write simstim-state.json; the gate allows only while .timestamps.last_activity is under 24 h (LOW-004)
 write_simstim_state() {
     local phase="$1"
+    local last_activity="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
     cat > "$PROJECT_ROOT/.run/simstim-state.json" << EOF
-{"phase":"${phase}"}
+{"phase":"${phase}","timestamps":{"last_activity":"${last_activity}"}}
 EOF
 }
 
-# Helper: write state.json (run state)
+# Helper: write state.json (run state); same freshness rule as simstim-state.json (LOW-004)
 write_run_state() {
     local state="$1"
+    local last_activity="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
     cat > "$PROJECT_ROOT/.run/state.json" << EOF
-{"state":"${state}"}
+{"state":"${state}","timestamps":{"last_activity":"${last_activity}"}}
 EOF
 }
 
@@ -67,6 +69,9 @@ EOF
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
     echo "$output" | grep -q "ADVISORY"
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
 }
 
 # =========================================================================
@@ -144,16 +149,27 @@ EOF
 }
 
 # =========================================================================
-# CH-T8: Authoritative mode — active_skill "implement" allows App Zone write
+# CH-T8: Authoritative mode (operator opt-in) — a claimed "implement" never
+# allows by itself (tighten-only, sprint-250 audit n17/n18): it falls through
+# to the heuristic, so it asks without RUNNING state and allows with it.
+# cycle-126 D-4.4: only implement_gate.mode in .loa.config.yaml selects it.
 # =========================================================================
 
-@test "CH-T8: Authoritative mode allows App Zone write for implement skill" {
-    write_platform_features true
+@test "CH-T8: Authoritative mode (implement_gate.mode opt-in) defers an implement claim to the heuristic" {
+    command -v yq >/dev/null || skip "yq not installed"
+    printf 'implement_gate:\n  mode: authoritative\n' > "$PROJECT_ROOT/.loa.config.yaml"
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\",\"active_skill\":\"implement\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
-    # Should NOT contain ADVISORY or AUTHORITATIVE ask (silent allow)
-    ! echo "$output" | grep -q "ADVISORY"
-    ! echo "$output" | grep -q "AUTHORITATIVE"
+    [[ "$output" == *"ADVISORY"* ]]
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
+    write_sprint_state "RUNNING"
+    run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\",\"active_skill\":\"implement\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"ADVISORY"* ]]
+    [[ "$output" != *"AUTHORITATIVE"* ]]
+    [[ "$output" != *'"decision"'* ]]
 }
 
 # =========================================================================
@@ -161,28 +177,28 @@ EOF
 # =========================================================================
 
 @test "CH-T9: Authoritative mode falls back to heuristic when no active_skill" {
-    write_platform_features true
-    # No active_skill in input, no RUNNING state → should ask (heuristic fallback)
+    command -v yq >/dev/null || skip "yq not installed"
+    printf 'implement_gate:\n  mode: authoritative\n' > "$PROJECT_ROOT/.loa.config.yaml"
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
-    echo "$output" | grep -q "ADVISORY"
+    [[ "$output" == *"ADVISORY"* ]]
 }
 
 # =========================================================================
-# CH-T10: Mode pinning — .compliance-mode file reused when fresh
+# CH-T10: .run/ never selects the mode — a pinned .compliance-mode or
+# platform-features.json claiming active_skill_available is ignored
 # =========================================================================
 
-@test "CH-T10: Mode pinning reuses .compliance-mode when fresh" {
-    # Write a pinned mode file (heuristic) — should be reused without checking features
-    echo "heuristic" > "$PROJECT_ROOT/.run/.compliance-mode"
-    # Write features saying authoritative is available (should be ignored due to pinning)
+@test "CH-T10: .compliance-mode and platform-features.json do not select authoritative mode" {
+    echo "authoritative" > "$PROJECT_ROOT/.run/.compliance-mode"
     write_platform_features true
-    # With heuristic mode pinned and no RUNNING state, should ask
     run bash -c 'echo "{\"tool_input\":{\"file_path\":\"src/index.ts\",\"active_skill\":\"implement\"}}" | PROJECT_ROOT="$1" RUN_DIR="$1/.run" "$2"' _ "$PROJECT_ROOT" "$HOOKS_DIR/implement-gate.sh"
     [ "$status" -eq 0 ]
-    # In heuristic mode, active_skill is ignored — should fall through to heuristic check
-    # No RUNNING state → ask
-    echo "$output" | grep -q "ADVISORY"
+    # Heuristic mode ignores active_skill; no RUNNING state → ask
+    [[ "$output" == *"ADVISORY"* ]]
+    # Claude Code PreToolUse contract: "ask" lives in hookSpecificOutput.permissionDecision (sprint-250 audit n20)
+    [[ "$output" == *'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"'* ]]
+    [[ "$output" != *'"decision":"ask"'* ]]
 }
 
 # =========================================================================

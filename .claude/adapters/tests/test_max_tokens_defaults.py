@@ -70,8 +70,11 @@ def test_anthropic_without_usable_max_output_keeps_4096(bad):
 
 
 @pytest.mark.parametrize("provider", ["openai", "google", "bedrock", "xai", "cursor", ""])
-def test_other_providers_keep_4096_regardless_of_catalog(provider):
-    assert default_max_tokens(provider=provider, model_max_output=128_000) == 4096
+def test_other_providers_follow_the_catalog_up_to_the_16k_cap(provider):
+    # cycle-126 FR-1.3: no longer 4096 regardless — the declared output is honoured up to the cap
+    assert default_max_tokens(provider=provider, model_max_output=128_000) == 16_000
+    assert default_max_tokens(provider=provider, model_max_output=8_000) == 8_000
+    assert default_max_tokens(provider=provider, model_max_output=None) == 4096
 
 
 @pytest.mark.parametrize("value", ["1", "true", "YES", " on "])
@@ -103,7 +106,7 @@ def test_hop_defaults_follow_each_hop_not_the_primary(catalog, monkeypatch):
     assert _hop_max_tokens(None, "anthropic", "claude-opus-5", catalog) == 64_000
     assert _hop_max_tokens(None, "anthropic", "claude-haiku-4-5-20251001", catalog) == 4096
     assert _hop_max_tokens(None, "anthropic", "claude-headless", catalog) == 4096
-    assert _hop_max_tokens(None, "openai", "gpt-5.5", catalog) == 4096
+    assert _hop_max_tokens(None, "openai", "gpt-5.5", catalog) == 16_000  # cycle-126 FR-1.3: min(16K cap, catalog 32K)
     monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
     assert _hop_max_tokens(None, "anthropic", "claude-opus-5", catalog) == 16_000
 
@@ -141,15 +144,16 @@ def test_dry_run_reports_default_budget_and_effort():
                    "--prompt", "x", "--dry-run", "--json-errors")
     assert proc.returncode == 0, proc.stderr
     out = json.loads(proc.stdout)
-    assert out["resolved_model"] == "claude-opus-5"
+    assert out["resolved_model"] == "claude-opus-5-5"
     assert out["max_tokens"] == 64_000
     assert out["effort"] == "xhigh"
 
 
-def test_dry_run_non_anthropic_stays_4096():
+def test_dry_run_non_anthropic_follows_the_catalog_up_to_the_cap():
+    # cycle-126 FR-1.3: gpt-5.5 declares max_output_tokens ≥ 16K → the 16K non-Anthropic cap
     proc = _cheval("--agent", "reviewing-code", "--model", "gpt-5.5", "--prompt", "x", "--dry-run")
     assert proc.returncode == 0, proc.stderr
-    assert json.loads(proc.stdout)["max_tokens"] == 4096
+    assert json.loads(proc.stdout)["max_tokens"] == 16_000
 
 
 def test_dry_run_explicit_value_is_clamped():

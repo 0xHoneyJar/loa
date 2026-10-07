@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# .claude/hooks/hook-guard.sh — parse-guard wrapper for PreToolUse safety hooks
+# .claude/hooks/hook-guard.sh — parse-guard wrapper for safety hooks (PreToolUse) and SessionStart hooks
 # =============================================================================
 # Wraps a safety hook so a SYNTACTICALLY BROKEN hook cannot brick the harness.
 # Usage (as a settings.json PreToolUse command):
@@ -44,7 +44,7 @@ target="$1"
 shift
 
 if ! "${BASH:-bash}" -n "$target"; then
-    echo "[hook-guard] WARN: PreToolUse hook $target failed to parse (bash -n) — failing OPEN (allowing tool); repair the hook, retrying will not help" >&2
+    echo "[hook-guard] WARN: hook $target failed to parse (bash -n) and did not run — failing OPEN (a PreToolUse fence allows the tool); repair the hook, retrying will not help" >&2
     exit 0
 fi
 

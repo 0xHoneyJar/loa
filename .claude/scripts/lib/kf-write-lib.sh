@@ -49,13 +49,78 @@ log(){ [[ $QUIET -eq 0 ]] && echo "$@" >&2 || true; }
 die(){ echo "kf-write: $*" >&2; exit 1; }
 
 # Single-line scalar: strip control bytes, flatten whitespace, trim.
-san1(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//'; }
+# A C1 control (U+0080–U+009F, NEL among them) and U+2028/U+2029 are spaces too: str.splitlines() in the canonical reader
+# (kf-auto-link.py) breaks a line at each, so one in a title would open a phantom `## KF-` heading and fail the whole ledger.
+# Matched as their UTF-8 bytes under LC_ALL=C; neither lead byte (\xc2, \xe2) is ever a continuation (cycle-126 audit run 1,
+# e2c DISS-C-001)
+KF_ULB_RE="$(printf '\302[\200-\237]|\342\200[\250\251]')"
+san1(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E "s/${KF_ULB_RE}/ /g"' ; s/  +/ /g; s/^ //; s/ $//'; }
 # Table cell: single-line + escape the column delimiter so it can't break the table.
 cell(){ san1 "${1-}" | sed -E 's/\|/\\|/g'; }
-# GitHub-style heading anchor (lowercase; keep [a-z0-9_-] + space; spaces->hyphen).
+# GitHub-style heading anchor (lowercase; keep [a-z0-9_-] + space; EACH space->hyphen — GitHub
+# never collapses them, so `a / b` is `a--b`: cycle-126).
 # Underscores are KEPT — GitHub's algorithm preserves them and the existing Index
 # links rely on it (e.g. #kf-005-beads_rust-021-...).
-gh_anchor(){ printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr -s ' ' | tr ' ' '-'; }
+# A non-ASCII heading is slugged as GitHub does — its Unicode letters lowercased and KEPT, the rule the ledger link lint holds —
+# by python3; under this script's LC_ALL=C, tr/sed see bytes and would drop them (cycle-126 thirty-third run, e2c DISS-C-001).
+# A title that is not UTF-8 has no GitHub slug: refused before any write.
+gh_anchor(){
+  if [[ -z "$(printf '%s' "${1-}" | tr -d '\000-\177')" ]]; then
+    printf '%s' "${1-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_ -]//g' | tr ' ' '-'
+    return 0
+  fi
+  command -v python3 >/dev/null 2>&1 || die "new: a non-ASCII title needs python3 for its GitHub anchor"
+  # (thirty-fourth run, e2c DISS-C-001: GitHub's slugger keeps every letter, mark, number and connector punctuation — a
+  # combining mark (an NFD accent) too, which \w drops; DISS-C-002: only a decode failure is a non-UTF-8 title)
+  # (thirty-fifth run, e2c DISS-C-001: GitHub keeps \p{Word} — Alphabetic, Mark, Decimal_Number, Connector_Punctuation,
+  # Join_Control — so an Other_Number (², ½, ①) is dropped, and an Other_Alphabetic symbol (Ⓐ, 🄰 — the four So ranges of
+  # PropList's Other_Alphabetic, which unicodedata cannot name) and ZWNJ/ZWJ are kept; checked against perl's \w codepoint
+  # by codepoint)
+  # (thirty-sixth run, e2c DISS-C-002: the slug references disagree exactly there — perl's \w, Onigmo's \p{Word} and
+  # github-slugger split on Other_Number, ZWNJ/ZWJ and the Other_Alphabetic symbols, and Python's lower() alone applies
+  # Final_Sigma — so a title holding one, or any format character, has no settled anchor: refused, never guessed)
+  # (thirty-ninth run, e2c DISS-C-002: and a code point this python's Unicode database calls unassigned — a newer GitHub may
+  # call it a letter and keep it)
+  local rc=0
+  printf '%s' "${1-}" | python3 -c 'import sys, unicodedata
+try:
+    h = sys.stdin.buffer.read().decode("utf-8")
+except UnicodeDecodeError:
+    sys.exit(3)
+oa = ((0x24B6, 0x24E9), (0x1F130, 0x1F149), (0x1F150, 0x1F169), (0x1F170, 0x1F189))
+if (any(unicodedata.category(c) in ("No", "Cf", "Cn") or any(a <= ord(c) <= b for a, b in oa) for c in h)
+        or h.lower() != "".join(c.lower() for c in h)):
+    sys.exit(4)
+def word(c):
+    k = unicodedata.category(c)
+    return k[0] in "LM" or k in ("Nd", "Nl", "Pc") or c in "\u200c\u200d" or any(a <= ord(c) <= b for a, b in oa)
+sys.stdout.buffer.write("".join(c for c in h.lower() if c in "- " or word(c)).replace(" ", "-").encode("utf-8"))' || rc=$?
+  [[ $rc -ne 3 ]] || die "new: the title is not valid UTF-8 — it has no GitHub heading anchor"
+  [[ $rc -ne 4 ]] || die "new: the title's GitHub heading anchor is not settled — it holds an Other_Number (², ½, ①), a format character (ZWJ, ZWNJ), an Other_Alphabetic symbol (Ⓐ) a word-final capital sigma or a code point this host's Unicode database leaves unassigned, on which GitHub's slug references disagree; rephrase it"
+  [[ $rc -eq 0 ]] || die "new: python3 failed (exit $rc) computing the title's GitHub anchor"
+}
+# GitHub slugs a heading's RENDERED text: a title holding a link, an HTML tag, a character reference, an underscore emphasis
+# outside a code span or a closing # sequence renders as other text than it reads, so no raw-text slug is its anchor — refused
+# before any write, the title to be rephrased (thirty-fifth run, e2c DISS-C-002; the link lint names such a heading too)
+gh_title_renders_raw(){
+  # (a byte >= 0x80 beside an underscore counts as punctuation: “_x_” and —_x_— are emphasis on GitHub, and é_x_é is refused
+  # with them, conservatively — the writer at least as strict as the link lint: thirty-sixth run, e2c DISS-C-001)
+  local t nw=$'[^[:alnum:]_]' ns='[^_[:space:]]'
+  local mk='\]\(|\]\[|<[A-Za-z/!?]|&(#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);' cl='(^|[[:space:]])#+[[:space:]]*$'
+  local em="(^|$nw)_+$ns(.*$ns)?_+($nw|$)"
+  # (CommonMark closes a backtick run only on one of equal length, and strips one space from each end of a span padded at both:
+  # a run of two or more, or such a span, is refused, so the left-to-right single-backtick pairing below is CommonMark's —
+  # thirty-seventh run, e2c DISS-C-001 / DISS-C-002)
+  # (a code span is punctuation to the underscores beside it — `a`_y_ opens emphasis on GitHub — so it becomes one placeholder,
+  # never nothing; and a backslash-escaped backtick opens no span, so a title holding one is refused: thirty-eighth run, e2c DISS-C-001)
+  local cs=0
+  [[ "${1-}" != *'``'* && "${1-}" != *'\`'* ]] || cs=1
+  printf '%s' "${1-}" | awk -F'`' '{ for (i = 2; i < NF; i += 2) if ($i ~ /^ / && $i ~ / $/ && $i ~ /[^ ]/) f = 1 } END { exit !f }' && cs=1
+  t="$(printf '%s' "${1-}" | sed -E "s/\`[^\`]*\`/'/g")"
+  if [[ $cs -eq 1 || "$t" =~ $mk || "$t" =~ $em || "$t" =~ $cl ]]; then
+    die "new: the title renders on GitHub as other text than it reads (a link, an HTML tag, a character reference, an _emphasis_, a closing #, a backtick run of two or more, an escaped backtick or a code span padded at both ends) — its heading anchor would match no Index link; rephrase it"
+  fi
+}
 
 # NB: grep can legitimately match nothing; with `set -o pipefail` the pipe then
 # returns non-zero, so every grep-in-substitution is guarded with `|| true`.
@@ -109,11 +174,17 @@ op_new(){
     have_attempt=1
     [[ -n "$ae" ]] || die "new: --attempt-evidence is REQUIRED for an Attempts row (commit SHA / PR# / run ID)"
   fi
+  # (the title's anchor is computed — and a title without one refused — before the lock and the trailing-newline repair: a refused
+  # title never touches the ledger; thirty-fourth run, e2c DISS-001. "KF-NNN: t" slugs as "kf-nnn" + the slug of ": t")
+  gh_title_renders_raw "$title"
+  # (the refusal inside the substitution reaches here by this check — never `local tail="$(…)"`, whose status is local's own:
+  # thirty-eighth run, e2c DISS-C-002)
+  local tail; tail="$(gh_anchor ": ${title}")" || exit 1
   with_lock
   ensure_trailing_nl "$f"
   local id anchor recur; id="$(next_kf_id "$f")"
   recur="$(san1 "${A[recur]-1}")"; recur="${recur:-1}"
-  anchor="$(gh_anchor "${id}: ${title}")"
+  anchor="$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')${tail}"
   if grep -qiE "^##[[:space:]]+KF-[0-9]+: $(printf '%s' "$title" | sed -E 's/[.[\*^$(){}+?|/]/\\&/g')$" "$f"; then
     die "new: an entry titled \"$title\" already exists — refusing to duplicate"
   fi

@@ -325,7 +325,7 @@ SESSION START SEQUENCE:
 5. Resume from "Reasoning State" # Continue where left off if applicable
 ```
 
-**Protocol**: See `.claude/protocols/session-continuity.md`
+**Protocol**: See `.claude/protocols/reference/session-continuity.md`
 
 ### During Session Actions
 
@@ -336,8 +336,8 @@ CONTINUOUS SYNTHESIS:
 1. Write discoveries to NOTES.md immediately
 2. Log drift findings to trajectory as discovered
 3. Store code identifiers (paths + lines only)
-4. Monitor attention budget (advisory, not blocking)
-5. Trigger Delta-Synthesis at Yellow threshold (5k tokens)
+4. Delta-Synthesis to NOTES.md at the accumulated-results threshold for the
+   class in .run/context-class (.claude/protocols/tool-result-clearing.md)
 ```
 
 **Delta-Synthesis** persists work-in-progress to ledgers, ensuring survival across unexpected termination.

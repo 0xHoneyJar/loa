@@ -671,6 +671,8 @@ main() {
       echo "  Sprints: ${completed_sprints}/${total_sprints} complete"
       display_artefacts_line
       display_run_line
+      display_context_line
+      display_gate_line
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -792,6 +794,35 @@ _provider_hop() {  # $1 provider → hop binary name or ""
   [[ -n "$bin" ]] && command -v "$bin" >/dev/null 2>&1 && echo "$bin" || echo ""
 }
 _fmt_age_s() { local s="$1"; if [[ ! "$s" =~ ^[0-9]+$ ]]; then echo "-"; elif (( s >= 86400 )); then echo "$(( s / 86400 ))d"; elif (( s >= 3600 )); then echo "$(( s / 3600 ))h"; else echo "$(( s / 60 ))m"; fi; }
+_anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound the `opus` target runs under
+  # {basis: calibrated|observed|probed, value, model, calibrate[, calibrated_at]} or null.
+  # Sources: the catalog entry (yq) and the observed store cheval writes on a
+  # provider context verdict (.run/ceiling-observed.json, or the same
+  # LOA_CHEVAL_CEILING_OBSERVED_PATH redirect cheval honours). Only the two
+  # context classes lower the bound — a 429 row never does (same rule as
+  # loa_cheval.routing.ceiling.observed_for).
+  local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml" model eff probed cal store obs=null
+  command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+  model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
+  [[ -n "$model" ]] || { echo null; return 0; }
+  eff=$(yq eval -r ".providers.anthropic.models.\"$model\".effective_input_ceiling // \"\"" "$cfg" 2>/dev/null)
+  probed=$(yq eval -r ".providers.anthropic.models.\"$model\".probed_ceiling // \"\"" "$cfg" 2>/dev/null)
+  cal=$(yq eval -r ".providers.anthropic.models.\"$model\".ceiling_calibration.calibrated_at // \"\"" "$cfg" 2>/dev/null)
+  store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
+  if [[ -f "$store" ]]; then
+    obs=$(jq -r --arg m "$model" '[.entries[]? | select(.provider == "anthropic" and .model == $m
+            and (.error_class == "CEILING_UNVERIFIED_LIMIT" or .error_class == "PROVIDER_CONTEXT_LIMIT"))
+            | ([.observed_input_tokens, (if .provider_limit then .provider_limit + 1 else empty end)] | min)] | min // null' "$store" 2>/dev/null)
+    [[ "$obs" =~ ^[0-9]+$ ]] || obs=null
+  fi
+  jq -cn --arg m "$model" --arg eff "$eff" --arg probed "$probed" --arg cal "$cal" --argjson obs "$obs" '
+    ($eff | if . == "" then null else tonumber end) as $e | ($probed | if . == "" then null else tonumber end) as $p
+    | (if $cal != "" then {basis: "calibrated", value: $e, calibrated_at: $cal}
+       elif $obs != null and ($p == null or ($obs - 1) < $p) then {basis: "observed", value: ($obs - 1)}
+       else {basis: "probed", value: ($p // $e)} end)
+    + {model: $m, observed: (if $obs == null then null else $obs - 1 end),
+       calibrate: ("python3 tools/ceiling-probe-live.py --model " + $m + " --write-catalog")}' 2>/dev/null || echo null
+}
 get_providers_json() {
   local snap provs p
   snap=$(_providers_snapshot)
@@ -802,6 +833,7 @@ get_providers_json() {
       --argjson buckets "$(printf '%s' "$snap" | jq -c --arg p "$p" '.buckets[$p] // {}')" \
       '.[$p] = {credential:$key, cli_hop:(if $hop == "" then null else $hop end), breakers:$buckets}')
   done
+  out=$(printf '%s' "$out" | jq -c --argjson c "$(_anthropic_ceiling_json)" 'if has("anthropic") then .anthropic.ceiling = $c else . end')
   printf '%s' "$out" | jq -c --argjson rt "$(printf '%s' "$snap" | jq '.reset_timeout_seconds // 60')" '{reset_timeout_seconds:$rt, providers:.}'
 }
 display_providers_section() {
@@ -822,8 +854,35 @@ display_providers_section() {
       done <<<"$buckets"
     fi
     echo "$line"
+    if [[ "$p" == "anthropic" ]]; then
+      # cycle-126 FR-1.1: the input bound the `opus` target runs under, and how to tighten it.
+      local cl; cl=$(printf '%s' "$pj" | jq -r '.providers.anthropic.ceiling // empty | if .basis == "calibrated"
+        then "  ceiling: calibrated \(.value) (\(.model), calibrated \(.calibrated_at))"
+        else "  ceiling: \(.basis) \(.value) (\(.model);\(if .observed != null and .basis != "observed" then " observed \(.observed) under the opt-in;" else "" end) calibrate: \(.calibrate))" end')
+      [[ -n "$cl" ]] && echo "$cl"
+    fi
   done < <(printf '%s' "$pj" | jq -r '.providers | keys[]')
   echo "  reset: cheval --reset-breaker <provider>[:<auth_type>] · list: python3 -m loa_cheval.routing.breaker_cli --list"
+  return 0
+}
+
+# cycle-126 FR-3.1 (SDD D-3.1): the context class this session runs under, as the
+# SessionStart hook recorded it in .run/context-class (`--show` never rewrites it).
+display_context_line() {
+  local hook="${SCRIPT_DIR}/../hooks/session-start/loa-context-class.sh" line
+  [[ -f "$hook" ]] || return 0
+  line=$(bash "$hook" --show < /dev/null 2>/dev/null || true)
+  [[ -n "$line" ]] && echo "  $line"
+  return 0
+}
+
+# cycle-126 D-4.4: the implement gate's mode and the active_skill evidence the
+# gate recorded (evidence only; the payload carries no harness skill signal).
+display_gate_line() {
+  local detect="${SCRIPT_DIR}/detect-platform-features.sh" line
+  [[ -f "$detect" ]] || return 0
+  line=$(PROJECT_ROOT="$PROJECT_ROOT" RUN_DIR="$PROJECT_ROOT/.run" bash "$detect" --line < /dev/null 2>/dev/null || true)
+  [[ -n "$line" ]] && echo "  $line"
   return 0
 }
 

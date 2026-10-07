@@ -1,6 +1,6 @@
 # Parallel Audit Splitting
 
-Moved out of `SKILL.md`'s `<parallel_execution>` block — read this when Phase -1 rates the codebase LARGE (>5,000 lines) and you want a starting per-category split.
+Moved out of `SKILL.md`'s `<parallel_execution>` block — read this when the lead splits a large scope (`parallel_threshold`; `REFERENCE.md` has the size table) and you want a starting per-category split.
 
 ## Splitting strategy: by audit category
 

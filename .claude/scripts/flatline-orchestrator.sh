@@ -123,9 +123,10 @@ DEFAULT_MODEL_TIMEOUT=120
 # knob is a no-op against `failure_class=PROVIDER_DISCONNECT` — the flag is
 # preserved for back-compat only.
 PER_CALL_MAX_TOKENS=""
-# cycle-124 FR-2: bounded output budgets per call kind (see call_model).
-FLATLINE_REVIEW_MAX_TOKENS=16000   # review + skeptic findings documents
-FLATLINE_SCORE_MAX_TOKENS=16000    # cross-scoring JSON arrays (adaptive thinking on opus-5 shares this budget)
+# cycle-126 FR-1.6 (SDD D-1.6): no per-call-kind literal any more — the voice's
+# output budget is its catalog `max_output_tokens` capped at the streaming
+# default (flatline_voice_max_tokens, below call_model's helpers).
+FLATLINE_VOICE_MAX_TOKENS_CAP=64000
 # cycle-124 FR-7: wire schemas per call kind, passed as call_model's 7th arg by
 # the review / skeptic / score sites (run_inquiry passes none — its prompts
 # ask for a free-form perspective object, regression-locked).
@@ -552,21 +553,21 @@ if [[ -f "$_GENERATED_MAPS" ]]; then
 else
     # Fallback (should never trigger in checked-in state — generator is run
     # alongside YAML edits per SDD §4.3 Flow 1).
-    declare -a VALID_FLATLINE_MODELS=(opus gpt-5.3-codex claude-opus-4-7 claude-sonnet-4-6 gemini-2.5-pro)
+    declare -a VALID_FLATLINE_MODELS=(opus fable cheap claude-opus-5-5 claude-opus-5 claude-sonnet-5 claude-fable-5-1 gpt-5.5 gpt-5.5-pro gpt-5.3-codex gemini-3.1-pro-preview)
 fi
 
 # Forward-compat patterns for provider-side verified models not yet in
-# the explicit allowlist. Operators running newer models (gpt-5.4-codex,
-# gemini-3.0-pro, claude-opus-4-8) can set them in config and the
+# the explicit allowlist. Operators running newer models (gpt-6.0-pro,
+# gemini-3.2-pro, claude-fable-6) can set them in config and the
 # pattern admits them; provider-side validation at API call time catches
 # typos/invalid names with a clearer error than a pre-runtime allowlist.
 # Note: gemini pattern requires X.Y (with dot). Variants like gemini-3-flash
 # don't match and must wait for explicit allowlist addition.
 VALID_MODEL_PATTERNS=(
-    '^gpt-[0-9]+\.[0-9]+(-codex)?$'          # openai: gpt-5.2, gpt-5.3-codex, gpt-5.4-codex, gpt-6.0
-    '^claude-(opus|sonnet|haiku)-[0-9]+[-.][0-9]+$'  # anthropic: claude-opus-4-7, claude-sonnet-4-6
+    '^gpt-[0-9]+\.[0-9]+(-codex|-pro)?$'     # openai: gpt-5.5, gpt-5.5-pro, gpt-5.3-codex
+    '^claude-(opus|sonnet|haiku|fable)-[0-9]+([-.][0-9]+)?$'  # anthropic: claude-opus-5, claude-fable-5-1, claude-opus-5-5
     '^gemini-[0-9]+\.[0-9]+(-flash|-pro)?(-preview)?$'  # google: gemini-2.5-pro, gemini-3.1-pro-preview (cycle-109 T3.4 #793: -preview suffix)
-    '^(opus|sonnet|haiku)$'                  # short anthropic aliases (DISS-002: anchored alternation)
+    '^(opus|sonnet|haiku|fable)$'            # short anthropic aliases (DISS-002: anchored alternation)
     # cycle-109 Sprint 3 T3.4 (#793): cheval-headless pin form.
     # PR #727 (cycle-098) introduced subscription-auth headless adapters;
     # the orchestrator's pre-validator must admit the canonical pin shape
@@ -577,17 +578,20 @@ VALID_MODEL_PATTERNS=(
 
 # Read declarations only: validation must not dispatch or resolve credentials.
 # Reuse the loader's merge and the routing resolver's alias semantics.
+# python3 -I (sprint-250 audit LOW-003): no cwd entry on sys.path, so a json.py or yaml.py in the cwd is never
+# imported; -I also discards PYTHONPATH, so the adapters directory arrives as argv[1] and is inserted below
 configured_flatline_model() {
-    PYTHONPATH="$SCRIPT_DIR/../adapters" python3 - "$PROJECT_ROOT" "$1" <<'PY' 2>/dev/null
+    python3 -I - "$SCRIPT_DIR/../adapters" "$PROJECT_ROOT" "$1" <<'PY' 2>/dev/null
 import sys
+sys.path.insert(0, sys.argv[1])
 from loa_cheval.config.loader import load_system_defaults, load_project_config, _deep_merge
 from loa_cheval.routing.resolver import resolve_alias
 
 try:
-    config = _deep_merge(load_system_defaults(sys.argv[1]), load_project_config(sys.argv[1]))
+    config = _deep_merge(load_system_defaults(sys.argv[2]), load_project_config(sys.argv[2]))
     providers = config.get("providers", {})
     aliases = {**config.get("backward_compat_aliases", {}), **config.get("aliases", {})}
-    model = sys.argv[2]
+    model = sys.argv[3]
     if ":" not in model and model not in aliases:
         matches = [name for name, provider in providers.items() if model in provider.get("models", {})]
         if not matches:
@@ -648,7 +652,7 @@ validate_model() {
 
     error "Unknown flatline model: '$model' (from flatline_protocol.models.$config_key in .loa.config.yaml)"
     error "Known-good models: ${VALID_FLATLINE_MODELS[*]}"
-    error "Forward-compat patterns also accepted: gpt-X.Y(-codex), claude-{opus|sonnet|haiku}-X-Y, gemini-X.Y(-flash|-pro)"
+    error "Forward-compat patterns also accepted: gpt-X.Y(-codex|-pro), claude-{opus|sonnet|haiku|fable}-X(-Y), gemini-X.Y(-flash|-pro)"
     error "Note: '$model' may be an agent alias, not a model name. Check .claude/defaults/model-config.yaml for alias mappings."
     return 1
 }
@@ -693,7 +697,12 @@ declare -A MODE_TO_AGENT=(
 declare -A MODEL_TO_PROVIDER_ID=(
     ["gpt-5.2"]="openai:gpt-5.2"
     ["gpt-5.3-codex"]="openai:gpt-5.3-codex"
-    ["opus"]="anthropic:claude-opus-4-7"
+    ["opus"]="anthropic:claude-opus-5-5"               # catalog aliases.opus (cycle-126 bd-2fti)
+    ["fable"]="anthropic:claude-fable-5-1"
+    ["claude-opus-5-5"]="anthropic:claude-opus-5-5"
+    ["claude-opus-5"]="anthropic:claude-opus-5"
+    ["claude-fable-5-1"]="anthropic:claude-fable-5-1"
+    ["claude-sonnet-5"]="anthropic:claude-sonnet-5"
     ["claude-opus-4.7"]="anthropic:claude-opus-4-7"
     ["claude-opus-4-7"]="anthropic:claude-opus-4-7"
     ["claude-opus-4.6"]="anthropic:claude-opus-4-7"    # Retargeted in bash layer (cycle-082)
@@ -927,6 +936,22 @@ qualify_and_aggregate_reviews() {
 
 # Unified model call: routes through model-invoke (direct) or model-adapter.sh (legacy)
 # Usage: call_model <model> <mode> <input> <phase> [context] [timeout]
+# cycle-126 FR-1.6 (SDD D-1.6): the per-voice output budget — the catalog's
+# max_output_tokens for the resolved entry (MODEL_MAX_OUTPUT from
+# generated-model-maps.sh; an alias goes through MODEL_IDS first) capped at
+# FLATLINE_VOICE_MAX_TOKENS_CAP. Empty when the entry declares no budget or
+# the maps are not loaded: cheval then applies its own per-model default.
+flatline_voice_max_tokens() {  # <provider:model | alias> → N | ""
+    local key="${1#*:}" declared=""
+    declare -p MODEL_MAX_OUTPUT >/dev/null 2>&1 || { echo ""; return 0; }
+    if declare -p MODEL_IDS >/dev/null 2>&1 && [[ -n "${MODEL_IDS[$key]:-}" ]]; then
+        key="${MODEL_IDS[$key]}"; key="${key#*:}"
+    fi
+    declared="${MODEL_MAX_OUTPUT[$key]:-}"
+    [[ "$declared" =~ ^[0-9]+$ ]] || { echo ""; return 0; }
+    if (( declared < ${FLATLINE_VOICE_MAX_TOKENS_CAP:-64000} )); then echo "$declared"; else echo "${FLATLINE_VOICE_MAX_TOKENS_CAP:-64000}"; fi
+}
+
 call_model() {
     local model="$1"
     local mode="$2"
@@ -1000,22 +1025,18 @@ call_model() {
         )
 
         # Issue #675 (sub-issue 4): plumb operator-supplied max_tokens override
-        # to model-invoke (cheval --max-tokens).
-        # cycle-124 FR-2 (SDD §3.2): cheval's default is now per model
-        # (Anthropic 64K streaming / 16K non-streaming, others 4096), sized
-        # for open-ended calls. Flatline's outputs are bounded — review /
-        # skeptic emit a findings document, score a small JSON array — so
-        # every call passes an explicit budget and the 600 s per-call timeout
-        # never meets a 64K-output generation. --per-call-max-tokens still
-        # overrides both.
+        # to model-invoke (cheval --max-tokens) — --per-call-max-tokens wins.
+        # cycle-126 FR-1.6 (SDD D-1.6): otherwise the voice's budget is the
+        # catalog's max_output_tokens capped at 64000 (flatline_voice_max_tokens)
+        # — no 16000 literal per call kind; an entry without a declared budget
+        # passes no --max-tokens and cheval applies its per-model default.
         local per_call_max_tokens="${PER_CALL_MAX_TOKENS:-}"
         if [[ -z "$per_call_max_tokens" ]]; then
-            case "$mode" in
-                score) per_call_max_tokens="$FLATLINE_SCORE_MAX_TOKENS" ;;
-                *)     per_call_max_tokens="$FLATLINE_REVIEW_MAX_TOKENS" ;;
-            esac
+            per_call_max_tokens="$(flatline_voice_max_tokens "$model_override")"
         fi
-        args+=(--max-tokens "$per_call_max_tokens")
+        if [[ -n "$per_call_max_tokens" ]]; then
+            args+=(--max-tokens "$per_call_max_tokens")
+        fi
         # cycle-124 FR-9 (SDD §3.6): effort per mode — a pure function of the
         # mode (never per attempt), so the cached prefix survives retries.
         # review / skeptic reason deeply; the scorer emits a small JSON array.

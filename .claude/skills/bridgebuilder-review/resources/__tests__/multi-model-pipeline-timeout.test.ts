@@ -66,6 +66,21 @@ describe("deriveTimeoutMs — reasoning-class predicate across all 3 providers",
     );
   });
 
+  // cycle-126 FR-1.5 (SDD D-1.5): the catalog's reasoning flag grants the budget
+  // to the 5-family (no "opus" in "claude-fable-5-1" / "claude-sonnet-5"); a
+  // non-reasoning Anthropic entry stays on the tier ladder.
+  for (const id of ["claude-opus-5", "claude-sonnet-5", "claude-fable-5-1"]) {
+    it(`Anthropic ${id} → 30-min budget (generated reasoning flag)`, () => {
+      assert.equal(deriveTimeoutMs("anthropic", id, largeContextConfig), REASONING_BUDGET_MS);
+    });
+  }
+  it("Anthropic claude-haiku-4-5-20251001 → tier-based (reasoning: false in the yaml)", () => {
+    assert.equal(deriveTimeoutMs("anthropic", "claude-haiku-4-5-20251001", largeContextConfig), 300_000);
+  });
+  it("a headless hop keeps the 30-min budget (legacy regex union, not replaced)", () => {
+    assert.equal(deriveTimeoutMs("openai", "codex-headless", largeContextConfig), REASONING_BUDGET_MS);
+  });
+
   it("Google gemini-3.1-pro-preview → 30-min budget (NEW — closes KF-010)", () => {
     assert.equal(
       deriveTimeoutMs("google", "gemini-3.1-pro-preview", largeContextConfig),
@@ -94,9 +109,15 @@ describe("deriveTimeoutMs — reasoning-class predicate across all 3 providers",
     );
   });
 
-  it("Anthropic claude-sonnet-4-6 → tier-based (non-Opus Anthropic, non-reasoning)", () => {
+  it("Anthropic claude-sonnet-4-6 → 30-min budget (cycle-126: the yaml flags it thinking_adaptive, so the catalog's reasoning flag wins over the name)", () => {
     assert.equal(
       deriveTimeoutMs("anthropic", "claude-sonnet-4-6", largeContextConfig),
+      REASONING_BUDGET_MS,
+    );
+  });
+  it("Anthropic claude-sonnet-4-5-20250929 → tier-based (no thinking flag in the yaml, not an Opus)", () => {
+    assert.equal(
+      deriveTimeoutMs("anthropic", "claude-sonnet-4-5-20250929", largeContextConfig),
       300_000,
     );
   });
@@ -110,7 +131,7 @@ describe("deriveTimeoutMs — reasoning-class predicate across all 3 providers",
 
   it("tier-based ladder: maxInputTokens 75_000 → 180_000ms for non-reasoning", () => {
     assert.equal(
-      deriveTimeoutMs("anthropic", "claude-sonnet-4-6", midContextConfig),
+      deriveTimeoutMs("anthropic", "claude-sonnet-4-5-20250929", midContextConfig),
       180_000,
     );
   });

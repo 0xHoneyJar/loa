@@ -15,9 +15,18 @@ set -euo pipefail
 #   permissions.deny) — never as file text. A malformed file is skipped with a WARN
 #   (it allows nothing and denies nothing). Managed/enterprise policy files are out of
 #   scope (not readable by design).
-#   Matching: exact rule, or the base wildcard  Bash(<cmd>:*)  covering  Bash(<cmd> <sub>:*)
-#   (for allow and for deny alike; a narrower deny such as Bash(rm -rf /:*) does not
-#   deny the generic Bash(rm:*) requirement).
+#   Grammar (cycle-126 SDD D-4.5): a rule Bash(<body>) normalises to the key <body>
+#   with surrounding whitespace trimmed and one trailing ":*" or " *" removed (a
+#   wildcard rule); a body without one is an exact rule. Nothing else is rewritten
+#   (no glob expansion, no quoting or inner-whitespace changes). A wildcard rule
+#   covers a required rule when its key equals the requirement's key or the
+#   requirement's first word, so Bash(git push *) and Bash(git:*) both cover
+#   Bash(git push:*). The same test applies to allow and to deny: a narrower deny
+#   such as Bash(rm -rf /:*) or an exact Bash(git push) does not deny the generic
+#   requirement. A universal rule (bare Bash, Bash(*) after trimming, or the empty
+#   prefix Bash(:*)) covers every Bash requirement: a universal allow satisfies each
+#   one, a universal deny denies each one (sprint-250 review run 1, n29; Bash(:*)
+#   named here in sprint-250 review run 3).
 #
 # Usage:
 #   check-permissions.sh                 Check all permissions (text report)
@@ -149,13 +158,26 @@ warn() {
   fi
 }
 
-# base_pattern_of <required> — the base wildcard that also covers a required
-# rule: "Bash(git checkout:*)" → "Bash(git:*)" (pure parameter expansion; the
-# checker runs on every preflight against hundreds of rules, so no forks here).
-base_pattern_of() {
-  local cmd="${1#Bash(}"
-  cmd="${cmd%%:*}"
-  printf 'Bash(%s:*)' "${cmd%% *}"
+# rule_key <rule> — sets RULE_KEY to "*<body>" for a wildcard rule, "=<body>" for
+# an exact one, "ALL" for a universal one (bare Bash, Bash(*), or the empty
+# prefix Bash(:*), which matches every command — sprint-250 review run 2, #9); returns 1 for
+# anything that is not Bash or Bash(...). Pure parameter
+# expansion: the checker runs on every preflight against hundreds of rules.
+RULE_KEY=""
+rule_key() {
+  local b="$1"
+  if [[ "$b" == "Bash" ]]; then RULE_KEY="ALL"; return 0; fi
+  [[ "$b" == "Bash("*")" ]] || return 1
+  b="${b#Bash(}"; b="${b%)}"
+  b="${b#"${b%%[![:space:]]*}"}"; b="${b%"${b##*[![:space:]]}"}"
+  if [[ "$b" == "*" ]]; then
+    RULE_KEY="ALL"
+  elif [[ "$b" == *":*" || "$b" == *" *" ]]; then
+    b="${b%??}"; b="${b%"${b##*[![:space:]]}"}"
+    if [[ -z "$b" ]]; then RULE_KEY="ALL"; else RULE_KEY="*$b"; fi
+  else
+    RULE_KEY="=$b"
+  fi
 }
 
 # ============================================================================
@@ -170,7 +192,8 @@ main() {
   # A file that is not a JSON object, or whose permissions / allow / deny are
   # not the documented shapes, is skipped with a WARN — it allows nothing and
   # denies nothing (review dissent: a scalar block must not abort the check).
-  local -A allow_by=() deny_by=()
+  # Keyed by the normalised rule (rule_key); deny_raw keeps the rule as written.
+  local -A allow_by=() deny_by=() deny_raw=()
   local f rule
   for f in "${layers[@]}"; do
     [[ -f "$f" ]] || continue
@@ -180,12 +203,12 @@ main() {
     fi
     consulted+=("$f")
     while IFS= read -r rule; do
-      [[ -n "$rule" ]] || continue
-      [[ -n "${allow_by[$rule]+x}" ]] || allow_by["$rule"]="$f"
+      rule_key "$rule" || continue
+      [[ -n "${allow_by[$RULE_KEY]+x}" ]] || allow_by["$RULE_KEY"]="$f"
     done < <(jq -r '(.permissions.allow // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
     while IFS= read -r rule; do
-      [[ -n "$rule" ]] || continue
-      [[ -n "${deny_by[$rule]+x}" ]] || deny_by["$rule"]="$f"
+      rule_key "$rule" || continue
+      [[ -n "${deny_by[$RULE_KEY]+x}" ]] || { deny_by["$RULE_KEY"]="$f"; deny_raw["$RULE_KEY"]="$rule"; }
     done < <(jq -r '(.permissions.deny // [])[] | select(type == "string")' "$f" 2>/dev/null || true)
   done
 
@@ -215,18 +238,23 @@ main() {
   )
 
   local -a found_permissions=() missing_permissions=() denied_lines=()
-  local perm base file line
+  local perm key base file line
   for perm in "${all_required[@]}"; do
-    base="$(base_pattern_of "$perm")"
-    # deny wins: the exact rule or its base wildcard, in any layer
-    if [[ -n "${deny_by[$perm]+x}" ]]; then
-      denied_lines+=("$perm"$'\t'"$perm"$'\t'"${deny_by[$perm]}")
+    rule_key "$perm"
+    key="$RULE_KEY"
+    base="*${key#\*}"; base="${base%% *}"
+    # deny wins: a universal deny, the requirement's own key or its base wildcard, in any layer
+    if [[ -n "${deny_by[ALL]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"${deny_raw[ALL]}"$'\t'"${deny_by[ALL]}")
+      continue
+    elif [[ -n "${deny_by[$key]+x}" ]]; then
+      denied_lines+=("$perm"$'\t'"${deny_raw[$key]}"$'\t'"${deny_by[$key]}")
       continue
     elif [[ -n "${deny_by[$base]+x}" ]]; then
-      denied_lines+=("$perm"$'\t'"$base"$'\t'"${deny_by[$base]}")
+      denied_lines+=("$perm"$'\t'"${deny_raw[$base]}"$'\t'"${deny_by[$base]}")
       continue
     fi
-    if [[ -n "${allow_by[$perm]+x}" || -n "${allow_by[$base]+x}" ]]; then
+    if [[ -n "${allow_by[ALL]+x}" || -n "${allow_by[$key]+x}" || -n "${allow_by[$base]+x}" ]]; then
       found_permissions+=("$perm")
     else
       missing_permissions+=("$perm")

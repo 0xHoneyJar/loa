@@ -6,18 +6,22 @@ When beads_rust (`br`) is installed, use it to record review feedback:
 
 ### Session Start
 ```bash
-br sync --import-only  # Import latest state from JSONL
+# Import latest state from JSONL
+br sync --import-only
 ```
 
 ### Recording Review Feedback
 ```bash
 # Add review comment to task
-br comments add <task-id> "REVIEW: [feedback summary]"
+br comments add <task-id> "REVIEW: [verdict] - grimoires/loa/a2a/sprint-N/engineer-feedback.md"
 
-# Mark task status based on review outcome
-br label add <task-id> review-approved     # If approved
-br label add <task-id> needs-revision       # If changes required
+# Mark task status based on review outcome — exactly one of:
+# If approved
+br label add <task-id> review-approved
+# If changes required
+br label add <task-id> needs-revision
 ```
+A re-review or re-audit adds its round's label and `br label add` never removes the other, so a task can carry both: the latest `REVIEW:` comment is the verdict of record (with the feedback file and the COMPLETED marker), a label only history.
 
 ### Using Labels for Status
 | Label | Meaning | When to Apply |
@@ -28,5 +32,9 @@ br label add <task-id> needs-revision       # If changes required
 
 ### Session End
 ```bash
-br sync --flush-only  # Export SQLite → JSONL before commit
+# Export SQLite → JSONL before commit
+br sync --flush-only
 ```
+
+### Agent Teams
+A teammate runs no `br` command: it reports the result to the lead via SendMessage, and the lead runs it. A comment carries the verdict and the feedback file's path only — never finding text or code.

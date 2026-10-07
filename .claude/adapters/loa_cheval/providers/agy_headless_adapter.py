@@ -11,7 +11,14 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
   - **Invocation** — `agy -p "<prompt>" --model "<label>" --sandbox --dangerously-skip-permissions`
     with stdin closed (the helper keeps stdin on DEVNULL). `-p` takes the prompt on **argv**
     (no `--prompt-file` flag exists → the gemini ARG_MAX cliff persists unchanged; the
-    `gemini-api` HTTP fallback covers oversized diffs).
+    `gemini-api` HTTP fallback covers oversized diffs). An argv prompt is also readable by
+    every local user through /proc/<pid>/cmdline and `ps` for the life of the hop — the
+    exposure claude-headless closed by moving to stdin (cycle-126). A stdin prompt would not
+    break the closed-stdin fix — communicate() writes the prompt and closes the pipe, so a later
+    tool-permission read sees EOF as on DEVNULL — but whether agy reads a `-p` prompt from stdin
+    was never probed (T4.1 ran argv only; no agy on the cycle-126 host), so on a shared host the
+    Gemini voice's prompt (the redacted diff) stays visible to other local users until the T4.1
+    probe is re-run with one (cycle-126 thirty-first run, e1 DISS-C-001; thirty-fifth run, e1).
   - **--model** takes a **human-readable label** from `agy models` (e.g. "Gemini 3.1 Pro (High)"),
     NOT an API id — supplied via `extra.cli_model`.
   - **Output** — **PLAIN TEXT** (no JSON, no `--output-format`). So `_build_result` reads stdout
@@ -22,6 +29,14 @@ against `agy` v1.0.12 on the cheval host; gate PASSED):
     it (clean output, exit 0, zero ANSI). `--sandbox` keeps it terminal-restricted (the
     read-only analog of gemini's `--approval-mode plan`); never `--dangerously-skip-permissions`
     alone on a review path.
+  - **cwd** — one stable private directory, `loa-agy-ws`, as gemini's (cycle-126): agy is gemini-cli's successor, which
+    registers every project root it starts in, so a directory per hop left one orphan state entry per hop and made every
+    hop a never-seen directory (thirty-seventh run, e1 DISS-C-001). Not yet probed live there (no agy on the cycle-126
+    host): a folder-trust or sandbox prompt on a never-seen directory reads EOF on the closed stdin, so it fails as a
+    walkable non-zero exit or ends at the catalog timeout — never a hang. agy is NOT disabled: it is the registered
+    `gemini-headless` class, the terminal of every stock Google chain, dispatched on any host with `agy` installed — so
+    the T4.1 gate probe (bd-ugmi) is owed now, and the stable cwd refuses any entry a hop left (cycle-126 audit run 1,
+    e1 DISS-C-001); until then every dispatch WARNs once per process of the argv exposure (e1 DISS-001).
   - **Auth** — agy is **OAuth**-authed on host (`agy models` → exit 0; no API-key flag; creds in
     an OAuth store, not `GOOGLE_API_KEY`). The gemini env-strip is a no-op for agy; we keep
     `build_headless_subprocess_env()` (harmless — agy ignores the stripped vars).
@@ -38,10 +53,11 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from typing import Any, Dict, List
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import HeadlessCLIAdapter, private_workspace, cwd_vanished
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -60,6 +76,10 @@ from loa_cheval.types import (
 )
 
 logger = logging.getLogger("loa_cheval.providers.agy_headless")
+# (agy is reachable as gemini-headless and puts the whole prompt on argv: said once per process on dispatch, never per hop —
+# cycle-126 audit run 1, e1 DISS-001; the dispatch itself is the maintainer's call)
+_ARGV_PROMPT_WARNED = False
+_ARGV_PROMPT_WARN_LOCK = threading.Lock()
 
 # agy CLI binary name (override via AGY_HEADLESS_BIN env var for testing)
 _AGY_BIN_DEFAULT = "agy"
@@ -98,7 +118,7 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
 
         prompt = self._build_prompt(request.messages)
         cmd = self._build_command(request, model_config, prompt)
-        timeout_s = self._compute_timeout()
+        timeout_s = self._compute_timeout(model_config)   # the hop's catalog bound (twenty-first run, d C-001)
         n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
 
         logger.debug(
@@ -114,6 +134,23 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
             acquire_slot as _acquire_slot,
         )
 
+        # (an isolated empty cwd under the private base, as its siblings: the caller's cwd is the reviewed tree, whose GEMINI.md
+        # and settings would shape its own reviewer — cycle-126 thirty-second run, e2a DISS-C-004; a creation OSError walks;
+        # one stable directory, as gemini's — thirty-seventh run, e1 DISS-C-001; any entry left there, not only a GEMINI.md /
+        # .gemini, is refused by private_workspace, never read — agy is live as gemini-headless, not disabled, and whether
+        # --sandbox denies cwd writes is bd-ugmi's open probe: thirty-ninth run, e1 DISS-C-001; cycle-126 audit run 1, e1 DISS-C-001)
+        try:
+            workspace = private_workspace("loa-agy-ws")
+        except OSError as exc:
+            raise ProviderUnavailableError(self.provider, f"agy -p workspace unavailable: {exc}") from exc
+        global _ARGV_PROMPT_WARNED
+        with _ARGV_PROMPT_WARN_LOCK:
+            warn_argv = not _ARGV_PROMPT_WARNED
+            _ARGV_PROMPT_WARNED = True
+        if warn_argv:
+            logger.warning("gemini-headless dispatches agy, which takes the whole prompt on argv (readable by every local "
+                           "account through /proc/<pid>/cmdline and ps for the life of the hop); no stdin transport until "
+                           "bead bd-ugmi's re-probe")
         start = time.monotonic()
         try:
             with _acquire_slot(self.provider, n_slots=n_slots):
@@ -130,11 +167,14 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                         # agy is OAuth-authed; the gemini env-strip is a no-op for it
                         # (agy ignores GOOGLE_API_KEY/GEMINI_API_KEY). Kept for parity.
                         env=build_headless_subprocess_env(),
+                        cwd=workspace,
                     )
                 except subprocess.TimeoutExpired:
+                    # the catalog bound's note, as the base adapter appends it (twenty-second run, d DISS-C-002)
+                    _note = getattr(model_config, "headless_timeout_note", None)
                     raise ProviderUnavailableError(
                         self.provider,
-                        f"agy -p timed out after {timeout_s:.0f}s",
+                        f"agy -p timed out after {timeout_s:.0f}s" + (f" ({_note})" if _note else ""),
                     )
                 except SubprocessOutputCapExceeded as exc:
                     # Truncated output is a provider failure, not a successful
@@ -144,6 +184,10 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                         f"agy -p {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
+                    if cwd_vanished(workspace, exc):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                        raise ProviderUnavailableError(
+                            self.provider, f"agy -p working directory {workspace} vanished before the CLI started: {exc}",
+                        ) from exc
                     raise ConfigError(
                         f"agy CLI not found on PATH (set AGY_HEADLESS_BIN to override). "
                         f"Install + authenticate the Antigravity CLI on the cheval host. "
@@ -154,9 +198,16 @@ class AgyHeadlessAdapter(HeadlessCLIAdapter):
                     # --prompt-file exists) or another exec failure → WALK the chain,
                     # never crash with a raw OSError. The gemini-api HTTP fallback
                     # covers oversized diffs. (FileNotFoundError is handled above.)
+                    # (thirty-ninth run, e1 DISS-C-003: only E2BIG is the ARG_MAX cliff — a chdir into the stable workspace
+                    # that failed is named by its errno and the path, so it is never triaged as an oversized diff)
+                    import errno as _errno
+                    if exc.errno == _errno.E2BIG:
+                        why = "likely ARG_MAX on an oversized prompt"
+                    else:
+                        why = f"{type(exc).__name__}" + (f" on {exc.filename}" if exc.filename is not None else "")
                     raise ProviderUnavailableError(
                         self.provider,
-                        f"agy -p exec failed (likely ARG_MAX on an oversized prompt): {exc}",
+                        f"agy -p exec failed ({why}): {exc}",
                     ) from exc
                 except ValueError as exc:
                     # An untrusted prompt with an embedded NUL byte makes subprocess raise

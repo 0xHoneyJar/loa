@@ -19,7 +19,9 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from cheval import _LEGACY_TRANSPORT_INPUT_WALL, _lookup_max_input_tokens  # noqa: E402
+from loa_cheval.providers.anthropic_adapter import _BETA_HEADER_RE  # noqa: E402
 from loa_cheval.providers.base import default_max_tokens  # noqa: E402
+from loa_cheval.routing.ceiling import input_bound  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOG = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
@@ -30,6 +32,7 @@ LOA_CONFIG_EXAMPLE = REPO_ROOT / ".loa.config.yaml.example"
 FAMILY_1M = {
     "claude-fable-5-1",
     "claude-fable-5",
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -41,6 +44,7 @@ FAMILY_1M = {
 # on the 4.6/4.7/4.8 family, default-on for Opus 5 / Sonnet 5; Fable rejects
 # every thinking shape except adaptive-or-omitted, so it is NOT flagged.
 ADAPTIVE = {
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -52,6 +56,7 @@ ADAPTIVE = {
 STRUCTURED_JSON = {
     "claude-fable-5-1",
     "claude-fable-5",
+    "claude-opus-5-5",
     "claude-opus-5",
     "claude-opus-4-8",
     "claude-sonnet-5",
@@ -59,7 +64,10 @@ STRUCTURED_JSON = {
 }
 V2_INPUT_FIELDS = ("max_input_tokens", "streaming_max_input_tokens", "legacy_max_input_tokens")
 # Documented exceptions to the 0.1× cache-read rule (catalog-evidence.md).
-CACHE_READ_EXCEPTIONS = {"claude-fable-5-1": 250_000}  # 0.025× per the reference
+CACHE_READ_EXCEPTIONS = {
+    "claude-fable-5-1": 250_000,  # 0.025× per the reference
+    "claude-opus-5-5": 200_000,  # 0.05×: $0.20 cache hit on $4 input (platform.claude.com pricing, read 2026-10-05)
+}
 CEILING_CAP = 180_000
 
 
@@ -193,6 +201,7 @@ def test_generation_pricing_matches_reference(anthropic):
         p = anthropic[model_id]["pricing"]
         return p["input_per_mtok"], p["output_per_mtok"]
 
+    assert price("claude-opus-5-5") == (4_000_000, 20_000_000)
     assert price("claude-opus-5") == (5_000_000, 25_000_000)
     assert price("claude-fable-5-1") == (10_000_000, 50_000_000)
     assert price("claude-sonnet-5") == (2_000_000, 10_000_000)
@@ -201,8 +210,10 @@ def test_generation_pricing_matches_reference(anthropic):
 def test_aliases_retargeted_to_the_new_generation(catalog):
     aliases = catalog["aliases"]
     compat = catalog["backward_compat_aliases"]
-    assert aliases["opus"] == "anthropic:claude-opus-5"
+    assert aliases["opus"] == "anthropic:claude-opus-5-5"
+    assert aliases["cheap"] == "anthropic:claude-sonnet-5"
     assert aliases["fable"] == "anthropic:claude-fable-5-1"
+    assert compat["claude-opus-5-5"] == compat["claude-opus-5.5"] == "anthropic:claude-opus-5-5"
     assert compat["claude-opus-5"] == "anthropic:claude-opus-5"
     assert compat["claude-fable-5-1"] == "anthropic:claude-fable-5-1"
     # cycle-114 self-maps keep resolving (pinnable fallback).
@@ -245,9 +256,96 @@ def test_advisor_tier_points_at_opus_5():
     assert cfg["advisor_strategy"]["tier_aliases"]["advisor"]["anthropic"] == "claude-opus-5"
     # audit slice D: every Opus pin in the live config sits on the floor, not only the advisor tier
     bb_models = cfg["run_bridge"]["bridgebuilder"]["multi_model"]["models"]
-    assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-opus-5"]
+    # 2026-10-01 operator directive (2fb4f9f2): the BB anthropic voice is Fable 5.1 through the CLI
+    assert [m["model_id"] for m in bb_models if m.get("provider") == "anthropic"] == ["claude-headless"]
+    # …and the alias is a floor check only through what it dispatches: the catalog's cli_model for it sits on the floor too
+    # (cycle-126 thirty-first run, e1 DISS-C-003 — `fable`/`opus`/`sonnet` are the CLI's own current-generation aliases)
+    with CATALOG.open() as fh:
+        cli_model = (yaml.safe_load(fh)["providers"]["anthropic"]["models"]["claude-headless"].get("extra") or {}).get("cli_model")
+    # (thirty-second run, e1 DISS-C-003: the directive is Fable 5.1 — `opus`/`sonnet` passed a downgrade with the suite green)
+    assert cli_model in {"fable", "claude-fable-5-1"}, cli_model
     assert cfg["red_team"]["models"]["evaluator_primary"] == "claude-opus-5"
-    assert 'opus: "anthropic:claude-opus-5"' in LOA_CONFIG_EXAMPLE.read_text()
+    assert 'opus: "anthropic:claude-opus-5-5"' in LOA_CONFIG_EXAMPLE.read_text()
+    assert 'cheap: "anthropic:claude-sonnet-5"' in LOA_CONFIG_EXAMPLE.read_text()
     example = LOA_CONFIG_EXAMPLE.read_text()
     assert "anthropic: claude-opus-5" in example
     assert "anthropic: claude-opus-4-7" not in example.split("tier_aliases:")[1].split("executor:")[0]
+
+
+# --- cycle-126 Sprint 1 (PRD FR-1.1 / FR-1.2 / FR-1.9, SDD D-1.1 / D-1.2 / D-1.9) --------
+
+FIVE_FAMILY = {"claude-fable-5-1", "claude-fable-5", "claude-opus-5", "claude-sonnet-5"}
+
+
+@pytest.fixture(autouse=True)
+def _default_ceiling_policy(monkeypatch):
+    for var in ("LOA_CHEVAL_LEGACY_CEILING", "LOA_CHEVAL_UNCALIBRATED_CEILING", "LOA_CHEVAL_MAX_INPUT_TOKENS"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_every_http_entry_carries_the_probed_bound_and_account_limits(http_entries):
+    for model_id, entry in http_entries.items():
+        assert entry.get("probed_ceiling") == CEILING_CAP, model_id
+        cal = entry["ceiling_calibration"]
+        if not cal.get("calibrated_at"):
+            assert entry["effective_input_ceiling"] == entry["probed_ceiling"], (
+                f"{model_id}: uncalibrated ⇒ the v3 field the older readers consume IS the probed value")
+        limits = entry.get("account_limits")
+        assert isinstance(limits, dict) and set(limits) == {"tier", "itpm"}, model_id
+        assert limits["tier"] in ("unverified", "1", "2", "3", "4", "custom"), model_id
+        assert limits["itpm"] is None or (isinstance(limits["itpm"], int) and limits["itpm"] > 0), model_id
+
+
+def test_i1_and_i2_per_entry_from_the_fields(http_entries):
+    """I1: the bound never exceeds context_window − max_tokens; I2: probed by default,
+    derived only under the opt-in — and never max() with the probed value."""
+    for model_id, entry in http_entries.items():
+        mt = _default_max_tokens(entry)
+        d = input_bound(entry, max_tokens=mt)
+        assert d is not None and d.value + mt <= entry["context_window"], (model_id, d)
+        assert d.value <= entry["probed_ceiling"], (model_id, d)  # never above the probed value by default
+        if entry["ceiling_calibration"].get("calibrated_at"):
+            assert d.basis == "calibrated"
+        else:
+            assert d.basis in ("probed", "i1"), (model_id, d.basis)
+        derived = input_bound(entry, max_tokens=mt, policy="derived")
+        assert derived.value == min(entry["context_window"] - mt, entry["probed_ceiling"] if d.calibrated else entry["context_window"] - mt) \
+            or derived.basis in ("calibrated", "i1"), (model_id, derived)
+        assert derived.value + mt <= entry["context_window"], model_id
+        # the legacy kill switch is the literal, whatever the arithmetic says
+        assert input_bound(entry, max_tokens=mt, policy="legacy").value == entry["effective_input_ceiling"]
+
+
+def test_walk_gate_threshold_is_the_policy_bound_not_the_literal(catalog, http_entries):
+    for model_id, entry in http_entries.items():
+        mt = _default_max_tokens(entry)
+        expected = input_bound(entry, max_tokens=mt).value
+        assert _lookup_max_input_tokens("anthropic", model_id, catalog, max_tokens=mt) == expected, model_id
+
+
+def test_five_family_declares_the_beta_header_list_and_the_long_context_tier(anthropic):
+    for model_id in FIVE_FAMILY:
+        entry = anthropic[model_id]
+        beta = (entry.get("params") or {}).get("beta_headers")
+        assert isinstance(beta, list), f"{model_id}: params.beta_headers must be a list (empty until an account needs one)"
+        assert all(isinstance(v, str) and _BETA_HEADER_RE.match(v) for v in beta), (model_id, beta)
+        lc = (entry.get("pricing") or {}).get("long_context")
+        assert lc == {"threshold_tokens": 200_000, "input_multiplier": 2.0, "output_multiplier": 1.5, "verified": False}, model_id
+        assert entry["context_window"] > lc["threshold_tokens"]
+
+
+def test_entries_outside_the_five_family_carry_no_long_context_tier(http_entries):
+    for model_id, entry in http_entries.items():
+        if model_id not in FIVE_FAMILY:
+            assert "long_context" not in (entry.get("pricing") or {}), model_id
+
+
+def test_opus_5_5_has_the_1m_window_at_standard_pricing(anthropic):
+    """cycle-126 bd-2fti: the vendor pricing page puts 4.6-and-later on the full 1M window at
+    standard pricing, so 5.5 carries no long_context tier; its ceiling is the conservative
+    default until a probe measures it."""
+    entry = anthropic["claude-opus-5-5"]
+    assert "long_context" not in entry["pricing"]
+    assert entry["ceiling_calibration"]["source"] == "conservative_default"
+    assert entry["ceiling_calibration"]["calibrated_at"] is None
+    assert entry["fallback_chain"][0] == "anthropic:claude-opus-5"

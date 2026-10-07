@@ -71,8 +71,9 @@ OUTPUT_FORMAT="${LOA_OUTPUT_FORMAT:-json}"
 DRY_RUN=false
 
 # API configuration
-GPT_MODEL="${LOA_GPT_MODEL:-gpt-4o}"
-OPUS_MODEL="${LOA_OPUS_MODEL:-claude-3-opus-20240229}"
+# Catalog aliases (model-config.yaml), so the defaults follow the floor (cycle-126 D-4.3).
+GPT_MODEL="${LOA_GPT_MODEL:-reviewer}"
+OPUS_MODEL="${LOA_OPUS_MODEL:-opus}"
 
 # =============================================================================
 # Logging

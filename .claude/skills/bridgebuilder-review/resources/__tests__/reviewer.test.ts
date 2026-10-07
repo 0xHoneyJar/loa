@@ -1687,3 +1687,78 @@ describe("ReviewPipeline", () => {
     });
   });
 });
+
+// sprint-250 round 2: the token-guard trigger must use the model-clamped
+// budget. DEFAULTS.model is the alias `opus` with maxInputTokens 200_000; a
+// 160–200K estimate used to pass the raw `> maxInputTokens` check untruncated
+// and reach cheval, whose probed ceiling for claude-opus-5-5 is 180K.
+describe("ReviewPipeline model budget clamp (sprint-250 round 2)", () => {
+  // 36 files × 20 000 patch chars ≈ 720 000 chars ≈ 180 000 tokens at 0.25:
+  // over the 160K claude-opus-5-5 row, under the 200K operator budget.
+  const bigFiles = Array.from({ length: 36 }, (_, i) => ({
+    filename: `src/mod${i}.ts`,
+    status: "modified" as const,
+    additions: 400,
+    deletions: 0,
+    patch: "@@ -1,1 +1,400 @@\n" + Array.from({ length: 400 }, () => "+" + "x".repeat(49)).join("\n"),
+  }));
+  const CEILING = 160_000; // GENERATED_TOKEN_BUDGETS["claude-opus-5-5"].maxInput
+  const PASS1_FINDINGS = [
+    "<!-- bridge-findings-start -->",
+    "```json",
+    JSON.stringify({ schema_version: 1, findings: [
+      { id: "F001", title: "Issue", severity: "HIGH", category: "security", file: "src/mod0.ts:1", description: "d", suggestion: "s" },
+    ] }),
+    "```",
+    "<!-- bridge-findings-end -->",
+  ].join("\n");
+
+  function promptTokens(p: { systemPrompt: string; userPrompt: string }): number {
+    return Math.ceil(p.systemPrompt.length * 0.25) + Math.ceil(p.userPrompt.length * 0.25);
+  }
+
+  for (const model of ["opus", "claude-opus-5-5"]) {
+    for (const reviewMode of ["single-pass", "two-pass"] as const) {
+      it(`${model} / ${reviewMode}: a ~180K-token estimate is truncated below the model's budget, not sent raw`, async () => {
+        const sent: number[] = [];
+        let estimate = 0;
+        const logger: ILogger = {
+          info: (msg: string, data?: Record<string, unknown>) => {
+            if (/Prompt estimate/.test(msg) && estimate === 0) estimate = Number(data?.estimatedTokens ?? 0);
+          },
+          warn: () => {},
+          error: () => {},
+          debug: () => {},
+        };
+        const pipeline = buildPipeline({
+          config: {
+            model,
+            reviewMode,
+            maxInputTokens: 200_000,
+            maxDiffBytes: 10_000_000,
+            maxFilesPerPr: 100,
+          },
+          git: { getPRFiles: async () => bigFiles },
+          llm: {
+            generateReview: async (req) => {
+              sent.push(promptTokens(req));
+              // two-pass: Pass 1 returns findings JSON so Pass 2 (enrichment)
+              // really runs and its payload is measured too (sprint-250 review run 2, #3)
+              const content = reviewMode === "two-pass" && sent.length === 1
+                ? PASS1_FINDINGS
+                : "## Summary\nGood PR.\n\n## Findings\n- No issues found.\n\n## Callouts\n- Clean code.";
+              return { content, inputTokens: 100, outputTokens: 50, model: "test-model" };
+            },
+          },
+          logger,
+        });
+        await pipeline.run(`run-clamp-${model}-${reviewMode}`);
+        // the fixture really lands in the 160–200K window
+        assert.ok(estimate > CEILING && estimate < 200_000, `fixture estimate ${estimate} outside (160K, 200K)`);
+        assert.equal(sent.length, reviewMode === "two-pass" ? 2 : 1, `LLM calls: ${sent.join(", ")}`);
+        // every call (Pass 1 and Pass 2), not just the first, stays under the ceiling
+        assert.ok(sent.every((t) => t <= CEILING), `an LLM call exceeded ${CEILING}: ${sent.join(", ")}`);
+      });
+    }
+  }
+});

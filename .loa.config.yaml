@@ -189,16 +189,24 @@ spiral:
   harness: # Evidence-gated orchestrator (cycle-071)
     enabled: true # Use harness vs monolithic dispatch
     max_phase_retries: 3 # Retries per gate on failure
+    # (thirty-third run, e2b DISS-C-003) the caps below were sized for the sonnet executor / opus advisor split:
+    # Fable 5.1 is 5x sonnet-5 and 2x opus-5 per token, and each cap is `claude -p --max-budget-usd` — a session that reaches it ends,
+    # leaving partial work for the retry gate. Not raised here (a spend decision for the operator, NOTES 2026-10-03).
+    # (thirty-seventh run, e2b DISS-C-001) a phase whose need exceeds its cap hits it again on each of max_phase_retries' retries:
+    # up to (1 + max_phase_retries) x the cap spent before the gate fails — raise the cap, not the retries, when a phase ends on it.
     planning_budget_usd: 1 # Per-phase budget for PRD/SDD/Sprint
     implement_budget_usd: 5 # Budget for implementation session
     review_budget_usd: 2 # Budget for independent review session
     audit_budget_usd: 2 # Budget for independent audit session
-    # Advisor Strategy: Sonnet executes (cheap), Opus judges (quality)
-    # ~60% cost reduction vs all-Opus. See https://claude.com/blog/the-advisor-strategy
-    executor_model: sonnet # PRD, SDD, Sprint, Implementation
-    advisor_model: opus # Review, Audit (judgment quality)
+    # Advisor Strategy (https://claude.com/blog/the-advisor-strategy): a cheap executor, a stronger judge — set aside
+    # 2026-10-01 by operator directive: every Claude hop on Fable 5.1 (Bedrock key; harness `claude -p` reaches Bedrock
+    # only from a claude-bedrock parent — bd-swz7). Was sonnet / opus. Both values go only to `claude -p --model`
+    # (spiral-harness.sh _invoke_claude and the BB fix cycle): the CLI resolves `fable`, never cheval (operator-measured: a
+    # claude-bedrock session on `model: fable` reports global.anthropic.claude-fable-5-1, 2026-10-04 — thirty-ninth run, e2b DISS-C-004).
+    executor_model: fable # PRD, SDD, Sprint, Implementation
+    advisor_model: fable # Review, Audit (judgment quality)
     # Pipeline Profiles (cycle-072): full | standard | light
-    pipeline_profile: standard # Sprint Flatline only + Opus advisor ($12)
+    pipeline_profile: standard # Sprint Flatline only + the advisor_model judge
   # Off-Hours Scheduling (cycle-072)
   scheduling:
     enabled: false # Must opt-in
@@ -254,7 +262,10 @@ run_bridge:
       # #789b deferred to cycle-101 follow-up: invoke-time probe gate for preview-tier models.
       models:
         - provider: anthropic
-          model_id: claude-opus-5   # cycle-124 floor (was 4-8)
+          model_id: claude-headless   # 2026-10-01: Fable 5.1 via the CLI (cli_model fable); http_api ids need ANTHROPIC_API_KEY (unset here). Was claude-opus-5
+          # (a CLI hop: a concurrent BB sweep or a live dissent shares the claude CLI and the plan window — KF-010 / KF-037 / KF-038;
+          # run sweeps serially, and read a sweep-wide timeout as contention, not an outage. Its auth follows CLAUDE_HEADLESS_BIN:
+          # the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7)
           role: primary
         - provider: openai
           model_id: gpt-5.5-pro
@@ -303,7 +314,21 @@ flatline_protocol:
     sdd: true
     sprint: true
   models:
-    primary: opus
+    # 2026-10-01: claude-headless = Fable 5.1 on the CLI/Bedrock; `opus`/`fable` are http_api ids that fail
+    # INVALID_CONFIG without ANTHROPIC_API_KEY (fleet-measured, search 2026-10-01). Was opus.
+    # Flatline runs its voices in parallel and nothing serialises CLI hops across it (the per-binary lock is
+    # adversarial-review.sh's): two claude -p calls share the CLI and the plan window, each bounded by the catalog's
+    # headless_timeout_seconds (900 s) — up to ~15 min per phase under contention (KF-037 / KF-038).
+    # Its auth follows CLAUDE_HEADLESS_BIN (the claude-bedrock wrapper for Bedrock, else the plain CLI's own login — bd-swz7), and it
+    # shares the anthropic headless circuit breaker with the dissent companion: a rate limit on either opens it for both.
+    # (thirty-seventh run, e2b DISS-C-002) so a Flatline rate limit leaves a review that follows while the breaker is open
+    # single-voice: its companion is refused by the open breaker, the envelope reads companion_voice.status failed (not degraded),
+    # and nothing in the unattended harness re-runs it (KF-038) — read companion_voice before taking such a review as two-voice.
+    # (thirty-ninth run, e2b DISS-C-002/003) the route — and the account billed — is the environment's, not this file's: a shell
+    # without CLAUDE_HEADLESS_BIN (cron, CI, a fresh login) runs Flatline and Bridgebuilder on the plain CLI's plan, and the breaker
+    # bucket is anthropic/headless whatever the route, so a plan-window limit there also refuses a Bedrock-wrapped companion; export
+    # the wrapper in every shell that runs them, and clear a bucket opened on the other route with `cheval --reset-breaker anthropic:headless`.
+    primary: claude-headless
     # cycle-109 substrate-debug (2026-05-13): switched secondary from gpt-5.5-pro
     # to gpt-5.5 (non-pro). Direct probe of current OpenAI key showed it lacks
     # Pro-tier access (gpt-5.5-pro → 404 "not a chat model" on /v1/chat/completions

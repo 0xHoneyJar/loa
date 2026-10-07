@@ -24,6 +24,9 @@ Design notes (sibling of codex / gemini headless):
   - Permission mode is `plan` (read-only) as defense in depth, even with
     `--tools ""`.
   - `--no-session-persistence` keeps each call hermetic. No on-disk state.
+  - The CLI runs in an isolated empty cwd: the caller's tree's CLAUDE.md,
+    project settings and hooks never enter the call (cycle-126) — one stable
+    private directory, no ancestor another user can write.
   - **DO NOT pass `--bare`**: it strips OAuth and forces ANTHROPIC_API_KEY,
     which defeats the subscription-auth purpose of this adapter.
   - **System-prompt overhead**: by default, Claude Code injects ~14K tokens
@@ -52,11 +55,13 @@ import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
 import threading
+import time
+from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from loa_cheval.metering.pricing import cli_cost_micro_usd
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -73,6 +78,10 @@ from loa_cheval.types import (
 logger = logging.getLogger("loa_cheval.providers.claude_headless")
 _CLI_COST_WARNED = False
 _CLI_COST_WARN_LOCK = threading.Lock()
+
+# cycle-126 sprint-248: the prompt goes on stdin (`claude -p` with no positional prompt reads it from there), at every size.
+# An argv prompt failed with E2BIG over MAX_ARG_STRLEN (twenty-second run) and was readable by every local user through
+# /proc/<pid>/cmdline while the process ran (thirtieth run, e1 DISS-C-001).
 
 # Allowed effort levels per `claude --help` (>= 2.1.x)
 _ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -126,8 +135,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
             connect_timeout: 10.0
             read_timeout: 600.0
             models:
-              claude-opus-4-7:
-                context_window: 200000
+              claude-opus-5-5:
+                context_window: 1000000
                 pricing: {input_per_mtok: 0, output_per_mtok: 0}
                 extra:
                   effort: high
@@ -135,8 +144,8 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     Aliases bind to provider:model-id like other adapters:
 
         aliases:
-          opus: claude-headless:claude-opus-4-7
-          cheap: claude-headless:claude-sonnet-4-6
+          opus: claude-headless:claude-opus-5-5
+          cheap: claude-headless:claude-sonnet-5
     """
 
     # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
@@ -151,6 +160,10 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
+        # (thirty-third run, e1 DISS-C-001: the stable cwd is one project key for every hop on the host — its auto-memory, which
+        # anything out of band can write, is never loaded into a reviewer, whatever the operator's own setting)
+        kwargs["env"] = {**(kwargs["env"] if kwargs.get("env") is not None else os.environ),
+                         "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
         proc = run_subprocess_pgkill(command, **kwargs)
         # cycle-124 FR-7: the CLI validates the schema itself ("--json-schema
         # is not a valid JSON Schema: …", measured live 2026-09-18 on a
@@ -219,13 +232,27 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         """Resolve the claude CLI binary name (env var override allowed)."""
         return os.environ.get("CLAUDE_HEADLESS_BIN", _CLAUDE_BIN_DEFAULT)
 
+    @contextmanager
+    def _prepare_invocation(self, request, model_config, prompt):
+        """Stdin transport, at every size: the prompt never touches argv — and an isolated empty cwd, as its siblings: claude
+        discovers CLAUDE.md, project settings and their hooks from its cwd, and the caller's cwd is the tree under review, so a
+        reviewed branch would shape its own reviewer's context (cycle-126 thirty-first run, c2e DISS-C-003). It reads every
+        ancestor's CLAUDE.md too, so the cwd sits under a private base, never a world-writable /tmp; and it is one stable
+        directory — Claude Code keys project state by cwd, one key, never one per hop (thirty-second run, e1 DISS-C-001 /
+        DISS-C-002). A creation OSError is the base complete()'s ProviderUnavailableError, as cursor's (thirty-third run, d
+        DISS-C-004)."""
+        command = self._build_command(request, model_config, None)
+        workspace = private_workspace("loa-claude-ws")
+        started_at = time.monotonic()
+        yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
+
     def _build_command(
         self,
         request: CompletionRequest,
         model_config,
-        prompt: str,
+        prompt: Optional[str],
     ) -> List[str]:
-        """Build the claude argv. Headless, plan-mode (read-only), no tools."""
+        """Build the claude argv. Headless, plan-mode (read-only), no tools. ``prompt=None``: the prompt is on stdin."""
         # cycle-104 sprint-2 T2.11 amendment: when the chain entry is a
         # kind:cli alias (e.g. `claude-headless`) the CLI binary doesn't
         # recognize the Loa alias as a model name. Honor `extra.cli_model`
@@ -235,7 +262,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         cmd: List[str] = [
             self._cli_bin(),
             "-p",
-            prompt,
+            *([] if prompt is None else [prompt]),
             "--output-format",
             "json",
             "--permission-mode",

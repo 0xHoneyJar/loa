@@ -38,6 +38,18 @@ from loa_cheval.types import (
     RateLimitError,
 )
 
+@pytest.fixture(autouse=True)
+def _private_gemini_cwd(tmp_path, monkeypatch):
+    """The suite's own stand-in for the stable private cwd: never the host's $XDG_RUNTIME_DIR, temporary directory or
+    ~/.cache/loa, and nothing left outside tmp_path (cycle-126 thirty-eighth run, e1b DISS-C-004; the real base's choice is
+    test_headless_workspace.py's, under its isolated root)."""
+    def _ws(name):
+        p = tmp_path / "private-base" / name
+        p.mkdir(parents=True, exist_ok=True)
+        return str(p)
+    monkeypatch.setattr("loa_cheval.providers.gemini_headless_adapter.private_workspace", _ws)
+
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -179,9 +191,11 @@ class TestCommandConstruction:
         cmd = adapter._build_command(_make_request(), ModelConfig(), "hello prompt")
         # Required flags for safe non-interactive invocation
         assert cmd[0] == "gemini"
-        # -p must be present and followed by the prompt
+        # -p must be present: headless mode, with a fixed instruction — the prompt itself rides stdin, never argv, where any
+        # local user reads it through /proc/<pid>/cmdline and a >128 KiB one fails at exec (thirty-third run, e1b DISS-C-002)
         idx = cmd.index("-p")
-        assert cmd[idx + 1] == "hello prompt"
+        assert cmd[idx + 1] == GeminiHeadlessAdapter._ARGV_PROMPT
+        assert not any("hello prompt" in a for a in cmd)
         assert "--output-format" in cmd
         assert cmd[cmd.index("--output-format") + 1] == "json"
         assert "--approval-mode" in cmd
@@ -199,8 +213,16 @@ class TestCommandConstruction:
         # Two --policy flags in order
         policy_indices = [i for i, v in enumerate(cmd) if v == "--policy"]
         assert len(policy_indices) == 2
-        assert cmd[policy_indices[0] + 1] == "./.gemini/policy-a.json"
-        assert cmd[policy_indices[1] + 1] == "./.gemini/policy-b.json"
+        # resolved against the caller's directory: the CLI runs in an isolated cwd (thirty-second run, e2a DISS-C-004)
+        assert cmd[policy_indices[0] + 1] == os.path.abspath("./.gemini/policy-a.json")
+        assert cmd[policy_indices[1] + 1] == os.path.abspath("./.gemini/policy-b.json")
+
+    def test_a_home_relative_policy_path_is_expanded_before_the_cwd_moves(self):
+        # (thirty-sixth run, e1b DISS-C-003: `~/…` is the shell's, not gemini-cli's — abspath alone would make it
+        # <caller cwd>/~/…, a file that does not exist)
+        adapter = GeminiHeadlessAdapter(_make_config(extra={"gemini_policies": ["~/policies/p.toml"]}))
+        cmd = adapter._build_command(_make_request(), adapter.config.models["gemini-3-pro"], "x")
+        assert cmd[cmd.index("--policy") + 1] == os.path.join(os.path.expanduser("~"), "policies", "p.toml")
 
     def test_extra_flags_pass_through(self):
         adapter = GeminiHeadlessAdapter(
@@ -507,9 +529,9 @@ class TestEndToEnd:
             )
         called_cmd = mock_run.call_args.args[0]
         assert called_cmd[0] == "gemini"
-        # Confirm prompt was assembled with role prefixes and passed via -p
-        p_idx = called_cmd.index("-p")
-        prompt_passed = called_cmd[p_idx + 1]
+        # Confirm prompt was assembled with role prefixes and passed on stdin, never argv (thirty-third run, e1b DISS-C-002)
+        prompt_passed = mock_run.call_args.kwargs["input"]
+        assert not any("be terse" in a for a in called_cmd)
         assert "## System" in prompt_passed
         assert "be terse" in prompt_passed
         assert "ping" in prompt_passed
@@ -683,3 +705,102 @@ class TestLive:
         )
         assert "PONG" in result.content.upper()
         assert result.provider == "gemini-headless"
+
+
+def test_a_prompt_over_gemini_stdin_cap_is_a_walkable_hop_never_truncated():
+    """gemini-cli reads at most 8 MiB of stdin and silently truncates the rest: a larger prompt is refused before the spawn as
+    this hop's ProviderUnavailableError, never reviewed in part (thirty-third run, e1b DISS-C-002)."""
+    from loa_cheval.types import ProviderUnavailableError
+    adapter = GeminiHeadlessAdapter(_make_config())
+    # (the context-window gate is the first bound today; this one holds whatever window a catalog later grants)
+    with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run, \
+            patch("loa_cheval.providers.headless_cli.enforce_context_window"):
+        with pytest.raises(ProviderUnavailableError, match="8 MiB"):
+            adapter.complete(_make_request(messages=[{"role": "user", "content": "x" * (8 * 1024 * 1024)}]))
+    mock_run.assert_not_called()
+
+
+def test_a_lone_surrogate_prompt_is_counted_by_the_stdin_cap_and_walks_as_a_spawn_failure(tmp_path, monkeypatch):
+    """A prompt holding a lone surrogate (json.loads yields one from a `\\udXXX` escape) is counted by the stdin-cap guard,
+    never raised on there: the guard ran before the base's spawn seam, so a raw UnicodeEncodeError escaped the hop. It now
+    walks as the stdin encode's typed hop failure, as claude's does (cycle-126 thirty-seventh run, e1b DISS-C-001)."""
+    from loa_cheval.types import ProviderUnavailableError
+    adapter = GeminiHeadlessAdapter(_make_config())
+    with adapter._prepare_invocation(_make_request(), ModelConfig(), "a\ud800b") as inv:
+        assert inv.kwargs["input"] == "a\ud800b"
+    fake = tmp_path / "fake-gemini"
+    fake.write_text("#!/bin/sh\nexec sleep 30\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("GEMINI_HEADLESS_BIN", str(fake))
+    # (thirty-eighth run, e1b DISS-C-004: the encode failure itself, fast — never another hop failure, never the read deadline)
+    import time as _t
+    t0 = _t.monotonic()
+    with pytest.raises(ProviderUnavailableError, match="codec can't encode") as ei:
+        adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
+    assert _t.monotonic() - t0 < 10
+    assert isinstance(ei.value.__cause__, UnicodeEncodeError), repr(ei.value.__cause__)
+
+
+def test_an_ambient_sandbox_never_folds_the_prompt_into_argv(monkeypatch):
+    """gemini-cli's GEMINI_SANDBOX outranks --sandbox, which outranks settings.json's tools.sandbox, and a sandboxed run re-execs
+    with the piped stdin folded into the child's -p argument — back on argv, readable through /proc/<pid>/cmdline and over 128
+    KiB an exec failure. The hop runs with GEMINI_SANDBOX=false, which closes both ambient sources; only an operator --sandbox in
+    gemini_extra_flags keeps the operator's choice, the documented exposure (cycle-126 thirty-fourth run, e1b DISS-C-001)."""
+    monkeypatch.setenv("GEMINI_SANDBOX", "docker")
+    for extra, want in (({}, "false"), ({"gemini_extra_flags": ["--sandbox"]}, "docker"),
+                        ({"gemini_extra_flags": [["-s"]]}, "docker"),
+                        # (thirty-sixth run, e1b DISS-C-001: yargs reads a boolean option's `=value` as `value === "true"`, exactly —
+                        # any other value, a sandbox command's name too, asks for none; a following token is its value only when
+                        # it is the literal true / false, case-sensitive, so `--sandbox FALSE` asks for one)
+                        ({"gemini_extra_flags": ["--sandbox=podman"]}, "false"), ({"gemini_extra_flags": ["--sandbox=0"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=1"]}, "false"), ({"gemini_extra_flags": ["--sandbox=TRUE"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox="]}, "false"), ({"gemini_extra_flags": ["-s=true"]}, "docker"),
+                        ({"gemini_extra_flags": ["--sandbox=true"]}, "docker"), ({"gemini_extra_flags": [["--sandbox", "FALSE"]]}, "docker"),
+                        # (thirty-fifth run, e1b DISS-C-002: a flag that asks for NO sandbox — yargs reads a boolean's following
+                        # literal — is never "the operator asked for one"; the last of several wins)
+                        ({"gemini_extra_flags": [["--sandbox", "false"]]}, "false"), ({"gemini_extra_flags": [["-s", "false"]]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=false"]}, "false"), ({"gemini_extra_flags": ["--no-sandbox"]}, "false"),
+                        ({"gemini_extra_flags": ["--sandbox=FALSE"]}, "false"), ({"gemini_extra_flags": [["--sandbox", "true"]]}, "docker"),
+                        ({"gemini_extra_flags": ["--sandbox", "--no-sandbox"]}, "false"),
+                        ({"gemini_extra_flags": ["--no-sandbox", "--sandbox"]}, "docker"),
+                        # (thirty-seventh run, e1b DISS-C-002: yargs' short-option groups set every letter — `-sd` and `-ds` ask for
+                        # a sandbox; the group's last letter takes an `=value` or a following literal)
+                        ({"gemini_extra_flags": ["-sd"]}, "docker"), ({"gemini_extra_flags": ["-ds"]}, "docker"),
+                        ({"gemini_extra_flags": ["-ds=true"]}, "docker"), ({"gemini_extra_flags": ["-ds=false"]}, "false"),
+                        ({"gemini_extra_flags": [["-ds", "false"]]}, "false"), ({"gemini_extra_flags": [["-sd", "false"]]}, "docker"),
+                        ({"gemini_extra_flags": ["-sd", "--no-sandbox"]}, "false"), ({"gemini_extra_flags": ["-d"]}, "false")):
+        adapter = GeminiHeadlessAdapter(_make_config(extra=extra) if extra else _make_config())
+        with patch("loa_cheval.providers.gemini_headless_adapter.run_subprocess_pgkill") as mock_run:
+            mock_run.return_value = _ok_proc(SAMPLE_OK_JSON)
+            adapter.complete(_make_request())
+        assert mock_run.call_args.kwargs["env"]["GEMINI_SANDBOX"] == want, extra
+        assert mock_run.call_args.kwargs["input"]
+
+
+def test_an_operator_sandbox_is_warned_and_bounds_the_argv_it_folds_the_prompt_into(monkeypatch, caplog):
+    """An operator --sandbox keeps gemini-cli's sandbox, which folds the stdin prompt into the sandbox child's -p argument: the
+    hop says so (a WARNING naming the exposure) and refuses, before any spawn and walkable, a prompt one argument cannot hold
+    (MAX_ARG_STRLEN, 128 KiB) — never an opaque exec failure (cycle-126 thirty-eighth run, e1b DISS-C-002)."""
+    import logging
+    from loa_cheval.types import ProviderUnavailableError
+    cfg = ModelConfig(extra={"gemini_extra_flags": ["--sandbox"]})
+    adapter = GeminiHeadlessAdapter(_make_config())
+    with caplog.at_level(logging.WARNING, logger="loa_cheval.providers.gemini_headless"):
+        with adapter._prepare_invocation(_make_request(), cfg, "small prompt") as inv:
+            assert inv.kwargs["input"] == "small prompt"
+    assert any("sandbox" in r.getMessage() and "argv" in r.getMessage() for r in caplog.records), caplog.text
+    for big in ("x" * (130 * 1024), "\u00e9" * (65 * 1024)):   # (bytes, never characters: two per é)
+        with pytest.raises(ProviderUnavailableError, match="sandbox"):
+            with adapter._prepare_invocation(_make_request(), cfg, big):
+                pass
+    # without a sandbox the same prompt rides stdin, unbounded but by the 8 MiB cap
+    with adapter._prepare_invocation(_make_request(), ModelConfig(), "x" * (130 * 1024)) as inv:
+        assert len(inv.kwargs["input"]) == 130 * 1024
+
+
+def test_the_end_of_options_token_ends_the_sandbox_reading(monkeypatch):
+    """yargs reads every token after `--` as positional: `-- --sandbox` asks gemini for no sandbox, so the hop's
+    GEMINI_SANDBOX=false still closes the ambient one (cycle-126 thirty-eighth run, e1b DISS-C-003)."""
+    from loa_cheval.providers.gemini_headless_adapter import _asks_sandbox
+    assert not _asks_sandbox(["--", "--sandbox"]) and not _asks_sandbox(["--", "-s"]) and not _asks_sandbox(["--", "-sd"])
+    assert _asks_sandbox(["--sandbox", "--", "x"]) and _asks_sandbox(["--sandbox", "--", "--no-sandbox"])

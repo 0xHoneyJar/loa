@@ -530,3 +530,80 @@ EOF
     [ "$status" -ne 124 ]                       # not a timeout
     [[ "$output" == *"exceeds 2000 chars"* ]]   # the cap fired with its WARN
 }
+
+# =============================================================================
+# bd-8ndx: under pipefail, `printf '%s' "$big" | grep -q` loses the race — grep
+# exits on its first match, printf takes SIGPIPE, the pipeline returns 141 and
+# `!` reads a present section as missing. The checks read here-strings instead.
+# =============================================================================
+
+filler() { awk 'BEGIN { for (i = 0; i < 40000; i++) print "- filler line " i " ................................................" }'; }
+
+@test "validate-artifact sprint: a block far larger than a pipe buffer with its sections at the top passes (bd-8ndx)" {
+    {
+        sprint_block "## Sprint 1: Foundation"
+        filler
+        echo
+        cat <<'EOF2'
+## Sprint 2 (Final): Wrap-up
+
+### Sprint Goal
+finish
+
+### Deliverables
+- [ ] d
+
+### Acceptance Criteria
+- [ ] c
+
+### Technical Tasks
+- [ ] Task 2.E2E: End-to-End Goal Validation → **[G-1]**
+
+### Dependencies
+- Sprint 1
+
+### Security Considerations
+- none
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| r | Low | Low | m |
+
+### Success Metrics
+- m
+EOF2
+        filler
+        cat <<'EOF2'
+
+## Appendix
+
+| Goal ID | Goal Description | Contributing Tasks | Validation Task |
+|---|---|---|---|
+| G-1 | thing | Sprint 1 | Sprint 2 |
+EOF2
+    } > "${TEST_TMPDIR}/sprint.md"
+    local i
+    for i in 1 2 3; do
+        run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/sprint.md"
+        [ "$status" -eq 0 ] || { echo "run $i: $output"; return 1; }
+        [[ "$output" != *"missing required section"* && "$output" != *"no E2E"* && "$output" != *"Security Considerations"* ]]
+    done
+}
+
+@test "validate-artifact prd: a section body far larger than a pipe buffer with '> Sources:' at the top passes (bd-8ndx)" {
+    {
+        printf '## 1. Problem Statement\n\n> Sources: vision.md:12-15\n\n'
+        filler
+    } > "${TEST_TMPDIR}/prd.md"
+    local i
+    for i in 1 2 3; do
+        run "$SCRIPT" --type prd --file "${TEST_TMPDIR}/prd.md"
+        [[ "$output" != *"has no '> Sources:' line"* ]] || { echo "run $i: $output"; return 1; }
+    done
+}
+
+@test "validate-artifact: no check pipes a variable into grep -q (bd-8ndx)" {
+    run grep -nE "printf '%s' \"\\\$[a-z_]+\" \| grep -q" "$SCRIPT"
+    [ "$status" -eq 1 ]
+}

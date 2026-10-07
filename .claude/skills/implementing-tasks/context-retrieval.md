@@ -105,7 +105,7 @@ Execute searches based on task type:
    ```
 
 ### Phase 3: Tool Result Clearing
-After heavy searches (>20 results or >2000 tokens):
+After heavy searches (>20 results, or tokens above the single-search row for the session's context class: `.run/context-class`, the table in `.claude/protocols/tool-result-clearing.md`):
 
 1. **Extract high-signal findings** (max 10 files):
    - File path + line numbers
@@ -189,6 +189,8 @@ export LOA_SEARCH_MODE
 ---
 
 ## Attention Budget Management
+
+Limits below are the `standard` class; under `long` (the default — `.run/context-class`) they are ten times larger (`.claude/protocols/tool-result-clearing.md`).
 
 | Operation | Token Limit | Action on Exceed |
 |-----------|-------------|------------------|
@@ -318,7 +320,7 @@ Context loading is successful when:
 
 This protocol integrates with:
 - `.claude/protocols/tool-result-clearing.md` - Memory management
-- `.claude/protocols/trajectory-evaluation.md` - Reasoning audit
+- `.claude/protocols/reference/trajectory-evaluation.md` - Reasoning audit
 - `.claude/protocols/citations.md` - Code evidence requirements
 - `.claude/scripts/search-orchestrator.sh` - Search execution
 

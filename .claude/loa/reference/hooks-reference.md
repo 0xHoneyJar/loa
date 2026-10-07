@@ -173,6 +173,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
 | UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
 | SessionStart | (all) | `hook-guard.sh session-start/loa-run-state-surface.sh` | One `Run: <state> (<age>) → <command>` line when a run is HALTED/INTERRUPTED or RUNNING idle 12h+, plus a session-limit-reset line; silent otherwise (cycle-125 FR-3; also feeds `/loa` and `workflow-state.sh`) |
+| SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` | Writes `.run/context-class` — `long` by default, `standard` under `LOA_CONTEXT_CLASS=standard` or a ≤ 200K session model — the class the skills' context-discipline thresholds follow (`tool-result-clearing.md`); `/loa` shows it; a re-fire on clear/compact/resume with no model keeps a `model`/`env` record; silent, never blocks |
 | PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
 | PreToolUse | Bash | `safety/team-role-guard.sh` | Enforce lead-only ops in Agent Teams |
 | PreToolUse | Write | `safety/team-role-guard-write.sh` | Block teammate writes to System Zone, state files, and append-only files |
@@ -183,7 +184,7 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | PostToolUse | Write | `audit/write-mutation-logger.sh` | Log Write tool file modifications |
 | PostToolUse | Edit | `audit/write-mutation-logger.sh` | Log Edit tool file modifications |
 | Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
-| PreToolUse (opt-in, UNWIRED by default) | Write/Edit | `compliance/implement-gate.sh` | ADVISORY FR-7 prototype: App Zone write outside /implement — parked; wire manually per §implement-gate.sh |
+| PreToolUse | Write/Edit/MultiEdit/NotebookEdit | `hook-guard.sh compliance/implement-gate.sh` | ADVISORY: `ask` on an App Zone write outside an active implementation run, on a write to the gate's own trust inputs, and whenever the write cannot be evaluated; never blocks (§implement-gate.sh) |
 | Stop (opt-in, UNREGISTERED by default) | (all) | `safety/stop-input-probe.sh` | DIAGNOSTIC: gated by `LOA_STOP_INPUT_PROBE=1`; dumps raw Stop input to `.run/stop-input-probe.jsonl` for one cap-hitting session — never in `settings.hooks.json` |
 
 ## Compliance Hooks — Agent Hook Pattern (v1.40.0)
@@ -197,37 +198,40 @@ See `.claude/hooks/settings.hooks.json` for the complete hook configuration.
 | Performance | <10ms | <100ms (file I/O) |
 | Scope | Syntax-level (command text) | Semantic-level (active skill context) |
 
-### implement-gate.sh (FR-7 Prototype)
+### implement-gate.sh (FR-7)
 
-**Type**: Command hook (ADVISORY)
-**Trigger**: PreToolUse on Write/Edit
-**Detection**: Reads `.run/sprint-plan-state.json`, `.run/simstim-state.json`, `.run/state.json`
+**Type**: Command hook (ADVISORY: asks, never blocks). **Wired by default** in `.claude/settings.json` and `.claude/hooks/settings.hooks.json` through `hook-guard.sh`, matcher `Write|Edit|MultiEdit|NotebookEdit`.
+
+**Output** (Claude Code PreToolUse contract): allow is a silent exit 0 with empty stdout; ask is exit 0 with `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}`. A top-level `decision` field is never emitted.
+
+**Path rule**: the path is `tool_input.file_path`, or `tool_input.notebook_path` for NotebookEdit. A relative path resolves from the payload's `cwd`. The root is `PROJECT_ROOT`, else `CLAUDE_PROJECT_DIR`, else the hook's own location (`<root>/.claude/hooks/compliance/`), never the process cwd, which follows Claude's `cd`. Both sides are canonicalised. The path counts as App Zone (`src/`, `lib/`, `app/`, at any depth under the root) when its physical form (symlinks followed) or its logical form (symlinks kept) matches, compared lowercased.
+
+**Modes**: heuristic is the default. `implement_gate.mode: authoritative` in `.loa.config.yaml` (undocumented while the payload carries no harness-set skill field) reads the model-authored `tool_input.active_skill` and is tighten-only. A non-implementation claim asks; an implementation claim (`implement`, `bug`, `run`, `simstim`) falls through to the heuristic and never allows by itself. An absent field falls through too.
+
+**Heuristic**: an App Zone write is allowed only when one state file shows an active run that is at most 24 h old:
+
+| State file | Allows when | Freshness field |
+|------------|-------------|-----------------|
+| `.run/sprint-plan-state.json` | `state == RUNNING` and a `plan_id` | `.timestamps.last_activity` (over 24 h asks) |
+| `.run/simstim-state.json` | `phase == implementation` | `.timestamps.last_activity` (absent, unparsable or over 24 h asks) |
+| `.run/state.json` | `state == RUNNING` | `.timestamps.last_activity`, else `.updated_at` (absent, unparsable or over 24 h asks) |
 
 **Decision matrix**:
 
-| File Zone | State Found | State Valid | Decision |
-|-----------|------------|-------------|----------|
-| Non-App | Any | Any | `allow` |
-| App | RUNNING | Fresh + has plan_id | `allow` |
-| App | RUNNING | Stale (>24h) | `ask` |
-| App | RUNNING | Missing plan_id | `ask` |
-| App | JACKED_OUT/HALTED | — | `ask` |
-| App | Missing/corrupt | — | `ask` |
+| Write | Decision |
+|-------|----------|
+| Payload unparsable, `jq` missing, or a path that cannot be canonicalised | `ask` (fail-ask) |
+| A trust input: `.run/state.json`, `.run/sprint-plan-state.json`, `.run/simstim-state.json`, `.run/platform-features.json`, `.run/audit.jsonl`, `.loa.config.yaml` | `ask` + `compliance.state_write` row |
+| Any other non-App-Zone path, or a payload without a path | `allow` |
+| App Zone, authoritative mode, non-implementation claim | `ask` + `compliance.mode.model_signal` row (`decision: ask`) |
+| App Zone, a fresh state file as above | `allow` |
+| App Zone, no fresh state file | `ask` |
 
-**Installation**: Merge into `~/.claude/settings.json` PreToolUse hooks:
-```json
-{
-  "matcher": "Write|Edit",
-  "hooks": [{"type": "command", "command": ".claude/hooks/compliance/implement-gate.sh"}]
-}
-```
+**Audit events** (plain rows in `.run/audit.jsonl`, not the signed `audit_emit` chain; model-authored values cut to 256 bytes and written with `jq -a`): `compliance.state_write`; `compliance.mode.model_signal`, one row per authoritative-mode claim (`decision: ask` or `heuristic`); `compliance.mode.fallback` when authoritative mode sees no claim. Paths and claims shown on stderr have control and format characters stripped.
 
-**Known limitations**:
-- Cannot detect direct `/implement` without `/run` (no state file)
-- Heuristic only — not authoritative skill context (platform doesn't expose this)
-- Labeled ADVISORY in all output messages
+**Accepted gaps**: writes through the Bash tool are not seen (the C-PROC-001 fence gap). The heuristic trusts `.run/` files a Bash command can write (bead bd-taee). A direct `/implement` without `/run` leaves no state file, so its writes ask.
 
-**Tests**: `tests/unit/compliance-hook.bats` (7 tests)
+**Tests**: `tests/unit/implement-gate.bats`, `tests/unit/compliance-hook.bats`.
 
 ## block-destructive-bash.sh — Full Pattern Set & Posture (moved from CLAUDE.loa.md)
 

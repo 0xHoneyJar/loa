@@ -31,6 +31,9 @@ source "$SCRIPT_DIR/lib/dx-utils.sh"
 STRICT=false
 JSON_OUTPUT=false
 SINGLE_SKILL=""
+AGENT_TYPES_FILE_ARG=""
+# The ambient AGENT_TYPES_FILE variable is ignored (audit run 3, finding 13): only --agent-types-file redirects
+unset AGENT_TYPES_FILE
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,16 +48,26 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             SINGLE_SKILL="$2"; shift 2 ;;
+        --agent-types-file)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --agent-types-file requires a path" >&2
+                echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]" >&2
+                exit 2
+            fi
+            AGENT_TYPES_FILE_ARG="$2"; shift 2 ;;
         -h|--help)
-            echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME]"
+            echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]"
             echo "  --strict   Promote warnings to errors"
             echo "  --json     Output as JSON"
             echo "  --skill    Validate single skill"
+            echo "  --agent-types-file PATH"
+            echo "             Test seam: read the write-capable agent types from PATH instead of"
+            echo "             .claude/data/agent-types.yaml (the AGENT_TYPES_FILE variable is ignored)"
             exit 0
             ;;
         *)
-            dx_unknown_flag "$1" "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME]" \
-                --strict --json --skill --help
+            dx_unknown_flag "$1" "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]" \
+                --strict --json --skill --agent-types-file --help
             exit 2
             ;;
     esac
@@ -104,8 +117,22 @@ should_skip() {
 # --- Agent types that include Write/Edit in their tool allowlist (Issue #553) ---
 # When a skill declares write capability (capabilities.write_files: true OR
 # allowed-tools lists Write/Edit), its agent: frontmatter key MUST be unset
-# or set to one of these. See .claude/rules/skill-invariants.md.
-WRITE_CAPABLE_AGENTS=("general-purpose")
+# or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
+# D-4.4); a missing or unparsable file, or one with no `write_capable: true`
+# entry, leaves general-purpose only.
+# The ambient environment can no longer redirect the allowlist (audit run 3,
+# finding 13): the AGENT_TYPES_FILE variable is ignored. The explicit
+# --agent-types-file argument can, by design — it is the test seam, visible on
+# the command line of whoever invokes the validator.
+# See .claude/rules/skill-invariants.md.
+AGENT_TYPES_FILE="${AGENT_TYPES_FILE_ARG:-$PROJECT_ROOT/.claude/data/agent-types.yaml}"
+WRITE_CAPABLE_AGENTS=()
+if [[ -f "$AGENT_TYPES_FILE" ]]; then
+    while IFS= read -r _agent; do
+        [[ "$_agent" =~ ^[A-Za-z0-9_-]+$ ]] && WRITE_CAPABLE_AGENTS+=("$_agent")
+    done < <(yq eval '.agent_types | to_entries | .[] | select(.value.write_capable == true) | .key' "$AGENT_TYPES_FILE" 2>/dev/null || true)
+fi
+[[ ${#WRITE_CAPABLE_AGENTS[@]} -gt 0 ]] || WRITE_CAPABLE_AGENTS=("general-purpose")
 
 is_write_capable_agent() {
     local agent="$1"

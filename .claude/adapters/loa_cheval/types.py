@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -15,7 +16,11 @@ class CompletionRequest:
 
     messages: List[Dict[str, Any]]  # [{"role": "system"|"user"|"assistant"|"tool", "content": str}]
     model: str  # Provider-specific model ID (e.g., "gpt-5.2")
-    temperature: float = 0.7
+    # cycle-126 FR-1.3 (SDD D-1.3): unset by default — the wire carries no
+    # sampling parameter unless a caller sets one (thinking models reject it,
+    # the rest use the provider default). LOA_CHEVAL_LEGACY_WIRE restores the
+    # pre-cycle 0.7 in the adapters.
+    temperature: Optional[float] = None
     max_tokens: int = 4096
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[str] = None  # "auto" | "none"; "required" raises on Anthropic (a 400 on Fable 5.1), Bedrock still maps it to "any"
@@ -170,6 +175,125 @@ class ModelConfig:
     # from FR-8.6 stress test results; defaults to 50 if absent. Operator
     # tunes per model in `.claude/defaults/model-config.yaml`.
     headless_concurrency_limit: Optional[int] = None
+    # cycle-126 sprint-248 (review round 1, fourth live run): per-model read bound for a CLI hop.
+    # The headless adapter's timeout is max(connect, 10) + max(read_timeout, 600); a long dissent on
+    # claude -p takes 6–10 minutes, so the catalog can raise the floor per model. None → 600 s floor.
+    # CLI hops only (`kind: cli`, or any model of a `*-headless` provider type — cheval.py `_headless_timeout_raw`): it is
+    # dropped with a warning on any other model (twenty-second run, d DISS-C-001). The value stored
+    # here is the EFFECTIVE one — coerce_headless_timeout_seconds clamps it to HEADLESS_TIMEOUT_CEILING_SECONDS
+    # at load, so every reader (the adapter, adversarial-review.sh's wait cap) sees the same bound.
+    headless_timeout_seconds: Optional[float] = None
+    # sixteenth run, d C-001: when the raw catalog value was NOT applied as written (unusable, clamped, or under the read
+    # floor) the loader's verdict in one line — a value dropped on a non-CLI model has none: no headless adapter ever reads
+    # that model's config, so its report is the load-time WARNING alone (twenty-ninth run, d DISS-C-001). The load-time WARNING is one-shot on stderr, which the dissent path
+    # discards; the adapter appends this to its timeout error instead, so the MODELINV row and the companion diagnostic
+    # say why the hop ran on the 600 s floor. None when there was no value or it applied as written.
+    headless_timeout_note: Optional[str] = None
+
+
+# A catalog `headless_timeout_seconds` never buys more than an hour per hop. One constant, clamped at load;
+# adversarial-review.sh mirrors it as `_ADV_CLI_HOP_CEILING` (NRM-18 pins the two equal).
+HEADLESS_TIMEOUT_CEILING_SECONDS: float = 3600.0
+
+# The load-time reports are made ONCE per process per (where, value): a chain walk rebuilds the provider config per
+# hop, which would otherwise repeat the same line for every hop (twelfth run, d C-002).
+_HEADLESS_TIMEOUT_REPORTED: set = set()
+# (thirty-second run, d DISS-C-002: the check and the add are one step — two threads never both report a key)
+_HEADLESS_TIMEOUT_REPORT_LOCK = threading.Lock()
+
+
+def reset_headless_timeout_reports() -> None:
+    """Forget what was reported (tests; a process that reloads its catalog)."""
+    _HEADLESS_TIMEOUT_REPORTED.clear()
+
+
+def report_headless_timeout_once(key: tuple, message: str, *args: Any) -> None:
+    """Log `message` at WARNING on the config logger unless `key` was reported before in this process."""
+    import logging
+    with _HEADLESS_TIMEOUT_REPORT_LOCK:
+        if key in _HEADLESS_TIMEOUT_REPORTED:
+            return
+        _HEADLESS_TIMEOUT_REPORTED.add(key)
+    logging.getLogger("loa_cheval.config").warning(message, *args)
+
+
+def usable_headless_timeout(raw: Any) -> Optional[float]:
+    """The one predicate for a `headless_timeout_seconds` value (fourteenth run, d C-001): a positive finite number —
+    an int, a float or a numeric string such as "900" (YAML authors quote numbers) — as a float; anything else None.
+    Both the load-time coercion and the adapter's bare-ModelConfig path use it, so they never disagree."""
+    import math
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):   # (OverflowError: a YAML integer too large for a double — twelfth run, d C-001)
+        return None
+    if not math.isfinite(value) or value <= 0:
+        return None
+    return value
+
+
+def headless_read_floor(read_timeout: Any) -> float:
+    """The headless adapter's read floor, max(read_timeout, 600), through the one timeout predicate (run 24, d DISS-C-002):
+    the loader's note and the adapter's bound both read it here, so a quoted "900", a zero or a non-number never makes
+    the note name a floor the adapter did not use (nor the adapter TypeError on a string)."""
+    return max(usable_headless_timeout(read_timeout) or 0.0, 600.0)
+
+
+def headless_connect_floor(connect_timeout: Any) -> float:
+    """The headless adapter's connect floor, max(connect_timeout, 10), through the same predicate (run 26, d DISS-C-001):
+    a quoted "30", a null or a non-number never raises TypeError at a hop."""
+    return max(usable_headless_timeout(connect_timeout) or 0.0, 10.0)
+
+
+def coerce_headless_timeout_seconds(raw: Any, *, where: str = "") -> Optional[float]:
+    """Validate a catalog `headless_timeout_seconds` once, at load (cycle-126 sprint-248, review round 1):
+    a positive finite number is returned as a float, clamped to HEADLESS_TIMEOUT_CEILING_SECONDS (one warning
+    when it was above); None stays None; anything else (a boolean, a string such as "15m", zero, a negative,
+    NaN or infinite value) is reported ONCE and dropped, so the adapter's arithmetic sees a typed, effective
+    field and the 600 s floor applies without per-hop log noise (tenth run, d C-001)."""
+    import math
+    if raw is None:
+        return None
+    key = ("coerce", where, repr(raw))
+    if isinstance(raw, bool):
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: a boolean is not a number of seconds", where, raw)
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):   # (OverflowError: a YAML integer too large for a double — twelfth run, d C-001)
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: not a number of seconds", where, raw)
+        return None
+    if not math.isfinite(value) or value <= 0:
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r ignored: not a positive finite number of seconds", where, raw)
+        return None
+    if value > HEADLESS_TIMEOUT_CEILING_SECONDS:
+        report_headless_timeout_once(key, "%sheadless_timeout_seconds %r clamped to %.0fs: a catalog value never buys more than an hour per hop",
+                                     where, raw, HEADLESS_TIMEOUT_CEILING_SECONDS)
+        return HEADLESS_TIMEOUT_CEILING_SECONDS
+    return value
+
+
+def headless_timeout_note(raw: Any, gated: Any, effective: Optional[float], floor: Optional[float] = None) -> Optional[str]:
+    """One durable line when a catalog `headless_timeout_seconds` was NOT applied as written (sixteenth run, d C-001):
+    `raw` is the catalog value, `gated` what the CLI-only gate let through, `effective` what the coercion stored, `floor`
+    the provider's read floor (max(read_timeout, 600)) — a value at or below it is not applied either: the floor wins
+    (nineteenth run, d C-001). None when there was no value, or it applied as written — and when the CLI-only gate dropped
+    it: only a headless adapter reads the note, and a dropped model never runs on one, so the loader's one-shot WARNING is
+    that case's report (twenty-ninth run, d DISS-C-001)."""
+    if raw is None or gated is None:
+        return None
+    if effective is None:
+        return f"catalog headless_timeout_seconds {raw!r} ignored: not a positive finite number of seconds"
+    usable = usable_headless_timeout(raw)
+    clamped = usable is not None and usable > HEADLESS_TIMEOUT_CEILING_SECONDS
+    # the floor is checked first: a clamped value the floor still overrides ran on the floor (twentieth run, d C-002)
+    if floor is not None and effective <= floor:
+        via = f" clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s," if clamped else ""
+        return f"catalog headless_timeout_seconds {raw!r}{via} at or below the {floor:.0f}s read floor: the floor applies"
+    if clamped:
+        return f"catalog headless_timeout_seconds {raw!r} clamped to {HEADLESS_TIMEOUT_CEILING_SECONDS:.0f}s"
+    return None
 
 
 # --- Error Types ---
@@ -219,10 +343,17 @@ class ModelNotFoundError(ProviderUnavailableError):
 
 
 class RateLimitError(ChevalError):
-    """Provider returned 429 Too Many Requests."""
+    """Provider returned 429 Too Many Requests.
 
-    def __init__(self, provider: str, retry_after: Optional[float] = None):
-        super().__init__("RATE_LIMITED", f"Rate limited by {provider}", retryable=True, context={"provider": provider, "retry_after": retry_after})
+    ``token_limited`` is True when the provider's message says the limit hit is
+    a token (input/context) one rather than a request rate — only that class
+    ends the chain for a hop above its probed bound (cycle-126 D-1.1b, BB-003).
+    """
+
+    def __init__(self, provider: str, retry_after: Optional[float] = None, token_limited: bool = False):
+        super().__init__("RATE_LIMITED", f"Rate limited by {provider}", retryable=True,
+                         context={"provider": provider, "retry_after": retry_after, "token_limited": bool(token_limited)})
+        self.token_limited = bool(token_limited)
 
 
 class BudgetExceededError(ChevalError):
@@ -242,6 +373,43 @@ class ContextTooLargeError(ChevalError):
             retryable=False,
             context={"estimated_tokens": estimated_tokens, "available": available, "context_window": context_window},
         )
+
+
+class ProviderContextLimitError(ChevalError):
+    """The provider refused the request as too large for the model (an HTTP
+    400 of the prompt-too-long class, or 413) — cycle-126 D-1.1b.
+
+    Distinct from `ContextTooLargeError` (cheval's own estimate against the
+    catalog window, walkable to an entry with a larger window): this is the
+    provider's verdict on the payload, so it is NOT walked — the next voice
+    would receive the same payload. `input_tokens` / `limit` / `max_tokens`
+    are filled when the provider's message states them, which lets the
+    retry layer shrink the output budget once (input + max_tokens shape) and
+    the self-correction record the observed bound.
+    """
+
+    def __init__(
+        self,
+        provider: str,
+        message: str,
+        *,
+        status: Optional[int] = None,
+        input_tokens: Optional[int] = None,
+        limit: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+    ):
+        super().__init__(
+            "CONTEXT_TOO_LARGE",
+            message,
+            retryable=False,
+            context={"provider": provider, "status": status, "input_tokens": input_tokens,
+                     "limit": limit, "max_tokens": max_tokens},
+        )
+        self.provider = provider
+        self.status = status
+        self.input_tokens = input_tokens
+        self.limit = limit
+        self.max_tokens = max_tokens
 
 
 class RetriesExhaustedError(ChevalError):
@@ -505,7 +673,12 @@ def dispatch_provider_stream_error(
     detail = error.message_detail
 
     if category == "rate_limit":
-        return RateLimitError(provider=provider or "unknown")
+        try:
+            from loa_cheval.routing.ceiling import is_token_limit_message
+            _token_limited = is_token_limit_message(detail)
+        except Exception:  # noqa: BLE001 — classification must not fail the dispatch; unknown = request-rate (walks)
+            _token_limited = False
+        return RateLimitError(provider=provider or "unknown", token_limited=_token_limited)
     if category == "overloaded":
         return ProviderUnavailableError(
             provider=provider or "unknown",

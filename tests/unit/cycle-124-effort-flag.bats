@@ -42,7 +42,9 @@ _field() {  # <json> <field>
     _dry_run --model opus --effort xhigh
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
     [ "$(_field "$output" "['effort']")" = "xhigh" ]
-    [ "$(_field "$output" "['resolved_model']")" = "claude-opus-5" ]
+    # cycle-126 Task 4.1: `opus` follows the catalog alias (claude-opus-5-5).
+    local opus_target; opus_target="$(yq -r '.aliases.opus' "$PROJECT_ROOT/.claude/defaults/model-config.yaml")"
+    [ "$(_field "$output" "['resolved_model']")" = "${opus_target#*:}" ]
     local mt; mt="$(_field "$output" "['max_tokens']")"
     [ "$mt" -ge 64000 ]
 }
@@ -54,10 +56,18 @@ _field() {  # <json> <field>
     [ "$(_field "$output" "['max_tokens']")" = "64000" ]
 }
 
-@test "c124-1.4-3: non-Anthropic default stays 4096 (FR-2 is Anthropic-only)" {
+@test "c124-1.4-3: non-Anthropic default is min(16000, catalog max_output_tokens) (cycle-126 FR-1.3)" {
     _dry_run --model gpt-5.5
     [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
-    [ "$(_field "$output" "['max_tokens']")" = "4096" ]
+    [ "$(_field "$output" "['max_tokens']")" = "16000" ]
+}
+
+@test "c124-1.4-3b: --help states the non-Anthropic default, not the pre-FR-1.3 4096" {
+    run "$PYTHON_BIN" "$CHEVAL_PY" --help
+    [ "$status" -eq 0 ]
+    local flat; flat="$(printf '%s' "$output" | tr -s ' \n' ' ')"
+    [[ "$flat" != *"other providers 4096"* ]]
+    [[ "$flat" == *"other providers min(16000, catalog max_output_tokens)"* ]]
 }
 
 @test "c124-1.4-4: LOA_CHEVAL_DISABLE_STREAMING=1 ⇒ 16000 non-streaming default" {

@@ -32,9 +32,11 @@ _extract_validator() {
     [ "$status" -ne 0 ]
 }
 
-@test "gemini-3.1-pro NOT in VALID_FLATLINE_MODELS" {
-    run grep -E "VALID_FLATLINE_MODELS=\\(.*gemini-3\\.1-pro" "$ORCH"
+@test "bare gemini-3.1-pro NOT in VALID_FLATLINE_MODELS (only the -preview id is listed)" {
+    run grep -E "VALID_FLATLINE_MODELS=\\(.*gemini-3\\.1-pro([^-]|$)" "$ORCH"
     [ "$status" -ne 0 ]
+    run grep -E "VALID_FLATLINE_MODELS=\\(.*gemini-3\\.1-pro-preview" "$ORCH"
+    [ "$status" -eq 0 ]
 }
 
 @test "gemini-3-pro NOT in MODEL_TO_PROVIDER_ID" {
@@ -51,8 +53,14 @@ _extract_validator() {
     [ "$status" -eq 0 ]
 }
 
-@test "gemini-2.5-pro still in VALID_FLATLINE_MODELS" {
-    run grep -E "VALID_FLATLINE_MODELS=\\(.*gemini-2\\.5-pro" "$ORCH"
+@test "gemini-2.5-pro still accepted by validate_model (forward-compat pattern; cycle-126 dropped it from the literal list)" {
+    _extract_validator
+    run bash -c "
+        log() { :; }
+        error() { echo \"ERROR: \$*\" >&2; }
+        source '$TEST_DIR/validator.sh'
+        validate_model 'gemini-2.5-pro' 'tertiary' 2>/dev/null
+    "
     [ "$status" -eq 0 ]
 }
 

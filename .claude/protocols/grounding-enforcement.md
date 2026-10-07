@@ -133,8 +133,8 @@ grep -rn "validateToken\|JWT\|token" "${PROJECT_ROOT}/src/"
 
 ## Related Protocols
 
-- [Session Continuity](session-continuity.md) - Session lifecycle including grounding handoff
+- [Session Continuity](reference/session-continuity.md) - Session lifecycle including grounding handoff
 - [Synthesis Checkpoint](synthesis-checkpoint.md) - Pre-clear validation including grounding
 - [JIT Retrieval](jit-retrieval.md) - Token-efficient evidence retrieval
-- [Trajectory Evaluation](trajectory-evaluation.md) - Logging claims with grounding type
+- [Trajectory Evaluation](reference/trajectory-evaluation.md) - Logging claims with grounding type
 - [Citations](citations.md) - Word-for-word citation requirements

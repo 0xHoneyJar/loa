@@ -566,9 +566,9 @@ class TestEndToEnd:
             )
         called_cmd = mock_run.call_args.args[0]
         assert called_cmd[0] == "claude"
-        # Confirm prompt was assembled with role prefixes and passed via -p
-        p_idx = called_cmd.index("-p")
-        prompt_passed = called_cmd[p_idx + 1]
+        # Confirm prompt was assembled with role prefixes and passed on stdin, never argv (thirtieth run, e1 DISS-C-001)
+        prompt_passed = mock_run.call_args.kwargs["input"]
+        assert called_cmd[called_cmd.index("-p") + 1] == "--output-format"
         assert "## System" in prompt_passed
         assert "be terse" in prompt_passed
         assert "ping" in prompt_passed
@@ -692,3 +692,90 @@ class TestLive:
         )
         assert "PONG" in result.content.upper()
         assert result.provider == "claude-headless"
+
+
+# ---------------------------------------------------------------------------
+# Prompt transport (cycle-126 sprint-248, twenty-second run: a companion prompt over the per-argument limit
+# made the spawn fail with E2BIG — `[Errno 7] Argument list too long` — on every retry)
+# ---------------------------------------------------------------------------
+
+
+class TestPromptTransport:
+    # thirtieth run, e1 DISS-C-001: the prompt is ALWAYS on stdin — an argv prompt is readable by every local user through
+    # /proc/<pid>/cmdline and `ps` for the life of the process, and one transport means one behaviour for a NUL or a lone
+    # surrogate at any size (the size split it replaces existed only for E2BIG)
+    def _invocation(self, prompt):
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        with adapter._prepare_invocation(_make_request(), ModelConfig(), prompt) as inv:
+            return inv
+
+    @pytest.mark.parametrize("prompt", ["hello prompt", "x" * 100_001, "é" * 50_001, "a\x00b"])
+    def test_every_prompt_goes_on_stdin_never_argv(self, prompt):
+        inv = self._invocation(prompt)
+        assert inv.kwargs.get("input") == prompt
+        assert not any(prompt in a for a in inv.command)
+        # `-p` is a flag; with no positional prompt claude reads the prompt from stdin
+        assert inv.command[inv.command.index("-p") + 1] == "--output-format"
+
+    def test_a_lone_surrogate_prompt_walks_and_reaps_its_child(self, tmp_path, monkeypatch):
+        """Thirty-first run, e1 DISS-C-002: the comment above, pinned — a prompt stdin cannot encode is a hop failure that
+        walks the chain (ProviderUnavailableError, never a raw UnicodeEncodeError), and the child spawned before the encode is
+        reaped at once, never left on an unwritten pipe until the hop's deadline."""
+        import subprocess
+        import time as _t
+        from loa_cheval.types import ProviderUnavailableError
+        fake = tmp_path / "fake-claude"
+        fake.write_text("#!/bin/sh\nexec sleep 30\n")
+        fake.chmod(0o755)
+        monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
+        # (thirty-eighth run, e1 DISS-C-002: the child's pid is recorded where it is spawned, never by the child — a pid file
+        # the child had not yet written let a reap regression pass on exactly the fast-kill timing)
+        spawned = []
+        real_popen = subprocess.Popen
+
+        class _Recording(real_popen):
+            def __init__(self, *a, **k):
+                super().__init__(*a, **k)
+                spawned.append(self.pid)
+        monkeypatch.setattr(subprocess, "Popen", _Recording)
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        t0 = _t.monotonic()
+        with pytest.raises(ProviderUnavailableError) as ei:
+            adapter.complete(_make_request(messages=[{"role": "user", "content": "a\ud800b"}]))
+        assert _t.monotonic() - t0 < 10
+        chain, e = [], ei.value
+        while e is not None and len(chain) < 10:
+            chain.append(type(e).__name__)
+            e = e.__cause__ or e.__context__
+        assert "UnicodeEncodeError" in chain, chain   # (the encode path, never another failure)
+        assert len(spawned) == 1 and spawned[0] > 0, spawned   # (a spawn happened: never os.kill(0, …) — this process group)
+        pid = spawned[0]
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return   # (killed and waited for: the pid is gone, never a zombie)
+        os.kill(pid, 9)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+        pytest.fail("the spawned claude outlived a prompt that could not be encoded, or was never waited for")
+
+    def test_the_argv_bound_is_gone(self):
+        import loa_cheval.providers.claude_headless_adapter as m
+        assert not hasattr(m, "_ARGV_PROMPT_MAX_BYTES")
+
+    def test_complete_spawns_a_big_prompt_without_e2big(self, tmp_path, monkeypatch):
+        fake = tmp_path / "fake-claude"
+        seen = tmp_path / "stdin.txt"
+        fake.write_text(
+            "#!/bin/sh\ncat > " + str(seen) + "\n"
+            "printf '%s' '{\"type\":\"result\",\"is_error\":false,\"result\":\"pong\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}'\n"
+        )
+        fake.chmod(0o755)
+        monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(fake))
+        adapter = ClaudeHeadlessAdapter(_make_config())
+        big = "y" * (200 * 1024)   # over MAX_ARG_STRLEN: argv transport raised E2BIG here
+        result = adapter.complete(_make_request(messages=[{"role": "user", "content": big}]))
+        assert result.content == "pong"
+        assert big in seen.read_text()

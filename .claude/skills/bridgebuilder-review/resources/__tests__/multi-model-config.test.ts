@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MultiModelConfigSchema, validateApiKeys, PROVIDER_API_KEY_ENV } from "../config.js";
+import { MultiModelConfigSchema, validateApiKeys, PROVIDER_API_KEY_ENV, isHeadlessModelId } from "../config.js";
 
 describe("MultiModelConfigSchema", () => {
   it("returns defaults when parsed with empty object", () => {
@@ -139,6 +139,42 @@ describe("validateApiKeys", () => {
     assert.equal(result.valid.length, 0);
     assert.equal(result.missing.length, 1);
     assert.ok(result.missing[0].envVar.includes("Unknown provider"));
+  });
+
+  it("a *-headless entry needs no API key: cheval's CLI hop authenticates itself (cycle-126 thirty-seventh run, e2b DISS-C-003)", () => {
+    const saved = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const config = MultiModelConfigSchema.parse({
+        enabled: true,
+        models: [
+          { provider: "anthropic", model_id: "claude-headless" },
+          { provider: "anthropic", model_id: "claude-opus-5" },
+          { provider: "mistral", model_id: "mistral-headless" },
+        ],
+      });
+      const result = validateApiKeys(config);
+      assert.deepEqual(result.valid, [{ provider: "anthropic", modelId: "claude-headless" }]);
+      assert.deepEqual(result.missing.map((m) => m.provider), ["anthropic", "mistral"]);
+      assert.equal(result.missing[0].envVar, "ANTHROPIC_API_KEY");
+      assert.ok(result.missing[1].envVar.includes("Unknown provider"));
+      // (cheval's aliases are case-sensitive: an id it would not resolve is no headless entry — thirty-eighth run, e4 DISS-C-002)
+      assert.equal(isHeadlessModelId("Claude-Headless"), false);
+      assert.equal(isHeadlessModelId("CODEX-HEADLESS"), false);
+      assert.equal(isHeadlessModelId("codex-headless"), true);
+      // (a catalog CLI alias, never a suffix: a typo or a pairing cheval has no alias for keeps the key gate's fail-fast —
+      // thirty-ninth run, e4 DISS-C-002)
+      assert.equal(isHeadlessModelId("claud-headless"), false);
+      assert.equal(isHeadlessModelId("gemini-headless", "google"), true);
+      assert.equal(isHeadlessModelId("gemini-headless", "anthropic"), false);
+      const typo = validateApiKeys(MultiModelConfigSchema.parse({
+        enabled: true, models: [{ provider: "anthropic", model_id: "claud-headless" }],
+      }));
+      assert.deepEqual(typo.missing.map((m) => m.envVar), ["ANTHROPIC_API_KEY"]);
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
+    }
   });
 
   it("returns empty lists for no models", () => {

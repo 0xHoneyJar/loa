@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-09-22T00:18:58Z",
-  "source_hash": "0fe7c1ff30fa3e8c8c67e3645d8859aeeedacb0d0929db3e4108a59d5e89751f",
+  "generated_at": "2026-10-06T09:01:29Z",
+  "source_hash": "f06747ce10232aaf7bcd455f0ffc242402b78d9cf61245614bc958a653bf0793",
   "file_count": 42,
   "files": [
     {
@@ -42,11 +42,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.generated.ts",
-      "sha256": "a325abf2faf0a54dc35bd2ddc7039c89cd6ffce3c218401782d1c06759023fc1"
+      "sha256": "d07ec360fccdaa9bfdff7397ea3e120cc59839a60617d130a7fae36f4db817fa"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
-      "sha256": "dea39a1f1b846f2be342f410d749e3db4780805805631e198ee1dc8a81d9c3d4"
+      "sha256": "16ec1883273a6b44a8e28c1a0da266cde68221435d3b5f82da7c25b413d1f40a"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
@@ -86,7 +86,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
-      "sha256": "4d51529acbacb8604d99412636716f9c25df5a62f4d100a3d4478a9e5412927f"
+      "sha256": "140e20c4dbceb7d09284777860b048108443a8a5a8e785c2577128904805979d"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -102,7 +102,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",
-      "sha256": "5c873ecb91c3924abb1a3e20fd10a719b7a74a73561365d7723b1984668caa22"
+      "sha256": "89b94a402f6591836537b0b23c807c0400ff74177bc56ff54435238644d2e01f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/schemas.ts",
@@ -118,11 +118,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",
-      "sha256": "7ca190ffd136795789812e29889d8dbdcb2425283ef2fb6a16f9aa3868b109af"
+      "sha256": "92e4a13f145cd55777a296d2c8ccb5952c59a44e73024d4ed755c22dbde429c5"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts",
-      "sha256": "ecf61b3ae7a20bf2444743589b83d2c092d92ffb6b9d9e6b096479c8fed65d8d"
+      "sha256": "5ed9bd99a13564cc0a65e2a8117e258e557d002b05f31887398fbec22112b249"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",

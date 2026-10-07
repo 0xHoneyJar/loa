@@ -311,9 +311,10 @@ EOF
     prompt="${prompt//\{CONTENT\}/$sanitized_content}"
 
     # cycle-103 T1.6 / AC-1.4: route through model-invoke (cheval). Replaces
-    # the previous direct OpenAI /v1/chat/completions call.
+    # the previous direct OpenAI /v1/chat/completions call. cycle-126: the
+    # catalog's `cheap` alias, not the retired gpt-4o-mini id.
     local result
-    if ! result=$(call_flatline_chat "gpt-4o-mini" "$prompt" 30 500); then
+    if ! result=$(call_flatline_chat "cheap" "$prompt" 30 500); then
         log_error "model-invoke failed for transformation extractor"
         return 4
     fi

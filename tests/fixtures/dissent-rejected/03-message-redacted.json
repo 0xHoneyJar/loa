@@ -1,0 +1,16 @@
+{
+  "_fixture": {
+    "source": "sprint-247 audit dissent (gpt-5.5-pro via codex-headless), chunk b, 2026-09-25",
+    "reject_reason": "missing-or-empty-failure_mode",
+    "type": "audit",
+    "note": "real dissenter payload, verbatim except this header; lacks failure_mode (KF-004 class)"
+  },
+  "payload": {
+    "severity": "MEDIUM",
+    "category": "info-disclosure",
+    "title": "Provider exception text is persisted as “message_redacted” without redaction",
+    "location": ".claude/adapters/cheval.py::_calibration_needed_exit",
+    "stable_anchor": "\"message_redacted\": str(_exc),",
+    "description": "The new calibration path records and emits raw provider exception text via `str(_exc)` while labeling it `message_redacted`. Provider errors can include request details, prompt fragments, account identifiers, model/provider response bodies, or operational metadata. This is especially risky because the value is added to `_modelinv_state[\"models_failed\"]` and also included in stderr JSON. Use a redaction helper or structured safe fields from `ChevalError` instead of raw exception strings."
+  }
+}

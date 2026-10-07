@@ -1,9 +1,10 @@
 """bd-q0o: argv-prompt headless adapters must WALK (not crash) on un-execable argv.
 
-Only gemini-headless + claude-headless pass the UNTRUSTED prompt on ARGV (`-p <prompt>`),
-so only they are reachable by an embedded-NUL ValueError or an ARG_MAX OSError from a
-crafted/oversized diff. (grok uses --prompt-file; codex + cursor use stdin via input= —
-their prompt never touches argv. Verified: a NUL in stdin does NOT raise, a NUL in argv does.)
+Only gemini-headless (agy) passes the UNTRUSTED prompt on ARGV (`-p <prompt>`), so only it is reachable by an
+embedded-NUL ValueError or an ARG_MAX OSError from a crafted/oversized diff. (grok uses --prompt-file; claude, codex
+and cursor use stdin via input= — their prompt never touches argv; claude since cycle-126's thirtieth run, e1 DISS-C-001.
+Verified: a NUL in stdin does NOT raise, a NUL in argv does.) claude-headless stays in the table: a spawn error on its
+flags still walks the chain.
 
 Found by the Gemini council voice (agy) reviewing the agy adapter on loa#1109 — a bug codex+
 cursor missed. The agy adapter is fixed there; this covers the two vulnerable siblings.
@@ -65,3 +66,34 @@ def test_argmax_oserror_walks_not_crashes(mod, ptype, model_id, extra):
                side_effect=OSError(7, "Argument list too long")):
         with pytest.raises(ProviderUnavailableError):
             _adapter(ptype, model_id, extra).complete(_req(model_id))
+
+
+# (cycle-126 thirty-ninth run, d DISS-C-002) an exec-time failure is never read as a preparation failure: a binary that is
+# present but not executable names the *_BIN override like a missing one, and codex's spawn OSError is "spawn failed",
+# never the outer "could not prepare its run" a refused workspace or slot file earns
+_SPAWN_ADAPTERS = [
+    ("claude_headless_adapter", "claude-headless", "sonnet", {"cli_model": "sonnet"}, "CLAUDE_HEADLESS_BIN"),
+    ("codex_headless_adapter", "codex-headless", "gpt-5.5", {"cli_model": "gpt-5.5"}, "CODEX_HEADLESS_BIN"),
+]
+
+
+@pytest.mark.parametrize("mod,ptype,model_id,extra,env_name", _SPAWN_ADAPTERS)
+def test_non_executable_binary_names_the_bin_override(mod, ptype, model_id, extra, env_name):
+    from loa_cheval.types import ConfigError
+    with patch(f"loa_cheval.providers.{mod}.shutil.which", return_value="/usr/bin/x"), \
+         patch(f"loa_cheval.providers.{mod}.run_subprocess_pgkill",
+               side_effect=PermissionError(13, "Permission denied", "/usr/bin/x")):
+        with pytest.raises(ConfigError) as ei:
+            _adapter(ptype, model_id, extra).complete(_req(model_id))
+    assert env_name in str(ei.value) and "not executable" in str(ei.value), str(ei.value)
+
+
+@pytest.mark.parametrize("mod,ptype,model_id,extra,env_name", _SPAWN_ADAPTERS)
+def test_exec_oserror_is_a_spawn_failure_never_a_preparation_one(mod, ptype, model_id, extra, env_name):
+    for exc in (OSError(7, "Argument list too long"), PermissionError(13, "Permission denied")):
+        with patch(f"loa_cheval.providers.{mod}.shutil.which", return_value="/usr/bin/x"), \
+             patch(f"loa_cheval.providers.{mod}.run_subprocess_pgkill", side_effect=exc):
+            with pytest.raises(ProviderUnavailableError) as ei:
+                _adapter(ptype, model_id, extra).complete(_req(model_id))
+        msg = str(ei.value)
+        assert "could not prepare its run" not in msg and "spawn" in msg, msg

@@ -79,7 +79,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import (
+    HeadlessCLIAdapter, private_workspace_base, cwd_vanished, sweep_stale_hop_workspaces, hold_hop_workspace,
+    release_hop_workspace,
+)
 from loa_cheval.providers.base import (
     SubprocessOutputCapExceeded,
     build_headless_subprocess_env,
@@ -183,7 +186,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         enforce_context_window(request, model_config)
 
         prompt = self._build_prompt(request.messages)
-        timeout_s = self._compute_timeout()
+        timeout_s = self._compute_timeout(model_config)   # the hop's catalog bound (twenty-first run, d C-001)
         # Per-model headless concurrency slots (peer pattern). Default 50 when
         # the operator hasn't seeded a stress-test-discovered value.
         n_slots = getattr(model_config, "headless_concurrency_limit", None) or 50
@@ -207,10 +210,14 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         # prompt is written to a file INSIDE this workspace and passed via
         # --prompt-file — never argv (no ARG_MAX cliff, no flag-parsing surface).
         workspace: Optional[str] = None
+        hold: Optional[int] = None
         start = time.monotonic()
         try:
             try:
-                workspace = tempfile.mkdtemp(prefix="loa-grok-ws-")
+                base = private_workspace_base()
+                sweep_stale_hop_workspaces(base, "loa-grok-ws-")   # (a killed hop's leftovers, its prompt file too — thirty-seventh run, e1b DISS-C-004)
+                workspace = tempfile.mkdtemp(prefix="loa-grok-ws-", dir=base)
+                hold = hold_hop_workspace(workspace)   # (live: never swept — thirty-eighth run, d DISS-C-001)
                 prompt_path = str(Path(workspace) / "prompt.txt")
                 # write_text on a fresh 0700 mkdtemp dir; UTF-8 explicit so a
                 # non-ASCII review diff round-trips intact.
@@ -219,7 +226,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                 raise ProviderUnavailableError(
                     self.provider,
                     f"grok-headless: failed to stage isolated workspace: "
-                    f"{type(exc).__name__}",
+                    f"{type(exc).__name__}: {exc}",   # (the refusal's reason too — thirty-third run, d DISS-C-004)
                 ) from exc
             cmd = self._build_command(request, model_config, prompt_path)
             with _acquire_slot("grok-headless", n_slots=n_slots):
@@ -237,9 +244,11 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                         cwd=workspace,
                     )
                 except subprocess.TimeoutExpired:
+                    # the catalog bound's note, as the base adapter appends it (twenty-second run, d DISS-C-002)
+                    _note = getattr(model_config, "headless_timeout_note", None)
                     raise ProviderUnavailableError(
                         self.provider,
-                        f"grok timed out after {timeout_s:.0f}s",
+                        f"grok timed out after {timeout_s:.0f}s" + (f" ({_note})" if _note else ""),
                     )
                 except SubprocessOutputCapExceeded as exc:
                     # Truncated output is a provider failure, not a successful
@@ -249,6 +258,10 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
                         f"grok {exc}",
                     ) from exc
                 except FileNotFoundError as exc:
+                    if cwd_vanished(workspace, exc):   # (the workspace, not the binary — thirty-third run, e1 DISS-C-002)
+                        raise ProviderUnavailableError(
+                            self.provider, f"grok working directory {workspace} vanished before the CLI started: {exc}",
+                        ) from exc
                     raise ConfigError(
                         f"grok CLI not found on PATH (set GROK_HEADLESS_BIN to "
                         f"override). Install Grok + run `grok login`. Original: {exc}"
@@ -272,6 +285,7 @@ class GrokHeadlessAdapter(HeadlessCLIAdapter):
         finally:
             if workspace is not None:
                 shutil.rmtree(workspace, ignore_errors=True)
+            release_hop_workspace(hold)
 
         latency_ms = int((time.monotonic() - start) * 1000)
         stdout = proc.stdout or ""

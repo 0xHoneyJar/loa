@@ -246,6 +246,24 @@ EOF
     cat <<EOF
 )
 
+# MODEL_MAX_OUTPUT — cycle-126 FR-1.6 (SDD D-1.6): canonical model id →
+# catalog max_output_tokens, for callers that size an explicit --max-tokens
+# (flatline-orchestrator.sh call_model: min(64000, MODEL_MAX_OUTPUT[id])).
+# Only entries that declare the field appear; a missing key means "let cheval
+# apply its own per-model default".
+declare -A MODEL_MAX_OUTPUT=(
+EOF
+
+    yq eval -o=json '.providers' "$CONFIG_FILE" | jq -r '
+        to_entries[] as $p
+        | ($p.value.models // {}) | to_entries[] as $m
+        | select(($m.value.max_output_tokens // null) | type == "number")
+        | "    [\"\($m.key)\"]=\"\($m.value.max_output_tokens)\""
+    '
+
+    cat <<EOF
+)
+
 # VALID_FLATLINE_MODELS — Sprint-4 T4.2 (closes SDD §1.4 C4 SSOT coverage gap).
 # Hand-maintained array in flatline-orchestrator.sh historically drifted from
 # the YAML during model migrations (cycle-082, cycle-093). Now derived from

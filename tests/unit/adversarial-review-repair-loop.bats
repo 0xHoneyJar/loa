@@ -28,12 +28,24 @@
 # sourcing wins over the real implementation.
 # =============================================================================
 
+_scrub_cred_aliases() {  # unset every credential alias the probe recognises, from the script's own table; a missing or empty table fails setup rather than scrubbing nothing (twenty-fifth run, c2e DISS-C-002)
+    local p v
+    local -a names=() row
+    declare -F _adv_cred_aliases >/dev/null || { echo "setup: _adv_cred_aliases is not loaded — the credential scrub would be a no-op" >&2; return 1; }
+    for p in anthropic openai google; do
+        read -ra row <<<"$(_adv_cred_aliases "$p")"
+        [ "${#row[@]}" -gt 0 ] || { echo "setup: _adv_cred_aliases printed no alias for $p — the credential scrub would miss it" >&2; return 1; }
+        names+=("${row[@]}")
+    done
+    for v in "${names[@]}"; do unset "$v"; done
+}
+
 setup() {
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # no mktemp fallback no teardown removes (thirty-second run, c2a DISS-C-002)
 
     local saved_root="$PROJECT_ROOT"
 
@@ -41,7 +53,14 @@ setup() {
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
 
     # Source the script functions (but don't run main)
-    eval "$(sed 's/^main "\$@"/# main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    # the trailer is an indented `main "$@"` in the BASH_SOURCE guard: `^main` matched nothing; `:` keeps the `then` non-empty (twentieth run, c2b C-001)
+    # …and the substitution is CHECKED before the text is eval'd (twenty-first run, c2e C-001): a trailer change that makes the
+    # sed a no-op again fails setup loudly instead of leaning on the BASH_SOURCE guard
+    local _src; _src="$(sed 's/^\( *\)main "\$@"$/\1: main disabled for testing/' "$ADVERSARIAL_REVIEW")"
+    grep -q ': main disabled for testing' <<<"$_src" || { echo "setup: the main trailer sed matched nothing" >&2; return 1; }
+    ! grep -Eq '^[[:space:]]*main "\$@"' <<<"$_src" || { echo "setup: a main \"\$@\" call survived the sed" >&2; return 1; }
+    eval "$_src"
+    REPAIR_LOOP_MAIN_NEUTRALISED=1
 
     PROJECT_ROOT="$saved_root"
     export PROJECT_ROOT
@@ -58,6 +77,16 @@ setup() {
     CONF_SECRET_SCANNING="true"
     CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
+
+    # hermetic like the normalise and companion suites (twenty-first run, c2e C-002): no credential alias, an empty dotenv
+    # seam, no CLI binary "installed" and a private lock directory — the repair chain is the answering voice alone on any
+    # host, so no case charges or queues behind a real hop (the KF-037 contention class)
+    _scrub_cred_aliases || return 1
+    unset LOA_ADVERSARIAL_REPAIR_MODEL LOA_ADVERSARIAL_REPAIR_BUDGET_SECONDS _ADV_REPAIR_DEAD_HOPS LOA_ADVERSARIAL_RUN_TAG _ADV_SIDECAR_TAG
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION   # (thirty-seventh run, c2e DISS-C-001: the derivation seam too)
+    export LOA_ADVERSARIAL_ENV_DIR="$TEST_DIR/env-default"; mkdir -p "$LOA_ADVERSARIAL_ENV_DIR"
+    export LOA_ADVERSARIAL_CLI_PROBE=none
+    export XDG_RUNTIME_DIR="$TEST_DIR"
 }
 
 teardown() {
@@ -166,6 +195,9 @@ _sidecar_path() {
 # =============================================================================
 
 @test "C14: repair succeeds — mock model fixes only the violated field, finding is accepted" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser derives an empty failure_mode before validation;
+    # the bats-gated seam skips only that step (production id derivation stays) so the repair round-trip runs
+    export LOA_ADVERSARIAL_NO_FM_DERIVATION=1
     _REPAIR_TEST_SPRINT="sprint-c14-repair-ok-$$"
 
     # Mock: given the offending finding + violated clause, return the
@@ -203,6 +235,9 @@ _sidecar_path() {
 }
 
 @test "C14: repair mutates a non-violated field — rejected with repair-mutated-nonviolated-field" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser derives an empty failure_mode before validation;
+    # the bats-gated seam skips only that step (production id derivation stays) so the repair round-trip runs
+    export LOA_ADVERSARIAL_NO_FM_DERIVATION=1
     _REPAIR_TEST_SPRINT="sprint-c14-repair-mutate-$$"
 
     # Mock: "fixes" failure_mode but ALSO rewrites description — violates
@@ -238,6 +273,9 @@ _sidecar_path() {
 }
 
 @test "C14: repair unavailable (model call fails) — rejected, original reject_reason preserved, sidecar unchanged semantics" {
+    # cycle-126 Sprint 2 (FR-2.2): the tolerant normaliser derives an empty failure_mode before validation;
+    # the bats-gated seam skips only that step (production id derivation stays) so the repair round-trip runs
+    export LOA_ADVERSARIAL_NO_FM_DERIVATION=1
     _REPAIR_TEST_SPRINT="sprint-c14-repair-fail-$$"
 
     # Mock: repair round-trip fails outright (e.g. timeout / API error twice).
@@ -291,6 +329,141 @@ _sidecar_path() {
     sidecar=$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")
     reason=$(jq -r '.reject_reason' "$sidecar")
     [[ "$reason" == severity-not-in-enum* ]]
+}
+
+@test "C14: production derivation — a missing severity is repaired alone; the derived failure_mode and id and their markers survive" {
+    # twentieth run, c2e C-003: the repair round-trip on the PRODUCTION normaliser (no seam) — the model sees the
+    # derived candidate, may touch only severity, and its reply drops the markers as a real model's would
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-$$"
+    _REPAIR_SEEN="$BATS_TEST_TMPDIR/repair-seen.json"
+    _repair_finding_via_model() {
+        local finding_json="$1"
+        printf '%s' "$finding_json" > "$_REPAIR_SEEN"
+        echo "$finding_json" | jq 'del(.id_derived, .failure_mode_derived) | .severity = "BLOCKING"'
+    }
+
+    local content='{"findings":[{"category":"null-safety","anchor":"src/auth.ts:validateToken","description":"The token is never checked before use. It is then dereferenced."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "src/auth.ts")
+
+    # the model was asked about the derived candidate, whose only defect is the severity
+    [[ "$(jq -r '.failure_mode' "$_REPAIR_SEEN")" == "The token is never checked before use." ]]
+    [[ "$(jq -r '.id' "$_REPAIR_SEEN")" == "DISS-001" ]]
+    [[ "$(jq -r 'has("severity")' "$_REPAIR_SEEN")" == "false" ]]
+
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "0" ]]
+    local f
+    f=$(echo "$result" | jq -c '.findings[0]')
+    [[ "$(jq -r '.severity' <<<"$f")" == "BLOCKING" ]]
+    [[ "$(jq -r '.category' <<<"$f")" == "null-safety" ]]
+    [[ "$(jq -r '.description' <<<"$f")" == "The token is never checked before use. It is then dereferenced." ]]
+    [[ "$(jq -r '.failure_mode' <<<"$f")" == "The token is never checked before use." ]]
+    [[ "$(jq -r '.id' <<<"$f")" == "DISS-001" ]]
+    [[ "$(jq -r '.failure_mode_derived' <<<"$f")" == "true" ]]
+    [[ "$(jq -r '.id_derived' <<<"$f")" == "true" ]]
+    [[ "$(jq -r '.anchor_status' <<<"$f")" == "valid" ]]
+}
+
+@test "C14: production derivation — a repair that rewrites the DERIVED failure_mode keeps the finding with the derived value; the model's is discarded (twenty-seventh run, c2e DISS-C-003)" {
+    # the derived failure_mode is the normaliser's text, not the dissenter's — a model that rewrites it alongside the
+    # violated field mutated nothing the dissenter wrote; the finding is kept, the derived value (and its marker) restored
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-mutate-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up" | del(.failure_mode_derived)'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "The token is never checked before use." ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode_derived')" == "true" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].description')" == "The token is never checked before use." ]]
+}
+
+@test "C14: a repair OF the derived failure_mode (it failed validation) is the model's text — the derived marker is not carried onto it (thirty-fourth run, a1 DISS-C-001)" {
+    # the derivation as it was before the window fix: a blank-headed description derived a whitespace-only failure_mode, marked
+    # derived — validate_finding rejects it on failure_mode and the repair rewrites exactly that field
+    _derive_failure_mode() { jq 'if (.failure_mode | type) != "string" then .failure_mode = " " | .failure_mode_derived = true else . end'; }
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-of-derived-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.failure_mode = "the model states the failure"'
+    }
+    local content='{"findings":[{"id":"DISS-001","severity":"ADVISORY","category":"other","description":"The token is never checked before use."}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "the model states the failure" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode_derived')" == "null" ]] \
+      || { echo "the derived marker survived the model's rewrite of that field"; return 1; }
+}
+
+@test "C14: a repair that rewrites a dissenter-STATED failure_mode is still a non-violated-field mutation — only derived fields are free (twenty-seventh run, c2e DISS-C-003)" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-stated-mutate-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .failure_mode = "something the model made up"'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use.","failure_mode":"a crash on the first request"}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "0" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.rejected_count')" == "1" ]]
+    [[ "$(jq -r '.reject_reason' "$(_sidecar_path "$_REPAIR_TEST_SPRINT" "review")")" == "repair-mutated-nonviolated-field" ]]
+}
+
+@test "C14: a repair that rewrites the DERIVED id keeps the finding under the normaliser's id (twenty-seventh run, c2e DISS-C-003)" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-derived-id-$$"
+    _repair_finding_via_model() {
+        echo "$1" | jq '.severity = "BLOCKING" | .id = "MODEL-9"'
+    }
+    local content='{"findings":[{"category":"null-safety","description":"The token is never checked before use.","failure_mode":"a crash"}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].id')" == "DISS-001" ]]
+    [[ "$(echo "$result" | jq -r '.findings[0].failure_mode')" == "a crash" ]]
+}
+
+@test "C14: production derivation — a whitespace-only description derives nothing; the repaired description supplies the failure_mode" {
+    unset LOA_ADVERSARIAL_NO_FM_DERIVATION
+    _REPAIR_TEST_SPRINT="sprint-c14-repair-ws-desc-$$"
+    _REPAIR_SEEN="$BATS_TEST_TMPDIR/repair-seen.json"
+    _repair_finding_via_model() {
+        printf '%s' "$1" > "$_REPAIR_SEEN"
+        printf '%s\n' "$3" > "$_REPAIR_SEEN.reason"
+        echo "$1" | jq 'del(.id_derived, .failure_mode_derived) | .description = "The lock is released twice on the error path. Callers crash."'
+    }
+    local content='{"findings":[{"id":"DISS-007","severity":"ADVISORY","category":"concurrency","description":" \t "}]}'
+    local raw
+    raw=$(_raw_envelope "$content")
+    result=$(process_findings "$raw" "review" "gpt-5.3-codex" "$_REPAIR_TEST_SPRINT" "0" "")
+
+    # nothing was derived from the blank description, so the model was told about the description, not the failure_mode
+    [[ "$(cat "$_REPAIR_SEEN.reason")" == "missing-or-empty-description" ]]
+    [[ "$(jq -r 'has("failure_mode")' "$_REPAIR_SEEN")" == "false" ]]
+
+    [[ "$(echo "$result" | jq '.findings | length')" == "1" ]]
+    [[ "$(echo "$result" | jq -r '.metadata.repaired_count')" == "1" ]]
+    local f
+    f=$(echo "$result" | jq -c '.findings[0]')
+    [[ "$(jq -r '.id' <<<"$f")" == "DISS-007" ]]
+    [[ "$(jq -r 'has("id_derived")' <<<"$f")" == "false" ]]   # (thirty-seventh run, c2e DISS-C-003: `//` reads a false marker as absent)
+    [[ "$(jq -r '.severity' <<<"$f")" == "ADVISORY" ]]
+    [[ "$(jq -r '.failure_mode' <<<"$f")" == "The lock is released twice on the error path." ]]
+    [[ "$(jq -r '.failure_mode_derived' <<<"$f")" == "true" ]]
 }
 
 # =============================================================================
@@ -435,4 +608,18 @@ EOF
     invoke_dissenter "$sysfile" "$userfile" "gpt-5.3-codex" "60" "" "audit" >/dev/null
 
     grep -qx -- "adversarial-audit" "$fake_dir/captured-args.txt"
+}
+
+@test "setup is hermetic: the main trailer was neutralised, and the repair chain is the answering voice alone — no host key, dotenv or CLI binary decides the hop (twenty-first run, c2e C-001 / C-002)" {
+    [[ "$(type -t main)" == "function" ]]
+    [ "$REPAIR_LOOP_MAIN_NEUTRALISED" = "1" ]
+    [ "$(_repair_model_chain "gpt-5.3-codex")" = "gpt-5.3-codex" ]
+    [ "$XDG_RUNTIME_DIR" = "$TEST_DIR" ]
+    # the RESOLVED lock directory, not just the input: a resolver cached at source time would leave the export inert
+    # (twenty-second run, c2e DISS-C-001)
+    [ "$(_adv_cli_lock_dir)" = "$TEST_DIR/loa-headless-locks-$(id -u)" ]
+    # no family's credential survives the scrub, and the scrub's provider list is the table's own (twenty-seventh run, c2e DISS-C-001)
+    local p
+    for p in anthropic openai google; do ! _adv_cred_present "$p" || { echo "a $p credential survived the scrub"; return 1; }; done
+    [ "$(declare -f _adv_cred_aliases | grep -oE '^ +[a-z]+\)' | tr -d ' )' | LC_ALL=C sort | tr '\n' ' ')" = "anthropic google openai " ]
 }

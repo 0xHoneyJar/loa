@@ -35,10 +35,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:f47cf733 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:d1045b3c | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -47,8 +47,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -83,12 +83,12 @@ Run read-only local commands (`git status/log/diff/branch/show`, `gh issue/pr li
 </cli_tool_permissions>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->
@@ -117,14 +117,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:8b81d75a | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
-full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
-and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
-`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
-update it (decisions → Decision Log, issues → Technical Debt).
+Class: `.run/context-class` (`long` default; `standard` via `LOA_CONTEXT_CLASS=standard` or a
+≤200K model). `.claude/protocols/tool-result-clearing.md` — long 20K/50K/30K/150K, standard 2K/5K/3K/15K (single /
+accumulated / full file / session) → extract ≤10 files, ≤20 words, file:line to NOTES.md; reason
+from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` first. Start: NOTES.md
+"Session Continuity"; end / pre-compaction: update it.
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -218,9 +218,9 @@ Run the full lifecycle per task yourself: health check → `br sync --import-onl
 
 Spec: `.claude/protocols/beads-preflight.md`; command reference: `resources/REFERENCE.md` §Beads Workflow.
 
-## Phase -1: Context Assessment and Parallel Task Splitting
+## Phase -1: Scope and Parallel Task Splitting
 
-`wc -l grimoires/loa/{prd,sdd,sprint}.md grimoires/loa/a2a/*.md 2>/dev/null`: under 3,000 lines SMALL (sequential); 3,000–8,000 MEDIUM (parallel when 3+ independent tasks); over 8,000 LARGE (split). MEDIUM/LARGE: `resources/REFERENCE.md` §Parallel Implementation Guidelines.
+Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. With 3+ independent tasks, split per task: `resources/REFERENCE.md` §Parallel Implementation Guidelines.
 
 ## Phase 0: Feedback and Context Check
 

@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { z } from "zod/v4";
 import type { BridgebuilderConfig, MultiModelConfig } from "./core/types.js";
+import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -135,6 +136,15 @@ export const PROVIDER_API_KEY_ENV: Record<string, string> = {
   google: "GOOGLE_API_KEY",
 };
 
+/** A `*-headless` model id: a kind:cli alias, whose CLI hop needs no API key in BB's environment. */
+// (case-sensitive, as cheval's alias lookup is — `Claude-Headless` resolves to nothing: thirty-eighth run, e4 DISS-C-002)
+// (and a catalog entry, under its own provider when one is named — a suffix alone admitted a typo or a pairing cheval has no
+// alias for, past the key gate's fail-fast: thirty-ninth run, e4 DISS-C-002)
+export function isHeadlessModelId(modelId: string, provider?: string): boolean {
+  if (typeof modelId !== "string" || !/-headless$/.test(modelId) || !Object.hasOwn(GENERATED_MODEL_REGISTRY, modelId)) return false;
+  return provider === undefined || GENERATED_MODEL_REGISTRY[modelId].provider === provider;
+}
+
 /**
  * Validate API keys for configured multi-model providers.
  * Returns available and missing provider lists.
@@ -152,7 +162,9 @@ export function validateApiKeys(config: MultiModelConfig): {
       missing.push({ provider: model.provider, envVar: `Unknown provider: ${model.provider}` });
       continue;
     }
-    if (process.env[envVar]) {
+    // (a `*-headless` entry is a cheval CLI hop that authenticates itself — every voice dispatches through cheval — so
+    // it needs no key; the gate dropped the keyless host's claude-headless entry: cycle-126 thirty-seventh run, e2b DISS-C-003)
+    if (isHeadlessModelId(model.model_id, model.provider) || process.env[envVar]) {
       valid.push({ provider: model.provider, modelId: model.model_id });
     } else {
       missing.push({ provider: model.provider, envVar });
@@ -165,12 +177,16 @@ export function validateApiKeys(config: MultiModelConfig): {
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS: BridgebuilderConfig = {
   repos: [],
-  model: "claude-opus-4-7",
+  // cycle-126 FR-1.5 (SDD D-1.5): the `opus` alias (resolved by cheval's alias
+  // path, so the default follows the catalog's retarget instead of pinning a
+  // snapshot); the input default matches the 200K-class payload the 5-family
+  // reviews take, the output default the BB_OUTPUT_CAP of the generated table.
+  model: "opus",
   maxPrs: 10,
   maxFilesPerPr: 50,
   maxDiffBytes: 512_000,
-  maxInputTokens: 128_000,
-  maxOutputTokens: 16_000,
+  maxInputTokens: 200_000,
+  maxOutputTokens: 32_000,
   dimensions: ["security", "quality", "test-coverage"],
   reviewMarker: "bridgebuilder-review",
   repoOverridePath: "grimoires/bridgebuilder/BEAUVOIR.md",

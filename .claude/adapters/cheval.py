@@ -20,6 +20,7 @@ import stat
 import sys
 import traceback
 from dataclasses import dataclass
+from dataclasses import replace as _dc_replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +30,11 @@ if _ADAPTERS_DIR not in sys.path:
     sys.path.insert(0, _ADAPTERS_DIR)
 
 from loa_cheval.types import (
+    coerce_headless_timeout_seconds,
+    headless_timeout_note,
+    headless_read_floor,
+    usable_headless_timeout,
+    report_headless_timeout_once,
     BudgetExceededError,
     ChevalError,
     CompletionRequest,
@@ -37,6 +43,7 @@ from loa_cheval.types import (
     ContextTooLargeError,
     InvalidInputError,
     NativeRuntimeRequired,
+    ProviderContextLimitError,
     ProviderUnavailableError,
     RateLimitError,
     RetriesExhaustedError,
@@ -48,6 +55,19 @@ from loa_cheval.routing.resolver import (
     validate_bindings,
 )
 from loa_cheval.routing.context_filter import audit_filter_context
+# cycle-126 D-1.1 / D-1.1b: the input bound is a policy over the entry.
+from loa_cheval.routing.ceiling import (
+    FLOOR_MAX_TOKENS as _FLOOR_MAX_TOKENS,
+    PROBE_COMMAND as _PROBE_COMMAND,
+    GateEstimate as _GateEstimate,
+    fit_max_tokens as _fit_max_tokens,
+    gate as _ceiling_gate,
+    input_bound as _ceiling_input_bound,
+    observed_for as _observed_for,
+    observed_store_path as _observed_store_path,
+    policy_from_env as _ceiling_policy_from_env,
+    record_observed as _ceiling_record_observed,
+)
 from loa_cheval.providers import cli_adapter_types, get_adapter
 from loa_cheval.providers.base import _legacy_wire, default_max_tokens  # cycle-124 FR-2/FR-4
 from loa_cheval.types import ProviderConfig, ModelConfig
@@ -386,17 +406,35 @@ def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     return get_adapter(provider_config)
 
 
+def _headless_timeout_raw(model_data: Dict[str, Any], where: str, provider_type: str = "") -> Any:
+    """`headless_timeout_seconds` applies to CLI hops only — a model with `kind: cli`, or any model of a provider whose
+    type is a *-headless adapter (cursor-headless, grok-headless; fourteenth run, d C-002): on any other model it is
+    reported once at load and dropped, so the catalog cannot claim a bound no hop will honour (tenth run, d C-002)."""
+    raw = model_data.get("headless_timeout_seconds")
+    is_cli = model_data.get("kind") == "cli" or str(provider_type or "").endswith("-headless")
+    if raw is not None and not is_cli:
+        # (once per process per provider/model and value — the provider config is rebuilt per hop; twelfth run, d C-002)
+        report_headless_timeout_once(("cli-only", where, repr(raw)),
+                                     "%sheadless_timeout_seconds %r applies to CLI models only (kind: cli, or a *-headless provider) — ignored on this model (kind: %s, provider type: %s)",
+                                     where, raw, model_data.get("kind") or "none", provider_type or "none")
+        return None
+    return raw
+
+
 def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> ProviderConfig:
     """Build ProviderConfig from merged hounfour config."""
     providers = config.get("providers", {})
     if provider_name not in providers:
         raise ConfigError(f"Provider '{provider_name}' not configured")
 
+    prov = providers[provider_name]
+    # bound once: the headless note's floor and the adapter's bound read this one value (run 25, d DISS-C-001)
+    read_timeout = prov.get("read_timeout", 120.0)
+
     # Feature flag: thinking_traces (Task 3.6)
     flags = config.get("feature_flags", {})
     thinking_enabled = flags.get("thinking_traces", True)
 
-    prov = providers[provider_name]
     models_raw = prov.get("models", {})
     models = {}
     for model_id, model_data in models_raw.items():
@@ -405,6 +443,13 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         if extra and not thinking_enabled:
             extra = {k: v for k, v in extra.items()
                      if k not in ("thinking_level", "thinking_budget")}
+        # sixteenth run, d C-001 / run 23, d DISS-C-001: the loader's verdict on a value that was not applied as written
+        # travels with the model — gated and effective are computed here, per model, never bound inside the call's arguments
+        _where = f"{provider_name}/{model_id}: "
+        _ht_gated = _headless_timeout_raw(model_data, _where, prov.get("type", ""))
+        _ht_effective = coerce_headless_timeout_seconds(_ht_gated, where=_where)
+        _ht_note = headless_timeout_note(model_data.get("headless_timeout_seconds"), _ht_gated, _ht_effective,
+                                         floor=headless_read_floor(read_timeout))
         models[model_id] = ModelConfig(
             capabilities=model_data.get("capabilities", []),
             context_window=model_data.get("context_window", 128000),
@@ -424,6 +469,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             # headless_concurrency_limit if declared (default None → adapter
             # uses 50). FR-8.6 stress-test discovery seeds per-CLI values.
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
+            headless_timeout_seconds=_ht_effective,
+            headless_timeout_note=_ht_note,
         )
 
     return ProviderConfig(
@@ -433,7 +480,7 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         auth=prov.get("auth", ""),
         models=models,
         connect_timeout=prov.get("connect_timeout", 10.0),
-        read_timeout=prov.get("read_timeout", 120.0),
+        read_timeout=read_timeout,
         write_timeout=prov.get("write_timeout", 30.0),
         # cycle-096 Sprint 1 (Task 1.2 / FR-1) — Bedrock-specific provider fields.
         region_default=prov.get("region_default"),
@@ -661,6 +708,7 @@ def _lookup_max_input_tokens(
     model_id: str,
     hounfour: Dict[str, Any],
     cli_override: Optional[int] = None,
+    max_tokens: Optional[int] = None,
 ) -> Optional[int]:
     """Empirically-observed safe input-size threshold for (provider, model_id).
 
@@ -722,9 +770,22 @@ def _lookup_max_input_tokens(
     # the pre-Sprint-4A 36K wall (KF-002 layer 3, Issue #823) applies again.
     v3_ceiling = model_config.get("effective_input_ceiling")
     if isinstance(v3_ceiling, int) and v3_ceiling > 0:
+        # cycle-126 D-1.1: the per-hop bound is the same policy the pre-flight
+        # applies — I1 with this hop's output budget, I2 (probed by default;
+        # calibrated value; derived only under the opt-in), an observed
+        # provider limit, the env guard — never the literal alone, except
+        # under LOA_CHEVAL_LEGACY_CEILING=1 (the module returns the literal).
+        _hop_budget = (
+            max_tokens if isinstance(max_tokens, int) and not isinstance(max_tokens, bool) and max_tokens > 0
+            else _hop_max_tokens(None, provider, model_id, hounfour)
+        )
+        _decision = _ceiling_input_bound(
+            model_config, max_tokens=_hop_budget, observed=_observed_for(provider, model_id),
+        )
+        _bound = _decision.value if _decision is not None else v3_ceiling
         if _streaming_killed and provider == "anthropic":
-            return min(v3_ceiling, _LEGACY_TRANSPORT_INPUT_WALL)
-        return v3_ceiling
+            return min(_bound, _LEGACY_TRANSPORT_INPUT_WALL)
+        return _bound
 
     preferred_field = (
         "legacy_max_input_tokens" if _streaming_killed
@@ -763,6 +824,16 @@ def _lookup_max_output_tokens(
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         return None
     return value
+
+
+def _raw_model_entry(provider: str, model_id: str, hounfour: Dict[str, Any]) -> Dict[str, Any]:
+    """The catalog entry dict for (provider, model_id), or {} (cycle-126:
+    the ceiling policy reads the entry's own fields, not a projection)."""
+    prov = (hounfour.get("providers", {}) or {}).get(provider, {})
+    if not isinstance(prov, dict):
+        return {}
+    entry = (prov.get("models", {}) or {}).get(model_id, {})
+    return entry if isinstance(entry, dict) else {}
 
 
 def _hop_max_tokens(
@@ -1650,7 +1721,9 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     base_request = CompletionRequest(
         messages=messages,
         model=_chain.primary.model_id,
-        temperature=binding.temperature or 0.7,
+        # cycle-126 FR-1.3 (SDD D-1.3): unset unless the agent binding names one
+        # — the adapters put nothing on the wire (legacy wire: 0.7).
+        temperature=binding.temperature,
         # cycle-124 FR-2: explicit `--max-tokens` (clamped) or the primary
         # hop's per-model default; each fallback hop recomputes its own.
         max_tokens=_hop_max_tokens(
@@ -1721,9 +1794,15 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # Gate disabled when neither source yields a positive integer, OR when
     # LOA_CHEVAL_DISABLE_INPUT_GATE=1 globally bypasses the gate (preserves
     # the existing cycle-102 operator escape hatch).
+    _preflight_outcome = None  # cycle-126 D-1.1: the head entry's GateOutcome (envelope + budget)
+    _ceiling_unverified = False  # dispatching above the probed bound (opt-in zone) — the D-1.1b arms consult it
+    _walk_estimate: Optional[int] = None  # the input estimate the per-hop I1 fit reuses
+    _ceiling_policy = _ceiling_policy_from_env()
     if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE") and _chain.entries:
-        from loa_cheval.providers.base import estimate_tokens
-        _preflight_estimated = estimate_tokens(messages)
+        from loa_cheval.providers.base import estimate_input
+        _preflight_est_obj = estimate_input(messages, tools=getattr(base_request, "tools", None))
+        _preflight_estimated = _preflight_est_obj.tokens
+        _walk_estimate = _preflight_estimated
         _preflight_head = _chain.entries[0]
         _preflight_capability = _lookup_capability(
             _preflight_head.provider, _preflight_head.model_id, hounfour,
@@ -1754,10 +1833,65 @@ def cmd_invoke(args: argparse.Namespace) -> int:
         # #937 / sprint-bug-211: the chunked-dispatch path was removed (dead +
         # fail-closed). The pre-flight gate now always preempts oversized input
         # with CONTEXT_TOO_LARGE (exit 7).
-        _preflight_decision = _preflight_check(
-            estimated_input=_preflight_estimated,
-            capability=_preflight_synthetic_capability,
-        )
+        _preflight_head_cfg = _raw_model_entry(_preflight_head.provider, _preflight_head.model_id, hounfour)
+        if (
+            _preflight_synthetic_capability is not None
+            and _preflight_synthetic_capability.effective_input_ceiling is not None
+            and _preflight_head_cfg
+            and _ceiling_policy != "legacy"
+        ):
+            # cycle-126 D-1.1 / D-1.4: I1 (shrink the output budget to fit the
+            # window) + I2 (the bound the policy allows) over the resolved
+            # entry; near the bound the provider's count replaces the
+            # estimate; above the probed bound (opt-in only) warn or preempt
+            # by the estimate's uncertainty. LOA_CHEVAL_LEGACY_CEILING=1 takes
+            # the `else` branch below (today's literal + preempt).
+            _counter = None
+            if _preflight_head.provider == "anthropic":
+                def _counter(_head=_preflight_head):
+                    try:
+                        _a = _get_adapter_for_entry(_head, hounfour)
+                        _ct = getattr(_a, "count_tokens", None)
+                        return _ct(_dc_replace(base_request, model=_head.model_id)) if _ct else None
+                    except Exception:  # noqa: BLE001 — a count is advisory
+                        return None
+            _preflight_outcome = _ceiling_gate(
+                dict(_preflight_head_cfg, model_id=_preflight_head.model_id),
+                estimate=_GateEstimate(
+                    tokens=_preflight_estimated, method=_preflight_est_obj.method,
+                    uncertainty=_preflight_est_obj.uncertainty, chars=_preflight_est_obj.chars,
+                ),
+                requested_max_tokens=base_request.max_tokens,
+                cli_override=(
+                    _preflight_cli_override
+                    if isinstance(_preflight_cli_override, int) and _preflight_cli_override > 0 else None
+                ),
+                observed=_observed_for(_preflight_head.provider, _preflight_head.model_id),
+                policy=_ceiling_policy,
+                counter=_counter,
+            )
+            _preflight_estimated = _preflight_outcome.estimate.tokens
+            _walk_estimate = _preflight_estimated
+            _ceiling_unverified = _preflight_outcome.unverified
+            if _preflight_outcome.shrunk_from is not None:
+                base_request.max_tokens = _preflight_outcome.max_tokens
+            if _preflight_outcome.action == "preempt":
+                _preflight_decision = PreflightDecision(
+                    action="preempt",
+                    exit_code=EXIT_CODES["CONTEXT_TOO_LARGE"],
+                    estimated_input=_preflight_estimated,
+                    effective_input_ceiling=_preflight_outcome.bound or 0,
+                    ceiling_stale=_preflight_synthetic_capability.ceiling_stale,
+                    reasoning_class=_preflight_synthetic_capability.reasoning_class,
+                    reason=_preflight_outcome.reason,
+                )
+            else:
+                _preflight_decision = None
+        else:
+            _preflight_decision = _preflight_check(
+                estimated_input=_preflight_estimated,
+                capability=_preflight_synthetic_capability,
+            )
         # Record the capability_evaluation snapshot regardless of decision
         # so the audit chain captures the gate's full state at invocation
         # time (SDD §3.3.1 — distinguishes "gate-ran-and-dispatched" from
@@ -1775,6 +1909,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 "estimated_input_tokens": _preflight_estimated,
                 "preflight_decision": _decision_str,
             }
+            if _preflight_outcome is not None:
+                _modelinv_state["capability_evaluation"].update(_preflight_outcome.as_envelope())
+                if _preflight_outcome.action == "warn":
+                    _modelinv_state["operator_visible_warn"] = True
+                    print(
+                        f"[preflight] warn model={_preflight_head.canonical} {_preflight_outcome.reason}",
+                        file=sys.stderr,
+                    )
+                elif _preflight_outcome.shrunk_from is not None:
+                    print(
+                        f"[preflight] max_tokens shrunk {_preflight_outcome.shrunk_from} -> "
+                        f"{_preflight_outcome.max_tokens} (I1: input + output <= context_window)",
+                        file=sys.stderr,
+                    )
         if _preflight_decision is not None and _preflight_decision.action == "preempt":
             # Emit operator-visible marker to stderr; the chain-walk gate
             # marker is `[input-gate]`, the pre-flight gate marker is
@@ -1807,6 +1955,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 f"[preflight] {_preflight_decision.reason} (KF-002 / SDD §1.4.2)",
                 retryable=False,
                 ceiling_stale=_preflight_decision.ceiling_stale,
+                ceiling_policy=_ceiling_policy,
+                ceiling_basis=(_preflight_outcome.basis if _preflight_outcome is not None else None),
             ), file=sys.stderr)
             # #1041: this preempt path returns BEFORE the try/finally that emits
             # the MODELINV envelope, so without this the preemption never lands
@@ -1872,6 +2022,58 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     _last_walk_exit_code: int = EXIT_CODES["CHAIN_EXHAUSTED"]
     _last_walk_exception: Optional[Exception] = None
     _last_walk_extra: Dict[str, Any] = {}
+    _hop_unverified = False  # cycle-126 D-1.1b: THIS hop runs above its own probed bound (set per hop below)
+
+    def _calibration_needed_exit(
+        _entry: Any, _entry_target: str, _exc: ChevalError, *, error_class: str,
+        observed: Optional[int], provider_limit: Optional[int], exit_code: int,
+    ) -> int:
+        """cycle-126 D-1.1b: the provider's own size verdict ends the call —
+        it is never walked (the next voice would get the same payload). The
+        observation is appended to `.run/ceiling-observed.json` (only the two
+        context classes lower the bound; a 429 while unverified is recorded
+        without lowering it), the envelope carries `calibration_needed`, and
+        the operator sees the probe command."""
+        nonlocal _last_walk_exit_code
+        # audit sprint-247: the provider's text is sanitised at the adapter already; pass it
+        # through the redaction helper again here (defence in depth) before it is recorded
+        # under `message_redacted` or printed.
+        from loa_cheval.redaction import sanitize_provider_error_message as _sanitize
+        _msg = _sanitize(str(_exc))
+        _obs = int(observed) if isinstance(observed, int) and observed > 0 else int(_walk_estimate or 0)
+        try:
+            _ceiling_record_observed(
+                provider=_entry.provider, model=_entry.model_id, observed_input_tokens=_obs,
+                error_class=error_class, estimated_input_tokens=_walk_estimate, provider_limit=provider_limit,
+            )
+        except Exception as _rec_err:  # noqa: BLE001 — the record must never mask the typed exit
+            print(f"[preflight] observed-bound record failed: {type(_rec_err).__name__}", file=sys.stderr)
+        _calib = {
+            "provider": _entry.provider, "model": _entry.model_id, "observed_input_tokens": _obs,
+            "provider_limit": provider_limit, "error_class": error_class,
+            "calibrate": _PROBE_COMMAND.format(model=_entry.model_id), "store": _observed_store_path(),
+        }
+        if isinstance(_modelinv_state.get("capability_evaluation"), dict):
+            _modelinv_state["capability_evaluation"]["calibration_needed"] = _calib
+        _modelinv_state["models_failed"].append({
+            "model": _entry_target, "provider": _entry.provider, "error_class": error_class,
+            "message_redacted": _msg, "observed_input_tokens": _obs, "provider_limit": provider_limit,
+        })
+        _modelinv_state["operator_visible_warn"] = True
+        print(
+            f"[preflight] calibration_needed model={_entry_target} class={error_class} "
+            f"observed_input_tokens={_obs} — not walked (cycle-126 D-1.1b); run: {_calib['calibrate']}",
+            file=sys.stderr,
+        )
+        print(_error_json(
+            _exc.code,
+            f"{_msg} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",
+            retryable=False, calibration_needed=True, error_class=error_class,
+            observed_input_tokens=_obs, provider_limit=provider_limit,
+        ), file=sys.stderr)
+        _last_walk_exit_code = exit_code
+        return exit_code
+
     try:
         for _idx, _entry in enumerate(_chain.entries):
             _entry_target = _entry.canonical
@@ -1903,10 +2105,70 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             #    gate. Chain semantics: walk to the next entry rather than
             #    raise CONTEXT_TOO_LARGE — the operator's declared chain shape
             #    is the contract, and a walk-eligible cause is preferable.
+            # cycle-126 D-1.1 (I1 per hop): this hop's output budget, shrunk
+            # to fit next to the input (floor 4,096); a hop where even the
+            # floor does not fit is a routing miss (walk), recorded as such.
+            _hop_budget = _hop_max_tokens(
+                _explicit_max_tokens, _entry.provider, _entry.model_id, hounfour
+            )
+            _hop_entry = _raw_model_entry(_entry.provider, _entry.model_id, hounfour)
+            _hop_cw = _hop_entry.get("context_window")
+            if (
+                _ceiling_policy != "legacy"
+                # only entries that carry an HTTP input ceiling: CLI hops and v2
+                # entries have no bound here (SDD D-1.1: "CLI hops carry no HTTP
+                # ceiling (unchanged)"), so their budget is never fitted.
+                and any(k in _hop_entry for k in ("effective_input_ceiling", "probed_ceiling"))
+                and isinstance(_hop_cw, int) and not isinstance(_hop_cw, bool) and _hop_cw > 0
+                and not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE")
+            ):
+                if _walk_estimate is None:
+                    from loa_cheval.providers.base import estimate_tokens
+                    _walk_estimate = estimate_tokens(messages)
+                _fit = _fit_max_tokens(context_window=_hop_cw, estimate=_walk_estimate, requested=_hop_budget)
+                if _fit.max_tokens is None:
+                    _modelinv_state["models_failed"].append({
+                        "model": _entry_target,
+                        "provider": _entry.provider,
+                        "error_class": "ROUTING_MISS",
+                        "message_redacted": (
+                            f"I1: estimated {_walk_estimate} input tokens + the {_FLOOR_MAX_TOKENS} "
+                            f"output floor exceed context_window {_hop_cw}"
+                        ),
+                    })
+                    if _verbose:
+                        print(f"[cheval] skip {_entry_target} (i1: no room for the output floor)", file=sys.stderr)
+                    continue
+                if _fit.shrunk_from is not None:
+                    _hop_budget = _fit.max_tokens
+                    if isinstance(_modelinv_state.get("capability_evaluation"), dict):
+                        _modelinv_state["capability_evaluation"]["max_tokens_shrunk"] = {
+                            "from": _fit.shrunk_from, "to": _fit.max_tokens, "hop": _entry_target,
+                        }
+
+            # cycle-126 D-1.1b (review sprint-247 DISS-001): "above the probed
+            # bound" is a property of THIS hop's entry and budget, never
+            # inherited from the head — a fallback whose bound is calibrated
+            # (or larger) runs the same payload verified, so its 429 walks and
+            # its provider verdict is the catalog's error, not an unverified one.
+            _hop_unverified = False
+            if (
+                _ceiling_policy == "derived"
+                and any(k in _hop_entry for k in ("effective_input_ceiling", "probed_ceiling"))
+                and not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE")
+            ):
+                _hop_decision = _ceiling_input_bound(
+                    _hop_entry, max_tokens=_hop_budget,
+                    observed=_observed_for(_entry.provider, _entry.model_id), policy=_ceiling_policy,
+                )
+                if _hop_decision is not None and not _hop_decision.calibrated and _hop_decision.probed:
+                    _hop_unverified = (_walk_estimate or 0) > _hop_decision.probed
+
             if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE"):
                 _input_threshold = _lookup_max_input_tokens(
                     _entry.provider, _entry.model_id, hounfour,
                     cli_override=getattr(args, "max_input_tokens", None),
+                    max_tokens=_hop_budget,
                 )
                 if _input_threshold is not None:
                     from loa_cheval.providers.base import estimate_tokens
@@ -1957,10 +2219,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 temperature=base_request.temperature,
                 # cycle-124 FR-2: per-hop budget — a fallback hop with a
                 # smaller max_output_tokens (or a non-Anthropic default) does
-                # not inherit the primary's 64K.
-                max_tokens=_hop_max_tokens(
-                    _explicit_max_tokens, _entry.provider, _entry.model_id, hounfour
-                ),
+                # not inherit the primary's 64K. cycle-126 I1: already fitted.
+                max_tokens=_hop_budget,
                 metadata=base_request.metadata,
                 tools=getattr(base_request, "tools", None),
                 effort=base_request.effort,
@@ -2040,9 +2300,23 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 })
                 print(_error_json(_e.code, str(_e)), file=sys.stderr)
                 return EXIT_CODES["BUDGET_EXCEEDED"]
+            except ProviderContextLimitError as _e:
+                # cycle-126 D-1.1b: the PROVIDER refused the payload (HTTP 400
+                # prompt-too-long class / 413) — after the retry layer's single
+                # output-budget shrink. Not walked. Above the probed bound the
+                # class is CEILING_UNVERIFIED_LIMIT; otherwise the catalog bound
+                # itself was wrong (PROVIDER_CONTEXT_LIMIT). Either lowers the
+                # bound for this entry until calibration.
+                return _calibration_needed_exit(
+                    _entry, _entry_target, _e,
+                    error_class=("CEILING_UNVERIFIED_LIMIT" if _hop_unverified else "PROVIDER_CONTEXT_LIMIT"),
+                    observed=_e.input_tokens, provider_limit=_e.limit,
+                    exit_code=EXIT_CODES["CONTEXT_TOO_LARGE"],
+                )
             except ContextTooLargeError as _e:
                 # Walk to next entry — a different entry may have a different
-                # max_input_tokens ceiling.
+                # max_input_tokens ceiling. (cheval's OWN estimate against the
+                # hop's window — walkable, unlike the provider's verdict above.)
                 _modelinv_state["models_failed"].append({
                     "model": _entry_target,
                     "provider": _entry.provider,
@@ -2076,6 +2350,18 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     )
                 continue
             except RateLimitError as _e:
+                if _hop_unverified and getattr(_e, "token_limited", False):
+                    # cycle-126 D-1.1b: a token-limit 429 (the provider's message
+                    # names a token or context budget) on a request that proceeded
+                    # above the probed bound is not walked and is recorded for
+                    # calibration; the bound is NOT lowered from a 429. Any other
+                    # 429 — a request rate — says nothing about the payload's size
+                    # and walks like it does under the bound (BB-003). The
+                    # transport layer already retried it with backoff.
+                    return _calibration_needed_exit(
+                        _entry, _entry_target, _e, error_class="RATE_LIMIT_UNVERIFIED",
+                        observed=None, provider_limit=None, exit_code=EXIT_CODES["RATE_LIMITED"],
+                    )
                 _modelinv_state["models_failed"].append({
                     "model": _entry_target,
                     "provider": _entry.provider,
@@ -2196,6 +2482,10 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             # 6. SUCCESS — record final-entry state and break out of the chain.
             _final_entry = _entry
             _modelinv_state["models_succeeded"] = [_entry_target]
+            # cycle-126 D-1.1b: a retry-layer budget shrink (provider limit) lands in the envelope.
+            _shrunk_by_provider = (getattr(_result, "metadata", None) or {}).get("max_tokens_shrunk")
+            if isinstance(_shrunk_by_provider, dict) and isinstance(_modelinv_state.get("capability_evaluation"), dict):
+                _modelinv_state["capability_evaluation"]["max_tokens_shrunk"] = dict(_shrunk_by_provider, hop=_entry_target)
             _modelinv_state["invocation_latency_ms"] = getattr(_result, "latency_ms", None)
             _cost = getattr(_result, "cost_micro_usd", None)
             if _cost is not None:
@@ -2641,9 +2931,11 @@ def main() -> int:
     parser.add_argument(
         "--max-tokens", type=int, default=None, dest="max_tokens",
         help=(
-            "Maximum output tokens. Default (cycle-124 FR-2): per model — Anthropic "
-            "hops min(64000 streaming | 16000 with LOA_CHEVAL_DISABLE_STREAMING, "
-            "catalog max_output_tokens); other providers 4096. Explicit values are "
+            "Maximum output tokens. Default (cycle-124 FR-2, cycle-126 FR-1.3): per "
+            "model — Anthropic hops min(64000 streaming | 16000 with "
+            "LOA_CHEVAL_DISABLE_STREAMING, catalog max_output_tokens); other providers "
+            "min(16000, catalog max_output_tokens); 4096 for an entry without "
+            "max_output_tokens or under LOA_CHEVAL_LEGACY_WIRE. Explicit values are "
             "clamped to the catalog max_output_tokens; 0 is rejected."
         ),
     )

@@ -100,11 +100,125 @@ estimate_tokens() {
 # This prevents silent token-limit truncation by the API and ensures
 # security-critical files are always reviewed first.
 
+# A chunk's head at a hunk boundary: the byte cut, trimmed back to drop the hunk the cut landed in — unless that
+# would leave no hunk at all (cycle-126 sprint-248, thirteenth / fourteenth run)
+_lc_log() { printf '%s\n' "$*" >&2; }   # prepare_content's fallback logger (b1 C-004)
+_lc_cut_partial() {  # <chunk file> <max bytes> <out file> → writes the partial; prints `hunk` (cut at a hunk boundary) or `mid`
+                     # (the cut fell inside the first hunk: the partial ends on a line boundary and the last hunk is incomplete —
+                     # fifteenth run, b1 C-001: never mid-line, never a marker that says every hunk is whole)
+  local partial trimmed nxt
+  # (twenty-fifth run, b1 DISS-C-003: no room for any byte is an empty cut — BSD head refuses `-c 0`)
+  if (( $2 <= 0 )); then : > "$3"; printf 'mid'; return 0; fi
+  partial=$(head -c "$2" "$1")
+  # twenty-third run, b1 DISS-C-001: whole lines first — a cut inside a line (a hunk header's first bytes included) drops that
+  # line — then a hunk header (or the end) right after them means their last hunk is complete, and it is kept
+  nxt=$(_lc_next5 "$1" "$(printf '%s' "$partial" | LC_ALL=C wc -c)"; printf x) || nxt="x"; nxt="${nxt%x}"
+  if [[ -n "$nxt" && "$nxt" != $'\n'* ]]; then
+    if [[ "$partial" == *$'\n'* ]]; then partial="${partial%$'\n'*}"; else partial=""; fi
+    nxt=$(_lc_next5 "$1" "$(printf '%s' "$partial" | LC_ALL=C wc -c)"; printf x) || nxt="x"; nxt="${nxt%x}"
+  fi
+  if [[ -z "$nxt" || "$nxt" == $'\n@@ '* ]] && (( $(_lc_hunk_count "$partial") > 0 )); then
+    printf '%s' "$partial" > "$3"; printf 'hunk'; return 0
+  fi
+  trimmed="${partial%$'\n@@ '*}"
+  if [[ "$trimmed" != "$partial" && $(_lc_hunk_count "$trimmed") -gt 0 ]]; then
+    printf '%s' "$trimmed" > "$3"; printf 'hunk'
+  else
+    # a budget that lands before the first newline holds no whole line: nothing is shown rather than a fragment (eighteenth
+    # run, b1 DISS-002: `${partial%$'\n'*}` trims nothing when there is no newline)
+    printf '%s' "$partial" > "$3"   # (whole lines already — twenty-third run, b1 DISS-C-001)
+    printf 'mid'
+  fi
+}
+_lc_next5() {  # <file> <bytes before> → the next five bytes, exact; nothing when only newlines are left (the chunk's own end)
+  # (thirty-sixth run, b1 DISS-C-001: a substitution strips trailing newlines — five empty lines after the cut read as the end, so a
+  # hunk cut before a run of suppressBlankEmpty context lines was counted whole; the caller appends a sentinel for the same reason)
+  local n more
+  n=$( { tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | head -c 5; printf x; } ) || n="x"; n="${n%x}"
+  # (thirty-eighth run, b1 DISS-C-001: nothing read while bytes remain — a vanished file, a failing tail — is a failed read, never
+  # the chunk's end: `?` is no hunk boundary, so the caller drops the incomplete hunk rather than count it whole)
+  if [[ -z "$n" ]]; then
+    more=$(LC_ALL=C wc -c < "$1" 2>/dev/null) || more=""; more="${more//[!0-9]/}"
+    [[ -n "$more" ]] && (( more <= $2 )) || n="?"
+  fi
+  if [[ -n "$n" && -z "${n//$'\n'/}" ]]; then
+    more=$(tail -c +"$(( $2 + 1 ))" "$1" 2>/dev/null | LC_ALL=C tr -d '\n' | head -c 1 | LC_ALL=C wc -c) || true
+    more="${more//[!0-9]/}"; (( ${more:-1} > 0 )) || n=""
+  fi
+  printf '%s' "$n"
+}
+_lc_hunk_count() {  # <text> → the number of @@ hunk headers, always one number (grep -c prints 0 AND exits 1 on none)
+  # (twenty-first run, b1 DISS-C-001: the assignment itself is guarded — a plain-statement call under errexit, or a substitution
+  # under inherit_errexit, must not stop on a text with no hunk header; the function always returns 0)
+  local c; c=$(printf '%s\n' "$1" | grep -c '^@@ ' 2>/dev/null) || true; [[ "$c" =~ ^[0-9]+$ ]] || c=0; printf '%s' "$c"
+}
+
 # Prepare content with priority-based truncation for large diffs
 # Args: $1 = raw content, $2 = max token budget
 # If content fits budget, passes through unchanged.
 # If over budget, parses diff into per-file sections, sorts by priority,
 # includes highest-priority files first, appends summary of skipped files.
+_lc_chunk_tok() {  # <temp dir> <chunk index> <outvar> → the chunk's estimate, counted once per prepare_content call: the memo is the
+                  # caller's local `_lc_tok` array (twenty-sixth run, b1 DISS-C-001 — the candidate scan, the reservation scan and the
+                  # include loop each re-read and re-counted every chunk); printf -v, so the memo survives (a `$(...)` would drop it)
+  # a subscript is arithmetic — `$(…)` in it runs: only a number is an index (audit run 1, b1 DISS-C-001), and only a canonical
+  # decimal one — `08` is invalid octal there (bd-pw7e LOW-002)
+  [[ "$2" =~ ^(0|[1-9][0-9]*)$ ]] || return 1
+  [[ -n "${_lc_tok[$2]:-}" ]] || _lc_tok[$2]=$(estimate_tokens "$(cat "$1/chunk_$2")")
+  printf -v "$3" '%s' "${_lc_tok[$2]}"
+}
+# The operator-facing stderr copy of a diff header path (bd-pw7e LOW-003; audit run 1 n30; run 2 finding 8; run 3
+# findings 8/10/11) → sets the variable named $1. Byte-wise under LC_ALL=C:
+#   1. cut to 256 bytes first, then drop an incomplete trailing UTF-8 sequence — the fixed point below then costs at
+#      most a few passes over a short string (C2^k 9B^k used to cost k passes over the whole path);
+#   2. C0 controls and DEL go;
+#   3. to a fixed point (deleting one sequence can join its neighbours into another: C2 C2 9B 9B -> C2 9B): UTF-8 C1
+#      controls C2 80..C2 9F and the Unicode format/bidi/tag code points U+00AD, U+061C, U+180E, U+200B-U+200F,
+#      U+2028-U+202E, U+2060-U+2064, U+2066-U+206F, U+FE00-U+FE0F, U+FEFF, U+FFF9-U+FFFB, U+E0001, U+E0020-U+E007F
+#      (Trojan-Source reordering of the file name). Every sequence starts with a lead byte, so legitimate UTF-8
+#      (src/café.sh) is untouched; printf -v keeps this portable (no GNU-sed \x);
+#   4. a copy that is still not valid UTF-8 (a bare 9B, or the 9B a C2 9B 9B leaves) has every non-printable byte,
+#      i.e. every byte >= 0x80, replaced with '?'; without iconv the replacement applies when a byte 80..9F remains.
+_LC_LOG_SEQS=()
+_lc_log_seqs_init() {
+  local i hex seq
+  for (( i = 128; i < 160; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xc2\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do printf -v seq "\\xe2\\x80\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for hex in a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af; do printf -v seq "\\xe2\\x81\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for seq in '\xef\xbb\xbf' '\xc2\xad' '\xd8\x9c' '\xe1\xa0\x8e' '\xef\xbf\xb9' '\xef\xbf\xba' '\xef\xbf\xbb' '\xf3\xa0\x80\x81'; do
+    printf -v seq "$seq"; _LC_LOG_SEQS+=("$seq")
+  done
+  for (( i = 128; i < 144; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xef\\xb8\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for (( i = 160; i < 192; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xf3\\xa0\\x80\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for (( i = 128; i < 192; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xf3\\xa0\\x81\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+}
+_lc_safe_log_path() {  # <outvar> <path>
+  local LC_ALL=C
+  local _p=${2:0:256} _n _i _b _need _prev _seq
+  (( ${#_LC_LOG_SEQS[@]} )) || _lc_log_seqs_init
+  _n=${#_p}
+  for (( _i = _n - 1; _i >= 0 && _i >= _n - 4; _i-- )); do
+    printf -v _b '%d' "'${_p:_i:1}"
+    (( _b >= 128 && _b < 192 )) && continue   # continuation byte: keep walking back to its lead
+    if (( _b < 128 )); then _need=1; elif (( _b < 224 )); then _need=2; elif (( _b < 240 )); then _need=3; else _need=4; fi
+    (( _n - _i < _need )) && _p=${_p:0:_i}     # the cut left this character short
+    break
+  done
+  (( _i < 0 || _i < _n - 4 )) && _p=${_p:0:_i+1}   # only continuation bytes at the end
+  _p=$(printf '%s' "$_p" | tr -d '\000-\037\177')
+  while :; do
+    _prev=$_p
+    for _seq in "${_LC_LOG_SEQS[@]}"; do _p=${_p//"$_seq"/}; done
+    [[ "$_p" == "$_prev" ]] && break
+  done
+  if command -v iconv >/dev/null 2>&1; then
+    printf '%s' "$_p" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || _p=$(printf '%s' "$_p" | tr -c '[:print:]' '?')
+  elif printf '%s' "$_p" | grep -q $'[\x80-\x9f]'; then
+    _p=$(printf '%s' "$_p" | tr -c '[:print:]' '?')
+  fi
+  printf -v "$1" '%s' "$_p"
+}
+
 prepare_content() {
   local raw_content="$1"
   local max_tokens="${2:-30000}"
@@ -118,11 +232,11 @@ prepare_content() {
     return 0
   fi
 
-  # Log function — use caller's log if available, otherwise stderr
-  local _log_fn="echo >&2"
-  if type log &>/dev/null; then
-    _log_fn="log"
-  fi
+  # Log function — the caller's `log` when it is a shell FUNCTION, else our own stderr writer (nineteenth run, b1 C-004: a string
+  # with a redirection in it is not a redirection after expansion — `$_log_fn msg` ran `echo '>&2' msg` INTO the payload; and
+  # `type log` would pick up macOS's /usr/bin/log)
+  local _log_fn
+  if declare -F log >/dev/null 2>&1; then _log_fn=log; else _log_fn=_lc_log; fi
   $_log_fn "Content exceeds token budget (${token_count} > ${max_tokens}). Applying priority-based truncation."
 
   # Parse diff into per-file sections at "diff --git" boundaries
@@ -132,15 +246,17 @@ prepare_content() {
 
   local current_file="" current_content="" file_index=0
 
+  # manifest rows are `pri<TAB>idx<TAB>path`, read `read -r pri idx path`: the path takes the rest of the line, so a raw tab in a
+  # `diff --git` header never shifts its text into the index (audit run 1, b1 DISS-C-001)
   while IFS= read -r line; do
     if [[ "$line" =~ ^diff\ --git\ a/(.+)\ b/ ]]; then
       # Save previous file section
       if [[ -n "$current_file" ]]; then
         local pri
         pri=$(file_priority "$current_file")
-        printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+        printf '%d\t%d\t%s\n' "$pri" "$file_index" "$current_file" >> "$temp_dir/manifest"
         printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
-        ((file_index++))
+        ((file_index++)) || true
       fi
       current_file="${BASH_REMATCH[1]}"
       current_content="$line"
@@ -153,9 +269,9 @@ prepare_content() {
   if [[ -n "$current_file" ]]; then
     local pri
     pri=$(file_priority "$current_file")
-    printf '%d\t%s\t%d\n' "$pri" "$current_file" "$file_index" >> "$temp_dir/manifest"
+    printf '%d\t%d\t%s\n' "$pri" "$file_index" "$current_file" >> "$temp_dir/manifest"
     printf '%s' "$current_content" > "$temp_dir/chunk_${file_index}"
-    ((file_index++))
+    ((file_index++)) || true
   fi
 
   # If no diff structure found (not a diff file), truncate raw content
@@ -178,12 +294,13 @@ prepare_content() {
 
     # Filter manifest: remove excluded files
     local filtered_manifest=""
-    while IFS=$'\t' read -r priority filepath chunk_idx; do
+    while IFS=$'\t' read -r priority chunk_idx filepath; do
+      [[ "$chunk_idx" =~ ^(0|[1-9][0-9]*)$ ]] || continue
       if is_excluded "$filepath"; then
-        ((scope_excluded++))
+        ((scope_excluded++)) || true
         rm -f "$temp_dir/chunk_${chunk_idx}"
       else
-        filtered_manifest+="${priority}"$'\t'"${filepath}"$'\t'"${chunk_idx}"$'\n'
+        filtered_manifest+="${priority}"$'\t'"${chunk_idx}"$'\t'"${filepath}"$'\n'
       fi
     done < "$temp_dir/manifest"
     printf '%s' "$filtered_manifest" > "$temp_dir/manifest"
@@ -195,22 +312,118 @@ prepare_content() {
 
   # Sort by priority (lowest number = highest importance)
   local sorted_manifest
-  sorted_manifest=$(sort -t$'\t' -k1,1n "$temp_dir/manifest")
+  sorted_manifest=$(sort -s -t$'\t' -k1,1n "$temp_dir/manifest")   # (stable: ties keep the diff's order, not the path's — fifteenth run, b1 C-002)
+  # Every parsed file excluded by the review scope: an empty payload and a log line, never a `cat chunk_` under errexit
+  # (sixteenth run, b1 DISS-001)
+  if [[ -z "$(printf '%s' "$sorted_manifest" | tr -d '[:space:]')" ]]; then
+    $_log_fn "Review scope excluded every file of the diff — nothing to review"
+    rm -rf "$temp_dir"
+    printf ''
+    return 0
+  fi
 
   # Build output up to token budget
-  local output="" current_tokens=0 included=0
+  local output="" current_tokens=0 included=0 inc_low=-1
   local -a skipped_files=()
 
-  while IFS=$'\t' read -r priority filepath chunk_idx; do
+  # The top-priority file that does not fit whole is shown partially, at its tier's place, within three quarters of the budget — a
+  # lower-priority file never displaces the file the review is about, and a voice never reviews an incomplete diff as
+  # clean without the PARTIAL marker (cycle-126 sprint-248, thirteenth run c1 C-001 / fourteenth run b C-002)
+  # the candidate is the FIRST row, in priority order, whose chunk does not fit whole — not the first row (sixteenth run,
+  # b1 C-002: a small P0 file ahead of a large one must not hide the large one), and not only at the top tier (nineteenth
+  # run, b1 C-002: a large P1 file behind a small P0 one was dropped whole with three quarters of the budget unused); the
+  # reservation below is computed against the rows at or above the candidate's own priority
+  # — and not only a row larger than the WHOLE budget (twenty-first run, b1 DISS-C-002: a P0 file that fits the budget alone but
+  # not beside the P0 rows ahead of it was dropped whole while a P1 file behind it was shown); the running sum below is the main
+  # loop's own include rule up to its first omission
+  local top_pri="" top_path="" top_idx="" top_partial_done=0 top_no_room=0 c_pri c_path c_idx c_tok c_run=0
+  local -a _lc_tok=()
+  while IFS=$'\t' read -r c_pri c_idx c_path; do
+    [[ -n "$c_idx" && -f "$temp_dir/chunk_${c_idx}" ]] || continue
+    _lc_chunk_tok "$temp_dir" "$c_idx" c_tok || continue
+    if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
+    c_run=$(( c_run + c_tok ))
+  done <<< "$sorted_manifest"
+  local top_path_log; _lc_safe_log_path top_path_log "$top_path"   # stderr never gets a header's raw controls, C1 or bidi code points
+  if [[ -n "$top_idx" ]]; then
+    # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
+    # of the budget — a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large
+    # file (fifteenth run, b1 C-002), and a lower-priority row never shrinks the view of the file the review is about
+    # (sixteenth run, b1 C-001)
+    local others=0 o_pri o_path o_idx o_tok reserve partial kept total how
+    while IFS=$'\t' read -r o_pri o_idx o_path; do
+      [[ -n "$o_idx" && "$o_idx" != "$top_idx" && -f "$temp_dir/chunk_${o_idx}" ]] || continue
+      [[ "$o_pri" -le "$top_pri" ]] || continue
+      _lc_chunk_tok "$temp_dir" "$o_idx" o_tok || continue
+      # what those rows take TOGETHER, by the main loop's greedy rule — two siblings that each fit but not side by side are not
+      # reserved twice (twenty-second run, b1 DISS-C-001)
+      (( others + o_tok <= max_tokens )) && others=$(( others + o_tok ))
+    done <<< "$sorted_manifest"
+    # twentieth run, b1 DISS-C-001: no floor — a quarter-budget floor let the partial displace a row at or above its tier that
+    # fits whole; what those rows leave over is all it gets (capped at three quarters), and its marker comes out of that
+    # share too when there are such rows to protect (b1 DISS-001: the marker is charged to the budget)
+    local marker_est
+    marker_est=$(estimate_tokens "--- PARTIAL: ${top_path} shown up to the token budget (999 of 999 hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---")
+    reserve=$(( max_tokens - others ))
+    # twenty-fourth run, b1 DISS-C-001: with rows ranked BELOW the top file, the cap bounds the VIEW at three quarters of the budget —
+    # with none, the quarter went unspent and the file the review is about was shown shorter; uncapped, the marker comes out of the
+    # view's own share. (Thirty-fourth run, b1 DISS-C-001: it is a cap on the view, not a quarter kept for the lower rows — the
+    # siblings at its tier come first, whole, then the view; the lower rows get what both leave, nothing once the siblings take a
+    # quarter or more. CMP-214 pins the order.)
+    local lower=0
+    while IFS=$'\t' read -r o_pri o_idx o_path; do
+      [[ -n "$o_idx" && "$o_idx" != "$top_idx" && "$o_pri" -gt "$top_pri" ]] && { lower=1; break; }
+    done <<< "$sorted_manifest"
+    if (( lower )); then
+      (( reserve > max_tokens * 3 / 4 )) && reserve=$(( max_tokens * 3 / 4 ))
+      if (( others > 0 )); then reserve=$(( reserve - marker_est - 1 ))
+      # (thirty-second run, b1 DISS-001: with no sibling to protect the capped view kept its whole share and its marker went on top —
+      # over the budget wherever the marker outweighs the quarter left; the view and its marker never exceed the budget)
+      elif (( reserve > max_tokens - marker_est - 1 )); then reserve=$(( max_tokens - marker_est - 1 )); fi
+    else
+      reserve=$(( reserve - marker_est - 1 ))
+    fi
+    (( reserve < 0 )) && reserve=0
+  fi
+  # twenty-first run, b1 DISS-001: the rows at or above its tier that fit leave no room for even the marker — no partial view is
+  # made (a marker-only block placed first would displace a sibling that fits whole); the file is listed as omitted, like any other
+  if [[ -n "$top_idx" ]] && (( others > 0 && reserve <= 0 )); then
+    $_log_fn "File ${top_path_log} exceeds what the rows that fit leave over: no room for a partial view, listed as omitted"
+    top_no_room=1
+  elif [[ -n "$top_idx" ]]; then
+    how=$(_lc_cut_partial "$temp_dir/chunk_${top_idx}" $(( reserve * 3 )) "$temp_dir/partial_${top_idx}")
+    partial=$(cat "$temp_dir/partial_${top_idx}")
+    total=$(_lc_hunk_count "$(cat "$temp_dir/chunk_${top_idx}")"); kept=$(_lc_hunk_count "$partial")
+    local partial_block="$partial"$'\n'
+    if [[ $kept -eq 0 && $total -gt 0 ]]; then   # (twentieth run, b1 C-003: not even one hunk header fit — only the marker is sent)
+      partial_block="--- PARTIAL: ${top_path}: no hunk fit within the token budget (0 of ${total} hunks shown; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    elif [[ "$how" == "mid" && $total -gt 0 ]]; then   # (a chunk with no hunk header at all is just cut: nothing to call mid-way)
+      partial_block+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks, the last one cut mid-way; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    else
+      partial_block+=$'\n'"--- PARTIAL: ${top_path} shown up to the token budget (${kept} of ${total} hunks; token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    fi
+    top_partial_done=1
+    $_log_fn "Top-priority file ${top_path_log} exceeds the token budget: shown partially (${kept} of ${total} hunks${how:+, cut $how})"
+  fi
+
+  while IFS=$'\t' read -r priority chunk_idx filepath; do
+    # (the pre-scans' guard: a row with no chunk file is never read — audit run 1, b1 DISS-C-001)
+    [[ -n "$chunk_idx" && -f "$temp_dir/chunk_${chunk_idx}" ]] || continue
+    # the partial view sits at its own tier's place (twentieth run, b1 DISS-C-001), charged with its marker, always shown
+    if [[ $top_partial_done -eq 1 && "$chunk_idx" == "$top_idx" ]]; then
+      output+="$partial_block"; current_tokens=$(( current_tokens + $(estimate_tokens "$partial_block") )); ((included++)) || true
+      continue
+    fi
     local chunk_content
     chunk_content=$(cat "$temp_dir/chunk_${chunk_idx}")
     local chunk_tokens
-    chunk_tokens=$(estimate_tokens "$chunk_content")
+    _lc_chunk_tok "$temp_dir" "$chunk_idx" chunk_tokens || continue
 
     if [[ $(( current_tokens + chunk_tokens )) -le $max_tokens ]]; then
       output+="$chunk_content"$'\n'
       current_tokens=$(( current_tokens + chunk_tokens ))
-      ((included++))
+      ((included++)) || true   # (twenty-fifth run, b1 DISS-C-004: every counter here is errexit-neutral — from 0 a bare ((x++)) returns 1)
+      (( priority > inc_low )) && inc_low=$priority
     else
       skipped_files+=("P${priority}: ${filepath}")
     fi
@@ -218,7 +431,13 @@ prepare_content() {
 
   # Append summary of skipped files
   if [[ ${#skipped_files[@]} -gt 0 ]]; then
-    output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'
+    # (twenty-third run, b1 DISS-C-002: the file dropped for want of room for a partial view is the one the review is about — the
+    # footer never calls it lower-priority)
+    if [[ $top_no_room -eq 1 ]] && (( inc_low < 0 || inc_low >= top_pri )); then   # (a shown file at its tier or below)
+      output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} file(s) omitted, among them P${top_pri}: ${top_path} — the highest-priority file over the budget, with no room for a partial view (token budget: ${max_tokens}) — split the diff for a full review ---"$'\n'
+    else
+      output+=$'\n'"--- TRUNCATED: ${#skipped_files[@]} lower-priority file(s) omitted (token budget: ${max_tokens}) ---"$'\n'
+    fi
     for sf in "${skipped_files[@]}"; do
       output+="  $sf"$'\n'
     done

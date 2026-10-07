@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -21,12 +22,16 @@ from loa_cheval.providers.base import (
     ProviderAdapter,
     _streaming_disabled,
     enforce_context_window,
+    http_get,
     http_post,
     http_post_stream,
+    wire_temperature,
     _legacy_wire,
 )
 from loa_cheval.streaming import StreamingRecoveryAbort
 from loa_cheval.types import (
+    ConfigError,
+    ProviderContextLimitError,
     CompletionRequest,
     CompletionResult,
     InvalidInputError,
@@ -38,6 +43,7 @@ from loa_cheval.types import (
     dispatch_provider_stream_error,
 )
 from loa_cheval.routing import EmptyContentError
+from loa_cheval.routing.ceiling import is_context_limit_message, is_token_limit_message, parse_context_limit
 
 logger = logging.getLogger("loa_cheval.providers.anthropic")
 
@@ -67,6 +73,16 @@ _EFFORT_FULL_PREFIXES = ("claude-fable-5", "claude-opus-5", "claude-opus-4-8", "
 _NONSTREAMING_TIMEOUT_TOKENS_PER_S = 25.0
 _NONSTREAMING_TIMEOUT_CAP_S = 600.0
 _NONSTREAMING_TIMEOUT_FLOOR_TOKENS = 4096
+
+# cycle-126 FR-1.2 (SDD D-1.2): the only shape a catalog `params.beta_headers`
+# value may take — a dated feature flag such as `context-1m-2025-08-07`. The
+# values are joined into ONE `anthropic-beta` header; a request can never add
+# one, and anything outside the allowlist is a configuration error (an
+# operator typo must not become a silent "the beta did not apply"). The pattern
+# is the schema's own string (model-config-v3 `beta_headers.items.pattern`) and is
+# applied with `fullmatch` — ASCII `[0-9]` and no trailing newline, the exact
+# equal of the schema's ECMA-262 reading (audit dissent run 1, n1/n4).
+_BETA_HEADER_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
 def _nonstreaming_read_timeout(configured: float, max_tokens: Any) -> float:
@@ -147,6 +163,27 @@ def _is_billing_class_error(message: str) -> bool:
     return any(token in haystack for token in _BILLING_CLASS_TOKENS)
 
 
+def _beta_header_value(params: Dict[str, Any], model: str) -> Optional[str]:
+    """`params.beta_headers` → one comma-joined `anthropic-beta` value, or
+    None when the entry declares none. Every value must match the allowlist;
+    a non-list or a value outside it raises ConfigError naming the entry."""
+    raw = params.get("beta_headers")
+    if raw is None:
+        return None
+    if not isinstance(raw, list):
+        raise ConfigError(f"{model}: params.beta_headers must be a list of dated beta flags, got {type(raw).__name__}")
+    values: List[str] = []
+    for item in raw:
+        if not isinstance(item, str) or not _BETA_HEADER_RE.fullmatch(item):
+            raise ConfigError(
+                f"{model}: params.beta_headers value {item!r} is outside the allowlist "
+                f"(lowercase words joined by '-' ending in a YYYY-MM-DD date)"
+            )
+        if item not in values:
+            values.append(item)
+    return ",".join(values) if values else None
+
+
 def _is_refusal(metadata: Optional[Dict[str, Any]]) -> bool:
     """issue #1102: True when the provider returned stop_reason == "refusal".
 
@@ -191,9 +228,15 @@ class AnthropicAdapter(ProviderAdapter):
         # `.get()`). Lenient default → treat malformed as missing → include
         # temperature; dataclass schema validation upstream is the strict path.
         params = model_config.params if isinstance(model_config.params, dict) else {}
-        if params.get("temperature_supported", True):
-            body["temperature"] = request.temperature
-        elif request.temperature != 0.7:
+        # cycle-126 FR-1.3 (SDD D-1.3): nothing on the wire unless a caller set
+        # a temperature — the provider default applies; the legacy wire keeps
+        # the pre-cycle 0.7 so golden request bodies still match under it.
+        temperature = wire_temperature(request.temperature)
+        if temperature is None:
+            pass
+        elif params.get("temperature_supported", True):
+            body["temperature"] = temperature
+        else:
             # cycle-124 FR-1 (SDD §3.3): the silent omission is now visible —
             # thinking-enabled models reject sampling params with HTTP 400, so
             # a caller-supplied temperature (top_p / top_k are not request
@@ -203,7 +246,7 @@ class AnthropicAdapter(ProviderAdapter):
             logger.log(
                 _level,
                 "temperature %s dropped for %s (thinking-enabled / sampling params rejected)",
-                request.temperature, request.model,
+                temperature, request.model,
             )
 
         # cycle-124 FR-1 (SDD §3.3): adaptive thinking is OFF unless requested
@@ -255,12 +298,10 @@ class AnthropicAdapter(ProviderAdapter):
             }
 
         # Build headers — Anthropic uses x-api-key, not Bearer token
-        auth = self._get_auth_header()
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": auth,
-            "anthropic-version": "2023-06-01",
-        }
+        headers = self._headers()
+        beta = _beta_header_value(params, request.model)
+        if beta:
+            headers["anthropic-beta"] = beta
 
         url = f"{self.config.endpoint}/messages"
 
@@ -302,7 +343,7 @@ class AnthropicAdapter(ProviderAdapter):
                 except Exception:
                     err_json = {"error": {"message": err_bytes.decode("utf-8", errors="replace")[:500]}}
                 if status == 429:
-                    raise RateLimitError(self.provider)
+                    raise _rate_limit_error(self.provider, err_json)
                 if status >= 500:
                     raise ProviderUnavailableError(
                         self.provider,
@@ -316,6 +357,14 @@ class AnthropicAdapter(ProviderAdapter):
                     raise ModelNotFoundError(
                         self.provider,
                         f"HTTP 404 model-not-found: {_msg}",
+                    )
+                # cycle-126 D-1.1b: the provider's own "too large" verdict is
+                # typed (non-walkable; the retry layer may shrink max_tokens
+                # once for the input+max_tokens shape).
+                if status in (400, 413) and is_context_limit_message(_msg):
+                    raise ProviderContextLimitError(
+                        self.provider, f"HTTP {status} context-limit: {_msg}",
+                        status=status, **parse_context_limit(_msg),
                     )
                 # cycle-109 followup #883 Bug 3 — billing-class 400s raise
                 # ProviderUnavailableError so the cycle-104 within-company
@@ -440,7 +489,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         # Handle errors
         if status == 429:
-            raise RateLimitError(self.provider)
+            raise _rate_limit_error(self.provider, resp)
 
         if status >= 500:
             msg = _extract_error_message(resp)
@@ -453,6 +502,11 @@ class AnthropicAdapter(ProviderAdapter):
             if status == 404 and _is_model_not_found(msg):
                 raise ModelNotFoundError(
                     self.provider, f"HTTP 404 model-not-found: {msg}"
+                )
+            if status in (400, 413) and is_context_limit_message(msg):  # cycle-126 D-1.1b
+                raise ProviderContextLimitError(
+                    self.provider, f"HTTP {status} context-limit: {msg}",
+                    status=status, **parse_context_limit(msg),
                 )
             # cycle-109 followup #883 Bug 3 — billing-class 400s raise
             # ProviderUnavailableError so the within-company chain walks.
@@ -537,6 +591,36 @@ class AnthropicAdapter(ProviderAdapter):
             metadata=_meta,
         )
 
+    def count_tokens(self, request: CompletionRequest) -> Optional[int]:
+        """`POST /v1/messages/count_tokens` for the request as it would be
+        sent (system + messages, same headers, same beta flags) — cycle-126
+        D-1.4. Returns the provider's `input_tokens`, or None on any failure
+        (no key, non-200, transport error): the caller keeps its heuristic.
+        Sends exactly the prompt the request would send — no new data path."""
+        try:
+            model_config = self._get_model_config(request.model)
+            params = model_config.params if isinstance(model_config.params, dict) else {}
+            system_prompt, messages = _transform_messages(request.messages)
+            body: Dict[str, Any] = {"model": request.model, "messages": messages}
+            if system_prompt:
+                body["system"] = system_prompt
+            if request.tools:
+                body["tools"] = _transform_tools_to_anthropic(request.tools)
+            headers = self._headers()
+            beta = _beta_header_value(params, request.model)
+            if beta:
+                headers["anthropic-beta"] = beta
+            status, resp = http_post(f"{self.config.endpoint}/messages/count_tokens", headers, body,
+                                     connect_timeout=self.config.connect_timeout, read_timeout=60.0)
+        except Exception as exc:  # noqa: BLE001 — a count is advisory
+            logger.info("count_tokens unavailable for %s: %s", request.model, type(exc).__name__)
+            return None
+        if status != 200 or not isinstance(resp, dict):
+            logger.info("count_tokens HTTP %s for %s — heuristic kept", status, request.model)
+            return None
+        n = resp.get("input_tokens")
+        return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else None
+
     def validate_config(self) -> List[str]:
         """Validate Anthropic-specific configuration."""
         errors = []
@@ -548,18 +632,53 @@ class AnthropicAdapter(ProviderAdapter):
             errors.append(f"Provider '{self.provider}': type must be 'anthropic'")
         return errors
 
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "x-api-key": self._get_auth_header(),
+            "anthropic-version": "2023-06-01",
+        }
+
+    def _tiny_model_id(self) -> Optional[str]:
+        """The cheapest declared model of this provider config — the one a
+        one-token probe should spend on. Prefers the Haiku tier, then the
+        lowest declared input price, then the first declared entry. No
+        literal snapshot id lives here (cycle-126 FR-1.7: the previous probe
+        carried a retired one)."""
+        models = self.config.models if isinstance(self.config.models, dict) else {}
+        if not models:
+            return None
+        ids = [getattr(m, "model_id", None) or key for key, m in models.items()]
+        for mid in ids:
+            if isinstance(mid, str) and mid.startswith("claude-haiku"):
+                return mid
+        priced = []
+        for key, m in models.items():
+            pricing = getattr(m, "pricing", None)
+            if isinstance(pricing, dict) and isinstance(pricing.get("input_per_mtok"), int):
+                priced.append((pricing["input_per_mtok"], getattr(m, "model_id", None) or key))
+        if priced:
+            return sorted(priced)[0][1]
+        return ids[0]
+
     def health_check(self) -> bool:
-        """Quick health probe. Anthropic doesn't have a models endpoint,
-        so we send a minimal messages request."""
+        """Quick health probe (cycle-126 FR-1.7, SDD D-1.7): the models
+        endpoint first (free, no retired ids); only when the endpoint is not
+        served (404, a proxy) a one-token message on the cheapest declared
+        model. Any transport failure is `False`, never an exception."""
         try:
-            auth = self._get_auth_header()
-            headers = {
-                "Content-Type": "application/json",
-                "x-api-key": auth,
-                "anthropic-version": "2023-06-01",
-            }
+            headers = self._headers()
+            status, _ = http_get(f"{self.config.endpoint}/models?limit=1", headers,
+                                 connect_timeout=5.0, read_timeout=10.0)
+            if status == 200:
+                return True
+            if status != 404:
+                return False
+            tiny = self._tiny_model_id()
+            if not tiny:
+                return False
             body = {
-                "model": "claude-3-haiku-20240307",
+                "model": tiny,
                 "max_tokens": 1,
                 "messages": [{"role": "user", "content": "ping"}],
             }
@@ -692,3 +811,14 @@ def _extract_error_message(resp: Dict[str, Any]) -> str:
     else:
         raw = str(resp)
     return sanitize_provider_error_message(raw)
+
+
+def _rate_limit_error(provider: str, resp: Any, retry_after: Optional[float] = None) -> RateLimitError:
+    """A 429 as a RateLimitError, marked token_limited when the body names a
+    token or context budget rather than a request rate (cycle-126 D-1.1b,
+    BB-003: only that class short-circuits a hop above its probed bound)."""
+    code = ""
+    if isinstance(resp, dict) and isinstance(resp.get("error"), dict):
+        code = str(resp["error"].get("code") or resp["error"].get("type") or "")
+    return RateLimitError(provider, retry_after,
+                          token_limited=is_token_limit_message(f"{_extract_error_message(resp)} {code}"))

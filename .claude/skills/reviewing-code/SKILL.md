@@ -3,8 +3,8 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *)
-# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001 enforced by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -20,6 +20,20 @@ capabilities:
         args: ["log", "*"]
       - command: ".claude/scripts/verdict-derive.sh"
         args: ["*"]
+      - command: ".claude/scripts/adversarial-review.sh"
+        args: ["*"]
+      - command: ".claude/scripts/qmd-context-query.sh"
+        args: ["*"]
+      - command: ".claude/scripts/guardrails-orchestrator.sh"
+        args: ["*"]
+      - command: "br"
+        args: ["sync", "--import-only"]
+      - command: "br"
+        args: ["sync", "--flush-only"]
+      - command: "br"
+        args: ["comments", "add", "*"]
+      - command: "br"
+        args: ["label", "add", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false
@@ -47,10 +61,10 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:c908c3b5 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:cd3fe039 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section entirely when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
+Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
 `LOA_GUARDRAILS_ENABLED=false`.
 
 Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
@@ -59,8 +73,8 @@ Otherwise: write the user's invocation prompt/args to a temp file (Write tool), 
 | Outcome | Action |
 |---------|--------|
 | JSON `action: "BLOCK"` | HALT; report the script's `reason` to the user |
-| JSON `action: "PROCEED"` or `"WARN"` | Continue (logging is handled by the script) |
-| Script missing, non-zero exit, or unparseable output | Continue — fail-open, preserving the prior semantics |
+| JSON `action: "PROCEED"` or `"WARN"` | Continue (the script logs) |
+| Script missing, non-zero exit, or unparseable output | Continue (fail-open) |
 
 Never pass prompt text as a bash argv (quote-blindness FP class) — always via `--file`.
 <!-- @skill-include: end input_guardrails -->
@@ -121,12 +135,12 @@ Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/l
 </zone_constraints>
 
 <integrity_precheck>
-<!-- @skill-include: start integrity_precheck | hash:c6d25667 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
+<!-- @skill-include: start integrity_precheck | hash:47b71a70 | DO NOT EDIT — generated from .claude/data/skill-includes/integrity_precheck.md -->
 ## Integrity Pre-Check (MANDATORY)
 
 Before ANY operation, verify System Zone integrity:
 
-1. Check config: `yq eval '.integrity_enforcement' .loa.config.yaml`
+1. Check config: read `integrity_enforcement` in `.loa.config.yaml`
 2. If `strict` and drift detected -> **HALT** and report
 3. If `warn` -> Log warning and proceed with caution
 <!-- @skill-include: end integrity_precheck -->
@@ -155,14 +169,14 @@ The SDD specifies "PostgreSQL 15 with pgvector extension" (sdd.md:L123)
 </factual_grounding>
 
 <context_discipline>
-<!-- @skill-include: start context_discipline | hash:d7adbf89 | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
+<!-- @skill-include: start context_discipline | hash:8b81d75a | DO NOT EDIT — generated from .claude/data/skill-includes/context_discipline.md -->
 ## Context Discipline
 
-Follow `.claude/protocols/tool-result-clearing.md`: single result >2K tokens / accumulated >5K /
-full file >3K / session >15K → extract findings (≤10 files, ≤20 words, file:line) to NOTES.md
-and reason from that synthesis. Big artefacts: `notes-guard.sh read --file F --section <H>` /
-`--index` before a blind Read. Start: read NOTES.md "Session Continuity"; end / pre-compaction:
-update it (decisions → Decision Log, issues → Technical Debt).
+Class: `.run/context-class` (`long` default; `standard` via `LOA_CONTEXT_CLASS=standard` or a
+≤200K model). `.claude/protocols/tool-result-clearing.md` — long 20K/50K/30K/150K, standard 2K/5K/3K/15K (single /
+accumulated / full file / session) → extract ≤10 files, ≤20 words, file:line to NOTES.md; reason
+from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` first. Start: NOTES.md
+"Session Continuity"; end / pre-compaction: update it.
 <!-- @skill-include: end context_discipline -->
 </context_discipline>
 
@@ -179,37 +193,38 @@ Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`
 </trajectory_logging>
 
 <citation_requirements>
-Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve context links (Discord threads, Linear issues) from `integration-context.md` in the output when present.
+Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links (Discord, Linear) when present.
 </citation_requirements>
 
 <workflow>
-## Phase -1: Context Assessment
+## Phase -1: Scope
 
-`wc -l grimoires/loa/prd.md grimoires/loa/sdd.md grimoires/loa/sprint.md grimoires/loa/a2a/sprint-N/reviewer.md 2>/dev/null`: under 3,000 lines is SMALL (sequential); 3,000–6,000 MEDIUM (split by task if >3 tasks); over 6,000 LARGE (MUST split). MEDIUM/LARGE: see `<parallel_execution>` below.
+Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large sprint, or one with more than 3 tasks, splits per task (`<parallel_execution>`).
 
 ## Phase 1: Context Gathering
 
-Read ALL context documents in order:
+Read, in order:
 1. `grimoires/loa/a2a/integration-context.md` if it exists
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. If `.claude/scripts/qmd-context-query.sh` exists and `qmd_context.enabled` is not `false` in `.loa.config.yaml`: run `.claude/scripts/qmd-context-query.sh --query "<changed_files> <sprint_goal>" --scope grimoires --budget 1500 --format text` and include the output as advisory context (acceptance criteria and code remain primary). Missing, disabled, or empty is a graceful no-op.
+5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
-Review the implementation, not the report: read every modified file; validate against the acceptance criteria; assess readability, maintainability and conventions; read the tests and verify their assertions; check SDD alignment; audit security (see `resources/REFERENCE.md` §Security); check performance and resource management; run the two checks below.
+Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the two checks below.
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran; re-run if in doubt. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
-Runs when `flatline_protocol.code_review.enabled: true` in `.loa.config.yaml`; skipping it then
-blocks the `COMPLETED` marker write (`.claude/hooks/safety/adversarial-review-gate.sh`, override
-only via `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, documented in sprint notes). Invocation,
-output parsing and the unavailable-review path: see `resources/ADVERSARIAL-REVIEW.md`.
+Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the `COMPLETED` write
+(`adversarial-review-gate.sh`; override `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes).
+Two voices by default (`companion_voice`). One top-level bullet per rejected payload (`rejected_summary`
+or `adversarial-rejected-review*.jsonl` rows, whichever is more) under `## Rejected dissent payloads`, else
+`verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
 
 ## Phase 3: Previous Feedback Verification
 
@@ -217,7 +232,7 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 
 ## Phase 4: Decision Making
 
-**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. Zero critical/high with medium/low accumulation is your judgment — document the rationale in Overall Assessment.
+**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
 
 **Automatic CHANGES_REQUIRED**, regardless of other findings, when
 `reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
@@ -243,41 +258,36 @@ and resolve any reported inconsistency before finishing.
 </workflow>
 
 <parallel_execution>
-## Parallel Review (MEDIUM/LARGE sprints)
+## Parallel Review (large sprints)
 
-LARGE (or MEDIUM with >3 tasks): see `resources/PARALLEL-REVIEW.md` for the per-task split and
-the consolidation steps.
+When splitting: `resources/PARALLEL-REVIEW.md` (per-task split, consolidation).
 </parallel_execution>
 
 <documentation_verification>
 ## Documentation Verification (Required)
 
-Before approving: `ls grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md 2>/dev/null`; status `ACTION_REQUIRED` blocks; no report → run `/validate docs` or verify by hand. Blocking: a CHANGELOG entry per task, a CLAUDE.md entry per new command or skill, comments on security code, an SDD update for a major architecture change. Approval templates: `resources/REFERENCE.md` §Documentation Verification.
+Before approving, Glob `grimoires/loa/a2a/subagent-reports/documentation-coherence-*.md`; status `ACTION_REQUIRED` blocks; no report → run `/validate docs` or verify by hand. Blocking: a CHANGELOG entry per task, a CLAUDE.md entry per new command or skill, comments on security code, an SDD update for a major architecture change. Approval templates: `resources/REFERENCE.md` §Documentation Verification.
 </documentation_verification>
 
 <subagent_report_check>
 ## Subagent Report Check
 
-Before approving any sprint, read the current sprint's reports in `grimoires/loa/a2a/subagent-reports/`. Blocking verdicts: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. Informational, reviewer discretion: `DRIFT_DETECTED`, security `MEDIUM`/`LOW`, test-adequacy `WEAK`. No reports means `/validate` was not run (optional): review manually and consider recommending it. Grep commands that surface blocking verdicts: `resources/REFERENCE.md` §Subagent Report Check.
+Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocking: architecture-validator `CRITICAL_VIOLATION`, security-scanner `CRITICAL` or `HIGH`, test-adequacy-reviewer `INSUFFICIENT`, goal-validation `GOAL_BLOCKED`. `DRIFT_DETECTED`, security `MEDIUM`/`LOW` and test-adequacy `WEAK` are your discretion. No reports (`/validate` is optional): review manually. Grep commands: `resources/REFERENCE.md` §Subagent Report Check.
 </subagent_report_check>
 
 <checklists>
-Complete checklists and the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries): `resources/REFERENCE.md`.
+Complete checklists, the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and the optional Mermaid standards: `resources/REFERENCE.md`.
 </checklists>
 
 <complexity_review>
 ## Complexity Review (Required)
 
-Complexity is reviewed every time (threshold tables: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …` (tag meanings: `resources/REFERENCE.md` §Complexity); a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
+Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
 </complexity_review>
 
 <beads_workflow>
-When `br` is installed, see `resources/BEADS-WORKFLOW.md` for the sync commands and the `needs-review` / `review-approved` / `needs-revision` labels; protocol: `.claude/protocols/beads-integration.md`.
+With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
-
-<visual_communication>
-Mermaid diagrams are optional in feedback — standards and format: see `resources/REFERENCE.md` §Visual Communication.
-</visual_communication>
 
 <retrospective_postlude>
 <!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->

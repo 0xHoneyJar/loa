@@ -68,7 +68,7 @@ _curl_mock_fixtures_dir() {
 
 _setup_curl_mock_dirs() {
     # Create per-test scratch space. BATS_TEST_TMPDIR is set by bats.
-    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — must run under bats}"
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"
     _CURL_MOCK_BIN_DIR="$BATS_TEST_TMPDIR/curl-mock-bin"
     _CURL_MOCK_LOG_PATH="$BATS_TEST_TMPDIR/curl-mock-calls.jsonl"
     mkdir -p "$_CURL_MOCK_BIN_DIR"

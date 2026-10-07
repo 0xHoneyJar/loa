@@ -322,6 +322,17 @@ class TestErrorClassification:
             with pytest.raises(ProviderUnavailableError, match="timed out"):
                 _adapter().complete(_req())
 
+    def test_timeout_carries_the_catalog_note(self):
+        # twenty-second run, d DISS-C-002: the same note the base adapter appends (see the agy twin)
+        note = "catalog headless_timeout_seconds 7200 clamped to 3600s"
+        for model_note, expect in ((note, f" ({note})"), (None, "")):
+            adapter = _adapter(**{"grok-build": ModelConfig(context_window=256000, extra={"cli_model": "grok-build"}, headless_timeout_note=model_note)})
+            with patch(_PGKILL, side_effect=subprocess.TimeoutExpired(cmd=["grok"], timeout=5)):
+                with pytest.raises(ProviderUnavailableError) as exc_info:
+                    adapter.complete(_req())
+            msg = str(exc_info.value)
+            assert expect in msg if expect else not msg.rstrip().endswith(")")
+
     def test_output_cap_exceeded_is_unavailable(self):
         from loa_cheval.providers.base import SubprocessOutputCapExceeded
         with patch(_PGKILL, side_effect=SubprocessOutputCapExceeded("stdout exceeded the 10485760-byte cap")):

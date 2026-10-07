@@ -141,4 +141,4 @@ Structured error codes: registry `.claude/data/error-codes.json`, renderer `.cla
 
 ## Full Documentation
 
-See `.claude/protocols/helper-scripts.md` for comprehensive script documentation.
+See `.claude/protocols/reference/helper-scripts.md` for comprehensive script documentation (read on demand).

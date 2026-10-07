@@ -1,0 +1,26 @@
+# agent-types.yaml — agent types a SKILL.md `agent:` key can name, and whether
+# each one's tool allowlist includes Write/Edit (cycle-126 D-4.4, Issue #553).
+#
+# validate-skill-capabilities.sh reads the write_capable: true entries; a skill
+# that declares write capability may only set `agent:` to one of them (or leave
+# it unset). Harness types come from the Claude Code agent definitions; the
+# loa-scout and prompt-auditor* entries are .claude/agents/*.md. Adding a
+# write-capable type is a one-line edit with reviewer visibility.
+# See .claude/rules/skill-invariants.md.
+agent_types:
+  general-purpose:
+    write_capable: true
+  claude:
+    write_capable: true
+  fork:
+    write_capable: true
+  loa-scout:
+    write_capable: false
+  Plan:
+    write_capable: false
+  Explore:
+    write_capable: false
+  prompt-auditor:
+    write_capable: false
+  prompt-auditor-io:
+    write_capable: false

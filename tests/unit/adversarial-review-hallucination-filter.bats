@@ -17,6 +17,7 @@
 # =============================================================================
 
 setup() {
+    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     export TEST_WORKDIR
     TEST_WORKDIR=$(mktemp -d)
     cd "$TEST_WORKDIR"
@@ -32,6 +33,11 @@ setup() {
     # section banner (Finding ID Computation).
     sed -n '/# Dissenter Hallucination Filter/,/# Finding ID Computation/p' "$script_path" > ext.sh
     # Provide the log() helper the filter depends on
+    # the extraction is whole — the column-0 `}` that ends the range is the function's own, the script line after it no
+    # indented body (thirty-third run, e3 DISS-C-004) — checked BEFORE the source, so a cut inside the body is named here and
+    # never surfaces as source's "unexpected end of file" (thirty-sixth run, e3 DISS-C-003)
+    _jq_pair_extracted_whole "$script_path"
+    _filter_block_extracted_whole "$script_path"
     {
         echo 'log() { echo "[test] $*" >&2; }'
         # sprint-bug-208 (#1025): the filter now routes verdict-bearing jq
@@ -39,12 +45,40 @@ setup() {
         # function set (same pre-source pattern as adversarial-review.bats).
         echo "source \"$repo_root/.claude/scripts/compat-lib.sh\""
         cat ext.sh
+        # (the filter's appends go through _adv_jq_pair — payloads on stdin, never argv: twenty-ninth run, a1 DISS-C-003)
+        sed -n '/^_adv_jq_pair() {/,/^}/p' "$script_path"
     } > filter-fns.sh
     source filter-fns.sh
+    [ "$(type -t _adv_jq_pair)" = function ] || { echo "setup: _adv_jq_pair was not extracted" >&2; return 1; }
+}
+
+_jq_pair_extracted_whole() {  # <script> — the column-0 `}` that ends the extraction is the function's own: the next line is no
+    # indented body; a blank or whitespace-only one is blank (thirty-fourth run, e3 DISS-C-001)
+    local _end _next _x
+    _end="$(awk '/^_adv_jq_pair\(\) \{/{f=1} f && /^}/{print NR; exit}' "$1")"
+    # (a function that is not there is named so — thirty-eighth run, e3 DISS-C-001)
+    [[ -n "$_end" ]] || { echo "setup: _adv_jq_pair() not found in $1" >&2; return 1; }
+    _next="$(sed -n "$((_end + 1))p" "$1")"
+    # (an indented comment is no body: thirty-ninth run, e3 DISS-C-003)
+    [[ -z "${_next//[[:space:]]/}" || "$_next" != [[:space:]]* || "$_next" =~ ^[[:space:]]+# ]] \
+        || { echo "setup: _adv_jq_pair's extraction ended inside its body (line $_end)" >&2; return 1; }
+    # (the extracted text itself parses whole: a column-0 brace inside a quoted program or a heredoc, followed by a
+    # blank line, passes the next-line read but leaves an open quote or heredoc — thirty-eighth run, e3 DISS-C-002)
+    _x="$(sed -n '/^_adv_jq_pair() {/,/^}/p' "$1" | bash -n 2>&1)" \
+        || { echo "setup: _adv_jq_pair's extraction does not parse whole: ${_x:-bash -n failed}" >&2; return 1; }
 }
 
 teardown() {
     rm -rf "$TEST_WORKDIR"
+}
+
+_filter_block_extracted_whole() {  # <script> — the banner range setup copies into ext.sh has both its banners and parses whole,
+    # so a renamed banner or a cut is named here, never an opaque error from source (thirty-ninth run, e3 DISS-C-003)
+    grep -q '^# Dissenter Hallucination Filter' "$1" && grep -q '^# Finding ID Computation' "$1" \
+        || { echo "setup: a hallucination-filter banner is missing from $1" >&2; return 1; }
+    local _x
+    _x="$(sed -n '/# Dissenter Hallucination Filter/,/# Finding ID Computation/p' "$1" | bash -n 2>&1)" \
+        || { echo "setup: the hallucination-filter block does not parse whole: ${_x:-bash -n failed}" >&2; return 1; }
 }
 
 _make_result() {
@@ -310,4 +344,52 @@ _make_result() {
     # Finding actually downgraded
     [ "$(echo "$filtered" | jq -r '.findings[0].severity')" = "ADVISORY" ]
     [ "$(echo "$filtered" | jq -r '.findings[0].category')" = "MODEL_ARTEFACT_SUSPECTED" ]
+}
+
+@test "the _adv_jq_pair extraction check reads a whitespace-only line after the closing brace as blank, and still refuses an indented body (thirty-fourth run, e3 DISS-C-001)" {
+    local fx="$BATS_TEST_TMPDIR/jqpair.sh"
+    printf '_adv_jq_pair() {\n  :\n}\n   \t\nnext\n' > "$fx"
+    _jq_pair_extracted_whole "$fx" 2>/dev/null || { echo "a whitespace-only line was read as an indented body"; return 1; }
+    printf '_adv_jq_pair() {\n  :\n}\n  body\n}\n' > "$fx"
+    if _jq_pair_extracted_whole "$fx" 2>/dev/null; then echo "an extraction that ended inside the body passed"; return 1; fi
+}
+
+@test "the _adv_jq_pair extraction check names a missing function as missing, and refuses a cut that a blank line hides — a column-0 brace inside a quoted program or a heredoc (thirty-eighth run, e3 DISS-C-001 / DISS-C-002)" {
+    local fx="$BATS_TEST_TMPDIR/jqpair38.sh" err
+    printf '_adv_jq_pair_renamed() {\n  :\n}\n' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a missing function passed"; return 1; }
+    [[ "$err" == *"_adv_jq_pair() not found in $fx"* ]] || { echo "the missing function was misnamed: $err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' "  jq -n '{" '}' '' "  '" '}' 'next' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a cut inside a quoted program passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' '  cat <<EOF' '}' '' 'EOF' '}' 'next' > "$fx"
+    err=$(_jq_pair_extracted_whole "$fx" 2>&1) && { echo "a cut inside a heredoc passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '_adv_jq_pair() {' "  jq -n '{a: 1}'" '}' '' 'next' > "$fx"
+    _jq_pair_extracted_whole "$fx" || { echo "a whole extraction was refused"; return 1; }
+}
+
+@test "setup checks the _adv_jq_pair extraction before it sources it — a cut inside the body is named, never an opaque 'unexpected end of file' from source (thirty-sixth run, e3 DISS-C-003)" {
+    local f="$BATS_TEST_FILENAME" chk src
+    chk="$(grep -n '^    _jq_pair_extracted_whole "$script_path"$' "$f" | head -1 | cut -d: -f1)"
+    src="$(grep -n '^    source filter-fns.sh$' "$f" | head -1 | cut -d: -f1)"
+    [[ -n "$chk" && -n "$src" ]] || { echo "setup's check ($chk) or source ($src) not found"; return 1; }
+    (( chk < src )) || { echo "the extraction check (line $chk) runs after the source (line $src)"; return 1; }
+}
+
+@test "setup checks the banner extraction too, and an indented comment after _adv_jq_pair's brace is no body (thirty-ninth run, e3 DISS-C-003)" {
+    local fx="$BATS_TEST_TMPDIR/banner39.sh" err f="$BATS_TEST_FILENAME" chk src
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' '  :' '}' > "$fx"
+    err=$(_filter_block_extracted_whole "$fx" 2>&1) && { echo "a block without its end banner passed"; return 1; }
+    [[ "$err" == *"banner"* ]] || { echo "the missing banner was not named: $err"; return 1; }
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' "  echo '" '# Finding ID Computation' > "$fx"
+    err=$(_filter_block_extracted_whole "$fx" 2>&1) && { echo "a block that does not parse passed"; return 1; }
+    [[ "$err" == *"does not parse whole"* ]] || { echo "$err"; return 1; }
+    printf '%s\n' '# Dissenter Hallucination Filter' 'f() {' '  :' '}' '# Finding ID Computation' > "$fx"
+    _filter_block_extracted_whole "$fx" || { echo "a whole block was refused"; return 1; }
+    printf '_adv_jq_pair() {\n  :\n}\n  # next helper\nnext\n' > "$fx"
+    _jq_pair_extracted_whole "$fx" || { echo "an indented comment after the brace was read as body"; return 1; }
+    chk="$(grep -n '^    _filter_block_extracted_whole "$script_path"$' "$f" | head -1 | cut -d: -f1)"
+    src="$(grep -n '^    source filter-fns.sh$' "$f" | head -1 | cut -d: -f1)"
+    [[ -n "$chk" && -n "$src" ]] && (( chk < src )) || { echo "the banner check ($chk) does not run before the source ($src)"; return 1; }
 }

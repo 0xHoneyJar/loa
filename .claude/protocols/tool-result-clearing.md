@@ -4,12 +4,18 @@ The live rule is the 6-line `context_discipline` summary inlined in each SKILL.m
 
 ## Thresholds
 
-| Context Type | Threshold | Action |
-|--------------|-----------|--------|
-| Single search result | 2,000 tokens | Apply clearing if exceeded |
-| Accumulated results | 5,000 tokens | MANDATORY clearing |
-| Full file load | 3,000 tokens | Single file only, synthesize immediately |
-| Session total | 15,000 tokens | STOP and synthesize to NOTES.md |
+Two context classes. `.run/context-class` (written by the SessionStart hook
+`loa-context-class.sh`; `/loa` prints it) names the one in force: **`long`** by default — the
+Claude 5 generation (≥ 1M context) — and **`standard`** when `LOA_CONTEXT_CLASS=standard` is set
+or the session model resolves to a catalog entry with `context_window ≤ 200000`. When unsure,
+read the file; when it is absent, assume `long`.
+
+| Context Type | `standard` (≤ 200K) | `long` (≥ 1M, default) | Action |
+|--------------|---------------------|------------------------|--------|
+| Single search result | 2,000 tokens | 20,000 tokens | Apply clearing if exceeded |
+| Accumulated results | 5,000 tokens | 50,000 tokens | MANDATORY clearing |
+| Full file load | 3,000 tokens | 30,000 tokens | Single file only, synthesize immediately |
+| Session total | 15,000 tokens | 150,000 tokens | STOP and synthesize to NOTES.md |
 
 ## 4-Step Clearing Process
 
@@ -30,14 +36,14 @@ The live rule is the 6-line `context_discipline` summary inlined in each SKILL.m
 ## Edge Cases
 
 1. **Zero high-signal results** (all scores <0.4): extract nothing; log "X results, 0 high-signal" to trajectory; reformulate the query or flag a potential Ghost Feature (see `citations.md` Negative Grounding); clear everything.
-2. **Single large file** (>1000 lines): never load whole; `Read` with offset/limit, synthesize only the relevant ≤50 lines.
+2. **Single large file** (above the class's full-file load row): never load whole; `Read` with offset/limit, synthesize only the relevant ≤50 lines.
 3. **Repeated similar searches**: check NOTES.md for an existing synthesis BEFORE searching; append rather than duplicate; >3 similar searches in a session is a confusion signal — log it.
 
 ## Related Protocols
 
-- **Session Continuity** (`.claude/protocols/session-continuity.md`) - Recovery from NOTES.md synthesis
+- **Session Continuity** (`.claude/protocols/reference/session-continuity.md`) - Recovery from NOTES.md synthesis
 - **Synthesis Checkpoint** (`.claude/protocols/synthesis-checkpoint.md`) - Pre-clear validation
-- **Trajectory Evaluation** (`.claude/protocols/trajectory-evaluation.md`) - Intent logging before search
+- **Trajectory Evaluation** (`.claude/protocols/reference/trajectory-evaluation.md`) - Intent logging before search
 - **Citations** (`.claude/protocols/citations.md`) - Citation format, self-audit checkpoint, negative grounding
 
 ## Provenance

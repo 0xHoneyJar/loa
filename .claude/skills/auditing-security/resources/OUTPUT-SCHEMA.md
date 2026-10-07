@@ -104,6 +104,8 @@ Findings should be written to:
 grimoires/loa/a2a/audits/YYYY-MM-DD/findings.jsonl
 ```
 
+Each `reasoning_trace` states what was analyzed, the triggering pattern, the evidence chain from input to vulnerability, and the scoring rationale.
+
 ## Summary Record
 
 At the end of the JSONL file, include a summary record:

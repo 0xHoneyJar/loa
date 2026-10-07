@@ -20,8 +20,19 @@ Design notes:
   - Tools / tool_choice are NOT forwarded to the gemini agent. Forward later
     when an agent binding genuinely needs gemini-cli's MCP tool surface.
   - Approval mode locked to `plan` (read-only, no shell exec, no file edits).
+  - The prompt rides stdin (gemini-cli joins piped stdin before the `-p` text), never argv: an argv prompt is readable by any
+    local user through /proc/<pid>/cmdline and one argument over 128 KiB fails at exec (cycle-126 thirty-third run, e1b
+    DISS-C-002). gemini-cli truncates stdin past 8 MiB, so a larger prompt is refused, walkable. A sandboxed run re-injects
+    stdin into the sandbox child's argv, so the hop runs with GEMINI_SANDBOX=false (it outranks --sandbox and settings.json's
+    tools.sandbox — verified on gemini-cli 0.41.2); only an operator `--sandbox` in `gemini_extra_flags` keeps a sandbox, and
+    that exposure (thirty-fourth run, e1b DISS-C-001) — `--sandbox false`, `--sandbox=false` and `--no-sandbox` ask for
+    none, read as yargs reads a boolean, the last flag winning (thirty-fifth run, e1b DISS-C-002) — `=<v>` is a sandbox only
+    for exactly `true`, a following token its value only when exactly true / false (thirty-sixth run, e1b DISS-C-001), and
+    nothing after `--` an option; that sandbox is warned of and bounds the prompt to one argv string (thirty-eighth run, e1b
+    DISS-C-002/003).
     `--skip-trust` is passed so the CLI doesn't fall back to `default` when the
-    invocation cwd isn't in gemini-cli's trusted-folders allowlist.
+    invocation cwd isn't in gemini-cli's trusted-folders allowlist — the cwd is
+    an isolated empty directory, never the reviewed tree (cycle-126).
   - Auth posture: prefer file-based (`~/.gemini/settings.json` set via interactive
     first-run). The CLI also accepts GEMINI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI /
     GOOGLE_GENAI_USE_GCA — we don't manage those, just surface them on validate.
@@ -41,9 +52,11 @@ import logging
 import os
 import shutil  # Preserve the provider module's shutil.which patch point.
 import subprocess
+import time
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
-from loa_cheval.providers.headless_cli import HeadlessCLIAdapter
+from loa_cheval.providers.headless_cli import CLIInvocation, HeadlessCLIAdapter, private_workspace
 from loa_cheval.providers.base import (
     run_subprocess_pgkill,
 )
@@ -72,6 +85,35 @@ _GEMINI_AUTH_ENV_VARS = (
     "GOOGLE_GENAI_USE_VERTEXAI",
     "GOOGLE_GENAI_USE_GCA",
 )
+
+
+def _asks_sandbox(args) -> bool:
+    """The operator's own flags ask for a sandbox, read as yargs reads a boolean: `-s` / `--sandbox` (a following literal
+    true / false is its value), `--sandbox=<v>`, `--no-sandbox`; the last one wins (thirty-fifth run, e1b DISS-C-002).
+    Exactly as gemini-cli 0.41.2 parses it: `=<v>` is `v === "true"`, and only the case-sensitive literals are consumed as a
+    following value (thirty-sixth run, e1b DISS-C-001). A short-option group (`-sd`, `-ds=true`) sets each of its letters, as
+    yargs' short-option-groups do; its last letter takes the `=value` or the following literal (thirty-seventh run, e1b
+    DISS-C-002)."""
+    want = False
+    for i, a in enumerate(args):
+        if a == "--":
+            break   # (every later token is positional to yargs — thirty-eighth run, e1b DISS-C-003)
+        if a in ("-s", "--sandbox"):
+            want = not (i + 1 < len(args) and args[i + 1] == "false")
+        elif a.startswith(("--sandbox=", "-s=")):
+            want = a.split("=", 1)[1] == "true"
+        elif a == "--no-sandbox":
+            want = False
+        elif len(a) > 2 and a[0] == "-" and a[1] != "-":
+            letters, eq, value = a[1:].partition("=")
+            if letters.isalpha() and "s" in letters:
+                if letters[-1] != "s":
+                    want = True
+                elif eq:
+                    want = value == "true"
+                else:
+                    want = not (i + 1 < len(args) and args[i + 1] == "false")
+    return want
 
 
 class GeminiHeadlessAdapter(HeadlessCLIAdapter):
@@ -106,9 +148,49 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
     _install_hint = 'Install with: npm install -g @google/gemini-cli'
     _logger = logger
 
+    # (the fixed `-p` text: headless mode, the prompt itself on stdin — e1b DISS-C-002)
+    _ARGV_PROMPT = "Answer the request above."
+    _STDIN_CAP = 8 * 1024 * 1024   # gemini-cli's MAX_STDIN_SIZE (UTF-16 code units of the decoded stdin)
+    # (a sandboxed run folds stdin into ONE argv string with the -p text: MAX_ARG_STRLEN less the -p text and a margin)
+    _SANDBOX_ARGV_CAP = 128 * 1024 - 4096
+
     def _run_subprocess(self, command, **kwargs):
         # Keep the provider's subprocess seam available to callers and tests.
+        # (thirty-fourth run, e1b DISS-C-001: an ambient sandbox — GEMINI_SANDBOX, or tools.sandbox in the user's settings —
+        # would fold the stdin prompt into argv; "false" closes both unless the operator's own flags ask for one)
+        if not _asks_sandbox(command[1:]):
+            kwargs["env"] = {**(kwargs["env"] if kwargs.get("env") is not None else os.environ), "GEMINI_SANDBOX": "false"}
         return run_subprocess_pgkill(command, **kwargs)
+
+    @contextmanager
+    def _prepare_invocation(self, request, model_config, prompt):
+        """An isolated empty cwd under the private base, as its siblings: gemini-cli reads GEMINI.md and `.gemini/` from its
+        cwd, and `--skip-trust` trusts that directory — the caller's cwd is the tree under review, so a reviewed branch would
+        shape its own reviewer (cycle-126 thirty-second run, e2a DISS-C-004). Relative policy paths are resolved first. One
+        stable directory, as claude's: gemini-cli registers each project root it starts in (~/.gemini/projects.json and a
+        ~/.gemini/tmp/<id>), so a directory per hop would leave one registration per hop (thirty-sixth run, e1b DISS-C-002)."""
+        # (gemini-cli counts its cap in decoded string length — UTF-16 code units; a lone surrogate is one unit, counted here, and
+        # stdin's own encode fails it as the base's typed spawn error: thirty-seventh run, e1b DISS-C-001)
+        if len(prompt.encode("utf-16-le", "surrogatepass")) // 2 >= self._STDIN_CAP:
+            raise ProviderUnavailableError(
+                self.provider, f"gemini -p reads at most 8 MiB of stdin and would truncate this {len(prompt)}-character prompt",
+            )
+        command = self._build_command(request, model_config, prompt)
+        if _asks_sandbox(command[1:]):
+            # (thirty-eighth run, e1b DISS-C-002: the operator's sandbox folds the prompt into the sandbox child's argv — said,
+            # and bounded before any spawn, never an opaque exec failure; an ambient GEMINI_SANDBOX that would cancel the flag is
+            # deliberately not read — misreading gemini-cli's env parse would drop the warning, so the flag alone decides:
+            # thirty-ninth run, e1b DISS-C-002)
+            self._logger.warning("gemini-headless: gemini_extra_flags asks for a sandbox, which puts the prompt on the sandbox "
+                                 "child's argv (readable through /proc/<pid>/cmdline; one argument holds at most 128 KiB)")
+            if len(prompt.encode("utf-8", "surrogatepass")) > self._SANDBOX_ARGV_CAP:
+                raise ProviderUnavailableError(
+                    self.provider, f"gemini -p under the operator's sandbox would put this {len(prompt)}-character prompt on one "
+                    "argv string over 128 KiB (MAX_ARG_STRLEN): drop --sandbox from gemini_extra_flags",
+                )
+        workspace = private_workspace("loa-gemini-ws")
+        started_at = time.monotonic()
+        yield CLIInvocation(command, {"input": prompt, "cwd": workspace}, started_at)
 
     def _finish_completion(
         self, proc: subprocess.CompletedProcess, request: CompletionRequest, latency_ms: int,
@@ -159,7 +241,7 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         model_config,
         prompt: str,
     ) -> List[str]:
-        """Build the gemini argv. Headless, plan-mode (read-only), trusted."""
+        """Build the gemini argv. Headless, plan-mode (read-only), trusted. `prompt` is never on it: it rides stdin."""
         # cycle-104 sprint-2 T2.11 amendment: honor `extra.cli_model`
         # so a kind:cli alias (`gemini-headless`) translates to the real
         # gemini model id the CLI binary expects.
@@ -167,7 +249,7 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         cmd: List[str] = [
             self._cli_bin(),
             "-p",
-            prompt,
+            self._ARGV_PROMPT,
             "--output-format",
             "json",
             "--approval-mode",
@@ -184,7 +266,9 @@ class GeminiHeadlessAdapter(HeadlessCLIAdapter):
         policies = extra.get("gemini_policies")
         if isinstance(policies, list):
             for path in policies:
-                cmd.extend(["--policy", str(path)])
+                # (resolved against the caller's directory — the CLI runs in an isolated cwd: e2a DISS-C-004)
+                # (and `~/…` expanded first — thirty-sixth run, e1b DISS-C-003)
+                cmd.extend(["--policy", os.path.abspath(os.path.expanduser(str(path)))])
 
         # Forward additional gemini CLI flags an operator may need but we
         # haven't promoted to first-class fields (e.g., experimental ACP,

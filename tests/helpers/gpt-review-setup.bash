@@ -14,9 +14,10 @@ export GPT_REVIEW_MOCK_ARGS=""
 # Setup hermetic curl mock that fails if called unexpectedly
 setup_mock_curl() {
     # Use BATS_TEST_TMPDIR for test isolation (per-test unique directory)
-    GPT_REVIEW_MOCK_DIR="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/mock-bin"
-    GPT_REVIEW_MOCK_SENTINEL="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/curl-sentinel.txt"
-    GPT_REVIEW_MOCK_ARGS="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/curl-args.txt"
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirtieth run, e3 DISS-C-001)
+    GPT_REVIEW_MOCK_DIR="$BATS_TEST_TMPDIR/mock-bin"
+    GPT_REVIEW_MOCK_SENTINEL="$BATS_TEST_TMPDIR/curl-sentinel.txt"
+    GPT_REVIEW_MOCK_ARGS="$BATS_TEST_TMPDIR/curl-args.txt"
 
     mkdir -p "$GPT_REVIEW_MOCK_DIR"
     rm -f "$GPT_REVIEW_MOCK_SENTINEL" "$GPT_REVIEW_MOCK_ARGS"

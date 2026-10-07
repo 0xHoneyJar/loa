@@ -14,11 +14,15 @@
 # =============================================================================
 
 setup() {
+    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)
+    FR7_OWN_DIRS=()          # the suffixed a2a directories a test makes, for teardown (thirty-first run, c2e DISS-C-001)
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirty-first run, c2e DISS-C-002)
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="$BATS_TEST_TMPDIR"
     local saved_root="$PROJECT_ROOT"
     source "$PROJECT_ROOT/.claude/scripts/lib-content.sh"
     source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
@@ -29,7 +33,6 @@ setup() {
     CONF_ESCALATION_ENABLED="true"; CONF_SECONDARY_BUDGET=12000; CONF_MAX_FILE_LINES=500
     CONF_MAX_FILE_BYTES=51200; CONF_SECRET_SCANNING="true"; CONF_SECRET_ALLOWLIST=()
     LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=""
-    SPRINT="sprint-fr7-$$"
     # repair must never run on the enforced branch — the stub leaves a canary
     # file that FR7-6 asserts absent (an echo to stderr cannot fail a test)
     REPAIR_CANARY="$TEST_DIR/repair-called-$$"
@@ -38,9 +41,21 @@ setup() {
 
 teardown() {
     local d
-    for d in "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}" "$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"-*; do
-        if [[ -d "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
+    # (twenty-eighth run, c2e DISS-C-001: never without this suite's own sprint id — an empty SPRINT made the first path the a2a
+    # root itself, gitignored and unrecoverable; and every path is checked to be one of this suite's own)
+    [[ -n "${SPRINT:-}" && "$SPRINT" == sprint-fr7-* && -n "${PROJECT_ROOT:-}" ]] || return 0
+    # this test's directory only — never a sibling it did not make (twenty-ninth run, c2a; as c1a DISS-001)
+    d="$PROJECT_ROOT/grimoires/loa/a2a/${SPRINT}"
+    if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi   # (never a link: the sweep's rule — twenty-seventh run, c2a DISS-C-002)
+    # …and each suffixed directory the test registered: a name of this id, one path component, a real directory (thirty-first run,
+    # c2e DISS-C-001)
+    local n
+    for n in "${FR7_OWN_DIRS[@]}"; do
+        [[ "$n" == "$SPRINT"-* && "$n" != */* && "$n" != *..* ]] || continue
+        d="$PROJECT_ROOT/grimoires/loa/a2a/$n"
+        if [[ -d "$d" && ! -L "$d" ]]; then find "$d" -mindepth 1 -delete; rmdir "$d"; fi
     done
+    return 0
 }
 
 _env() {  # <content> [schema_enforced] [stop_reason]
@@ -148,7 +163,9 @@ SHIM
 }
 
 @test "FR7-9: the fallback-chain caller selects dissent-\${type}.wire.json (grep-lock)" {
-    grep -q 'invoke_dissenter "\$_ADVERSARIAL_WORKDIR/system-prompt.txt" "\$_ADVERSARIAL_WORKDIR/user-prompt.txt" "\$try_model" "\$timeout" "\$vq_sidecar" "\$type" "\$SCRIPT_DIR/../schemas/wire/dissent-\${type}.wire.json"' "$ADVERSARIAL_REVIEW"
+    # cycle-126 sprint-248: the call goes through _adv_invoke_hop (per-binary lock for *-headless hops), same arguments
+    grep -q '_adv_invoke_hop "\$try_model" "\$_ADVERSARIAL_WORKDIR/system-prompt.txt" "\$_ADVERSARIAL_WORKDIR/user-prompt.txt" "\$try_model" "\$timeout" "\$vq_sidecar" "\$type" "\$SCRIPT_DIR/../schemas/wire/dissent-\${type}.wire.json"' "$ADVERSARIAL_REVIEW"
+    grep -q '_adv_with_cli_lock "\$model" invoke_dissenter "\$@"' "$ADVERSARIAL_REVIEW"   # …and _adv_invoke_hop hands them to invoke_dissenter unchanged (under the CLI lock)
 }
 
 @test "FR7-10: the KF-004 corpus + the truncated payload — every fixture lands where _expect says on both parse paths; enforced-valid ones reject nothing" {
@@ -166,6 +183,7 @@ SHIM
         typ=$(jq -r '._type // "review"' "$f")
         raw_u=$(jq -c 'del(._case, ._type, ._expect)' "$f")
         raw_e=$(jq -c 'del(._case, ._type, ._expect) + {schema_enforced: true}' "$f")
+        FR7_OWN_DIRS+=("${fsprint}-u" "${fsprint}-e")   # teardown removes exactly these (thirty-first run, c2e DISS-C-001)
         result_u=$(process_findings "$raw_u" "$typ" "m" "${fsprint}-u" "0" "")
         result_e=$(process_findings "$raw_e" "$typ" "m" "${fsprint}-e" "0" "")
         [ "$(jq -r '.metadata.status' <<<"$result_u")" = "$(jq -r '._expect.unenforced' "$f")" ] \
@@ -186,6 +204,21 @@ SHIM
         fi
     done
     [ "$n" = "11" ]
+    # (thirty-eighth run, c2e DISS-C-001: neg-missing-id is the review wire shape but for its id — every other required key, a
+    # review-enum category — so it tests id derivation alone, never a category or anchor laxity of validate_finding)
+    jq -e --slurpfile w "$PROJECT_ROOT/.claude/schemas/wire/dissent-review.wire.json" '(.content | fromjson | .findings[0]) as $x
+        | ($w[0] | [.. | objects | select(has("required") and (.required | index("failure_mode")))][0]) as $s
+        | ($x | has("id") | not) and ([$s.required[] | select(. != "id")] - ($x | keys) == [])
+        and ($x.category | IN($s.properties.category.enum[]))' "$corpus/kf004/neg-missing-id.json" >/dev/null \
+        || { echo "neg-missing-id is not the review wire shape but for its id"; return 1; }
+    # every directory of this run's id the loop left is one teardown will remove (thirty-first run, c2e DISS-C-001: the
+    # suffixed per-fixture directories leaked into the live a2a after the sibling rule narrowed teardown to the exact id)
+    # (read-only, and through find: NRM-42 bans the a2a sibling glob in these suites outright)
+    local d own
+    while IFS= read -r d; do
+        own=0; for f in "${FR7_OWN_DIRS[@]}"; do [[ "${d##*/}" == "$f" ]] && own=1; done
+        [ "$own" = 1 ] || { echo "an unregistered directory: ${d##*/}"; return 1; }
+    done < <(find "$PROJECT_ROOT/grimoires/loa/a2a" -mindepth 1 -maxdepth 1 -name "${SPRINT}-*")
 }
 
 @test "slice-C MEDIUM: a model id carrying a command substitution never executes it, even when the maps file is unsourceable" {
@@ -200,4 +233,36 @@ SHIM
     [ "$(SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts" _adv_input_budget_for_model opus)" = "$_ANTHROPIC_DISPATCH_INPUT_BUDGET" ]
     # and an unsourceable maps file yields the default for a valid id (no silent indexed lookup)
     [ "$(SCRIPT_DIR="$bad_dir" _adv_input_budget_for_model opus)" = "$DEFAULT_PRIMARY_TOKEN_BUDGET" ]
+}
+
+@test "FR7-11: a teardown after a setup that failed before the sprint id was set never deletes the a2a root nor a foreign sprint (twenty-eighth run, c2e DISS-C-001)" {
+    local root="$TEST_DIR/fake-root" rc=0 s
+    mkdir -p "$root/grimoires/loa/a2a/sprint-1"; : > "$root/grimoires/loa/a2a/sprint-1/keep"
+    for s in "" "sprint-1" "x"; do
+        ( set -e; PROJECT_ROOT="$root"; SPRINT="$s"; [[ -n "$s" ]] || unset SPRINT; teardown ) 3>&- & wait $! || rc=$?
+        [ "$rc" -eq 0 ] || { echo "SPRINT='$s': the teardown failed (rc $rc)"; return 1; }
+        [ -e "$root/grimoires/loa/a2a/sprint-1/keep" ] || { echo "SPRINT='$s': the teardown deleted a record that is not its own"; return 1; }
+    done
+    # its own id reaches the delete: a link there is never followed, a sibling never taken, the real directory removed
+    # (twenty-ninth run, c2e DISS-C-001: the legs above all stop at the id guard)
+    local a="$root/grimoires/loa/a2a"
+    ln -s "$a/sprint-1" "$a/sprint-fr7-probe"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] && [ -e "$a/sprint-1/keep" ] && [ -L "$a/sprint-fr7-probe" ] || { echo "a link at the own path (rc $rc)"; return 1; }
+    command rm -f -- "$a/sprint-fr7-probe"
+    mkdir -p "$a/sprint-fr7-probe/sub" "$a/sprint-fr7-probe-x"; : > "$a/sprint-fr7-probe/sub/f"; : > "$a/sprint-fr7-probe-x/keep"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe; teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] && [ ! -e "$a/sprint-fr7-probe" ] && [ -e "$a/sprint-fr7-probe-x/keep" ] || { echo "the own directory or a sibling (rc $rc)"; return 1; }
+    # the directories a test registered are removed — only names of this id, never a link, never an unregistered sibling
+    # (thirty-first run, c2e DISS-C-001)
+    mkdir -p "$a/sprint-fr7-probe-a-u/s" "$a/sprint-fr7-probe-b-u"; : > "$a/sprint-fr7-probe-a-u/s/f"; : > "$a/sprint-fr7-probe-b-u/keep"
+    ln -s "$a/sprint-1" "$a/sprint-fr7-probe-l"
+    rc=0; ( set -e; PROJECT_ROOT="$root"; SPRINT=sprint-fr7-probe
+            FR7_OWN_DIRS=(sprint-fr7-probe-a-u sprint-fr7-probe-l sprint-1 "sprint-fr7-probe-../sprint-1" sprint-fr7-probe-gone); teardown ) 3>&- & wait $! || rc=$?
+    [ "$rc" -eq 0 ] || { echo "the registered-directory teardown failed (rc $rc)"; return 1; }
+    [ ! -e "$a/sprint-fr7-probe-a-u" ]
+    [ -e "$a/sprint-fr7-probe-b-u/keep" ] && [ -L "$a/sprint-fr7-probe-l" ] && [ -e "$a/sprint-1/keep" ] || { echo "a name not its own was removed"; return 1; }
+    command rm -f -- "$a/sprint-fr7-probe-l"
+    # setup names the sprint before anything that can fail
+    [ "$(awk '/^setup\(\) \{/{getline; print; exit}' "$BATS_TEST_FILENAME")" = '    SPRINT="sprint-fr7-$$"   # first: teardown runs after a failed setup (twenty-eighth run, c2e DISS-C-001)' ]
 }

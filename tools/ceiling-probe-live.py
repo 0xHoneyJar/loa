@@ -89,6 +89,93 @@ def _probe_once(model: str, tokens: int, key: str) -> tuple[bool, str, str | Non
         return False, f"transport: {e}", None
 
 
+_DEFAULT_CATALOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                ".claude", "defaults", "model-config.yaml")
+_TIERS = ("unverified", "1", "2", "3", "4", "custom")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def write_catalog(text: str, model: str, *, ceiling: int, calibrated_at: str, sample_size: int,
+                  tier: str = "unverified", itpm: int | None = None) -> str:
+    """cycle-126 FR-1.1 (SDD D-1.1): fold one probe result into the catalog
+    TEXT — a line-level edit inside the model's block so every comment and
+    every other entry stay byte-identical. Sets `effective_input_ceiling`,
+    `ceiling_calibration` (source empirical_probe, calibrated_at, sample_size)
+    and `account_limits` (tier, itpm). Raises ValueError when the block or a
+    required field is missing (never guesses a location)."""
+    if tier not in _TIERS:
+        raise ValueError(f"tier must be one of {_TIERS}, got {tier!r}")
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines) if l.rstrip() == f"      {model}:"), None)
+    if start is None:
+        raise ValueError(f"{model}: no `      {model}:` block in the catalog")
+    end = start + 1
+    while end < len(lines) and (lines[end].strip() == "" or _indent(lines[end]) > 6):
+        end += 1
+    block = lines[start:end]
+
+    def _find(prefix: str, indent: int) -> int:
+        for i, l in enumerate(block):
+            if _indent(l) == indent and l.strip().startswith(prefix):
+                return i
+        raise ValueError(f"{model}: `{prefix.rstrip(':')}` not found in the entry")
+
+    def _set_scalar(i: int, key: str, value: str) -> None:
+        # keep an inline comment when the line carries one
+        comment = ""
+        if "#" in block[i]:
+            comment = "   #" + block[i].split("#", 1)[1]
+        block[i] = f"{' ' * _indent(block[i])}{key}: {value}{comment}"
+
+    _set_scalar(_find("effective_input_ceiling:", 8), "effective_input_ceiling", str(int(ceiling)))
+
+    def _nested(head_prefix: str, wanted: dict) -> None:
+        h = _find(head_prefix, 8)
+        j = h + 1
+        seen = set()
+        while j < len(block) and (block[j].strip() == "" or _indent(block[j]) > 8):
+            key = block[j].strip().split(":", 1)[0]
+            if _indent(block[j]) == 10 and key in wanted:
+                _set_scalar(j, key, wanted[key])
+                seen.add(key)
+            j += 1
+        insert_at = j
+        while insert_at > h + 1 and block[insert_at - 1].strip() == "":
+            insert_at -= 1
+        for key, value in wanted.items():
+            if key not in seen:
+                block.insert(insert_at, f"          {key}: {value}")
+                insert_at += 1
+
+    _nested("ceiling_calibration:", {"source": "empirical_probe", "calibrated_at": f'"{calibrated_at}"',
+                                     "sample_size": str(int(sample_size))})
+    try:
+        _find("account_limits:", 8)
+    except ValueError:
+        cal = _find("ceiling_calibration:", 8)
+        j = cal + 1
+        while j < len(block) and (block[j].strip() == "" or _indent(block[j]) > 8):
+            j += 1
+        block.insert(j, "        account_limits:")
+    _nested("account_limits:", {"tier": f'"{tier}"', "itpm": ("null" if itpm is None else str(int(itpm)))})
+    return "\n".join(lines[:start] + block + lines[end:])
+
+
+def _write_catalog_file(path: str, model: str, record: dict, tier: str, itpm: int | None) -> None:
+    import tempfile
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    new = write_catalog(text, model, ceiling=record["largest_ok_input_tokens"], calibrated_at=record["calibrated_at"],
+                        sample_size=record["sample_size"], tier=tier, itpm=itpm)
+    fd, tmp = tempfile.mkstemp(prefix=".model-config.", suffix=".tmp", dir=os.path.dirname(os.path.abspath(path)))
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(new)
+    os.replace(tmp, path)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", required=True)
@@ -96,6 +183,13 @@ def main() -> int:
     ap.add_argument("--min-tokens-probe", type=int, default=32_000)
     ap.add_argument("--budget-usd", type=float, default=1.5)
     ap.add_argument("--output", default="-")
+    # cycle-126 FR-1.1 (SDD D-1.1): one operator run sets calibrated_at, the
+    # calibrated value and account_limits in the catalog (refused on a partial
+    # bisection unless --allow-partial says the operator accepts it).
+    ap.add_argument("--write-catalog", nargs="?", const=_DEFAULT_CATALOG, default=None, metavar="PATH")
+    ap.add_argument("--tier", default="unverified", choices=_TIERS)
+    ap.add_argument("--itpm", type=int, default=None)
+    ap.add_argument("--allow-partial", action="store_true")
     args = ap.parse_args()
 
     key = os.environ.get("ANTHROPIC_API_KEY")
@@ -162,6 +256,22 @@ def main() -> int:
         with open(args.output, "w") as fh:
             fh.write(text + "\n")
         print(f"ceiling-probe-live: wrote {args.output} (largest_ok={largest_ok}, spent=${record['spent_usd']})", file=sys.stderr)
+    if args.write_catalog:
+        if partial and not args.allow_partial:
+            print("ceiling-probe-live: partial record — not written to the catalog (pass --allow-partial to accept it)", file=sys.stderr)
+            return 3
+        if largest_ok <= 0:
+            print("ceiling-probe-live: no successful probe — nothing to write", file=sys.stderr)
+            return 1
+        try:
+            _write_catalog_file(args.write_catalog, args.model, record, args.tier, args.itpm)
+        except (OSError, ValueError, KeyError) as e:
+            print(f"ceiling-probe-live: catalog not written: {e}", file=sys.stderr)
+            return 1
+        print(f"ceiling-probe-live: {args.write_catalog}: {args.model} effective_input_ceiling={largest_ok} "
+              f"calibrated_at={record['calibrated_at']} account_limits.tier={args.tier}; regenerate: "
+              f"bash .claude/scripts/gen-adapter-maps.sh && npm --prefix .claude/skills/bridgebuilder-review run build",
+              file=sys.stderr)
     if partial:
         print("ceiling-probe-live: budget cap stopped the bisection — partial record (exit 3)", file=sys.stderr)
         return 3

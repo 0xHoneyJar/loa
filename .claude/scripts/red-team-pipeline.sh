@@ -412,7 +412,7 @@ run_phase1_attacks() {
 #
 # Config keys (all read via yq with safe defaults):
 #   red_team.models.evaluator_multi_model  (bool, default true)
-#   red_team.models.evaluator_primary      (default "claude-opus-4-7")
+#   red_team.models.evaluator_primary      (default "opus", the catalog alias)
 #   red_team.models.evaluator_secondary    (default "gpt-5.5-pro")
 #   red_team.models.evaluator_tertiary     (default "gemini-3.1-pro")
 #
@@ -431,7 +431,7 @@ get_evaluator_multi_model_enabled() {
 get_evaluator_models() {
     # Returns one model alias per line, primary → secondary → tertiary.
     # Defaults cover all 3 providers (anthropic + openai + google).
-    yq '.red_team.models.evaluator_primary // "claude-opus-4-7"' "$CONFIG_FILE" 2>/dev/null || echo "claude-opus-4-7"
+    yq '.red_team.models.evaluator_primary // "opus"' "$CONFIG_FILE" 2>/dev/null || echo "opus"
     yq '.red_team.models.evaluator_secondary // "gpt-5.5-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gpt-5.5-pro"
     yq '.red_team.models.evaluator_tertiary // "gemini-3.1-pro"' "$CONFIG_FILE" 2>/dev/null || echo "gemini-3.1-pro"
 }

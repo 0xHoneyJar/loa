@@ -1,7 +1,7 @@
 # Parallel Review — Splitting Strategy
 
-Referenced from `reviewing-code/SKILL.md` `<parallel_execution>` when a sprint is LARGE (or
-MEDIUM with >3 tasks); see Phase -1 there for the size thresholds.
+Referenced from `reviewing-code/SKILL.md` `<parallel_execution>` when the lead splits a large sprint
+(or one with >3 tasks); `REFERENCE.md` has the size table.
 
 ## Splitting Strategy: By Sprint Task
 

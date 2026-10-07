@@ -8,17 +8,19 @@
 # for unit testing without invoking the full CLI.
 
 setup() {
+    : "${BATS_TEST_TMPDIR:?BATS_TEST_TMPDIR not set — needs bats-core >= 1.4}"   # one per-test base bats removes; no mktemp fallback a teardown never sweeps (thirtieth run, e3 DISS-C-001)
+    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"   # the CLI lock is this test's own, never the per-user one a live dissent holds (run 23)
     # cycle-124 FR-6: adversarial-review.sh execs model-adapter → cheval, whose mock
     # path still appends MODELINV + cost rows — redirect both ledgers (found live
     # 2026-09-18: this suite wrote mock rows into the operator's .run/ ledgers).
-    export LOA_MODELINV_LOG_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/model-invoke.jsonl"
-    export LOA_COST_LEDGER_PATH="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/cost-ledger.jsonl"
+    export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
+    export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     export PROJECT_ROOT
     ADVERSARIAL_REVIEW="$PROJECT_ROOT/.claude/scripts/adversarial-review.sh"
     FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures/adversarial-review"
-    TEST_DIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
+    TEST_DIR="$BATS_TEST_TMPDIR"
 
     # Save PROJECT_ROOT before sourcing (script redefines it)
     local saved_root="$PROJECT_ROOT"
@@ -761,4 +763,87 @@ EOF
     local status_out
     status_out=$(_extract_result_status "" 2>"$err_file")
     [[ "$status_out" == "malformed_response" ]]
+}
+
+@test "e3 DISS-C-001: no per-test path falls back to a mktemp dir no teardown removes" {
+    local f
+    # the guard is a statement that requires BATS_TEST_TMPDIR — `: "${…:?…}"` or an assignment `[export ]X="${…:?…}"` — anchored
+    # on the statement, so these lines' own patterns never satisfy it (thirty-first run, e3 DISS-C-002; thirty-second run, e3 DISS-C-002)
+    _e3_guarded() { grep -qE '^[[:space:]]*(: |(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=)"\$\{BATS_TEST_TMPDIR:\?' "$1"; }
+    # a mktemp XDG_RUNTIME_DIR in any suite or helper, never a doc or fixture (thirty-second run, e3 DISS-C-003); the bracket
+    # keeps this line from matching itself
+    # — the mktemp inside the assignment's own value, never a later statement on the line (thirty-third run, e3 DISS-C-003)
+    # (thirty-seventh run, e3 DISS-C-002: to the statement's end, so a spaced substitution or default is read too; an indirection
+    # through another variable is past a line lint — a suite that owns one sweeps it, as the companion suite's CMP_OWN_TMP)
+    # (thirty-ninth run, e3 DISS-C-002: `:=` assigns a default as `=` does, and `&&` / `||` / `|` end a statement as `;` does)
+    _e3_xdg_fallback() { grep -rnE --include='*.bats' --include='*.bash' 'XDG_RUNTIME_DIR:?[=][^;&|]*mktemp' "$1"; }
+    # (and the per-file check reads the colon-less `-` default as the case-branch check below does: thirty-seventh run, e3 DISS-C-002)
+    _e3_tmpdir_fallback() { grep -nE '[{]BATS_TEST_TMPDIR[:]?[-=]' "$1"; }
+    local _e3_case_fallback='BATS_TEST_TMPDIR[:]?[-=][^}]*mktemp'
+    _e3_none() { local rc=0; "$@" || rc=$?; [ "$rc" -eq 1 ]; }   # (no match, and no error: thirty-fourth run, e3 DISS-C-002)
+    # (thirty-first run, c2e DISS-C-002: and the schema-enforced and verdict-quality suites, whose XDG_RUNTIME_DIR fell back too)
+    for f in tests/unit/adversarial-review.bats tests/integration/adversarial-review-e2e.bats tests/helpers/gpt-review-setup.bash \
+             tests/unit/adversarial-review-schema-enforced.bats tests/unit/adversarial-review-verdict-quality.bats; do
+        _e3_none _e3_tmpdir_fallback "$PROJECT_ROOT/$f" || { echo "$f falls back past BATS_TEST_TMPDIR (or is unreadable)"; return 1; }
+        _e3_guarded "$PROJECT_ROOT/$f" || { echo "$f does not require BATS_TEST_TMPDIR"; return 1; }
+    done
+    # …and no suite anywhere keeps the per-test XDG_RUNTIME_DIR's mktemp fallback (thirty-first run, e3 DISS-C-001: seventeen
+    # more setups carried it); the bracket keeps this line from matching itself
+    _e3_none _e3_xdg_fallback "$PROJECT_ROOT/tests" || { echo "a setup still falls back to an unswept mktemp XDG_RUNTIME_DIR"; return 1; }
+    # …nor any adversarial-review suite a per-test TEST_DIR one (thirty-second run, c2a DISS-C-002: three setups kept it, with no
+    # teardown that removes it; the normalise and companion suites own and sweep theirs); the bracket keeps this line from matching itself
+    # (thirty-third run, e3 DISS-C-003: those two are exempt by name, never by spelling, and their sweep is what is checked)
+    local s own
+    for s in "$PROJECT_ROOT"/tests/unit/adversarial-review*.bats; do
+        case "${s##*/}" in
+            adversarial-review-companion.bats) own=CMP_OWN_TMP ;;
+            adversarial-review-normalise.bats) own=NORM_OWN_TMP ;;
+            *) _e3_none grep -nE "$_e3_case_fallback" "$s" || { echo "${s##*/} falls back to an unswept mktemp TEST_DIR (or is unreadable: thirty-fifth run, e3 DISS-C-002)"; return 1; }; continue ;;
+        esac
+        grep -qE "find \"[$]$own\" -mindepth 1 -delete; rmdir \"[$]$own\"" "$s" || { echo "${s##*/} no longer sweeps its own fallback"; return 1; }
+    done
+    # (thirty-third run, e3 DISS-C-001: the guard's message names the version it needs — a bats < 1.4 run IS under bats)
+    _e3_none grep -rn --include='*.bats' --include='*.bash' 'must run under bat[s]' "$PROJECT_ROOT/tests" || { echo "a guard's message misnames a bats < 1.4 run as not under bats"; return 1; }
+    # neither check is vacuous (thirty-second run, e3 DISS-C-001: the old leg grepped out a pattern, then found it absent):
+    # the guard check tells a guarded setup — in either statement form — from one that only mentions the guard
+    local fx="$BATS_TEST_TMPDIR/e3-fx"; mkdir -p "$fx"
+    printf 'setup() {\n    : "${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"; _e3_guarded "$fx/a.bats"
+    printf 'setup() {\n    export XDG_RUNTIME_DIR="${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"; _e3_guarded "$fx/a.bats"
+    printf 'setup() {\n    export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"\n    # : "${BATS_TEST_TMPDIR:?no}"\n}\n' > "$fx/a.bats"
+    if _e3_guarded "$fx/a.bats"; then echo "a guard only mentioned in a comment passed"; return 1; fi
+    # (explicit ifs: a mid-test `! cmd` never fails a bats test)
+    # …and the fallback check catches any mktemp XDG_RUNTIME_DIR in a suite or helper, whatever its template, never prose
+    printf '# export XDG_RUNTIME_DIR%s"$(mktemp -d)"\n' '=' > "$fx/notes.md"
+    if _e3_xdg_fallback "$fx"; then echo "a doc tripped the fallback check"; return 1; fi
+    printf '    export XDG_RUNTIME_DIR%s"$(mktemp -d /tmp/other.XXXX)"\n' '=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    printf '    export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR%s-$(mktemp -d)}"\n' '=' ':' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    # …and a one-line setup whose mktemp is another statement's is no fallback (thirty-third run, e3 DISS-C-003)
+    printf 'setup() { export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR:?x}"; TMP_DIR="$(mktemp -d)"; }\n' '=' > "$fx/a.bats"
+    if _e3_xdg_fallback "$fx"; then echo "a one-line setup's own mktemp tripped the fallback check"; return 1; fi
+    # …and a grep that errors is never "no match" (thirty-fourth run, e3 DISS-C-002: exit 2 — an unreadable file — read as clean,
+    # even beside a real match): only exit 1 passes
+    # (as root no file is unreadable: only that leg is left out, never the test — a skip reported every check that ran as
+    # skipped: thirty-fifth run, e3 DISS-C-001)
+    printf '    export XDG_RUNTIME_DIR%s"$(mktemp -d)"\n' '=' > "$fx/a.bats"; : > "$fx/b.bats"; chmod 000 "$fx/b.bats"
+    if [ ! -r "$fx/b.bats" ] && _e3_none _e3_xdg_fallback "$fx" >/dev/null 2>&1; then chmod 644 "$fx/b.bats"; echo "a grep error beside a match passed"; return 1; fi
+    chmod 644 "$fx/b.bats"; rm -f "$fx/a.bats"
+    if _e3_none _e3_xdg_fallback "$fx/missing" >/dev/null 2>&1; then echo "a grep error passed"; return 1; fi
+    _e3_none _e3_xdg_fallback "$fx"
+    # …and a spaced substitution or a spaced default is still the assignment's own mktemp (thirty-seventh run, e3 DISS-C-002)
+    printf '    export XDG_RUNTIME_DIR%s"$( mktemp -d )"\n' '=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    printf '    export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR%s- $(mktemp -d)}"\n' '=' ':' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    rm -f "$fx/a.bats"
+    # …and the per-file fallback check reads BATS_TEST_TMPDIR's colon-less dash default as the case-branch check does, never a path
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' '-' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' ':-' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    printf '    TEST_DIR="$BATS_TEST_TMPDIR-x"\n' > "$fx/c.bats"
+    if _e3_tmpdir_fallback "$fx/c.bats"; then echo "a plain path tripped the per-file fallback check"; return 1; fi
+    # (thirty-ninth run, e3 DISS-C-002: the assign-default `:=` is a fallback in both checks, and an `&&`/`||`/`|`-joined
+    # statement's mktemp is another statement's)
+    printf '    : "$%sXDG_RUNTIME_DIR%s$(mktemp -d)}"\n' '{' ':=' > "$fx/a.bats"; _e3_xdg_fallback "$fx" >/dev/null
+    printf '    export XDG_RUNTIME_DIR%s"${BATS_TEST_TMPDIR:?x}" && T="$(mktemp -d)"\n' '=' > "$fx/a.bats"
+    if _e3_xdg_fallback "$fx"; then echo "an &&-joined statement's mktemp tripped the fallback check"; return 1; fi
+    rm -f "$fx/a.bats"
+    printf '    TEST_DIR="$%sBATS_TEST_TMPDIR%s$(mktemp -d)}"\n' '{' ':=' > "$fx/c.bats"; _e3_tmpdir_fallback "$fx/c.bats" >/dev/null
+    grep -qE "${_e3_case_fallback:?the case-branch pattern is not one variable}" "$fx/c.bats"
 }

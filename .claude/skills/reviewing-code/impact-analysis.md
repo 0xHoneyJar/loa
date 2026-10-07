@@ -268,6 +268,8 @@ export LOA_SEARCH_MODE
 
 ## Attention Budget Management
 
+Limits below are the `standard` class; under `long` (the default — `.run/context-class`) they are ten times larger (`.claude/protocols/tool-result-clearing.md`).
+
 | Operation | Token Limit | Action on Exceed |
 |-----------|-------------|------------------|
 | Dependent search | 3,000 tokens | Synthesize to feedback, clear results |
@@ -497,7 +499,7 @@ Impact analysis is successful when:
 
 This protocol integrates with:
 - `.claude/protocols/tool-result-clearing.md` - Memory management
-- `.claude/protocols/trajectory-evaluation.md` - Reasoning audit
+- `.claude/protocols/reference/trajectory-evaluation.md` - Reasoning audit
 - `.claude/protocols/citations.md` - Code evidence requirements
 - `.claude/protocols/feedback-loops.md` - Review workflow
 - `.claude/scripts/search-orchestrator.sh` - Search execution

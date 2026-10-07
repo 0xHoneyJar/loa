@@ -208,6 +208,19 @@ class TestErrors:
             with pytest.raises(ProviderUnavailableError):
                 _adapter().complete(_req())
 
+    def test_timeout_carries_the_catalog_note(self):
+        # twenty-second run, d DISS-C-002: a catalog bound not applied as written is said in the timeout error, as the base
+        # adapter does — the MODELINV row and the companion diagnostic read it there; nothing is appended without a note
+        note = "catalog headless_timeout_seconds 7200 clamped to 3600s"
+        for model_note, expect in ((note, f" ({note})"), (None, "")):
+            adapter = _adapter(**{"gemini-3-pro": ModelConfig(context_window=1048576, extra={"cli_model": _GEMINI_LABEL}, headless_timeout_note=model_note)})
+            with patch(_WHICH, return_value="/usr/bin/agy"), \
+                 patch(_PGKILL, side_effect=subprocess.TimeoutExpired("agy", 1)):
+                with pytest.raises(ProviderUnavailableError) as exc_info:
+                    adapter.complete(_req())
+            msg = str(exc_info.value)
+            assert expect in msg if expect else not msg.rstrip().endswith(")")
+
     def test_missing_cli_is_config_error(self):
         with patch(_PGKILL, side_effect=FileNotFoundError("agy")):
             with pytest.raises(ConfigError):
@@ -217,8 +230,19 @@ class TestErrors:
         # council #1109: ARG_MAX/E2BIG (huge diff on argv) → walkable, not a raw OSError crash
         with patch(_WHICH, return_value="/usr/bin/agy"), \
              patch(_PGKILL, side_effect=OSError(7, "Argument list too long")):
-            with pytest.raises(ProviderUnavailableError):
+            with pytest.raises(ProviderUnavailableError) as ei:
                 _adapter().complete(_req())
+        assert "ARG_MAX" in str(ei.value), str(ei.value)
+
+    def test_a_cwd_spawn_error_is_never_read_as_arg_max(self):
+        # (cycle-126 thirty-ninth run, e1 DISS-C-003: a chdir into the stable workspace that failed — replaced by a file, made
+        # unreadable — walks too, named by its errno and the path; only E2BIG says ARG_MAX)
+        for exc in (NotADirectoryError(20, "Not a directory", "/x/loa-agy-ws"), PermissionError(13, "Permission denied", "/x/loa-agy-ws")):
+            with patch(_WHICH, return_value="/usr/bin/agy"), patch(_PGKILL, side_effect=exc):
+                with pytest.raises(ProviderUnavailableError) as ei:
+                    _adapter().complete(_req())
+            msg = str(ei.value)
+            assert "ARG_MAX" not in msg and exc.__class__.__name__ in msg and "/x/loa-agy-ws" in msg, msg
 
     def test_nul_byte_prompt_walks_not_crashes(self):
         # Gemini council voice (via agy) finding: an untrusted prompt with an embedded NUL
@@ -289,3 +313,40 @@ class TestLive:
     def test_real_gemini_dispatch(self):
         res = _adapter().complete(_req(content="Reply with exactly: GEMINI-OK"))
         assert "GEMINI-OK" in res.content
+
+
+def test_the_module_doc_states_the_argv_prompt_as_unprobed():
+    """The argv prompt stays because a stdin prompt for `-p` was never probed — never because stdin "must stay closed":
+    communicate() writes the prompt and closes the pipe, so a later read sees EOF exactly as on DEVNULL (cycle-126
+    thirty-fifth run, e1 DISS-C-001)."""
+    import loa_cheval.providers.agy_headless_adapter as agy
+    doc = " ".join(agy.__doc__.split())
+    assert "cannot follow while its stdin must stay closed" not in doc
+    assert "never probed" in doc and "EOF" in doc and "communicate()" in doc
+
+
+def test_every_dispatch_warns_of_the_argv_prompt_once_per_process(monkeypatch, caplog):
+    """agy is not disabled — it is the gemini-headless class every stock Google chain ends in — and `-p` puts the whole prompt
+    on argv: the first dispatch WARNs, naming /proc/<pid>/cmdline and bd-ugmi; later dispatches in the process do not repeat
+    it (cycle-126 audit run 1, e1 DISS-001)."""
+    import logging
+    import loa_cheval.providers.agy_headless_adapter as agy
+    monkeypatch.setattr(agy, "_ARGV_PROMPT_WARNED", False, raising=False)
+    spawn = MagicMock(return_value=_completed(stdout="APPROVED"))
+    with patch(_WHICH, return_value="/usr/bin/agy"), patch(_PGKILL, spawn), \
+            caplog.at_level(logging.WARNING, logger="loa_cheval.providers.agy_headless"):
+        _adapter().complete(_req())
+        _adapter().complete(_req())
+    assert spawn.call_count == 2                              # the fake spawn ran both hops; no real CLI
+    warned = [r for r in caplog.records if "/proc/<pid>/cmdline" in r.getMessage()]
+    assert len(warned) == 1 and warned[0].levelno == logging.WARNING
+    assert "bd-ugmi" in warned[0].getMessage() and "argv" in warned[0].getMessage()
+
+
+def test_the_module_never_calls_agy_disabled():
+    """agy is reachable as gemini-headless on any host with agy installed — no comment may say it awaits re-enabling (cycle-126
+    audit run 1, e1 DISS-001)."""
+    import inspect
+    import loa_cheval.providers.agy_headless_adapter as agy
+    src = " ".join(inspect.getsource(agy).split())
+    assert "re-enabl" not in src and "NOT disabled" in src

@@ -316,7 +316,7 @@ if [[ ! -f "$LEDGER_PATH" && -z "$_legacy_arg" ]]; then
         # The empty envelope answers the same questions as a populated one: a
         # --window-day caller (the budget enforcer) gets an empty window, not a
         # missing field (a fresh mount has no ledger yet — CI, first run).
-        jq -nc --arg d "$WINDOW_DAY" '{total_micro_usd:0, entry_count:0, agents:{}, models:{}, providers:{}, daily:[], unpriced_rows:0, unpriced_share:0, unclassified_rows:0, estimated_rows:0, legacy_rows:0, repriced_rows:0, pricing_resolution:{}}
+        jq -nc --arg d "$WINDOW_DAY" '{total_micro_usd:0, entry_count:0, agents:{}, models:{}, providers:{}, daily:[], unpriced_rows:0, unpriced_share:0, unclassified_rows:0, estimated_rows:0, legacy_rows:0, repriced_rows:0, long_context_rows:0, pricing_resolution:{}}
             + (if $d == "" then {} else {window: {day: $d, entry_count: 0, unpriced_rows: 0, unpriced_share: 0}} end)'
     else
         echo "# Cost Report"
@@ -416,6 +416,7 @@ repriced_rows = 0
 window_entries = 0
 window_unpriced = 0
 by_resolution = defaultdict(int)
+long_context_rows = 0  # cycle-126 FR-1.9: rows billed at the long-context premium
 for e in entries:
     cost = e.get("cost_micro_usd", 0)
     total_all += cost
@@ -432,6 +433,8 @@ for e in entries:
         estimated_rows += 1
     if e.get("repriced_at"):
         repriced_rows += 1
+    if e.get("long_context") is True:
+        long_context_rows += 1
     by_resolution[e.get("pricing_resolution") or e.get("pricing_source", "unknown")] += 1
 
     ts = parse_ts(e.get("ts"))
@@ -484,6 +487,7 @@ if output_json:
         "estimated_rows": estimated_rows,
         "legacy_rows": legacy_rows,
         "repriced_rows": repriced_rows,
+        "long_context_rows": long_context_rows,
         "pricing_resolution": dict(by_resolution),
         "summary": {
             "today_micro_usd": total_1d,
@@ -524,7 +528,8 @@ else:
           + (f"; unclassified (pre-metadata, priced by their writer): {unclassified_rows}" if unclassified_rows else "")
           + (f"; estimated rows: {estimated_rows}" if estimated_rows else "")
           + (f"; legacy rows included: {legacy_rows}" if legacy_rows else "")
-          + (f"; repriced rows: {repriced_rows}" if repriced_rows else ""))
+          + (f"; repriced rows: {repriced_rows}" if repriced_rows else "")
+          + (f"; long-context rows: {long_context_rows}" if long_context_rows else ""))
     if by_resolution:
         print("Pricing resolution: " + ", ".join(f"{k} {v}" for k, v in sorted(by_resolution.items())))
     if window_day:

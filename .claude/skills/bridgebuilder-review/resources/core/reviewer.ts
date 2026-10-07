@@ -383,6 +383,10 @@ export class ReviewPipeline {
       const userTokens = Math.ceil(finalUserPrompt0.length * coefficient);
       const estimatedTokens = systemTokens + userTokens;
 
+      // sprint-250 round 2: the trigger uses the model-clamped budget, so a
+      // 160–200K estimate for a 160K model is truncated instead of sent raw.
+      const inputBudget = effectiveInputBudget(this.config.maxInputTokens, this.config.model);
+
       // Pre-flight prompt size report (SKP-004: component breakdown)
       this.logger.info("Prompt estimate", {
         owner,
@@ -391,7 +395,7 @@ export class ReviewPipeline {
         estimatedTokens,
         systemTokens,
         userTokens,
-        budget: this.config.maxInputTokens,
+        budget: inputBudget,
         model: this.config.model,
       });
 
@@ -400,14 +404,14 @@ export class ReviewPipeline {
       let finalEstimatedTokens = estimatedTokens;
       let truncationLevel: number | undefined;
 
-      if (estimatedTokens > this.config.maxInputTokens) {
+      if (estimatedTokens > inputBudget) {
         // Progressive truncation (replaces hard skip)
         this.logger.info("Token budget exceeded, attempting progressive truncation", {
           owner,
           repo,
           pr: pr.number,
           estimatedTokens,
-          budget: this.config.maxInputTokens,
+          budget: inputBudget,
         });
 
         const truncResult = progressiveTruncate(
@@ -425,7 +429,7 @@ export class ReviewPipeline {
             repo,
             pr: pr.number,
             estimatedTokens,
-            budget: this.config.maxInputTokens,
+            budget: inputBudget,
           });
           return this.skipResult(item, "prompt_too_large_after_truncation");
         }
@@ -853,19 +857,22 @@ export class ReviewPipeline {
     const userTokens = Math.ceil(convergenceUser.length * coefficient);
     const estimatedTokens = systemTokens + userTokens;
 
+    // sprint-250 round 2: model-clamped trigger (see the single-pass guard).
+    const inputBudget = effectiveInputBudget(this.config.maxInputTokens, this.config.model);
+
     this.logger.info("Pass 1: Prompt estimate", {
       owner, repo, pr: pr.number,
       estimatedTokens, systemTokens, userTokens,
-      budget: this.config.maxInputTokens, model: this.config.model,
+      budget: inputBudget, model: this.config.model,
     });
 
     let finalConvergenceSystem = convergenceSystem;
     let finalConvergenceUser = convergenceUser;
     let truncationContext: { filesExcluded: number; totalFiles: number } | undefined;
 
-    if (estimatedTokens > this.config.maxInputTokens) {
+    if (estimatedTokens > inputBudget) {
       this.logger.info("Pass 1: Token budget exceeded, attempting progressive truncation", {
-        owner, repo, pr: pr.number, estimatedTokens, budget: this.config.maxInputTokens,
+        owner, repo, pr: pr.number, estimatedTokens, budget: inputBudget,
       });
 
       const truncResult = progressiveTruncate(

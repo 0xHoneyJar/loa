@@ -199,5 +199,5 @@ Skills may be pruned when:
 ## Related Protocols
 
 - `.claude/protocols/structured-memory.md` - NOTES.md integration
-- `.claude/protocols/trajectory-evaluation.md` - Reasoning audit trail
-- `.claude/protocols/session-continuity.md` - Session recovery
+- `.claude/protocols/reference/trajectory-evaluation.md` - Reasoning audit trail
+- `.claude/protocols/reference/session-continuity.md` - Session recovery

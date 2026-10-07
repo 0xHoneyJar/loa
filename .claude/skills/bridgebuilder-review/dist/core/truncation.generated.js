@@ -12,19 +12,26 @@
 // v3 ceiling (cycle-124 FR-3 / SDD §2.1: BB truncates below cheval's pre-flight
 // gate instead of dispatching what exit 7 would reject), else context_window.
 //
+// GENERATED_MODEL_ALIASES maps the catalog's `aliases:` block to bare model
+// ids (provider-qualified targets only; self-maps dropped) so an alias such as
+// `opus` gets its target's budget. An operator alias overlay in
+// .loa.config.yaml is NOT reflected — pin a concrete model or set
+// max_input_tokens (cycle-126 sprint-250).
+//
 // cycle-099 sprint-1 (T1.1). See SDD §1.4.3 + §5.3.
 export const GENERATED_TOKEN_BUDGETS = {
-    "claude-fable-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-fable-5-1": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-fable-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-fable-5-1": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "claude-haiku-4-5-20251001": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
     "claude-headless": { maxInput: 1000000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-6": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-7": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-4-8": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-opus-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-opus-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-opus-4-7": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-opus-4-8": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-opus-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-opus-5-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "claude-sonnet-4-5-20250929": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
-    "claude-sonnet-5": { maxInput: 160000, maxOutput: 8192, coefficient: 0.25 },
+    "claude-sonnet-4-6": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
+    "claude-sonnet-5": { maxInput: 160000, maxOutput: 32000, coefficient: 0.25 },
     "us.anthropic.claude-haiku-4-5-20251001-v1:0": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
     "us.anthropic.claude-opus-4-7": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
     "us.anthropic.claude-opus-4-8": { maxInput: 200000, maxOutput: 8192, coefficient: 0.25 },
@@ -34,17 +41,37 @@ export const GENERATED_TOKEN_BUDGETS = {
     "deep-research-pro": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
     "gemini-2.0-flash": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
     "gemini-2.5-flash": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
-    "gemini-2.5-pro": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
+    "gemini-2.5-pro": { maxInput: 1048576, maxOutput: 16000, coefficient: 0.25 },
     "gemini-3-flash-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
-    "gemini-3.1-pro-preview": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
+    "gemini-3.1-pro-preview": { maxInput: 1048576, maxOutput: 32000, coefficient: 0.25 },
     "gemini-headless": { maxInput: 1048576, maxOutput: 8192, coefficient: 0.25 },
     "codex-headless": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
-    "gpt-5.2": { maxInput: 128000, maxOutput: 4096, coefficient: 0.23 },
-    "gpt-5.3-codex": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
-    "gpt-5.5": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
-    "gpt-5.5-pro": { maxInput: 400000, maxOutput: 4096, coefficient: 0.23 },
+    "gpt-5.2": { maxInput: 128000, maxOutput: 16000, coefficient: 0.23 },
+    "gpt-5.3-codex": { maxInput: 400000, maxOutput: 32000, coefficient: 0.23 },
+    "gpt-5.5": { maxInput: 400000, maxOutput: 32000, coefficient: 0.23 },
+    "gpt-5.5-pro": { maxInput: 400000, maxOutput: 32000, coefficient: 0.23 },
     "grok-build": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
     "grok-composer-2.5-fast": { maxInput: 256000, maxOutput: 4096, coefficient: 0.25 },
     "default": { maxInput: 100000, maxOutput: 4096, coefficient: 0.25 },
+};
+export const GENERATED_MODEL_ALIASES = {
+    "cheap": "claude-sonnet-5",
+    "cursor-composer": "composer-2.5",
+    "cursor-fast": "composer-2.5-fast",
+    "cursor-headless": "composer-2.5",
+    "deep-thinker": "gemini-3.1-pro-preview",
+    "fable": "claude-fable-5-1",
+    "gemini-2.0": "gemini-2.0-flash",
+    "gemini-3-flash": "gemini-3-flash-preview",
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-api": "gemini-2.5-pro",
+    "grok-composer": "grok-composer-2.5-fast",
+    "grok-fast": "grok-composer-2.5-fast",
+    "grok-headless": "grok-build",
+    "opus": "claude-opus-5-5",
+    "reasoning": "gpt-5.5",
+    "researcher": "deep-research-pro",
+    "reviewer": "gpt-5.5",
+    "tiny": "claude-haiku-4-5-20251001",
 };
 //# sourceMappingURL=truncation.generated.js.map

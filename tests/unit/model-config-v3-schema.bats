@@ -427,6 +427,102 @@ assert sv.get('const') == 3, f'expected const:3 got {sv}'
     [ "$status" -eq 0 ]
 }
 
+# -----------------------------------------------------------------------------
+# cycle-126 sprint-250: the catalog keys Sprints 1–2 added (probed_ceiling,
+# account_limits, headless_timeout_seconds, params.beta_headers) are typed in
+# v3 to match their consumers — each test pairs an accepted shape with the
+# refusals, so it is red while the key is unknown to the schema.
+# -----------------------------------------------------------------------------
+
+_c126_model() {  # <model-entry-json> → a one-model v3 document
+    printf '{"schema_version": 3, "providers": {"anthropic": {"type": "anthropic", "endpoint": "https://api.anthropic.com", "models": {"m": %s}}}}' "$1"
+}
+
+@test "V3-add (c126): probed_ceiling is a positive integer (string, zero, boolean refused)" {
+    run validate_v3 "$(_c126_model '{"context_window": 1000000, "probed_ceiling": 180000}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    for bad in '"180000"' 0 -1 true 1.5; do
+        run validate_v3 "$(_c126_model "{\"context_window\": 1000000, \"probed_ceiling\": $bad}")"
+        [ "$status" -ne 0 ] || { echo "accepted probed_ceiling: $bad" >&2; return 1; }
+    done
+}
+
+@test "V3-add (c126): account_limits is {tier enum, itpm positive integer | null} and nothing else" {
+    run validate_v3 "$(_c126_model '{"context_window": 1000000, "account_limits": {"tier": "unverified", "itpm": null}}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    run validate_v3 "$(_c126_model '{"context_window": 1000000, "account_limits": {"tier": "2", "itpm": 450000}}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    for bad in '{"tier": "5", "itpm": null}' '{"tier": 2, "itpm": null}' '{"tier": "unverified", "itpm": 0}' \
+               '{"tier": "unverified", "itpm": "450000"}' '{"tier": "unverified", "itpm": null, "rpm": 50}' \
+               '{"itpm": null}' '"unverified"'; do
+        run validate_v3 "$(_c126_model "{\"context_window\": 1000000, \"account_limits\": $bad}")"
+        [ "$status" -ne 0 ] || { echo "accepted account_limits: $bad" >&2; return 1; }
+    done
+}
+
+@test "V3-add (c126): headless_timeout_seconds is a positive number (negative, zero, string, boolean refused)" {
+    run validate_v3 "$(_c126_model '{"kind": "cli", "context_window": 1000000, "headless_timeout_seconds": 900}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    # above the 3600 s ceiling is accepted: cheval clamps it at load (types.coerce_headless_timeout_seconds)
+    run validate_v3 "$(_c126_model '{"kind": "cli", "context_window": 1000000, "headless_timeout_seconds": 7200.5}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    for bad in -1 0 '"900"' true null; do
+        run validate_v3 "$(_c126_model "{\"kind\": \"cli\", \"context_window\": 1000000, \"headless_timeout_seconds\": $bad}")"
+        [ "$status" -ne 0 ] || { echo "accepted headless_timeout_seconds: $bad" >&2; return 1; }
+    done
+}
+
+@test "V3-add (c126): params.beta_headers is a list of dated beta flags (the adapter's allowlist)" {
+    run validate_v3 "$(_c126_model '{"context_window": 1000000, "params": {"beta_headers": []}}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    run validate_v3 "$(_c126_model '{"context_window": 1000000, "params": {"beta_headers": ["context-1m-2025-08-07", "interleaved-thinking-2025-05-14"]}}')"
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    for bad in '"context-1m-2025-08-07"' '["Context-1M-2025-08-07"]' '["context-1m"]' '["context-1m-2025-8-7"]' \
+               '[1]' '["context-1m-2025-08-07,x-2025-01-01"]' '["context--1m-2025-08-07"]' null; do
+        run validate_v3 "$(_c126_model "{\"context_window\": 1000000, \"params\": {\"beta_headers\": $bad}}")"
+        [ "$status" -ne 0 ] || { echo "accepted beta_headers: $bad" >&2; return 1; }
+    done
+}
+
+@test "V3 (c126): every beta-header value the schema accepts, the adapter accepts, and every value it rejects, the adapter rejects" {
+    cd "$PROJECT_ROOT/.claude/adapters"
+    run "$PYTHON_BIN" - "$SCHEMA_V3" <<'PYEOF'
+import json, re, sys
+from loa_cheval.providers import anthropic_adapter as a
+schema = json.load(open(sys.argv[1]))
+pat = schema["$defs"]["modelEntry"]["properties"]["params"]["properties"]["beta_headers"]["items"]["pattern"]
+cases = ["context-1m-2025-08-07", "a-2025-01-01", "x1-y2-2030-12-31", "Context-1m-2025-08-07", "context-1m",
+         "context-1m-2025-8-7", "-a-2025-01-01", "a--b-2025-01-01", "a-2025-01-01-", "a b-2025-01-01",
+         "a-٢٠٢٥-01-01"]
+accepted = [c for c in cases if re.search(pat, c)]
+assert "context-1m-2025-08-07" in accepted, accepted
+bad = [c for c in accepted if not a._BETA_HEADER_RE.match(c)]
+# Converse (audit dissent run 1, n1/n4): every value the schema REJECTS, the adapter's
+# own check (_beta_header_value) rejects. The schema is read with JSON Schema's ECMA-262
+# semantics: non-multiline `$` is end of input (Python's `$` also matches before a final
+# newline, so it is rewritten to \Z) and `[0-9]` is ASCII only.
+assert pat.endswith("$") and "\\d" not in pat, pat
+assert a._BETA_HEADER_RE.pattern == pat, (a._BETA_HEADER_RE.pattern, pat)
+ecma = re.compile(pat[:-1] + r"\Z", re.ASCII)
+rejected = cases + ["context-1m-2025-08-07\n", "context-1m-2025-08-07\r\n", "context-1m-\u0662\u0660\u0662\u0665-08-07",
+                    "context-1m-2025-08-0\u0667", "context-1m-2025-08-07 ", "\ncontext-1m-2025-08-07"]
+rejected = [c for c in rejected if not ecma.search(c)]
+assert "context-1m-2025-08-07\n" in rejected and "context-1m-\u0662\u0660\u0662\u0665-08-07" in rejected, rejected
+loose = []
+for c in rejected:
+    try:
+        a._beta_header_value({"beta_headers": [c]}, "m")
+        loose.append(c)
+    except Exception as e:
+        if type(e).__name__ != "ConfigError":
+            raise
+bad += ["adapter-accepted %r" % c for c in loose]
+print("MISMATCH %r" % bad if bad else "OK")
+PYEOF
+    [ "$status" -eq 0 ] || { echo "$output" >&2; return 1; }
+    [[ "$output" == *"OK"* ]] || { echo "$output" >&2; return 1; }
+}
+
 @test "Live (c124): production model-config.yaml migrated with --to-v3 validates against v3 and keeps the catalog's own ceiling" {
     MIGRATE="$PROJECT_ROOT/.claude/scripts/loa-migrate-model-config.py"
     "$PYTHON_BIN" -c "import ruamel.yaml" 2>/dev/null || skip "ruamel.yaml not available in $PYTHON_BIN"

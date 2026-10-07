@@ -315,6 +315,24 @@ describe("progressiveTruncate budget clamp (cycle-124 FR-3)", () => {
     assert.ok(Math.floor(effectiveInputBudget(300_000, "claude-opus-5") * 0.85) < 160_000);
   });
 
+  it("resolves catalog aliases to their target's budget (sprint-250 round 2: DEFAULTS.model is 'opus')", () => {
+    // BB's default model is the alias `opus` with a 200K operator budget; the
+    // alias must clamp to its target's row, never keep 200K (cheval's probed
+    // ceiling for claude-opus-5-5 is 180K).
+    const opusTarget = getTokenBudget("claude-opus-5-5");
+    assert.equal(opusTarget.maxInput, 160_000);
+    assert.deepEqual(getTokenBudget("opus"), opusTarget);
+    assert.equal(effectiveInputBudget(200_000, "opus"), 160_000);
+    assert.ok(effectiveInputBudget(200_000, "opus") <= opusTarget.maxInput);
+    assert.deepEqual(getTokenBudget("cheap"), getTokenBudget("claude-sonnet-5"));
+    assert.equal(effectiveInputBudget(300_000, "fable"), getTokenBudget("claude-fable-5-1").maxInput);
+    // an alias whose target is not a catalog model (native → claude-code:session) stays unknown
+    assert.equal(effectiveInputBudget(300_000, "native"), 300_000);
+    // and progressiveTruncate clamps the alias like the concrete id
+    const clamped = progressiveTruncate(many, 300_000, "opus", 560_000, 0);
+    assert.ok(clamped.excluded.length > 0 || clamped.level > 1);
+  });
+
   it("treats inherited object keys as unknown ids (prototype-safe lookup)", () => {
     // "__proto__"/"constructor" are `in` every object; they must not count as known.
     const r = progressiveTruncate(many, 300_000, "constructor", 560_000, 0);

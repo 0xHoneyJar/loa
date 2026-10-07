@@ -819,3 +819,90 @@ cost-profile: moderate
     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill plain-skill
     [ "$status" -eq 0 ]
 }
+
+# =========================================================================
+# SC-T-AGENT-7..9 (cycle-126 D-4.4): the write-capable agent types live in
+# .claude/data/agent-types.yaml and the validator reads them from there
+# =========================================================================
+
+agent_skill() {
+    create_skill "$1" "---
+name: $1
+description: Agent type $2 with write capability
+agent: $2
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# $1"
+}
+
+@test "SC-T-AGENT-7: agent-types.yaml flags every harness and project agent type; claude and fork pass, the read-only types fail" {
+    local data="$PROJECT_ROOT/.claude/data/agent-types.yaml"
+    run yq -r '.agent_types | to_entries | map(.key + "=" + (.value.write_capable | tostring)) | join(" ")' "$data"
+    [ "$status" -eq 0 ]
+    [ "$output" = "general-purpose=true claude=true fork=true loa-scout=false Plan=false Explore=false prompt-auditor=false prompt-auditor-io=false" ]
+    local f
+    for f in "$PROJECT_ROOT"/.claude/agents/*.md; do
+        yq -e ".agent_types[\"$(basename "$f" .md)\"]" "$data" >/dev/null || { echo "unlisted: $f" >&2; return 1; }
+    done
+    agent_skill w-claude claude
+    agent_skill w-fork fork
+    agent_skill w-scout loa-scout
+    agent_skill w-io prompt-auditor-io
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-claude
+    [ "$status" -eq 0 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-fork
+    [ "$status" -eq 0 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-scout
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'loa-scout'"*"(general-purpose claude fork)"* ]]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-io
+    [ "$status" -eq 1 ]
+}
+
+@test "SC-T-AGENT-8: the validator reads the list from the data file, not a hard-coded array" {
+    printf 'agent_types:\n  Plan:\n    write_capable: true\n  general-purpose:\n    write_capable: false\n' > "$BATS_TEST_TMPDIR/agent-types.yaml"
+    agent_skill w-plan Plan
+    agent_skill w-gp general-purpose
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/agent-types.yaml" --skill w-plan
+    [ "$status" -eq 0 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp --agent-types-file "$BATS_TEST_TMPDIR/agent-types.yaml"
+    [ "$status" -eq 1 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp --agent-types-file
+    [ "$status" -eq 2 ]
+}
+
+@test "SC-T-AGENT-9: a missing or unreadable agent-types file falls back to general-purpose only" {
+    agent_skill w-claude claude
+    agent_skill w-gp general-purpose
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/absent.yaml" --skill w-claude
+    [ "$status" -eq 1 ]
+    printf 'agent_types: [\n' > "$BATS_TEST_TMPDIR/broken.yaml"
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/broken.yaml" --skill w-gp
+    [ "$status" -eq 0 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/broken.yaml" --skill w-claude
+    [ "$status" -eq 1 ]
+}
+
+@test "SC-T-AGENT-10: the ambient AGENT_TYPES_FILE variable never redirects the allowlist, bats markers or not; only the explicit --agent-types-file argument does (audit run 3, finding 13)" {
+    printf 'agent_types:\n  Plan:\n    write_capable: true\n' > "$BATS_TEST_TMPDIR/agent-types.yaml"
+    agent_skill w-plan Plan
+    run env -u BATS_TEST_FILENAME -u BATS_VERSION -u BATS_TEST_DIRNAME -u BATS_TEST_TMPDIR \
+        AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" "$VALIDATOR" --skill w-plan
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-plan
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    run "$VALIDATOR" --help
+    [[ "$output" == *"--agent-types-file"* ]]
+}

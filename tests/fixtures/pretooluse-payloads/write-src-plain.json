@@ -1,0 +1,1 @@
+{"session_id":"0f6c2a8e-7b1d-4c39-9e55-2d1f3b7a9c10","transcript_path":"/home/op/.claude/projects/-repo/0f6c2a8e-7b1d-4c39-9e55-2d1f3b7a9c10.jsonl","cwd":"__ROOT__","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"__ROOT__/src/index.ts","content":"export {};\n"},"tool_use_id":"toolu_01PLAIN"}

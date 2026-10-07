@@ -141,7 +141,7 @@
         "api_mode": {"type": "string"},
         "params": {
           "type": "object",
-          "description": "Wire-protocol parameter gates consulted per request by the provider adapter (#641, cycle-124 FR-1). Only the two typed keys exist in the live catalog (grep verified 2026-09-17), so unknown keys are rejected — a misspelt gate must not silently no-op.",
+          "description": "Wire-protocol parameter gates consulted per request by the provider adapter (#641, cycle-124 FR-1). Only the typed keys exist in the live catalog (grep verified 2026-09-17; beta_headers added cycle-126, 2026-10-05), so unknown keys are rejected — a misspelt gate must not silently no-op.",
           "additionalProperties": false,
           "properties": {
             "temperature_supported": {
@@ -151,6 +151,14 @@
             "thinking_adaptive": {
               "type": "boolean",
               "description": "cycle-124 FR-1: True ⇒ the Anthropic adapter emits `thinking: {type: adaptive}` explicitly (required on Opus 4.6/4.7/4.8 + Sonnet 4.6; harmless default-on for Opus 5 / Sonnet 5). Implies temperature_supported: false."
+            },
+            "beta_headers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              },
+              "description": "cycle-126 FR-1.2 (SDD D-1.2): dated Anthropic beta flags (e.g. context-1m-2025-08-07), joined into ONE `anthropic-beta` header by anthropic_adapter._beta_header_value. The pattern is the adapter's _BETA_HEADER_RE with ASCII digits (never looser — the c126 bats cross-check pins it); a non-list or a value outside it is a ConfigError at dispatch. Operator-set only; `[]` until an account needs one."
             }
           }
         },
@@ -208,7 +216,36 @@
           "description": "cycle-109 FR-1.1: KF-ledger references that have flagged this model. Populated automatically by FR-1.5 KF-auto-link on every CI run that touches known-failures.md. Pattern enforces `KF-NNN` shape."
         },
         "ceiling_calibration": {"$ref": "#/$defs/ceilingCalibration"},
-        "streaming_recovery": {"$ref": "#/$defs/streamingRecovery"}
+        "streaming_recovery": {"$ref": "#/$defs/streamingRecovery"},
+        "probed_ceiling": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "cycle-126 FR-1.1 (SDD D-1.1b): the last measured input bound the catalog ships. routing/ceiling.input_bound uses it for an UNCALIBRATED entry under the default `probed` policy (a calibrated entry uses effective_input_ceiling); the helper ignores anything but a positive non-boolean integer, which this type mirrors."
+        },
+        "account_limits": {"$ref": "#/$defs/accountLimits"},
+        "headless_timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "cycle-126 sprint-248: per-model read bound for a CLI hop (kind: cli, or a model of a *-headless provider; cheval ignores it with a warning elsewhere). Raises the headless adapter's read floor max(read_timeout, 600); clamped to 3600 s at load by types.coerce_headless_timeout_seconds, so a larger value is accepted here and clamped there. The loader also tolerates a quoted number; the catalog contract is the number itself."
+        }
+      }
+    },
+    "accountLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "itpm"],
+      "description": "cycle-126 FR-1.1 (SDD D-1.1): the operator account the ceiling was measured on, written by tools/ceiling-probe-live.py --write-catalog (`unverified` / null until then). Informational: no runtime reader.",
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["unverified", "1", "2", "3", "4", "custom"],
+          "description": "Anthropic usage tier; the probe's --tier choices (_TIERS)."
+        },
+        "itpm": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Input tokens per minute on that account (--itpm); null when not measured."
+        }
       }
     },
     "ceilingCalibration": {
