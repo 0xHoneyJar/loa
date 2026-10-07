@@ -375,6 +375,63 @@ gate_path() {
     [ "$(decision)" = ask ]
 }
 
+# The hook as wired in production: no PROJECT_ROOT or RUN_DIR in its environment, its process cwd wherever Claude cd'd
+# (MED-001). $1 = hook path, $2 = process cwd, $3 = CLAUDE_PROJECT_DIR (empty = unset), $4 = file_path; payload cwd = $2
+gate_unrooted() {
+    jq -nc --arg c "$2" --arg p "$4" '{cwd: $c, tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    if [[ -n "$3" ]]; then
+        run --separate-stderr env -u PROJECT_ROOT -u RUN_DIR CLAUDE_PROJECT_DIR="$3" bash -c 'cd "$1" && bash "$2" < "$3"' _ "$2" "$1" "$BATS_TEST_TMPDIR/stdin.json"
+    else
+        run --separate-stderr env -u PROJECT_ROOT -u RUN_DIR -u CLAUDE_PROJECT_DIR bash -c 'cd "$1" && bash "$2" < "$3"' _ "$2" "$1" "$BATS_TEST_TMPDIR/stdin.json"
+    fi
+}
+
+@test "IG-21 the root is CLAUDE_PROJECT_DIR, else the hook's own location, never the process cwd: from a subdirectory an App-Zone and a trust-input write still ask (MED-001)" {
+    mkdir -p "$ROOT/src" "$ROOT/.claude/hooks/compliance"
+    cp "$GATE" "$ROOT/.claude/hooks/compliance/implement-gate.sh"
+    local leg hook cwd cpd
+    # leg = hook|cwd|CLAUDE_PROJECT_DIR: the harness's project dir from a subdirectory, then the script-location rung
+    # (the copy under $ROOT/.claude/hooks/compliance/ resolves to $ROOT) from the subdirectory and from the root
+    for leg in "$GATE|$ROOT/src|$ROOT" "$ROOT/.claude/hooks/compliance/implement-gate.sh|$ROOT/src|" "$ROOT/.claude/hooks/compliance/implement-gate.sh|$ROOT|"; do
+        IFS='|' read -r hook cwd cpd <<<"$leg"
+        rm -f "$ROOT/.run/audit.jsonl"
+        gate_unrooted "$hook" "$cwd" "$cpd" "$ROOT/src/x.ts"
+        [ "$(decision)" = ask ] || { echo "$leg src/x.ts: expected ask, got $(decision)" >&2; return 1; }
+        gate_unrooted "$hook" "$cwd" "$cpd" "$ROOT/.loa.config.yaml"
+        [ "$(decision)" = ask ] || { echo "$leg .loa.config.yaml: expected ask, got $(decision)" >&2; return 1; }
+        run jq -sc --arg p "$ROOT/.loa.config.yaml" '[.[] | select(.event == "compliance.state_write" and .file_path == $p)] | length' "$ROOT/.run/audit.jsonl"
+        [ "$output" = 1 ] || { echo "$leg: expected one state_write row in \$ROOT/.run/audit.jsonl, got $output" >&2; return 1; }
+    done
+    [ ! -e "$ROOT/src/.run/audit.jsonl" ]
+}
+
+# A state file under .run/ named $1, aged $2 hours (0 = now), the jq object $3 plus .timestamps.last_activity
+state_aged() {
+    jq -nc --argjson h "$2" "$3"' + {timestamps: {last_activity: (now - $h * 3600 | floor | todate)}}' > "$ROOT/.run/$1"   # jq todate: portable, no GNU date -d
+}
+
+@test "IG-22 state.json RUNNING and simstim-state.json implementation allow only while fresh: older than 24 h, or with no timestamp, asks (LOW-004)" {
+    local f body
+    for f in state.json simstim-state.json; do
+        case "$f" in state.json) body='{state: "RUNNING"}' ;; *) body='{state: "RUNNING", phase: "implementation"}' ;; esac
+        rm -f "$ROOT/.run/state.json" "$ROOT/.run/simstim-state.json"
+        state_aged "$f" 25 "$body"
+        gate_path "$ROOT/src/x.ts"
+        [ "$(decision)" = ask ] || { echo "$f 25 h: expected ask, got $(decision)" >&2; return 1; }
+        state_aged "$f" 0 "$body"
+        gate_path "$ROOT/src/x.ts"
+        [ "$(decision)" = allow ] || { echo "$f fresh: expected allow, got $(decision)" >&2; return 1; }
+        jq -nc "$body" > "$ROOT/.run/$f"
+        gate_path "$ROOT/src/x.ts"
+        [ "$(decision)" = ask ] || { echo "$f no timestamp: expected ask, got $(decision)" >&2; return 1; }
+    done
+    # state.json's .updated_at (the run-preflight fallback) counts as its timestamp
+    rm -f "$ROOT/.run/simstim-state.json"
+    jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{state: "RUNNING", updated_at: $ts}' > "$ROOT/.run/state.json"
+    gate_path "$ROOT/src/x.ts"
+    [ "$(decision)" = allow ]
+}
+
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {
     # sprint-250 review run 1, n20: a bare mid-test `! grep` cannot fail
     run -1 grep -q 'implement_gate' "$REPO/.loa.config.yaml.example"

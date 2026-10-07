@@ -42,19 +42,21 @@ write_platform_features() {
 EOF
 }
 
-# Helper: write simstim-state.json
+# Helper: write simstim-state.json; the gate allows only while .timestamps.last_activity is under 24 h (LOW-004)
 write_simstim_state() {
     local phase="$1"
+    local last_activity="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
     cat > "$PROJECT_ROOT/.run/simstim-state.json" << EOF
-{"phase":"${phase}"}
+{"phase":"${phase}","timestamps":{"last_activity":"${last_activity}"}}
 EOF
 }
 
-# Helper: write state.json (run state)
+# Helper: write state.json (run state); same freshness rule as simstim-state.json (LOW-004)
 write_run_state() {
     local state="$1"
+    local last_activity="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
     cat > "$PROJECT_ROOT/.run/state.json" << EOF
-{"state":"${state}"}
+{"state":"${state}","timestamps":{"last_activity":"${last_activity}"}}
 EOF
 }
 

@@ -625,7 +625,7 @@ _await_tree() { local _i; for _i in $(seq 1 100); do [ "$(_adv_tree_pids "$1" | 
 
 @test "CMP-13 an operator companion_chain on the block is used as given, before presence or defaults (C-011)" {
     export ANTHROPIC_API_KEY="sk-ant-presence-only-never-printed"
-    python3 - "$CONFIG_FILE" <<'PY'
+    python3 -I - "$CONFIG_FILE" <<'PY'
 import sys; p=sys.argv[1]; s=open(p, encoding="utf-8").read()
 s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [claude-headless]\n      openai: [codex-headless]\n", 1); open(p, "w", encoding="utf-8").write(s)
 PY
@@ -1175,7 +1175,7 @@ YAML
 
 @test "CMP-32 the INV-5 exclusion is symmetric: a companion attempt that dropped a voice the primary answered with is excluded, verdict quality still aggregates, and an aggregator failure would be named on the envelope (eighth run, a2 C-004)" {
     # an operator chain whose first hop is the primary's own CLI: the companion's codex-headless attempt fails, then claude-headless answers
-    python3 - "$CONFIG_FILE" <<'PY'
+    python3 -I - "$CONFIG_FILE" <<'PY'
 import sys; p=sys.argv[1]; s=open(p, encoding="utf-8").read()
 s=s.replace("  code_review:\n    enabled: true\n", "  code_review:\n    enabled: true\n    companion_chain:\n      anthropic: [codex-headless, claude-headless]\n", 1); open(p, "w", encoding="utf-8").write(s)
 PY
@@ -2693,7 +2693,7 @@ $s" 300 2>/dev/null)
     # the walker's hop/phase writes are atomic (a temp file renamed over the target), never a truncate-then-write
     # (thirty-ninth run, c1b DISS-C-005: any redirect onto a hop/phase file in the whole script, however its path is spelled —
     # "$x/…", "${x}/…", unquoted, >> — and the walker's own writes are the atomic helper's)
-    local hits; hits=$(python3 - "$ADVERSARIAL_REVIEW" <<'PY'
+    local hits; hits=$(python3 -I - "$ADVERSARIAL_REVIEW" <<'PY'
 import re, sys
 pat = re.compile(r'''(?<![0-9&])>>?\s*["']?\$\{?[A-Za-z_][A-Za-z_0-9]*\}?["']?/companion\.(current|phase)\b|(?<![0-9&])>>?\s*["']?\$\{?_ADV_PHASE_FILE\b''')
 for n, line in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
@@ -4245,7 +4245,7 @@ YAML
 }
 
 @test "CMP-188 every shell step either review skill or its beads resource prescribes is granted under deny_raw_shell, byte for byte — allowed-tools and capabilities alike — or is a native-tool step (thirtieth run, b2 DISS-C-002 / DISS-C-003)" {
-    run python3 - "$PROJECT_ROOT" <<'PY'
+    run python3 -I - "$PROJECT_ROOT" <<'PY'
 import fnmatch, re, sys, yaml
 root = sys.argv[1]
 WORDS = r'(?:find|ls|wc|yq|jq|mkdir|source|cat|grep|git|br|xargs|tail|head|sed|awk|cp|mv|rm|touch|chmod|python3|bash|echo|test)'
@@ -4437,7 +4437,7 @@ PY
 }
 
 @test "CMP-198 a prescribed beads step is never read as two unconditional commands: each br label add in the review resource sits under its own condition comment; the CHANGELOG's FR-2 bullet never says the fallback record applies 'only' when no envelope stands (thirty-second run, e2b DISS-C-005 / e2a DISS-C-001)" {
-    run python3 - "$PROJECT_ROOT/.claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md" <<'PY'
+    run python3 -I - "$PROJECT_ROOT/.claude/skills/reviewing-code/resources/BEADS-WORKFLOW.md" <<'PY'
 import re, sys
 bad = []
 for block in re.findall(r'```bash\n(.*?)```', open(sys.argv[1], encoding='utf-8').read(), re.S):
@@ -4821,7 +4821,7 @@ PY
 @test "CMP-244 the audit resource labels a result as the review twin does: security always, then exactly one of security-approved / security-blocked, each its own command under its own condition — 'labelled security, security-approved or security-blocked' read as one label of three (thirty-seventh run, e2b DISS-C-004)" {
     local r="$PROJECT_ROOT/.claude/skills/auditing-security/resources/BEADS-WORKFLOW.md"
     ! grep -q 'labelled `security`, `security-approved` or `security-blocked`' "$r" || { echo "the one-of-three wording is back"; return 1; }
-    run python3 - "$r" <<'PY'
+    run python3 -I - "$r" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding='utf-8').read()
 bad = []
@@ -5666,7 +5666,7 @@ LINTEOF
 
 @test "CMP-270 the suite holds to its portability floor: no GNU-only touch -d, date -d, stat -c or sed -i outside a comment — files are aged by _touch_at (POSIX touch -t) and modes read by ls (thirty-ninth run, c1c DISS-C-002)" {
     local T_LINT="$T"
-    local hits; hits=$(python3 - "$BATS_TEST_FILENAME" <<'PY'
+    local hits; hits=$(python3 -I - "$BATS_TEST_FILENAME" <<'PY'
 import re, sys
 pat = re.compile(r'(^|[^A-Za-z0-9_-])(touch[ \t]+-d|date[ \t]+(-[A-Za-z]*[ \t]+)*-d|stat[ \t]+-c|sed[ \t]+-i)\b')
 for n, line in enumerate(open(sys.argv[1], encoding="utf-8"), 1):

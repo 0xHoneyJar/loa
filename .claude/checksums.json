@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-07T03:54:25Z",
+  "generated": "2026-10-07T04:57:16Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -944,7 +944,7 @@
     ".claude/hooks/README.md": "9bf2efcf0e514176c3265fe9ab1cdeb93e28937b9de79a620bdd268384d90d4e",
     ".claude/hooks/audit/mutation-logger.sh": "46d49d8ae3525b40af3cdaf261b8118956e8b9ef3a54216891b1904dc4e7e631",
     ".claude/hooks/audit/write-mutation-logger.sh": "f7e0108de87e912643756c2a4307289bc68f1e59945d1cae4d809c60e66b8c5a",
-    ".claude/hooks/compliance/implement-gate.sh": "71f0c9fd5bea8cd5d7e351883df253cb32250f4b39e4350aaf6c74425253c536",
+    ".claude/hooks/compliance/implement-gate.sh": "b17b7af04057806e2be81e8a1569def31d14511a5dd1cfac52ebfd6d575a9ae2",
     ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "df73c944ef232be36aa965438477da7096686216704851c3c82b808567e164c0",
     ".claude/hooks/loa-kf-surface.sh": "c8f9b18e84b5f683772eaef1c8458e28172b222d721137c56583b53f70188cf6",
@@ -1088,7 +1088,7 @@
     ".claude/loa/reference/context-engineering.md": "8287382d1d4888be8c4d98cfbe2feffe93bdad316b5caf91c47d4844931cd175",
     ".claude/loa/reference/flatline-reference.md": "eaa631fe25ee05de0236e56ee8e191067471726ff0bc755de70f1132d2dba23a",
     ".claude/loa/reference/guardrails-reference.md": "010405ebf30a67015af54341777f7f653bc5f21e69c3046c1cd0dc3591234180",
-    ".claude/loa/reference/hooks-reference.md": "09b6f61913e53d5da9d4a16c6b68f5abfb8faa6951155280932324b883ce98e3",
+    ".claude/loa/reference/hooks-reference.md": "ee4de859f8712f7843a0d7f2d168e7c2977c6594a5103f5cf61f3aa49a266140",
     ".claude/loa/reference/multi-model-reference.md": "8379d79a8f3f8ec68bd2619018f10cb2a7a66ccd5c2812f64e87331f31661c44",
     ".claude/loa/reference/protocols-summary.md": "baedee487b4e91b5299f963f609349c607c45dfcb40def39a79207e424b3df7f",
     ".claude/loa/reference/run-bridge-reference.md": "b3821dc635b622b57280859072830662613540286321829f666eb8f9020ef1d5",
@@ -1303,7 +1303,7 @@
     ".claude/scripts/flatline-lock.sh": "82c184243fb42bd421c04932e05f336f55c052f7f33e998ed60b25719241b0a9",
     ".claude/scripts/flatline-manifest.sh": "65d1c07c2c0ce98e3ccf9464ddb24c112939b0f8dc2e6afa3eeb400f0ede4a0e",
     ".claude/scripts/flatline-mode-detect.sh": "1bedd6e9adfa425661eb6a6bf9a51e279d9ba974815fcee70301dc6286d6fa07",
-    ".claude/scripts/flatline-orchestrator.sh": "3c230750a10d1aed2b3218b4784e1b1a761dc82bea842f18f88c47b3ad580266",
+    ".claude/scripts/flatline-orchestrator.sh": "29d96fb1baa818c61bddc6bdf0b82fabcd9790a471266e4557568d470f64e805",
     ".claude/scripts/flatline-proposal-review.sh": "c49ae711d9004dacf4b2afefb99a2cb1081a65382248d088fb77ed07069f3505",
     ".claude/scripts/flatline-readiness.sh": "b2ee57b4aa6f33487b6f86a386eb77da8cf99566ae37f6bb57d39c88eb40d058",
     ".claude/scripts/flatline-rejection-analysis.sh": "f934aa7579c6b9d485bfd7b09ce7d561f96eb55e2ad5674994fd1462d3f9babd",

@@ -578,17 +578,20 @@ VALID_MODEL_PATTERNS=(
 
 # Read declarations only: validation must not dispatch or resolve credentials.
 # Reuse the loader's merge and the routing resolver's alias semantics.
+# python3 -I (sprint-250 audit LOW-003): no cwd entry on sys.path, so a json.py or yaml.py in the cwd is never
+# imported; -I also discards PYTHONPATH, so the adapters directory arrives as argv[1] and is inserted below
 configured_flatline_model() {
-    PYTHONPATH="$SCRIPT_DIR/../adapters" python3 - "$PROJECT_ROOT" "$1" <<'PY' 2>/dev/null
+    python3 -I - "$SCRIPT_DIR/../adapters" "$PROJECT_ROOT" "$1" <<'PY' 2>/dev/null
 import sys
+sys.path.insert(0, sys.argv[1])
 from loa_cheval.config.loader import load_system_defaults, load_project_config, _deep_merge
 from loa_cheval.routing.resolver import resolve_alias
 
 try:
-    config = _deep_merge(load_system_defaults(sys.argv[1]), load_project_config(sys.argv[1]))
+    config = _deep_merge(load_system_defaults(sys.argv[2]), load_project_config(sys.argv[2]))
     providers = config.get("providers", {})
     aliases = {**config.get("backward_compat_aliases", {}), **config.get("aliases", {})}
-    model = sys.argv[2]
+    model = sys.argv[3]
     if ":" not in model and model not in aliases:
         matches = [name for name, provider in providers.items() if model in provider.get("models", {})]
         if not matches:

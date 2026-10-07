@@ -29,6 +29,9 @@
 # NotebookEdit; a relative path resolves from the payload's cwd, else PROJECT_ROOT
 # (run-3 finding 6). The zone test ORs a physical form (symlinks followed) and a
 # logical form (symlinks kept) and matches a lowercased copy (run-3 findings 1/2).
+# Root: PROJECT_ROOT, else CLAUDE_PROJECT_DIR, else this script's location
+# (<root>/.claude/hooks/compliance/), never the process cwd, which follows
+# Claude's `cd` (audit MED-001); RUN_DIR defaults to <root>/.run.
 # Trust inputs: a write to .run/state.json, .run/sprint-plan-state.json,
 # .run/simstim-state.json, .run/platform-features.json, .run/audit.jsonl or
 # .loa.config.yaml asks and logs compliance.state_write (run-3 finding 3).
@@ -130,7 +133,10 @@ strip_controls() {
     printf '%s' "$s"
 }
 
-PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+# The root never follows the process cwd, which follows Claude's `cd` (sprint-250 audit MED-001): PROJECT_ROOT, then
+# the harness's CLAUDE_PROJECT_DIR (it stays at the session's project root), then this script's own location
+# (<root>/.claude/hooks/compliance/)
+PROJECT_ROOT="${PROJECT_ROOT:-${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)}}"
 RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
 FEATURES_FILE="$RUN_DIR/platform-features.json"
 
@@ -358,6 +364,21 @@ fi
 # Heuristic mode: Is an /implement or /bug skill currently active?
 # Check .run/sprint-plan-state.json, .run/simstim-state.json, .run/state.json
 # ---------------------------------------------------------------------------
+# True when the ISO-8601 timestamp $1 parses and is at most 24 h (86400 s) old; empty or unparsable is stale
+# (sprint-250 audit LOW-004: tighten-only)
+_ig_fresh() {
+    [[ -n "$1" ]] || return 1
+    local now last_epoch
+    now=$(date +%s 2>/dev/null) || return 1
+    if type _date_to_epoch &>/dev/null; then
+        last_epoch=$(_date_to_epoch "$1" 2>/dev/null) || last_epoch=""
+    else
+        last_epoch=$(date -d "$1" +%s 2>/dev/null || date -jf '%Y-%m-%dT%H:%M:%SZ' "$1" +%s 2>/dev/null) || last_epoch=""
+    fi
+    [[ "$last_epoch" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ ]] || return 1
+    (( last_epoch > 0 && now - last_epoch <= 86400 ))
+}
+
 check_implementation_active() {
     # Check sprint-plan state
     if [[ -f "$RUN_DIR/sprint-plan-state.json" ]]; then
@@ -396,20 +417,24 @@ check_implementation_active() {
         fi
     fi
 
-    # Check simstim state
+    # Check simstim state; its writers (simstim-state.sh, simstim-orchestrator.sh) stamp .timestamps.last_activity,
+    # and a stale or unstamped file falls through (LOW-004)
     if [[ -f "$RUN_DIR/simstim-state.json" ]]; then
-        local phase
+        local phase simstim_activity
         phase=$(jq -r '.phase // empty' "$RUN_DIR/simstim-state.json" 2>/dev/null) || return 1
-        if [[ "$phase" == "implementation" ]]; then
+        simstim_activity=$(jq -r '.timestamps.last_activity // empty | strings' "$RUN_DIR/simstim-state.json" 2>/dev/null) || simstim_activity=""
+        if [[ "$phase" == "implementation" ]] && _ig_fresh "$simstim_activity"; then
             return 0
         fi
     fi
 
-    # Check run state
+    # Check run state; run-mode stamps .timestamps.last_activity (state-schemas.md), .updated_at is the fallback
+    # run-preflight.sh reads too; a stale or unstamped file falls through (LOW-004)
     if [[ -f "$RUN_DIR/state.json" ]]; then
-        local run_state
+        local run_state run_activity
         run_state=$(jq -r '.state // empty' "$RUN_DIR/state.json" 2>/dev/null) || return 1
-        if [[ "$run_state" == "RUNNING" ]]; then
+        run_activity=$(jq -r '.timestamps.last_activity // .updated_at // empty | strings' "$RUN_DIR/state.json" 2>/dev/null) || run_activity=""
+        if [[ "$run_state" == "RUNNING" ]] && _ig_fresh "$run_activity"; then
             return 0
         fi
     fi

@@ -2345,7 +2345,7 @@
         {
           "global_id": 250,
           "local_label": "sprint-4",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-09-24T04:10:47Z",
           "epic": "bd-qgsn",
           "beads": [
@@ -2358,7 +2358,8 @@
             "bd-5g44",
             "bd-l2ho"
           ],
-          "theme": "Residue, registry, probes, docs, E2E"
+          "theme": "Residue, registry, probes, docs, E2E",
+          "completed": "2026-10-07T04:47:07Z"
         }
       ],
       "sprint_plan": "grimoires/loa/sprint.md",
@@ -2764,5 +2765,5 @@
     }
   ],
   "next_sprint_number": 251,
-  "last_updated": "2026-10-05T10:09:06Z"
+  "last_updated": "2026-10-07T04:47:07Z"
 }
