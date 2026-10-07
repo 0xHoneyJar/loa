@@ -142,8 +142,10 @@ _CLI_ALIAS_ENV = {"opus": "ANTHROPIC_DEFAULT_OPUS_MODEL", "sonnet": "ANTHROPIC_D
 _TRANSIENT_MARKERS = ("throttl", "timeout", "timed out", "connection", "network", "econnreset", "socket",
                       "service unavailable", "internal server error", "bad gateway", "overloaded")
 _STATUS_5XX = __import__("re").compile(r"\b5\d\d\b")
-_PROVIDER_ORIGIN = __import__("re").compile(r"api error|api_error_status|\b4\d\d\b|invalid_request_error|validationexception",
-                                            __import__("re").I)
+# Explicit provider markers only: a bare 4xx pattern matched the CLI's own token
+# counts ("Prompt is too long: 403,000 tokens > …") as provider-origin.
+_PROVIDER_ORIGIN = __import__("re").compile(r"api error|api_status=|api_error_status|invalid_request_error|"
+                                            r"validationexception|\b(?:http|status)[ :]+4\d\d\b", __import__("re").I)
 
 
 def _adapters():
@@ -250,7 +252,8 @@ def _classify(rc: int, stdout: str, stderr: str, needle: str) -> dict:
     diag = (diag or stdout.strip() or f"exit code {rc}, no diagnostic")[:300]
     if ceiling.is_context_limit_message(diag):
         origin = "provider" if (api_status or _PROVIDER_ORIGIN.search(diag)) else "cli_local"
-        return {**base, "kind": "size", "failure_class": "context_limit", "size_origin": origin, "detail": diag}
+        return {**base, "kind": "size", "failure_class": "context_limit", "size_origin": origin, "detail": diag,
+                "rejected_input_tokens": ceiling.parse_context_limit(diag).get("input_tokens")}
     if ceiling.is_token_limit_message(diag):
         # a token-budget 429: retried as transient; persisting at this size it is a size rejection
         return {**base, "kind": "transient", "token_limit": True, "detail": diag}
@@ -356,15 +359,56 @@ def _write_catalog_file(path: str, model: str, record: dict, tier: str, itpm: in
     os.replace(tmp, path)
 
 
+def _catalog_default_output(max_output) -> int:
+    """The default output budget the catalog invariant is checked against:
+    cheval's own default_max_tokens (providers/base.py — the rule
+    test_anthropic_catalog_floor._default_max_tokens mirrors) with the
+    streaming/legacy switches cleared, so an operator running the probe with
+    streaming disabled does not loosen the bound (the env is restored)."""
+    _adapters()
+    from loa_cheval.providers.base import default_max_tokens
+    saved = {k: os.environ.pop(k) for k in ("LOA_CHEVAL_DISABLE_STREAMING", "LOA_CHEVAL_LEGACY_WIRE") if k in os.environ}
+    try:
+        return default_max_tokens(provider="anthropic", model_max_output=max_output)
+    finally:
+        os.environ.update(saved)
+
+
+def i2_clamped(text: str, model: str, measured: int) -> tuple[int, int, int]:
+    """(written, context_window, default_output): the bound a probe may write,
+    min(measured, context_window − default_max_tokens(entry)) — I2, the
+    catalog invariant `effective_input_ceiling + default max_tokens ≤
+    context_window` (cycle-127 fr23b; the live probe measured 972,887 on a 1M
+    window). ValueError when the entry has no context_window."""
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines) if l.rstrip() == f"      {model}:"), None)
+    if start is None:
+        raise ValueError(f"{model}: no `      {model}:` block in the catalog")
+    fields: dict = {}
+    for l in lines[start + 1:]:
+        if l.strip() and _indent(l) <= 6:
+            break
+        if _indent(l) == 8 and ":" in l and not l.strip().startswith("#"):
+            k, v = l.strip().split(":", 1)
+            fields[k] = v.split("#", 1)[0].strip()
+    cw = fields.get("context_window", "")
+    if not cw.isdigit() or int(cw) <= 0:
+        raise ValueError(f"{model}: no positive context_window in the entry — cannot apply the I2 clamp")
+    mo = fields.get("max_output_tokens", "")
+    default_out = _catalog_default_output(int(mo) if mo.isdigit() else None)
+    return min(int(measured), int(cw) - default_out), int(cw), default_out
+
+
 def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrated_at: str, cli_model: str,
                                host_route: str, cli_version: str | None = None,
                                transport: str = "claude-headless") -> str:
     """cycle-127 FR-3.2 (SDD D-3.2, D-3.8): fold a CLI-transport bound into the
     catalog TEXT as `operator_set` — `probed_ceiling` and
     `effective_input_ceiling` (a calibrated entry is bounded by the latter,
-    routing/ceiling.input_bound) = `ceiling`, the measured accepted size, raw
-    (no margin, as the api transport; a value below the old bound is written,
-    never max()-ed); `ceiling_calibration {source, method: probed_headless,
+    routing/ceiling.input_bound) = min(`ceiling` — the measured accepted size,
+    no margin, as the api transport — , context_window − default max_tokens)
+    (the I2 clamp, i2_clamped; a value below the old bound is written, never
+    max()-ed); `measured_input_tokens` keeps the raw measurement; `ceiling_calibration {source, method: probed_headless,
     transport, cli_version, cli_model, measured_input_tokens, calibrated_at,
     sample_size: null, stale_after_days (kept, else 90), reprobe_trigger}`;
     the entry's `loa:shortcut` ceiling comment becomes one provenance comment.
@@ -394,8 +438,10 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
     route = "Bedrock" if "bedrock" in host_route.lower() else host_route
     trigger = (f"API-transport probe (tools/ceiling-probe-live.py --transport api) from a host with "
                f"ANTHROPIC_API_KEY; this bound was measured through claude-headless on {route} ({cli_model}) on {day}")
-    _set_scalar(_find("effective_input_ceiling:", 8), "effective_input_ceiling", str(ceiling))
-    _set_scalar(_find("probed_ceiling:", 8), "probed_ceiling", str(ceiling))
+    measured = ceiling
+    written, cw, default_out = i2_clamped(text, model, measured)
+    _set_scalar(_find("effective_input_ceiling:", 8), "effective_input_ceiling", str(written))
+    _set_scalar(_find("probed_ceiling:", 8), "probed_ceiling", str(written))
     h = _find("ceiling_calibration:", 8)
     j = h + 1
     while j < len(block) and (block[j].strip() == "" or _indent(block[j]) > 8):
@@ -411,13 +457,15 @@ def write_catalog_operator_set(text: str, model: str, *, ceiling: int, calibrate
                f"          stale_after_days: {stale}", f"          reprobe_trigger: {json.dumps(trigger)}",
                "          method: probed_headless", f"          transport: {transport}",
                f"          cli_version: {json.dumps(cli_version) if cli_version else 'null'}",
-               f"          cli_model: {json.dumps(cli_model)}", f"          measured_input_tokens: {ceiling}"]
+               f"          cli_model: {json.dumps(cli_model)}", f"          measured_input_tokens: {measured}"]
     block[h:j] = new_cal
     # the shortcut marker: a `# loa:shortcut:` comment line plus its comment continuation lines
     k = next((i for i, l in enumerate(block) if _indent(l) == 8 and l.strip().startswith("# loa:shortcut:")
               and "ceiling-probe-live" in " ".join(block[i:i + 3])), None)
+    clamp_note = (f"; written clamped to {written} (I2: context_window {cw} − default max_tokens {default_out}) "
+                  f"from the measured {measured}") if written < measured else ""
     provenance = (f"        # cycle-127 FR-3: bound measured {day} by tools/ceiling-probe-live.py --transport "
-                  f"claude-headless ({route}, {cli_model}); see ceiling_calibration.reprobe_trigger.")
+                  f"claude-headless ({route}, {cli_model}){clamp_note}; see ceiling_calibration.reprobe_trigger.")
     old_prov = next((i for i, l in enumerate(block) if l.startswith("        # cycle-127 FR-3: bound measured ")), None)
     if k is not None:
         e = k + 1
@@ -564,15 +612,15 @@ def _outcome_reasons(samples: list[dict], *, stop: str | None, largest_ok: int, 
         reasons.append("an attempt failed for a non-size reason (other)")
     if stop == "unverified" or any(s.get("kind") == "unverified" for s in samples):
         reasons.append("a completed response did not echo the needle (unverified)")
-    oks = [s["tokens"] for s in samples if s.get("kind") == "ok"]
-    fails = [s["tokens"] for s in samples if s.get("kind") == "size"]
+    oks = [s.get("size_measured", s["tokens"]) for s in samples if s.get("kind") == "ok"]
+    fails = [s.get("size_measured", s["tokens"]) for s in samples if s.get("kind") == "size"]
     if oks and fails and max(oks) > min(fails):
         reasons.append("inconsistent: an accept above a size rejection")
     if reasons:
         return reasons
     if largest_ok <= 0:
         reasons.append("no accepted size in the probed range")
-    elif smallest_fail is None:
+    elif smallest_fail is None or (largest_ok >= hi - tol and smallest_fail - largest_ok > tol):
         reasons.append(f"no size rejection up to {hi} tokens — the bound is not bracketed")
     elif smallest_fail - largest_ok > tol:
         reasons.append("the accept/reject bracket is wider than --tolerance-tokens")
@@ -604,18 +652,42 @@ def _main_cli(args) -> int:
           file=sys.stderr)
     cli_version = _cli_version(cli_bin)
 
+    # Sizes are MEASURED tokens (the CLI's usage, or the count a rejection states):
+    # --max-tokens-probe / --min-tokens-probe / --tolerance-tokens mean measured
+    # tokens, and the filler sent for a target is target / ratio, ratio being the
+    # latest measured/filler (1.0 until a step measures something — the Opus 4.7+
+    # tokenizer counts this filler ≈1.8× heavier than its 10-tokens-per-sentence).
     spent_micro = 0
     samples: list[dict] = []
-    largest_ok, largest_ok_measured, smallest_fail = 0, None, None
     stop = None  # "budget" | "other" | "unverified"
+    ratio: float | None = None
 
-    def step(tokens: int) -> str:
-        """Probe one size with up to _ATTEMPTS for transient classes. Returns the final kind."""
-        nonlocal spent_micro, largest_ok, largest_ok_measured, smallest_fail
-        sample = {"tokens": tokens, "attempts": 0, "ok": False, "verified": False}
+    def _m(sample: dict) -> int | None:
+        return sample.get("measured_input_tokens") if sample.get("kind") == "ok" else sample.get("rejected_input_tokens")
+
+    def _size(sample: dict) -> tuple[int, str]:
+        m = _m(sample)
+        return (m, "usage" if sample.get("kind") == "ok" else "parsed") if m else \
+            (int(sample["tokens"] * (ratio or 1.0)), "scaled")
+
+    def current_ok() -> int | None:
+        vals = [_size(x)[0] for x in samples if x.get("kind") == "ok"]
+        return max(vals) if vals else None
+
+    def current_fail() -> tuple[int | None, str | None]:
+        vals = [_size(x) for x in samples if x.get("kind") == "size"]
+        return min(vals) if vals else (None, None)
+
+    def step(target: int) -> str:
+        """Probe one MEASURED target with up to _ATTEMPTS for transient classes. Returns the final kind."""
+        nonlocal spent_micro, ratio
+        tokens = max(1, int(target / (ratio or 1.0)))
+        sample = {"tokens": tokens, "target_measured": target, "ratio_at_send": ratio, "attempts": 0,
+                  "ok": False, "verified": False}
         samples.append(sample)
+        est_measured = int(tokens * (ratio or 1.0))
         for attempt in range(1, _ATTEMPTS + 1):
-            if spent_micro + tokens * price_in // 1_000_000 > budget_micro:
+            if spent_micro + est_measured * price_in // 1_000_000 > budget_micro:
                 if attempt == 1:
                     samples.pop()          # a step never attempted is not a sample
                     return "budget"
@@ -625,19 +697,19 @@ def _main_cli(args) -> int:
                 _SLEEP(_BACKOFF_S[min(attempt - 2, len(_BACKOFF_S) - 1)])
             needle = secrets.token_hex(6)
             prompt = _FILLER * (tokens // 10) + f"\n\nReply with exactly this code and nothing else: {needle}"
-            print(f"ceiling-probe-live: {tokens} tokens (attempt {attempt}) via {os.path.basename(cli_bin)} ...",
-                  file=sys.stderr)
+            print(f"ceiling-probe-live: target {target} measured tokens → filler {tokens} tokens (attempt {attempt}) "
+                  f"via {os.path.basename(cli_bin)} ...", file=sys.stderr)
             try:
-                rc, out, err = _run_capped(argv, prompt, _attempt_timeout(tokens))
+                rc, out, err = _run_capped(argv, prompt, _attempt_timeout(est_measured))
                 res = _classify(rc, out, err, needle)
             except subprocess.TimeoutExpired:
-                res = {"kind": "transient", "detail": f"no answer within {_attempt_timeout(tokens)}s",
+                res = {"kind": "transient", "detail": f"no answer within {_attempt_timeout(est_measured)}s",
                        "measured_input_tokens": None, "cli_reported_cost_usd": None, "stop_reason": None}
             except OSError as e:
                 res = {"kind": "other", "detail": f"cannot run {cli_bin}: {e}",
                        "measured_input_tokens": None, "cli_reported_cost_usd": None, "stop_reason": None}
             measured = res.get("measured_input_tokens")
-            est = (measured or tokens) * price_in // 1_000_000
+            est = (measured or est_measured) * price_in // 1_000_000
             reported = res.get("cli_reported_cost_usd")
             rep_micro = int(reported * 1_000_000) if isinstance(reported, (int, float)) and not isinstance(reported, bool) else 0
             cost = max(est, rep_micro) if res["kind"] in ("ok", "unverified") or measured else est
@@ -654,24 +726,48 @@ def _main_cli(args) -> int:
                     sample["kind"] = "other"
                     sample["detail"] = f"transient class persisted over {_ATTEMPTS} attempts: {res['detail']}"
             break
-        kind = sample["kind"]
-        if kind == "ok":
+        if sample["kind"] == "ok":
             sample.update(ok=True, verified=True)
-            if tokens > largest_ok:
-                largest_ok, largest_ok_measured = tokens, sample.get("measured_input_tokens")
-        elif kind == "size":
-            smallest_fail = tokens if smallest_fail is None else min(smallest_fail, tokens)
-        return kind
+        m = _m(sample) or (sample.get("measured_input_tokens") if sample["kind"] == "unverified" else None)
+        if m:
+            ratio = m / tokens
+        return sample["kind"]
+
+    def next_target() -> int | None:
+        first = samples[0]
+        if first["ratio_at_send"] is None and _m(first) and abs(_m(first) - hi) > tol \
+                and not any(x["target_measured"] == hi for x in samples[1:]):
+            return hi          # the top was sent blind and missed: re-anchor it in measured tokens, once
+        ok_m, (fail_m, _) = current_ok(), current_fail()
+        if ok_m is not None and ok_m >= hi - tol:
+            return None        # accepted at the top of the range
+        if fail_m is None:
+            return None
+        lower = max(ok_m or 0, lo)
+        if fail_m - lower <= tol:
+            return None
+        return (lower + fail_m) // 2
 
     kind = step(hi)
     if kind in ("budget", "other", "unverified"):
         stop = kind
-    while stop is None and largest_ok < hi and smallest_fail is not None and smallest_fail - max(largest_ok, lo) > tol:
-        mid = (max(largest_ok, lo) + smallest_fail) // 2
-        kind = step(mid)
+    tried: set = set()
+    while stop is None and len(samples) < 40:
+        target = next_target()
+        if target is None or (target, int(target / (ratio or 1.0))) in tried:
+            break
+        tried.add((target, int(target / (ratio or 1.0))))
+        kind = step(target)
         if kind in ("budget", "other", "unverified"):
             stop = kind
 
+    for x in samples:
+        if x.get("kind") in ("ok", "size"):
+            x["size_measured"], x["size_basis"] = _size(x)
+    largest_ok = current_ok() or 0
+    smallest_fail, fail_basis = current_fail()
+    best = max((x for x in samples if x.get("kind") == "ok"), key=lambda x: x["size_measured"], default=None)
+    largest_ok_measured = best.get("measured_input_tokens") if best else None
     reasons = _outcome_reasons(samples, stop=stop, largest_ok=largest_ok, measured=largest_ok_measured,
                                smallest_fail=smallest_fail, hi=hi, tol=tol)
     outcome = "partial" if reasons else "clean"
@@ -687,8 +783,12 @@ def _main_cli(args) -> int:
         "started_at": started_at,
         "sample_size": len(samples),
         "largest_ok_input_tokens": largest_ok,
+        "largest_ok_filler_tokens": best["tokens"] if best else None,
         "measured_input_tokens": largest_ok_measured,
         "smallest_failed_input_tokens": smallest_fail,
+        "smallest_failed_basis": fail_basis,
+        "tokenizer_ratio": round(ratio, 4) if ratio else None,
+        "size_unit": "measured_tokens",
         "tolerance_tokens": tol,
         "bounds_tested": {"min": lo, "max": hi},
         "partial": outcome != "clean",
@@ -707,6 +807,18 @@ def _main_cli(args) -> int:
     errors = [s["detail"] for s in samples if s.get("kind") == "other"]
     if errors:
         record["error"] = errors[0]
+    new_catalog = None
+    if outcome == "clean" and args.write_catalog:
+        try:
+            with open(args.write_catalog, "r", encoding="utf-8") as fh:
+                current = fh.read()
+            record["written_ceiling"] = i2_clamped(current, args.model, int(largest_ok_measured))[0]
+            new_catalog = write_catalog_operator_set(
+                current, args.model, ceiling=int(largest_ok_measured), calibrated_at=record["calibrated_at"],
+                cli_model=record["cli_model"], host_route=host_route, cli_version=cli_version)
+        except (OSError, ValueError) as e:
+            record["error"] = f"catalog not written: {e}"
+            errors.append(record["error"])
     text = json.dumps(record, indent=2)
     if args.output == "-":
         print(text)
@@ -719,17 +831,17 @@ def _main_cli(args) -> int:
         print(f"ceiling-probe-live: partial ({'; '.join(reasons)}) — nothing written to the catalog", file=sys.stderr)
         return 1 if errors else 3
     if args.write_catalog:
+        if new_catalog is None:
+            print(f"ceiling-probe-live: {record['error']}", file=sys.stderr)
+            return 1
         try:
-            with open(args.write_catalog, "r", encoding="utf-8") as fh:
-                current = fh.read()
-            _write_text_atomic(args.write_catalog, write_catalog_operator_set(
-                current, args.model, ceiling=int(largest_ok_measured), calibrated_at=record["calibrated_at"],
-                cli_model=record["cli_model"], host_route=host_route, cli_version=cli_version))
-        except (OSError, ValueError) as e:
+            _write_text_atomic(args.write_catalog, new_catalog)
+        except OSError as e:
             print(f"ceiling-probe-live: catalog not written: {e}", file=sys.stderr)
             return 1
         print(f"ceiling-probe-live: {args.write_catalog}: {args.model} probed_ceiling=effective_input_ceiling="
-              f"{largest_ok_measured} (operator_set, probed_headless, calibrated_at={record['calibrated_at']}); "
+              f"{record['written_ceiling']} (measured {largest_ok_measured}; operator_set, probed_headless, "
+              f"calibrated_at={record['calibrated_at']}); "
               f"regenerate: bash .claude/scripts/gen-adapter-maps.sh && "
               f"npm --prefix .claude/skills/bridgebuilder-review run build", file=sys.stderr)
     return 0

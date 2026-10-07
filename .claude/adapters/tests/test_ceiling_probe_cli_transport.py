@@ -51,8 +51,9 @@ FAKE = textwrap.dedent('''\
     m = re.search(r"code and nothing else: ([0-9a-f]{{12}})$", data)
     needle = m.group(1) if m else "NO-NEEDLE"
     mode = os.environ.get("FAKE_MODE", "limit")
-    limit = int(os.environ.get("FAKE_LIMIT_CHARS", "1000000000"))
-    measured = int(len(data) / 4.5) + {overhead}
+    limit = int(os.environ.get("FAKE_LIMIT_TOKENS", "1000000000"))     # in MEASURED tokens
+    ratio = float(os.environ.get("FAKE_RATIO", "1.0"))                 # tokenizer: measured per filler token
+    measured = int(len(data) / 4.5 * ratio) + {overhead}
 
     def err(msg, status=None):
         body = {{"type": "result", "is_error": True, "result": msg}}
@@ -72,12 +73,14 @@ FAKE = textwrap.dedent('''\
         err("API Error: 500 internal server error")
     if mode == "flaky" and calls <= 2:
         err("API Error: 529 overloaded")
-    if len(data) > limit:
+    if measured > limit:
         if mode == "tpm":
             err("API Error: 429 This request would exceed your organization's rate limit of 300,000 input tokens per minute")
         if os.environ.get("FAKE_ORIGIN") == "cli":
-            err("Prompt is too long")
-        err("API Error: 400 prompt is too long: 912345 tokens > 800000 maximum", status=400)
+            err(f"Prompt is too long: {{measured:,}} tokens > {{limit:,}} maximum")
+        if os.environ.get("FAKE_BARE"):
+            err("API Error: 400 prompt is too long", status=400)
+        err(f"API Error: 400 prompt is too long: {{measured}} tokens > {{limit}} maximum", status=400)
     result = "ok" if mode == "noneedle" else needle
     body = {{"type": "result", "subtype": "success", "is_error": False, "result": result, "stop_reason": "end_turn",
              "usage": {{"input_tokens": 5, "cache_creation_input_tokens": measured - 5,
@@ -122,8 +125,8 @@ def fake(tmp_path, monkeypatch, tool):
     log = tmp_path / "calls.jsonl"
     monkeypatch.setenv("CLAUDE_HEADLESS_BIN", str(bin_path))
     monkeypatch.setenv("FAKE_LOG", str(log))
-    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_DEFAULT_OPUS_MODEL", "FAKE_MODE", "FAKE_LIMIT_CHARS",
-                "FAKE_ORIGIN", "FAKE_COST", "AWS_REGION", "ANTHROPIC_BEDROCK_REGION_PREFIX",
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_DEFAULT_OPUS_MODEL", "FAKE_MODE", "FAKE_LIMIT_TOKENS",
+                "FAKE_RATIO", "FAKE_BARE", "FAKE_ORIGIN", "FAKE_COST", "AWS_REGION", "ANTHROPIC_BEDROCK_REGION_PREFIX",
                 "CLAUDE_CODE_USE_BEDROCK"):
         monkeypatch.delenv(var, raising=False)
     sleeps: list = []
@@ -138,7 +141,8 @@ def fake(tmp_path, monkeypatch, tool):
 
 
 def _limit(monkeypatch, tokens: int):
-    monkeypatch.setenv("FAKE_LIMIT_CHARS", str(int(tokens * CHARS_PER_TOKEN)))
+    """The fake's provider limit, in MEASURED tokens (what the CLI's usage reports)."""
+    monkeypatch.setenv("FAKE_LIMIT_TOKENS", str(tokens))
 
 
 def _run(tool, monkeypatch, tmp_path, *extra):
@@ -151,6 +155,31 @@ def _run(tool, monkeypatch, tmp_path, *extra):
     record = json.loads(out.read_text()) if out.exists() else None
     return code, record
 
+
+# A two-entry catalog shaped like the pre-probe claude-opus-5-5 block: the writer
+# tests must hold in a tree whose live catalog is already calibrated.
+SYNTH = textwrap.dedent("""\
+    providers:
+      anthropic:
+        models:
+          claude-opus-5-5:
+            context_window: 1000000
+            max_output_tokens: 128000
+            effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+            # loa:shortcut: Opus 5's measured bound, not probed on 5.5; 180000 — rerun
+            # tools/ceiling-probe-live.py --write-catalog on the operator's account.
+            probed_ceiling: 180000
+            ceiling_calibration:
+              source: conservative_default
+              calibrated_at: null
+              stale_after_days: 90
+            account_limits:
+              tier: unverified
+              itpm: null
+          claude-opus-5:
+            context_window: 1000000
+            effective_input_ceiling: 180000
+    """)
 
 PINNED = ["-p", "--output-format", "json", "--permission-mode", "plan", "--no-session-persistence",
           "--tools", "", "--model", "claude-opus-5-5", "--effort", "low", "--max-turns", "1"]
@@ -192,7 +221,7 @@ def test_runs_from_another_cwd_under_python_isolated_mode(tmp_path, monkeypatch)
     out = tmp_path / "r.json"
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "PYTHONPATH")}
     env.update(CLAUDE_HEADLESS_BIN=str(bin_path), FAKE_LOG=str(tmp_path / "c.jsonl"),
-               FAKE_LIMIT_CHARS=str(int(250_000 * CHARS_PER_TOKEN)))
+               FAKE_LIMIT_TOKENS="250000")
     proc = subprocess.run([sys.executable, "-I", str(TOOL), "--model", "claude-opus-5-5", "--transport",
                            "claude-headless", "--min-tokens-probe", "100000", "--max-tokens-probe", "400000",
                            "--budget-usd", "20", "--output", str(out)],
@@ -222,11 +251,12 @@ def test_clean_bisection_measures_and_brackets_the_bound(tool, fake, monkeypatch
     assert record["outcome"] == "clean" and record["reasons"] == [] and record["partial"] is False
     ok, fail = record["largest_ok_input_tokens"], record["smallest_failed_input_tokens"]
     assert ok < 250_000 <= fail and fail - ok <= 16_000
-    # measured, not estimated: the CLI's usage (filler + the fake's overhead), recorded per step
-    assert record["measured_input_tokens"] > ok
-    assert record["measured_input_tokens"] == next(s["measured_input_tokens"] for s in record["samples"]
-                                                    if s["tokens"] == ok)
-    assert all("tokens" in s and "measured_input_tokens" in s for s in record["samples"])
+    # sizes are MEASURED tokens (the CLI's usage); the filler sent is recorded beside them
+    assert record["measured_input_tokens"] == ok
+    best = next(s for s in record["samples"] if s["kind"] == "ok" and s["measured_input_tokens"] == ok)
+    assert record["largest_ok_filler_tokens"] == best["tokens"] < ok      # the fake's 3000-token overhead
+    assert all({"tokens", "target_measured", "measured_input_tokens"} <= set(s) for s in record["samples"])
+    assert record["smallest_failed_basis"] == "parsed"
     failed = [s for s in record["samples"] if s["kind"] == "size"]
     assert failed and all(s["failure_class"] == "context_limit" and s["size_origin"] == "provider" for s in failed)
     assert all(s["verified"] for s in record["samples"] if s["kind"] == "ok")
@@ -471,17 +501,14 @@ def test_write_operator_set_changes_only_the_entry_and_replaces_the_shortcut(too
 
 
 def test_a_measured_bound_below_the_old_one_is_written_as_measured(tool):
-    after = _w(tool, CATALOG.read_text(), 120_000)
+    after = _w(tool, SYNTH, 120_000)
     entry = yaml.safe_load(after)["providers"]["anthropic"]["models"]["claude-opus-5-5"]
     assert entry["probed_ceiling"] == entry["effective_input_ceiling"] == 120_000
     assert entry["ceiling_calibration"]["measured_input_tokens"] == 120_000
 
 
 def test_write_operator_set_keeps_stale_after_days_is_idempotent_and_refuses_bad_input(tool):
-    text = CATALOG.read_text()
-    start = text.index("      claude-opus-5-5:")
-    nxt = text.index("      claude-opus-5:", start)
-    text = text[:start] + text[start:nxt].replace("stale_after_days: 90", "stale_after_days: 45", 1) + text[nxt:]
+    text = SYNTH.replace("stale_after_days: 90", "stale_after_days: 45", 1)
     once = _w(tool, text, 500_000, cli_model="opus", host_route="claude CLI", cli_version=None)
     entry = yaml.safe_load(once)["providers"]["anthropic"]["models"]["claude-opus-5-5"]
     assert entry["ceiling_calibration"]["stale_after_days"] == 45
@@ -501,7 +528,7 @@ def test_write_operator_set_keeps_stale_after_days_is_idempotent_and_refuses_bad
 def test_cli_write_catalog_end_to_end_on_a_temp_copy(tool, fake, monkeypatch, tmp_path):
     _limit(monkeypatch, 250_000)
     catalog = tmp_path / "model-config.yaml"
-    catalog.write_text(CATALOG.read_text())
+    catalog.write_text(SYNTH)
     code, record = _run(tool, monkeypatch, tmp_path, "--write-catalog", str(catalog), "--host-route", "bedrock")
     assert code == 0 and record["outcome"] == "clean"
     entry = yaml.safe_load(catalog.read_text())["providers"]["anthropic"]["models"]["claude-opus-5-5"]
@@ -512,6 +539,117 @@ def test_cli_write_catalog_end_to_end_on_a_temp_copy(tool, fake, monkeypatch, tm
     # account_limits are the API path's (tier/itpm) — the CLI transport leaves them alone
     assert entry["account_limits"] == {"tier": "unverified", "itpm": None}
     assert not [p for p in tmp_path.iterdir() if p.name.startswith(".model-config.")]
+
+
+# --- cycle-127 fr23b: the I2 clamp and measured-token bisection ------------
+
+def test_the_write_clamps_to_the_i2_invariant_and_keeps_the_raw_measurement(tool):
+    """The live probe accepted 972,887 measured tokens; written raw, effective +
+    the 64K default output would exceed the 1M window (I2). The written bound is
+    min(measured, context_window − default_max_tokens(entry)); the raw accept is
+    kept in ceiling_calibration.measured_input_tokens and the comment says so."""
+    after = _w(tool, SYNTH, 972_887)
+    entry = yaml.safe_load(after)["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    sys.path.insert(0, str(ROOT / ".claude" / "adapters"))
+    from loa_cheval.providers.base import default_max_tokens
+    default_out = default_max_tokens(provider="anthropic", model_max_output=entry["max_output_tokens"])
+    assert default_out == 64_000
+    assert entry["probed_ceiling"] == entry["effective_input_ceiling"] == 1_000_000 - 64_000
+    assert entry["effective_input_ceiling"] + default_out <= entry["context_window"]
+    assert entry["ceiling_calibration"]["measured_input_tokens"] == 972_887
+    prov = [l for l in after.splitlines() if "cycle-127 FR-3: bound measured" in l]
+    assert len(prov) == 1 and "clamped to 936000" in prov[0] and "972887" in prov[0]
+    from loa_cheval.routing.ceiling import input_bound
+    d = input_bound(entry, max_tokens=default_out)
+    assert d.basis == "calibrated" and d.value == 936_000
+
+
+def test_the_clamp_ignores_the_operator_streaming_switches(tool, monkeypatch):
+    """The catalog invariant is checked against the streaming default; an
+    operator running the probe with streaming disabled must not loosen it."""
+    monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
+    monkeypatch.setenv("LOA_CHEVAL_LEGACY_WIRE", "1")
+    entry = yaml.safe_load(_w(tool, SYNTH, 972_887))["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert entry["effective_input_ceiling"] == 936_000
+    assert os.environ["LOA_CHEVAL_DISABLE_STREAMING"] == "1" and os.environ["LOA_CHEVAL_LEGACY_WIRE"] == "1"
+
+
+def test_a_measurement_under_the_clamp_is_written_unclamped_and_says_so(tool):
+    after = _w(tool, SYNTH, 640_000)
+    entry = yaml.safe_load(after)["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert entry["effective_input_ceiling"] == entry["ceiling_calibration"]["measured_input_tokens"] == 640_000
+    assert "clamped" not in next(l for l in after.splitlines() if "cycle-127 FR-3: bound measured" in l)
+
+
+def test_an_entry_without_max_output_tokens_clamps_with_the_4096_default(tool):
+    text = SYNTH.replace("        max_output_tokens: 128000\n", "", 1)
+    entry = yaml.safe_load(_w(tool, text, 999_000))["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert entry["effective_input_ceiling"] == 1_000_000 - 4096
+
+
+def test_an_entry_without_context_window_is_refused(tool):
+    with pytest.raises(ValueError, match="context_window"):
+        _w(tool, SYNTH.replace("        context_window: 1000000\n", "", 1), 500_000)
+
+
+def test_clean_end_to_end_write_above_the_clamp(tool, fake, monkeypatch, tmp_path):
+    _limit(monkeypatch, 990_000)
+    catalog = tmp_path / "model-config.yaml"
+    catalog.write_text(SYNTH)
+    code, record = _run(tool, monkeypatch, tmp_path, "--max-tokens-probe", "1000000", "--budget-usd", "100",
+                        "--write-catalog", str(catalog))
+    assert code == 0 and record["outcome"] == "clean", record["reasons"]
+    assert record["measured_input_tokens"] > 936_000
+    entry = yaml.safe_load(catalog.read_text())["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert entry["effective_input_ceiling"] == entry["probed_ceiling"] == 936_000
+    assert entry["ceiling_calibration"]["measured_input_tokens"] == record["measured_input_tokens"]
+    assert record["written_ceiling"] == 936_000
+
+
+def test_bisection_rescales_the_filler_to_measured_tokens(tool, fake, monkeypatch, tmp_path):
+    """The Opus 4.7+ tokenizer counts the filler ≈1.8× heavier than the probe
+    assumes: once a step has a measured size, later steps scale the filler by
+    measured/requested so each lands on its measured target."""
+    monkeypatch.setenv("FAKE_RATIO", "1.8")
+    _limit(monkeypatch, 700_000)
+    code, record = _run(tool, monkeypatch, tmp_path, "--max-tokens-probe", "1000000", "--budget-usd", "100")
+    assert code == 0 and record["outcome"] == "clean", record["reasons"]
+    ok, fail = record["measured_input_tokens"], record["smallest_failed_input_tokens"]
+    assert ok <= 700_000 < fail and fail - ok <= 16_000          # the tolerance is in measured tokens
+    samples = record["samples"]
+    first_measured = next(i for i, s in enumerate(samples) if s.get("measured_input_tokens"))
+    for s in samples[first_measured + 1:]:
+        got = s["size_measured"] if s["size_basis"] in ("usage", "parsed") else None   # usage, or the count a rejection states
+        assert got is not None and abs(got - s["target_measured"]) / s["target_measured"] < 0.02, s
+    assert samples[0]["tokens"] == 1_000_000 and samples[0]["target_measured"] == 1_000_000
+    # the filler actually sent shrank by ≈1/1.8 against the measured target
+    later = samples[-1]
+    assert later["tokens"] == pytest.approx(later["target_measured"] / 1.8, rel=0.03)
+    assert record["tokenizer_ratio"] == pytest.approx(1.8, rel=0.02)
+    assert len(samples) <= 10
+
+
+def test_max_tokens_probe_is_measured_the_top_is_reanchored_after_an_overshoot(tool, fake, monkeypatch, tmp_path):
+    """No limit below the top: the first step (ratio unknown) overshoots to
+    ≈1.8× the top; the probe re-anchors the top in measured tokens before it
+    concludes there is no rejection, and never reports an accept above it as the bound."""
+    monkeypatch.setenv("FAKE_RATIO", "1.8")
+    _limit(monkeypatch, 1_200_000)
+    code, record = _run(tool, monkeypatch, tmp_path, "--max-tokens-probe", "1000000", "--budget-usd", "100")
+    reanchor = [s for s in record["samples"] if s["target_measured"] == 1_000_000]
+    assert len(reanchor) == 2 and reanchor[1]["tokens"] < reanchor[0]["tokens"]
+    assert reanchor[1]["kind"] == "ok" and abs(reanchor[1]["measured_input_tokens"] - 1_000_000) < 20_000
+    assert code == 3 and any("not bracketed" in r for r in record["reasons"])
+
+
+def test_an_unparsed_rejection_is_scaled_by_the_measured_ratio(tool, fake, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_RATIO", "1.8")
+    monkeypatch.setenv("FAKE_BARE", "1")      # rejections carry no token count
+    _limit(monkeypatch, 700_000)
+    code, record = _run(tool, monkeypatch, tmp_path, "--max-tokens-probe", "1000000", "--budget-usd", "100")
+    assert record["smallest_failed_basis"] == "scaled"
+    assert record["measured_input_tokens"] <= 700_000 < record["smallest_failed_input_tokens"] * 1.02
+    assert code in (0, 3)
 
 
 # --- the API path is unchanged ----------------------------------------------
