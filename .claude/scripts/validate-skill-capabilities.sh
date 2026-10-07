@@ -31,6 +31,9 @@ source "$SCRIPT_DIR/lib/dx-utils.sh"
 STRICT=false
 JSON_OUTPUT=false
 SINGLE_SKILL=""
+AGENT_TYPES_FILE_ARG=""
+# The ambient AGENT_TYPES_FILE variable is ignored (audit run 3, finding 13): only --agent-types-file redirects
+unset AGENT_TYPES_FILE
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,16 +48,26 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             SINGLE_SKILL="$2"; shift 2 ;;
+        --agent-types-file)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --agent-types-file requires a path" >&2
+                echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]" >&2
+                exit 2
+            fi
+            AGENT_TYPES_FILE_ARG="$2"; shift 2 ;;
         -h|--help)
-            echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME]"
+            echo "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]"
             echo "  --strict   Promote warnings to errors"
             echo "  --json     Output as JSON"
             echo "  --skill    Validate single skill"
+            echo "  --agent-types-file PATH"
+            echo "             Test seam: read the write-capable agent types from PATH instead of"
+            echo "             .claude/data/agent-types.yaml (the AGENT_TYPES_FILE variable is ignored)"
             exit 0
             ;;
         *)
-            dx_unknown_flag "$1" "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME]" \
-                --strict --json --skill --help
+            dx_unknown_flag "$1" "Usage: validate-skill-capabilities.sh [--strict] [--json] [--skill NAME] [--agent-types-file PATH]" \
+                --strict --json --skill --agent-types-file --help
             exit 2
             ;;
     esac
@@ -107,16 +120,12 @@ should_skip() {
 # or set to one of these. Read from .claude/data/agent-types.yaml (cycle-126
 # D-4.4); a missing or unparsable file, or one with no `write_capable: true`
 # entry, leaves general-purpose only.
-# The AGENT_TYPES_FILE env override is a test seam honoured only under the bats
-# markers, by repo convention; otherwise the in-tree file is used. The markers are
-# ordinary environment variables, so this is not a security control: a hardened
-# invocation runs the validator with a scrubbed environment.
+# The ambient environment can no longer redirect the allowlist (audit run 3,
+# finding 13): the AGENT_TYPES_FILE variable is ignored. The explicit
+# --agent-types-file argument can, by design — it is the test seam, visible on
+# the command line of whoever invokes the validator.
 # See .claude/rules/skill-invariants.md.
-if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${AGENT_TYPES_FILE:-}" ]]; then
-    :
-else
-    AGENT_TYPES_FILE="$PROJECT_ROOT/.claude/data/agent-types.yaml"
-fi
+AGENT_TYPES_FILE="${AGENT_TYPES_FILE_ARG:-$PROJECT_ROOT/.claude/data/agent-types.yaml}"
 WRITE_CAPABLE_AGENTS=()
 if [[ -f "$AGENT_TYPES_FILE" ]]; then
     while IFS= read -r _agent; do

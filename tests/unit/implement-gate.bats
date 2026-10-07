@@ -190,8 +190,10 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     [ "$(decision)" = ask ]
     [[ "$stderr" == *"'$ROOT/src/a[31mb.py' detected during /review (not an implementation skill)."* ]]
     run -1 env LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]' <<<"$stderr"
-    run jq -r 'select(.event == "compliance.mode.model_signal") | .active_skill + " " + .file_path' "$ROOT/.run/audit.jsonl"
-    [ "$output" = "review $ROOT/src/a[31mb.py" ]
+    # run-3 finding 4: the row records the raw claim faithfully, every control and non-ASCII code point \u-escaped (jq -a)
+    run jq -r 'select(.event == "compliance.mode.model_signal") | (.active_skill + " " + .file_path) | @json' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "\"rev\\u0007iew\\r\\n $ROOT/src/a\\u001b[31mb\\u007f.py\"" ]
+    run -1 env LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f-\xff]' "$ROOT/.run/audit.jsonl"
     # run-2 findings 3/12: UTF-8 C1 controls, bidi/format code points and a doubled C2 C2 9B 9B (one pass would leave a live
     # C2 9B) never reach stderr or the row; the logged skill is at most 256 bytes; legitimate UTF-8 (café) passes verbatim
     local bad=$'\xc2\x9b'$'\xe2\x80\xae'$'\xe2\x80\x8b'$'\xc2\xc2\x9b\x9b' long
@@ -213,6 +215,34 @@ opt_in() { printf 'implement_gate:\n  mode: authoritative\n' > "$ROOT/.loa.confi
     run jq -j 'select(.event == "compliance.mode.model_signal") | .active_skill' "$ROOT/.run/audit.jsonl"
     [[ "$output" == rev* ]]
     [ "$(printf '%s' "$output" | LC_ALL=C wc -c)" -le 256 ]
+    # run-3 finding 4: implement + U+200B is not an implementation claim — it asks, and the row shows the claim as written
+    # (implement\u200b), never the stripped "implement" beside decision "ask"
+    rm -f "$ROOT/.run/audit.jsonl"
+    printf '{"tool_input":{"file_path":"%s/src/i.py","active_skill":"implement\\u200b"}}\n' "$ROOT" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    grep -qF '"active_skill":"implement\u200b"' "$ROOT/.run/audit.jsonl"
+    grep -qF '"decision":"ask"' "$ROOT/.run/audit.jsonl"
+    # run-3 finding 5: U+00AD, U+061C, U+206A, U+180E, U+FFF9, U+FE0F and the tag characters U+E0001/U+E0041 never reach stderr
+    rm -f "$ROOT/.run/audit.jsonl"
+    printf '{"tool_input":{"file_path":"%s/src/x\\u00ad\\u061c\\u206a\\u180e\\ufff9\\ufe0f\\udb40\\udc01\\udb40\\udc41y.py","active_skill":"rev\\u206fiew"}}\n' "$ROOT" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    [[ "$stderr" == *"'$ROOT/src/xy.py' detected during /review (not an implementation skill)."* ]]
+    for seq in $'\xc2\xad' $'\xd8\x9c' $'\xe2\x81\xaa' $'\xe2\x81\xaf' $'\xe1\xa0\x8e' $'\xef\xbf\xb9' $'\xef\xb8\x8f' $'\xf3\xa0\x80\x81' $'\xf3\xa0\x81\x81'; do
+        run -1 env LC_ALL=C grep -qF "$seq" <<<"$stderr"
+    done
+    # run-3 finding 5: a 256-byte cut that would split a 2-byte character drops it whole — no U+FFFD in the row or on stderr
+    rm -f "$ROOT/.run/audit.jsonl"
+    local pre="$ROOT/src/" pad
+    pad=$(printf 'p%.0s' $(seq 1 $(( 255 - ${#pre} ))))
+    printf '{"tool_input":{"file_path":"%s%s\xc3\xa9tail.py","active_skill":"review"}}\n' "$pre" "$pad" > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    run -1 grep -qiF '\ufffd' "$ROOT/.run/audit.jsonl"
+    run -1 env LC_ALL=C grep -qF $'\xef\xbf\xbd' <<<"$stderr"
+    run jq -j 'select(.event == "compliance.mode.model_signal") | .file_path' "$ROOT/.run/audit.jsonl"
+    [ "$output" = "$pre$pad" ]
 }
 
 @test "IG-14 the /loa evidence line and the refresh never carry Unicode format characters (U+202E, U+200B) and share one shape check" {
@@ -259,6 +289,9 @@ gate_path() {
     [ "$(decision)" = allow ]
     gate_path "$ROOT/grimoires/loa/NOTES.md"
     [ "$(decision)" = allow ]
+    # run-3 finding 2: on a case-insensitive filesystem LIB/ is lib/ — the patterns match a lowercased copy
+    gate_path "$ROOT/LIB/x.js"
+    [ "$(decision)" = ask ]
 }
 
 @test "IG-16 an unparsable payload and a NotebookEdit payload under src/ ask; a parsed payload without a path allows (run-2 finding 5)" {
@@ -274,6 +307,72 @@ gate_path() {
     run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
     [ "$status" -eq 0 ]
     [ "$(decision)" = allow ]
+}
+
+@test "IG-17 an inside-out symlink (src/ itself, or a lib/ file, pointing out of the root) still asks: the logical and the physical form are both tested (run-3 finding 1)" {
+    mkdir -p "$BATS_TEST_TMPDIR/outside"
+    ln -s "$BATS_TEST_TMPDIR/outside" "$ROOT/src"
+    mkdir -p "$ROOT/lib"
+    ln -s ../outside/real.ts "$ROOT/lib/cfg.ts"
+    gate_path "$ROOT/src/x.ts"
+    [ "$(decision)" = ask ]
+    gate_path "$ROOT/lib/cfg.ts"
+    [ "$(decision)" = ask ]
+    # the pure-bash normaliser (no realpath -s): a realpath that refuses -s forces the fallback
+    mkdir -p "$BATS_TEST_TMPDIR/shim"
+    printf '#!/usr/bin/env bash\nfor a in "$@"; do [[ "$a" == -s || "$a" == --no-symlinks ]] && exit 1; done\nexec %q "$@"\n' "$(command -v realpath)" > "$BATS_TEST_TMPDIR/shim/realpath"
+    chmod +x "$BATS_TEST_TMPDIR/shim/realpath"
+    local p
+    for p in "$ROOT/src/x.ts" "$ROOT/lib/cfg.ts" "$ROOT/grimoires/./../src//y.ts"; do
+        jq -nc --arg p "$p" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+        run --separate-stderr bash -c 'cd "$1" && PATH="$4:$PATH" PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json" "$BATS_TEST_TMPDIR/shim"
+        [ "$(decision)" = ask ] || { echo "fallback $p: expected ask, got $(decision)" >&2; return 1; }
+    done
+    jq -nc --arg p "$ROOT/grimoires/loa/../loa/NOTES.md" '{tool_name: "Write", tool_input: {file_path: $p, content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PATH="$4:$PATH" PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json" "$BATS_TEST_TMPDIR/shim"
+    [ "$(decision)" = allow ]
+}
+
+@test "IG-18 a write to one of the gate's own trust inputs asks and leaves one compliance.state_write row; other .run/ and grimoires/ files allow silently (run-3 finding 3)" {
+    local rel n=0
+    for rel in .run/state.json .run/sprint-plan-state.json .run/simstim-state.json .run/platform-features.json .run/audit.jsonl .loa.config.yaml; do
+        gate_path "$ROOT/$rel"
+        [ "$(decision)" = ask ] || { echo "$rel: expected ask, got $(decision)" >&2; return 1; }
+        [[ "$stderr" == *"[GATE] write to an implement-gate trust input"* ]]
+        n=$(( n + 1 ))
+        run jq -sc --arg p "$ROOT/$rel" '[.[] | select(.event == "compliance.state_write" and .file_path == $p and (.timestamp | test("\\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z\\z")))] | length' "$ROOT/.run/audit.jsonl"
+        [ "$output" = 1 ] || { echo "$rel: expected one row, got $output" >&2; return 1; }
+    done
+    [ "$(jq -sc 'length' "$ROOT/.run/audit.jsonl")" = "$n" ]
+    # a relative spelling of a trust input asks too
+    gate_path ".run/../.run/state.json"
+    [ "$(decision)" = ask ]
+    rm -f "$ROOT/.run/audit.jsonl"
+    gate_path "$ROOT/.run/other.json"
+    [ "$(decision)" = allow ]
+    gate_path "$ROOT/grimoires/loa/NOTES.md"
+    [ "$(decision)" = allow ]
+    [ ! -e "$ROOT/.run/audit.jsonl" ]
+}
+
+@test "IG-19 a relative file_path resolves from the payload's cwd when it carries one, else from PROJECT_ROOT (run-3 finding 6)" {
+    mkdir -p "$ROOT/src" "$ROOT/grimoires"
+    jq -nc --arg c "$ROOT/src" '{cwd: $c, tool_input: {file_path: "index.ts", content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+    jq -nc --arg c "$ROOT/grimoires" '{cwd: $c, tool_input: {file_path: "x.md", content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = allow ]
+    jq -nc '{tool_input: {file_path: "src/index.ts", content: "x"}}' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
+}
+
+@test "IG-20 the ask reply is built by jq: the reason is a JSON string whatever it contains (run-3 finding 7)" {
+    grep -q 'jq -nc --arg r "\$1"' "$GATE"
+    printf 'not json\n' > "$BATS_TEST_TMPDIR/stdin.json"
+    run --separate-stderr bash -c 'cd "$1" && PROJECT_ROOT="$1" RUN_DIR="$1/.run" bash "$2" < "$3"' _ "$ROOT" "$GATE" "$BATS_TEST_TMPDIR/stdin.json"
+    [ "$(decision)" = ask ]
 }
 
 @test "IG-11 the opt-in key stays undocumented while the payload carries no harness signal" {

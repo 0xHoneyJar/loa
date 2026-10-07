@@ -26,16 +26,24 @@
 # Failure mode: FAIL-ASK for App Zone writes (not fail-open). A payload jq cannot
 # parse (or no jq), or a file_path that cannot be canonicalised, asks too (run-2
 # findings 1/5). The path is tool_input.file_path, or tool_input.notebook_path for
-# NotebookEdit. Non-App-Zone writes always allowed.
+# NotebookEdit; a relative path resolves from the payload's cwd, else PROJECT_ROOT
+# (run-3 finding 6). The zone test ORs a physical form (symlinks followed) and a
+# logical form (symlinks kept) and matches a lowercased copy (run-3 findings 1/2).
+# Trust inputs: a write to .run/state.json, .run/sprint-plan-state.json,
+# .run/simstim-state.json, .run/platform-features.json, .run/audit.jsonl or
+# .loa.config.yaml asks and logs compliance.state_write (run-3 finding 3).
+# Other non-App-Zone writes always allowed.
 #
 # Output (Claude Code PreToolUse contract, sprint-250 audit n20): allow = silent
 # exit 0 with empty stdout; ask = exit 0 with
 #   {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}
 # A top-level "decision" accepts approve|block only, so "ask" never goes there.
-# file_path and active_skill pass through strip_controls before they reach
-# stderr or the audit row (n21; run-2 findings 3/12): C0 and DEL, UTF-8 C1
-# controls and the Unicode format/bidi code points are removed to a fixed point,
-# then the copy is cut to 256 bytes.
+# file_path and active_skill reach stderr only through strip_controls (n21;
+# run-2 findings 3/12; run-3 finding 5): cut to 256 bytes without splitting a
+# character, then C0 and DEL, UTF-8 C1 controls and the Unicode format/bidi/tag
+# code points are removed to a fixed point. Audit rows record the RAW values cut
+# the same way and written with jq -a, so every non-ASCII code point is \uXXXX:
+# faithful (implement+U+200B logs as implement\u200b) and terminal-safe (run-3 finding 4).
 #
 # IMPORTANT: No set -euo pipefail — hook must never crash-block.
 # Parse/read errors on App Zone writes → ask (not allow).
@@ -50,13 +58,20 @@
 # Read tool input from stdin
 input=$(cat 2>/dev/null) || input=""
 
-# The ask reply; the reason is always a fixed string, never model-authored text
+# The ask reply; jq builds it so any reason is a well-formed JSON string (run-3 finding 7); the printf literal is only
+# for the jq-missing branch, whose reason is a fixed string
 emit_ask() {
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"
+    if command -v jq &>/dev/null; then
+        jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$r}}'
+    else
+        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"
+    fi
 }
 
 # Byte sequences strip_controls removes: UTF-8 C1 controls (C2 80..C2 9F) and the format/bidi code points
-# U+200B-U+200F, U+2028-U+202E, U+2060-U+2064, U+2066-U+2069, U+FEFF; printf -v keeps this portable (no GNU-sed \x)
+# U+200B-U+200F, U+2028-U+202E, U+2060-U+2064, U+2066-U+206F, U+FEFF, U+00AD, U+061C, U+180E, U+FE00-U+FE0F,
+# U+FFF9-U+FFFB and the tag characters U+E0001, U+E0020-U+E007F (run-3 finding 5); each sequence starts with a lead
+# byte, so a byte-wise match never lands inside another character; printf -v keeps this portable (no GNU-sed \x)
 _IG_STRIP_SEQS=()
 for (( _ig_i = 128; _ig_i < 160; _ig_i++ )); do
     printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xc2\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
@@ -64,22 +79,55 @@ done
 for _ig_hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do
     printf -v _ig_seq "\\xe2\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
 done
-for _ig_hex in a0 a1 a2 a3 a4 a6 a7 a8 a9; do
+for _ig_hex in a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af; do
     printf -v _ig_seq "\\xe2\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
 done
-printf -v _ig_seq '\xef\xbb\xbf'; _IG_STRIP_SEQS+=("$_ig_seq")
+for _ig_seq in '\xef\xbb\xbf' '\xc2\xad' '\xd8\x9c' '\xe1\xa0\x8e' '\xef\xbf\xb9' '\xef\xbf\xba' '\xef\xbf\xbb' '\xf3\xa0\x80\x81'; do
+    printf -v _ig_seq "$_ig_seq"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+for (( _ig_i = 128; _ig_i < 144; _ig_i++ )); do   # U+FE00-U+FE0F = EF B8 80..EF B8 8F
+    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xef\\xb8\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+for (( _ig_i = 160; _ig_i < 192; _ig_i++ )); do   # U+E0020-U+E003F = F3 A0 80 A0..F3 A0 80 BF
+    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x80\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
+for (( _ig_i = 128; _ig_i < 192; _ig_i++ )); do   # U+E0040-U+E007F = F3 A0 81 80..F3 A0 81 BF
+    printf -v _ig_hex '%02x' "$_ig_i"; printf -v _ig_seq "\\xf3\\xa0\\x81\\x${_ig_hex}"; _IG_STRIP_SEQS+=("$_ig_seq")
+done
 
-# Display/log copy of a model-authored string: C0 and DEL first, then the sequences above byte-wise until nothing
-# changes (deleting one sequence can join its neighbours into another: C2 C2 9B 9B), then at most 256 bytes
+# Sets the variable named $1 to at most 256 bytes of $2, never ending inside a UTF-8 character: a trailing lead byte
+# whose sequence the cut left short, or stray continuation bytes, are dropped (run-3 finding 5; jq would read a split
+# character as U+FFFD). printf -v, not $(...), so a trailing newline in a raw value survives into the audit row
+cut_utf8_256() {
+    local LC_ALL=C
+    local _c_s=${2:0:256} _c_n _c_i _c_b _c_need
+    _c_n=${#_c_s}
+    for (( _c_i = _c_n - 1; _c_i >= 0 && _c_i >= _c_n - 4; _c_i-- )); do
+        printf -v _c_b '%d' "'${_c_s:_c_i:1}"
+        (( _c_b >= 128 && _c_b < 192 )) && continue   # continuation byte: keep walking back to its lead
+        if (( _c_b < 128 )); then _c_need=1; elif (( _c_b < 224 )); then _c_need=2; elif (( _c_b < 240 )); then _c_need=3; else _c_need=4; fi
+        if (( _c_n - _c_i < _c_need )); then _c_s=${_c_s:0:_c_i}          # the cut left this character short
+        elif (( _c_n - _c_i > _c_need )); then _c_s=${_c_s:0:_c_i+_c_need}   # continuation bytes after a complete character are stray
+        fi
+        printf -v "$1" '%s' "$_c_s"
+        return 0
+    done
+    printf -v "$1" '%s' "${_c_s:0:_c_i+1}"   # only continuation bytes at the end: drop them
+}
+
+# Display copy of a model-authored string: cut to 256 bytes first (the fixed point below then costs at most a few
+# passes over a short string), then C0 and DEL, then the sequences above byte-wise until nothing changes (deleting
+# one sequence can join its neighbours into another: C2 C2 9B 9B)
 strip_controls() {
     local LC_ALL=C s prev seq
-    s=$(printf '%s' "$1" | tr -d '\000-\037\177')
+    cut_utf8_256 s "$1"
+    s=$(printf '%s' "$s" | tr -d '\000-\037\177')
     while :; do
         prev=$s
         for seq in "${_IG_STRIP_SEQS[@]}"; do s=${s//"$seq"/}; done
         [[ "$s" == "$prev" ]] && break
     done
-    printf '%s' "${s:0:256}"
+    printf '%s' "$s"
 }
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
@@ -106,12 +154,14 @@ if ! command -v jq &>/dev/null || ! jq -e . <<<"$input" >/dev/null 2>&1; then
     exit 0
 fi
 
-# Extract the path: Write/Edit/MultiEdit carry file_path, NotebookEdit carries notebook_path
-if ! file_path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null); then
+# Extract the path: Write/Edit/MultiEdit carry file_path, NotebookEdit carries notebook_path. jq -j plus a sentinel
+# byte keeps a trailing newline, which $(...) would otherwise strip from the raw value (run-3 finding 4)
+if ! file_path=$(jq -j '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null && printf x); then
     echo "[GATE] could not evaluate tool_input (path not readable)." >&2
     emit_ask "[GATE] could not evaluate tool_input. Verify this write is intentional."
     exit 0
 fi
+file_path=${file_path%x}
 
 # A parsed payload without a path is not a file write the gate can classify: allow
 if [[ -z "$file_path" ]]; then
@@ -130,16 +180,57 @@ source "$COMPAT_LIB" 2>/dev/null || true
 # T4.5: Path normalization — canonicalise both sides, then take file_path
 # relative to the project root (run-2 finding 1). A textual prefix test let
 # /proc/self/cwd/src/x, //ROOT/src/x, ROOT/../<name>/src/x or a symlinked root
-# reach an App-Zone file unseen. Relative paths resolve from PROJECT_ROOT.
-# Only the part under the root is matched, so parent directory names never
-# count (e.g., /home/user/src-projects/loa/grimoires/file.md is not src/*).
+# reach an App-Zone file unseen. Two forms are tested and either one matching
+# counts (run-3 finding 1): the PHYSICAL form follows symlinks (realpath -m,
+# else readlink -f) against pwd -P of the root; the LOGICAL form keeps them
+# (realpath -m -s, else a pure-bash ./../// normaliser) against pwd -L, so a
+# src/ that is itself a symlink out of the root still asks. A relative path
+# resolves from the payload's cwd when it carries one (the harness resolves it
+# there and cwd follows `cd` in the Bash tool), else from PROJECT_ROOT (run-3
+# finding 6). Only the part under the root is matched, so parent directory
+# names never count (e.g., /home/user/src-projects/loa/grimoires/file.md is not src/*).
 # ---------------------------------------------------------------------------
+# Lexical normaliser for an absolute path: drops empty and . components, resolves .. textually, follows no symlink
+_ig_lexical_norm() {
+    local rest=$1 part
+    local -a out=()
+    while [[ -n "$rest" ]]; do
+        part=${rest%%/*}
+        if [[ "$rest" == */* ]]; then rest=${rest#*/}; else rest=""; fi
+        case "$part" in
+            ''|.) ;;
+            ..) (( ${#out[@]} )) && unset 'out[${#out[@]}-1]' ;;
+            *) out+=("$part") ;;
+        esac
+    done
+    local IFS=/
+    printf '/%s' "${out[*]}"
+}
+
+# $1 relative to the root $2, or failure when $1 is not under $2
+_ig_under_root() {
+    [[ "$1" == "${2%/}/"* ]] || return 1
+    printf '%s' "${1#"${2%/}"/}"
+}
+
 canonical_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P) || canonical_root=""
+logical_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -L) || logical_root=""
+payload_cwd=$(jq -r '.cwd // empty | strings' <<<"$input" 2>/dev/null) || payload_cwd=""
+if [[ "$file_path" == /* ]]; then
+    abs_path=$file_path
+else
+    base_dir=${payload_cwd:-$logical_root}
+    [[ "$base_dir" == /* ]] || base_dir="$logical_root/$base_dir"
+    abs_path="${base_dir%/}/$file_path"
+fi
 canonical_path=""
-if [[ -n "$canonical_root" ]]; then
+logical_path=""
+if [[ -n "$canonical_root" && -n "$logical_root" ]]; then
     # GNU realpath -m first (no component needs to exist), then readlink -f
     canonical_path=$(cd "$PROJECT_ROOT" 2>/dev/null \
-        && { realpath -m -- "$file_path" 2>/dev/null || readlink -f -- "$file_path" 2>/dev/null; }) || canonical_path=""
+        && { realpath -m -- "$abs_path" 2>/dev/null || readlink -f -- "$abs_path" 2>/dev/null; }) || canonical_path=""
+    logical_path=$(realpath -m -s -- "$abs_path" 2>/dev/null) || logical_path=""
+    [[ "$logical_path" == /* ]] || logical_path=$(_ig_lexical_norm "$abs_path")
 fi
 if [[ -z "$canonical_root" || -z "$canonical_path" ]]; then
     echo "[GATE] could not canonicalise tool_input.file_path; asking." >&2
@@ -147,27 +238,56 @@ if [[ -z "$canonical_root" || -z "$canonical_path" ]]; then
     exit 0
 fi
 
+# The root-relative forms, lowercased: on a case-insensitive filesystem (macOS default, ext4 casefold) Src/ is src/,
+# and on a case-sensitive one this only adds asks for a directory literally named Src/ — tighten-only (run-3 finding 2)
+rel_forms=()
+if rel=$(_ig_under_root "$canonical_path" "$canonical_root"); then rel_forms+=("${rel,,}"); fi
+if rel=$(_ig_under_root "$logical_path" "$logical_root"); then rel_forms+=("${rel,,}"); fi
+
+# Audit-row copy of a model-authored value: raw, cut to 256 bytes on a character boundary; jq -a escapes the rest
+cut_utf8_256 audit_file_path "$file_path"
+
+# ---------------------------------------------------------------------------
+# Trust inputs (run-3 finding 3): the files this gate and the run state read are
+# writable through the same tool, so a write to one asks and leaves one
+# compliance.state_write row — evaluated before the App-Zone test, since they
+# are not App Zone. Everything else under .run/ and grimoires/ stays allow.
+# ---------------------------------------------------------------------------
+for rel in "${rel_forms[@]}"; do
+    case "$rel" in
+        .run/state.json|.run/sprint-plan-state.json|.run/simstim-state.json|.run/platform-features.json|.run/audit.jsonl|.loa.config.yaml)
+            echo "[GATE] write to an implement-gate trust input '$(strip_controls "$file_path")'." >&2
+            jq -nca \
+                --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+                --arg path "$audit_file_path" \
+                '{timestamp: $ts, event: "compliance.state_write", file_path: $path}' \
+                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+            emit_ask "[GATE] write to an implement-gate trust input. Verify this write is intentional."
+            exit 0
+            ;;
+    esac
+done
+
 # ---------------------------------------------------------------------------
 # Zone check: Is this an App Zone write?
-# App Zone: src/, lib/, app/ in the path relative to the canonical root;
-# a path that canonicalises outside the root is not App Zone
+# App Zone: src/, lib/, app/ in either root-relative form; a path whose two
+# forms both fall outside the root is not App Zone
 # ---------------------------------------------------------------------------
 is_app_zone=false
-if [[ "$canonical_path" == "${canonical_root%/}/"* ]]; then
-    normalized_path="${canonical_path#"${canonical_root%/}"/}"
+for normalized_path in "${rel_forms[@]}"; do
     case "$normalized_path" in
         src/*|lib/*|app/*|*/src/*|*/lib/*|*/app/*)
             is_app_zone=true
             ;;
     esac
-fi
+done
 
 # Non-App-Zone writes always allowed
 if [[ "$is_app_zone" == "false" ]]; then
     exit 0
 fi
 
-# Display/log copy only: control and format characters never reach stderr or the audit row (n21, run-2 finding 3)
+# Display copy only: control and format characters never reach stderr (n21, run-2 finding 3)
 safe_file_path=$(strip_controls "$file_path")
 
 # ---------------------------------------------------------------------------
@@ -183,17 +303,19 @@ fi
 # Authoritative mode: read active_skill from hook input
 # ---------------------------------------------------------------------------
 if [[ "$compliance_mode" == "authoritative" ]]; then
-    active_skill=$(echo "$input" | jq -r '.tool_input.active_skill // empty' 2>/dev/null) || active_skill=""
+    active_skill=$(jq -j '.tool_input.active_skill // empty' <<<"$input" 2>/dev/null && printf x) || active_skill="x"
+    active_skill=${active_skill%x}
 
     if [[ -n "$active_skill" ]]; then
         safe_skill=$(strip_controls "$active_skill")
+        cut_utf8_256 audit_skill "$active_skill"
         # One model_signal row per invocation that carries a claim; the harness never sets the field,
-        # so a row means a model wrote it (run-2 finding 6)
+        # so a row means a model wrote it (run-2 finding 6). The row holds the raw claim, ASCII-escaped (run-3 finding 4)
         log_model_signal() {
-            jq -nc \
+            jq -nca \
                 --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
-                --arg skill "$safe_skill" \
-                --arg path "$safe_file_path" \
+                --arg skill "$audit_skill" \
+                --arg path "$audit_file_path" \
                 --arg decision "$1" \
                 '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: $decision}' \
                 >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true

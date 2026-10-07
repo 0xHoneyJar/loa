@@ -873,29 +873,36 @@ cost-profile: moderate
     printf 'agent_types:\n  Plan:\n    write_capable: true\n  general-purpose:\n    write_capable: false\n' > "$BATS_TEST_TMPDIR/agent-types.yaml"
     agent_skill w-plan Plan
     agent_skill w-gp general-purpose
-    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-plan
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/agent-types.yaml" --skill w-plan
     [ "$status" -eq 0 ]
-    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp --agent-types-file "$BATS_TEST_TMPDIR/agent-types.yaml"
     [ "$status" -eq 1 ]
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp --agent-types-file
+    [ "$status" -eq 2 ]
 }
 
 @test "SC-T-AGENT-9: a missing or unreadable agent-types file falls back to general-purpose only" {
     agent_skill w-claude claude
     agent_skill w-gp general-purpose
-    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/absent.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-claude
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/absent.yaml" --skill w-claude
     [ "$status" -eq 1 ]
     printf 'agent_types: [\n' > "$BATS_TEST_TMPDIR/broken.yaml"
-    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/broken.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-gp
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/broken.yaml" --skill w-gp
     [ "$status" -eq 0 ]
-    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/broken.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-claude
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --agent-types-file "$BATS_TEST_TMPDIR/broken.yaml" --skill w-claude
     [ "$status" -eq 1 ]
 }
 
-@test "SC-T-AGENT-10: outside bats the AGENT_TYPES_FILE override is ignored (test-mode gate)" {
+@test "SC-T-AGENT-10: the ambient AGENT_TYPES_FILE variable never redirects the allowlist, bats markers or not; only the explicit --agent-types-file argument does (audit run 3, finding 13)" {
     printf 'agent_types:\n  Plan:\n    write_capable: true\n' > "$BATS_TEST_TMPDIR/agent-types.yaml"
     agent_skill w-plan Plan
     run env -u BATS_TEST_FILENAME -u BATS_VERSION -u BATS_TEST_DIRNAME -u BATS_TEST_TMPDIR \
         AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" "$VALIDATOR" --skill w-plan
     [ "$status" -eq 1 ]
     [[ "$output" == *"agent type 'Plan'"* ]]
+    AGENT_TYPES_FILE="$BATS_TEST_TMPDIR/agent-types.yaml" SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-plan
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"agent type 'Plan'"* ]]
+    run "$VALIDATOR" --help
+    [[ "$output" == *"--agent-types-file"* ]]
 }

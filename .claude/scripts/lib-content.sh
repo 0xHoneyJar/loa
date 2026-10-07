@@ -167,6 +167,58 @@ _lc_chunk_tok() {  # <temp dir> <chunk index> <outvar> → the chunk's estimate,
   [[ -n "${_lc_tok[$2]:-}" ]] || _lc_tok[$2]=$(estimate_tokens "$(cat "$1/chunk_$2")")
   printf -v "$3" '%s' "${_lc_tok[$2]}"
 }
+# The operator-facing stderr copy of a diff header path (bd-pw7e LOW-003; audit run 1 n30; run 2 finding 8; run 3
+# findings 8/10/11) → sets the variable named $1. Byte-wise under LC_ALL=C:
+#   1. cut to 256 bytes first, then drop an incomplete trailing UTF-8 sequence — the fixed point below then costs at
+#      most a few passes over a short string (C2^k 9B^k used to cost k passes over the whole path);
+#   2. C0 controls and DEL go;
+#   3. to a fixed point (deleting one sequence can join its neighbours into another: C2 C2 9B 9B -> C2 9B): UTF-8 C1
+#      controls C2 80..C2 9F and the Unicode format/bidi/tag code points U+00AD, U+061C, U+180E, U+200B-U+200F,
+#      U+2028-U+202E, U+2060-U+2064, U+2066-U+206F, U+FE00-U+FE0F, U+FEFF, U+FFF9-U+FFFB, U+E0001, U+E0020-U+E007F
+#      (Trojan-Source reordering of the file name). Every sequence starts with a lead byte, so legitimate UTF-8
+#      (src/café.sh) is untouched; printf -v keeps this portable (no GNU-sed \x);
+#   4. a copy that is still not valid UTF-8 (a bare 9B, or the 9B a C2 9B 9B leaves) has every non-printable byte,
+#      i.e. every byte >= 0x80, replaced with '?'; without iconv the replacement applies when a byte 80..9F remains.
+_LC_LOG_SEQS=()
+_lc_log_seqs_init() {
+  local i hex seq
+  for (( i = 128; i < 160; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xc2\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for hex in 8b 8c 8d 8e 8f a8 a9 aa ab ac ad ae; do printf -v seq "\\xe2\\x80\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for hex in a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af; do printf -v seq "\\xe2\\x81\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for seq in '\xef\xbb\xbf' '\xc2\xad' '\xd8\x9c' '\xe1\xa0\x8e' '\xef\xbf\xb9' '\xef\xbf\xba' '\xef\xbf\xbb' '\xf3\xa0\x80\x81'; do
+    printf -v seq "$seq"; _LC_LOG_SEQS+=("$seq")
+  done
+  for (( i = 128; i < 144; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xef\\xb8\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for (( i = 160; i < 192; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xf3\\xa0\\x80\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+  for (( i = 128; i < 192; i++ )); do printf -v hex '%02x' "$i"; printf -v seq "\\xf3\\xa0\\x81\\x${hex}"; _LC_LOG_SEQS+=("$seq"); done
+}
+_lc_safe_log_path() {  # <outvar> <path>
+  local LC_ALL=C
+  local _p=${2:0:256} _n _i _b _need _prev _seq
+  (( ${#_LC_LOG_SEQS[@]} )) || _lc_log_seqs_init
+  _n=${#_p}
+  for (( _i = _n - 1; _i >= 0 && _i >= _n - 4; _i-- )); do
+    printf -v _b '%d' "'${_p:_i:1}"
+    (( _b >= 128 && _b < 192 )) && continue   # continuation byte: keep walking back to its lead
+    if (( _b < 128 )); then _need=1; elif (( _b < 224 )); then _need=2; elif (( _b < 240 )); then _need=3; else _need=4; fi
+    (( _n - _i < _need )) && _p=${_p:0:_i}     # the cut left this character short
+    break
+  done
+  (( _i < 0 || _i < _n - 4 )) && _p=${_p:0:_i+1}   # only continuation bytes at the end
+  _p=$(printf '%s' "$_p" | tr -d '\000-\037\177')
+  while :; do
+    _prev=$_p
+    for _seq in "${_LC_LOG_SEQS[@]}"; do _p=${_p//"$_seq"/}; done
+    [[ "$_p" == "$_prev" ]] && break
+  done
+  if command -v iconv >/dev/null 2>&1; then
+    printf '%s' "$_p" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || _p=$(printf '%s' "$_p" | tr -c '[:print:]' '?')
+  elif printf '%s' "$_p" | grep -q $'[\x80-\x9f]'; then
+    _p=$(printf '%s' "$_p" | tr -c '[:print:]' '?')
+  fi
+  printf -v "$1" '%s' "$_p"
+}
+
 prepare_content() {
   local raw_content="$1"
   local max_tokens="${2:-30000}"
@@ -292,20 +344,7 @@ prepare_content() {
     if (( c_run + c_tok > max_tokens )); then top_pri="$c_pri"; top_path="$c_path"; top_idx="$c_idx"; break; fi
     c_run=$(( c_run + c_tok ))
   done <<< "$sorted_manifest"
-  local top_path_log; top_path_log=$(printf '%s' "$top_path" | LC_ALL=C tr -d '\000-\037\177')   # stderr never gets a header's raw controls (bd-pw7e LOW-003)
-  # ... nor UTF-8 C1 controls (U+0080..U+009F = C2 80..C2 9F, e.g. U+009B CSI; audit dissent run 1, n30); C2 is never a
-  # continuation byte, so legitimate UTF-8 (src/café.sh) is untouched; printf -v keeps this portable (no GNU-sed \x)
-  # The pass repeats until nothing changes: deleting one pair can join the bytes around it into another (C2 C2 9B 9B ->
-  # C2 9B after one pass; audit run 2, finding 8)
-  local _lc_c1 _lc_c1_hex _lc_c1_seq _lc_c1_prev
-  while :; do
-    _lc_c1_prev=$top_path_log
-    for (( _lc_c1 = 128; _lc_c1 < 160; _lc_c1++ )); do
-      printf -v _lc_c1_hex '%02x' "$_lc_c1"; printf -v _lc_c1_seq "\\xc2\\x${_lc_c1_hex}"
-      top_path_log=${top_path_log//"$_lc_c1_seq"/}
-    done
-    [[ "$top_path_log" == "$_lc_c1_prev" ]] && break
-  done
+  local top_path_log; _lc_safe_log_path top_path_log "$top_path"   # stderr never gets a header's raw controls, C1 or bidi code points
   if [[ -n "$top_idx" ]]; then
     # the reservation is what the other files AT THE TOP PRIORITY that fit leave over, clamped to a quarter … three quarters
     # of the budget — a same-priority sibling that used to be reviewed whole is not displaced by a partial view of one large

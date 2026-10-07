@@ -5864,6 +5864,73 @@ EOF
     grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-cafe2.err"
 }
 
+@test "CMP-281 the stderr path copy is cut to 256 bytes before the C1 fixed point: a 20,000-byte C2^k 9B^k path finishes fast and leaves no C2 9B pair (audit run 3, finding 8)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-c1k.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name="src/$(printf '\xc2%.0s' $(seq 1 10000))$(printf '\x9b%.0s' $(seq 1 10000))"
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    rc=0; LC_ALL=C timeout 5 bash "$T/lc-c1k.sh" "$lib" 2>"$T/lc-c1k.err" || rc=$?
+    [ "$rc" = "0" ] || { echo "rc=$rc"; head -c 300 "$T/lc-c1k.err"; return 1; }
+    grep -q 'Top-priority file src/' "$T/lc-c1k.err"
+    ! LC_ALL=C grep -qF $'\xc2\x9b' "$T/lc-c1k.err" || { echo "C1 pair reached stderr"; return 1; }
+    [ "$(LC_ALL=C grep 'Top-priority file' "$T/lc-c1k.err" | LC_ALL=C wc -c)" -lt 400 ]
+}
+
+@test "CMP-282 the stderr path copy drops the Unicode bidi/format code points (U+202E, U+2066, U+200B, U+FEFF — Trojan-Source reordering of the file name) while café passes (audit run 3, finding 10)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-bidi.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name="$2"
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    rc=0; LC_ALL=C.UTF-8 bash "$T/lc-bidi.sh" "$lib" 'src/caf'$'\xc3\xa9''a'$'\xe2\x80\xae''hs.b'$'\xe2\x81\xa6''x'$'\xe2\x80\x8b\xef\xbb\xbf''.sh' 2>"$T/lc-bidi.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-bidi.err"; return 1; }
+    grep -qF 'Top-priority file src/caféahs.bx.sh exceeds the token budget' "$T/lc-bidi.err"
+    local seq
+    for seq in $'\xe2\x80\xae' $'\xe2\x81\xa6' $'\xe2\x80\x8b' $'\xef\xbb\xbf'; do
+        ! LC_ALL=C grep -qF "$seq" "$T/lc-bidi.err" || { echo "format code point reached stderr"; od -c "$T/lc-bidi.err" | head; return 1; }
+    done
+}
+
+@test "CMP-283 raw 8-bit C1 bytes without a C2 lead (a bare 9B, or the 9B a C2 9B 9B leaves) never reach stderr: an invalid-UTF-8 copy has its high bytes replaced, while café passes (audit run 3, finding 11)" {
+    local lib="$PROJECT_ROOT/.claude/scripts/lib-content.sh"
+    cat > "$T/lc-raw.sh" <<'EOF'
+set -euo pipefail
+source "$1"
+big=$(printf '+line %s\n' $(seq 1 400))
+name="$2"
+d="diff --git a/$name b/$name
+@@ -1 +1,400 @@
+$big"
+prepare_content "$d" 300 >/dev/null
+EOF
+    local name
+    for name in 'src/a'$'\x9b''2Jb.sh' 'src/a'$'\xc2\x9b\x9b''2Jb.sh'; do
+        rc=0; LC_ALL=C bash "$T/lc-raw.sh" "$lib" "$name" 2>"$T/lc-raw.err" || rc=$?
+        [ "$rc" = "0" ] || { cat "$T/lc-raw.err"; return 1; }
+        grep -q 'Top-priority file src/a?2Jb\.sh exceeds the token budget' "$T/lc-raw.err" || { od -c "$T/lc-raw.err" | head; return 1; }
+        ! LC_ALL=C grep -qF $'\x9b' "$T/lc-raw.err" || { echo "raw 9B reached stderr"; return 1; }
+    done
+    rc=0; LC_ALL=C.UTF-8 bash "$T/lc-raw.sh" "$lib" 'src/café.sh' 2>"$T/lc-raw-cafe.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-raw-cafe.err"; return 1; }
+    grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-raw-cafe.err"
+    rc=0; LC_ALL=C bash "$T/lc-raw.sh" "$lib" 'src/café.sh' 2>"$T/lc-raw-cafe2.err" || rc=$?
+    [ "$rc" = "0" ] || { cat "$T/lc-raw-cafe2.err"; return 1; }
+    grep -qF 'Top-priority file src/café.sh exceeds the token budget' "$T/lc-raw-cafe2.err"
+}
+
 @test "CMP-275 main refuses a --sprint-id that is not a plain name — a path in it never reaches mktemp, the run lock, the move-aside or the envelope's directory: a usage error (exit 2) and nothing written (audit run 1, a5 DISS-C-002)" {
     local esc="cmp275esc-$$" sid
     mkdir -p "$T/tmp/adversarial-x"   # the pre-made directory that lets mktemp -d walk out of TMPDIR
