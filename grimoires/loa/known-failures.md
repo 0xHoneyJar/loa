@@ -83,7 +83,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 2 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
-| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 2 |
+| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 3 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 9 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
@@ -1533,7 +1533,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 **Feature**: .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition)
 **Symptom**: npm test in .claude/skills/bridgebuilder-review reports 1 failing file: not ok - __tests__/persona.test.ts with location persona.test.ts:1:1 and the log line Fatal: ANTHROPIC_API_KEY required. Set it in your environment ... (or set BRIDGEBUILDER_MODEL=<provider>-headless ...). Every subtest inside the file passes; the file-level failure is the process exit.
 **First observed**: 2026-09-25 (cycle-126 sprint-247; identical on main in a throwaway worktree at HEAD)
-**Recurrence count**: 2
+**Recurrence count**: 3
 **Current workaround**: Run the BB suite in a shell where the key is present (never a fake value in tracked state), or set BRIDGEBUILDER_MODEL=claude-headless for the test run; treat the failure as environmental when the other 754 tests pass.
 **Upstream issue**: cycle-126 residue: the test should be hermetic — the precondition belongs behind the config resolution the test does not exercise, or the test should stub the API-key check
 **Related visions / lore**: none
@@ -1544,6 +1544,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 |------|---------------|---------|----------|
 | 2026-09-25 | worktree at main HEAD with the same node_modules, npx tsx --test __tests__/persona.test.ts | REPRODUCED on main — pre-existing, not the cycle-126 diff | grimoires/loa/a2a/sprint-247/reviewer.md test-first record; NOTES.md 2026-09-25 Decision Log |
 | 2026-10-05 | npm test in bridgebuilder-review after the round-1an build on a keyless host | 759/760 pass; persona.test.ts fails at :1:1 with the Fatal ANTHROPIC_API_KEY line (presence-only check: no key set) — this entry, not a regression | round 1an on 332f254c, /tmp/bb-test.log |
+| 2026-10-07 | cycle-127 PR #1275: persona.test.ts stayed the single failing Bridgebuilder vitest file on every run (785 → 837 passing around it); the cycle did not touch it | unchanged; recorded as the known pre-existing failure in every round's suite summary | PR #1275, commits 059e26be…304a2480 |
 
 ### Reading guide
 
