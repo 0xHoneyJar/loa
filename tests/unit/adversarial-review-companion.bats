@@ -49,6 +49,9 @@ _place_marker() {  # <tmp> <marker> → 0 placed; 1 (named, SPRINT cleared) when
     mv -f -- "$1" "$2"
 }
 setup() {
+    # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+    # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+    umask 022
     # the sprint id and its directory come FIRST: teardown runs on any setup failure, and a delete
     # target derived from an unset id would be the a2a root (fourth run, chunk c C-001)
     SPRINT="sprint-comp-$$"
@@ -5971,4 +5974,79 @@ EOF
     [[ "$out" != *"$k"* && "$out" != *"${body:0:8}"* ]]
     # the line is still cut: at most 300 characters after the prefix
     [ "$(grep -F 'Companion voice diagnostic' "$T/cut-err" | sed 's/^.*Companion voice diagnostic (claude-headless): //' | wc -c)" -le 301 ]
+}
+
+# cycle-127 FR-1: the agy (Antigravity) route — the `gemini-headless` hop — is opt-in (hounfour.headless.agy_opt_in, default
+# false). With it off, an operator companion_chain naming the hop does not plan it: read from the config, before any dispatch.
+_cmp_agy_chain() {  # <anthropic chain YAML list> [agy_opt_in YAML value | "absent"]
+    # (review r251-1 G13: exactly one anchor is replaced — a fixture that drifted fails here, never writes a no-op config)
+    python3 -I - "$CONFIG_FILE" "$1" "${2:-absent}" <<'PY'
+import sys; p, chain, opt = sys.argv[1:4]; s = open(p, encoding="utf-8").read()
+anchor = "  code_review:\n    enabled: true\n"
+if s.count(anchor) != 1:
+    sys.exit(f"_cmp_agy_chain: expected exactly one code_review anchor in {p}, found {s.count(anchor)}")
+s = s.replace(anchor, anchor + "    companion_chain:\n      anthropic: " + chain + "\n", 1)
+if opt != "absent":
+    s = "hounfour:\n  headless:\n    agy_opt_in: " + opt + "\n" + s
+open(p, "w", encoding="utf-8").write(s)
+PY
+}
+
+@test "CMP-284 an operator companion_chain naming gemini-headless with the agy opt-in off → planned false, reason opt_in_required, never dispatched, a WARN naming both keys; verdict quality counts the planned voice only" {
+    local opt
+    local orig="$BATS_TEST_TMPDIR/cmp284-config.orig"
+    cp -- "$CONFIG_FILE" "$orig"   # (review r251-1 G13: save/restore the file the helper edits — $CONFIG_FILE — and fail loudly)
+    for opt in absent false '"true"'; do
+        _cmp_agy_chain '[gemini-headless]' "$opt"
+        : > "$CALLS"
+        result=$(_run_main review)
+        [ "$(jq -r '.metadata.companion_voice | [.planned, .reason, .family] | map(tostring) | join(",")' <<<"$result")" = "false,opt_in_required,anthropic" ] || { echo "opt=$opt"; jq -c '.metadata.companion_voice' <<<"$result"; return 1; }
+        [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "1" ]
+        [ "$(jq -r '.verdict_quality.status' <<<"$result")" != "DEGRADED" ]
+        [ "$(jq '[.verdict_quality.voices_dropped[]? | select(.voice | test("gemini"))] | length' <<<"$result")" = "0" ]
+        ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+        grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log"
+        grep 'hounfour.headless.agy_opt_in' "$T/stderr.log" | grep -q 'flatline_protocol.code_review.companion_chain.anthropic'
+        cp -- "$orig" "$CONFIG_FILE"
+    done
+}
+
+@test "CMP-285 with the agy opt-in off, a companion_chain's gemini-headless hop is dropped and the rest of the chain is planned" {
+    _cmp_agy_chain '[gemini-headless, claude-headless]'
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "claude-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "succeeded" ]
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    ! grep -q 'gemini-headless' "$CALLS" || { echo "unexpected: grep -q 'gemini-headless' '$CALLS'"; return 1; }
+    grep -q 'gemini-headless.*hounfour.headless.agy_opt_in' "$T/stderr.log"
+}
+
+@test "CMP-286 with the agy opt-in true, a gemini-headless companion hop is planned and dispatched, and its failure is a dropped voice as before" {
+    _cmp_agy_chain '[gemini-headless]' true
+    BEHAVIOUR[gemini-headless]=unavailable
+    result=$(_run_main review)
+    [ "$(jq -r '.metadata.companion_voice.planned' <<<"$result")" = "true" ]
+    [ "$(jq -r '.metadata.companion_voice.chain | join(",")' <<<"$result")" = "gemini-headless" ]
+    [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
+    grep -qx 'gemini-headless' "$CALLS"
+    [ "$(jq '.verdict_quality.voices_planned' <<<"$result")" = "2" ]
+    ! grep -q 'hounfour.headless.agy_opt_in' "$T/stderr.log" || { echo "unexpected: grep -q 'hounfour.headless.agy_opt_in' '$T/stderr.log'"; return 1; }
+}
+
+@test "CMP-287 (review r251-2 K4) with the agy gate lib missing the dissent planner still drops a literal gemini-headless hop (fail closed, reason opt_in_required)" {
+    local empty="$T/no-lib-root" cfg="$T/agy-off.yaml"
+    mkdir -p "$empty"
+    printf 'hounfour:\n  headless:\n    mode: prefer-api\n    agy_opt_in: true\n' > "$cfg"   # (even an on config: no lib, no opt-in read)
+    run bash -c '
+        exec 2>"$4"; source "$1"
+        unset -f routes_to_agy agy_opted_in agy_headless_mode agy_route_planned agy_gate_warn_once 2>/dev/null
+        PROJECT_ROOT="$2"; CONFIG_FILE="$3"; log() { echo "$*" >&2; }
+        _adv_agy_filter_chain code_review anthropic gemini-headless claude-headless google:gemini-headless gemini-headless:gemini-3-pro gemini-2.5-pro
+    ' _ "$ADVERSARIAL_REVIEW" "$empty" "$cfg" "$T/k4.err"
+    local stderr; stderr=$(cat "$T/k4.err")
+    [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+    [ "$output" = "claude-headless gemini-2.5-pro" ] || { echo "out=$output stderr=$stderr"; return 1; }
+    grep -q 'agy-gate-lib.sh not loaded' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
+    grep -q 'gemini-headless not planned.*opt_in_required' <<<"$stderr" || { echo "stderr=$stderr"; return 1; }
 }

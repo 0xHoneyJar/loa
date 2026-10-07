@@ -7,6 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 
+# cycle-127 r251-1 C5: the reasoning-effort levels, defined once. cheval's
+# resolver and its `--effort` choices, the Anthropic adapter's validation, the
+# v3 catalog schema (`params.default_effort`) and the MODELINV payload schema
+# (`effort` / `effort_effective`) all use this set
+# (tests/test_effort_levels_single_source.py pins the schemas to it).
+EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
+
 # --- Completion Request/Result ---
 
 
@@ -496,8 +504,24 @@ class ConnectionLostError(ChevalError):
 class ConfigError(ChevalError):
     """Invalid configuration."""
 
-    def __init__(self, message: str):
-        super().__init__("INVALID_CONFIG", message, retryable=False)
+    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__("INVALID_CONFIG", message, retryable=False, context=context)
+
+
+class AgyOptInRequiredError(ConfigError):
+    """The agy (Antigravity) headless route is opt-in and `hounfour.headless.agy_opt_in` is not `true` (cycle-127 FR-1).
+
+    An INVALID_CONFIG refusal raised before any binary discovery or spawn; `failure_class` (also in `context`) is the
+    machine-readable seam planners read as "not planned", never as a failed voice.
+    """
+
+    failure_class = "opt_in_required"
+    MESSAGE = ("agy headless route is opt-in: set hounfour.headless.agy_opt_in: true (the prompt travels on the CLI's "
+               "argv, readable by local users; the CLI must be OAuth-authed)")
+
+    def __init__(self, message: str = MESSAGE):
+        # (review r251-1 G5: through the base constructor — cheval's error envelope and MODELINV read `context`)
+        super().__init__(message, context={"failure_class": self.failure_class})
 
 
 class AuthRevokedError(ChevalError):

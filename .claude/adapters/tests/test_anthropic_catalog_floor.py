@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from cheval import _LEGACY_TRANSPORT_INPUT_WALL, _lookup_max_input_tokens  # noqa: E402
 from loa_cheval.providers.anthropic_adapter import _BETA_HEADER_RE  # noqa: E402
 from loa_cheval.providers.base import default_max_tokens  # noqa: E402
-from loa_cheval.routing.ceiling import input_bound  # noqa: E402
+from loa_cheval.routing.ceiling import input_bound, is_foreign_transport_calibration  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CATALOG = REPO_ROOT / ".claude" / "defaults" / "model-config.yaml"
@@ -132,12 +132,69 @@ def test_every_http_entry_has_ceiling_with_provenance(http_entries):
         assert isinstance(cal.get("stale_after_days"), int) and cal["stale_after_days"] > 0, model_id
 
 
+def _measured(entry: dict) -> bool:
+    """cycle-127 FR-3.4: a calibrated entry (operator_set / empirical_probe with
+    calibrated_at) carries its own measured bound — the 180K cap is the
+    uncalibrated policy, so the test follows the catalog value there."""
+    cal = entry.get("ceiling_calibration") or {}
+    return bool(cal.get("calibrated_at")) and cal.get("source") in ("operator_set", "empirical_probe")
+
+
 def test_ceiling_is_the_computed_value_per_entry(http_entries):
-    """SDD §2.1: ceiling = min(180000, context_window − default_max_tokens(entry)) — computed, not a constant."""
+    """SDD §2.1: ceiling = min(180000, context_window − default_max_tokens(entry)) — computed, not a constant.
+    cycle-127 r251-1 (finding 33): a measured entry recording its raw accept is computed from it —
+    min(measured_input_tokens, context_window − default_max_tokens(entry)) (cheval's I2 clamp) — in
+    both fields; never the entry's own ceiling compared with itself."""
     for model_id, entry in http_entries.items():
-        expected = min(CEILING_CAP, entry["context_window"] - _default_max_tokens(entry))
+        room = entry["context_window"] - _default_max_tokens(entry)
+        cal = entry.get("ceiling_calibration") or {}
+        if _measured(entry) and isinstance(cal.get("measured_input_tokens"), int):
+            expected = min(cal["measured_input_tokens"], room)
+            assert entry["probed_ceiling"] == entry["effective_input_ceiling"], model_id
+        elif _measured(entry):
+            # an API-transport probe write records no raw count: only the invariant is checkable
+            expected = min(entry["effective_input_ceiling"], room)
+        else:
+            expected = min(CEILING_CAP, room)
         assert entry["effective_input_ceiling"] == expected, (model_id, entry["effective_input_ceiling"], expected)
         assert entry["effective_input_ceiling"] + _default_max_tokens(entry) <= entry["context_window"], model_id
+
+
+def test_a_foreign_transport_calibration_carries_its_provenance(http_entries):
+    """cycle-127 r251-1 (finding 32): an HTTP entry trusting a bound measured on another
+    transport (ceiling_calibration.transport ≠ api) must say how it was measured and what
+    the provider accepted — `method` and `measured_input_tokens` — so the cross-transport
+    trust is auditable, and an observed limit on this route may tighten it (routing.ceiling)."""
+    foreign = [m for m, e in http_entries.items() if is_foreign_transport_calibration(e)]
+    # (review r251-2 K9 / n36: with zero foreign entries the loop would assert nothing — the live catalog has one)
+    assert "claude-opus-5-5" in foreign, foreign
+    for model_id in foreign:
+        entry = http_entries[model_id]
+        cal = entry["ceiling_calibration"]
+        # a bound measured on a non-API transport was measured headless — `probed_api` there is a mislabel (n36)
+        assert cal.get("method") == "probed_headless", (model_id, cal.get("transport"), cal.get("method"))
+        assert isinstance(cal.get("measured_input_tokens"), int) and cal["measured_input_tokens"] > 0, model_id
+        assert cal["measured_input_tokens"] >= entry["effective_input_ceiling"], (
+            f"{model_id}: the written bound may be clamped below the measured accept, never above it")
+
+
+def test_lookup_returns_the_concrete_bound_through_the_gate_path(catalog, monkeypatch):
+    """review r251-2 K9 (n35): one concrete check THROUGH `_lookup_max_input_tokens` — the gate answers a calibrated
+    entry's catalog bound (not the policy cap). claude-opus-5-5 is calibrated; claude-opus-5 is not, and answers its
+    probed value (the policy cap). r251-3 R2 (AC 3): the expectation is READ from the catalog, so this check moves
+    with the next re-probe instead of pinning today's bound by literal."""
+    monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
+    monkeypatch.delenv("LOA_CHEVAL_LEGACY_WIRE", raising=False)
+    monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+    cal = catalog["providers"]["anthropic"]["models"]["claude-opus-5-5"]
+    assert cal["ceiling_calibration"].get("calibrated_at"), "claude-opus-5-5 is expected to be calibrated"
+    want = cal["effective_input_ceiling"]
+    assert isinstance(want, int) and want != CEILING_CAP, want
+    assert input_bound(cal, max_tokens=_default_max_tokens(cal)).basis == "calibrated"
+    assert _lookup_max_input_tokens("anthropic", "claude-opus-5-5", catalog) == want
+    uncal = catalog["providers"]["anthropic"]["models"]["claude-opus-5"]
+    assert not uncal["ceiling_calibration"].get("calibrated_at")
+    assert _lookup_max_input_tokens("anthropic", "claude-opus-5", catalog) == uncal["probed_ceiling"] == CEILING_CAP
 
 
 @pytest.mark.parametrize("kill_switch", ["", "1"])
@@ -155,8 +212,11 @@ def test_legacy_wall_applies_only_to_anthropic_under_the_kill_switch(catalog, ht
     """SDD §3.2: 180K was probed under streaming; killing streaming re-applies the 36K KF-002 wall."""
     assert _LEGACY_TRANSPORT_INPUT_WALL == 36_000
     monkeypatch.delenv("LOA_CHEVAL_DISABLE_STREAMING", raising=False)
-    for model_id in http_entries:
-        assert _lookup_max_input_tokens("anthropic", model_id, catalog) == CEILING_CAP, model_id
+    monkeypatch.setenv("LOA_CHEVAL_CEILING_OBSERVED_PATH", "/nonexistent/ceiling-observed.json")  # no host observations
+    for model_id, entry in http_entries.items():
+        # r251-1 (finding 33): the policy decides the bound, not a test-local mirror of it
+        want = input_bound(entry, max_tokens=_default_max_tokens(entry)).value
+        assert _lookup_max_input_tokens("anthropic", model_id, catalog) == want, model_id
     monkeypatch.setenv("LOA_CHEVAL_DISABLE_STREAMING", "1")
     for model_id in http_entries:
         assert _lookup_max_input_tokens("anthropic", model_id, catalog) == _LEGACY_TRANSPORT_INPUT_WALL, model_id
@@ -285,7 +345,8 @@ def _default_ceiling_policy(monkeypatch):
 
 def test_every_http_entry_carries_the_probed_bound_and_account_limits(http_entries):
     for model_id, entry in http_entries.items():
-        assert entry.get("probed_ceiling") == CEILING_CAP, model_id
+        # cycle-127 FR-3.4: a measured entry carries its measurement in both fields
+        assert entry.get("probed_ceiling") == (entry["effective_input_ceiling"] if _measured(entry) else CEILING_CAP), model_id
         cal = entry["ceiling_calibration"]
         if not cal.get("calibrated_at"):
             assert entry["effective_input_ceiling"] == entry["probed_ceiling"], (
@@ -343,9 +404,19 @@ def test_entries_outside_the_five_family_carry_no_long_context_tier(http_entries
 def test_opus_5_5_has_the_1m_window_at_standard_pricing(anthropic):
     """cycle-126 bd-2fti: the vendor pricing page puts 4.6-and-later on the full 1M window at
     standard pricing, so 5.5 carries no long_context tier; its ceiling is the conservative
-    default until a probe measures it."""
+    default until a probe measures it (cycle-127 FR-3.4: either state, each with its shape)."""
     entry = anthropic["claude-opus-5-5"]
     assert "long_context" not in entry["pricing"]
-    assert entry["ceiling_calibration"]["source"] == "conservative_default"
-    assert entry["ceiling_calibration"]["calibrated_at"] is None
+    cal = entry["ceiling_calibration"]
+    if _measured(entry):
+        # a probe wrote it: the measured bound is both values, with its provenance
+        assert entry["probed_ceiling"] == entry["effective_input_ceiling"]
+        assert isinstance(cal.get("reprobe_trigger"), str) and cal["reprobe_trigger"]
+        # r251-1 C4: the probe's own outcome and the number of samples taken are structured, not comment-only
+        if cal.get("method") == "probed_headless":
+            assert cal.get("probe_outcome") in ("clean", "partial"), cal.get("probe_outcome")
+            assert isinstance(cal.get("sample_size"), int) and cal["sample_size"] > 0, cal.get("sample_size")
+    else:
+        assert cal["source"] == "conservative_default"
+        assert cal["calibrated_at"] is None
     assert entry["fallback_chain"][0] == "anthropic:claude-opus-5"

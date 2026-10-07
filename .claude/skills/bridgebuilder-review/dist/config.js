@@ -1,6 +1,8 @@
-import { execFile, execSync } from "node:child_process";
+import { execFile, execFileSync, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
+import { closeSync, existsSync, fstatSync, openSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod/v4";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 const execFileAsync = promisify(execFile);
@@ -119,14 +121,233 @@ export function isHeadlessModelId(modelId, provider) {
         return false;
     return provider === undefined || GENERATED_MODEL_REGISTRY[modelId].provider === provider;
 }
+/** The Loa config the agy gate reads: the repo root's when one is known, else the cwd's (r251-1 G15 — one path for all callers). */
+export function loaConfigPathFor(repoRoot) {
+    return repoRoot ? join(repoRoot, ".loa.config.yaml") : ".loa.config.yaml";
+}
+/** The go-yq "is the key present" program — the same text as the bash lib's `_AGY_YQ_HAS` and the Python loader's
+ * `_YQ_HAS` (r251-4 S3): every level a real mapping (`kind` is "alias" for an alias node) and the explicit key only (`has`
+ * never sees a merge key's). */
+export const AGY_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))';
+/** One NSS lookup through `getent` (the bash lib's account source); undefined when getent is missing or cannot answer. */
+function getent(args) {
+    try {
+        return execFileSync("getent", args, { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] });
+    }
+    catch {
+        return undefined;
+    }
+}
+/**
+ * Why the file's group is not its owner's USER-PRIVATE group, or undefined when it is (review r251-6 V1, BB #1). ONE rule with
+ * cheval's `loader._not_private_group` and the bash lib's `_agy_group_not_private`: the file's gid is the owner's primary gid,
+ * the group is NAMED for the owner (a shared `users` / macOS `staff` fails — their member lists are empty for primary members,
+ * so emptiness alone never proved privacy: audit LOW-001), no account but the owner is a listed member, no other account has
+ * it as its primary group (enumerated last), and no ACL makes the group bits a mask over named grants (`ls -ldL`'s `+`, on
+ * the read's own descriptor when one is given). Accounts come from `getent`; a host without it, or one that cannot answer,
+ * is no proof: not private.
+ */
+export function agyGroupNotPrivate(uid, gid, fd, configPath) {
+    const pw = (getent(["passwd", String(uid)]) ?? "").split("\n")[0].split(":");
+    const owner = pw[0] ?? "";
+    const pgid = pw[3] ?? "";
+    if (!owner || !/^\d+$/.test(pgid))
+        return `its owner uid ${uid} could not be looked up`;
+    const gr = (getent(["group", String(gid)]) ?? "").split("\n")[0].split(":");
+    const gname = gr[0] ?? "";
+    if (!gname)
+        return `its group could not be looked up (gid ${gid})`;
+    if (String(gid) !== pgid)
+        return `its group '${gname}' (gid ${gid}) is not the owner's primary group`;
+    if (gname !== owner)
+        return `its group '${gname}' is not named for the owner '${owner}' (not a user-private group)`;
+    const members = (gr[3] ?? "").split(",").map((m) => m.trim()).filter((m) => m && m !== owner);
+    if (members.length)
+        return `its group '${gname}' has other members (${members.join(", ")})`;
+    const all = getent(["passwd"]);
+    if (all === undefined)
+        return `the accounts of group '${gname}' could not be enumerated`;
+    const primary = all.split("\n").map((l) => l.split(":")).filter((f) => f.length > 3 && f[3] === String(gid) && f[2] !== String(uid)).map((f) => f[0]);
+    if (primary.length)
+        return `its group '${gname}' is the primary group of another account (${primary.join(", ")})`;
+    let ls = "";
+    try {
+        ls = fd !== undefined
+            ? execFileSync("ls", ["-ldL", "/dev/stdin"], { encoding: "utf8", timeout: 5000, stdio: [fd, "pipe", "ignore"] })
+            : execFileSync("ls", ["-ldL", "--", configPath ?? ""], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] });
+    }
+    catch {
+        ls = "";
+    }
+    const lsMode = ls.split(" ")[0] ?? "";
+    if (lsMode.length < 10)
+        return "its ACL could not be read";
+    if (lsMode[10] === "+")
+        return "it carries an extended ACL (the group bits are the ACL mask over other accounts' grants)";
+    return undefined;
+}
+/**
+ * Why the opt-in config is not the current user's alone to write, or undefined when it is (review r251-5 U1/U2, r251-6 V1):
+ * ONE permission rule with cheval's `loader._config_untrusted_reason` and the bash lib's `_agy_config_untrusted` — owned by
+ * the current user, never world-writable, and group-writable only for the owner's user-private group (`agyGroupNotPrivate`;
+ * Ubuntu's umask 002 makes every checkout 0664). `st` / `fd` are the read's own open file (r251-6 V3, BB #2: the bytes read
+ * and the inode judged are one); without them `statSync` follows a symlink: the target decides, as in the other readers. A
+ * config that cannot be stat'ed is untrusted (fail closed). Where the platform has no uid (`process.getuid` absent), the
+ * owner half is skipped.
+ */
+export function agyConfigUntrustedReason(configPath, st, fd) {
+    if (st === undefined) {
+        try {
+            st = statSync(configPath);
+        }
+        catch {
+            return `${configPath} could not be stat'ed (owner and mode unknown)`;
+        }
+    }
+    const me = typeof process.getuid === "function" ? process.getuid() : undefined;
+    if (me !== undefined && st.uid !== me)
+        return `${configPath} is not owned by the current user (uid ${st.uid}, euid ${me})`;
+    const mode = `mode ${(st.mode & 0o7777).toString(8).padStart(4, "0")}`;
+    if (st.mode & 0o002)
+        return `${configPath} is world-writable (${mode})`;
+    if (st.mode & 0o020) {
+        const why = agyGroupNotPrivate(st.uid, st.gid, fd, configPath);
+        if (why !== undefined)
+            return `${configPath} is group-writable (${mode}) and ${why}`;
+    }
+    return undefined;
+}
+/**
+ * Read `hounfour.headless.agy_opt_in` (true only for a YAML boolean true) and `hounfour.headless.mode` from the Loa config
+ * with one yq call. LOA_HEADLESS_MODE wins for the mode, as it does in cheval; nothing in the environment opts in. A missing
+ * file reads as off; a missing yq or an unreadable config reads as off too (the gate fails closed) and carries `readError`.
+ */
+export function readAgyGate(configPath) {
+    let optIn = false;
+    let mode = "";
+    let readError;
+    let typeWarning;
+    if (existsSync(configPath)) {
+        let fd;
+        let content;
+        try {
+            // (r251-6 V3, BB #2: the config is opened ONCE — yq parses the bytes read from this descriptor on stdin and the trust
+            // rule judges its fstat, so a swap of the path between read and check changes nothing)
+            fd = openSync(configPath, "r");
+            const st = fstatSync(fd);
+            if (!st.isFile())
+                throw new Error(`${configPath} is not a regular file`);
+            content = readFileSync(fd);
+            const out = execFileSync("yq", ["eval", "-o=json", "-I=0",
+                `{"has": (${AGY_YQ_HAS}), "kind": (.hounfour.headless.agy_opt_in | kind), "opt": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and . == true)), "canon": (.hounfour.headless.agy_opt_in | (tag == "!!bool" and (. == true or . == false))), "tag": (.hounfour.headless.agy_opt_in | tag), "mode": (.hounfour.headless.mode // ""), ${AGY_YQ_ANCESTORS}}`,
+                "-"], { encoding: "utf8", timeout: 5000, input: content, stdio: ["pipe", "pipe", "pipe"] });
+            const parsed = JSON.parse(out);
+            // (r251-4 S3: the key must be written at hounfour.headless itself — every level a real mapping, never an alias or a
+            // merge key's value — and its node a plain scalar of the exact bool tag; one rule with the bash and Python readers)
+            const present = parsed.has === true;
+            const alias = parsed.kind === "alias";
+            optIn = present && !alias && parsed.opt === true;
+            mode = typeof parsed.mode === "string" ? parsed.mode : "";
+            const ancestor = present ? undefined : agyAncestorProblem(parsed);
+            // (r251-5 U1: a config others can write never opts in — one WARN naming the key and the reason; not a readError:
+            // the gate reads off, exactly as the bash and Python readers, rather than blocking the merge. Only a value that
+            // would opt in is judged, as there: a config that reads off anyway is not flagged)
+            const untrusted = optIn ? agyConfigUntrustedReason(configPath, st, fd) : undefined;
+            if (untrusted !== undefined) {
+                optIn = false;
+                typeWarning = `hounfour.headless.agy_opt_in: ${untrusted} — a config others can write never opts in (own it and \`chmod go-w\` it); the agy route stays off`;
+            }
+            else if (ancestor !== undefined) {
+                typeWarning = `${ancestor} — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off`;
+            }
+            else if (present && alias) {
+                typeWarning = "hounfour.headless.agy_opt_in is present but not a YAML boolean (an alias) — only `agy_opt_in: true` opts in (expected true or false); the agy route stays off";
+            }
+            else if (present && typeof parsed.tag === "string" && parsed.tag !== "!!null" && parsed.tag !== "!!bool") {
+                typeWarning = `hounfour.headless.agy_opt_in is present but not a YAML boolean (${parsed.tag}) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off`;
+            }
+            else if (present && parsed.tag === "!!bool" && parsed.canon !== true) {
+                typeWarning = "hounfour.headless.agy_opt_in is a boolean spelled other than true/false — only `agy_opt_in: true` opts in (the lowercase scalar); the agy route stays off";
+            }
+        }
+        catch (err) {
+            // (fail closed: no opt-in — and say why, rather than reading as a plain "opt-in off")
+            const e = err;
+            const stderr = typeof e.stderr === "string" ? e.stderr.trim() : Buffer.isBuffer(e.stderr) ? e.stderr.toString("utf8").trim() : "";
+            optIn = false;
+            // (r251-6 V5: a non-mapping ancestor yq cannot index below — `headless: [1]` — is the ancestor warning the bash and
+            // Python readers give, not a host read error; the same bytes, the guarded ancestors-only program)
+            const ancestor = content !== undefined ? agyAncestorOnly(content) : undefined;
+            if (ancestor !== undefined) {
+                typeWarning = `${ancestor} — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off`;
+            }
+            else {
+                readError = (stderr || e.message || String(err)).split("\n")[0].slice(0, 300);
+            }
+        }
+        finally {
+            if (fd !== undefined)
+                closeSync(fd);
+        }
+    }
+    return {
+        optIn, mode: process.env.LOA_HEADLESS_MODE || mode || "prefer-api",
+        ...(readError !== undefined ? { readError } : {}), ...(typeWarning !== undefined ? { typeWarning } : {}),
+    };
+}
+/** The ancestors' kind and tag (r251-6 V5): `hounfour`, and `hounfour.headless` only below a real mapping. */
+export const AGY_YQ_ANCESTORS = '"k1": (.hounfour | kind), "t1": (.hounfour | tag), "k2": ((.hounfour | select(kind == "map") | .headless | kind) // ""), "t2": ((.hounfour | select(kind == "map") | .headless | tag) // "")';
+/** The ancestors-only read of `content` (never errors on a non-mapping level: each level is guarded); undefined on any failure. */
+function agyAncestorOnly(content) {
+    try {
+        const out = execFileSync("yq", ["eval", "-o=json", "-I=0", `{${AGY_YQ_ANCESTORS}}`, "-"], { encoding: "utf8", timeout: 5000, input: content, stdio: ["pipe", "pipe", "pipe"] });
+        return agyAncestorProblem(JSON.parse(out));
+    }
+    catch {
+        return undefined;
+    }
+}
+/** `<path> is a YAML alias` / `<path> is not a mapping (<kind>)` for an alias or non-mapping ancestor of the key — one WARN,
+ * never a silent absent (r251-6 V5, BB #5; the bash and Python readers say the same); undefined when every ancestor is a
+ * mapping, absent or null. */
+function agyAncestorProblem(p) {
+    for (const [path, k, t] of [["hounfour", p.k1, p.t1], ["hounfour.headless", p.k2, p.t2]]) {
+        if (k === "map")
+            continue;
+        if (k === "alias")
+            return `${path} is a YAML alias`;
+        if (typeof t !== "string" || t === "" || t === "!!null")
+            return undefined;
+        return `${path} is not a mapping (${t.replace(/^!!/, "")})`;
+    }
+    return undefined;
+}
+/**
+ * A voice cheval would dispatch through agy: a google headless id of the generated registry (today `gemini-headless`), or
+ * any google model when the effective headless mode is cli-only (the bash/Python predicate's shape — lib/agy-gate-lib.sh).
+ */
+export function isAgyRouted(provider, modelId, mode) {
+    if (provider !== "google")
+        return false;
+    return isHeadlessModelId(modelId, "google") || mode === "cli-only";
+}
 /**
  * Validate API keys for configured multi-model providers.
- * Returns available and missing provider lists.
+ * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
+ * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export function validateApiKeys(config) {
+export function validateApiKeys(config, gate) {
     const valid = [];
     const missing = [];
+    const notPlanned = [];
     for (const model of config.models) {
+        // (r251-2 K7b: an unreadable config fails closed for EVERY google voice — its mode is unknown, so is its route: cheval,
+        // reading the same file with PyYAML, might route it to agy and refuse; planned-as-HTTP would mis-count a failed voice)
+        const gated = gate.readError !== undefined ? model.provider === "google" : isAgyRouted(model.provider, model.model_id, gate.mode);
+        if (!gate.optIn && gated) {
+            notPlanned.push({ provider: model.provider, modelId: model.model_id, reason: "opt_in_required" });
+            continue;
+        }
         const envVar = PROVIDER_API_KEY_ENV[model.provider];
         if (!envVar) {
             missing.push({ provider: model.provider, envVar: `Unknown provider: ${model.provider}` });
@@ -141,7 +362,24 @@ export function validateApiKeys(config) {
             missing.push({ provider: model.provider, envVar });
         }
     }
-    return { valid, missing };
+    return { valid, missing, notPlanned };
+}
+/**
+ * The startup lines for the agy gate (r251-2 K7f): the read error and the type warning each said once, unconditionally —
+ * not only when a voice is not planned — and the not-planned voices. main.ts prints them; the pipeline says its own once
+ * per review.
+ */
+export function agyGateStartupLines(gate, keyStatus) {
+    const lines = [];
+    if (gate.readError !== undefined) {
+        lines.push(`[bridgebuilder] agy gate: Loa config unreadable (${gate.readError}) — failing closed: google voices are not planned (hounfour.headless.agy_opt_in)`);
+    }
+    if (gate.typeWarning !== undefined)
+        lines.push(`[bridgebuilder] ${gate.typeWarning}`);
+    if (keyStatus.notPlanned.length > 0) {
+        lines.push(`[bridgebuilder] Not planned (agy opt-in, hounfour.headless.agy_opt_in): ${keyStatus.notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")}`);
+    }
+    return lines;
 }
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS = {

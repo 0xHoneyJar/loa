@@ -159,6 +159,11 @@
                 "pattern": "^[a-z0-9]+(-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}$"
               },
               "description": "cycle-126 FR-1.2 (SDD D-1.2): dated Anthropic beta flags (e.g. context-1m-2025-08-07), joined into ONE `anthropic-beta` header by anthropic_adapter._beta_header_value. The pattern is the adapter's _BETA_HEADER_RE with ASCII digits (never looser — the c126 bats cross-check pins it); a non-list or a value outside it is a ConfigError at dispatch. Operator-set only; `[]` until an account needs one."
+            },
+            "default_effort": {
+              "type": "string",
+              "enum": ["low", "medium", "high", "xhigh", "max"],
+              "description": "cycle-127 FR-2 (SDD D-2.1): the reasoning effort cheval sends when the caller passes no --effort (resolved once at the cheval chokepoint: caller > this > none; the MODELINV envelope records effort_source). Set where the vendor default is below what Loa wants: Claude Opus 5.5's vendor default is `medium` (claude-api reference, 2026-10-07), one below Opus 5's `high`. Absent ⇒ nothing is sent (vendor default)."
             }
           }
         },
@@ -266,7 +271,7 @@
         "sample_size": {
           "type": ["integer", "null"],
           "minimum": 0,
-          "description": "Number of probe runs that informed the ceiling. null when source != empirical_probe."
+          "description": "The number of probe samples taken (accepted + rejected) that informed the ceiling (cycle-127: tools/ceiling-probe-live.py writes the count of its record's samples for both transports). null when no probe ran (e.g. conservative_default, or an operator_set value not taken from a probe)."
         },
         "stale_after_days": {
           "type": "integer",
@@ -276,7 +281,45 @@
         "reprobe_trigger": {
           "type": "string",
           "description": "Human-readable description of conditions that should re-fire the probe (e.g., 'first KF entry referencing model OR 30d elapsed OR operator-forced')."
+        },
+        "method": {
+          "type": "string",
+          "enum": ["probed_api", "probed_headless"],
+          "maxLength": 200,
+          "description": "cycle-127 FR-3 (SDD D-3.8): how a probe measured the bound — tools/ceiling-probe-live.py through the API or through the headless CLI (--transport claude-headless). Absent on entries never probed by the tool."
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["api", "claude-headless"],
+          "maxLength": 200,
+          "description": "cycle-127 FR-3: the probe transport that measured the bound."
+        },
+        "cli_version": {
+          "type": ["string", "null"],
+          "maxLength": 200,
+          "description": "cycle-127 FR-3: `claude --version` of the CLI the headless probe ran (null when it could not be read)."
+        },
+        "cli_model": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "cycle-127 FR-3: the model id the CLI ran (the Bedrock inference-profile id when the route is Bedrock)."
+        },
+        "measured_input_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "cycle-127 FR-3: the accepted input size the provider reported (usage input + cache creation + cache read) on the largest verified step — the raw value; probed_ceiling / effective_input_ceiling carry min(this, context_window − default max_tokens) (cheval's I2 invariant)."
+        },
+        "probe_outcome": {
+          "type": "string",
+          "enum": ["clean", "partial"],
+          "description": "cycle-127 r251-1: the outcome of the probe whose bound this entry carries — clean (a verified accept bracketed by a size rejection within the tolerance, nothing failed) or partial (budget cap, an unverified or failed attempt, or an unbracketed bound; written only when the operator vouches for the last verified accept: tools/ceiling-probe-live.py --write-partial-as-operator-set). Required when method is probed_headless (r251-4); absent on entries never written by the tool."
         }
+      },
+      "if": {"required": ["method"], "properties": {"method": {"const": "probed_headless"}}},
+      "then": {
+        "$comment": "cycle-127 r251-4 (n35/n48): a headless-probed bound names its transport and the probe outcome it carries.",
+        "required": ["transport", "probe_outcome"],
+        "properties": {"transport": {"const": "claude-headless"}}
       }
     },
     "streamingRecovery": {

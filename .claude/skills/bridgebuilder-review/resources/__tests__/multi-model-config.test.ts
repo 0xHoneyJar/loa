@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MultiModelConfigSchema, validateApiKeys, PROVIDER_API_KEY_ENV, isHeadlessModelId } from "../config.js";
+import type { AgyGate } from "../config.js";
+
+// (r251-1 G15: the agy gate is an explicit parameter — these cases run with the opt-in off and the default mode)
+const NO_AGY_GATE: AgyGate = { optIn: false, mode: "prefer-api" };
 
 describe("MultiModelConfigSchema", () => {
   it("returns defaults when parsed with empty object", () => {
@@ -119,7 +123,7 @@ describe("validateApiKeys", () => {
       ],
     });
 
-    const result = validateApiKeys(config);
+    const result = validateApiKeys(config, NO_AGY_GATE);
     assert.equal(result.valid.length, 2);
     assert.equal(result.missing.length, 1);
     assert.equal(result.missing[0].provider, "google");
@@ -135,7 +139,7 @@ describe("validateApiKeys", () => {
       models: [{ provider: "mistral", model_id: "mistral-large" }],
     });
 
-    const result = validateApiKeys(config);
+    const result = validateApiKeys(config, NO_AGY_GATE);
     assert.equal(result.valid.length, 0);
     assert.equal(result.missing.length, 1);
     assert.ok(result.missing[0].envVar.includes("Unknown provider"));
@@ -153,7 +157,7 @@ describe("validateApiKeys", () => {
           { provider: "mistral", model_id: "mistral-headless" },
         ],
       });
-      const result = validateApiKeys(config);
+      const result = validateApiKeys(config, NO_AGY_GATE);
       assert.deepEqual(result.valid, [{ provider: "anthropic", modelId: "claude-headless" }]);
       assert.deepEqual(result.missing.map((m) => m.provider), ["anthropic", "mistral"]);
       assert.equal(result.missing[0].envVar, "ANTHROPIC_API_KEY");
@@ -169,7 +173,7 @@ describe("validateApiKeys", () => {
       assert.equal(isHeadlessModelId("gemini-headless", "anthropic"), false);
       const typo = validateApiKeys(MultiModelConfigSchema.parse({
         enabled: true, models: [{ provider: "anthropic", model_id: "claud-headless" }],
-      }));
+      }), NO_AGY_GATE);
       assert.deepEqual(typo.missing.map((m) => m.envVar), ["ANTHROPIC_API_KEY"]);
     } finally {
       if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
@@ -179,7 +183,7 @@ describe("validateApiKeys", () => {
 
   it("returns empty lists for no models", () => {
     const config = MultiModelConfigSchema.parse({ enabled: true });
-    const result = validateApiKeys(config);
+    const result = validateApiKeys(config, NO_AGY_GATE);
     assert.equal(result.valid.length, 0);
     assert.equal(result.missing.length, 0);
   });

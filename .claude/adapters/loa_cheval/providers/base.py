@@ -1056,6 +1056,18 @@ class ProviderAdapter(ABC):
         self.config = config
         self.provider = config.name
 
+    @classmethod
+    def wire_effort(cls, model_id: str, effort: Optional[str],
+                    extra: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """cycle-127 r251-1 C5: the reasoning effort THIS adapter puts on the
+        wire for a request carrying ``effort`` (cheval's resolved value) and a
+        model whose catalog ``extra`` is ``extra`` — what the MODELINV
+        envelope records as ``effort_effective``. Default ``None``: the adapter
+        does not send a reasoning-effort control. Adapters that do override it
+        through their own resolver, so the record cannot drift from the argv /
+        body (tests/test_effort_wire_conformance.py)."""
+        return None
+
     @abstractmethod
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Send completion request, return normalized result."""

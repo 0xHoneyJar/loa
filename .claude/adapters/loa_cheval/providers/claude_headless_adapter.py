@@ -70,6 +70,7 @@ from loa_cheval.types import (
     CompletionResult,
     AuthRevokedError,
     ConfigError,
+    ProviderContextLimitError,
     ProviderUnavailableError,
     RateLimitError,
     Usage,
@@ -124,6 +125,45 @@ _CLAUDE_BIN_DEFAULT = "claude"
 _CLAUDE_LOGIN_HINT = "claude /login"
 
 
+def build_headless_argv(
+    cli_bin: str,
+    cli_model: str,
+    *,
+    effort: Optional[str] = None,
+    max_turns: Optional[int] = None,
+) -> List[str]:
+    """The headless `claude -p` argv: JSON output, plan mode (read-only), no
+    session persistence, every tool disabled (`--tools ""` is the documented
+    "disable all" sentinel), the model, then `--effort` when set.
+    The prompt travels on stdin — the builder takes none (r251-4 S8, audit
+    n26: a prompt here would sit where an option is parsed). ``max_turns`` is for callers
+    outside the adapter (tools/ceiling-probe-live.py pins 1); the adapter does
+    not pass it. cycle-127 D-3.9: one builder, so the probe measures the shape
+    the adapter dispatches."""
+    cmd: List[str] = [
+        cli_bin,
+        "-p",
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "plan",
+        "--no-session-persistence",
+        "--tools",
+        "",
+        "--model",
+        cli_model,
+    ]
+    if effort:
+        cmd.extend(["--effort", effort])
+    if max_turns is not None:
+        cmd.extend(["--max-turns", str(int(max_turns))])
+    return cmd
+
+
+# r251-5 U3: the static-auth markers that outrank a `please wait`-only throttle match in _raise_for_error
+_STATIC_AUTH_MARKERS = ("not logged in", "/login", "authentication", "invalid api key", "unauthorized")
+
+
 class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
     """Adapter that routes inference through `claude -p` (non-interactive).
 
@@ -147,6 +187,15 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
           opus: claude-headless:claude-opus-5-5
           cheap: claude-headless:claude-sonnet-5
     """
+
+    @classmethod
+    def wire_effort(cls, model_id, effort, extra=None):
+        """cycle-127 r251-1 C5: `--effort` (request.effort first, then the entry extra.effort) — the adapter's own resolver over a request
+        carrying ``effort`` and no metadata (cheval sets none), so the record
+        follows the argv builder."""
+        import types as _types
+        req = CompletionRequest(messages=[], model=model_id, effort=effort)
+        return cls._resolve_effort(cls.__new__(cls), req, _types.SimpleNamespace(extra=dict(extra or {})))
 
     # Cycle-110 FR-2.3 — subscription-CLI dispatch; circuit-breaker writes
     # route to the (anthropic, headless) bucket.
@@ -259,26 +308,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         # if declared so the operator can map the alias to a real CLI
         # model identifier (e.g. `sonnet`, `opus`).
         cli_model = (model_config.extra or {}).get("cli_model") or request.model
-        cmd: List[str] = [
-            self._cli_bin(),
-            "-p",
-            *([] if prompt is None else [prompt]),
-            "--output-format",
-            "json",
-            "--permission-mode",
-            "plan",
-            "--no-session-persistence",
-            # Disable all tools: pure inference, no agent loop side effects.
-            # Empty string is the documented "disable all" sentinel.
-            "--tools",
-            "",
-            "--model",
-            cli_model,
-        ]
-
-        effort = self._resolve_effort(request, model_config)
-        if effort:
-            cmd.extend(["--effort", effort])
+        cmd = build_headless_argv(self._cli_bin(), cli_model, effort=self._resolve_effort(request, model_config))
 
         # cycle-124 FR-7: forward the schema compactly when the CLI knows the
         # flag; otherwise the call proceeds unenforced (schema_enforced false).
@@ -320,6 +350,10 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
                 elif isinstance(entry, list):
                     cmd.extend(str(x) for x in entry)
 
+        # (r251-4 S8, audit n26: an argv prompt — the adapter itself sends none — goes LAST, after the option terminator,
+        # so a prompt that starts with "-" is never parsed as a flag)
+        if prompt is not None:
+            cmd.extend(["--", prompt])
         return cmd
 
     def _resolve_effort(
@@ -521,17 +555,37 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
 
         diag_lower = full_diag.lower()
 
-        # Rate-limit / overload — Anthropic returns 429 + "rate limit" or
-        # 529 + "overloaded" when the org / subscription quota is saturated.
-        if (
-            "rate limit" in diag_lower
-            or "429" in full_diag
-            or "529" in full_diag
-            or "overloaded" in diag_lower
-            or "too many requests" in diag_lower
-            or "quota" in diag_lower
-        ):
-            raise RateLimitError(self.provider)
+        # cycle-127 review r251-2 K8 (n65): the CLI's own pre-flight size rejection ("Prompt is too long", "the request
+        # is ~1065182 tokens (limit 1000000)") is the provider's size verdict on the payload — not walked (the next voice
+        # would get the same payload), never a breaker count. r251-3 R1: unless a throttle marker is present — ONE rule
+        # with the ceiling probe (routing.ceiling.is_throttle_message, SDD D-3.12): Bedrock's tokens-per-minute throttle
+        # "Too many tokens, please wait before trying again" carries the context marker `too many tokens`, and a
+        # 429 / 529 counts only in status position (never digits inside a stated token count).
+        from loa_cheval.routing.ceiling import (
+            is_context_limit_message, is_throttle_beyond_wait, is_throttle_message, is_token_limit_message,
+            parse_context_limit,
+        )
+        _throttle = is_throttle_message(full_diag)
+        # r251-5 U3 (audit LOW-003): a static-auth marker outranks a throttle that rests on `please wait` alone ("Not
+        # logged in · please wait, then run /login" is an auth failure, never retried and walked); a 429 / 529 status or
+        # a named rate / token / overload / quota marker still wins as the throttle.
+        if _throttle and any(m in diag_lower for m in _STATIC_AUTH_MARKERS) and not is_throttle_beyond_wait(full_diag):
+            _throttle = False
+        if is_context_limit_message(full_diag) and not _throttle:
+            _nums = parse_context_limit(full_diag)
+            raise ProviderContextLimitError(
+                self.provider,
+                f"claude CLI refused the prompt as too large: {full_diag[:500]}",
+                input_tokens=_nums.get("input_tokens"),
+                limit=_nums.get("limit"),
+                max_tokens=_nums.get("max_tokens"),
+            )
+
+        # Rate-limit / overload / quota / token throttle — Anthropic returns 429 + "rate limit" or 529 + "overloaded"
+        # when the org / subscription quota is saturated; Bedrock "Too many tokens, please wait". token_limited marks
+        # the token class (cheval's D-1.1b arm reads it only for a hop above its probed bound; a CLI hop has none).
+        if _throttle:
+            raise RateLimitError(self.provider, token_limited=is_token_limit_message(full_diag))
 
         # Runtime auth revocation → WALKABLE (KF-017/#1071). Ambiguous
         # "unauthorized"/"401" walkable only when no static-misconfig marker.
@@ -556,6 +610,7 @@ class ClaudeHeadlessAdapter(HeadlessCLIAdapter):
         if (
             "not logged in" in diag_lower
             or "/login" in diag_lower
+            or "invalid api key" in diag_lower   # (r251-5 U3: one of the static-auth markers above)
             or "unauthorized" in diag_lower
             or "401" in full_diag
             or "authentication" in diag_lower

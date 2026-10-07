@@ -24,6 +24,12 @@ export interface MultiModelReviewResult {
     /** Combined content from all models. */
     combinedContent: string;
     reviewVerdict: ReviewVerdict;
+    /** cycle-127 FR-1: configured voices not planned (their agy route's opt-in is off) — never counted as failed or missing. */
+    notPlanned?: Array<{
+        provider: string;
+        modelId: string;
+        reason: "opt_in_required";
+    }>;
 }
 export interface PipelineAdapters {
     poster: IReviewPoster;
@@ -158,7 +164,10 @@ export declare function formatVerdictQualityHeader(perModelResults: Array<{
         voices_planned?: number;
         chain_health?: string;
     };
-}>): string;
+}>, notPlanned?: ReadonlyArray<{
+    provider: string;
+    modelId: string;
+}>, notPlannedReason?: string): string;
 /**
  * A degraded-verdict trajectory record — byte-compatible with the record
  * shape written by degraded-verdict-lib.sh (cycle-117 item D). Field set and

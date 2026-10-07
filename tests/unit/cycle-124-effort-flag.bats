@@ -25,6 +25,9 @@ setup() {
     export LOA_MODELINV_LOG_PATH="$BATS_TEST_TMPDIR/model-invoke.jsonl"
     export LOA_COST_LEDGER_PATH="$BATS_TEST_TMPDIR/cost-ledger.jsonl"
     unset LOA_CHEVAL_DISABLE_STREAMING LOA_CHEVAL_LEGACY_WIRE
+    # (cycle-127 r251-3 R6: hermetic to the operator's environment — a Bedrock bearer token turns on bedrock-forward
+    # routing, so `tiny` would resolve to the Bedrock haiku; a CLAUDE_HEADLESS_BIN would point the CLI hop elsewhere)
+    unset CLAUDE_HEADLESS_BIN AWS_BEARER_TOKEN_BEDROCK
 }
 
 # `run` merges stderr into $output by default; the JSON is on stdout and
@@ -105,4 +108,35 @@ _field() {  # <json> <field>
     _dry_run --model opus --effort ultra
     [ "$status" -eq 2 ]
     [[ "$stderr" == *"invalid choice"* ]]
+}
+
+# cycle-127 FR-2 (SDD D-2.2/D-2.3): Opus 5.5's vendor default is `medium`; the
+# catalog sets params.default_effort: high and cheval resolves it once.
+@test "c127-2-1: --model opus with no --effort reports high from the catalog" {
+    _dry_run --model opus
+    [ "$status" -eq 0 ] || { echo "$stderr" >&2; return 1; }
+    local want; want="$(yq -r '.providers.anthropic.models."claude-opus-5-5".params.default_effort' "$PROJECT_ROOT/.claude/defaults/model-config.yaml")"
+    [ "$want" = "high" ]
+    # the alias resolves first (the dry run names the resolved id), then the entry's default applies
+    [ "$(_field "$output" "['resolved_model']")" = "claude-opus-5-5" ]
+    [ "$(_field "$output" "['effort']")" = "high" ]
+    [ "$(_field "$output" "['effort_effective']")" = "high" ]
+    [ "$(_field "$output" "['effort_source']")" = "catalog" ]
+    [[ "$stderr" == *"effort: high (catalog default)"* ]]
+}
+
+@test "c127-2-2: an explicit --effort low wins and is reported as the caller's" {
+    _dry_run --model opus --effort low
+    [ "$status" -eq 0 ] || { echo "$stderr" >&2; return 1; }
+    [ "$(_field "$output" "['effort']")" = "low" ]
+    [ "$(_field "$output" "['effort_source']")" = "caller" ]
+    [[ "$stderr" == *"effort: low (caller)"* ]]
+}
+
+@test "c127-2-3: claude-opus-5 (no catalog default) sends nothing and prints no effort line" {
+    _dry_run --model claude-opus-5
+    [ "$status" -eq 0 ] || { echo "$stderr" >&2; return 1; }
+    [ "$(_field "$output" "['effort']")" = "None" ]
+    [ "$(_field "$output" "['effort_source']")" = "none" ]
+    [[ "$stderr" != *"effort:"* ]]
 }

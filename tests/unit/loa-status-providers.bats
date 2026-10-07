@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 # =============================================================================
 # tests/unit/loa-status-providers.bats — cycle-125 Sprint 4 (PRD FR-4 AC 2)
 # `/loa` Providers block: per provider the credential PRESENCE (never the
@@ -8,6 +9,9 @@
 # =============================================================================
 
 setup() {
+  # (r251-5 U1/U2: every agy opt-in reader refuses a group- or world-writable config — fixtures are written owner-only
+  # whatever the host umask; a `>` redirect under umask 002 makes 0664)
+  umask 022
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   STATUS="$PROJECT_ROOT/.claude/scripts/loa-status.sh"
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/lsp.XXXXXX")"
@@ -20,6 +24,7 @@ setup() {
   export OPENAI_API_KEY="sk-test-value-must-never-print"
   unset GOOGLE_API_KEY GEMINI_API_KEY ANTHROPIC_API_KEY
   mkdir -p "$T/env"; export LOA_STATUS_ENV_DIR="$T/env"   # bats-gated dotenv dir (no .env files → absent unless env)
+  export LOA_STATUS_CONFIG_FILE="$T/no-loa-config.yaml"   # bats-gated: no config → the agy opt-in is off (cycle-127 FR-1)
 }
 teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/dev/null || true; }
 
@@ -29,7 +34,7 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   block=$(echo "$output" | sed -n '/^Providers/,/reset: cheval --reset-breaker/p')
   [ -n "$block" ]
   echo "$block" | grep -qE '^  openai +key present \(env\) +hop [a-z-]+ +· http_api CLOSED'
-  echo "$block" | grep -qE '^  google +key absent +hop [a-z-]+ +· http_api OPEN 2h \(probe overdue → HALF_OPEN on next call\)'
+  echo "$block" | grep -qE '^  google +key absent +hop agy: opt-in \(disabled; hounfour\.headless\.agy_opt_in\) +· http_api OPEN 2h \(probe overdue → HALF_OPEN on next call\)'
   echo "$block" | grep -qE '^  anthropic +key absent'
   [[ "$output" != *"sk-test-value-must-never-print"* ]]
 }
@@ -62,24 +67,200 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
   echo "$output" | grep -qE '^  anthropic +key (present|absent) +hop [a-z-]+ +no breaker state'
 }
 
-@test "LSP-5 the anthropic row carries the input bound the opus target runs under: probed by default, observed after a provider verdict, never a 429 (cycle-126 FR-1.1)" {
-  unset LOA_CHEVAL_CEILING_OBSERVED_PATH
-  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"   # no store → the catalog's probed bound
-  run timeout 120 bash "$STATUS" --no-stale-check
-  [ "$status" -eq 0 ]
-  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5-5; calibrate: python3 tools/ceiling-probe-live.py --model claude-opus-5-5 --write-catalog\)'
-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":500000,"error_class":"RATE_LIMIT_UNVERIFIED"},{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":412000,"error_class":"CEILING_UNVERIFIED_LIMIT"}]}\n' > "$T/obs.json"
+_lsp5_catalog() {  # $1 file, $2 calibrated_at ("" = uncalibrated), $3 transport ("" = absent); bound 200000 / 920000 (fixture values, not the live catalog — r251-3 R2)
+  local cal_block=""
+  if [[ -n "$2" ]]; then
+    cal_block="          source: operator_set
+          calibrated_at: \"$2\"
+          stale_after_days: 90"
+    [[ -n "$3" ]] && cal_block+="
+          transport: $3"
+  else
+    cal_block="          source: conservative_default
+          calibrated_at: null
+          stale_after_days: 90"
+  fi
+  local bound=200000; [[ -n "$2" ]] && bound=920000
+  cat > "$1" <<YAML
+aliases:
+  opus: "anthropic:claude-fixture-1"
+providers:
+  anthropic:
+    models:
+      claude-fixture-1:
+        context_window: 1000000
+        effective_input_ceiling: $bound
+        probed_ceiling: $bound
+        ceiling_calibration:
+$cal_block
+YAML
+}
+_lsp5_obs() {  # $1 model, then (tokens class) pairs → the observed store at $T/obs.json
+  local m="$1" rows="" sep=""; shift
+  while (( $# >= 2 )); do
+    rows+="$sep{\"provider\":\"anthropic\",\"model\":\"$m\",\"observed_input_tokens\":$1,\"error_class\":\"$2\"}"; sep=","; shift 2
+  done
+  printf '{"version":1,"entries":[%s]}\n' "$rows" > "$T/obs.json"
   export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/obs.json"
+}
+
+@test "LSP-5a the anthropic row carries the committed catalog's input bound for the opus target (cycle-126 FR-1.1, cycle-127 FR-3.4)" {
+  # The committed entry, whatever its state (the probe may calibrate it; a rollback may not):
+  # one assertion per state. Both states also run on every pass against fixtures (LSP-5b/5c/5d).
+  local cfg="$PROJECT_ROOT/.claude/defaults/model-config.yaml" m probed eff cal
+  m="$(yq -r '.aliases.opus' "$cfg")"; m="${m#anthropic:}"
+  probed="$(yq -r ".providers.anthropic.models.\"$m\".probed_ceiling" "$cfg")"
+  eff="$(yq -r ".providers.anthropic.models.\"$m\".effective_input_ceiling" "$cfg")"
+  cal="$(yq -r ".providers.anthropic.models.\"$m\".ceiling_calibration.calibrated_at // \"\"" "$cfg")"
+  [[ "$probed" =~ ^[0-9]+$ && "$eff" =~ ^[0-9]+$ ]]
+  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"   # no store → the catalog's bound
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  # 412K is above the probed 180K: the default bound stands, the observation is shown for the opt-in
-  echo "$output" | grep -qE '^  ceiling: probed 180000 \(claude-opus-5-5; observed 411999 under the opt-in; calibrate: python3 tools/ceiling-probe-live.py'
+  if [[ -n "$cal" ]]; then
+    echo "$output" | grep -qF "  ceiling: calibrated $eff ($m, calibrated $cal)"
+  else
+    echo "$output" | grep -qF "  ceiling: probed $probed ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+  fi
+}
+
+@test "LSP-5b an uncalibrated entry (fixture catalog): probed by default, observed after a provider verdict below it, never a 429" {
+  _lsp5_catalog "$T/catalog.yaml" "" ""
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  local m=claude-fixture-1
+  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qF "  ceiling: probed 200000 ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+  # an observation above the probed bound: the default bound stands, the observation is shown for the opt-in; a 429 row never counts
+  _lsp5_obs "$m" 500000 RATE_LIMIT_UNVERIFIED 412000 CEILING_UNVERIFIED_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qF "  ceiling: probed 200000 ($m; observed 411999 under the opt-in; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
   run timeout 120 bash "$STATUS" --no-stale-check --json
   [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.basis == "probed" and .providers.providers.anthropic.ceiling.observed == 411999 and .providers.providers.openai.ceiling == null' >/dev/null
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "probed" and .value == 200000 and .observed == 411999' >/dev/null
+  echo "$output" | jq -e '.providers.providers.openai.ceiling == null' >/dev/null
   # an observation BELOW the probed bound becomes the bound
-  printf '{"version":1,"entries":[{"provider":"anthropic","model":"claude-opus-5-5","observed_input_tokens":150000,"error_class":"PROVIDER_CONTEXT_LIMIT"}]}\n' > "$T/obs.json"
+  _lsp5_obs "$m" 150000 PROVIDER_CONTEXT_LIMIT
   run timeout 120 bash "$STATUS" --no-stale-check
   [ "$status" -eq 0 ]
-  echo "$output" | grep -qE '^  ceiling: observed 149999 \(claude-opus-5-5; calibrate: python3 tools/ceiling-probe-live.py'
+  echo "$output" | grep -qF "  ceiling: observed 149999 ($m; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+}
+
+@test "LSP-5c a same-route calibration (transport api or absent, fixture catalog) is never lowered by an observation" {
+  local m=claude-fixture-1 t
+  for t in api ""; do
+    _lsp5_catalog "$T/catalog.yaml" "2026-10-07T09:29:07Z" "$t"
+    export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+    _lsp5_obs "$m" 500001 PROVIDER_CONTEXT_LIMIT
+    run timeout 120 bash "$STATUS" --no-stale-check
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+    [[ "$output" != *"below on this route"* ]]
+    run timeout 120 bash "$STATUS" --no-stale-check --json
+    echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "calibrated" and .value == 920000' >/dev/null
+  done
+}
+
+@test "LSP-5d a foreign-transport calibration (claude-headless, fixture catalog) is tightened by an observation below it on this route and says so (cycle-127 r251-1)" {
+  local m=claude-fixture-1
+  _lsp5_catalog "$T/catalog.yaml" "2026-10-07T09:29:07Z" claude-headless
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  # an observation above the calibrated bound: the calibration stands
+  _lsp5_obs "$m" 990000 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qF "  ceiling: calibrated 920000 ($m, calibrated 2026-10-07T09:29:07Z)"
+  # below it (a 429 row never counts): the observed bound governs and the line names both
+  _lsp5_obs "$m" 300000 RATE_LIMIT_UNVERIFIED 500001 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qF "  ceiling: calibrated 920000 (claude-headless); observed 500000 below on this route, reprobe suggested ($m, calibrated 2026-10-07T09:29:07Z; calibrate: python3 tools/ceiling-probe-live.py --model $m --write-catalog)"
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 500000 and .calibrated == true
+    and .calibrated_value == 920000 and .calibration_transport == "claude-headless" and .reprobe_suggested == true
+    and .calibrated_at == "2026-10-07T09:29:07Z"' >/dev/null
+}
+
+@test "LSP-AGY the google hop reads agy: opt-in (disabled; hounfour.headless.agy_opt_in) while the opt-in is off, today's hop text when it is true (cycle-127 FR-1)" {
+  mkdir -p "$T/bin"; printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/agy"; chmod +x "$T/bin/agy"
+  export PATH="$T/bin:$PATH"
+  printf 'hounfour:\n  headless:\n    mode: cli-only\n' > "$T/loa.config.yaml"
+  export LOA_STATUS_CONFIG_FILE="$T/loa.config.yaml"
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ] || { echo "rc=$status"; echo "$output" | tail -20; return 1; }
+  echo "$output" | grep -qE '^  google +key absent +hop agy: opt-in \(disabled; hounfour\.headless\.agy_opt_in\)'
+  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
+  echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null
+  echo "$output" | jq -e '.providers.providers.openai | has("cli_hop_note") | not' >/dev/null
+  # (review r251-1 G12: the string "true" is not the boolean — off, and one WARN naming the key and the type)
+  printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' > "$T/loa.config.yaml"
+  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE '^  google +key absent +hop agy: opt-in \(disabled; hounfour\.headless\.agy_opt_in\)'
+  [ "$(grep -c 'hounfour.headless.agy_opt_in.*not a YAML boolean' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+  printf 'hounfour:\n  headless:\n    agy_opt_in: true\n' > "$T/loa.config.yaml"
+  run timeout 120 bash "$STATUS" --no-stale-check
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qE '^  google +key absent +hop agy +· http_api OPEN'
+  run --separate-stderr timeout 120 bash "$STATUS" --no-stale-check --json
+  echo "$output" | jq -e '.providers.providers.google.cli_hop == "agy" and (.providers.providers.google | has("cli_hop_note") | not)' >/dev/null
+}
+
+@test "LSP-6 (r251-4 S8, audit n11) the opus target reaches yq as a value, never as expression text" {
+  # an alias crafted to rewrite the old interpolated expression into `… // 777 // …`
+  cat > "$T/catalog.yaml" <<'YAML'
+aliases:
+  opus: 'anthropic:zz" // 777 // ."zz'
+providers:
+  anthropic:
+    models:
+      claude-fixture-1:
+        context_window: 1000000
+        effective_input_ceiling: 200000
+        probed_ceiling: 200000
+YAML
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  export LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json"
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.value != 777' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+  # (and the printed probe command quotes the id, as cheval's hint does — audit n4)
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling.calibrate == ("python3 tools/ceiling-probe-live.py --model " + ("zz\" // 777 // .\"zz" | @sh) + " --write-catalog")' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+}
+
+@test "LSP-7 (r251-4 S7 parity with routing.ceiling) an implausible observation (below 0.1 × the window) never becomes the displayed bound" {
+  _lsp5_catalog "$T/catalog.yaml" "" ""
+  export LOA_STATUS_MODEL_CONFIG="$T/catalog.yaml"
+  local m=claude-fixture-1
+  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT 150000 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "observed" and .value == 149999' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+  _lsp5_obs "$m" 1 PROVIDER_CONTEXT_LIMIT
+  run timeout 120 bash "$STATUS" --no-stale-check --json
+  echo "$output" | jq -e '.providers.providers.anthropic.ceiling | .basis == "probed" and .value == 200000' >/dev/null || { echo "$output" | jq -c '.providers.providers.anthropic.ceiling'; return 1; }
+}
+
+@test "LSP-8 (r251-4, sibling of S4) without lib/agy-gate-lib.sh /loa still answers: exit 0, the agy route reads off (fail closed), one WARN in human mode, --json quiet" {
+  local S="$T/copy/.claude/scripts"; mkdir -p "$S"
+  cp -- "$STATUS" "$S/loa-status.sh"   # (no lib/ beside it — a partial install)
+  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check --json
+  [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+  echo "$output" | jq -e '.providers.providers.google.cli_hop == null and .providers.providers.google.cli_hop_note == "agy: opt-in (disabled; hounfour.headless.agy_opt_in)"' >/dev/null || { echo "$output" | jq -c '.providers.providers.google'; return 1; }
+  [[ "$stderr" != *"agy-gate-lib"* ]] || { echo "--json warned: $stderr"; return 1; }
+  run --separate-stderr timeout 120 bash "$S/loa-status.sh" --no-stale-check
+  [ "$status" -eq 0 ]
+  [ "$(grep -c 'agy-gate-lib.sh.*not loaded' <<<"$stderr")" = 1 ] || { echo "stderr=$stderr"; return 1; }
+}
+
+@test "LSP-COLD (r251-5 U4, audit LOW-004) loa-status --json on a cold workflow-state cache is one valid JSON document" {
+  # (the AGC-6 batch flake: the first --json call after a grimoire edit missed the workflow-state cache, cache-manager's
+  # "v Cached result for key" line led workflow-state's stdout, and the final jq merge exited 5 — no retry hides it here:
+  # CACHE_DIR is a fresh directory, so this call is always the miss)
+  run --separate-stderr env CACHE_DIR="$T/cold-cache" LOA_STATUS_RUN_DIR="$T/run" LOA_STATUS_ENV_DIR="$T/env" \
+      timeout 180 bash "$STATUS" --no-stale-check --json
+  [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
+  jq -e '.providers.providers | type == "object"' >/dev/null <<<"$output" || { printf '%s\n' "$output" | head -5 | cat -v; return 1; }
 }

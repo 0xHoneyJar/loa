@@ -1,0 +1,118 @@
+{
+  "model": "claude-opus-5-5",
+  "transport": "claude-headless",
+  "source": "operator_set",
+  "method": "probed_headless",
+  "outcome": "partial",
+  "reasons": [
+    "budget cap stopped the bisection"
+  ],
+  "calibrated_at": "2026-10-07T09:29:07Z",
+  "started_at": "2026-10-07T09:26:22Z",
+  "sample_size": 5,
+  "largest_ok_input_tokens": 538750,
+  "measured_input_tokens": 972887,
+  "smallest_failed_input_tokens": 590000,
+  "tolerance_tokens": 16000,
+  "bounds_tested": {
+    "min": 180000,
+    "max": 1000000
+  },
+  "partial": true,
+  "unverified": false,
+  "budget_usd": 20.0,
+  "spent_usd": 19.0976,
+  "pricing_basis": "catalog_estimate",
+  "cli_bin": "~/.local/bin/claude-bedrock",
+  "cli_version": "2.1.292 (Claude Code)",
+  "cli_model": "global.anthropic.claude-opus-5-5",
+  "argv": [
+    "~/.local/bin/claude-bedrock",
+    "-p",
+    "--output-format",
+    "json",
+    "--permission-mode",
+    "plan",
+    "--no-session-persistence",
+    "--tools",
+    "",
+    "--model",
+    "opus",
+    "--effort",
+    "low",
+    "--max-turns",
+    "1"
+  ],
+  "host_route": "bedrock us-east-1 global (claude-bedrock wrapper \u2192 global.anthropic.claude-opus-5-5)",
+  "route_env": {
+    "AWS_REGION": "us-east-1",
+    "ANTHROPIC_BEDROCK_REGION_PREFIX": "global",
+    "CLAUDE_CODE_USE_BEDROCK": true
+  },
+  "samples": [
+    {
+      "tokens": 1000000,
+      "attempts": 1,
+      "ok": false,
+      "verified": false,
+      "cost_usd": 4.0,
+      "measured_input_tokens": null,
+      "cli_reported_cost_usd": 0,
+      "stop_reason": "stop_sequence",
+      "kind": "size",
+      "failure_class": "context_limit",
+      "size_origin": "cli_local",
+      "detail": "Prompt is too long"
+    },
+    {
+      "tokens": 590000,
+      "attempts": 1,
+      "ok": false,
+      "verified": false,
+      "cost_usd": 2.36,
+      "measured_input_tokens": null,
+      "cli_reported_cost_usd": 0,
+      "stop_reason": "stop_sequence",
+      "kind": "size",
+      "failure_class": "context_limit",
+      "size_origin": "provider",
+      "detail": "Prompt is too long \u00b7 the request is ~1065182 tokens (limit 1000000) but this conversation is only ~665270 tokens \u2014 the rest is system prompt, tool definitions, and attachment content. A single-exchange conversation cannot be compacted; reduce attached files/tools or start with less context. (api_sta"
+    },
+    {
+      "tokens": 385000,
+      "attempts": 1,
+      "ok": true,
+      "verified": true,
+      "cost_usd": 3.480838,
+      "measured_input_tokens": 696136,
+      "cli_reported_cost_usd": 3.480838,
+      "stop_reason": "end_turn",
+      "kind": "ok",
+      "detail": ""
+    },
+    {
+      "tokens": 487500,
+      "attempts": 1,
+      "ok": true,
+      "verified": true,
+      "cost_usd": 4.397727,
+      "measured_input_tokens": 880634,
+      "cli_reported_cost_usd": 4.3977272,
+      "stop_reason": "end_turn",
+      "kind": "ok",
+      "detail": ""
+    },
+    {
+      "tokens": 538750,
+      "attempts": 1,
+      "ok": true,
+      "verified": true,
+      "cost_usd": 4.858992,
+      "measured_input_tokens": 972887,
+      "cli_reported_cost_usd": 4.8589922,
+      "stop_reason": "end_turn",
+      "kind": "ok",
+      "detail": ""
+    }
+  ]
+}

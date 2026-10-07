@@ -494,6 +494,18 @@ def emit_model_invoke_complete(
     # cycle-124 FR-2 — requested reasoning effort (schema field since
     # cycle-114 FR-8; first populated this cycle). Optional/additive.
     effort: Optional[str] = None,
+    # cycle-127 FR-2 (SDD D-2.3) — where `effort` came from:
+    # caller | catalog | extra | none (SDD D-2.5). Optional/additive.
+    effort_source: Optional[str] = None,
+    # cycle-127 D-2.6 — the value the answering hop put on the wire (the
+    # adapter's ``wire_effort`` hook: per-family mapping on Anthropic HTTP,
+    # absent where the adapter sends none). Optional/additive.
+    effort_effective: Optional[str] = None,
+    # cycle-127 review r251-1 G1 — hops cheval's planner dropped before the walk (never dispatched, never in
+    # models_requested): [{model, provider, reason}]. An agy-ALONE chain is not here: it is dispatched to the adapter,
+    # which refuses, and lands in models_failed (error_class INVALID_CONFIG, failure_class opt_in_required; r251-2 K2).
+    # Optional/additive.
+    models_not_planned: Optional[List[Dict[str, Any]]] = None,
     # cycle-124 FR-4 — prompt-cache telemetry (U0 schema fields).
     tokens_cache_read: Optional[int] = None,
     tokens_cache_creation: Optional[int] = None,
@@ -517,7 +529,8 @@ def emit_model_invoke_complete(
       - `models_succeeded`: subset of models_requested that produced a usable
         response. Empty on failure-only paths.
       - `models_failed`: list of dicts with keys (model, error_class,
-        message_redacted, [fallback_from, fallback_to, retryable]).
+        message_redacted, [fallback_from, fallback_to, retryable, provider,
+        failure_class]).
         `message_redacted` MAY contain raw upstream content; it WILL be
         redacted in step 2.
       - `operator_visible_warn`: did the operator see a WARN line on this
@@ -574,6 +587,12 @@ def emit_model_invoke_complete(
         payload["tokens_input"] = tokens_input
     if effort is not None:
         payload["effort"] = effort
+    if effort_source is not None:
+        payload["effort_source"] = effort_source
+    if effort_effective is not None:
+        payload["effort_effective"] = effort_effective
+    if models_not_planned:
+        payload["models_not_planned"] = list(models_not_planned)
     if tokens_cache_read is not None:
         payload["tokens_cache_read"] = tokens_cache_read
     if tokens_cache_creation is not None:

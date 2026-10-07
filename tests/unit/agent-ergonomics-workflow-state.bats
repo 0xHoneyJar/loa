@@ -70,3 +70,18 @@ teardown() {
     [ "$(echo "$output" | jq -r '.total_sprints')" -eq 0 ]
     [ "$(echo "$output" | jq -r '.completed_sprints')" -eq 0 ]
 }
+
+@test "r251-5 U4: --json on a cache MISS prints the JSON only — cache-manager's own status line never reaches stdout" {
+    # (audit LOW-004 root cause: store_cache let `cache-manager.sh set` print "v Cached result for key: …" (green, stdout)
+    # ahead of the JSON on every miss; loa-status --json fed it to jq -s → exit 5 "Invalid numeric literal at line 1,
+    # column 2" on the first call after any grimoire edit. CACHE_DIR is a fresh directory: the miss is guaranteed.)
+    local cache="$BATS_TEST_TMPDIR/cache-miss"
+    run bash -c "CACHE_DIR='$cache' LOA_GRIMOIRE_DIR='$TMP_GRIMOIRE' timeout 30 bash '$WS' --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    jq -e 'type == "object" and has("state")' >/dev/null <<<"$output" || { printf 'stdout:\n%s\n' "$output" | cat -v; return 1; }
+    [ -f "$cache/index.json" ] || { echo "the miss was not cached (the test did not exercise store_cache)"; return 1; }
+    # and the hit that follows
+    run bash -c "CACHE_DIR='$cache' LOA_GRIMOIRE_DIR='$TMP_GRIMOIRE' timeout 30 bash '$WS' --json 2>/dev/null"
+    [ "$status" -eq 0 ]
+    jq -e 'type == "object" and has("state")' >/dev/null <<<"$output" || { printf 'stdout:\n%s\n' "$output" | cat -v; return 1; }
+}

@@ -125,6 +125,7 @@ _REASON_WEIGHTS: Dict[str, float] = {
     "NoEligibleAdapter": 0.10,
     "RateLimited": 0.05,
     "InteractionPending": 0.00,
+    "OptInRequired": 0.00,   # (cycle-127 r251-2 K2: an operator decision, not a model failure)
     "Other": 0.05,
 }
 _REASON_WEIGHT_DEFAULT = 0.00  # reason not in the canonical taxonomy

@@ -62,6 +62,10 @@
           "retryable": {
             "type": "boolean"
           },
+          "failure_class": {
+            "description": "cycle-127 review r251-2 K2. A finer class under error_class; today only opt_in_required (an agy-alone chain refused by hounfour.headless.agy_opt_in, error_class INVALID_CONFIG). Optional/additive.",
+            "enum": ["opt_in_required"]
+          },
           "provider": {
             "description": "cycle-104 Sprint 2 (T2.6 / FR-S2.3). Provider key for this entry (e.g. openai, anthropic, google). Optional for backward compat; new emitters MUST populate.",
             "type": "string",
@@ -508,6 +512,7 @@
                   "NoEligibleAdapter",
                   "ChainExhausted",
                   "InteractionPending",
+                  "OptInRequired",
                   "Other"
                 ]
               },
@@ -744,6 +749,52 @@
     },
     "effort": {
       "description": "Cycle-114 FR-8: reasoning-effort level requested for this invocation (Anthropic output_config.effort on Opus 4.5+/Sonnet 4.6). Optional \u2014 absent on calls that did not set effort (model default = high). Lets the Empirical Model Economy roll-up report cost-per-clean-output by (skill x model x effort).",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "models_not_planned": {
+      "description": "Cycle-127 review r251-1 G1 (SDD D-1.3/D-1.6): chain hops cheval did NOT plan \u2014 never dispatched, not in models_requested, not a failure (verdict quality counts planned hops only; no circuit-breaker count). `opt_in_required`: an agy (gemini-headless) hop while hounfour.headless.agy_opt_in is not true. Also present on a direct agy call refused by the opt-in. Optional/additive.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "model",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "enum": [
+              "opt_in_required"
+            ]
+          }
+        }
+      }
+    },
+    "effort_source": {
+      "description": "Cycle-127 FR-2 (SDD D-2.3/D-2.5): where `effort` came from \u2014 `caller` (explicit --effort), `catalog` (the resolved entry's params.default_effort), `extra` (a CLI entry's legacy extra.effort) or `none` (nothing sent; vendor default). Optional/additive.",
+      "enum": [
+        "caller",
+        "catalog",
+        "extra",
+        "none"
+      ]
+    },
+    "effort_effective": {
+      "description": "Cycle-127 FR-2 (SDD D-2.6): the effort the answering hop put on the wire after the adapter's per-family mapping (e.g. xhigh \u2192 high on Opus 4.6). Absent when nothing was sent. Optional/additive.",
       "enum": [
         "low",
         "medium",

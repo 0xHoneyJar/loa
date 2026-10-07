@@ -10,7 +10,7 @@ import path from "node:path";
 import { summarizeReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, isHeadlessModelId, validateApiKeys } from "../config.js";
+import { PROVIDER_API_KEY_ENV, isHeadlessModelId, loaConfigPathFor, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 /**
  * Per-model timeout derivation — reasoning-class predicate (multi-provider).
@@ -93,8 +93,35 @@ export function shouldPostComment(poster, config, logger, context) {
 export async function executeMultiModelReview(item, systemPrompt, userPrompt, config, adapters, enrichment) {
     const multiConfig = config.multiModel;
     const { poster, sanitizer, logger } = adapters;
-    // Validate API keys
-    const keyStatus = validateApiKeys(multiConfig);
+    // Validate API keys (cycle-127 FR-1: and the agy opt-in, read from the repo's Loa config)
+    const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
+    const keyStatus = validateApiKeys(multiConfig, agyGate);
+    // (r251-1 G12/G14: an unreadable config or a non-boolean opt-in is said once, with its reason — not as "opt-in off")
+    const notPlannedList = keyStatus.notPlanned.map((np) => `${np.provider}/${np.modelId}`).join(", ");
+    if (agyGate.readError !== undefined) {
+        // (r251-2 K7d: the strict per-voice warn is skipped under a read error, so this one names the voices)
+        logger.warn(`[multi-model] agy gate unreadable (${agyGate.readError}) — failing closed: google voices are not planned (hounfour.headless.agy_opt_in)` +
+            (notPlannedList ? `; will not run: ${notPlannedList}` : ""));
+    }
+    if (agyGate.typeWarning !== undefined)
+        logger.warn(`[multi-model] ${agyGate.typeWarning}`);
+    for (const np of keyStatus.notPlanned) {
+        // (review r251-1 G3, finding 20: strict mode promises every configured voice — one the gate removes is said at warn,
+        // never thrown: the voice cannot exist on this host, it is not a missing key)
+        if (agyGate.readError !== undefined)
+            continue; // (already said, with the reason)
+        if (multiConfig.api_key_mode === "strict") {
+            logger.warn(`[multi-model] strict mode: configured voice ${np.provider}/${np.modelId} will not run — not planned: the agy route is opt-in (hounfour.headless.agy_opt_in is not true)`);
+        }
+        else {
+            logger.info(`${np.provider} voice not planned: agy opt-in off (hounfour.headless.agy_opt_in)`);
+        }
+    }
+    // (r251-4 S1, audit n22: a read error is a HOST fault, not a decision — strict mode promised every configured voice, so a
+    // voice the failed read removed refuses the review; graceful mode runs the rest but never clears the merge, below)
+    if (multiConfig.api_key_mode === "strict" && agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
+        throw new Error(`Strict mode: the Loa config is unreadable (${agyGate.readError}) — the agy gate failed closed and configured voices will not run: ${notPlannedList} (hounfour.headless.agy_opt_in)`);
+    }
     if (multiConfig.api_key_mode === "strict" && keyStatus.missing.length > 0) {
         throw new Error(`Strict mode: missing API keys for providers: ${keyStatus.missing.map((m) => m.provider).join(", ")}`);
     }
@@ -121,7 +148,20 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         });
     }
     if (modelAdapters.length === 0) {
-        throw new Error("No models available for multi-model review (all API keys missing)");
+        // (r251-2 K7c: ONE message, the not-planned voices and the missing keys listed separately — the reason for a not-planned
+        // voice is the read error when the config could not be read, else the opt-in)
+        const parts = [];
+        if (keyStatus.notPlanned.length > 0) {
+            parts.push(agyGate.readError !== undefined
+                ? `not planned: ${notPlannedList} (the agy gate failed closed: Loa config unreadable — ${agyGate.readError}; hounfour.headless.agy_opt_in)`
+                : `not planned: ${notPlannedList} (the agy route is opt-in: set hounfour.headless.agy_opt_in: true)`);
+        }
+        if (keyStatus.missing.length > 0) {
+            parts.push(`missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
+        }
+        throw new Error(parts.length > 0 && keyStatus.missing.length > 0 && keyStatus.notPlanned.length === 0
+            ? `No models available for multi-model review (all API keys missing): ${parts.join("; ")}`
+            : `No models available for multi-model review — ${parts.length > 0 ? parts.join("; ") : "no configured voice is usable"}`);
     }
     // Limit concurrency
     const concurrency = Math.min(modelAdapters.length, multiConfig.max_concurrency ?? 3);
@@ -229,7 +269,9 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         provider: r.provider,
         modelId: r.model,
         verdictQuality: r.response?.verdictQuality,
-    })));
+    })), 
+    // (r251-4 S8, audit n21: the posted line names the voices that were not planned, and why)
+    keyStatus.notPlanned.map((np) => ({ provider: np.provider, modelId: np.modelId })), agyGate.readError !== undefined ? "Loa config unreadable — the agy gate failed closed" : "agy opt-in off: hounfour.headless.agy_opt_in");
     // cycle-118 bd-bb-degraded-verdict-ts — append a DEGRADED/FAILED trajectory
     // record (same channel/schema as the 3 bash gate writers). No-op when the
     // aggregate band is APPROVED/clean. Fire-and-forget: never throws.
@@ -282,8 +324,13 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
     if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
         reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
     }
-    // Incomplete or degraded participation can never clear a merge.
-    if (modelResults.length !== multiConfig.models.length ||
+    // Incomplete or degraded participation can never clear a merge. A voice the opt-in decision removed is not expected; a
+    // voice a READ ERROR removed still is (r251-4 S1, audit n22: a host fault never shrinks the quorum).
+    if (agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
+        reviewVerdict.mergeBlocked = true;
+        reviewVerdict.mergeBlockedReason = `Loa config unreadable (${agyGate.readError}): the agy gate failed closed and ${notPlannedList} did not run`;
+    }
+    if (modelResults.length !== multiConfig.models.length - (agyGate.readError !== undefined ? 0 : keyStatus.notPlanned.length) ||
         modelResults.some((result) => result.error || !result.response) ||
         computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
         reviewVerdict.mergeBlocked = true;
@@ -294,6 +341,7 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         posted: overallPosted || modelResults.some((r) => r.posted),
         combinedContent,
         reviewVerdict,
+        notPlanned: keyStatus.notPlanned,
     };
 }
 /**
@@ -426,7 +474,7 @@ export function computeVerdictBand(perModelResults) {
         return "DEGRADED";
     return "APPROVED";
 }
-export function formatVerdictQualityHeader(perModelResults) {
+export function formatVerdictQualityHeader(perModelResults, notPlanned = [], notPlannedReason = "agy opt-in off: hounfour.headless.agy_opt_in") {
     const band = computeVerdictBand(perModelResults);
     if (band === null)
         return "";
@@ -447,7 +495,10 @@ export function formatVerdictQualityHeader(perModelResults) {
     else {
         banner = `✓ APPROVED — ${succeeded}/${total} voices, chain ok`;
     }
-    return `**Verdict Quality**: ${banner}\n\n`;
+    const np = notPlanned.length > 0
+        ? ` · not planned: ${notPlanned.map((n) => `${n.provider}/${n.modelId}`).join(", ")} (${notPlannedReason})`
+        : "";
+    return `**Verdict Quality**: ${banner}${np}\n\n`;
 }
 /**
  * Append a degraded-verdict trajectory record when BB's aggregate multi-model

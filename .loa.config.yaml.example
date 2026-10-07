@@ -740,6 +740,15 @@ hounfour:
   #   grimoires/loa/runbooks/chain-walk-debugging.md     # LOA_HEADLESS_VERBOSE + envelope queries
   headless:
     mode: prefer-api                         # prefer-api | prefer-cli | api-only | cli-only
+    # agy_opt_in: the agy (Antigravity) CLI route — the `gemini-headless` hop — is opt-in (cycle-127).
+    # Off (the default), cheval refuses an agy dispatch before any spawn and every planner (dissent,
+    # Flatline tertiary, Bridgebuilder, /loa, run preflight) records the hop as not planned
+    # (reason opt_in_required), never as a failed voice — a host without agy plans no Google CLI voice.
+    # Set true only where agy is installed AND OAuth-authed: `agy -p` takes the whole prompt (the
+    # redacted review diff) on argv, readable by every local account through /proc and ps. Only the
+    # lowercase scalar `true` counts (yes / on / True / "true" read off, with a WARN); there is no
+    # environment override.
+    agy_opt_in: false
     # cli_paths: discovery hints. If unset, $PATH is searched.
     # cli_paths:
     #   claude: /usr/local/bin/claude
@@ -829,8 +838,9 @@ hounfour:
     # gemini-headless: routes through `agy -p` (the Antigravity CLI — the FR-5
     # repoint, loa#1096; Google retired gemini-cli's individual Code Assist tier).
     # No api_key consumed — agy is OAuth-authed against the operator's Antigravity
-    # subscription. Requires `agy` on PATH (or AGY_HEADLESS_BIN). Every stock
-    # Google chain ends in this terminal, so installing agy enables it. Each
+    # subscription. Requires `agy` on PATH (or AGY_HEADLESS_BIN) and
+    # hounfour.headless.agy_opt_in: true (default false — see headless: above);
+    # every stock Google chain ends in this terminal. Each
     # model entry needs `extra.cli_model`, an agy `--model` LABEL from `agy models`
     # (e.g. "Gemini 3.1 Pro (High)"), not an api id; agy's argv is fixed, so the
     # gemini_policies / gemini_extra_flags extras below are not read by it.

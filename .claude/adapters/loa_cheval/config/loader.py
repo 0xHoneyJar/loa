@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -45,12 +46,14 @@ def _reset_warning_state_for_tests() -> None:
 # Try yaml import — pyyaml optional, yq fallback
 try:
     import yaml
+    _HAS_YAML = True
 
     def _load_yaml(path: str) -> Dict[str, Any]:
         with open(path) as f:
             return yaml.safe_load(f) or {}
 except ImportError:
     import subprocess
+    _HAS_YAML = False
 
     def _load_yaml(path: str) -> Dict[str, Any]:
         """Fallback: use yq to convert YAML to JSON, then parse.
@@ -108,6 +111,444 @@ def load_project_config(project_root: str) -> Dict[str, Any]:
         full = _load_yaml(str(config_path))
         return full.get("hounfour", {})
     return {}
+
+
+_AGY_TYPE_WARNED = False
+_AGY_TRUST_WARNED = False
+_AGY_READ_WARNED = False
+_AGY_AVAILABLE_WARNED = False
+_AGY_OPT_IN_KEY = "hounfour.headless.agy_opt_in"
+
+
+_AGY_OPT_IN_ACCEPTED = "agy_opt_in: true"
+_YAML_BOOL_TAG = "tag:yaml.org,2002:bool"
+_YAML_CORE_PREFIX = "tag:yaml.org,2002:"
+
+# The adapters directory this cheval runs from, symlinks resolved (r251-4 S2: the identity a project root must match).
+_ADAPTERS_DIR = Path(__file__).resolve().parents[2]
+
+
+class _UntrustedConfig(Exception):
+    """The project config exists but is not the current user's alone to write (r251-4 S2): the opt-in reads as off."""
+
+
+def _install_root() -> str:
+    """The repo root these adapters belong to: the directory holding `.claude/adapters` (r251-4 S2). The LOGICAL path
+    (no symlink resolution) — under a submodule mount the project's `.claude/adapters` is a symlink into the submodule."""
+    return str(Path(os.path.abspath(__file__)).parents[4])
+
+
+def _opt_in_root() -> str:
+    """The root the opt-in is read from when the caller names none (review r251-4 S2, audit n6): the cwd walk's root ONLY
+    when its `.claude/adapters` is this cheval (same directory, symlinks resolved — the vendored and the submodule mount
+    alike); anything else — a planted `/tmp/.loa.config.yaml`, another project's tree — falls back to cheval's own
+    install root. The opt-in is an operator decision about THIS install; a cwd ancestor never makes it."""
+    walked = _find_project_root()
+    try:
+        if (Path(walked) / ".claude" / "adapters").resolve() == _ADAPTERS_DIR:
+            return walked
+    except OSError:
+        pass
+    return _install_root()
+
+
+def _not_private_group(st: os.stat_result, fd: Optional[int] = None) -> Optional[str]:
+    """None when the file's group is its owner's USER-PRIVATE group (r251-6 V1, BB #1); else why not. ONE rule with the
+    bash lib's `_agy_group_not_private` and Bridgebuilder's `agyGroupNotPrivate`: the file's gid is the owner's primary gid,
+    the group is NAMED for the owner (a shared `users` / macOS `staff` fails here — its member list is empty for primary
+    members, so emptiness alone never proved privacy: audit LOW-001), no account but the owner is a listed member, no other
+    account has it as its primary group (enumerated last: under sssd / LDAP the walk can be long and lists only what is
+    enumerable — the name check is what holds there), and no POSIX ACL makes the group bits a mask over named grants. The
+    headless workspace's `_group_private` is the same rule for directories. An account database that cannot answer is
+    no proof: not private."""
+    try:
+        import grp
+        import pwd
+    except ImportError:
+        return "its group cannot be looked up on this platform"
+    try:
+        owner = pwd.getpwuid(st.st_uid)
+    except (KeyError, OSError):
+        return f"its owner uid {st.st_uid} could not be looked up"
+    try:
+        group = grp.getgrgid(st.st_gid)
+    except (KeyError, OSError):
+        return f"its group could not be looked up (gid {st.st_gid})"
+    name = group.gr_name
+    if st.st_gid != owner.pw_gid:
+        return f"its group {name!r} (gid {st.st_gid}) is not the owner's primary group"
+    if name != owner.pw_name:
+        return f"its group {name!r} is not named for the owner {owner.pw_name!r} (not a user-private group)"
+    others = [m for m in group.gr_mem if m != owner.pw_name]
+    if others:
+        return f"its group {name!r} has other members ({', '.join(others)})"
+    try:
+        accounts = pwd.getpwall()
+    except OSError:
+        return f"the accounts of group {name!r} could not be enumerated"
+    primary = [a.pw_name for a in accounts if a.pw_gid == st.st_gid and a.pw_uid != st.st_uid]
+    if primary:
+        return f"its group {name!r} is the primary group of another account ({', '.join(primary)})"
+    if _acl_extended(fd):
+        return "it carries an extended ACL (the group bits are the ACL mask over other accounts' grants)"
+    return None
+
+
+def _acl_extended(fd: Optional[int]) -> bool:
+    """The open file carries a POSIX / NFSv4 access ACL (any `system.*acl*` xattr) — the headless workspace's
+    `_acl_extended` on the read's own fd. No xattr support → none; any other failure → assume one (no proof)."""
+    if fd is None or not hasattr(os, "listxattr"):
+        return False
+    import errno
+    try:
+        return any(n.startswith("system.") and "acl" in n for n in os.listxattr(fd))
+    except OSError as exc:
+        return exc.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP)
+
+
+def _config_untrusted_reason(path: Path, st: Optional[os.stat_result] = None, fd: Optional[int] = None) -> Optional[str]:
+    """None when only the current user can write `path`; else why not (r251-4 S2). ONE permission rule with the bash lib's
+    `_agy_config_untrusted` and Bridgebuilder's `agyConfigUntrustedReason` (r251-5 U1/U2, r251-6 V1): owned by the euid,
+    never world-writable, and group-writable only for the owner's user-private group (`_not_private_group` — Ubuntu's
+    umask 002 makes every checkout 0664). `st` / `fd` are the read's own open file (r251-6 V3, BB #2: the bytes read and
+    the stat judged are one inode); without them the path is stat'ed through symlinks — the target decides. With no
+    `os.geteuid` (non-POSIX, r251-6 V2) the owner half is skipped and the mode half still applies."""
+    if st is None:
+        st = path.stat()
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is not None:
+        me = geteuid()
+        if st.st_uid != me:
+            return f"not owned by the current user (uid {st.st_uid}, euid {me})"
+    mode = f"mode {st.st_mode & 0o7777:04o}"
+    if st.st_mode & 0o002:
+        return f"world-writable ({mode})"
+    if st.st_mode & 0o020:
+        why = _not_private_group(st, fd)
+        if why:
+            return f"group-writable ({mode}) and {why}"
+    return None
+
+
+if _HAS_YAML:
+    class _OptInNodeLoader(yaml.SafeLoader):
+        """compose() with every ALIAS replaced by a sentinel node (r251-4 S3, audit n17): an alias on the opt-in's path
+        reads as off here, as it does under go yq and Bridgebuilder."""
+
+        def compose_node(self, parent, index):  # noqa: D401 — PyYAML hook
+            if self.check_event(yaml.AliasEvent):
+                self.get_event()
+                return yaml.ScalarNode("!loa/alias", "")
+            return super().compose_node(parent, index)
+
+
+def _tag_kind(tag: str) -> str:
+    """`bool` only for the EXACT core tag (r251-4 S3, audit n5: `!<x:bool>` is not a boolean); the core short name for
+    the other core tags; else the tag itself."""
+    if tag == _YAML_BOOL_TAG:
+        return "bool"
+    if tag == "!loa/alias":
+        return "alias"
+    if tag.startswith(_YAML_CORE_PREFIX):
+        return tag[len(_YAML_CORE_PREFIX):]
+    return tag or "?"
+
+
+class _UnreadableOptIn(Exception):
+    """The opt-in cannot be read on this host (no PyYAML and no mikefarah yq — r251-6 V6): it reads off, said once."""
+
+
+def _agy_opt_in_raw(project_root: Optional[str]) -> Tuple[bool, str, str]:
+    """(present, kind, text) of `agy_opt_in` in the PROJECT config only (r251-1 G9: an operator decision — framework-
+    shipped System defaults never satisfy it). `kind` is `bool` only for the exact tag `tag:yaml.org,2002:bool`, `alias`
+    for an alias node, else the tag's short name (str / int / null / map …) and `text` the scalar's SOURCE text — the
+    node, not the constructed value (review r251-2 K1: PyYAML resolves YAML 1.1, so `yes` / `on` / `True` construct to
+    True; the source text tells them from `true`). A merge key (`<<: *b`) is not the key: absent (r251-4 S3). An alias or
+    a non-mapping on an ANCESTOR (`hounfour`, `hounfour.headless`) is kind `ancestor`, text `<path>:<alias|kind>`
+    (r251-6 V5). The file is opened ONCE: its bytes are parsed and its fstat judged (r251-6 V3). Raises on an unreadable
+    config and `_UntrustedConfig` when a value that would opt in sits in a config others can write; callers fail
+    closed."""
+    root = project_root or _opt_in_root()
+    config_path = Path(root) / ".loa.config.yaml"
+    try:
+        f = open(config_path, "rb")
+    except FileNotFoundError:
+        return False, "", ""
+    with f:
+        st = os.fstat(f.fileno())
+        if not stat.S_ISREG(st.st_mode):
+            raise ConfigError(f"{config_path} is not a regular file")
+        data = f.read()
+        result = _agy_opt_in_node_of_bytes(data)
+        # (r251-5 U1: the permission rule decides only a value that would opt in — a config that reads off anyway is not
+        # flagged, so a umask-002 host that never opted in hears nothing; the same order in the bash and TS readers)
+        if result == (True, "bool", "true"):
+            why = _config_untrusted_reason(config_path, st, f.fileno())
+            if why:
+                raise _UntrustedConfig(f"{config_path} is {why}")
+    return result
+
+
+def _agy_opt_in_node_of(config_path: Path) -> Tuple[bool, str, str]:
+    """(present, kind, text) of `agy_opt_in` in `config_path` (an existing file) — the node read, no permission rule."""
+    with open(config_path, "rb") as f:
+        return _agy_opt_in_node_of_bytes(f.read())
+
+
+def _agy_opt_in_node_of_bytes(data: bytes) -> Tuple[bool, str, str]:
+    """(present, kind, text) of `agy_opt_in` in a config document's bytes — the node read, no permission rule."""
+    if not _HAS_YAML:
+        return _agy_opt_in_raw_yq(data)
+    node = yaml.compose(data, Loader=_OptInNodeLoader)
+    path: List[str] = []
+    for key in ("hounfour", "headless", "agy_opt_in"):
+        if not isinstance(node, yaml.MappingNode):
+            return False, "", ""
+        found = None
+        for k, v in node.value:  # the last duplicate wins, as in safe_load
+            if isinstance(k, yaml.ScalarNode) and k.tag != "tag:yaml.org,2002:merge" and k.value == key:
+                found = v
+        if found is None:
+            return False, "", ""
+        path.append(key)
+        if key != "agy_opt_in" and not isinstance(found, yaml.MappingNode):
+            kind = _tag_kind(found.tag or "")
+            if kind == "null":
+                return False, "", ""
+            # (r251-6 V5, BB #5: an alias / non-mapping ancestor is said, never read silently as absent)
+            return True, "ancestor", f"{'.'.join(path)}:{kind}"
+        node = found
+    kind = _tag_kind(node.tag or "")
+    text = node.value if isinstance(node, yaml.ScalarNode) else ""
+    return True, kind, text
+
+
+# ONE yq program for the go-yq readers (the bash lib's `_agy_opt_in_node` and Bridgebuilder's `readAgyGate` carry the
+# same): `kind` is "alias" for an alias node (r251-4 S3), and `has` sees the explicit key only — never a merge key's.
+_YQ_HAS = '.hounfour | (kind == "map" and (.headless | (kind == "map" and has("agy_opt_in"))))'
+_YQ_KIND = '.hounfour.headless.agy_opt_in | kind'
+# (r251-6 V5: the ancestors' kind and tag, one level at a time — a level below a non-mapping is never traversed)
+_YQ_ANCESTOR = '{path} | kind + " " + tag'
+
+
+def _yq_flavour() -> str:
+    """`yq --version`'s line; raises `_UnreadableOptIn` when there is no yq or it is not mikefarah's (r251-6 V6, BB #6: the
+    go-yq program is never run under python yq, whose jq syntax cannot see a tag or the source text — the bash lib selects
+    its reader the same way, review r251-2 K5)."""
+    import subprocess as _sp
+    try:
+        r = _sp.run(["yq", "--version"], capture_output=True, text=True, timeout=5)
+    except (FileNotFoundError, OSError):
+        raise _UnreadableOptIn("PyYAML is not installed and no yq is on PATH")
+    line = ((r.stdout or "") + (r.stderr or "")).strip().splitlines()
+    line = line[0][:120] if line else "?"
+    if r.returncode != 0 or "mikefarah" not in line:
+        raise _UnreadableOptIn(f"PyYAML is not installed and yq is not mikefarah/yq ({line})")
+    return line
+
+
+def _agy_opt_in_raw_yq(data: bytes) -> Tuple[bool, str, str]:
+    """The no-PyYAML fallback: go yq (mikefarah) keeps the source text and the YAML 1.2 tag — the bash reader's view. The
+    document is fed on stdin (r251-6 V3: the bytes already read, never the path again)."""
+    import subprocess as _sp
+    _yq_flavour()
+
+    def _yq(expr: str) -> str:
+        r = _sp.run(["yq", "eval", expr, "-"], input=data, capture_output=True, timeout=5)
+        if r.returncode != 0:
+            raise ConfigError(f"yq failed on the config: {r.stderr.decode('utf-8', 'replace')}")
+        return r.stdout.decode("utf-8", "replace").strip()
+    if _yq(_YQ_HAS) != "true":
+        for path, dotted in ((".hounfour", "hounfour"), (".hounfour.headless", "hounfour.headless")):
+            kind, _, tag = _yq(_YQ_ANCESTOR.format(path=path)).partition(" ")
+            if kind == "map":
+                continue
+            if kind == "alias":
+                return True, "ancestor", f"{dotted}:alias"
+            if tag == "!!null" or not tag:
+                return False, "", ""
+            return True, "ancestor", f"{dotted}:{tag[2:] if tag.startswith('!!') else tag}"
+        return False, "", ""
+    if _yq(_YQ_KIND) == "alias":
+        return True, "alias", ""
+    tag = _yq(".hounfour.headless.agy_opt_in | tag")
+    kind = "bool" if tag == "!!bool" else (tag[2:] if tag.startswith("!!") else (tag or "?"))
+    return True, kind, _yq(".hounfour.headless.agy_opt_in")
+
+
+def agy_opt_in_enabled(project_root: Optional[str] = None) -> bool:
+    """`hounfour.headless.agy_opt_in` (cycle-127 FR-1): True only for the YAML boolean scalar written exactly `true`,
+    default False.
+
+    ONE strict rule with the bash reader (`.claude/scripts/lib/agy-gate-lib.sh` `agy_opted_in`) and Bridgebuilder's
+    `readAgyGate` (review r251-2 K1, r251-4 S3): the node's tag is EXACTLY `tag:yaml.org,2002:bool` AND its source text
+    is `true`. PyYAML's other YAML 1.1 truthy spellings (`yes`, `on`, `True`, `TRUE`) read off — as they do under go yq —
+    and so do `1`, the string `"true"`, a foreign tag (`!<x:bool> true`), an alias (`*t`) and a merge key (`<<: *b`).
+
+    Read from the project config (`.loa.config.yaml`) only — never the System defaults (review r251-1 G9). With no
+    `project_root`, the root is this cheval's project (`_opt_in_root`: the cwd walk's root only when its
+    `.claude/adapters` is this cheval, else the install root — r251-4 S2), and a config others can write (not owned by
+    the euid, world-writable, or group-writable for any group but the owner's user-private one — r251-5 U2, r251-6 V1)
+    reads as off with one WARN; the bash and TS readers apply the same rule (r251-5 U1). An alias or non-mapping
+    ancestor of the key (r251-6 V5), or no way to read the config strictly (no PyYAML and no mikefarah yq — V6), reads
+    off with one WARN. No environment override — a
+    planner is never talked into the agy voice by ambient env. A config that cannot be read reads as off: the gate fails
+    closed, and the adapter's refusal names the key. A present value not written exactly `true` / `false` reads as off
+    with one WARN per process naming the key and the accepted spelling (G12, K1).
+    """
+    global _AGY_TYPE_WARNED, _AGY_TRUST_WARNED, _AGY_READ_WARNED
+    try:
+        # (review r251-1 G4: the root walk sits inside the fail-closed try — a discovery failure reads as off)
+        present, kind, text = _agy_opt_in_raw(project_root)
+    except _UnreadableOptIn as e:
+        if not _AGY_READ_WARNED:
+            _AGY_READ_WARNED = True
+            logger.warning("%s cannot be read: %s — install PyYAML or mikefarah/yq; the agy route stays off",
+                           _AGY_OPT_IN_KEY, e)
+        return False
+    except _UntrustedConfig as e:
+        if not _AGY_TRUST_WARNED:
+            _AGY_TRUST_WARNED = True
+            logger.warning("%s: %s — a config others can write never opts in (own it and `chmod go-w` it); "
+                           "the agy route stays off", _AGY_OPT_IN_KEY, e)
+        return False
+    except Exception:  # noqa: BLE001 — fail closed
+        return False
+    on = present and kind == "bool" and text == "true"
+    if kind == "ancestor":
+        if not _AGY_TYPE_WARNED:
+            _AGY_TYPE_WARNED = True
+            where, _, what = text.rpartition(":")
+            logger.warning("%s is %s — %s cannot be read through an alias or merge node (write the mapping inline); "
+                           "the agy route stays off", where,
+                           "a YAML alias" if what == "alias" else f"not a mapping ({what})", _AGY_OPT_IN_KEY)
+        return False
+    canonical = (kind == "bool" and text in ("true", "false")) or kind == "null"
+    if present and not canonical and not _AGY_TYPE_WARNED:
+        _AGY_TYPE_WARNED = True
+        what = ("a boolean spelled other than true/false" if kind == "bool"
+                else "a YAML alias (an alias never opts in)" if kind == "alias" else "not a YAML boolean")
+        logger.warning("%s is %r (%s), %s — only `%s` opts in (the lowercase scalar, as the bash reader requires); "
+                       "the agy route stays off", _AGY_OPT_IN_KEY, text, kind or "?", what, _AGY_OPT_IN_ACCEPTED)
+    return on
+
+
+def warn_agy_available_once(project_root: Optional[str] = None) -> None:
+    """SDD D-1.7 (review r251-1 G18): with the opt-in off while the route looks usable here — `agy` on PATH, or a Gemini /
+    Google key set — say ONCE per process that the route is gated and why. Nothing is spawned for the PATH lookup; reading
+    the opt-in may run `yq` (up to four times) when PyYAML is absent (r251-4 S8, audit n4)."""
+    global _AGY_AVAILABLE_WARNED
+    if _AGY_AVAILABLE_WARNED or agy_opt_in_enabled(project_root):
+        return
+    import shutil
+    why = []
+    if shutil.which(os.environ.get("AGY_HEADLESS_BIN", "agy")):
+        why.append("agy on PATH")
+    if os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"):
+        why.append("a Google/Gemini key is set")
+    if not why:
+        return
+    _AGY_AVAILABLE_WARNED = True
+    logger.warning("the agy route is available here (%s) but not planned: %s is not true — opt in only knowingly "
+                   "(the prompt travels on the CLI's argv, readable by local users; the CLI must be OAuth-authed)",
+                   ", ".join(why), _AGY_OPT_IN_KEY)
+
+
+_CATALOG_PROVIDERS_CACHE: Dict[str, Tuple[Dict[str, str], Dict[str, str]]] = {}
+_CATALOG_MAPS_WARNED = False
+
+
+def _catalog_provider_maps() -> Tuple[Dict[str, str], Dict[str, str]]:
+    """(model id → provider, alias → provider) from the System catalog (`.claude/defaults/model-config.yaml`, beside this
+    package — the file `generated-model-maps.sh` is generated from) overlaid with the project config's providers/aliases
+    from the opt-in's own root (`_opt_in_root`, r251-6 V4 / BB #3: one trust anchor for the gate and the routing it
+    gates — a planted cwd-ancestor config never changes whether a bare name is judged Google). Cached per project root — but only a COMPLETE read (r251-4 S5, audit run-2 n1/n8): a layer
+    that fails to read leaves the maps it could read for this call, is said once per process (the caller falls back to
+    the `gemini*` name rule for what is missing), and is retried on the next call."""
+    global _CATALOG_MAPS_WARNED
+    try:
+        root = _opt_in_root()
+    except Exception:  # noqa: BLE001
+        root = ""
+    if root in _CATALOG_PROVIDERS_CACHE:
+        return _CATALOG_PROVIDERS_CACHE[root]
+    merged: Dict[str, Any] = {}
+    system = Path(__file__).resolve().parents[3] / "defaults" / "model-config.yaml"   # .claude/defaults
+    failures: List[str] = []
+
+    def _system() -> Dict[str, Any]:
+        if not system.is_file():
+            raise ConfigError(f"System catalog missing: {system}")
+        return _load_yaml(str(system))
+    for read in (_system, lambda: load_project_config(root) if root else {}):
+        try:
+            layer = read()
+        except Exception as e:  # noqa: BLE001 — fail soft, said once below
+            failures.append(f"{type(e).__name__}: {e}"[:300])
+            layer = {}
+        if isinstance(layer, dict):
+            merged = _deep_merge(merged, {k: layer[k] for k in ("providers", "aliases") if isinstance(layer.get(k), dict)})
+    models: Dict[str, str] = {}
+    for prov, block in (merged.get("providers") or {}).items():
+        for mid in ((block or {}).get("models") or {}) if isinstance(block, dict) else ():
+            models.setdefault(str(mid), str(prov))
+    aliases: Dict[str, str] = {}
+    for name, target in (merged.get("aliases") or {}).items():
+        if isinstance(target, dict):
+            target = target.get("target") or target.get("model") or ""
+        if isinstance(target, str) and ":" in target:
+            aliases[str(name)] = target.split(":", 1)[0]
+        elif isinstance(target, str) and target in models:
+            aliases[str(name)] = models[target]
+    if failures:
+        if not _CATALOG_MAPS_WARNED:
+            _CATALOG_MAPS_WARNED = True
+            logger.warning("the model catalog could not be read for agy routing (%s) — falling back to the gemini* name "
+                           "rule for what is missing; a catalog-only Google alias (deep-research-pro, researcher) is not "
+                           "recognised until it reads", "; ".join(failures))
+    else:
+        _CATALOG_PROVIDERS_CACHE[root] = (models, aliases)
+    return models, aliases
+
+
+def catalog_provider_of(model: str) -> str:
+    """The provider cheval resolves `model` to: a `provider:` prefix, else the catalog alias, else the catalog model id,
+    else the `gemini*` name (→ google); "" when none applies (r251-3 R3)."""
+    m = (model or "").strip()
+    if not m:
+        return ""
+    if ":" in m:
+        return m.split(":", 1)[0]
+    models, aliases = _catalog_provider_maps()
+    if m in aliases:
+        return aliases[m]
+    if m in models:
+        return models[m]
+    return "google" if m.startswith("gemini") else ""
+
+
+def routes_to_agy(model: str, mode: Optional[str] = None) -> bool:
+    """True when cheval would dispatch `model` through agy (cycle-127 review r251-1 G2) — the Python twin of
+    `.claude/scripts/lib/agy-gate-lib.sh` `routes_to_agy`, one rule for every reader:
+
+      * the `gemini-headless` hop by name — bare, provider-prefixed (`google:gemini-headless`) or as a provider
+        (`gemini-headless:<model>`), in any headless mode;
+      * a Google model under `hounfour.headless.mode: cli-only`, where the chain resolver keeps only the CLI hop (the
+        caller resolves the mode — env `LOA_HEADLESS_MODE` wins, as in cheval). r251-3 R3: "Google" is the PROVIDER the
+        model resolves to (`catalog_provider_of`: the `google:` prefix, the catalog alias or model id — e.g.
+        `deep-research-pro`, `researcher` — with the `gemini*` name as the fallback), as in cheval's
+        `_entry_routes_to_agy` and Bridgebuilder's `isAgyRouted`.
+
+    Under `prefer-cli` a Google model is NOT agy-routed: its API hop stays planned (cheval's walk skips the gated hop).
+    """
+    m = (model or "").strip()
+    if not m:
+        return False
+    if m == "gemini-headless" or m.endswith(":gemini-headless") or m.startswith("gemini-headless:"):
+        return True
+    if mode != "cli-only":
+        return False
+    return catalog_provider_of(m) == "google"
 
 
 def load_env_overrides() -> Dict[str, Any]:

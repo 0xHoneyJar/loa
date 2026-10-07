@@ -316,20 +316,26 @@ describe("progressiveTruncate budget clamp (cycle-124 FR-3)", () => {
   });
 
   it("resolves catalog aliases to their target's budget (sprint-250 round 2: DEFAULTS.model is 'opus')", () => {
-    // BB's default model is the alias `opus` with a 200K operator budget; the
-    // alias must clamp to its target's row, never keep 200K (cheval's probed
-    // ceiling for claude-opus-5-5 is 180K).
+    // The alias `opus` must clamp to its target's row, never keep an operator
+    // budget above it. cycle-127 r251-1 C8: the row follows the catalog (the
+    // calibrated bound ÷ 1.8 since the probe), so the operator budget is set
+    // above whatever the row is.
     const opusTarget = getTokenBudget("claude-opus-5-5");
-    assert.equal(opusTarget.maxInput, 160_000);
+    assert.ok(opusTarget.maxInput > 0 && opusTarget.maxInput !== TOKEN_BUDGETS["default"].maxInput);
     assert.deepEqual(getTokenBudget("opus"), opusTarget);
-    assert.equal(effectiveInputBudget(200_000, "opus"), 160_000);
-    assert.ok(effectiveInputBudget(200_000, "opus") <= opusTarget.maxInput);
+    const operator = opusTarget.maxInput + 100_000;
+    assert.equal(effectiveInputBudget(operator, "opus"), opusTarget.maxInput);
+    assert.ok(effectiveInputBudget(operator, "opus") <= opusTarget.maxInput);
     assert.deepEqual(getTokenBudget("cheap"), getTokenBudget("claude-sonnet-5"));
     assert.equal(effectiveInputBudget(300_000, "fable"), getTokenBudget("claude-fable-5-1").maxInput);
     // an alias whose target is not a catalog model (native → claude-code:session) stays unknown
     assert.equal(effectiveInputBudget(300_000, "native"), 300_000);
-    // and progressiveTruncate clamps the alias like the concrete id
-    const clamped = progressiveTruncate(many, 300_000, "opus", 560_000, 0);
+    // and progressiveTruncate clamps the alias like the concrete id: a fixed prompt of
+    // 0.9 × the row − 20K plus the 40K diff fits the operator budget but not the row
+    const sysChars = (Math.floor(opusTarget.maxInput * 0.9) - 20_000) * 4;
+    const unclamped = progressiveTruncate(many, operator, "some-future-model", sysChars, 0);
+    assert.ok(unclamped.success && unclamped.level === 1 && unclamped.excluded.length === 0);
+    const clamped = progressiveTruncate(many, operator, "opus", sysChars, 0);
     assert.ok(clamped.excluded.length > 0 || clamped.level > 1);
   });
 

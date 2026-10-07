@@ -28,7 +28,8 @@
         "EMPTY_CONTENT",
         "UNKNOWN",
         "AUTH_REVOKED",
-        "PREFLIGHT_PREEMPT"
+        "PREFLIGHT_PREEMPT",
+        "INVALID_CONFIG"
       ]
     },
     "severity": {

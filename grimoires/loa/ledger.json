@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-126-full-size",
+  "active_cycle": "cycle-127-operator-decisions",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2284,10 +2284,10 @@
     {
       "id": "cycle-126-full-size",
       "label": "Full size — let the 5-family run at its actual size: adapter ceilings and caps, Bridgebuilder registry/model/timeout, companion dissent voice and tolerant schema, context-class discipline and instruction diet, routing/governance residue (model-era audit 2026-09-24)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-09-24T04:10:47Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-07T08:21:56Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/2026-10-07-full-size",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -2364,6 +2364,35 @@
       ],
       "sprint_plan": "grimoires/loa/sprint.md",
       "source_prompt": "grimoires/loa/a2a/prompts/cycle-126-full-size-2026-09-24.md"
+    },
+    {
+      "id": "cycle-127-operator-decisions",
+      "label": "Operator decisions — agy opt-in, Opus 5.5 effort default, ceiling probe",
+      "status": "active",
+      "created": "2026-10-07T08:21:56Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 251,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-07T08:27:55Z",
+          "completed": "2026-10-07T17:52:17Z",
+          "epic": "bd-um3f",
+          "beads": [
+            "bd-4hkd",
+            "bd-n0g6",
+            "bd-bfx9",
+            "bd-xf70",
+            "bd-f5w1",
+            "bd-mpf2"
+          ],
+          "theme": "agy opt-in, Opus 5.5 effort default, ceiling probe"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 250,
@@ -2764,6 +2793,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 251,
-  "last_updated": "2026-10-07T04:47:07Z"
+  "next_sprint_number": 252,
+  "last_updated": "2026-10-07T17:52:17Z"
 }

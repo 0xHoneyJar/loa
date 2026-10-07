@@ -491,14 +491,26 @@ providers:
           - anthropic:claude-sonnet-5
           - anthropic:claude-headless
         max_output_tokens: 128000
-        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
-        # loa:shortcut: Opus 5's measured bound, not probed on 5.5; 180000 — rerun
-        # tools/ceiling-probe-live.py --write-catalog on the operator's account.
-        probed_ceiling: 180000
+        effective_input_ceiling: 936000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-127 FR-3: measured 2026-10-07 through claude-headless on Bedrock; operator_set, clamped to cheval's I2
+        # invariant (context_window − the default output budget). Provenance is structured in ceiling_calibration
+        # (probe_outcome, measured_input_tokens, method, transport, cli_*); record:
+        # grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json (SDD §1.6)
+        # Units: provider-measured tokens; cheval counts exactly above half the bound on calibrated entries;
+        # Bridgebuilder's budget divides by 1.8.
+        probed_ceiling: 936000
         ceiling_calibration:
-          source: conservative_default
-          calibrated_at: null
+          source: operator_set
+          calibrated_at: "2026-10-07T09:29:07Z"
+          sample_size: 5
           stale_after_days: 90
+          reprobe_trigger: "API-transport probe (tools/ceiling-probe-live.py --transport api) from a host with ANTHROPIC_API_KEY; this bound was measured through claude-headless on Bedrock (global.anthropic.claude-opus-5-5) on 2026-10-07"
+          method: probed_headless
+          transport: claude-headless
+          cli_version: "2.1.292 (Claude Code)"
+          cli_model: "global.anthropic.claude-opus-5-5"
+          measured_input_tokens: 972887
+          probe_outcome: partial
         account_limits:
           tier: unverified
           itpm: null
@@ -506,6 +518,10 @@ providers:
           temperature_supported: false
           thinking_adaptive: true
           beta_headers: []
+          # cycle-127 D-2: the vendor effort default is `medium` since Opus 5.5
+          # (Opus 5 was `high`; claude-api reference 2026-10-07). cheval sends
+          # this when the caller passes no --effort; an explicit --effort wins.
+          default_effort: high
         pricing:
           # Unit: micro-USD per million tokens.
           input_per_mtok: 4000000    # $4.00 per million tokens

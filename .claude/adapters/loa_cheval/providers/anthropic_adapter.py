@@ -30,6 +30,7 @@ from loa_cheval.providers.base import (
 )
 from loa_cheval.streaming import StreamingRecoveryAbort
 from loa_cheval.types import (
+    EFFORT_LEVELS,
     ConfigError,
     ProviderContextLimitError,
     CompletionRequest,
@@ -50,7 +51,7 @@ logger = logging.getLogger("loa_cheval.providers.anthropic")
 # cycle-114 FR-2: valid values for the Anthropic `output_config.effort` control
 # (Opus 4.5+/Sonnet 4.6). Effort governs reasoning depth WITHOUT manual
 # thinking budgets — Opus 4.7/4.8 reject `thinking.budget_tokens` with HTTP 400.
-_VALID_EFFORT = frozenset({"low", "medium", "high", "xhigh", "max"})
+_VALID_EFFORT = frozenset(EFFORT_LEVELS)  # cycle-127 r251-1 C5: the one definition
 
 # cycle-124 FR-2 (SDD §3.2): per-family effort emission. The reference lists
 # `output_config.effort` on Opus 4.5+ / Sonnet 4.6+ / Fable; `xhigh` is not
@@ -197,6 +198,11 @@ def _is_refusal(metadata: Optional[Dict[str, Any]]) -> bool:
 
 class AnthropicAdapter(ProviderAdapter):
     """Adapter for Anthropic Messages API (SDD §4.2.3, §4.2.5)."""
+
+    @classmethod
+    def wire_effort(cls, model_id, effort, extra=None):
+        """r251-1 C5: ``output_config.effort`` after the per-family mapping (complete() reads request.effort)."""
+        return _effort_for_model(model_id, effort) if effort else None
 
     def complete(self, request: CompletionRequest) -> CompletionResult:
         """Send completion request to Anthropic API, return normalized result.

@@ -3,7 +3,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, } from "./config.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
 import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross-repo.js";
@@ -391,9 +391,14 @@ async function main() {
     const multiModelConfig = loadMultiModelConfig();
     if (multiModelConfig.enabled) {
         config.multiModel = multiModelConfig;
-        const keyStatus = validateApiKeys(multiModelConfig);
+        // (r251-1 G15: the same .loa.config.yaml the pipeline's gate reads — the repo root's when one is configured)
+        const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
+        const keyStatus = validateApiKeys(multiModelConfig, agyGate);
         console.error(`[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
             `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`);
+        // (r251-2 K7f: the read error and the type warning are said once here, whether or not a voice is not planned)
+        for (const line of agyGateStartupLines(agyGate, keyStatus))
+            console.error(line);
         if (keyStatus.missing.length > 0) {
             console.error(`[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
         }
