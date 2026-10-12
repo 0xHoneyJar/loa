@@ -89,6 +89,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
 | [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 3 |
+| [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 
 ---
 
@@ -1669,3 +1670,24 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 ### Reading guide
 
 If both Phase 1 voices succeeded and the scorer shows gpt_score null on every item, the review content is sound and only the cross-scoring is missing: do not re-run to chase consensus; read raw_reviews (the orchestrator prints the full JSON on stdout) and integrate by judgment, recording the degradation. Re-run with --keep-temp only when the scorer's output is needed as evidence.
+
+## KF-042: Claude Code auto-mode permission classifier denies Loa cycle operations as Self-Modification
+
+**Status**: open
+**Feature**: run mode / planning kickoff (harness permission mode)
+**Symptom**: Under Claude Code auto mode, Bash commands that create .run/zone-guard-authorization.json, force the beads JSONL export, preview archive-cycle.sh, run run-preflight.sh --unattended, or write a planning PRD for framework changes are refused with: Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Self-Modification]. The denial text forbids pursuing the same outcome through other tools, sub-agents or later turns, so an unattended cycle stops at kickoff.
+**First observed**: 2026-10-13
+**Recurrence count**: 1
+**Current workaround**: Start a Loa self-development session in a permission mode that run-preflight.sh P1 accepts (bypassPermissions, or acceptEdits with Bash allow rules) BEFORE kickoff; or the operator runs the denied steps with the ! prefix. Never route around the denial.
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-13 | cycle-128 decision-surfaces kickoff under auto mode: zone marker, br sync --flush-only --force, archive-cycle dry-run, run-preflight --unattended, PRD write to grimoires/loa/prd.md | FAILED: four [Self-Modification] denials; cycle stopped at planning, nothing implemented | grimoires/loa/NOTES.md § Session Continuity — 2026-10-13; branch feature/cycle-128-decision-surfaces (no commits) |
+
+### Reading guide
+
+If a cycle kickoff shows this denial text, stop the cycle: it is the harness permission mode, not a Loa defect. Record the plan decisions in NOTES, leave the branch, and ask the operator to switch permission mode or add allow rules; run-preflight P1 is the mechanical check once the mode allows it. Do not retry the same outcome via sub-agents, other paths or later turns.
