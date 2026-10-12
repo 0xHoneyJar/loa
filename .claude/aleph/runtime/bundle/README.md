@@ -109,7 +109,10 @@ of any other.
 manual and supervised-agent runbooks, full artifact templates, prompt pack, a
 complete golden manual-run fixture, evidence/routing/projection fixtures,
 product-doctrine and software-PRD projection packages, and dependency-free
-K1-K6 deterministic checks. The fixture suite exercises the full path from
+K1-K6 deterministic checks. The implementation branch also contains the
+provisional 1.5 internal-ambiguity lifecycle, structural K2.17 checking, and
+focused exact-state/process fixtures; these require a fresh independent
+implementation audit and do not change manual-only sanction. The fixture suite exercises the full path from
 frozen source spans through a neutral Précis and into both rendered projection
 types.
 

@@ -9,14 +9,19 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  CORE_STAGES,
   LOA_ADAPTER_ID,
   LOA_CLAUDE_CODE_DISPATCH_FORMAT,
   LOA_HOST_FORMAT,
   LOA_MODEL_SLOTS,
   LOA_REQUIRED_HOST_CAPABILITIES,
+  LOA_ROLE_IDS,
   type JsonValue,
   type ClaudeCodeDispatchEvidence,
+  type CoreStage,
   type LoaHostCapabilities,
+  type LoaRoleId,
+  type WithheldSelector,
   type WorkerDispatchReceipt,
   type WorkerRequest,
 } from './types.ts';
@@ -35,7 +40,14 @@ import {
   runtimeSnapshotPath,
   verifyRuntimeSnapshot,
 } from './runtime-snapshot.ts';
-import { verifyWorkerBundle } from './worker-bundle.ts';
+import {
+  assembleWorkerBundle,
+  verifyWorkerBundle,
+} from './worker-bundle.ts';
+import { verifyAndLoadLoaBundle } from './core-loader.ts';
+import type { RestrictionTuple } from '../../../scripts/lib/internal-ambiguity.ts';
+import { isSemanticOutputContract, semanticJson } from '../../../scripts/lib/semantic-review.ts';
+import { parseStrictJson } from '../../../scripts/lib/worker-return-contract.ts';
 import {
   canonicalWorkerReturnRoot,
   contractExemplarToJsonSchema,
@@ -57,6 +69,7 @@ const CAPABILITIES_FILE = 'host-capabilities.json';
 const NATIVE_DISPATCH_FILE = 'native-dispatch.json';
 const NATIVE_RETURN_FILE = 'native-return.json';
 const EVENT_STREAM_FILE = 'claude-stream.jsonl';
+const ASSEMBLY_INPUT_FORMAT = 'aleph-loa-worker-assembly-input/v1';
 
 interface NativeResultPaths {
   dispatch_receipt_path: string;
@@ -126,6 +139,18 @@ export interface DispatchLoaWorkerOptions {
   host: LoaFreshContextHost;
 }
 
+export interface DispatchPreparedLoaWorkerOptions {
+  workerBundleRoot: string;
+  returnRoot: string;
+  host: LoaFreshContextHost;
+}
+
+export interface DispatchedFixtureHandoff {
+  receipt: WorkerDispatchReceipt;
+  dispatchRecordPath: string;
+  structuredReturnPath: string;
+}
+
 export interface LoaDispatchedWorkerResult extends WorkerReturnResult {
   receipt: WorkerDispatchReceipt;
   dispatchRecordPath: string;
@@ -144,6 +169,33 @@ export interface PreparedLoaWorkerHandoff {
   nativeDispatchPath: string;
   nativeReturnPath: string;
   eventStreamPath: string;
+}
+
+export interface LoaWorkerAssemblyInput {
+  format: typeof ASSEMBLY_INPUT_FORMAT;
+  call_id: string;
+  run_id: string;
+  stage: CoreStage;
+  role: LoaRoleId;
+  kind: 'producer' | 'refuter';
+  allowlist: string[];
+  withheld: WithheldSelector[];
+  task_line: string;
+  producer_context_id: string | null;
+  downstream_operations: RestrictionTuple[];
+}
+
+export interface AssembleLoaWorkerHandoffOptions {
+  bundleRoot: string;
+  runDir: string;
+  inputPath: string;
+}
+
+export interface AssembledLoaWorkerHandoff {
+  root: string;
+  request: WorkerRequest;
+  input: LoaWorkerAssemblyInput;
+  inputDigest: string;
 }
 
 export interface AcceptLoaWorkerHandoffOptions {
@@ -177,18 +229,122 @@ function exactKeys(value: unknown, keys: readonly string[]): value is Record<str
     && actual.every((key, index) => key === expected[index]);
 }
 
-function canonicalFile(path: string, label: string): { value: unknown; bytes: Buffer } {
+function canonicalFile(path: string, label: string, semantic = false): { value: unknown; bytes: Buffer } {
   const stable = readStableRegularFile(path);
   let value: unknown;
   try {
-    value = JSON.parse(stable.bytes.toString('utf8')) as unknown;
+    value = semantic ? parseStrictJson(stable.bytes, true) : JSON.parse(stable.bytes.toString('utf8')) as unknown;
   } catch (error) {
     throw new Error(`${label} is invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
-  if (!stable.bytes.equals(stableJsonBytes(value))) {
+  if (!stable.bytes.equals(semantic ? Buffer.from(semanticJson(value)) : stableJsonBytes(value))) {
     throw new Error(`${label} is not canonical JSON`);
   }
   return { value, bytes: stable.bytes };
+}
+function semanticInvocation(invocation: LoaNativeWorkerInvocation): boolean {
+  const bytes = readStableRegularFile(join(invocation.worker_bundle_root, 'contracts/output.json')).bytes;
+  if (sha256Digest(bytes) !== invocation.request.output_contract.digest) throw new Error('sealed output contract changed');
+  return isSemanticOutputContract(JSON.parse(bytes.toString('utf8')));
+}
+function workerReturnBytes(invocation: LoaNativeWorkerInvocation, value: unknown): Buffer {
+  return semanticInvocation(invocation) ? Buffer.from(semanticJson(value)) : stableJsonBytes(value);
+}
+
+function parseWorkerAssemblyInput(path: string): {
+  input: LoaWorkerAssemblyInput;
+  digest: string;
+} {
+  const loaded = canonicalFile(path, 'Loa worker assembly input');
+  if (!exactKeys(loaded.value, [
+    'format',
+    'call_id',
+    'run_id',
+    'stage',
+    'role',
+    'kind',
+    'allowlist',
+    'withheld',
+    'task_line',
+    'producer_context_id',
+    'downstream_operations',
+  ])) {
+    throw new Error('Loa worker assembly input fields are malformed');
+  }
+  const value = loaded.value;
+  if (value.format !== ASSEMBLY_INPUT_FORMAT
+    || typeof value.call_id !== 'string'
+    || typeof value.run_id !== 'string'
+    || typeof value.stage !== 'string'
+    || !(CORE_STAGES as readonly string[]).includes(value.stage)
+    || typeof value.role !== 'string'
+    || !(LOA_ROLE_IDS as readonly string[]).includes(value.role)
+    || (value.kind !== 'producer' && value.kind !== 'refuter')
+    || !Array.isArray(value.allowlist)
+    || value.allowlist.some((entry) => typeof entry !== 'string')
+    || !Array.isArray(value.withheld)
+    || value.withheld.some((entry) => (
+      !exactKeys(entry, ['selector', 'core_ref'])
+      || typeof entry.selector !== 'string'
+      || typeof entry.core_ref !== 'string'
+    ))
+    || typeof value.task_line !== 'string'
+    || (value.producer_context_id !== null
+      && typeof value.producer_context_id !== 'string')
+    || !Array.isArray(value.downstream_operations)
+    || value.downstream_operations.some((entry) => (
+      !exactKeys(entry, ['affected_id', 'operation_kind', 'requirement_ref'])
+      || typeof entry.affected_id !== 'string'
+      || typeof entry.operation_kind !== 'string'
+      || typeof entry.requirement_ref !== 'string'
+    ))) {
+    throw new Error('Loa worker assembly input values are malformed');
+  }
+  return {
+    input: value as unknown as LoaWorkerAssemblyInput,
+    digest: sha256Digest(loaded.bytes),
+  };
+}
+
+export function assembleLoaWorkerHandoff(
+  options: AssembleLoaWorkerHandoffOptions,
+): AssembledLoaWorkerHandoff {
+  const bundle = verifyAndLoadLoaBundle(options.bundleRoot);
+  const runDir = resolve(options.runDir);
+  const state = readRunState(runDir);
+  const loaded = parseWorkerAssemblyInput(options.inputPath);
+  const input = loaded.input;
+  const expectedInputPath = join(
+    runDir,
+    'control',
+    'worker-assembly-inputs',
+    `${input.call_id}.json`,
+  );
+  if (resolve(options.inputPath) !== expectedInputPath) {
+    throw new Error(
+      `worker assembly input must be retained at control/worker-assembly-inputs/${input.call_id}.json`,
+    );
+  }
+  const assembled = assembleWorkerBundle({
+    bundle,
+    runDir,
+    callId: input.call_id,
+    runId: input.run_id,
+    stage: input.stage,
+    role: input.role,
+    kind: input.kind,
+    allowlist: input.allowlist,
+    withheld: input.withheld,
+    taskLine: input.task_line,
+    modelIdentity: state.identity.models[input.role],
+    producerContextId: input.producer_context_id,
+    downstreamOperations: input.downstream_operations,
+  });
+  return {
+    ...assembled,
+    input,
+    inputDigest: loaded.digest,
+  };
 }
 
 function assertImmutableRegularFile(path: string, label: string): void {
@@ -625,6 +781,7 @@ function readNativeDispatchRecord(
   const eventPath = invocation.result.event_stream_path;
   assertImmutableRegularFile(eventPath, 'Claude Code event stream');
   const eventStream = readStableRegularFile(eventPath).bytes;
+  if (semanticInvocation(invocation)) for (const line of eventStream.toString('utf8').split('\n').filter((line) => line.trim())) parseStrictJson(line);
   if (record.event_stream_digest !== sha256Digest(eventStream)
     || evidence.event_stream_digest !== record.event_stream_digest
     || evidence.event_stream_byte_length !== String(eventStream.byteLength)) {
@@ -664,7 +821,7 @@ function readNativeDispatchRecord(
   }
   if (stableJson(parsed.structuredOutput) !== stableJson(structuredValue)
     || evidence.format !== LOA_CLAUDE_CODE_DISPATCH_FORMAT
-    || evidence.structured_output_digest !== sha256Digest(structuredReturnBytes)
+    || evidence.structured_output_digest !== sha256Digest(semanticInvocation(invocation) ? stableJsonBytes(structuredValue) : structuredReturnBytes)
     || record.receipt.context_id !== evidence.session_id
     || record.receipt.model_identity.model_id !== evidence.observed_model
     || evidence.effort !== invocation.model_identity.effort
@@ -707,7 +864,7 @@ export function acceptLoaWorkerHandoff(
   const dispatchRecordPath = join(returnRoot, NATIVE_DISPATCH_FILE);
   const nativeReturnPath = join(returnRoot, NATIVE_RETURN_FILE);
   assertImmutableRegularFile(nativeReturnPath, 'Loa native structured return');
-  const returned = canonicalFile(nativeReturnPath, 'Loa native structured return');
+  const returned = canonicalFile(nativeReturnPath, 'Loa native structured return', semanticInvocation(invocation));
   const raw = returned.bytes;
   const host = pinnedHostBinding(workerBundleRoot, invocation.request).host;
   const dispatch = readNativeDispatchRecord(
@@ -755,7 +912,7 @@ export function dispatchPreparedClaudeCodeHandoff(
     }
   }
   const completed = invokeClaudeCodeWorker(invocation, binding.host);
-  const returnBytes = stableJsonBytes(completed.structuredReturn);
+  const returnBytes = workerReturnBytes(invocation, completed.structuredReturn);
   const dispatchRecord: LoaNativeDispatchRecord = {
     format: NATIVE_DISPATCH_FORMAT,
     invocation_digest: invocation.invocation_digest,
@@ -803,45 +960,76 @@ export function dispatchPreparedClaudeCodeHandoff(
  * Synchronous embedding interface retained only for fixture-simulated
  * harnesses. Live calls must use the binary-attested binding above.
  */
-export function dispatchLoaWorker(
-  options: DispatchLoaWorkerOptions,
-): LoaDispatchedWorkerResult {
+export function dispatchPreparedLoaWorker(
+  options: DispatchPreparedLoaWorkerOptions,
+): DispatchedFixtureHandoff {
   if (!options.host || typeof options.host.invokeFreshContext !== 'function') {
     throw new Error('Loa fresh-context worker host binding is unavailable; no fallback is permitted');
   }
+  const workerBundleRoot = resolve(options.workerBundleRoot);
   const returnRoot = resolve(options.returnRoot);
-  const prepared = prepareLoaWorkerHandoff({
-    workerBundleRoot: options.workerBundleRoot,
-    returnRoot,
-    hostCapabilities: options.hostCapabilities,
-  });
-  const result = options.host.invokeFreshContext(prepared.invocation);
+  const invocation = verifyInvocation(workerBundleRoot, returnRoot);
+  const binding = pinnedHostBinding(workerBundleRoot, invocation.request);
+  if (invocation.simulation === null || binding.host.simulation === null) {
+    throw new Error('fixture callback dispatch requires a fixture-simulated retained host');
+  }
+  for (const path of [
+    invocation.result.dispatch_receipt_path,
+    invocation.result.structured_return_path,
+  ]) {
+    if (existsSync(path)) {
+      throw new Error('Loa native worker result already exists; dispatch is never retried in place');
+    }
+  }
+  const result = options.host.invokeFreshContext(invocation);
   if (!result || typeof result !== 'object') {
     throw new Error('Loa fresh-context host returned no structured dispatch result');
   }
-  if (stableJson(result.receipt.simulation)
-    !== stableJson(prepared.invocation.simulation)) {
+  if (stableJson(result.receipt.simulation) !== stableJson(invocation.simulation)) {
     throw new Error('Loa fresh-context host lost or forged its simulation label');
   }
-  if (prepared.invocation.simulation === null) {
-    throw new Error('live callback dispatch is unsupported; use the attested Claude Code binding');
-  }
-  const returnBytes = stableJsonBytes(result.structured_return);
+  const returnBytes = workerReturnBytes(invocation, result.structured_return);
   const dispatchRecord: LoaNativeDispatchRecord = {
     format: NATIVE_DISPATCH_FORMAT,
-    invocation_digest: prepared.invocation.invocation_digest,
-    worker_bundle_digest: prepared.invocation.worker_bundle_digest,
-    host_capability_receipt_digest:
-      prepared.invocation.host_capability_receipt.digest,
+    invocation_digest: invocation.invocation_digest,
+    worker_bundle_digest: invocation.worker_bundle_digest,
+    host_capability_receipt_digest: invocation.host_capability_receipt.digest,
     event_stream_digest: null,
     structured_return_digest: sha256Digest(returnBytes),
     host_evidence: null,
     receipt: result.receipt,
   };
-  writeJsonAtomic(prepared.nativeDispatchPath, dispatchRecord, 0o400);
-  writeFileAtomic(prepared.nativeReturnPath, returnBytes, 0o400);
-  chmodSync(prepared.nativeDispatchPath, 0o400);
-  chmodSync(prepared.nativeReturnPath, 0o400);
+  writeJsonAtomic(invocation.result.dispatch_receipt_path, dispatchRecord, 0o400);
+  writeFileAtomic(invocation.result.structured_return_path, returnBytes, 0o400);
+  chmodSync(invocation.result.dispatch_receipt_path, 0o400);
+  chmodSync(invocation.result.structured_return_path, 0o400);
+  readNativeDispatchRecord(
+    invocation.result.dispatch_receipt_path,
+    invocation,
+    binding.host,
+    returnBytes,
+  );
+  return {
+    receipt: result.receipt,
+    dispatchRecordPath: invocation.result.dispatch_receipt_path,
+    structuredReturnPath: invocation.result.structured_return_path,
+  };
+}
+
+export function dispatchLoaWorker(
+  options: DispatchLoaWorkerOptions,
+): LoaDispatchedWorkerResult {
+  const returnRoot = resolve(options.returnRoot);
+  prepareLoaWorkerHandoff({
+    workerBundleRoot: options.workerBundleRoot,
+    returnRoot,
+    hostCapabilities: options.hostCapabilities,
+  });
+  dispatchPreparedLoaWorker({
+    workerBundleRoot: options.workerBundleRoot,
+    returnRoot,
+    host: options.host,
+  });
   const accepted = acceptLoaWorkerHandoff({
     workerBundleRoot: options.workerBundleRoot,
     returnRoot,
@@ -855,40 +1043,71 @@ export function dispatchLoaWorker(
 }
 
 interface ParsedCli {
-  action: 'prepare' | 'dispatch' | 'accept';
+  action: 'assemble' | 'prepare' | 'dispatch' | 'accept';
   workerBundleRoot: string;
   returnRoot: string;
+  bundleRoot: string;
+  runDir: string;
+  inputPath: string;
   capabilitiesPath?: string;
   json: boolean;
 }
 
 function parseCli(argv: string[]): ParsedCli {
   const action = argv.shift();
-  if (action !== 'prepare' && action !== 'dispatch' && action !== 'accept') {
-    throw new Error('worker handoff action must be prepare, dispatch, or accept');
+  if (action !== 'assemble'
+    && action !== 'prepare'
+    && action !== 'dispatch'
+    && action !== 'accept') {
+    throw new Error('worker handoff action must be assemble, prepare, dispatch, or accept');
   }
   let workerBundleRoot = '';
   let returnRoot = '';
+  let bundleRoot = '';
+  let runDir = '';
+  let inputPath = '';
   let capabilitiesPath: string | undefined;
   let json = false;
   while (argv.length > 0) {
     const option = argv.shift();
     if (option === '--worker-bundle') workerBundleRoot = argv.shift() || '';
     else if (option === '--return-root') returnRoot = argv.shift() || '';
+    else if (option === '--bundle') bundleRoot = argv.shift() || '';
+    else if (option === '--run') runDir = argv.shift() || '';
+    else if (option === '--input') inputPath = argv.shift() || '';
     else if (option === '--capabilities') capabilitiesPath = argv.shift() || '';
     else if (option === '--json') json = true;
     else throw new Error(`unknown worker handoff option: ${option || '<empty>'}`);
   }
-  if (!workerBundleRoot || !returnRoot) {
+  if (action === 'assemble') {
+    if (!bundleRoot || !runDir || !inputPath) {
+      throw new Error('assemble requires --bundle, --run, and --input');
+    }
+    if (workerBundleRoot || returnRoot || capabilitiesPath) {
+      throw new Error('assemble accepts only --bundle, --run, --input, and --json');
+    }
+  } else if (!workerBundleRoot || !returnRoot) {
     throw new Error('--worker-bundle and --return-root are required');
   }
   if (action === 'prepare' && !capabilitiesPath) {
     throw new Error('prepare requires --capabilities');
   }
-  if (action !== 'prepare' && capabilitiesPath) {
+  if (action !== 'prepare' && action !== 'assemble' && capabilitiesPath) {
     throw new Error(`${action} does not take a mutable capability receipt`);
   }
-  return { action, workerBundleRoot, returnRoot, capabilitiesPath, json };
+  if (action !== 'assemble' && (bundleRoot || runDir || inputPath)) {
+    throw new Error(`${action} does not take assembly input options`);
+  }
+  return {
+    action,
+    workerBundleRoot,
+    returnRoot,
+    bundleRoot,
+    runDir,
+    inputPath,
+    capabilitiesPath,
+    json,
+  };
 }
 
 function printResult(value: unknown, json: boolean): void {
@@ -899,6 +1118,30 @@ function printResult(value: unknown, json: boolean): void {
 export function runWorkerDispatchCli(argv = process.argv.slice(2)): number {
   try {
     const parsed = parseCli([...argv]);
+    if (parsed.action === 'assemble') {
+      const assembled = assembleLoaWorkerHandoff({
+        bundleRoot: parsed.bundleRoot,
+        runDir: parsed.runDir,
+        inputPath: parsed.inputPath,
+      });
+      printResult({
+        format: 'aleph-loa-worker-assembly-result/v1',
+        result: 'PASS',
+        input_digest: assembled.inputDigest,
+        worker_bundle_root: assembled.root,
+        worker_bundle_digest: assembled.request.bundle_digest,
+        call_id: assembled.request.call_id,
+        run_id: assembled.request.run_id,
+        stage: assembled.request.stage,
+        role: assembled.request.role,
+        kind: assembled.request.kind,
+        model_identity: assembled.request.model_identity,
+        producer_context_id: assembled.request.isolation.producer_context_id,
+        procedural_restrictions: assembled.request.procedural_restrictions,
+        downstream_operations: assembled.request.downstream_operations,
+      }, parsed.json);
+      return 0;
+    }
     if (parsed.action === 'prepare') {
       const prepared = prepareLoaWorkerHandoff({
         workerBundleRoot: parsed.workerBundleRoot,

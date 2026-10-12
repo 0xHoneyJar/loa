@@ -32,6 +32,10 @@ Column rules:
 - Hard rules: `decorative` never counts toward coverage; a claim whose only
   edges are `unresolved-source` cannot be `carried` as confirmed;
   `contradictory` edges survive merges (copied to the canonical claim).
+- Typed relations in `ledgers/relations.md` are not evidence-role edges.
+  No relation family, target count, parallel row, or graph multiplicity may
+  add load-bearing/corroborative coverage, satisfy removal-effect accounting,
+  or create a `CC → CC` evidential relation.
 - Manual-mode sparsity (doc 09): edges mandatory for carried+merged claims
   and contradiction-adjacent material only.
 

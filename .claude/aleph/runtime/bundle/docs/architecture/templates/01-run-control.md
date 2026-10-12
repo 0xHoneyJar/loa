@@ -91,9 +91,11 @@ Example entry:
 ## 2026-07-15 14:10 — S2 — exit
 Extraction finished for all four sources. 87 packets written to
 ledgers/packet-index.md (SRC-101: 21, SRC-102: 24, SRC-103: 19, SRC-104: 23).
-Per-source completion declared for each. Coverage spot-check dispatched to
-the harness (verification/harness/S2-coverage/). Spend this stage: 412k
-tokens of the 600k budget.
+Full byte-coordinate walks, terminal next-work cursors, and distinct fresh gap
+reviews with terminal-primary basis digests recorded for each source in
+ledgers/source-walk.md. All gap findings were reconciled before structural
+completion. This records accounting closure, not perfect recall or process
+isolation. Spend this stage: 412k tokens of the 600k budget.
 ```
 
 ## T1.3 Kernel report → `runs/<run-id>/verification/kernel-report.md`
@@ -129,3 +131,7 @@ file's exact bytes with SHA-256, joining records as
 `<repo-relative-path>\0<lowercase-file-digest>\n`, and hashing the joined bytes
 with SHA-256. A source commit is provenance; it never replaces the content
 digest.
+
+## Representation seals (1.6)
+
+For frozen 1.6 runs retain exactly one `- representation_inventory_hash: sha256:<64-lowercase-hex>` in the run manifest, hashing exact `corpus/representations.md` bytes. In the structured S4 run-log event containing `closure_phase: S4-C1-relations-closed`, retain exactly one `representation_use_closure_hash: sha256:<64-lowercase-hex>` over exact `ledgers/representation-uses.md` bytes. The use seal is forbidden before C1 and mandatory thereafter. A changed representation requires a successor run; no in-place upgrade is permitted.

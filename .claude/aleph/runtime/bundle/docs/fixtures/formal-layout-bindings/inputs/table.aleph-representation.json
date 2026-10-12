@@ -1,0 +1,555 @@
+{
+  "format": "aleph-supplied-representation/v1",
+  "source_path": "material.txt",
+  "origin_kind": "supplied-extraction",
+  "extraction_surface": "utf8-text",
+  "state": "degraded",
+  "reason": "formal structure unavailable",
+  "assets": [],
+  "provenance": [
+    {
+      "provenance_id": "RPR-0001",
+      "type": "supplied-structure",
+      "actor": "synthetic fixture author",
+      "tool": "synthetic-export",
+      "tool_version": "1",
+      "input_refs": [
+        "source"
+      ],
+      "output_refs": [
+        "declaration"
+      ],
+      "parameters_asset_id": "none",
+      "declaration_asset_id": "declaration"
+    }
+  ],
+  "bindings": [
+    {
+      "binding_id": "BND-0001",
+      "carrier_id": "source",
+      "start_byte": "0",
+      "end_byte": "63",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:03e830d56c9a03f2791f850b4ee88824fb8b52013869b4d9817ed5079137ca74",
+      "exact_bytes_base64": "Vm9sdW1lIHRvdGFscw0KUXVhcnRlcmx5CkVhc3QKV2VzdAo4CjEzCgp4MiArIHkyCkEgJmFtcDsgQiAgzqkK"
+    },
+    {
+      "binding_id": "BND-0002",
+      "carrier_id": "source",
+      "start_byte": "0",
+      "end_byte": "13",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:7f8a1e079130e192f977b51bc9d3f14a0dbcefa818c644708f1483fabf35e83b",
+      "exact_bytes_base64": "Vm9sdW1lIHRvdGFscw=="
+    },
+    {
+      "binding_id": "BND-0003",
+      "carrier_id": "source",
+      "start_byte": "25",
+      "end_byte": "29",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:4e2cd851cfdab8b554b71408d984989127f1db0430f647c711863c42d20f39e7",
+      "exact_bytes_base64": "RWFzdA=="
+    },
+    {
+      "binding_id": "BND-0004",
+      "carrier_id": "source",
+      "start_byte": "30",
+      "end_byte": "34",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:41a6741e9a0faee34fec1fce082d6c634d48b44aee0d15bee819d12917073df8",
+      "exact_bytes_base64": "V2VzdA=="
+    },
+    {
+      "binding_id": "BND-0005",
+      "carrier_id": "source",
+      "start_byte": "35",
+      "end_byte": "36",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3",
+      "exact_bytes_base64": "OA=="
+    },
+    {
+      "binding_id": "BND-0006",
+      "carrier_id": "source",
+      "start_byte": "37",
+      "end_byte": "39",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278",
+      "exact_bytes_base64": "MTM="
+    },
+    {
+      "binding_id": "BND-0007",
+      "carrier_id": "source",
+      "start_byte": "40",
+      "end_byte": "40",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exact_bytes_base64": ""
+    },
+    {
+      "binding_id": "BND-0008",
+      "carrier_id": "source",
+      "start_byte": "15",
+      "end_byte": "24",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:d89999a0a808113968d0eb17a7ca991517756bf51e71f1627fffc2c3660a5a79",
+      "exact_bytes_base64": "UXVhcnRlcmx5"
+    },
+    {
+      "binding_id": "BND-0009",
+      "carrier_id": "source",
+      "start_byte": "41",
+      "end_byte": "48",
+      "page_id": "none",
+      "region_id": "none",
+      "byte_role": "frozen-source-bytes",
+      "fragment_hash": "sha256:00c512883f4b0d7ed38d99781b8ab31fe9bd7755edd18c84723a90f48f93b7a4",
+      "exact_bytes_base64": "eDIgKyB5Mg=="
+    }
+  ],
+  "objects": [
+    {
+      "object_id": "OBJ-0001",
+      "kind": "source",
+      "parent_id": "none",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "capture",
+      "binding_ids": [
+        "BND-0001"
+      ],
+      "content_hash": "sha256:c8e0459b395d4ad4e005368b0c44d8d332582f98278b7d9cd0c643eab1711a03",
+      "coordinates": {}
+    },
+    {
+      "object_id": "OBJ-0002",
+      "kind": "text",
+      "parent_id": "OBJ-0001",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0001"
+      ],
+      "content_hash": "sha256:c8e0459b395d4ad4e005368b0c44d8d332582f98278b7d9cd0c643eab1711a03",
+      "coordinates": {}
+    },
+    {
+      "object_id": "OBJ-0003",
+      "kind": "table",
+      "parent_id": "OBJ-0001",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0004",
+          "OBJ-0005",
+          "OBJ-0006",
+          "OBJ-0007"
+        ],
+        "column_ids": [
+          "OBJ-0008",
+          "OBJ-0009"
+        ],
+        "grid_state": "available"
+      }
+    },
+    {
+      "object_id": "OBJ-0004",
+      "kind": "row",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 1
+      }
+    },
+    {
+      "object_id": "OBJ-0005",
+      "kind": "row",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 2
+      }
+    },
+    {
+      "object_id": "OBJ-0006",
+      "kind": "row",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 3
+      }
+    },
+    {
+      "object_id": "OBJ-0007",
+      "kind": "row",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 4
+      }
+    },
+    {
+      "object_id": "OBJ-0008",
+      "kind": "column",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 1
+      }
+    },
+    {
+      "object_id": "OBJ-0009",
+      "kind": "column",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [],
+      "content_hash": "none",
+      "coordinates": {
+        "index": 2
+      }
+    },
+    {
+      "object_id": "OBJ-0010",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0002"
+      ],
+      "content_hash": "sha256:54d80c025b1dba476a1938469a1c6f6fbecef7cc6ce875dffddf3771c9a867be",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0004"
+        ],
+        "column_ids": [
+          "OBJ-0008",
+          "OBJ-0009"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0011",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0003"
+      ],
+      "content_hash": "sha256:2109b352c8e86b7304ed06efd3558d1684ab5cbeb415feef5ebea689cbf1886b",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0005"
+        ],
+        "column_ids": [
+          "OBJ-0008"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0012",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0004"
+      ],
+      "content_hash": "sha256:897e21f5e9c4455e3b04ee56ef091ca7f720e83a9ef099fc9f2147a8f97f6ad1",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0005"
+        ],
+        "column_ids": [
+          "OBJ-0009"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0013",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0005"
+      ],
+      "content_hash": "sha256:83dedec7d6681db63ea8e5eedeebb67782fb9dd0632fde7a29be1f33d36ae384",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0006"
+        ],
+        "column_ids": [
+          "OBJ-0008"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0014",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0006"
+      ],
+      "content_hash": "sha256:102b65bcd2dff3d90e960cefa710253a13993a318e93e00abbe0e002395c451c",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0006"
+        ],
+        "column_ids": [
+          "OBJ-0009"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0015",
+      "kind": "cell",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0007"
+      ],
+      "content_hash": "sha256:49e438ec8be87f7b61360a9b52e7bf404d64f6b0ada6435a5dc7f3417b334cc6",
+      "coordinates": {
+        "row_ids": [
+          "OBJ-0007"
+        ],
+        "column_ids": [
+          "OBJ-0008",
+          "OBJ-0009"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0016",
+      "kind": "header",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0002"
+      ],
+      "content_hash": "sha256:54d80c025b1dba476a1938469a1c6f6fbecef7cc6ce875dffddf3771c9a867be",
+      "coordinates": {
+        "cell_ids": [
+          "OBJ-0010"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0017",
+      "kind": "header",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0003"
+      ],
+      "content_hash": "sha256:2109b352c8e86b7304ed06efd3558d1684ab5cbeb415feef5ebea689cbf1886b",
+      "coordinates": {
+        "cell_ids": [
+          "OBJ-0011"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0018",
+      "kind": "header",
+      "parent_id": "OBJ-0003",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0004"
+      ],
+      "content_hash": "sha256:897e21f5e9c4455e3b04ee56ef091ca7f720e83a9ef099fc9f2147a8f97f6ad1",
+      "coordinates": {
+        "cell_ids": [
+          "OBJ-0012"
+        ]
+      }
+    },
+    {
+      "object_id": "OBJ-0019",
+      "kind": "caption",
+      "parent_id": "OBJ-0001",
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0008"
+      ],
+      "content_hash": "sha256:f47b73461867a55a6adf03a513f2850281762f0f6a1cdd5252c6924ce27adbad",
+      "coordinates": {}
+    },
+    {
+      "object_id": "OBJ-0020",
+      "kind": "formal",
+      "parent_id": "OBJ-0001",
+      "state": "degraded",
+      "reason": "flattened formal text; structure unavailable",
+      "provenance_id": "RPR-0001",
+      "binding_ids": [
+        "BND-0009"
+      ],
+      "content_hash": "sha256:29f2ab30d9b9f3afa16a8caf22693db313e55569fad1a050de48121a96232616",
+      "coordinates": {
+        "notation": "flattened-text",
+        "structure_ids": [],
+        "structure_state": "degraded"
+      }
+    }
+  ],
+  "associations": [
+    {
+      "association_id": "ASC-0001",
+      "kind": "header-for",
+      "subject_id": "OBJ-0010",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0002",
+      "kind": "header-for",
+      "subject_id": "OBJ-0011",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0003",
+      "kind": "header-for",
+      "subject_id": "OBJ-0012",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0004",
+      "kind": "header-for",
+      "subject_id": "OBJ-0013",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0005",
+      "kind": "header-for",
+      "subject_id": "OBJ-0014",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0006",
+      "kind": "header-for",
+      "subject_id": "OBJ-0015",
+      "target_ids": [
+        "OBJ-0016",
+        "OBJ-0017"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0007",
+      "kind": "caption-for",
+      "subject_id": "OBJ-0003",
+      "target_ids": [
+        "OBJ-0019"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    },
+    {
+      "association_id": "ASC-0008",
+      "kind": "caption-for",
+      "subject_id": "OBJ-0020",
+      "target_ids": [
+        "OBJ-0019"
+      ],
+      "state": "available",
+      "reason": "none",
+      "provenance_id": "RPR-0001"
+    }
+  ]
+}
