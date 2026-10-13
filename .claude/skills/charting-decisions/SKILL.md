@@ -142,18 +142,22 @@ refuses both). The verdict is resolved later from the spike report.
 
 At most five per map, enforced by `CT research-begin`. For each: claim it, run
 `CT research-begin --map <slug> --ticket <ticket-slug>` (prints the report path), then dispatch
-the Agent tool with `subagent_type: chart-researcher` and `model: opus`, giving the question,
-the report path and the advisory 20-minute budget (the agent's `maxTurns` is the bound in
-force). Write nothing while it runs. On return run `CT research-end --map <slug> --ticket <ticket-slug>`:
-exit 1 fails the ticket (it wrote outside `grimoires/loa/research/` or the report lacks its
-untrusted header). Batch: claim all, begin all, dispatch all, end all.
+the Agent tool with `subagent_type: chart-researcher` and `model: opus`, giving the question
+and the advisory 20-minute budget (the agent's `maxTurns` is the bound in force). The
+researcher has no Write, Edit or Bash tool; it returns the report as its final message. Write
+nothing while it runs. On return, write the returned text yourself, verbatim and unedited, to
+the printed report path with the Write tool, then run `CT research-end --map <slug> --ticket <ticket-slug>`:
+exit 1 fails the ticket (a change outside `grimoires/loa/research/` or a report without its
+untrusted first line). Batch: claim all, begin all, dispatch all, write all, end all.
 
 ## Close the map
 
 `/chart close <slug> --consumed-by <cycle>` (from `/plan-and-analyze`, allowed unattended) or
 `--reason R` (operator present): `CT close --map <slug> --consumed-by <cycle>` or `--reason "R"`.
 It rejects the open rows with the epic as follow-up, closes open tickets and the epic, appends
-`## Closed`, and sets **Status** to `closed` or `abandoned`.
+`## Closed`, and sets **Status** to `closed` or `abandoned`. `--consumed-by` closes only a
+handed-off map with no open rows; on any other map `CT close` exits 1 and writes nothing, so
+an unattended session can retire only a map the operator already finished.
 
 ## Rules
 

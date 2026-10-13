@@ -396,12 +396,17 @@ EOF
     [[ "$output" == *"br close bd-map"* ]]
 }
 
-@test "validate-artifact map: without br the children check is one WARN and the doc rules still apply" {
+@test "validate-artifact map: with br on PATH but no .beads/ at the project root, the children check is one WARN and the doc rules still apply" {
+    # The condition exercised is the missing .beads/ directory: the br stub is
+    # on PATH (setup) and PATH is left alone, so jq and yq stay reachable.
+    command -v br >/dev/null 2>&1
     PROJ="$WORK/proj"
     mkdir -p "$PROJ/grimoires/loa/maps"
+    [ ! -d "$PROJ/.beads" ]
     map_doc > "$PROJ/grimoires/loa/maps/ceiling-arc.md"
-    PATH="/usr/bin:/bin" PROJECT_ROOT="$PROJ" run "$VALIDATE" --type map --file "$PROJ/grimoires/loa/maps/ceiling-arc.md"
+    PROJECT_ROOT="$PROJ" run "$VALIDATE" --type map --file "$PROJ/grimoires/loa/maps/ceiling-arc.md"
     [ "$status" -eq 0 ]
     [ "$(grep -c 'WARN: beads cross-check skipped' <<< "$output")" -eq 1 ]
+    # the stub logs every call: br was never invoked
     [ ! -s "$BR_LOG" ]
 }

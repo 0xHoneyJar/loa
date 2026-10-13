@@ -398,6 +398,41 @@ STUB
   run "$ICE_SCRIPT" merge "$base"
   [ "$status" -eq 0 ]
   [ -f MORE.md ]
+  [[ "$output" == *"ICE: merging $base into spike branch 'spike/x'"* ]]
+  [[ "$output" != *"did not complete"* ]]
+}
+
+@test "safe_merge: a diverged spike takes the default branch in even under merge.ff=only" {
+  local base; base="$(ice_default_branch)"
+  [ -n "$base" ]
+  git config merge.ff only
+  git checkout "$base" --quiet
+  git checkout -b spike/x --quiet
+  echo "proto" > PROTO.md && git add PROTO.md && git commit -m "spike work" --quiet
+  git checkout "$base" --quiet
+  echo "more" > MORE.md && git add MORE.md && git commit -m "base moves on" --quiet
+  git checkout spike/x --quiet
+  run "$ICE_SCRIPT" merge "$base"
+  [ "$status" -eq 0 ]
+  [ -f MORE.md ] && [ -f PROTO.md ]
+  [[ "$output" != *"did not complete"* ]]
+}
+
+@test "safe_merge: a conflicting merge into a spike branch exits non-zero and names the way out" {
+  local base; base="$(ice_default_branch)"
+  [ -n "$base" ]
+  git checkout "$base" --quiet
+  git checkout -b spike/x --quiet
+  echo "spike line" > README.md && git commit -am "spike edits the line" --quiet
+  git checkout "$base" --quiet
+  echo "base line" > README.md && git commit -am "base edits the same line" --quiet
+  git checkout spike/x --quiet
+  run "$ICE_SCRIPT" merge "$base"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"ICE: merging $base into spike branch 'spike/x'"* ]]
+  [[ "$output" == *"ICE: merge of $base into spike/x did not complete; resolve the conflicts and commit, or abort with plain \`git merge --abort\` (ICE does not wrap abort)"* ]]
+  # the merge is left in progress for the operator, not aborted by ICE
+  git rev-parse -q --verify MERGE_HEAD >/dev/null
 }
 
 @test "safe_merge: a spike source is refused with the spike message, whatever the current branch" {

@@ -688,6 +688,7 @@ _fr11_all_merged() {
     [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || return 1
     case "$name" in main|master|develop|trunk) return 1 ;; esac
     git rev-parse -q --verify "refs/heads/$name" >/dev/null 2>&1 || return 1
+    # Trust boundary: decisions.yaml is tracked state the operator owns; a forged decided row is an operator-level trust failure, and its consequence is a local delete of a pushed spike branch.
     if [[ "$name" == spike/* ]] && _fr11_spike_decided "${name#spike/}"; then continue; fi
     merged=0
     for base in origin/main main origin/master master; do
@@ -831,6 +832,10 @@ fi  # ── end pass-8 git-family pre-filter ──
 # branch git merge main / git rebase main (the default branch flows in).
 # Accepted edge: 'git pull origin spike/x' while on spike/x is blocked too
 # (it names a spike ref); bare 'git pull' is the supported form there.
+# The merge/rebase/pull/cherry-pick span between the verb and the spike ref holds
+# whitespace-separated tokens (each may open with a quote) with no backtick, comma,
+# quote or separator inside, so the ref must sit in the verb's own shell segment:
+# prose naming `git merge FETCH_HEAD` and, later on the line, a spike path passes.
 # Misses (fence, not boundary): git show spike/x:path > file, git diff spike/x |
 # git apply, git switch -c new spike/x, git worktree add -b new <dir> spike/x,
 # and refs spelled without the spike/ prefix (a SHA). ICE (run-mode-ice.sh)
@@ -866,7 +871,7 @@ _sp1_checkout_copies() {
 
 if [[ "$command" == *"spike/"* ]]; then
   if [[ "$command" == *"git"* ]] \
-     && _match "${_sp1_git}"'(merge|rebase|pull|cherry-pick)([[:space:]][^;&|]*)?[^[:alnum:]_]spike/'; then
+     && _match "${_sp1_git}"'(merge|rebase|pull|cherry-pick)([[:space:]]+["'"'"']?[^];&|`,"'"'"'[:space:]]*)*[^[:alnum:]_]["'"'"']?spike/'; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]].*(merge|rebase|pull|cherry-pick)[^;&|]*spike/[^[:space:];&|]*' | head -1)
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi

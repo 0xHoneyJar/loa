@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `validate-gitignore-state.sh` no longer reports a path re-included by a `!` negation as gitignored drift.
+- **`chart-ticket.sh close --consumed-by` closes only a handed-off map with no open rows** (cycle-128 sprint-253 review round r253-1, dissent DISS-C-001). The one unattended `/chart` operation accepted any map; a `charting` map, or a handed-off map that regained an open row, now exits 1 with nothing written.
+- **Fence SP-1 no longer blocks prose that names a merge and a `spike/` path on the same line** (r253-1). The spike ref must sit in the merge verb's own shell segment (no backtick, comma or quote between them); a genuine merge, rebase, pull or cherry-pick of a spike ref, quoted or remote-prefixed, stays blocked (corpus B60, B61, D73, D74).
+- **`run-mode-ice.sh merge <default>` on a spike branch reports a conflicted merge and names the way out** (r253-1, dissent DISS-C-008). Git's exit code is returned, the merge is left in progress for the operator, the message points at git's own abort (ICE does not wrap it), and `--ff` overrides a `merge.ff=only` config so a diverged spike still takes the default branch in.
+- **`chart-unblock-probe.sh` also fails when a file under the main tree's `.run/` or `.beads/` is newer than its start marker** (r253-1), the same check `research-end` runs; writes outside the work tree are documented as outside the check.
+
+### Security
+
+- **The `chart-researcher` agent is read-only** (cycle-128 sprint-253 review round r253-1, dissent DISS-001 / DISS-C-002). It reads the repo and fetches sources with Read, Grep, Glob and WebFetch only and returns its report as its final message; the charting session writes that text verbatim to the report path and `research-end` stays as the secondary scope check. `agent-types.yaml` marks it `write_capable: false`, so untrusted web content no longer reaches a write-capable agent.
+- **The D-5.9 spike-branch unlock is pinned by tests and names its trust boundary** (r253-1, dissent DISS-C-009). `git branch -D spike/<slug>` passes only on an operator-decided ledger row; the same row with an agent transition, or no row, keeps the block (three bats cases); the fence comment states that the tracked ledger is operator-owned state and the consequence of a forged row is a local delete of a pushed branch.
 
 ## [2.0.0-rc.3] — 2026-10-07 — Operator decisions (release candidate)
 

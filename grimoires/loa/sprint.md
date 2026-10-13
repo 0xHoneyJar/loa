@@ -153,12 +153,12 @@ Give multi-cycle efforts a decision map on beads that plans and cannot build, an
 
 ### Technical Tasks
 
-- [ ] Task 2.1: `charting-decisions` skill + `/chart` command: frontmatter, chart and work algorithms (write order DEC row → bead → map doc, idempotent by source), map doc template with `## Closed`, label and type conventions, unattended refusal, `/chart close`, research-subagent scope (read-only + WebFetch, writes `grimoires/loa/research/` only) → **[G-2]** ⇐ none
-- [ ] Task 2.2: Lints: `create-sprint-task.sh` rejects `question` under a sprint epic or with `sprint:`; `get-ready-work.sh` and the implement path exclude `question` beads regardless of labels; `validate-artifact.sh --type map`; sprint validator cross-check → **[G-2]** ⇐ none
-- [ ] Task 2.3: `golden-path.sh` `charting` phase (open `map` epic; `discovery` again after `## Closed`); `/plan` routing line and the multiple-open-maps rule (ask interactively, refuse unattended); `/plan-and-analyze` Phase 0 priority-1 load of the map doc and `DEC` rows and closure of the consumed map → **[G-2]** ⇐ Task 2.1
-- [ ] Task 2.4: Frontier helper for a map (`get-ready-work.sh --graph` filtered by the map epic) and the claim/resolve shell steps the skill calls → **[G-2]** ⇐ Task 2.1
-- [ ] Task 2.5: Spike discipline: `spikes/TEMPLATE.md`, `validate-artifact.sh --type spike`, `run-mode-ice.sh` `spike/*` rule (push allowed; merge into any other branch refused; `main` into spike allowed), `interview.unattended_prototype: defer|halt`, the working-branch rule for report and row, interview sentence in three planning skills, REFERENCE.md pointer → **[G-4]** ⇐ none
-- [ ] Task 2.6: Sprint 2 verification: `charting-lint.bats`, `golden-path-charting.bats`, `spike-validator.bats`, ICE fence-corpus case, fixture map dry-run, no-fog stop fixture, budget and capability lints → **[G-2, G-4]** ⇐ Task 2.2, Task 2.3, Task 2.4, Task 2.5
+- [x] Task 2.1: `charting-decisions` skill + `/chart` command: frontmatter, chart and work algorithms (write order DEC row → bead → map doc, idempotent by source), map doc template with `## Closed`, label and type conventions, unattended refusal, `/chart close`, research-subagent scope (read-only + WebFetch, writes `grimoires/loa/research/` only) → **[G-2]** ⇐ none
+- [x] Task 2.2: Lints: `create-sprint-task.sh` rejects `question` under a sprint epic or with `sprint:`; `get-ready-work.sh` and the implement path exclude `question` beads regardless of labels; `validate-artifact.sh --type map`; sprint validator cross-check → **[G-2]** ⇐ none
+- [x] Task 2.3: `golden-path.sh` `charting` phase (open `map` epic; `discovery` again after `## Closed`); `/plan` routing line and the multiple-open-maps rule (ask interactively, refuse unattended); `/plan-and-analyze` Phase 0 priority-1 load of the map doc and `DEC` rows and closure of the consumed map → **[G-2]** ⇐ Task 2.1
+- [x] Task 2.4: Frontier helper for a map (`get-ready-work.sh --graph` filtered by the map epic) and the claim/resolve shell steps the skill calls → **[G-2]** ⇐ Task 2.1
+- [x] Task 2.5: Spike discipline: `spikes/TEMPLATE.md`, `validate-artifact.sh --type spike`, `run-mode-ice.sh` `spike/*` rule (push allowed; merge into any other branch refused; `main` into spike allowed), `interview.unattended_prototype: defer|halt`, the working-branch rule for report and row, interview sentence in three planning skills, REFERENCE.md pointer → **[G-4]** ⇐ none
+- [x] Task 2.6: Sprint 2 verification: `charting-lint.bats`, `golden-path-charting.bats`, `spike-validator.bats`, ICE fence-corpus case, fixture map dry-run, no-fog stop fixture, budget and capability lints → **[G-2, G-4]** ⇐ Task 2.2, Task 2.3, Task 2.4, Task 2.5
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |

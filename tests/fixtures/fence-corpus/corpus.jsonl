@@ -134,3 +134,7 @@
 {"id":"D70","cmd":"git -C ../app merge --no-ff spike/ceiling-ui","expect":"block","rule":"SP-1","why":"global -C option before the merge","cwd":"repo"}
 {"id":"D71","cmd":"git cherry-pick main..spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a commit range ending in a spike ref","cwd":"repo"}
 {"id":"D72","cmd":"git restore -s spike/ceiling-ui src/a.ts","expect":"block","rule":"SP-1","why":"the short source flag","cwd":"repo"}
+{"id": "B60", "cmd": "cat >> review.md <<'EOF'\nDissent DISS-C-006 lists `git fetch origin spike/x && git merge FETCH_HEAD`, `git show spike/x:path > path`\nEOF", "expect": "allow", "rule": "SP-1", "why": "a heredoc prose line naming git merge FETCH_HEAD and later a spike ref in another backtick span; the ref must sit in the verb's own shell segment", "cwd": "repo"}
+{"id": "B61", "cmd": "echo 'Dissent DISS-C-006 lists `git fetch origin spike/x && git merge FETCH_HEAD`, `git show spike/x:path > path`' >> review.md", "expect": "allow", "rule": "SP-1", "why": "the same prose line through echo", "cwd": "repo"}
+{"id": "D73", "cmd": "git merge --no-ff \"origin/spike/ceiling-ui\"", "expect": "block", "rule": "SP-1", "why": "a quoted remote spike ref is still a merge of a spike", "cwd": "repo"}
+{"id": "D74", "cmd": "git fetch origin && git merge 'spike/ceiling-ui'", "expect": "block", "rule": "SP-1", "why": "a quoted spike ref in the merge's own segment", "cwd": "repo"}

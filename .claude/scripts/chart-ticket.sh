@@ -25,9 +25,11 @@
 #   handoff        --map S                                  Status handed-off + context snapshot
 #   close          --map S (--consumed-by CYCLE | --reason R)
 #                                                           reject open rows, close beads and epic,
-#                                                           ## Closed, Status closed|abandoned
+#                                                           ## Closed, Status closed|abandoned;
+#                                                           --consumed-by only on a handed-off map
+#                                                           with no open rows
 #   research-begin --map S --ticket T                       dispatch slot (<= 5 per map) + snapshot
-#   research-end   --map S --ticket T                       scope check after the subagent returns
+#   research-end   --map S --ticket T                       scope check after the report is saved
 # Common: --root DIR (fixture tree for maps/context/research), --ledger PATH (dec-write-lib --file),
 #         --dry-run (print the writes as `would:` lines; `br create` runs with its own --dry-run).
 # Exit: 0 ok; 1 refused or failed (nothing further written); 2 usage.
@@ -54,7 +56,7 @@ no_url(){ if printf '%s' "$2" | grep -qiE 'https?://'; then die "$1 contains a U
 CMD="${1:-}"
 [[ -n "$CMD" ]] || usage "a subcommand is required"
 shift
-if [[ "$CMD" == "-h" || "$CMD" == "--help" ]]; then sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0; fi
+if [[ "$CMD" == "-h" || "$CMD" == "--help" ]]; then sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0; fi
 
 MAPS=""; TICKET=""; LABEL=""; QUESTION=""; BODY=""; UNBLOCKS=""; CATEGORY="scope"; TITLE=""; DEST=""
 BEAD=""; NEEDS=""; NONE=0; NAME=""; LINE=""; DECISION=""; RATIONALE=""; EVIDENCE=""; ANSWER_REF=""
@@ -117,7 +119,8 @@ epic_id(){ local e; e="$(doc_field Epic)"; [[ "$e" =~ $ID_RE ]] || die "${DOC#"$
 doc_swap(){ local t="$1"; chmod 0644 "$t"; mv -f "$t" "$DOC"; }
 set_status(){
   local t; t="$(mktemp "${DOC}.XXXXXX")"
-  awk -v s="$1" 'BEGIN{d=0} /^\*\*Status\*\*:/ && !d {print "**Status**: " s; d=1; next} {print}' "$DOC" > "$t"
+  awk -v s="$1" 'BEGIN{d=0} /^\*\*Status\*\*:/ && !d {print "**Status**: " s; d=1; next} {print}' "$DOC" > "$t" \
+    || { rm -f "$t"; die "could not rewrite the Status line of ${DOC#"${ROOT}/"}"; }
   doc_swap "$t"
 }
 # Append a line at the end of the H2 section named $1 (before the next H2), dropping a
@@ -411,6 +414,15 @@ op_close(){
   local epic rows ids r b
   epic="$(epic_id)"
   rows="$(map_rows)"
+  if [[ -n "$CONSUMED" ]]; then
+    # The unattended exception is for /plan-and-analyze consuming a finished map; it never
+    # retires a live chart (the operator closes those with --reason).
+    local st open; st="$(doc_field Status)"
+    open="$(printf '%s' "$rows" | jq '[.[] | select(.status == "open")] | length')"
+    if [[ "$st" != "handed-off" || "$open" != "0" ]]; then
+      die "map ${SLUG} was not handed off; nothing to consume (run chart-ticket.sh handoff first) (Status: ${st:-none}, open rows: ${open})"
+    fi
+  fi
   for r in $(printf '%s' "$rows" | jq -r '.[] | select(.status == "open") | .id'); do
     if [[ $DRY -eq 1 ]]; then would "$DW" reject --id "$r" --rationale "map closed: ${why}" --follow-up "$epic" --recorded-by "$RB"
     else dw reject --id "$r" --rationale "map closed: ${why}" --follow-up "$epic" --recorded-by "$RB" --quiet >/dev/null || die "reject failed for ${r}; re-run close to finish"; fi
@@ -461,7 +473,7 @@ op_research_end(){
     newer="${newer}$(find "$d" -type f -newer "$m" 2>/dev/null | sed "s#^${ROOT}/##" | head -n 20)"
   done
   if [[ -n "$bad" || -n "$newer" ]]; then
-    echo "chart-ticket: FAIL: the research subagent changed files outside grimoires/loa/research/; the ticket fails:" >&2
+    echo "chart-ticket: FAIL: files outside grimoires/loa/research/ changed while the research ticket ran; the ticket fails:" >&2
     { printf '%s\n' "$bad"; printf '%s\n' "$newer"; } | grep . | tr -d '\000-\010\013-\037\177' >&2
     exit 1
   fi

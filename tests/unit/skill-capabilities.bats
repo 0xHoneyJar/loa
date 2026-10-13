@@ -849,7 +849,7 @@ cost-profile: moderate
     local data="$PROJECT_ROOT/.claude/data/agent-types.yaml"
     run yq -r '.agent_types | to_entries | map(.key + "=" + (.value.write_capable | tostring)) | join(" ")' "$data"
     [ "$status" -eq 0 ]
-    [ "$output" = "general-purpose=true claude=true fork=true loa-scout=false Plan=false Explore=false prompt-auditor=false prompt-auditor-io=false chart-researcher=true" ]
+    [ "$output" = "general-purpose=true claude=true fork=true loa-scout=false Plan=false Explore=false prompt-auditor=false prompt-auditor-io=false chart-researcher=false" ]
     local f
     for f in "$PROJECT_ROOT"/.claude/agents/*.md; do
         yq -e ".agent_types[\"$(basename "$f" .md)\"]" "$data" >/dev/null || { echo "unlisted: $f" >&2; return 1; }
@@ -864,7 +864,7 @@ cost-profile: moderate
     [ "$status" -eq 0 ]
     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-scout
     [ "$status" -eq 1 ]
-    [[ "$output" == *"agent type 'loa-scout'"*"(general-purpose claude fork chart-researcher)"* ]]
+    [[ "$output" == *"agent type 'loa-scout'"*"(general-purpose claude fork)"* ]]
     SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill w-io
     [ "$status" -eq 1 ]
 }

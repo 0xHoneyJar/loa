@@ -10,6 +10,11 @@
 # under `mktemp -d` (cwd = that worktree), removes the worktree by an EXIT/INT/TERM trap on every
 # path, and exits 1 when the main tree's status changed. The probe's own exit code is printed
 # (`probe-exit: N`, 124 on a timeout) and is information for the ticket, not this helper's verdict.
+# Content changes to already-ignored files are invisible to `git status`, so a marker file is
+# created before the run and any file under the main tree's `.run/` or `.beads/` newer than it
+# also fails the probe (the same check as `chart-ticket.sh research-end`). Writes outside this
+# work tree (the home directory, /tmp, another checkout, a linked worktree's main checkout) are
+# outside the check; it bounds the main tree only.
 #
 # Usage: chart-unblock-probe.sh --ticket <bead-id> [--timeout <s>] -- <cmd> [args...]
 # Exit: 0 main tree unchanged; 1 main tree changed (the ticket fails) or the worktree could not
@@ -31,7 +36,7 @@ while [[ $# -gt 0 ]]; do
     --ticket) [[ -n "${2:-}" ]] || usage "--ticket needs a bead id"; TICKET="$2"; shift 2 ;;
     --timeout) [[ "${2:-}" =~ ^[1-9][0-9]{0,4}$ ]] || usage "--timeout needs seconds (1-99999)"; TIMEOUT="$2"; shift 2 ;;
     --) shift; break ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) usage "unknown argument '$1' (the probe command goes after --)" ;;
   esac
 done
@@ -55,6 +60,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 before="$(git -C "$MAIN" status --porcelain --untracked-files=all --ignored=matching 2>/dev/null)"
+MARK="${SCRATCH}/before.marker"
+: > "$MARK"
 if ! git -C "$MAIN" worktree add --detach "${SCRATCH}/wt" HEAD >/dev/null 2>&1; then
   echo "chart-unblock-probe: could not create a throwaway worktree; nothing ran" >&2
   exit 1
@@ -69,9 +76,15 @@ set -e
 echo "probe-exit: ${rc}"
 
 after="$(git -C "$MAIN" status --porcelain --untracked-files=all --ignored=matching 2>/dev/null)"
-if [[ "$before" != "$after" ]]; then
+newer=""
+for d in "${MAIN}/.run" "${MAIN}/.beads"; do
+  [[ -d "$d" ]] || continue
+  newer="${newer}$(find "$d" -type f -newer "$MARK" 2>/dev/null | sed "s#^${MAIN}/##" | head -n 20)"
+done
+if [[ "$before" != "$after" || -n "$newer" ]]; then
   echo "chart-unblock-probe: FAIL: the probe changed the main tree; an unblock ticket never writes there. Changed entries:" >&2
   diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") | grep -E '^[<>]' | tr -d '\000-\010\013-\037\177' >&2 || true
+  if [[ -n "$newer" ]]; then printf '%s\n' "$newer" | tr -d '\000-\010\013-\037\177' | sed 's/^/modified: /' >&2; fi
   exit 1
 fi
 exit 0

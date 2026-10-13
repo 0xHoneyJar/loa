@@ -79,7 +79,7 @@ Launches `charting-decisions` from `skills/charting-decisions/`. See its `SKILL.
 `/chart` refuses in an unattended context (an autonomous run, a fresh unattended marker,
 `LOA_UNATTENDED=1`, or a PRD whose Status says autonomous): `.claude/scripts/chart-guard.sh`
 exits 1 with "/chart is interactive: a map whose rounds the agent answered is not a map. Run
-it with the operator present." The one exception is `close <slug> --consumed-by <cycle>`.
+it with the operator present." The one exception is `close <slug> --consumed-by <cycle>` on a handed-off map.
 
 ## Outputs
 

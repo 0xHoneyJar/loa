@@ -271,8 +271,14 @@ safe_merge() {
       for allowed in "${SPIKE_MERGE_SOURCES[@]}"; do
         if [[ "$source" == "$allowed" ]]; then
           echo "ICE: merging $source into spike branch '$current'" >&2
-          git merge --no-edit "$allowed"
-          return $?
+          # --ff overrides a merge.ff=only config: a spike usually diverged
+          # from the default branch, so a merge commit is the normal outcome.
+          local merge_rc=0
+          git merge --no-edit --ff "$allowed" || merge_rc=$?
+          if [[ $merge_rc -ne 0 ]]; then
+            echo "ICE: merge of $source into $current did not complete; resolve the conflicts and commit, or abort with plain \`git merge --abort\` (ICE does not wrap abort)" >&2
+          fi
+          return $merge_rc
         fi
       done
     fi

@@ -58,6 +58,20 @@ resolve_one() { # $1 bead id
         --alternative-json '{"option":"shared VM","rejected_because":"cross-run leakage"}' --evidence "session round 3"
 }
 
+@test "CD-0 the br stub: a trailing unknown boolean flag parses; a failed update keeps the old state" {
+    run br create "T" --type question --json --some-new-flag
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.[0].title' "$BR_STATE")" = "T" ]
+    run br create "U" --unknown-with-value v --json
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.[1].title' "$BR_STATE")" = "U" ]
+    echo '{"not":"a list"}' > "$BR_STATE"
+    run br create "V" --json
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"state kept"* ]]
+    [ "$(cat "$BR_STATE")" = '{"not":"a list"}' ]
+}
+
 # ---------------------------------------------------------------------------------------------
 # Command, skill frontmatter, template
 # ---------------------------------------------------------------------------------------------
@@ -220,6 +234,7 @@ resolve_one() { # $1 bead id
 }
 
 @test "CD-14 a failed row write creates no bead" {
+    [[ $EUID -eq 0 ]] && skip "permission bits are ignored as root"
     mkmap
     chmod a-w "$LEDGER"; chmod a-w "$(dirname "$LEDGER")"
     run ct ticket --map eval-workers --ticket isolation --label grilling --question "Q?" --body "B."
@@ -320,6 +335,43 @@ resolve_one() { # $1 bead id
     grep -q '^\*\*Status\*\*: handed-off$' "$H/grimoires/loa/maps/eval-workers.md"
 }
 
+@test "CD-20b hand-off refuses while a ticket is claimed but unresolved" {
+    mkmap; mktickets
+    iso="$(jq -r '.[] | select(.title | startswith("Which")) | .id' "$BR_STATE")"
+    for b in $(jq -r --arg i "$iso" '.[] | select(.issue_type == "question" and .id != $i) | .id' "$BR_STATE"); do resolve_one "$b"; done
+    ct claim --bead "$iso"
+    run ct handoff --map eval-workers
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"frontier is not empty"* ]]
+    grep -q '^\*\*Status\*\*: charting$' "$H/grimoires/loa/maps/eval-workers.md"
+    [ ! -f "$H/grimoires/loa/context/chart-eval-workers.md" ]
+}
+
+@test "CD-20c hand-off refuses while a ticket waits on a claimed prerequisite" {
+    mkmap; mktickets
+    iso="$(jq -r '.[] | select(.title | startswith("Which")) | .id' "$BR_STATE")"
+    b32="$(jq -r '.[] | select(.title | startswith("Does")) | .id' "$BR_STATE")"
+    cost="$(jq -r '.[] | select(.title | startswith("What")) | .id' "$BR_STATE")"
+    ct edge --bead "$iso" --needs "$b32"
+    ct claim --bead "$b32"
+    resolve_one "$cost"
+    [ -z "$("$H/.claude/scripts/chart-frontier.sh" eval-workers --root "$H")" ]
+    run ct handoff --map eval-workers
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"frontier is not empty"* ]]
+}
+
+@test "CD-20d hand-off refuses while a mislabelled (two decision labels) ticket is open" {
+    mkmap; mktickets
+    cost="$(jq -r '.[] | select(.title | startswith("What")) | .id' "$BR_STATE")"
+    for b in $(jq -r --arg c "$cost" '.[] | select(.issue_type == "question" and .id != $c) | .id' "$BR_STATE"); do resolve_one "$b"; done
+    br update "$cost" --add-label decision:grilling
+    [ -z "$("$H/.claude/scripts/chart-frontier.sh" eval-workers --root "$H")" ]
+    run ct handoff --map eval-workers
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"frontier is not empty"* ]]
+}
+
 @test "CD-21 close --reason (operator present): rows rejected, tickets and epic closed, ## Closed, abandoned" {
     mkmap; mktickets
     run ct close --map eval-workers --reason "superseded by the vendor deal"
@@ -336,7 +388,7 @@ resolve_one() { # $1 bead id
     [ "$(grep -c '^## Closed$' "$doc")" -eq 1 ]
 }
 
-@test "CD-22 unattended close needs --consumed-by; --reason is refused with nothing changed" {
+@test "CD-22 unattended close: --reason refused; --consumed-by closes a handed-off map" {
     mkmap; mktickets
     cp "$BR_STATE" "$BATS_TEST_TMPDIR/s0"; before="$(cat "$LEDGER")"
     LOA_UNATTENDED=1 run ct close --map eval-workers --reason "x"
@@ -344,10 +396,40 @@ resolve_one() { # $1 bead id
     [[ "$output" == *"only with --consumed-by"* ]]
     cmp -s "$BR_STATE" "$BATS_TEST_TMPDIR/s0"
     [ "$(cat "$LEDGER")" = "$before" ]
+    for b in $(jq -r '.[] | select(.issue_type == "question") | .id' "$BR_STATE"); do resolve_one "$b"; done
+    ct handoff --map eval-workers
     LOA_UNATTENDED=1 run ct close --map eval-workers --consumed-by cycle-test
     [ "$status" -eq 0 ]
     grep -q '^\*\*Status\*\*: closed$' "$H/grimoires/loa/maps/eval-workers.md"
     grep -q 'consumed by cycle-test' "$H/grimoires/loa/maps/eval-workers.md"
+    [ "$(jq -r '[.[].status] | unique | join(",")' "$BR_STATE")" = "closed" ]
+    [ "$(rows | jq -r '[.[].status] | unique | join(",")')" = "proposed" ]
+}
+
+@test "CD-22b --consumed-by on a charting map exits 1 and changes nothing" {
+    mkmap; mktickets
+    doc="$H/grimoires/loa/maps/eval-workers.md"
+    cp "$BR_STATE" "$BATS_TEST_TMPDIR/s0"; cp "$doc" "$BATS_TEST_TMPDIR/d0"; before="$(cat "$LEDGER")"
+    for env in "LOA_UNATTENDED=1" "LOA_X=0"; do
+        run env "$env" "$CT" close --map eval-workers --consumed-by cycle-test --root "$H" --ledger "$LEDGER"
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"map eval-workers was not handed off; nothing to consume (run chart-ticket.sh handoff first)"* ]]
+    done
+    cmp -s "$BR_STATE" "$BATS_TEST_TMPDIR/s0"
+    cmp -s "$doc" "$BATS_TEST_TMPDIR/d0"
+    grep -q '^\*\*Status\*\*: charting$' "$doc"
+    [ "$(cat "$LEDGER")" = "$before" ]
+}
+
+@test "CD-22c --consumed-by on a handed-off map that regained an open row exits 1" {
+    mkmap; mktickets
+    for b in $(jq -r '.[] | select(.issue_type == "question") | .id' "$BR_STATE"); do resolve_one "$b"; done
+    ct handoff --map eval-workers
+    ct ticket --map eval-workers --ticket late --label grilling --question "A late question?" --body "B."
+    run ct close --map eval-workers --consumed-by cycle-test
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"open rows: 1"* ]]
+    grep -q '^\*\*Status\*\*: handed-off$' "$H/grimoires/loa/maps/eval-workers.md"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -390,12 +472,26 @@ resolve_one() { # $1 bead id
     [[ "$output" == *"UNTRUSTED research output"* ]]
 }
 
-@test "CD-26 the research agent has no Bash and is write-capable in agent-types.yaml" {
+@test "CD-26 the research agent is read-only: no Write, Edit, NotebookEdit or Bash; not write-capable" {
     a="$REAL_ROOT/.claude/agents/chart-researcher.md"
     grep -qx 'model: opus' "$a"
-    grep -qx 'tools: \[Read, Grep, Glob, WebFetch, Write\]' "$a"
     grep -qx 'maxTurns: 40' "$a"
-    [ "$(yq '.agent_types."chart-researcher".write_capable' "$REAL_ROOT/.claude/data/agent-types.yaml")" = "true" ]
+    fm="$(awk 'NR==1 && /^---$/ {f=1; next} f && /^---$/ {exit} f' "$a")"
+    tools="$(yq -o=json -I0 '.tools' <<< "$fm")"
+    [ "$tools" = '["Read","Grep","Glob","WebFetch"]' ]
+    for t in Write Edit NotebookEdit Bash; do
+        ! jq -e --arg t "$t" 'map(ascii_downcase | startswith($t | ascii_downcase)) | any' <<< "$tools"
+    done
+    ! grep -qiE '^(disallowedTools|permissionMode|mcpServers):' <<< "$fm"
+    [ "$(yq '.agent_types."chart-researcher".write_capable' "$REAL_ROOT/.claude/data/agent-types.yaml")" = "false" ]
+}
+
+@test "CD-26b the skill's research step has the session write the returned report itself" {
+    sec="$(awk '/^## Research tickets$/ {f=1; next} f && /^## / {exit} f' "$SKILL")"
+    [[ "$sec" == *"returns the report as its final message"* ]]
+    [[ "$sec" == *"write the returned text yourself, verbatim and unedited, to"* ]]
+    [[ "$sec" == *"with the Write tool, then run \`CT research-end"* ]]
+    ! grep -qiE 'giving the question,? (and )?the report path' <<< "$sec"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -422,6 +518,27 @@ resolve_one() { # $1 bead id
     [ "$(git -C "$repo" worktree list | wc -l | tr -d ' ')" -eq 1 ]
     run "$P" --ticket "bad id" -- true
     [ "$status" -eq 2 ]
+}
+
+@test "CD-27b an unblock probe that rewrites an ignored file under .run or .beads fails" {
+    repo="$BATS_TEST_TMPDIR/repo2"
+    git init -q "$repo"; printf '.run/\n.beads/*.db\n' > "$repo/.gitignore"
+    mkdir -p "$repo/.run" "$repo/.beads"; echo '{}' > "$repo/.run/state.json"; echo x > "$repo/.beads/beads.db"
+    git -C "$repo" add .gitignore; git -C "$repo" -c user.email=t@example.invalid -c user.name=t commit -q -m init
+    P="$REAL_ROOT/.claude/scripts/chart-unblock-probe.sh"
+    cd "$repo"
+    sleep 1
+    run "$P" --ticket bd-x -- bash -c "echo '{\"state\":\"RUNNING\"}' > '$repo/.run/state.json'"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"modified: .run/state.json"* ]]
+    sleep 1
+    run "$P" --ticket bd-x -- bash -c "echo y > '$repo/.beads/beads.db'"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"modified: .beads/beads.db"* ]]
+    sleep 1
+    run "$P" --ticket bd-x -- cat .gitignore
+    [ "$status" -eq 0 ]
+    [ "$(git -C "$repo" worktree list | wc -l | tr -d ' ')" -eq 1 ]
 }
 
 # ---------------------------------------------------------------------------------------------

@@ -70,6 +70,7 @@ ticket is resolved or ruled out. Each step is idempotent:
 | `decide` | row `proposed`, bead open | skips `decide`, comments and closes the bead, adds the line |
 | the close | bead closed, no doc line | adds the line |
 | the doc line | done | prints "already cites" |
+| the comment, before `br close` | row `proposed`, bead commented and open | comments again, then closes and adds the line (a duplicate comment, visible and harmless) |
 
 In a linked worktree the ledger writer puts rows in the sprint's pending file with `PEND-` ids;
 the lead's `import` allocates the `DEC-` ids. The bead's `external_ref` keeps the `PEND-` id
@@ -92,7 +93,7 @@ checkout when you can.
 |---|---|---|
 | `charting` | `CT epic` | `charting` |
 | `handed-off` | `CT handoff` | `discovery` |
-| `closed` | `CT close --consumed-by <cycle>` | `discovery` |
+| `closed` | `CT close --consumed-by <cycle>`, only from `handed-off` with no open rows | `discovery` |
 | `abandoned` | `CT close --reason R` | `discovery` |
 
 The doc's Status line wins over the epic when they disagree; `validate-artifact.sh --type map`
@@ -116,8 +117,12 @@ rule first (`golden_resolve_open_map --snapshots`: exit 3 asks which, exit 1 una
 
 ## Research scope check
 
-`CT research-begin` records `git status --porcelain --untracked-files=all --ignored=matching` in a dispatch marker under
-`grimoires/loa/research/` and refuses a sixth dispatch for the map. `CT research-end` fails
-the ticket when a status entry outside `grimoires/loa/research/` appeared, when a file under
-`.run/` or `.beads/` is newer than the marker, or when the report does not start with
-`> UNTRUSTED research output`. The subagent has no Bash, so it cannot run `br` or the writer.
+`chart-researcher` has no Write, Edit, NotebookEdit or Bash tool, so it cannot write a file,
+run `br` or call the ledger writer; its only output is its final message. The charting session
+writes that message verbatim to the report path. `CT research-begin` records
+`git status --porcelain --untracked-files=all --ignored=matching` in a dispatch marker under
+`grimoires/loa/research/` and refuses a sixth dispatch for the map. `CT research-end` is the
+secondary check: it fails the ticket when a status entry outside `grimoires/loa/research/`
+appeared, when a file under `.run/` or `.beads/` is newer than the marker, or when the report
+does not start with `> UNTRUSTED research output`. It sees the project tree only; the tool
+removal is what keeps writes out of everything else.

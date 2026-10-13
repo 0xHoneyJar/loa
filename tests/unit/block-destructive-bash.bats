@@ -1995,3 +1995,56 @@ fixture_repo() {
     run hook_invoke 'T=$(mktemp -d); ! read T; rm -rf "$T"'
     [ "$status" -eq 2 ]
 }
+
+
+# D-5.9: `git branch -D spike/<slug>` unlocks only on a decided verdict row in the tracked ledger
+# (_fr11_spike_decided). Three ledger fixtures over one unmerged spike branch.
+spike_repo() { # $1 = ledger fixture: decided-operator | decided-agent | none
+    local r="$BATS_TEST_TMPDIR/spike-repo-$1"
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+    export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+    git init -q -b main "$r" >/dev/null
+    (
+      cd "$r"
+      echo a > a; git add a; git commit -qm init
+      git checkout -qb spike/x; echo s > s; git add s; git commit -qm spike
+      git checkout -q main
+    ) >/dev/null 2>&1
+    mkdir -p "$r/grimoires/loa"
+    local by="operator:decisions-command"
+    [[ "$1" == "decided-agent" ]] && by="agent:chart"
+    if [[ "$1" != "none" ]]; then
+      cat > "$r/grimoires/loa/decisions.yaml" <<EOF
+schema_version: 1
+decisions:
+  - id: DEC-0001
+    status: decided
+    source: "grimoires/loa/spikes/x.md"
+    transitions:
+      - {at: "2026-10-13T00:00:00Z", from: null, to: open, by: "agent:chart", evidence: "e"}
+      - {at: "2026-10-13T00:00:01Z", from: open, to: proposed, by: "agent:chart", evidence: "e"}
+      - {at: "2026-10-13T00:00:02Z", from: proposed, to: decided, by: "${by}", evidence: "e"}
+EOF
+    fi
+    echo "$r"
+}
+spike_yq_v4() { local v; v="$(yq --version 2>&1 || true)"; [[ "$v" == *mikefarah* && "$v" == *"version v4."* ]]; }
+
+@test "D-5.9: git branch -D spike/x passes when the ledger holds an operator-decided verdict row" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    cd "$(spike_repo decided-operator)"
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 0 ]
+}
+@test "D-5.9 twin: the same row with its decided transition by agent:* keeps the block" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    cd "$(spike_repo decided-agent)"
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+}
+@test "D-5.9 twin: no ledger row keeps the block" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    cd "$(spike_repo none)"
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+}

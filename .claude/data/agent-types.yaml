@@ -25,4 +25,4 @@ agent_types:
   prompt-auditor-io:
     write_capable: false
   chart-researcher:
-    write_capable: true
+    write_capable: false
