@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.4] — 2026-10-13
+
 > cycle-128 "decision surfaces" (sprints 252–254, FR-1 … FR-8): the interview asks in rounds and separates facts from decisions, every planning decision becomes an attributable ledger row, `/chart` maps an effort that spans more than one cycle without building it, questions that talking cannot settle become spike tickets, a glossary keeps the vocabulary from rotting, sprint plans name the seams their tests sit on, a bug fix proves red before green, and operator-only commands are out of the model's reach. Read **Migration** below before upgrading.
 
 ### Added
@@ -1476,6 +1478,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [2.0.0-rc.4] — 2026-10-13
 
 ## [1.94.0] — 2026-04-17
 
