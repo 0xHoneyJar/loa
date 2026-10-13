@@ -632,3 +632,67 @@ assert_unattended_write(){
   # paths (e.g. an untracked .ck/ in a developer checkout) are not this test's concern
   [ "$status" -eq 0 ]; [[ "$output" != *"decisions.yaml"* ]]
 }
+
+# ---- the PRD Status line is a planning-time default, not a live signal (Bridgebuilder F-003) ----
+
+@test "dec-write F-003: with only an autonomous PRD Status line, context is interactive and --why lists the PRD signal as advisory" {
+  printf '# PRD\n\n**Status:** Draft, autonomous run\n' > "$T/grimoires/loa/prd.md"
+  run bash "$D" context
+  [ "$status" -eq 0 ]; [ "$output" = "interactive" ]
+  run bash "$D" context --why
+  [ "${lines[0]}" = "interactive" ]
+  [[ "$output" == *"signal: prd prd-status:"*"(advisory: a planning-time default for new and decide only)"* ]]
+  run env LOA_UNATTENDED=1 bash "$D" context
+  [ "$output" = "unattended" ]
+}
+
+@test "dec-write F-003: under an autonomous PRD Status line, the operator's confirm --answer-ref records decided_by operator; reject and supersede of decided rows stay operator acts" {
+  printf '# PRD\n\n**Status:** Draft, autonomous run\n' > "$T/grimoires/loa/prd.md"
+  new_prop "$F" >/dev/null; new_prop "$F" >/dev/null; new_prop "$F" >/dev/null
+  run confirm_op --file "$F" --id DEC-0001 --answer-ref "cli:2026-10-13T12:00:00Z"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"--answer-ref ignored"* ]]
+  [ "$(field "$F" DEC-0001 '.decided_by + "|" + .decided_by_ref')" = "operator|cli:2026-10-13T12:00:00Z" ]
+  confirm_op --file "$F" --id DEC-0002 --answer-ref "cli:2026-10-13T12:00:00Z"
+  run bash "$D" reject --file "$F" --id DEC-0002 --rationale "the operator changed course" --follow-up bd-x --recorded-by decisions-command --quiet
+  [ "$status" -eq 0 ]; [ "$(field "$F" DEC-0002 '.status + "|" + .transitions[-1].by')" = "rejected|operator:decisions-command" ]
+  run bash "$D" supersede --file "$F" --id DEC-0001 --summary s2 --phase discovery --category scope --recorded-by decisions-command --source s --decision d --rationale r --alternative-json "$ALT" --quiet
+  [ "$status" -eq 0 ]; [ "$(field "$F" DEC-0001 .status)" = "superseded" ]
+}
+
+@test "dec-write F-003: under a live signal the operator ops still refuse or downgrade as before" {
+  new_prop "$F" >/dev/null; confirm_op --file "$F" --id DEC-0001 --answer-ref "cli:2026-10-13T12:00:00Z"
+  new_prop "$F" >/dev/null
+  run env LOA_UNATTENDED=1 bash "$D" confirm --file "$F" --id DEC-0002 --recorded-by decisions-command --evidence "cli:2026-10-13T12:00:00Z" --answer-ref "cli:2026-10-13T12:00:00Z"
+  [ "$status" -eq 1 ]; [[ "$output" == *"live-run signal"* ]]
+  run env LOA_UNATTENDED=1 bash "$D" reject --file "$F" --id DEC-0001 --rationale r --follow-up bd-x --recorded-by decisions-command
+  [ "$status" -eq 1 ]; [[ "$output" == *"unattended"* ]]
+  run env LOA_UNATTENDED=1 bash "$D" supersede --file "$F" --id DEC-0001 --summary s2 --phase discovery --category scope --recorded-by decisions-command --source s --decision d --rationale r --alternative-json "$ALT" --quiet
+  [ "$status" -eq 0 ]
+  [ "$(field "$F" DEC-0001 '.status + "|" + .supersede_proposed_by')" = "decided|DEC-0003" ]
+}
+
+@test "dec-write F-003: new and decide under an autonomous PRD Status line still land proposed and ignore refs" {
+  printf '# PRD\n\n**Status:** Draft, unattended planning\n' > "$T/grimoires/loa/prd.md"
+  run bash "$D" new --file "$F" --summary s --phase discovery --category scope --recorded-by plan-and-analyze --source "prd.md#x" \
+      --decision d --rationale r --alternative-json "$ALT" --answer-ref "session:abc#turn-1"
+  [ "$status" -eq 0 ]; [[ "$output" == *"--answer-ref ignored"* ]]
+  [ "$(field "$F" DEC-0001 '.status + "|" + .proposed_by + "|" + (.decided_by_ref|tostring)')" = "proposed|agent|null" ]
+  bash "$D" new --file "$F" --summary q --phase discovery --category scope --recorded-by x --source s --status open --quiet >/dev/null
+  run bash "$D" decide --file "$F" --id DEC-0002 --decision d --rationale r --alternative-json "$ALT" --evidence e --recorded-by x --answer-ref "session:abc#turn-2"
+  [ "$status" -eq 0 ]; [[ "$output" == *"--answer-ref ignored"* ]]
+  [ "$(field "$F" DEC-0002 '.status + "|" + (.decided_by_ref|tostring)')" = "proposed|null" ]
+}
+
+# ---- LOA_PROJECT_ROOT (Bridgebuilder F-017) --------------------------------------------------
+
+@test "dec-write F-017: LOA_PROJECT_ROOT points the context at another tree; an invalid one is a usage error" {
+  local fx="$BATS_TEST_TMPDIR/fx"; mkdir -p "$fx/.run" "$fx/grimoires/loa"
+  printf '{"state":"RUNNING"}\n' > "$fx/.run/state.json"
+  run bash "$D" context
+  [ "$output" = "interactive" ]
+  run env LOA_PROJECT_ROOT="$fx" bash "$D" context --why
+  [ "${lines[0]}" = "unattended" ]; [[ "$output" == *"run-state:$(cd "$fx" && pwd -P)/.run/state.json"* ]]
+  run env LOA_PROJECT_ROOT="$BATS_TEST_TMPDIR/nope" bash "$D" context
+  [ "$status" -eq 2 ]; [[ "$output" == *"LOA_PROJECT_ROOT is not a directory"* ]]
+}

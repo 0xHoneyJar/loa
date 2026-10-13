@@ -8,9 +8,9 @@
 #
 # CONTRACT (observability, never a gate; same as loa-kf-surface.sh):
 #   - Exits 0 on every path and never blocks a session.
-#   - Disabled, no config, or no Mike Farah yq v4: prints nothing.
-#   - Enabled but the ledger is unreadable or has an unknown schema_version: one
-#     "[DECISIONS] WARNING ..." line on stdout.
+#   - Disabled or no config: prints nothing (read with yq, or a plain-text fallback without it).
+#   - Enabled but Mike Farah yq v4 or jq is missing, or the ledger is unreadable or has an
+#     unknown schema_version: one "[DECISIONS] WARNING ..." line on stdout.
 #   - Enabled and healthy: the block on stdout (SessionStart injects stdout as context);
 #     nothing when no row is open or proposed and no marker is stale.
 #   - A stale .run/unattended.json (another session, or older than
@@ -34,18 +34,35 @@ _dec_test_mode_active() {
   [[ -n "${BATS_TEST_FILENAME:-}" || -n "${BATS_VERSION:-}" ]]
 }
 
-command -v yq >/dev/null 2>&1 || exit 0
-[[ "$(yq --version 2>&1 || true)" == *mikefarah*"version v4."* ]] || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
+have_yq4=0
+if command -v yq >/dev/null 2>&1 && [[ "$(yq --version 2>&1 || true)" == *mikefarah*"version v4."* ]]; then have_yq4=1; fi
 
+# The config is read first (yq, or a plain-text fallback without it), so an enabled surface on a host
+# without its tools says so instead of looking disabled.
 config_path="${REPO_ROOT}/.loa.config.yaml"
 enabled="false"
 if _dec_test_mode_active && [[ -n "${LOA_DEC_SURFACE_TEST_CONFIG-}" ]]; then
   enabled="${LOA_DEC_SURFACE_TEST_CONFIG}"
 elif [[ -f "$config_path" ]]; then
-  enabled="$(yq '.decisions.surface_at_session_start // false' "$config_path" 2>/dev/null || echo false)"
+  if [[ $have_yq4 -eq 1 ]]; then
+    enabled="$(yq '.decisions.surface_at_session_start // false' "$config_path" 2>/dev/null || echo false)"
+  else
+    # top-level `decisions:` block, then an indented `surface_at_session_start: true`
+    enabled="$(awk '
+      /^[^[:space:]#]/ { blk = ($0 ~ /^decisions:[[:space:]]*(#.*)?$/) }
+      blk && /^[[:space:]]+surface_at_session_start:[[:space:]]*true[[:space:]]*(#.*)?$/ { print "true"; exit }
+    ' "$config_path" 2>/dev/null || true)"
+  fi
 fi
 [[ "$enabled" == "true" ]] || exit 0
+
+missing=""
+[[ $have_yq4 -eq 1 ]] || missing="Mike Farah yq v4"
+command -v jq >/dev/null 2>&1 || missing="${missing:+${missing} and }jq"
+if [[ -n "$missing" ]]; then
+  echo "[DECISIONS] WARNING: the decisions surface is enabled but ${missing} is missing; rows are not shown. Install it, or set decisions.surface_at_session_start: false."
+  exit 0
+fi
 
 LEDGER="${REPO_ROOT}/grimoires/loa/decisions.yaml"
 RUN_DIR="${REPO_ROOT}/.run"
@@ -66,9 +83,10 @@ fi
 
 # Rows: proposed first, then open; fields reduced to a safe id, the status and a cleaned summary.
 rows="$(printf '%s' "$doc" | jq -r '
-  def clean: tostring | gsub("[[:cntrl:]\u0080-\u009f  ]"; " ") | gsub("<"; "‹") | gsub(">"; "›")
-             | gsub("`"; "‘") | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "");
-  def cap: if length > 100 then .[0:99] + "…" else . end;
+  # (every non-ASCII character is written as a \u escape: no invisible separator sits in the source)
+  def clean: tostring | gsub("[[:cntrl:]\u0080-\u009f\u2028\u2029]"; " ") | gsub("<"; "\u2039") | gsub(">"; "\u203a")
+             | gsub("`"; "\u2018") | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "");
+  def cap: if length > 100 then .[0:99] + "\u2026" else . end;
   [ (.decisions // [])[] | objects | select(.status == "proposed" or .status == "open") ]
   | (map(select(.status == "proposed")) + map(select(.status == "open"))) as $r
   | "C\t\($r | map(select(.status == "proposed")) | length)\t\($r | map(select(.status == "open")) | length)",

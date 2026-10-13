@@ -34,8 +34,12 @@
 #   `red_test.setup` strings. Shells, env, eval, exec and interpreters with inline code
 #   (bash, sh, zsh, dash, python -c, node -e, perl -e, ruby -e, ...) are never runners, and the
 #   inline-code flags of the listed runners (make -E/--eval and VAR=value, go -exec/-toolexec,
-#   cargo --config, npm --script-shell/--node-options) are refused. .loa.config.yaml is
-#   tracked: a WARN names a red_test change on the branch, and the reviewer checks it.
+#   cargo --config, npm --script-shell/--node-options) are refused. The denials come first,
+#   configured or not: a shell, a launcher or an inline-code interpreter is refused even when
+#   red_test.command names it; a configured string only widens the runner list. .loa.config.yaml
+#   is tracked: when it differs from the base branch (or no base is found) and the argv is
+#   accepted only through red_test, the check refuses with exit 2 unless --trust-config is given
+#   (the reviewer has read the change); in every other case a WARN names the drift.
 #
 # Environment contract: --setup and every run start from `env -i` with PATH (absolute entries
 # outside the repository and the scratch only), HOME and TMPDIR set to a fresh directory per
@@ -70,7 +74,7 @@
 # authoritative; prefer --json.
 #
 # Usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>]
-#                          [--env-pass NAME]... [--no-link-deps] [--timeout <s>] [--json]
+#                          [--env-pass NAME]... [--trust-config] [--no-link-deps] [--timeout <s>] [--json]
 #                          -- <test command...>
 # Run it from inside the repository's work tree. --json prints one object on stdout:
 #   {red, green, red_exit, green_exit, red_again_exit, verdict, red_tail, green_tail,
@@ -116,7 +120,7 @@ NOT_A_RED_PATTERNS=(
 
 usage(){
   echo "${PROG}: $*" >&2
-  echo "usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--env-pass NAME]... [--no-link-deps] [--timeout <s>] [--json] -- <test command...>" >&2
+  echo "usage: red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--env-pass NAME]... [--trust-config] [--no-link-deps] [--timeout <s>] [--json] -- <test command...>" >&2
   exit 2
 }
 die2(){ echo "${PROG}: $*" >&2; exit 2; }
@@ -129,6 +133,7 @@ SETUP=""
 LINK_DEPS=1
 TIMEOUT=600
 JSON=0
+TRUST_CONFIG=0
 ENV_PASS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -137,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     --test-file) [[ -n "${2:-}" ]] || usage "--test-file needs a path"; TEST_FILE="$2"; shift 2 ;;
     --setup) [[ -n "${2:-}" ]] || usage "--setup needs a command"; SETUP="$2"; shift 2 ;;
     --env-pass) [[ -n "${2:-}" ]] || usage "--env-pass needs a variable name"; ENV_PASS+=("$2"); shift 2 ;;
+    --trust-config) TRUST_CONFIG=1; shift ;;
     --no-link-deps) LINK_DEPS=0; shift ;;
     --timeout) [[ "${2:-}" =~ ^[1-9][0-9]{0,4}$ ]] || usage "--timeout needs seconds (1-99999)"; TIMEOUT="$2"; shift 2 ;;
     --json) JSON=1; shift ;;
@@ -194,17 +200,37 @@ words(){ local w; read -r -a w <<< "$*"; printf '%s' "${w[*]}"; }
 refuse(){ die2 "refused $1: $2. Use a listed runner, or have the operator list a project script in .loa.config.yaml red_test.allowed_runners (or set red_test.command / red_test.setup)"; }
 
 # $1 = label (test command | --setup), $2 = configured exact string, rest = argv
+# Set when an argv was accepted only through .loa.config.yaml (red_test.command / red_test.setup
+# or red_test.allowed_runners); a red_test change on the branch then needs --trust-config.
+ACCEPTED_VIA_CONFIG=0
 check_runner(){
   local label="$1" configured="$2" a0 a
   shift 2
   a0="$1"
-  if [[ -n "$configured" && "$(words "$*")" == "$(words "$configured")" ]]; then return 0; fi
+  # Hard denials first, configured or not (RTC-001): a shell, a launcher or an inline-code
+  # interpreter is never a runner, and a configured string cannot widen that.
+  case "${a0##*/}" in
+    bash|sh|zsh|dash|ksh|fish|env|eval|exec|command|xargs|nohup|sudo|su|doas|busybox|setsid|watch|time|nice|awk|gawk|mawk|nawk)
+      refuse "$label" "'${a0}' is never a test runner (a shell, a launcher, env, eval or exec), configured or not" ;;
+    python|python2|python3)
+      for a in "${@:2}"; do case "$a" in -c|-c*) refuse "$label" "${a0} -c (inline code) is never a test runner, configured or not" ;; esac; done ;;
+    node|nodejs)
+      for a in "${@:2}"; do case "$a" in -e|-e*|-p|-p*|--eval|--eval=*|--print|--print=*) refuse "$label" "${a0} ${a} (inline code) is never a test runner, configured or not" ;; esac; done ;;
+    perl)
+      for a in "${@:2}"; do case "$a" in -e|-e*|-E|-E*) refuse "$label" "perl ${a} (inline code) is never a test runner, configured or not" ;; esac; done ;;
+    ruby|lua)
+      for a in "${@:2}"; do case "$a" in -e|-e*) refuse "$label" "${a0} -e (inline code) is never a test runner, configured or not" ;; esac; done ;;
+    php)
+      for a in "${@:2}"; do case "$a" in -r|-r*) refuse "$label" "php -r (inline code) is never a test runner, configured or not" ;; esac; done ;;
+  esac
   for a in "$@"; do
     case "$a" in
       --eval|--eval=*|-exec|--exec|-exec=*|-toolexec|-toolexec=*|--script-shell|--script-shell=*|--node-options|--node-options=*)
         refuse "$label" "'${a}' is an inline-code flag" ;;
     esac
   done
+  # A configured exact string widens the runner list, never the denials above.
+  if [[ -n "$configured" && "$(words "$*")" == "$(words "$configured")" ]]; then ACCEPTED_VIA_CONFIG=1; return 0; fi
   case "$a0" in
     */*)
       case "$a0" in
@@ -212,7 +238,7 @@ check_runner(){
         *) refuse "$label" "a script runner must be a ./... or tests/... path" ;;
       esac
       case "/$a0/" in */../*) refuse "$label" "'${a0}' climbs out with .." ;; esac
-      if [[ -n "$CFG_RUNNERS" ]] && printf '%s\n' "$CFG_RUNNERS" | grep -qxF -- "$a0"; then return 0; fi
+      if [[ -n "$CFG_RUNNERS" ]] && printf '%s\n' "$CFG_RUNNERS" | grep -qxF -- "$a0"; then ACCEPTED_VIA_CONFIG=1; return 0; fi
       refuse "$label" "'${a0}' is not listed in red_test.allowed_runners"
       ;;
     bats|pytest) ;;
@@ -245,6 +271,9 @@ if [[ -n "$CFG_COMMAND$CFG_SETUP$CFG_RUNNERS" ]]; then
     base=""
   done
   if [[ -z "$base" ]] || ! g diff --quiet "$base" -- .loa.config.yaml 2>/dev/null; then
+    if [[ "$ACCEPTED_VIA_CONFIG" -eq 1 && "$TRUST_CONFIG" -eq 0 ]]; then
+      die2 "refused: .loa.config.yaml differs from the base branch (or no base was found) and the test command is accepted only through its red_test block; read that change in the diff, then pass --trust-config"
+    fi
     echo "${PROG}: WARN: .loa.config.yaml differs from the base branch (or no base was found); check that red_test is the operator's, not the reviewed change's" >&2
   fi
 fi

@@ -161,8 +161,13 @@ resolve_one() { # $1 bead id
     [ "$output" = "unattended" ]
 }
 
-@test "CD-10 chart-guard refuses an autonomous PRD Status line" {
+@test "CD-10 an autonomous PRD Status line alone does not block /chart; a live RUNNING run state does" {
+    # The PRD Status line is a planning-time default for dec-write-lib new/decide only (Bridgebuilder
+    # F-003): after an autonomous cycle the operator must still be able to chart interactively.
     printf '# PRD\n\n**Status:** Draft, autonomous run\n' > "$H/grimoires/loa/prd.md"
+    run "$GUARD" --root "$H"
+    [ "$status" -eq 0 ]
+    mkdir -p "$H/.run"; printf '{"state":"RUNNING"}\n' > "$H/.run/state.json"
     run "$GUARD" --root "$H"
     [ "$status" -eq 1 ]
 }
@@ -217,6 +222,46 @@ resolve_one() { # $1 bead id
     ct edge --bead "$b32" --none
     [ "$(bead "$iso" | jq -r '.deps | join(",")')" = "$b32" ]
     bead "$b32" | jq -e '.labels | index("deps:none")'
+}
+
+@test "CD-12b epic: an epic created before a failed doc write is reused, not created twice" {
+    epic="$(mkmap)"
+    rm -f "$H/grimoires/loa/maps/eval-workers.md"
+    : > "$BR_LOG"
+    run mkmap
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | tail -n 1)" = "$epic" ]
+    [[ "$output" == *"reusing map epic ${epic}"* ]]
+    refute grep -q '^create' "$BR_LOG"
+    [ "$(jq '[.[] | select(.issue_type == "epic")] | length' "$BR_STATE")" -eq 1 ]
+    grep -qx "\*\*Epic\*\*: ${epic}" "$H/grimoires/loa/maps/eval-workers.md"
+    grep -qx '\*\*Status\*\*: charting' "$H/grimoires/loa/maps/eval-workers.md"
+    # a closed leftover epic is reused too
+    rm -f "$H/grimoires/loa/maps/eval-workers.md"
+    br close "$epic" --reason x
+    run mkmap
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | tail -n 1)" = "$epic" ]
+}
+
+@test "CD-12c epic: two leftover map epics for one slug are refused, nothing created" {
+    epic="$(mkmap)"
+    rm -f "$H/grimoires/loa/maps/eval-workers.md"
+    br create "Map: again" --type epic --labels map --description "Decision map: grimoires/loa/maps/eval-workers.md" --json >/dev/null
+    : > "$BR_LOG"
+    run mkmap
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"more than one map epic already exists for eval-workers"* ]]
+    refute grep -q '^create' "$BR_LOG"
+    [ ! -f "$H/grimoires/loa/maps/eval-workers.md" ]
+    # an epic of another slug whose name only starts the same is not a match
+    rm -f "$BR_STATE"; echo '[]' > "$BR_STATE"
+    ct epic --map eval-workers-two --title T --destination "D." >/dev/null
+    rm -f "$H/grimoires/loa/maps/eval-workers-two.md"
+    : > "$BR_LOG"
+    run mkmap
+    [ "$status" -eq 0 ]
+    grep -q '^create' "$BR_LOG"
 }
 
 @test "CD-13 write order: a failed bead create leaves the open row; the re-run reuses it" {
@@ -398,6 +443,21 @@ resolve_all() { for b in $(jq -r '.[] | select(.issue_type == "question" and .st
     refute grep -q '^## not a heading inside code' "$snap"
 }
 
+@test "CD-20h a four-backtick block holding a three-backtick line keeps its # lines undemoted" {
+    mkmap; mktickets; resolve_all
+    doc="$H/grimoires/loa/maps/eval-workers.md"
+    # H3 inside the block: the map validator checks H2s only (its fence tracking is its own)
+    printf '````text\n```\n### inside the long fence\n````\n' > "$BATS_TEST_TMPDIR/code"
+    awk -v f="$BATS_TEST_TMPDIR/code" '{print} /^## Destination$/ {getline; print; while ((getline l < f) > 0) print l}' \
+        "$doc" > "$BATS_TEST_TMPDIR/m" && mv "$BATS_TEST_TMPDIR/m" "$doc"
+    run ct handoff --map eval-workers
+    [ "$status" -eq 0 ]
+    snap="$H/grimoires/loa/context/chart-eval-workers.md"
+    grep -qx '### inside the long fence' "$snap"
+    refute grep -q '^#### inside the long fence' "$snap"
+    grep -q '^### Destination$' "$snap"
+}
+
 @test "CD-20f hand-off refuses an invalid map doc and writes nothing" {
     mkmap; mktickets; resolve_all
     printf '\n## Execution\nrun the build\n' >> "$H/grimoires/loa/maps/eval-workers.md"
@@ -548,6 +608,27 @@ resolve_all() { for b in $(jq -r '.[] | select(.issue_type == "question" and .st
     cmp -s "$doc" "$BATS_TEST_TMPDIR/d0"
     grep -q '^\*\*Status\*\*: charting$' "$doc"
     [ "$(cat "$LEDGER")" = "$before" ]
+}
+
+@test "CD-22d a second consumed close is a no-op: exit 0, nothing changed" {
+    mkmap; mktickets; resolve_all
+    ct handoff --map eval-workers >/dev/null
+    LOA_UNATTENDED=1 run ct close --map eval-workers --consumed-by cycle-test
+    [ "$status" -eq 0 ]
+    doc="$H/grimoires/loa/maps/eval-workers.md"
+    cp "$doc" "$BATS_TEST_TMPDIR/d1"; cp "$BR_STATE" "$BATS_TEST_TMPDIR/s1"; before="$(cat "$LEDGER")"
+    : > "$BR_LOG"
+    LOA_UNATTENDED=1 run ct close --map eval-workers --consumed-by cycle-test
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"map eval-workers is already closed; nothing to do"* ]]
+    cmp -s "$doc" "$BATS_TEST_TMPDIR/d1"
+    cmp -s "$BR_STATE" "$BATS_TEST_TMPDIR/s1"
+    [ "$(cat "$LEDGER")" = "$before" ]
+    [ ! -s "$BR_LOG" ]
+    run ct close --map eval-workers --reason "again"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"already closed; nothing to do"* ]]
+    cmp -s "$doc" "$BATS_TEST_TMPDIR/d1"
 }
 
 @test "CD-22c --consumed-by on a handed-off map that regained an open row exits 1" {

@@ -11,9 +11,11 @@
 #
 # Attribution is derived, never passed: no caller sets decided_by. Skills write `open` or
 # `proposed` rows with proposed_by agent (flatline|dissent only interactively, with an existing
-# artifact whose sha256 is recorded). In an unattended context (`context` below) every write lands
-# `proposed` (an explicit --status open stays open: an open question, not a decision taken),
-# proposed_by is agent, and --answer-ref / --as are ignored with a WARN. Only the operator-only
+# artifact whose sha256 is recorded). Under a live unattended signal (`context` below) every write
+# lands `proposed` (an explicit --status open stays open: an open question, not a decision taken),
+# proposed_by is agent, and --answer-ref / --as are ignored with a WARN. A PRD Status line naming an
+# autonomous or unattended run applies the same defaults to `new` and `decide` only; it never
+# changes the operator's own /decisions confirm, reject or supersede. Only the operator-only
 # /decisions command passes --recorded-by decisions-command, the one caller of `confirm`, of
 # `reject`/`supersede` on a decided row and of `context --clear`.
 #
@@ -47,9 +49,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd -P)"
+# LOA_PROJECT_ROOT names the project whose ledger, .run and prd.md this run reads (validate-artifact.sh
+# passes its own PROJECT_ROOT so its context probe and the artifact come from one tree). It must be an
+# existing directory; it is canonicalised. The validator and compat-lib always come from this script's tree.
+if [[ -n "${LOA_PROJECT_ROOT:-}" ]]; then
+  [[ -d "$LOA_PROJECT_ROOT" ]] || { echo "dec-write: LOA_PROJECT_ROOT is not a directory: ${LOA_PROJECT_ROOT}" >&2; exit 2; }
+  PROJECT_ROOT="$(cd "$LOA_PROJECT_ROOT" && pwd -P)"
+fi
 G="${PROJECT_ROOT}/grimoires/loa"
 LIVE="${G}/decisions.yaml"
-VALIDATOR="${PROJECT_ROOT}/.claude/scripts/validate-artifact.sh"
+VALIDATOR="$(cd "${SCRIPT_DIR}/.." && pwd -P)/validate-artifact.sh"
 OPERATOR_CMD="decisions-command"
 QUIET=0
 TMPF=""
@@ -180,8 +189,13 @@ ctx_signals(){
   fi
   return 0
 }
-is_unattended(){ [[ -n "$(ctx_signals)" ]]; }
+# Two scopes. A live signal (fresh marker, RUNNING run state, LOA_UNATTENDED=1, autonomous Flatline mode)
+# means no operator is at the keyboard: it governs attribution, the operator-only operations and the
+# `context` verdict. The PRD Status line is a planning-time default only: it makes `new` and `decide`
+# land proposed and ignore refs, and it never blocks or downgrades the operator's own /decisions call.
 live_run_signal(){ ctx_signals | grep -q '^live ' ; }
+is_unattended(){ live_run_signal; }
+is_unattended_for_defaults(){ [[ -n "$(ctx_signals)" ]]; }
 
 ci_blocked(){
   if [[ -n "${CI:-}" && "${CI}" != "false" && "${CI}" != "0" ]]; then echo "CI"; return 0; fi
@@ -328,13 +342,15 @@ artifact_path(){ # voice path
   printf '%s' "$a"
 }
 
-# Sets VOICE, REF, SHA from --as / --answer-ref and the context. $1 = allow_as (1 at creation).
+# Sets VOICE, REF, SHA from --as / --answer-ref and the context. $1 = allow_as (1 at creation);
+# $2 = defaults (new/decide: any signal, the PRD Status line included) or live (operator operations).
 VOICE="agent"; REF=""; SHA=""
 derive_attribution(){
-  local allow_as="$1" as ref
+  local allow_as="$1" scope="${2:-live}" as ref unatt=0
   as="$(san1 "$(o as)")"; ref="$(san1 "$(o answer-ref)")"
   VOICE="agent"; REF=""; SHA=""
-  if is_unattended; then
+  if [[ "$scope" == "defaults" ]]; then is_unattended_for_defaults && unatt=1; else is_unattended && unatt=1; fi
+  if [[ $unatt -eq 1 ]]; then
     [[ -z "$ref" ]] || warn "unattended context: --answer-ref ignored (the row stays proposed with proposed_by agent until /decisions confirm)"
     [[ -z "$as" ]] || warn "unattended context: --as ${as} ignored"
     return 0
@@ -462,7 +478,7 @@ build_row(){
       || die "a proposed row needs --decision, --rationale and at least one --alternative-json"
   fi
   rb="$(recorded_by)"; cyc="$(san1 "$(o cycle)")"; [[ -n "$cyc" ]] || cyc="$(default_cycle)"
-  if [[ -z "$cyc" ]] && is_unattended; then warn "no cycle id (pass --cycle); the row's cycle is null"; fi
+  if [[ -z "$cyc" ]] && is_unattended_for_defaults; then warn "no cycle id (pass --cycle); the row's cycle is null"; fi
   now="$(now_utc)"; ev="$(san1 "$(o evidence)")"; [[ -n "$ev" ]] || ev="$source"
   jq -cn --arg id "$id" --arg now "$now" --arg phase "$phase" --arg category "$category" --arg summary "$summary" \
     --arg decision "$decision" --arg rationale "$rationale" --argjson alts "$alts" --argjson cons "$cons" \
@@ -487,8 +503,8 @@ op_new(){
   preflight; resolve_target write
   local status; status="$(san1 "$(o status)")"
   [[ -z "$status" || "$status" == "open" || "$status" == "proposed" ]] || usage "--status must be open or proposed (a row reaches decided only through /decisions confirm)"
-  derive_attribution 1
-  if is_unattended; then [[ "$status" == "open" ]] || status="proposed"; else status="${status:-open}"; fi
+  derive_attribution 1 defaults
+  if is_unattended_for_defaults; then [[ "$status" == "open" ]] || status="proposed"; else status="${status:-open}"; fi
   acquire_lock "$TARGET"
   local old id row; old="$(read_ledger "$TARGET")"
   id="$(alloc_id "$old")"
@@ -506,7 +522,7 @@ op_decide(){
   local id; id="$(need_id)"
   [[ -n "$(san1 "$(o evidence)")" ]] || die "decide: --evidence is required (what the decision rests on)"
   resolve_target write
-  derive_attribution 0
+  derive_attribution 0 defaults
   acquire_lock "$TARGET"
   local old r; old="$(read_ledger "$TARGET")"; r="$(row_by_id "$old" "$id")"
   [[ -n "$r" ]] || die "decide: unknown id ${id}"
@@ -751,10 +767,12 @@ op_context(){
     rm -f -- "$mk"
     log "dec-write: unattended marker cleared"
   fi
+  # The verdict follows live signals only (chart-guard.sh, chart-ticket.sh and golden-path.sh read this
+  # first line); the PRD Status line is listed by --why as advisory.
   local sig; sig="$(ctx_signals)"
-  if [[ -n "$sig" ]]; then echo unattended; else echo interactive; fi
+  if printf '%s\n' "$sig" | grep -q '^live '; then echo unattended; else echo interactive; fi
   if has why; then
-    if [[ -n "$sig" ]]; then printf '%s\n' "$sig" | sed 's/^/signal: /'; else echo "signal: none"; fi
+    if [[ -n "$sig" ]]; then printf '%s\n' "$sig" | sed 's/^/signal: /; s/^\(signal: prd .*\)$/\1 (advisory: a planning-time default for new and decide only)/'; else echo "signal: none"; fi
     local d ms; while IFS= read -r d; do ms="$(marker_state "$d/unattended.json")"; if [[ "$ms" == "stale" ]]; then echo "note: stale marker ignored: $d/unattended.json"; fi; done < <(run_dirs)
   fi
   return 0

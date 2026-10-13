@@ -34,7 +34,10 @@
 # Common: --root DIR (fixture tree for maps/context/research), --ledger PATH (dec-write-lib --file),
 #         --dry-run (print the writes as `would:` lines; `br create` runs with its own --dry-run).
 # Every write subcommand refuses unless `dec-write-lib.sh context` says interactive; --dry-run
-# and `close --consumed-by` (a handed-off map only) are the exceptions.
+# and `close --consumed-by` (a handed-off map only) are the exceptions. `epic` reuses an existing
+# map epic for the slug when the doc is missing; `close` on a closed or abandoned map is a no-op.
+# research-begin waits one second after its marker, so research-end's mtime check holds on a
+# filesystem with one-second timestamps; a write in the marker's own second is the boundary.
 # Exit: 0 ok; 1 refused or failed (nothing further written); 2 usage.
 # =============================================================================
 export LC_ALL=C
@@ -199,15 +202,34 @@ op_epic(){
   local title dest; title="$(san1 "$TITLE")"; dest="$(san1 "$DEST")"
   no_url "--title" "$title"; no_url "--destination" "$dest"
   need_br
-  local out epic
-  if [[ $DRY -eq 1 ]]; then
+  local out epic found n
+  # An earlier run may have created the epic and then failed before the doc landed: reuse a map
+  # epic for this slug (open or closed, label map, and the description this command writes or a
+  # br id `...map-<slug>-<hash>`) instead of creating a second one. Several matches: the
+  # operator picks, so refuse.
+  found="$(beads_all | jq -c --arg d "Decision map: grimoires/loa/maps/${SLUG}.md" --arg s "$SLUG" '
+    [ .[] | select(((.issue_type // .type // "") | tostring | ascii_downcase) == "epic")
+          | select([(.labels // [])[] | if type == "object" then (.name // "") else tostring end] | index("map"))
+          | select(((.description // "") == $d) or ((.id // "") | test("(^|-)map-" + $s + "-[A-Za-z0-9]+$")))
+          | .id ]')"
+  n="$(printf '%s' "$found" | jq 'length')"
+  if [[ "$n" -gt 1 ]]; then
+    die "more than one map epic already exists for ${SLUG} ($(printf '%s' "$found" | jq -r 'join(", ")')); write grimoires/loa/maps/${SLUG}.md with the one to keep in its **Epic**: line and close the others"
+  fi
+  if [[ "$n" -eq 1 ]]; then
+    epic="$(printf '%s' "$found" | jq -r '.[0]')"
+    [[ "$epic" =~ $ID_RE ]] || die "the existing map epic has an unusable id"
+    echo "chart-ticket: reusing map epic ${epic} for ${SLUG} (its map doc was missing)" >&2
+    if [[ $DRY -eq 1 ]]; then would write "grimoires/loa/maps/${SLUG}.md" "**Epic**: ${epic}" "**Status**: charting"; return 0; fi
+  elif [[ $DRY -eq 1 ]]; then
     br create "Map: ${title}" --type epic --labels map --slug "map-${SLUG}" --description "Decision map: grimoires/loa/maps/${SLUG}.md" --dry-run --json
     would write "grimoires/loa/maps/${SLUG}.md" "**Status**: charting"
     return 0
+  else
+    out="$(br create "Map: ${title}" --type epic --labels map --slug "map-${SLUG}" --description "Decision map: grimoires/loa/maps/${SLUG}.md" --json)" || die "br create (epic) failed"
+    epic="$(printf '%s' "$out" | first_obj | jq -r '.id // empty')"
+    [[ "$epic" =~ $ID_RE ]] || die "br create returned no epic id: $(san1 "$out")"
   fi
-  out="$(br create "Map: ${title}" --type epic --labels map --slug "map-${SLUG}" --description "Decision map: grimoires/loa/maps/${SLUG}.md" --json)" || die "br create (epic) failed"
-  epic="$(printf '%s' "$out" | first_obj | jq -r '.id // empty')"
-  [[ "$epic" =~ $ID_RE ]] || die "br create returned no epic id: $(san1 "$out")"
   mkdir -p "${G}/maps"
   local t; t="$(mktemp "${G}/maps/.${SLUG}.XXXXXX")"
   cat > "$t" <<EOF_MAP
@@ -437,7 +459,17 @@ fence_append(){
 }
 
 # Demote headings one level, outside fenced code only (``` or ~~~ toggles a fence).
-demote_headings(){ awk '/^(```|~~~)/ { infence = !infence; print; next } !infence && /^#+ / { print "#" $0; next } { print }' "$1"; }
+demote_headings(){
+  # Fence tracking is the shared CommonMark helper (lengths and characters), the one
+  # validate-artifact.sh uses, so a four-backtick block holding a three-backtick line stays code.
+  local fence_src
+  fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" && [[ -n "$fence_src" ]] \
+    || die "cannot read ${SCRIPT_DIR}/lib/md-fence.awk; reinstall the framework scripts"
+  awk "${fence_src}"'
+    md_fence($0) { print; next }
+    /^#+ / { print "#" $0; next }
+    { print }' "$1"
+}
 
 op_handoff(){
   need_interactive; need_doc
@@ -499,6 +531,13 @@ op_handoff(){
 op_close(){
   need_doc
   if [[ -n "$CONSUMED" && -n "$REASON" ]] || [[ -z "$CONSUMED" && -z "$REASON" ]]; then usage "close takes exactly one of --consumed-by <cycle> or --reason R"; fi
+  # Idempotent: a map already closed or abandoned is left as it is (a re-run of
+  # /plan-and-analyze's consumed close must not fail on its own earlier success).
+  local cur; cur="$(doc_field Status)"
+  if [[ "$cur" == "closed" || "$cur" == "abandoned" ]]; then
+    echo "map ${SLUG} is already ${cur}; nothing to do"
+    return 0
+  fi
   local why final
   if [[ -n "$CONSUMED" ]]; then
     [[ "$CONSUMED" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || usage "--consumed-by must be a cycle id"
@@ -562,6 +601,10 @@ op_research_begin(){
   fi
   local snap; snap="$(git -C "$ROOT" status --porcelain --untracked-files=all --ignored=matching 2>/dev/null || true)"
   printf '%s\n' "$snap" > "$m"
+  # research-end compares mtimes against the marker with find -newer. On a filesystem with
+  # one-second timestamps a write in the marker's own second would look older; waiting one
+  # second puts every later write in a later second (the dispatch is interactive).
+  sleep 1
   echo "grimoires/loa/research/chart-${SLUG}-${TICKET}.md"
 }
 op_research_end(){

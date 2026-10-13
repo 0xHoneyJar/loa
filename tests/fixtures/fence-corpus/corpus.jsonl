@@ -177,3 +177,7 @@
 {"id":"D96","cmd":"gh api repos/acme/app/pulls -f head=spike/ceiling-ui -f base=main","expect":"block","rule":"SP-1","why":"the PR gh pr create refuses, through the REST API","cwd":"repo"}
 {"id":"D97","cmd":"gh api -f head=acme:spike/ceiling-ui -f base=main repos/acme/app/pulls","expect":"block","rule":"SP-1","why":"fields before the path, owner-qualified head","cwd":"repo"}
 {"id":"D98","cmd":"git config set alias.m merge","expect":"block","rule":"SP-1","why":"the subcommand definition form","cwd":"repo"}
+{"id":"D99","cmd":"git checkout -p spike/ceiling-ui","expect":"block","rule":"SP-1","why":"an interactive patch copy of spike hunks into the working tree (Bridgebuilder F-015)","cwd":"repo"}
+{"id":"D100","cmd":"git checkout --patch spike/ceiling-ui -- src/a.ts","expect":"block","rule":"SP-1","why":"the long form of the same patch copy, with a path","cwd":"repo"}
+{"id":"B77","cmd":"git checkout -p main","expect":"allow","rule":"SP-1","why":"a patch copy from the default branch names no spike","cwd":"repo"}
+{"id":"B78","cmd":"git format-patch -1 main","expect":"allow","rule":"SP-1","why":"format-patch of a non-spike ref; the spike form is a documented two-step miss","cwd":"repo"}

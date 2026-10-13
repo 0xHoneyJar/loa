@@ -117,3 +117,60 @@ ledger(){ { printf 'schema_version: 1\ndecisions:\n'; cat; } > "$LEDGER"; }
   # the id is reduced to its safe characters
   [[ "$output" == *"- DEC-0002evil open:"* ]]
 }
+
+# ---- Bridgebuilder round -----------------------------------------------------------------
+
+# A PATH holding every command of the current PATH except the named tools.
+_path_without() {
+  local d="$BATS_TEST_TMPDIR/pw-$(printf '%s' "$*" | tr ' ' '-')" p f b t skip
+  mkdir -p "$d"
+  local IFS=:
+  for p in $PATH; do
+    [[ -d "$p" ]] || continue
+    for f in "$p"/*; do
+      b="${f##*/}"; skip=0
+      for t in $(IFS=' '; echo "$*"); do [[ "$b" == "$t" ]] && skip=1; done
+      [[ $skip -eq 1 || -e "$d/$b" ]] && continue
+      ln -s "$f" "$d/$b" 2>/dev/null || true
+    done
+  done
+  printf '%s' "$d"
+}
+
+@test "decisions surface F-014: enabled but yq v4 or jq missing prints one WARNING naming the tool" {
+  { row DEC-0001 proposed "rounds is the default"; } | ledger
+  local nyq; nyq="$(_path_without yq)"
+  run env PATH="$nyq" LOA_DEC_SURFACE_TEST_CONFIG=true bash "$HOOK"
+  [ "$status" -eq 0 ]; [ "${#lines[@]}" -eq 1 ]
+  [[ "$output" == "[DECISIONS] WARNING: the decisions surface is enabled but Mike Farah yq v4 is missing"* ]]
+  local njq; njq="$(_path_without jq)"
+  run env PATH="$njq" LOA_DEC_SURFACE_TEST_CONFIG=true bash "$HOOK"
+  [ "$status" -eq 0 ]; [ "${#lines[@]}" -eq 1 ]; [[ "$output" == *"enabled but jq is missing"* ]]
+  # disabled stays silent even without the tools
+  run env PATH="$nyq" LOA_DEC_SURFACE_TEST_CONFIG=false bash "$HOOK"
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+}
+
+@test "decisions surface F-014: without yq the real config is read by the plain-text fallback" {
+  # a copy of the hook in a temp tree, so its REPO_ROOT config is ours (no test-mode override)
+  local R="$BATS_TEST_TMPDIR/tree"
+  mkdir -p "$R/.claude/hooks/session-start"
+  cp "$HOOK" "$R/.claude/hooks/session-start/"
+  local nyq; nyq="$(_path_without yq)"
+  printf 'known_failures:\n  surface_at_session_start: true\ndecisions:\n  surface_at_session_start: true   # on\n' > "$R/.loa.config.yaml"
+  run env -u LOA_DEC_SURFACE_TEST_MODE PATH="$nyq" bash "$R/.claude/hooks/session-start/loa-decisions-surface.sh"
+  [ "$status" -eq 0 ]; [[ "$output" == *"enabled but Mike Farah yq v4 is missing"* ]]
+  printf 'known_failures:\n  surface_at_session_start: true\ndecisions:\n  surface_at_session_start: false\n' > "$R/.loa.config.yaml"
+  run env -u LOA_DEC_SURFACE_TEST_MODE PATH="$nyq" bash "$R/.claude/hooks/session-start/loa-decisions-surface.sh"
+  [ "$status" -eq 0 ]; [ -z "$output" ]
+}
+
+@test "decisions surface F-001: a summary with uppercase letters appears verbatim (the clean regex keeps A-Z)" {
+  { row DEC-0001 proposed "Use YAML Ledger For ADR Decisions (DEC Rows) Q4 XYZ"; } | ledger
+  run env LOA_DEC_SURFACE_TEST_CONFIG=true bash "$HOOK"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"- DEC-0001 proposed: Use YAML Ledger For ADR Decisions (DEC Rows) Q4 XYZ"* ]]
+  # and the source carries no literal invisible separators (every non-ASCII character is a \u escape)
+  run grep -cP '[^\x00-\x7f]' "$HOOK"
+  [ "$output" = "0" ]
+}

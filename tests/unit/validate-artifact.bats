@@ -956,3 +956,104 @@ MAP
     run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
     [ "$status" -eq 0 ]
 }
+
+# ---- Bridgebuilder round: merge-base history mode (F-002), jq floor (F-012), PROJECT_ROOT (F-017) ----
+
+# A git repo whose origin/main holds the ledger with one open row; the working copy then moves on.
+_dec_mergebase_project() {
+    _dec_project
+    bash "$DW" new --file "$DL" --summary "an open question" --phase discovery --category scope --recorded-by t --source "prd.md#q" --status open --quiet >/dev/null
+    git -C "$DP" add -A
+    git -C "$DP" -c core.hooksPath=/dev/null -c user.email=t@t -c user.name=t commit -qm base
+    git -C "$DP" update-ref refs/remotes/origin/main HEAD
+    git -C "$DP" show HEAD:grimoires/loa/decisions.yaml > "$BATS_TEST_TMPDIR/mb-base.yaml"
+}
+
+@test "validate-artifact decisions F-002: a branch row open -> proposed -> decided validates against its merge-base copy (history rules)" {
+    _dec_skip_unless_tools; _dec_mergebase_project
+    bash "$DW" decide --file "$DL" --id DEC-0001 --decision d --rationale r --alternative-json "$DALT" --evidence e --recorded-by t --quiet
+    _dec_confirm DEC-0001
+    [ "$(yq '.decisions[0].transitions | length' "$DL")" -eq 3 ]
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"append-only base: grimoires/loa/decisions.yaml at merge-base"* ]]
+    # the writer's single-write path (--base-file) keeps the strict rule
+    run "$DV" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/mb-base.yaml"
+    [ "$status" -eq 1 ]; [[ "$output" == *"more than one transition appended in one write"* ]]
+}
+
+@test "validate-artifact decisions F-002: in merge-base mode an edited base-prefix transition and an unlegitimised content edit still fail" {
+    _dec_skip_unless_tools; _dec_mergebase_project
+    bash "$DW" decide --file "$DL" --id DEC-0001 --decision d --rationale r --alternative-json "$DALT" --evidence e --recorded-by t --quiet
+    _dec_confirm DEC-0001
+    cp "$DL" "$BATS_TEST_TMPDIR/good.yaml"
+    yq -i '.decisions[0].transitions[0].evidence = "rewritten"' "$DL"
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 1 ]; [[ "$output" == *"DEC-0001: transitions rewritten (append only)"* ]]
+    cp "$BATS_TEST_TMPDIR/good.yaml" "$DL"
+    # no appended transition reaches rejected, so nothing legitimises a rejection_rationale
+    yq -i '.decisions[0].rejection_rationale = "slipped in"' "$DL"
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 1 ]; [[ "$output" == *"DEC-0001: content edit to rejection_rationale"* ]]
+    cp "$BATS_TEST_TMPDIR/good.yaml" "$DL"
+    yq -i '.decisions[0].summary = "rewritten"' "$DL"
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 1 ]; [[ "$output" == *"DEC-0001: content edit to summary"* ]]
+}
+
+@test "validate-artifact decisions F-012: validate_decisions uses no jq IN() (absent from jq 1.5)" {
+    run bash -c 'awk "/^validate_decisions\\(\\) \\{/,/^}/" "$1" | grep -c "IN("' _ "$SCRIPT"
+    [ "$output" = "0" ]
+    # and the function still evaluates (a writer-built ledger with every status passes)
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null; _dec_new_prop >/dev/null; _dec_confirm DEC-0001
+    bash "$DW" reject --file "$DL" --id DEC-0002 --rationale no --follow-up bd-x --recorded-by t --quiet
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact decisions F-017: the context probe reads the validator's PROJECT_ROOT, not the script's tree" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null
+    cp "$DL" "$BATS_TEST_TMPDIR/base.yaml"
+    _dec_confirm DEC-0001
+    # the repository's own validator, pointed at the fixture tree whose run state is RUNNING
+    mkdir -p "$DP/.run"; printf '{"state":"RUNNING"}\n' > "$DP/.run/state.json"
+    run env PROJECT_ROOT="$DP" "$SCRIPT" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    [ "$status" -eq 1 ]; [[ "$output" == *"decided_by operator written while a live unattended signal holds"* ]]
+    rm -f "$DP/.run/state.json"
+    run env PROJECT_ROOT="$DP" "$SCRIPT" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact prd F-003: an autonomous PRD Status line still makes the PRD gate fail an uncited [ASSUMPTION decision]" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_prd "Draft (autonomous run)" 2026-10-13 "We take rounds. [ASSUMPTION decision] (DEC-0001)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 1 ]; [[ "$output" == *"(unattended PRD)"* ]]
+}
+
+@test "validate-artifact sdd F-007: an Open Questions row marked Unresolved is not read as Resolved; a Resolved row without a DEC id still WARNs" {
+    local f="${TEST_TMPDIR}/sdd-oq.md"
+    cat > "$f" <<'SDD'
+# SDD: fixture
+
+## 1. Overview
+Text.
+
+## 10. Open Questions
+
+| # | Question | Status | Resolved by | DEC |
+|---|----------|--------|-------------|-----|
+| 1 | Pending one | Unresolved | — | — |
+| 2 | Settled one | Resolved | D-1.1 | — |
+| 3 | Cited one | Resolved | D-1.2 | DEC-0001 |
+
+## 11. Appendix
+Text.
+SDD
+    run "$SCRIPT" --type sdd --file "$f"
+    [ "$(grep -c 'an Open Questions row is Resolved without a DEC id' <<< "$output")" -eq 1 ]
+    [[ "$output" == *":11:"* ]]
+    [[ "$output" != *":10:"* ]]
+}

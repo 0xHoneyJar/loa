@@ -174,9 +174,14 @@ tree() { (cd "$TEST_DIR" && find . -path ./.git -prune -o -print | LC_ALL=C sort
     [ "$status" -eq 3 ]
     LOA_UNATTENDED=1 run golden_resolve_open_map
     [ "$status" -eq 1 ]
-    # the real writer reads this project's PRD Status line (--prd is passed)
+    # the real writer: an autonomous PRD Status line alone is a planning-time default for new/decide,
+    # not a live signal, so the context is interactive (Bridgebuilder F-003) and the operator's
+    # interactive choice of map stands (exit 3); a RUNNING run state is live and fails closed
     cp "$REAL/.claude/scripts/lib/dec-write-lib.sh" "$TEST_DIR/.claude/scripts/lib/"
     printf '# PRD\n\n**Status:** Draft, autonomous run\n' > "$TEST_DIR/grimoires/loa/prd.md"
+    run golden_resolve_open_map
+    [ "$status" -eq 3 ]
+    mkdir -p "$TEST_DIR/.run"; printf '{"state":"RUNNING"}\n' > "$TEST_DIR/.run/state.json"
     run golden_resolve_open_map
     [ "$status" -eq 1 ]
     [[ "$output" == *"more than one open map: name one"* ]]

@@ -304,7 +304,7 @@ EOF
     awk '/^#### Task 2:/,/^### Acceptance Criteria/' "$m" | grep -qF 'The fix is a later commit and does not weaken the test'
     local r="$PROJECT_ROOT/.claude/skills/reviewing-code/SKILL.md" p2
     p2="$(awk '/^## Phase 2: Code Review/,/^## Phase 2.5/' "$r")"
-    grep -qF '.claude/scripts/red-test-check.sh --json --red <Red commit from reviewer.md> -- <test command>' <<< "$p2"
+    grep -qF '.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> --json -- <test command>' <<< "$p2"
     grep -qF 'Tests exist at each declared `### Seams Under Test` seam' <<< "$p2"
     grep -qF 'never from reviewer.md' <<< "$p2"
     grep -qF 'Bash(.claude/scripts/red-test-check.sh --red *)' "$r"
@@ -317,12 +317,15 @@ EOF
 }
 
 @test "RTC-18 a silent run prints (no output) inside its fence, never a blank line" {
-    command -v yq >/dev/null || skip "yq not installed (the silent runner is the configured red_test.command)"
-    script_test test_silent.sh 'exit 1\n'
-    printf 'red_test:\n  command: "sh tests/test_silent.sh"\n' > "$R/.loa.config.yaml"
+    command -v yq >/dev/null || skip "yq not installed (the silent runner is a red_test.allowed_runners script)"
+    # a script run directly (make would print its own error line): listed in red_test on a branch,
+    # so the run needs --trust-config
+    mkdir -p "$R/tests"; printf '#!/bin/sh\nexit 1\n' > "$R/tests/test_silent.sh"; chmod +x "$R/tests/test_silent.sh"
+    git -C "$R" checkout -q -b feature
+    printf 'red_test:\n  allowed_runners:\n    - ./tests/test_silent.sh\n' > "$R/.loa.config.yaml"
     red="$(commit "test(bug): silent failing test")"
     printf 'x\n' > "$R/NOTES"; commit "not a fix, still silent" >/dev/null
-    run rtc --red "$red" -- sh tests/test_silent.sh
+    run rtc --red "$red" --trust-config -- ./tests/test_silent.sh
     [ "$status" -eq 1 ] || { echo "$output"; return 1; }
     local red_block green_block
     red_block="$(awk '/^--- red run/,/^--- end red run/' <<< "$output")"
@@ -364,18 +367,43 @@ EOF
 
 @test "RTC-21 a ./ or tests/ script runs only when red_test.allowed_runners lists it; red_test.command matches exactly" {
     command -v yq >/dev/null || skip "yq not installed"
-    add_red_test; chmod +x "$R/tests/test_add.sh"; sed -i.bak '1i #!/bin/sh' "$R/tests/test_add.sh"; rm -f "$R/tests/test_add.sh.bak"
+    add_red_test; chmod +x "$R/tests/test_add.sh"
+    # prepend a shebang portably (GNU sed's `1i text` has no BSD equivalent)
+    { printf '#!/bin/sh\n'; cat "$R/tests/test_add.sh"; } > "$R/tests/test_add.sh.new" && mv "$R/tests/test_add.sh.new" "$R/tests/test_add.sh" && chmod +x "$R/tests/test_add.sh"
+    git -C "$R" checkout -q -b feature
     printf 'red_test:\n  allowed_runners:\n    - ./tests/test_add.sh\n  command: "sh tests/test_add.sh"\n' > "$R/.loa.config.yaml"
     red="$(commit "test")"
     fix_lib; commit "fix" >/dev/null
+    # the config was added on this branch (it differs from main): a config-only acceptance needs
+    # --trust-config (RTC-001)
     run rtc --red "$red" -- ./tests/test_add.sh
+    [ "$status" -eq 2 ]; [[ "$output" == *"accepted only through its red_test block"*"--trust-config"* ]]
+    run rtc --red "$red" --trust-config -- ./tests/test_add.sh
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-    run rtc --red "$red" -- sh tests/test_add.sh
-    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-    run rtc --red "$red" -- sh tests/test_add.sh extra
-    [ "$status" -eq 2 ]
-    run rtc --red "$red" -- ./tests/other.sh
+    # a configured shell is still a shell: the denials come before the configured match
+    run rtc --red "$red" --trust-config -- sh tests/test_add.sh
+    [ "$status" -eq 2 ]; [[ "$output" == *"never a test runner"* ]]
+    run rtc --red "$red" --trust-config -- ./tests/other.sh
     [ "$status" -eq 2 ]; [[ "$output" == *"not listed in red_test.allowed_runners"* ]]
+    assert_clean
+}
+
+@test "RTC-27 a configured red_test.command or red_test.setup cannot bypass the denials (bash -c, python -c, node -e); a listed runner needs no config and no --trust-config" {
+    command -v yq >/dev/null || skip "yq not installed"
+    add_red_test
+    git -C "$R" checkout -q -b feature
+    printf 'red_test:\n  command: "bash -c true"\n  setup: "python3 -c pass"\n' > "$R/.loa.config.yaml"
+    red="$(commit "test")"
+    fix_lib; commit "fix" >/dev/null
+    run rtc --red "$red" --trust-config -- bash -c true
+    [ "$status" -eq 2 ]; [[ "$output" == *"never a test runner"* ]]
+    run rtc --red "$red" --trust-config --setup "python3 -c pass" -- make -s test
+    [ "$status" -eq 2 ]; [[ "$output" == *"inline code"* ]]
+    run rtc --red "$red" -- node -e 1
+    [ "$status" -eq 2 ]; [[ "$output" == *"inline code"* ]]
+    run rtc --red "$red" -- make -s test
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"WARN: .loa.config.yaml differs"* ]]
     assert_clean
 }
 

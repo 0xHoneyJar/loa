@@ -30,7 +30,8 @@
 #               Appendix' goal table; WARN if the final sprint has no
 #               E2E/end-to-end task; a plan whose header **Date:** is on or
 #               after SEAMS_REQUIRED_FROM needs a '### Seams Under Test' table
-#               in every sprint block (older and undated plans WARN)
+#               in every sprint block (older plans WARN; an undated plan WARNs when
+#               archived or a fixture and fails when live under grimoires/loa/)
 #   bug-triage: bug_id matches the bug-triaging ID grammar; its sibling
 #               .run/bugs/<id>/state.json has a schema_version; a PII scan
 #               via pii-filter.sh (skipped if unavailable)
@@ -546,11 +547,18 @@ _dec_have_yq4() {
     [[ "$v" == *mikefarah* && "$v" == *"version v4."* ]]
 }
 
-# The writer's context (`dec-write-lib.sh context --why`); prints its signal lines.
+# The writer's context (`dec-write-lib.sh context --why`) for THIS validator's PROJECT_ROOT (passed as
+# LOA_PROJECT_ROOT, so the probe reads the same tree's .run and prd.md as the artifact); prints its lines.
+# The first line is the live verdict. With --prd (the PRD gate), the PRD's own Status line also counts:
+# an autonomous PRD is the planning-time default the gate checks, so a prd signal makes it "unattended".
 _dec_context_why() {
-    local lib="${SCRIPT_DIR}/lib/dec-write-lib.sh"
+    local lib="${SCRIPT_DIR}/lib/dec-write-lib.sh" out
     [[ -f "$lib" ]] || return 0
-    bash "$lib" context --why "$@" 2>/dev/null || true
+    out="$(LOA_PROJECT_ROOT="$PROJECT_ROOT" bash "$lib" context --why "$@" 2>/dev/null || true)"
+    if [[ " $* " == *" --prd "* ]] && grep -q '^signal: prd ' <<< "$out"; then
+        out="unattended"$'\n'"$(printf '%s\n' "$out" | tail -n +2)"
+    fi
+    printf '%s\n' "$out"
 }
 
 validate_decisions() {
@@ -586,6 +594,9 @@ validate_decisions() {
         fi
     fi
 
+    # The writer passes --base-file (one write: strict single-write rules); the merge-base copy spans
+    # every write on the branch, so only history rules apply to it.
+    local strict=false; [[ -n "$BASE_FILE" ]] && strict=true
     local live_unattended=false
     if _dec_context_why | grep -q '^signal: live '; then live_unattended=true; fi
 
@@ -595,8 +606,9 @@ validate_decisions() {
     printf '%s' "$doc" > "${scratch}"
     printf '%s' "$base" > "${scratch}.base"
     out="$(jq -rn --slurpfile DOC "$scratch" --slurpfile BASE "${scratch}.base" --argjson pending "$pending" \
-        --argjson unatt "$live_unattended" --arg refre "$DEC_REF_RE" '
+        --argjson unatt "$live_unattended" --argjson strict "$strict" --arg refre "$DEC_REF_RE" '
       $DOC[0] as $doc | $BASE[0] as $base |
+      def oneof($xs): . as $v | any($xs[]; . == $v);
       def iso: type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$");
       def ne: type == "string" and (gsub("\\s"; "") | length) > 0;
       def byok: type == "string" and test("^(operator|agent|flatline|dissent):[A-Za-z0-9_.-]+$");
@@ -629,20 +641,20 @@ validate_decisions() {
                (["id","created_at","updated_at","phase","category","summary","proposed_by","decided_by","recorded_by","commit","source","cycle","status","transitions"][] as $k
                  | select(($r | has($k)) | not) | "V\t\($L): missing field \($k)"),
                (["created_at","updated_at"][] as $k | select($r | has($k)) | select(($r[$k] | iso) | not) | "V\t\($L): \($k) is not an ISO-8601 UTC timestamp"),
-               (if ($r | has("phase")) and (($r.phase | IN("discovery","architecture","sprint-planning","implementation","review","charting","spike","operations")) | not) then "V\t\($L): phase \($r.phase | tojson) is not one of discovery|architecture|sprint-planning|implementation|review|charting|spike|operations" else empty end),
+               (if ($r | has("phase")) and (($r.phase | oneof(["discovery","architecture","sprint-planning","implementation","review","charting","spike","operations"])) | not) then "V\t\($L): phase \($r.phase | tojson) is not one of discovery|architecture|sprint-planning|implementation|review|charting|spike|operations" else empty end),
                (if ($r | has("category")) and ((($r.category | type) == "string" and ($r.category | test("^[a-z][a-z0-9-]*$"))) | not) then "V\t\($L): category must match [a-z][a-z0-9-]*" else empty end),
                (if ($r | has("summary")) and (($r.summary | ne) | not) then "V\t\($L): summary is empty"
                 elif ($r | has("summary")) and (($r.summary | length) > 160 or ($r.summary | test("\n"))) then "V\t\($L): summary must be one line of at most 160 characters" else empty end),
-               (if ($r | has("status")) and (($r.status | IN("open","proposed","decided","superseded","rejected")) | not) then "V\t\($L): status \($r.status | tojson) is not one of open|proposed|decided|superseded|rejected" else empty end),
-               (if ($r | has("proposed_by")) and (($r.proposed_by | IN("agent","flatline","dissent")) | not) then "V\t\($L): proposed_by must be agent|flatline|dissent" else empty end),
-               (if ($r | has("decided_by")) and (($r.decided_by | IN(null,"operator","agent","flatline","dissent")) | not) then "V\t\($L): decided_by must be null or operator|agent|flatline|dissent" else empty end),
+               (if ($r | has("status")) and (($r.status | oneof(["open","proposed","decided","superseded","rejected"])) | not) then "V\t\($L): status \($r.status | tojson) is not one of open|proposed|decided|superseded|rejected" else empty end),
+               (if ($r | has("proposed_by")) and (($r.proposed_by | oneof(["agent","flatline","dissent"])) | not) then "V\t\($L): proposed_by must be agent|flatline|dissent" else empty end),
+               (if ($r | has("decided_by")) and (($r.decided_by | oneof([null,"operator","agent","flatline","dissent"])) | not) then "V\t\($L): decided_by must be null or operator|agent|flatline|dissent" else empty end),
                (if ($r | has("source")) and (($r.source | ne) | not) then "V\t\($L): source is empty" else empty end),
                (if ($r | has("recorded_by")) and (($r.recorded_by | ne) | not) then "V\t\($L): recorded_by is empty" else empty end),
                (if ($r | has("commit")) and (($r.commit | type) != "string") then "V\t\($L): commit must be a string" else empty end),
                (($r.transitions // null) | if type == "array" then . else [] end) as $T
                | ($T | any(.[]; (type == "object") and .to == "decided")) as $wasdecided
                | (
-                   (if ($r.status // null | IN("proposed","decided","superseded")) or ($T | any(.[]; (type == "object") and .to == "proposed")) then
+                   (if ($r.status // null | oneof(["proposed","decided","superseded"])) or ($T | any(.[]; (type == "object") and .to == "proposed")) then
                       (if ($r.decision | ne) | not then "V\t\($L): a row past open needs a decision" else empty end),
                       (if ($r.rationale | ne) | not then "V\t\($L): a row past open needs a rationale" else empty end),
                       (if (($r.alternatives_considered // null) | type) != "array" or ($r.alternatives_considered | length) < 1 then "V\t\($L): a row past open needs at least one alternatives_considered entry"
@@ -651,14 +663,14 @@ validate_decisions() {
                     else empty end),
                    (if ($r | has("transitions")) and ((($r.transitions | type) != "array") or ($T | length) == 0) then "V\t\($L): transitions must be a non-empty sequence" else empty end),
                    (if ($T | length) > 0 then
-                      (if ($T[0] | type) != "object" or $T[0].from != null or (($T[0].to // null) | IN("open","proposed") | not) then "V\t\($L): the first transition must be null -> open|proposed" else empty end),
+                      (if ($T[0] | type) != "object" or $T[0].from != null or (($T[0].to // null) | oneof(["open","proposed"]) | not) then "V\t\($L): the first transition must be null -> open|proposed" else empty end),
                       ($T | to_entries[] | .key as $j | .value as $t
                         | if ($t | type) != "object" then "V\t\($L): transition \($j) is not a mapping" else
                           (if $j > 0 and $t.from != (($T[$j - 1] | objects | .to) // null) then "V\t\($L): transition \($j) starts at \($t.from | tojson) but the previous one ended at \(($T[$j - 1] | objects | .to) // null | tojson)" else empty end),
                           (if allowed($t.from; $t.to) | not then "V\t\($L): illegal transition \($t.from | tojson) -> \($t.to | tojson)" else empty end),
                           (if ($t.at | iso) | not then "V\t\($L): transition \($j) has no ISO-8601 UTC at" else empty end),
                           (if ($t.by | byok) | not then "V\t\($L): transition \($j) by \($t.by | tojson) does not match (operator|agent|flatline|dissent):<name>" else empty end),
-                          (if ($t.to == "decided" or ($t.from == "decided" and ($t.to | IN("superseded","rejected")))) and ((($t.by // "") | tostring | startswith("operator:")) | not) then "V\t\($L): transition \($t.from | tojson) -> \($t.to) needs by operator:* (only /decisions makes it)" else empty end),
+                          (if ($t.to == "decided" or ($t.from == "decided" and ($t.to | oneof(["superseded","rejected"])))) and ((($t.by // "") | tostring | startswith("operator:")) | not) then "V\t\($L): transition \($t.from | tojson) -> \($t.to) needs by operator:* (only /decisions makes it)" else empty end),
                           (if $t.to == "decided" and (($t.evidence | ne) | not) then "V\t\($L): the -> decided transition has no evidence" else empty end)
                           end),
                       (if ($r | has("status")) and ((($T[-1] | objects | .to) // null) != $r.status) then "V\t\($L): status \($r.status | tojson) does not equal the last transition (\((($T[-1] | objects | .to) // null) | tojson))" else empty end)
@@ -670,7 +682,7 @@ validate_decisions() {
                (if $r.decided_by == "operator" and (($r.decided_by_ref | opref) | not) then "V\t\($L): decided_by operator needs an operator answer reference (decided_by_ref session:|debrief:|transcript:|cli:)" else empty end),
                (if ($r.decided_by_ref // null) != null and ((($r.decided_by_ref | type) == "string" and ($r.decided_by_ref | test($refre))) | not) then "V\t\($L): decided_by_ref \($r.decided_by_ref | tojson) does not match the ref grammar" else empty end),
                (if ($r.evidence_sha256 // null) != null and ((($r.evidence_sha256 | type) == "string" and ($r.evidence_sha256 | test("^[0-9a-f]{64}$"))) | not) then "V\t\($L): evidence_sha256 must be 64 lowercase hex" else empty end),
-               (($r.proposed_by // null) as $v | if ($v | IN("flatline","dissent")) then
+               (($r.proposed_by // null) as $v | if ($v | oneof(["flatline","dissent"])) then
                   (if ((($r.decided_by_ref // "") | tostring | startswith($v + ":")) and (($r.evidence_sha256 // "") | tostring | test("^[0-9a-f]{64}$"))) then
                      "A\t\($v)\t\($r.decided_by_ref | ltrimstr($v + ":"))\t\($r.evidence_sha256)\t\($L)"
                    else "V\t\($L): a \($v) row needs decided_by_ref \($v):<artifact> and its evidence_sha256" end)
@@ -697,17 +709,20 @@ validate_decisions() {
                   else
                     (($b.transitions // []) | length) as $bl | (($r.transitions // []) | if type == "array" then length else 0 end) as $rl
                     | (if (($r.transitions // null) | type) != "array" or $rl < $bl or ($r.transitions[0:$bl] != ($b.transitions // [])) then "V\t\($b.id): transitions rewritten (append only)" else empty end),
-                      (if $rl - $bl > 1 then "V\t\($b.id): more than one transition appended in one write" else empty end),
-                      ((if $rl > $bl and (($r.transitions // null) | type) == "array" then $r.transitions[-1] else null end) as $t
+                      # strict (--base-file, the pre-write file the writer passes): one write appends at most one
+                      # transition. History (merge-base): any number, each already checked as a legal step.
+                      (if $strict and $rl - $bl > 1 then "V\t\($b.id): more than one transition appended in one write" else empty end),
+                      ((if $rl > $bl and (($r.transitions // null) | type) == "array" then $r.transitions[$bl:] | map(objects) else [] end) as $app
                        | ((($b | keys) + ($r | keys)) | unique[]) as $k
-                       | if ($k | IN("status","updated_at","transitions")) then empty
+                       | if ($k | oneof(["status","updated_at","transitions"])) then empty
                          elif $b[$k] == $r[$k] then empty
-                         elif ($k | IN("decision","rationale","alternatives_considered","consequences","evidence_sha256")) and $b[$k] == null and $t != null and $t.to == "proposed" then empty
-                         elif $k == "decided_by_ref" and $b[$k] == null and $t != null and ($t.to | IN("proposed","decided")) then empty
-                         elif $k == "decided_by" and $b[$k] == null and $t != null and $t.to == "decided" then empty
-                         elif ($k | IN("rejection_rationale","follow_up")) and $b[$k] == null and $t != null and $t.to == "rejected" then empty
-                         elif $k == "prior_requests" and (($b[$k] // []) == []) and $t != null and $t.to == "rejected" then empty
-                         elif $k == "supersede_proposed_by" and $b[$k] == null and $t == null and $r.status == "decided" then empty
+                         elif ($k | oneof(["decision","rationale","alternatives_considered","consequences","evidence_sha256"])) and $b[$k] == null and any($app[]; .to == "proposed") then empty
+                         elif $k == "decided_by_ref" and $b[$k] == null and any($app[]; .to | oneof(["proposed","decided"])) then empty
+                         elif $k == "decided_by" and $b[$k] == null and any($app[]; .to == "decided") then empty
+                         elif ($k | oneof(["rejection_rationale","follow_up"])) and $b[$k] == null and any($app[]; .to == "rejected") then empty
+                         elif $k == "prior_requests" and (($b[$k] // []) == []) and any($app[]; .to == "rejected") then empty
+                         elif $k == "supersede_proposed_by" and $b[$k] == null and $strict and ($app | length) == 0 and $r.status == "decided" then empty
+                         elif $k == "supersede_proposed_by" and $b[$k] == null and ($strict | not) and ($r.status | oneof(["decided","superseded"])) then empty
                          else "V\t\($b.id): content edit to \($k) (rows are append-only; supersede the row instead)" end),
                       (if $unatt and $r.decided_by == "operator" and $b.decided_by != "operator" then "V\t\($b.id): decided_by operator written while a live unattended signal holds" else empty end)
                   end),
@@ -942,7 +957,8 @@ validate_sdd_open_questions() {
                 next
             }
             if ($0 ~ /^\|[-|: ]+\|?[[:space:]]*$/) next
-            if (st && tolower(c[st]) ~ /resolved/) {
+            # a whole word: "Unresolved" is not Resolved (Bridgebuilder F-007)
+            if (st && tolower(c[st]) ~ /(^|[^a-z])resolved([^a-z]|$)/) {
                 cell = dc ? c[dc] : $0
                 if (cell !~ /DEC-[0-9][0-9][0-9][0-9]/) printf "%d\n", NR
             }

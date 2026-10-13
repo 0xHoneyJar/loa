@@ -2109,12 +2109,21 @@ spike_checkout_repo() {
     [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
     run hook_invoke "git push origin :main"
     [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    # any spelling of the checkout or its ancestors (Bridgebuilder F-015)
+    run hook_invoke "git push origin HEAD~0:main"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git push origin HEAD^:refs/heads/feature"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git push origin @~1:main"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
 }
 @test "SP-1 push: on spike/*, HEAD, HEAD:<the same branch> and the -u forms stay allowed" {
     cd "$(spike_checkout_repo)"
     run hook_invoke "git push origin HEAD"
     [ "$status" -eq 0 ]
     run hook_invoke "git push origin HEAD:spike/x"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git push origin HEAD~0:spike/x"
     [ "$status" -eq 0 ]
     run hook_invoke "git push -u origin spike/x"
     [ "$status" -eq 0 ]

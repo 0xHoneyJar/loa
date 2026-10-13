@@ -2904,7 +2904,10 @@ structured_handoff:
 # check WARN.
 #
 # red_test:
-#   # The project's test command; the exact string (whitespace-normalised) is accepted.
+#   # The project's test command; the exact string (whitespace-normalised) is accepted,
+#   # unless it starts with a shell, a launcher or an inline-code interpreter (those are refused
+#   # even here). A red_test change on the branch under review makes the check refuse until the
+#   # reviewer passes --trust-config.
 #   command: "make test"
 #   # The exact --setup string accepted besides the runner list (e.g. a dependency install).
 #   setup: "npm ci"

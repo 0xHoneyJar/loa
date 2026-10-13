@@ -3921,3 +3921,69 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0123"
+    created_at: "2026-10-13T08:27:46Z"
+    updated_at: "2026-10-13T08:27:46Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "A `proposed` row carries `proposed_by` (the voice that proposed it) and `decided_by` null; `decided_by` is set (D21)"
+    decision: "A `proposed` row carries `proposed_by` (the voice that proposed it) and `decided_by` null; `decided_by` is set at confirmation (`operator` when the ref matches the operator grammar, else the proposing voice). Where the PRD and sprint plan said \"`proposed` with `decided_by: agent`\" they mean this"
+    rationale: "a decision nobody has confirmed has no decider; attribution of the proposal is what the row records (implementer B following SDD §3.1 and A31)"
+    alternatives_considered:
+      - option: "write `decided_by: agent` on proposed rows"
+        rejected_because: "not chosen: a decision nobody has confirmed has no decider; attribution of the proposal is what the row records (implementer B following SDD §3.1 and A31)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "79224a9e"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T08:27:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0124"
+    created_at: "2026-10-13T08:36:37Z"
+    updated_at: "2026-10-13T08:36:37Z"
+    phase: "review"
+    category: "attribution"
+    summary: "The PRD Status line is a planning-time default only, not a live unattended signal"
+    decision: "dec-write-lib context and operator attribution (confirm, reject, supersede) follow live signals only; an autonomous PRD Status line makes new and decide land proposed and ignore refs, and the PRD gate still counts it"
+    rationale: "otherwise every operator confirm after an autonomous cycle records decided_by agent and /chart refuses forever (Bridgebuilder F-003)"
+    alternatives_considered:
+      - option: "keep the PRD Status line as a full unattended signal"
+        rejected_because: "operator attribution becomes unreachable while the last PRD says autonomous"
+      - option: "let an operator-grammar --answer-ref override the PRD signal"
+        rejected_because: "chart-guard, chart-ticket and golden-path read the context verdict and would still refuse"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "bridgebuilder-triage/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "79224a9e"
+    source: "grimoires/loa/a2a/sprint-254/bb-anthropic.md#F-003"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T08:36:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:bridgebuilder-triage"
+        evidence: "grimoires/loa/a2a/sprint-254/bb-anthropic.md#F-003"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

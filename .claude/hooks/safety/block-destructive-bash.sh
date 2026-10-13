@@ -835,7 +835,8 @@ fi  # ── end pass-8 git-family pre-filter ──
 #   git merge|rebase|pull|cherry-pick|reset|read-tree|update-ref with a spike
 #     ref operand (also main..spike/x, origin/spike/x, "spike/x")
 #   git checkout <spike ref> -- <path>, and git checkout <spike ref> <path>
-#     (a path copy without --)
+#     (a path copy without --), and git checkout -p|--patch <spike ref> (hunks
+#     copied into the working tree, with or without paths)
 #   git restore --source[= ]<spike ref> / -s <spike ref>
 #   git branch -f|--force|-m|-M|-c|-C|--move|--copy with a spike ref operand
 #     (moves or copies a branch onto the spike head, or renames a spike out of
@@ -844,6 +845,8 @@ fi  # ── end pass-8 git-family pre-filter ──
 #     +spike/x:main, origin/spike/x:main, main:spike/x), except the same spike
 #     branch on both sides; HEAD:<dst>, @:<dst> and :<dst> while the checkout is
 #     on spike/* (one offline git rev-parse), except HEAD:<that same branch>;
+#     HEAD here is any spelling of the checkout or its ancestors: HEAD, @,
+#     HEAD~N, HEAD^N, @~N and HEAD@{N} in any combination;
 #     a force push (--force, -f, --force-with-lease, --force-if-includes) or a
 #     +refspec naming a spike ref (P2/P2b already block --force/-f generally)
 #   git fetch naming a spike ref on the same line as merge|rebase|cherry-pick|
@@ -870,7 +873,8 @@ fi  # ── end pass-8 git-family pre-filter ──
 # character and then a token that cannot contain whitespace, so a run of spaces
 # has a single parse and matching stays linear under bash =~ (glibc regexec).
 # Misses (fence, not boundary): git show spike/x:path > file, git diff spike/x |
-# git apply, git switch -c new spike/x, git worktree add -b new <dir> spike/x,
+# git apply, git format-patch main..spike/x then git am (one line or two),
+# git archive spike/x | tar -x, git switch -c new spike/x, git worktree add -b new <dir> spike/x,
 # git branch new spike/x then a merge of new, git fetch origin spike/x and a
 # FETCH_HEAD merge in a later command, an alias defined outside the agent's
 # Bash calls (~/.gitconfig edited by hand), gh api --input <file>, and refs
@@ -927,21 +931,23 @@ _sp1_segments() {
 # Every `git checkout` segment: a spike ref as the first operand followed by
 # another operand is a path copy (no create flag in the segment).
 _sp1_checkout_copies() {
-  local seg tok create n first
+  local seg tok create n first patch
   local -a toks
   while IFS= read -r seg; do
     [[ -n "$seg" ]] || continue
     read -ra toks <<< "${seg#*checkout}"
-    create=0 n=0 first=""
+    create=0 n=0 first="" patch=0
     for tok in "${toks[@]}"; do
       case "$tok" in
         -b|-B|--orphan|-t|--track|--orphan=*|--track=*) create=1 ;;
+        -p|--patch) patch=1 ;;
         -*) ;;
         *) n=$((n + 1)); [[ $n -eq 1 ]] && first="$tok" ;;
       esac
     done
     (( create )) && continue
-    if (( n >= 2 )) && [[ "$first" =~ ^${_sp1_ref} ]]; then
+    # -p/--patch copies hunks from the first operand even with no path after it
+    if (( n >= 2 || (patch && n >= 1) )) && [[ "$first" =~ ^${_sp1_ref} ]]; then
       return 0
     fi
   done < <(_sp1_segments checkout)
@@ -971,6 +977,12 @@ _sp1_branch_moves() {
   return 1
 }
 
+# Is $1 a spelling of the checked-out commit or an ancestor of it: HEAD, @, HEAD~N,
+# HEAD^N, @~N, HEAD@{N} and their combinations (HEAD~0, HEAD^^, @{0}~2)?
+_sp1_is_head_src() {
+  [[ "$1" =~ ^(HEAD|@)(\{[0-9]+\}|@\{[0-9]+\}|[~^][0-9]*)*$ ]]
+}
+
 # Every `git push` segment: judge each refspec (see the header).
 _sp1_push_refspec() {
   local seg tok force skip n plus src dst cur="" curset=0
@@ -996,7 +1008,7 @@ _sp1_push_refspec() {
       if [[ "$tok" == *:* ]]; then
         src="${tok%%:*}" dst="${tok#*:}"
         # HEAD:<the spike branch checked out> is the spike pushed under its own name
-        if [[ "$src" == "HEAD" || "$src" == "@" ]] && _sp1_is_spike_ref "$dst" && (( ! plus && ! force )); then
+        if _sp1_is_head_src "$src" && _sp1_is_spike_ref "$dst" && (( ! plus && ! force )); then
           if (( ! curset )); then
             cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true); curset=1
           fi
@@ -1011,7 +1023,7 @@ _sp1_push_refspec() {
           fi
           return 0
         fi
-        if [[ -z "$src" || "$src" == "HEAD" || "$src" == "@" ]]; then
+        if [[ -z "$src" ]] || _sp1_is_head_src "$src"; then
           if (( ! curset )); then
             cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true); curset=1
           fi

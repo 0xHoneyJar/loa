@@ -43,7 +43,7 @@ Make the interview ask in prerequisite-ordered rounds, make every unattended dec
 ### Deliverables
 - [ ] `interview.pacing: rounds` implemented in `discovering-requirements` (REFERENCE.md §Question Pacing + ≤ 3-line SKILL.md pointer), default for `thorough`, documented in `.loa.config.yaml.example`; the Mode Behavior and Input Style tables moved to `resources/REFERENCE.md`; `planning-sprints` and `designing-architecture` Phase 2 point at the same rule
 - [ ] Fact/decision rule in the Backpressure Protocol; the unattended-decision sentence in `karpathy-principles.md` §1 and `autonomous-agent/SKILL.md`; "Decisions taken on your behalf" section in the run-mode completion PR template
-- [ ] `grimoires/loa/decisions.yaml` (tracked; `.gitignore:149` negated; `validate-gitignore-state.sh` row) with the schema from SDD §3, seeded with cycle-127 D1–D3 as `decided` and this cycle's PRD D1–D16 and SDD A1–A11 as `proposed` (`decided_by: agent`)
+- [ ] `grimoires/loa/decisions.yaml` (tracked; `.gitignore:149` negated; `validate-gitignore-state.sh` row) with the schema from SDD §3, seeded with cycle-127 D1–D3 as `proposed` (the writer never seeds `decided`; the operator confirms) and this cycle's PRD D1–D16 and SDD A1–A11 as `proposed` (`decided_by: agent`)
 - [ ] `.claude/scripts/lib/dec-write-lib.sh` (`new`, `decide`, `confirm`, `reject`, `supersede`, `list --format md`) with flock, append-only verify, atomic rename, context-derived `decided_by`, yq v4 writes with values passed by environment, duplicate-id refusal, and a fixture corpus of hostile strings (quotes, colons, `#`, leading `-`, multiline, Unicode, control characters, YAML-looking values)
 - [ ] `validate-artifact.sh --type decisions`; `grimoire-index.sh` `## decisions` section; SessionStart surface script behind `decisions.surface_at_session_start` (default false); the two existing readers (`loa-learnings-index.sh`, `path-lib.sh`) resolve the live file
 - [ ] An automated harness check (bats: a temp project with a fixture command carrying the flag, `claude -p --max-turns 1` asked to invoke it, the skill reported unavailable; skipped when the CLI is absent) recorded first; then `disable-model-invocation: true` on the safe set (`loa-eject`, `toggle-gpt-review`, `permission-audit`, `loa-setup`), the referenced set triaged per reference with a table row and a `DEC` row each, `.claude/data/user-invoked-commands.txt`, `tests/unit/user-invoked-commands.bats`; if the flag does not hide the command, FR-8 is recorded as lint-only and G-7 partial
@@ -341,27 +341,27 @@ Sprint 1 (252) ──────────────▶ Sprint 2 (253) ─�
 
 | PRD Feature (FR-X) | Sprint | Status |
 |--------------------|--------|--------|
-| FR-1 Rounds | Sprint 1 | Planned |
-| FR-2 Fact/decision split | Sprint 1 | Planned |
-| FR-3 Decision ledger | Sprint 1 | Planned |
-| FR-8 Operator-only commands | Sprint 1 | Planned |
-| FR-4 Decision map (`/chart`) | Sprint 2 | Planned |
-| FR-5 Prototype tickets and spikes | Sprint 2 | Planned |
-| FR-6 Glossary | Sprint 3 | Planned |
-| FR-7 Seams and red-test check | Sprint 3 | Planned |
+| FR-1 Rounds | Sprint 1 | Complete |
+| FR-2 Fact/decision split | Sprint 1 | Complete |
+| FR-3 Decision ledger | Sprint 1 | Complete |
+| FR-8 Operator-only commands | Sprint 1 | Complete |
+| FR-4 Decision map (`/chart`) | Sprint 2 | Complete |
+| FR-5 Prototype tickets and spikes | Sprint 2 | Complete |
+| FR-6 Glossary | Sprint 3 | Complete |
+| FR-7 Seams and red-test check | Sprint 3 | Complete |
 
 ### B. SDD Component Mapping
 
 | SDD Component | Sprint | Status |
 |---------------|--------|--------|
-| D-1.x rounds pacing (REFERENCE.md §Question Pacing, config default) | Sprint 1 | Planned |
-| D-2.x fact/decision rule and PR-body section | Sprint 1 | Planned |
-| D-3.x `decisions.yaml` schema, `dec-write-lib.sh`, INDEX section, SessionStart surface, validator type | Sprint 1 | Planned |
-| D-8.x user-invoked command allowlist and lint | Sprint 1 | Planned |
-| D-4.x `/chart` command, `charting-decisions` skill, map doc, lints, golden-path phase, frontier helper | Sprint 2 | Planned |
-| D-5.x spike template, validator type, ICE rule, interview sentence | Sprint 2 | Planned |
-| D-6.x `GLOSSARY.md`, drift check, validator type, skill sentences | Sprint 3 | Planned |
-| D-7.x Seams Under Test block, validator gate, `red-test-check.sh`, micro-sprint rule | Sprint 3 | Planned |
+| D-1.x rounds pacing (REFERENCE.md §Question Pacing, config default) | Sprint 1 | Complete |
+| D-2.x fact/decision rule and PR-body section | Sprint 1 | Complete |
+| D-3.x `decisions.yaml` schema, `dec-write-lib.sh`, INDEX section, SessionStart surface, validator type | Sprint 1 | Complete |
+| D-8.x user-invoked command allowlist and lint | Sprint 1 | Complete |
+| D-4.x `/chart` command, `charting-decisions` skill, map doc, lints, golden-path phase, frontier helper | Sprint 2 | Complete |
+| D-5.x spike template, validator type, ICE rule, interview sentence | Sprint 2 | Complete |
+| D-6.x `GLOSSARY.md`, drift check, validator type, skill sentences | Sprint 3 | Complete |
+| D-7.x Seams Under Test block, validator gate, `red-test-check.sh`, micro-sprint rule | Sprint 3 | Complete |
 
 ### C. PRD Goal Mapping
 
@@ -382,7 +382,7 @@ Sprint 1 (252) ──────────────▶ Sprint 2 (253) ─�
 
 ### D. Flatline review integration (2026-10-13)
 
-Two voices (codex-headless as `gpt-5.5`, claude-headless), cross-scoring degraded (KF-041, exit 6); integrated by judgment. Blockers integrated: ledger single-writer rule (later refined into the pending-file import mechanism by the SDD review) and duplicate-id FAIL, yq v4 writer with a hostile-string fixture corpus, red-test dependency bootstrap, automated harness check for FR-8 with a lint-only contingency. The SDD review's seven blockers (forgeable attribution, self-confirmation via an agent-controlled marker, unmergeable ledger, portability, operator-row supersession) are reflected in Tasks 1.4–1.7, the acceptance criteria and risks R9 and R11. Improvements integrated into the task lines, acceptance criteria, rollback lines, risk tables and the E2E report format (gpt IMP-001…015, opus IMP-001…030). Narrowed: the glossary CI step lands as FAIL after a report-only sizing run rather than a WARN-first release (opus IMP-017); the `red-test-check.sh` test command stays free-form, taken from the micro-sprint's `Test command:` line, rather than an allowlisted runner (opus IMP-014).
+Two voices (codex-headless as `gpt-5.5`, claude-headless), cross-scoring degraded (KF-041, exit 6); integrated by judgment. Blockers integrated: ledger single-writer rule (later refined into the pending-file import mechanism by the SDD review) and duplicate-id FAIL, yq v4 writer with a hostile-string fixture corpus, red-test dependency bootstrap, automated harness check for FR-8 with a lint-only contingency. The SDD review's seven blockers (forgeable attribution, self-confirmation via an agent-controlled marker, unmergeable ledger, portability, operator-row supersession) are reflected in Tasks 1.4–1.7, the acceptance criteria and risks R9 and R11. Improvements integrated into the task lines, acceptance criteria, rollback lines, risk tables and the E2E report format (gpt IMP-001…015, opus IMP-001…030). Narrowed: the glossary CI step lands as FAIL after a report-only sizing run rather than a WARN-first release (opus IMP-017); the `red-test-check.sh` test command stayed free-form at planning time, taken from the micro-sprint's `Test command:` line, rather than an allowlisted runner (opus IMP-014) — superseded in audit round r254-2: the command must start with a listed runner (or one the operator names in `.loa.config.yaml` `red_test`), and the review skill takes it from `sprint.md` or that config, never from `reviewer.md`.
 
 **Per-Sprint Goal Contribution:**
 

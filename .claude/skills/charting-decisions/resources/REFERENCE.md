@@ -71,6 +71,7 @@ ticket is resolved or ruled out. Each step is idempotent:
 | the close | bead closed, no doc line | adds the line |
 | the doc line | done | prints "already cites" |
 | the comment, before `br close` | row `proposed`, bead commented and open | comments again, then closes and adds the line (a duplicate comment, visible and harmless) |
+| `CT epic`'s `br create`, before the doc | a map epic for the slug, no map doc | finds the epic (label `map`, the description `Decision map: grimoires/loa/maps/<slug>.md` or an id `...map-<slug>-<hash>`) and writes the doc from it; two such epics: refused, the operator keeps one |
 
 In a linked worktree the ledger writer puts rows in the sprint's pending file with `PEND-` ids;
 the lead's `import` allocates the `DEC-` ids. The bead's `external_ref` keeps the `PEND-` id
@@ -97,7 +98,9 @@ checkout when you can.
 | `abandoned` | `CT close --reason R` | `discovery` |
 
 The doc's Status line wins over the epic when they disagree; `validate-artifact.sh --type map`
-warns with the repair command.
+warns with the repair command. `CT close` on a map that is already `closed` or `abandoned`
+prints "map <slug> is already <status>; nothing to do" and exits 0, so a repeated consumed close
+is harmless.
 
 ## Hand-off snapshot layout
 
@@ -136,7 +139,9 @@ map's dispatch list (`research/.chart-<slug>.dispatched`; a sixth ticket is refu
 removes the marker on every path: it fails the ticket when a status entry appeared for any path
 other than the reports of this map's dispatched tickets and this map's bookkeeping files, when
 a file under `.run/` or `.beads/` is newer than the marker, or when the report does not start
-with `> UNTRUSTED research output`. It sees the project tree only; the tool removal is what
+with `> UNTRUSTED research output`. `CT research-begin` waits one second after writing the
+marker, so on a filesystem with one-second timestamps every later write lands in a later second
+than the marker; a write in the marker's own second is the boundary of the mtime check. It sees the project tree only; the tool removal is what
 keeps writes out of everything else.
 
 ## Context checks
