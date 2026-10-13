@@ -1642,7 +1642,7 @@
     ".claude/scripts/tests/test-gpt-review-security.bats": "8483adf8c268e1b4404d967cfa05f6120a17b4523bcf5c698103e3070b83392b",
     ".claude/scripts/tests/test-interview-config.sh": "34fed2a1d1ae35c27d9f905b989b3fc10741336add9f431727eaae5021d54055",
     ".claude/scripts/tests/test-migration.bats": "28da0d5ab45b62639e9a9c3cdad4ece5fd783a5e3efdc86d2a30805718ca1dde",
-    ".claude/scripts/tests/test-mount-submodule-default.bats": "459dae851115c37741aca3250f1a7a555889a4d30256821cdf9b359b97ee89aa",
+    ".claude/scripts/tests/test-mount-submodule-default.bats": "cf84660aa6124c6a373f731bb5a525aff574a54c328fabd6863d8897eefe204e",
     ".claude/scripts/tests/test-mount-symlinks.bats": "7d79f3e823eb56f4e7518d695bf3a1ff530cb16f2cf6bf97c6cfe8f04603cd2b",
     ".claude/scripts/tests/test-qmd-integration.bats": "242ce8280665b5edca6ef6612a4f34893f9d29e95091d38996d945bb658c857d",
     ".claude/scripts/tests/test-stealth-expansion.bats": "6363bde1a773abb26fdc28f37ea1079e61fd91228c0db61574c88995e2232deb",
