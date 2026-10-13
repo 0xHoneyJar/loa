@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-128-decision-surfaces",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2397,7 +2397,7 @@
     {
       "id": "cycle-128-decision-surfaces",
       "label": "Decision surfaces \u2014 rounds and fact/decision split, decision ledger, /chart decision map, prototype tickets, glossary, seams and red-test check, operator-only command flag",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-12T23:58:21Z",
       "archived": null,
       "archive_path": null,
@@ -2463,7 +2463,8 @@
           ],
           "started": "2026-10-13T06:16:11Z"
         }
-      ]
+      ],
+      "archived_at": "2026-10-13T10:52:43Z"
     }
   ],
   "global_sprint_counter": 250,
