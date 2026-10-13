@@ -135,6 +135,14 @@ transcript() {
     [[ "$output" == *"round 2: malformed questions array"* ]]
 }
 
+@test "RI-11b two JSON values in one block are a malformed violation (exit 1), not a usage error" {
+    printf '%s\n' '<!-- round: 1; questions: [] [{"id":"Q1","depends_on":[]}] -->' \
+                  '<!-- round: 2; questions: [{"id":"Q2","depends_on":[]},{"id":"Q3","depends_on":[]}] -->' > "$T"
+    run "$CHECK" "$T"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"round 1: malformed questions array"* ]]
+}
+
 @test "RI-12 no round block exits 2; usage errors exit 2" {
     printf 'an interview with no round blocks\n' > "$T"
     run "$CHECK" "$T"

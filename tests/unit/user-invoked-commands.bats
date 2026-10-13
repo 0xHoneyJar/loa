@@ -58,21 +58,44 @@ check_flagged_listed() {
     done
 }
 
-# check_operative <root>: prints file:line for each operative reference to a
-# listed name in a body other than that command's own file
+# check_operative <root>: prints file:line:text for each operative reference
+# to a listed name in a body other than that command's own file.
+# Two steps per line: find every verb + /name match (SDD D-8.3 pattern,
+# widened to any-case verbs and an optional "the"), then judge the text
+# BEFORE that match. A match is advice, and exempt, only when that prefix
+# holds an exempt word ("tell the user to run /x") within the same clause
+# (after the last ". ", ";" or " then "), or an odd number of backticks (the
+# verb sits inside an inline quote). An exempt word after the command
+# ("Run /x on the operator's behalf") or in an earlier clause does not
+# exempt. A line is reported when any match on it is operative.
 check_operative() {
-    local root="$1" name re exempt
-    exempt='(^|[^[:alpha:]])(user|operator|human|manually|suggest|recommend|tell|ask)'
+    local root="$1" name
     while IFS= read -r name; do
-        # SDD D-8.3 pattern, widened: verbs match in any case and may take
-        # "the" ("execute /x", "Invoke the /x skill").
-        re="([Ee][Xx][Ee][Cc][Uu][Tt][Ee]|[Ii][Nn][Vv][Oo][Kk][Ee]|[Rr][Uu][Nn]|[Cc][Aa][Ll][Ll])[[:space:]]+(the[[:space:]]+)?\`?/${name}([^[:alnum:]_-]|\$)|Skill\\(.*${name}"
         { find "$root/.claude/commands" -name '*.md' -type f 2>/dev/null
           find "$root/.claude/skills" -name '*.md' -type f 2>/dev/null; } |
         while IFS= read -r f; do
             [[ "$f" == "$root/.claude/commands/$name.md" ]] && continue
-            grep -nE "$re" "$f" 2>/dev/null | grep -viE "$exempt" |
-                sed "s|^|${f#"$root"/}:|" || true
+            awk -v name="$name" -v rel="${f#"$root"/}" '
+                BEGIN {
+                    re = "(execute|invoke|run|call)[[:space:]]+(the[[:space:]]+)?`?/" name "[^[:alnum:]_-]|skill[(].*" name
+                    ex = "(^|[^[:alpha:]])(user|operator|human|manually|suggest|recommend|tell|ask)"
+                    br = "[.!?;][[:space:]]|[[:space:]]then[[:space:]]"
+                }
+                {
+                    s = tolower($0) " "; off = 0; hit = 0
+                    while (match(substr(s, off + 1), re)) {
+                        at = off + RSTART
+                        pre = substr(s, 1, at - 1)
+                        tmp = pre; ticks = gsub(/`/, "", tmp)
+                        # judge only the current clause: cut at the last
+                        # sentence end, semicolon or " then "
+                        cl = pre
+                        while (match(cl, br)) cl = substr(cl, RSTART + RLENGTH)
+                        if (cl !~ ex && ticks % 2 == 0) { hit = 1; break }
+                        off = at
+                    }
+                    if (hit) print rel ":" NR ":" $0
+                }' "$f"
         done
     done < <(list_names "$root")
 }
@@ -205,6 +228,31 @@ EOF
     [[ "$output" == *"SKILL.md:12:Invoke the"* ]]
     # beta.md mentions Run `/alpha`: another body, so it is caught too
     [[ "$output" == *"commands/beta.md:5:"* ]]
+}
+
+@test "fixture: an exempt word only exempts when it precedes the verb" {
+    local r; r="$(make_fixture)"
+    printf -- '---\nname: beta\ndisable-model-invocation: true\n---\nplain body\n' > "$r/.claude/commands/beta.md"
+    cat > "$r/.claude/skills/demo/SKILL.md" <<'EOF'
+---
+name: demo
+---
+Run `/alpha confirm` on the operator's behalf.
+Invoke /beta for the user.
+Tell the user to run /alpha.
+Ask the operator to type `/alpha`.
+Example reply: `Run /alpha first.`
+Tell the user to run /alpha, then Run /beta yourself.
+Recommend the operator Run `/beta --force` after review.
+EOF
+    run check_operative "$r"
+    [[ "$output" == *'SKILL.md:4:Run `/alpha confirm` on the operator'* ]]
+    [[ "$output" == *"SKILL.md:5:Invoke /beta for the user"* ]]
+    [[ "$output" != *"SKILL.md:6:"* ]]
+    [[ "$output" != *"SKILL.md:7:"* ]]
+    [[ "$output" != *"SKILL.md:8:"* ]]
+    [[ "$output" == *"SKILL.md:9:Tell the user"* ]]
+    [[ "$output" != *"SKILL.md:10:"* ]]
 }
 
 @test "fixture: a skill granting dec-write-lib.sh confirm is reported" {

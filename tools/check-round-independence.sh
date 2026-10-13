@@ -69,9 +69,12 @@ while IFS= read -r block; do
   [[ ${#n} -le 9 ]] || { echo "check-round-independence.sh: round number $n is too long" >&2; exit 1; }
   n=$((10#$n))   # "02" is not valid JSON; the round number is decimal
   arr="$(printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*[0-9]+[[:space:]]*;[[:space:]]*questions:[[:space:]]*//; s/[[:space:]]*-->$//')"
-  if printf '%s' "$arr" | jq -e 'type == "array" and all(.[];
+  # -s slurps the capture: exactly one JSON value, and it is a well-formed
+  # array. Without -s, `[] [{...}]` (two values) would pass on the last one
+  # and break --argjson below.
+  if printf '%s' "$arr" | jq -se 'length == 1 and (.[0] | type == "array" and all(.[];
         type == "object" and (.id | type == "string" and length > 0)
-        and (.depends_on | type == "array" and all(.[]; type == "string")))' >/dev/null 2>&1; then
+        and (.depends_on | type == "array" and all(.[]; type == "string"))))' >/dev/null 2>&1; then
     entry="$(jq -cn --argjson r "$n" --argjson q "$arr" '{round: $r, questions: $q}')"
   else
     entry="$(jq -cn --argjson r "$n" --arg raw "$arr" '{round: $r, malformed: $raw}')"

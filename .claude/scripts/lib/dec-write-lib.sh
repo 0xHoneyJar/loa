@@ -246,10 +246,34 @@ pending_path(){
   if [[ ! "$n" =~ ^[A-Za-z0-9_.-]+$ ]]; then warn "no sprint number (pass --sprint N); writing the pending file under sprint-unknown"; n="unknown"; fi
   printf '%s' "${G}/a2a/sprint-${n}/decisions-pending.yaml"
 }
+# Canonical path of a file whose directory exists (pwd -P of the directory + basename); empty otherwise.
+canon(){ local d; d="$(abs_dir "$(dirname "$1")")" || return 0; [[ -n "$d" ]] && printf '%s/%s' "$d" "$(basename "$1")"; return 0; }
+# Kind of an explicit --file target, by its resolved path: live (this checkout's or the main checkout's
+# ledger), pending (grimoires/loa/a2a/<dir>/decisions-pending.yaml under either root) or fixture.
+# The CI/hook exemption belongs to fixtures only, so naming the live ledger by path never bypasses it.
+file_kind(){
+  local c root r; c="$(canon "$1")"
+  [[ -n "$c" ]] || { echo fixture; return 0; }
+  for root in "$PROJECT_ROOT" ${MAIN_ROOT:+"$MAIN_ROOT"}; do
+    r="$(abs_dir "$root")"; [[ -n "$r" ]] || continue
+    if [[ "$c" == "$(canon "${r}/grimoires/loa/decisions.yaml")" ]]; then echo live; return 0; fi
+    case "$c" in "${r}/grimoires/loa/a2a/"*/decisions-pending.yaml)
+      local mid="${c#"${r}/grimoires/loa/a2a/"}"; mid="${mid%/decisions-pending.yaml}"
+      if [[ "$mid" != */* ]]; then echo pending; return 0; fi ;;
+    esac
+  done
+  echo fixture
+}
 resolve_target(){ # mode: write|read
   if has file; then
-    TARGET="$(o file)"; TARGET_KIND="fixture"
+    TARGET="$(o file)"; TARGET_KIND="$(file_kind "$TARGET")"
     [[ -f "$TARGET" ]] || die "target not found: ${TARGET}"
+    if [[ "$1" == "write" && "$TARGET_KIND" != "fixture" ]]; then
+      local why; if why="$(ci_blocked)"; then die "refused: ${why} is set; --file ${TARGET} is the ${TARGET_KIND} ledger, which is never written from CI or a hook"; fi
+      if [[ "$TARGET_KIND" == "live" && $IS_WORKTREE -eq 1 ]]; then
+        die "refused: --file ${TARGET} is a live ledger and this is a linked worktree; worktrees write the pending file (drop --file), the lead imports it"
+      fi
+    fi
     return 0
   fi
   if [[ "$1" == "write" ]] && { has pending || [[ $IS_WORKTREE -eq 1 ]]; }; then

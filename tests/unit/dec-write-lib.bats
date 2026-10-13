@@ -379,6 +379,46 @@ assert_unattended_write(){
   [ "$status" -eq 0 ]; [ "$output" = "DEC-0001" ]
 }
 
+@test "dec-write: under CI, GITHUB_ACTIONS or LOA_HOOK_CONTEXT, --file naming the live ledger or a pending file (relative or absolute) is refused; a temp fixture is allowed" {
+  mkdir -p "$T/grimoires/loa/a2a/sprint-252"
+  empty_ledger "$REPO/grimoires/loa/decisions.yaml" "$T/grimoires/loa/a2a/sprint-252/decisions-pending.yaml"
+  cp "$L" "$BATS_TEST_TMPDIR/live-before.yaml"
+  local v tgt
+  for v in CI=1 GITHUB_ACTIONS=1 LOA_HOOK_CONTEXT=1; do
+    for tgt in "$L" "grimoires/loa/decisions.yaml" "./grimoires/loa/../loa/decisions.yaml" "$T/grimoires/loa/a2a/sprint-252/decisions-pending.yaml" "grimoires/loa/a2a/sprint-252/decisions-pending.yaml"; do
+      run bash -c 'cd "$1" && shift && env "$@"' _ "$T" "$v" bash "$D" new --file "$tgt" --summary s --phase discovery --category scope --recorded-by x --source s
+      [ "$status" -eq 1 ] || { echo "$v --file $tgt: status $status: $output"; return 1; }
+      [[ "$output" == *"never written from CI or a hook"* ]]
+    done
+    run env "$v" bash "$D" new --file "$F" --summary s --phase discovery --category scope --recorded-by x --source s --quiet
+    [ "$status" -eq 0 ]
+  done
+  cmp "$L" "$BATS_TEST_TMPDIR/live-before.yaml"
+  [ "$(yq '.decisions | length' "$T/grimoires/loa/a2a/sprint-252/decisions-pending.yaml")" -eq 0 ]
+  # import into the live ledger by --file is refused under CI too, and leaves the pending file in place
+  run env -u CI bash "$D" new --pending --sprint 252 --summary p --phase discovery --category scope --recorded-by x --source s --quiet
+  [ "$status" -eq 0 ]
+  local P="$T/grimoires/loa/a2a/sprint-252/decisions-pending.yaml"
+  run env CI=1 bash "$D" import --from "$P" --file "$L"
+  [ "$status" -eq 1 ]; [[ "$output" == *"never written from CI or a hook"* ]]
+  [ -f "$P" ]; cmp "$L" "$BATS_TEST_TMPDIR/live-before.yaml"
+  # without CI, --file naming the live ledger is the live kind (DEC ids, normal verify)
+  run bash -c 'cd "$1" && bash "$2" new --file grimoires/loa/decisions.yaml --summary s --phase discovery --category scope --recorded-by x --source s --quiet' _ "$T" "$D"
+  [ "$status" -eq 0 ]; [ "$output" = "DEC-0001" ]
+}
+
+@test "dec-write: in a linked worktree, --file naming a live ledger is refused (worktrees write the pending file)" {
+  git -C "$T" add -A
+  git -C "$T" -c core.hooksPath=/dev/null -c user.email=t@t -c user.name=t commit -qm fixture
+  git -C "$T" worktree add -q "$T/wt" -b wt-file
+  local WD="$T/wt/.claude/scripts/lib/dec-write-lib.sh"
+  run bash "$WD" new --file "$T/wt/grimoires/loa/decisions.yaml" --summary s --phase discovery --category scope --recorded-by x --source s
+  [ "$status" -eq 1 ]; [[ "$output" == *"linked worktree"* ]]
+  run bash "$WD" new --file "$T/grimoires/loa/decisions.yaml" --summary s --phase discovery --category scope --recorded-by x --source s
+  [ "$status" -eq 1 ]; [[ "$output" == *"linked worktree"* ]]
+  [ "$(yq '.decisions | length' "$L")" -eq 0 ]
+}
+
 @test "dec-write: the live ledger in the main checkout gets DEC ids; --pending writes the sprint pending file" {
   run bash "$D" new --summary s --phase discovery --category scope --recorded-by x --source s --quiet
   [ "$status" -eq 0 ]; [ "$output" = "DEC-0001" ]

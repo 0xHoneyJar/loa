@@ -97,7 +97,7 @@ plan_and_analyze:
 # Interview Depth Configuration (v1.41.0)
 # -----------------------------------------------------------------------------
 # Controls question depth, input style, and pacing across planning skills.
-# Default: thorough mode with rounds of plain-text discovery questions.
+# Default: thorough mode; pacing unset, so rounds of plain-text discovery questions.
 #
 # Construct override: Schema supports future construct manifest interview
 # overrides gated by trust tier (RFC #379). Not wired yet.
@@ -124,7 +124,8 @@ interview:
 
   # Question pacing. One key for the discovery interview, /architect Phase 2,
   # /sprint-plan Phase 2 and /chart; per_skill above still picks the mode.
-  # Unset: rounds for thorough, batch for minimal. An explicit value always wins.
+  # Left unset (the shipped default), it is rounds for thorough and batch for
+  # minimal; uncomment and set a value to pin it for every mode.
   #   rounds: each turn asks the whole frontier, every open question whose
   #     prerequisites are settled; a question that depends on another one still
   #     open waits for a later round. Questions are numbered across the session
@@ -137,7 +138,7 @@ interview:
   #   sequential: one question per turn, wait for the answer (the supported
   #     opt-out if you prefer one question at a time)
   #   batch: 3-6 numbered questions per turn, user responds freely
-  pacing: rounds   # sequential | batch | rounds
+  # pacing: rounds   # sequential | batch | rounds; unset = rounds for thorough, batch for minimal
 
   # Phase transition gates
   phase_gates:

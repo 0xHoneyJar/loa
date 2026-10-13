@@ -57,7 +57,7 @@ The skill resolves `interview_mode` (`interview.mode`, overridden per skill by `
 | `thorough` | 3-6 (scales down with context) | `rounds` | All ON | Always ask `min_confirm` |
 | `minimal` | 1-2 | `batch` | `before_generation` only | Skip covered phases |
 
-An explicit `interview.pacing` wins over the mode default, so a config that sets `sequential` keeps it.
+`interview.pacing` is unset by default (the shipped `.loa.config.yaml.example` leaves it commented), so the mode default above applies. An explicit value wins over the mode default for every mode, so a config that sets `sequential` keeps it.
 
 ### Input Style Resolution
 
