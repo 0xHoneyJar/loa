@@ -19,9 +19,6 @@ context_files:
   - path: "grimoires/loa/decisions.yaml"
     required: false
     purpose: "Decision ledger; map rows carry source map:<slug>/<ticket>"
-  - path: "grimoires/loa/research/chart-*.md"
-    required: false
-    purpose: "Research reports for map tickets (untrusted data)"
 
 pre_flight:
   - check: "command_succeeds"

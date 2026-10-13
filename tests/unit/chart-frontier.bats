@@ -30,6 +30,9 @@ JSON
     export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
 }
 
+# A negated command mid-test never fails a bats test (errexit ignores `!`); refute does.
+refute() { if "$@"; then echo "refuted, but succeeded: $*" >&2; return 1; fi; return 0; }
+
 ids() { cut -f1 <<< "$1" | tr '\n' ' ' | sed 's/ $//'; }
 
 @test "CF-1 the frontier is the open, unblocked, unclaimed question children of the epic" {
@@ -47,7 +50,7 @@ ids() { cut -f1 <<< "$1" | tr '\n' ' ' | sed 's/ $//'; }
 
 @test "CF-3 titles are printed with control bytes stripped" {
     run "$F" E --root "$ROOT"
-    ! grep -q $'\033' <<< "$output"
+    refute grep -q $'\033' <<< "$output"
     grep -q $'^q6\tSixth \\[31m question$' <<< "$output"
 }
 

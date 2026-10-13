@@ -2353,3 +2353,579 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0074"
+    created_at: "2026-10-13T05:27:16Z"
+    updated_at: "2026-10-13T05:27:16Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "One helper (chart-ticket.sh) owns the /chart write steps; the SDD's raw br and ledger-writer grants stay in al (S2-D1)"
+    decision: "One helper (chart-ticket.sh) owns the /chart write steps; the SDD's raw br and ledger-writer grants stay in allowed-tools"
+    rationale: "prose cannot prove the write order, idempotency, the research cap or the unattended-close rule in bats; Task 2.4 covers the shell steps"
+    alternatives_considered:
+      - option: "SKILL prose alone"
+        rejected_because: "not chosen: prose cannot prove the write order, idempotency, the research cap or the unattended-close rule in bats; Task 2.4 covers the shell steps"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0075"
+    created_at: "2026-10-13T05:27:17Z"
+    updated_at: "2026-10-13T05:27:17Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "A map ticket's ledger row source is map:<slug>/<ticket> (SDD A22), not the bead id (S2-D2)"
+    decision: "A map ticket's ledger row source is map:<slug>/<ticket> (SDD A22), not the bead id"
+    rationale: "the row is written before the bead exists and source is immutable; list --source-epic keys on this form"
+    alternatives_considered:
+      - option: "the bead id from the brief"
+        rejected_because: "not chosen: the row is written before the bead exists and source is immutable; list --source-epic keys on this form"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0076"
+    created_at: "2026-10-13T05:27:18Z"
+    updated_at: "2026-10-13T05:27:18Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "Claiming a ticket uses br update --claim (D-4.4), not --status in_progress (S2-D3)"
+    decision: "Claiming a ticket uses br update --claim (D-4.4), not --status in_progress"
+    rationale: "--claim also sets the assignee, which the frontier's unclaimed filter relies on"
+    alternatives_considered:
+      - option: "--status in_progress"
+        rejected_because: "not chosen: --claim also sets the assignee, which the frontier's unclaimed filter relies on"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0077"
+    created_at: "2026-10-13T05:27:18Z"
+    updated_at: "2026-10-13T05:27:18Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "Map Status has four values (charting, handed-off, closed, abandoned); the epic closes at close, not at hand-of (S2-D4)"
+    decision: "Map Status has four values (charting, handed-off, closed, abandoned); the epic closes at close, not at hand-off"
+    rationale: "D-4.5 puts the epic close in the close step; close sets closed for a consumed map and abandoned for a reason"
+    alternatives_considered:
+      - option: "hand-off closes the epic (the brief)"
+        rejected_because: "not chosen: D-4.5 puts the epic close in the close step; close sets closed for a consumed map and abandoned for a reason"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0078"
+    created_at: "2026-10-13T05:27:19Z"
+    updated_at: "2026-10-13T05:27:19Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "Open tickets live on beads only; the map doc gains a line when a ticket is resolved or ruled out, and a new do (S2-D5)"
+    decision: "Open tickets live on beads only; the map doc gains a line when a ticket is resolved or ruled out, and a new doc writes _None yet._"
+    rationale: "the four allowed sections have no place for open tickets and a list would duplicate beads state"
+    alternatives_considered:
+      - option: "list open tickets in the doc"
+        rejected_because: "not chosen: the four allowed sections have no place for open tickets and a list would duplicate beads state"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0079"
+    created_at: "2026-10-13T05:27:20Z"
+    updated_at: "2026-10-13T05:27:20Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "chart-frontier.sh inlines the bv --robot-triage ranking instead of calling get-ready-work.sh (S2-D6)"
+    decision: "chart-frontier.sh inlines the bv --robot-triage ranking instead of calling get-ready-work.sh"
+    rationale: "the build path drops question beads by design and its limit would cap the set"
+    alternatives_considered:
+      - option: "call get-ready-work.sh --graph"
+        rejected_because: "not chosen: the build path drops question beads by design and its limit would cap the set"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0080"
+    created_at: "2026-10-13T05:27:20Z"
+    updated_at: "2026-10-13T05:27:20Z"
+    phase: "implementation"
+    category: "security"
+    summary: "The unblock probe and research scope check snapshot git status --porcelain --untracked-files=all --ignored=mat (S2-D7)"
+    decision: "The unblock probe and research scope check snapshot git status --porcelain --untracked-files=all --ignored=matching"
+    rationale: "a write inside an already-untracked or ignored directory is invisible to a collapsed status"
+    alternatives_considered:
+      - option: "--ignored only (the SDD)"
+        rejected_because: "not chosen: a write inside an already-untracked or ignored directory is invisible to a collapsed status"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0081"
+    created_at: "2026-10-13T05:27:21Z"
+    updated_at: "2026-10-13T05:27:21Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "An unblock ticket requires --unblocks <ticket|DEC>, appended to the body as Unblocks: X (S2-D8)"
+    decision: "An unblock ticket requires --unblocks <ticket|DEC>, appended to the body as Unblocks: X"
+    rationale: "makes D-4.12 (the body names the decision it unblocks) mechanical"
+    alternatives_considered:
+      - option: "free-text body"
+        rejected_because: "not chosen: makes D-4.12 (the body names the decision it unblocks) mechanical"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0082"
+    created_at: "2026-10-13T05:27:22Z"
+    updated_at: "2026-10-13T05:27:22Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "D's suites are charting-decisions.bats and chart-frontier.bats, separate from E's charting-lint.bats (S2-D9)"
+    decision: "D's suites are charting-decisions.bats and chart-frontier.bats, separate from E's charting-lint.bats"
+    rationale: "no collision between the two implementers' suites"
+    alternatives_considered:
+      - option: "one charting-lint.bats"
+        rejected_because: "not chosen: no collision between the two implementers' suites"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0083"
+    created_at: "2026-10-13T05:27:22Z"
+    updated_at: "2026-10-13T05:27:22Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "skill-capabilities.bats SC-T-AGENT-7 and agents-md-gen.bats pins were edited for the new agent type and comman (S2-D10)"
+    decision: "skill-capabilities.bats SC-T-AGENT-7 and agents-md-gen.bats pins were edited for the new agent type and command"
+    rationale: "the SDD's own additions (a new agent, a new command) require both edits"
+    alternatives_considered:
+      - option: "leave the pins and skip the tests"
+        rejected_because: "not chosen: the SDD's own additions (a new agent, a new command) require both edits"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-d.md#decisions-taken-beyond-the-sdd-alternatives-and-why"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0084"
+    created_at: "2026-10-13T05:27:23Z"
+    updated_at: "2026-10-13T05:27:23Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "Validator beads cross-checks run only when the validated file is inside PROJECT_ROOT (S2-E1)"
+    decision: "Validator beads cross-checks run only when the validated file is inside PROJECT_ROOT"
+    rationale: "a /tmp fixture has no relation to the project's beads and an env opt-out is a bypass; keeps every suite off the real database"
+    alternatives_considered:
+      - option: "always query br when present; an env opt-out"
+        rejected_because: "not chosen: a /tmp fixture has no relation to the project's beads and an env opt-out is a bypass; keeps every suite off the real database"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0085"
+    created_at: "2026-10-13T05:27:24Z"
+    updated_at: "2026-10-13T05:27:24Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "The map validator accepts four Status values including closed (S2-E2)"
+    decision: "The map validator accepts four Status values including closed"
+    rationale: "D-4.5 and D-4.6 define closed as the consumed state"
+    alternatives_considered:
+      - option: "the three in the brief"
+        rejected_because: "not chosen: D-4.5 and D-4.6 define closed as the consumed state"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0086"
+    created_at: "2026-10-13T05:27:24Z"
+    updated_at: "2026-10-13T05:27:24Z"
+    phase: "implementation"
+    category: "security"
+    summary: "A map doc must have exactly one H1 (S2-E3)"
+    decision: "A map doc must have exactly one H1"
+    rationale: "a second H1 would dodge the H2 allowlist"
+    alternatives_considered:
+      - option: "H1 unchecked"
+        rejected_because: "not chosen: a second H1 would dodge the H2 allowlist"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0087"
+    created_at: "2026-10-13T05:27:25Z"
+    updated_at: "2026-10-13T05:27:25Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "A missing DEC id under a spike report's Decided by WARNs rather than fails (S2-E4)"
+    decision: "A missing DEC id under a spike report's Decided by WARNs rather than fails"
+    rationale: "the shipped template must pass (D-5.5) and the row may be written after the report"
+    alternatives_considered:
+      - option: "fail"
+        rejected_because: "not chosen: the shipped template must pass (D-5.5) and the row may be written after the report"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0088"
+    created_at: "2026-10-13T05:27:26Z"
+    updated_at: "2026-10-13T05:27:26Z"
+    phase: "implementation"
+    category: "security"
+    summary: "SP-1 also blocks git checkout <spike> <path> without --, git -C and -c forms, commit ranges, and a headless gh (S2-E5)"
+    decision: "SP-1 also blocks git checkout <spike> <path> without --, git -C and -c forms, commit ranges, and a headless gh pr create on a spike branch"
+    rationale: "the same copy through the most common alternate spellings; each check is positive and offline"
+    alternatives_considered:
+      - option: "only the four D-5.4 shapes"
+        rejected_because: "not chosen: the same copy through the most common alternate spellings; each check is positive and offline"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0089"
+    created_at: "2026-10-13T05:27:27Z"
+    updated_at: "2026-10-13T05:27:27Z"
+    phase: "implementation"
+    category: "security"
+    summary: "ICE safe_merge on a spike head runs git merge --no-edit for an exact allowlist (main, master, origin/main, ori (S2-E6)"
+    decision: "ICE safe_merge on a spike head runs git merge --no-edit for an exact allowlist (main, master, origin/main, origin/master)"
+    rationale: "the other ICE wrappers perform their operation; an exact list leaves no flag injection"
+    alternatives_considered:
+      - option: "report OK without merging; accept any default-branch-looking ref"
+        rejected_because: "not chosen: the other ICE wrappers perform their operation; an exact list leaves no flag injection"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0090"
+    created_at: "2026-10-13T05:27:27Z"
+    updated_at: "2026-10-13T05:27:27Z"
+    phase: "implementation"
+    category: "security"
+    summary: "The D-5.9 spike unlock requires the last transition to decided to be by operator:* and strips a #anchor from s (S2-E7)"
+    decision: "The D-5.9 spike unlock requires the last transition to decided to be by operator:* and strips a #anchor from source"
+    rationale: "a decided row is operator-confirmed by schema; the anchor form is what the writer records elsewhere"
+    alternatives_considered:
+      - option: "status only"
+        rejected_because: "not chosen: a decided row is operator-confirmed by schema; the anchor form is what the writer records elsewhere"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0091"
+    created_at: "2026-10-13T05:27:28Z"
+    updated_at: "2026-10-13T05:27:28Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "planning-sprints budget room came from moving the integration-context list to REFERENCE.md (S2-E8)"
+    decision: "planning-sprints budget room came from moving the integration-context list to REFERENCE.md"
+    rationale: "the D-5.1 wording stays verbatim in all three skills"
+    alternatives_considered:
+      - option: "shortening the D-5.1 sentence"
+        rejected_because: "not chosen: the D-5.1 wording stays verbatim in all three skills"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "30727c95"
+    source: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T05:27:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-253/reviewer-e.md#decisions-taken-beyond-the-sdd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

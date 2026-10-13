@@ -2407,9 +2407,9 @@
         {
           "global_id": 252,
           "local_label": "sprint-1",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-12T23:58:21Z",
-          "completed": null,
+          "completed": "2026-10-13T03:37:56Z",
           "theme": "Rounds, fact/decision attribution, decision ledger, operator-only commands",
           "epic": "bd-23qq",
           "beads": [
@@ -2429,7 +2429,7 @@
         {
           "global_id": 253,
           "local_label": "sprint-2",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-12T23:58:21Z",
           "completed": null,
           "theme": "Decision map (/chart) and prototype tickets",
@@ -2441,7 +2441,8 @@
             "bd-qwfm",
             "bd-6dma",
             "bd-01pk"
-          ]
+          ],
+          "started": "2026-10-13T03:37:56Z"
         },
         {
           "global_id": 254,
@@ -2863,5 +2864,5 @@
     }
   ],
   "next_sprint_number": 255,
-  "last_updated": "2026-10-13T01:01:49Z"
+  "last_updated": "2026-10-13T03:37:56Z"
 }

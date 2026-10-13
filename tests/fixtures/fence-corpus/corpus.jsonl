@@ -138,3 +138,42 @@
 {"id": "B61", "cmd": "echo 'Dissent DISS-C-006 lists `git fetch origin spike/x && git merge FETCH_HEAD`, `git show spike/x:path > path`' >> review.md", "expect": "allow", "rule": "SP-1", "why": "the same prose line through echo", "cwd": "repo"}
 {"id": "D73", "cmd": "git merge --no-ff \"origin/spike/ceiling-ui\"", "expect": "block", "rule": "SP-1", "why": "a quoted remote spike ref is still a merge of a spike", "cwd": "repo"}
 {"id": "D74", "cmd": "git fetch origin && git merge 'spike/ceiling-ui'", "expect": "block", "rule": "SP-1", "why": "a quoted spike ref in the merge's own segment", "cwd": "repo"}
+{"id":"B62","cmd":"git push origin spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"a spike pushed under its own name (D-5.2)","cwd":"repo"}
+{"id":"B63","cmd":"git push --set-upstream origin spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"the long upstream flag, same push","cwd":"repo"}
+{"id":"B64","cmd":"git push origin spike/ceiling-ui:spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"the same spike branch on both sides of the refspec moves nothing between branches","cwd":"repo"}
+{"id":"B65","cmd":"git push origin feature/ceiling:feature/ceiling-v2","expect":"allow","rule":"SP-1","why":"a refspec with no spike ref on either side","cwd":"repo"}
+{"id":"B66","cmd":"git push origin HEAD:main","expect":"allow","rule":"SP-1","why":"HEAD:<dst> outside a spike checkout (the corpus cwd is not a repo, so the current-branch lookup finds no spike)","cwd":"repo"}
+{"id":"B67","cmd":"git branch spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"a plain create; git branch new spike/x is the documented miss class with git switch -c","cwd":"repo"}
+{"id":"B68","cmd":"git branch ceiling-copy spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"documented miss class: a create from a spike start point (the merge of it is what SP-1 blocks)","cwd":"repo"}
+{"id":"B69","cmd":"git fetch origin spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"fetching a spike ref alone moves nothing into a branch","cwd":"repo"}
+{"id":"B70","cmd":"git fetch origin main && git merge FETCH_HEAD","expect":"allow","rule":"SP-1","why":"a FETCH_HEAD merge of the default branch","cwd":"repo"}
+{"id":"B71","cmd":"git config --get alias.co","expect":"allow","rule":"SP-1","why":"reading an alias defines nothing","cwd":"repo"}
+{"id":"B72","cmd":"git config get alias.co","expect":"allow","rule":"SP-1","why":"the subcommand read form","cwd":"repo"}
+{"id":"B73","cmd":"git config user.name ceiling-bot","expect":"allow","rule":"SP-1","why":"a non-alias config write","cwd":"repo"}
+{"id":"B74","cmd":"gh api repos/acme/app/pulls -f head=feature/ceiling -f base=main","expect":"allow","rule":"SP-1","why":"gh api pulls with a non-spike head","cwd":"repo"}
+{"id":"B75","cmd":"git reset spikes/notes.md","expect":"allow","rule":"SP-1","why":"spikes/ is not the spike/ namespace","cwd":"repo"}
+{"id":"B76","cmd":"git commit -m 'record: git push origin spike/ceiling-ui:main and git config alias.m merge are refused'","expect":"allow","rule":"SP-1","why":"refspec and alias text inside a commit message is an inert carrier","cwd":"repo"}
+{"id":"D75","cmd":"git push origin spike/ceiling-ui:main","expect":"block","rule":"SP-1","why":"a spike head pushed onto another remote branch (MEDIUM-002)","cwd":"repo"}
+{"id":"D76","cmd":"git push origin spike/ceiling-ui:refs/heads/feature","expect":"block","rule":"SP-1","why":"full destination ref","cwd":"repo"}
+{"id":"D77","cmd":"git push origin +spike/ceiling-ui:main","expect":"block","rule":"SP-1","why":"forced refspec from a spike","cwd":"repo"}
+{"id":"D78","cmd":"git push origin origin/spike/ceiling-ui:main","expect":"block","rule":"SP-1","why":"remote-tracking spike ref as the source","cwd":"repo"}
+{"id":"D79","cmd":"git push origin main:spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a spike ref on the destination side","cwd":"repo"}
+{"id":"D80","cmd":"git push origin +spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a + refspec naming a spike","cwd":"repo"}
+{"id":"D81","cmd":"git push --force-with-lease origin spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a forced push naming a spike (P2 allows --force-with-lease generally)","cwd":"repo"}
+{"id":"D82","cmd":"git reset --soft spike/ceiling-ui","expect":"block","rule":"SP-1","why":"moves the current branch onto the spike head (MEDIUM-003)","cwd":"repo"}
+{"id":"D83","cmd":"git read-tree -u -m spike/ceiling-ui","expect":"block","rule":"SP-1","why":"reads the spike tree into the index and work tree","cwd":"repo"}
+{"id":"D84","cmd":"git update-ref refs/heads/feature spike/ceiling-ui","expect":"block","rule":"SP-1","why":"points another branch at the spike head","cwd":"repo"}
+{"id":"D85","cmd":"git branch -f feature spike/ceiling-ui","expect":"block","rule":"SP-1","why":"forces another branch onto the spike head","cwd":"repo"}
+{"id":"D86","cmd":"git branch --force feature origin/spike/ceiling-ui","expect":"block","rule":"SP-1","why":"long force flag, remote spike ref","cwd":"repo"}
+{"id":"D87","cmd":"git branch -m spike/ceiling-ui feature","expect":"block","rule":"SP-1","why":"renames a spike out of the spike/ namespace","cwd":"repo"}
+{"id":"D88","cmd":"git branch -M spike/ceiling-ui feature","expect":"block","rule":"SP-1","why":"forced rename","cwd":"repo"}
+{"id":"D89","cmd":"git branch -C spike/ceiling-ui feature","expect":"block","rule":"SP-1","why":"forced copy of a spike to another branch","cwd":"repo"}
+{"id":"D90","cmd":"git fetch origin spike/ceiling-ui && git merge FETCH_HEAD","expect":"block","rule":"SP-1","why":"fetch-then-FETCH_HEAD merge on one line (MEDIUM-003)","cwd":"repo"}
+{"id":"D91","cmd":"git fetch origin spike/ceiling-ui; git cherry-pick FETCH_HEAD","expect":"block","rule":"SP-1","why":"fetch-then-FETCH_HEAD cherry-pick on one line","cwd":"repo"}
+{"id":"D92","cmd":"git -c alias.m=merge m spike/ceiling-ui","expect":"block","rule":"SP-1","why":"an inline alias hides the merge verb","cwd":"repo"}
+{"id":"D93","cmd":"git -c alias.st=status st","expect":"block","rule":"SP-1","why":"agents do not define aliases, whatever the alias names","cwd":"repo"}
+{"id":"D94","cmd":"git config alias.m merge","expect":"block","rule":"SP-1","why":"an alias definition","cwd":"repo"}
+{"id":"D95","cmd":"git config --global alias.m merge","expect":"block","rule":"SP-1","why":"a global alias definition","cwd":"repo"}
+{"id":"D96","cmd":"gh api repos/acme/app/pulls -f head=spike/ceiling-ui -f base=main","expect":"block","rule":"SP-1","why":"the PR gh pr create refuses, through the REST API","cwd":"repo"}
+{"id":"D97","cmd":"gh api -f head=acme:spike/ceiling-ui -f base=main repos/acme/app/pulls","expect":"block","rule":"SP-1","why":"fields before the path, owner-qualified head","cwd":"repo"}
+{"id":"D98","cmd":"git config set alias.m merge","expect":"block","rule":"SP-1","why":"the subcommand definition form","cwd":"repo"}

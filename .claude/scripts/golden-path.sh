@@ -83,16 +83,18 @@ golden_open_maps() {
     golden_list_maps | LC_ALL=C awk -F'\t' '$2 == "charting" || $2 == "handed-off" { print $1 }'
 }
 
-# Unattended context: the decision ledger writer's verdict when it is installed, else
-# LOA_UNATTENDED=1. Read-only.
+# Unattended context: LOA_UNATTENDED=1, or the decision ledger writer's verdict when it is
+# installed (anything but "interactive" counts, fail closed). Read-only.
 _gp_is_unattended() {
     local dw="${_GP_DEC_WRITER}" ctx=""
-    if [[ -x "${dw}" ]]; then
-        ctx=$("${dw}" context 2>/dev/null | head -n 1) || ctx=""
-    fi
-    if [[ "${ctx}" == "unattended" ]]; then return 0; fi
-    if [[ -z "${ctx}" && "${LOA_UNATTENDED:-}" == "1" ]]; then return 0; fi
-    return 1
+    # LOA_UNATTENDED=1 always counts, whatever the writer prints.
+    if [[ "${LOA_UNATTENDED:-}" == "1" ]]; then return 0; fi
+    # Without the writer installed, the environment is the only signal.
+    [[ -x "${dw}" ]] || return 1
+    # Fail closed: any first line other than "interactive" (unattended, an error, nothing) counts.
+    ctx=$("${dw}" context --prd "${_GP_PRD_FILE}" 2>/dev/null | head -n 1) || ctx=""
+    [[ "${ctx}" == "interactive" ]] && return 1
+    return 0
 }
 
 # The multi-map rule for /plan, /chart and /plan-and-analyze (SDD D-4.5, D-4.6).

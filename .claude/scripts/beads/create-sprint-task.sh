@@ -114,11 +114,24 @@ fi
 
 # A map epic (label `map`) is a /chart decision map: its children are question
 # beads only, so no sprint task is created under it. br show --json is a
-# one-element array; labels are strings (older releases: {name} objects).
+# one-element array, an {"issues":[...]} envelope, or a bare object; labels are
+# strings (older releases: {name} objects). A reply without a labels key is not
+# read as "no labels": br omits the key for an unlabelled bead, so the answer
+# comes from `br label list`, and a failure there refuses (unknown).
 EPIC_IS_MAP="$(printf '%s' "$EPIC_JSON" | jq -r '
-  (if type == "array" then (.[0] // {}) else . end)
-  | [(.labels // [])[] | if type == "object" then (.name // "") else tostring end]
-  | if any(.[]; . == "map") then "yes" else "no" end' 2>/dev/null || echo "unknown")"
+  (if type == "array" then (.[0] // {}) elif type == "object" and has("issues") then (.issues[0] // {}) else . end)
+  | if type != "object" or (has("id") | not) then "unknown"
+    elif has("labels") | not then "nolabels"
+    else [(.labels // [])[] | if type == "object" then (.name // "") else tostring end]
+         | if any(.[]; . == "map") then "yes" else "no" end
+    end' 2>/dev/null || echo "unknown")"
+if [ "$EPIC_IS_MAP" = "nolabels" ]; then
+  if EPIC_LABEL_LIST="$(br label list "$EPIC_ID" 2>/dev/null)"; then
+    if printf '%s\n' "$EPIC_LABEL_LIST" | grep -qE '(^|[^[:alnum:]:_-])map([^[:alnum:]:_-]|$)'; then EPIC_IS_MAP="yes"; else EPIC_IS_MAP="no"; fi
+  else
+    EPIC_IS_MAP="unknown"
+  fi
+fi
 if [ "$EPIC_IS_MAP" = "unknown" ] || [ -z "$EPIC_IS_MAP" ]; then
   echo "ERROR: could not read the labels of $EPIC_ID from 'br show $EPIC_ID --json'; task not created (check br and jq, then retry)" >&2
   exit 1

@@ -69,7 +69,14 @@ READY=$(br ready --json 2>/dev/null || echo "[]")
 if [ "$INCLUDE_QUESTIONS" = true ]; then
   READY=$(printf '%s' "$READY" | jq -c 'if type == "array" then . else [] end' 2>/dev/null || echo "[]")
 else
-  READY=$(printf '%s' "$READY" | jq -c 'if type == "array" then map(select((.issue_type // "") != "question")) else [] end' 2>/dev/null || echo "[]")
+  # Fail closed: a reply in which no element names its type (neither `issue_type` nor `type`)
+  # cannot be filtered, so it reads as no ready work, with a warning.
+  if printf '%s' "$READY" | jq -e 'type == "array" and length > 0 and all(.[]; ((.issue_type // .type) == null))' >/dev/null 2>&1; then
+    echo "WARN: br ready returned beads without issue_type or type; question beads cannot be excluded, so no work is listed" >&2
+    READY="[]"
+  else
+    READY=$(printf '%s' "$READY" | jq -c 'if type == "array" then map(select(((.issue_type // .type // "") | tostring | ascii_downcase) != "question")) else [] end' 2>/dev/null || echo "[]")
+  fi
 fi
 [ -n "$READY" ] || READY="[]"
 

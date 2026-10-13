@@ -34,7 +34,7 @@ case "$sub" in
     f="$BR_FIX/show-$1.json"
     if [[ -f "$f" ]]; then cat "$f"; else echo '{"error":"not found"}' >&2; exit 1; fi ;;
   create) echo "CREATE $*" >> "$BR_LOG"; echo '{"id":"bd-new1"}' ;;
-  label) [[ "${1:-}" == list ]] && cat "$BR_FIX/labels-${2:-x}.txt" 2>/dev/null; exit 0 ;;
+  label) [[ "${BR_LABEL_FAIL:-}" == 1 ]] && exit 1; [[ "${1:-}" == list ]] && cat "$BR_FIX/labels-${2:-x}.txt" 2>/dev/null; exit 0 ;;
   dep) exit 0 ;;
   ready) cat "$BR_FIX/ready.json" ;;
   list)
@@ -55,6 +55,9 @@ teardown() {
 }
 
 # --- create-sprint-task.sh -----------------------------------------------------
+
+# A negated command mid-test never fails a bats test (errexit ignores `!`); refute does.
+refute() { if "$@"; then echo "refuted, but succeeded: $*" >&2; return 1; fi; return 0; }
 
 @test "create-sprint-task: type question is refused before any br call" {
     echo '[{"id":"bd-sp","issue_type":"epic","labels":["sprint:3"]}]' > "$BR_FIX/show-bd-sp.json"
@@ -77,15 +80,51 @@ teardown() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"bd-map is a map epic"* ]]
     [[ "$output" == *"decision tickets never go under a sprint epic; chart them with /chart"* ]]
-    ! grep -q '^CREATE' "$BR_LOG"
-    ! grep -q '^create' "$BR_LOG"
+    refute grep -q '^CREATE' "$BR_LOG"
+    refute grep -q '^create' "$BR_LOG"
 }
 
 @test "create-sprint-task: labels in the older {name} object shape are read too" {
     echo '[{"id":"bd-map","issue_type":"epic","labels":[{"name":"map"}]}]' > "$BR_FIX/show-bd-map.json"
     run "$CREATE_TASK" bd-map "Build the parser" 2 task --deps none
     [ "$status" -eq 1 ]
-    ! grep -q '^create' "$BR_LOG"
+    refute grep -q '^create' "$BR_LOG"
+}
+
+@test "create-sprint-task: the {\"issues\":[...]} reply shape is read (a map epic there is refused)" {
+    echo '{"issues":[{"id":"bd-map","issue_type":"epic","labels":["map"]}]}' > "$BR_FIX/show-bd-map.json"
+    run "$CREATE_TASK" bd-map "Build the parser" 2 task --deps none
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"bd-map is a map epic"* ]]
+    run grep -q '^create' "$BR_LOG"
+    [ "$status" -ne 0 ]
+}
+
+@test "create-sprint-task: a reply without a labels key asks br label list; map there is refused" {
+    echo '[{"id":"bd-map","issue_type":"epic"}]' > "$BR_FIX/show-bd-map.json"
+    echo 'map' > "$BR_FIX/labels-bd-map.txt"
+    run "$CREATE_TASK" bd-map "Build the parser" 2 task --deps none
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"bd-map is a map epic"* ]]
+    run grep -q '^create' "$BR_LOG"
+    [ "$status" -ne 0 ]
+}
+
+@test "create-sprint-task: no labels key and a failing br label list is unknown, refused" {
+    echo '[{"id":"bd-sp","issue_type":"epic"}]' > "$BR_FIX/show-bd-sp.json"
+    BR_LABEL_FAIL=1 run "$CREATE_TASK" bd-sp "Build the parser" 2 task --deps none
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"could not read the labels"* ]]
+    run grep -q '^create' "$BR_LOG"
+    [ "$status" -ne 0 ]
+}
+
+@test "create-sprint-task: no labels key and no map label creates the task (an unlabelled sprint epic)" {
+    echo '[{"id":"bd-sp","issue_type":"epic"}]' > "$BR_FIX/show-bd-sp.json"
+    : > "$BR_FIX/labels-bd-sp.txt"
+    run "$CREATE_TASK" bd-sp "Build the parser" 2 task --deps none
+    [ "$status" -eq 0 ]
+    grep -q '^create Build the parser --type task' "$BR_LOG"
 }
 
 @test "create-sprint-task: an unreadable epic reply fails closed without creating" {
@@ -93,7 +132,7 @@ teardown() {
     run "$CREATE_TASK" bd-sp "Build the parser" 2 task --deps none
     [ "$status" -eq 1 ]
     [[ "$output" == *"could not read the labels"* ]]
-    ! grep -q '^create' "$BR_LOG"
+    refute grep -q '^create' "$BR_LOG"
 }
 
 @test "create-sprint-task: a task under a sprint epic is still created (control)" {
@@ -151,6 +190,27 @@ EOF
     [ "$(echo "$output" | wc -l | tr -d ' ')" -eq 7 ]
 }
 
+@test "get-ready-work: a reply spelling the field 'type' (any case) still drops question beads" {
+    cat > "$BR_FIX/ready.json" <<'EOF'
+[
+  {"id":"bd-t1","type":"task","priority":2,"title":"t"},
+  {"id":"bd-q1","type":"question","priority":0,"title":"q"},
+  {"id":"bd-q2","issue_type":"Question","priority":0,"title":"q upper"}
+]
+EOF
+    run "$GET_READY" 10 --ids-only
+    [ "$status" -eq 0 ]
+    [ "$output" = "bd-t1" ]
+}
+
+@test "get-ready-work: a reply with no type field at all lists nothing and warns" {
+    echo '[{"id":"bd-x1","priority":1,"title":"x"},{"id":"bd-x2","priority":2,"title":"y"}]' > "$BR_FIX/ready.json"
+    run "$GET_READY" 10 --ids-only
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARN: br ready returned beads without issue_type or type"* ]]
+    [[ "$output" != *"bd-x1"* ]]
+}
+
 @test "get-ready-work: the limit applies after the filter (questions never take a slot)" {
     ready_fixture
     run "$GET_READY" 1 --ids-only
@@ -183,7 +243,7 @@ EOF
         # the selection step names the helper; a bare `br ready` step is gone
         line="$(grep -nE 'Get Work|br sync --import-only` →' "$f" | head -1)"
         [[ "$line" == *"get-ready-work.sh"* ]]
-        ! grep -qE '(→|\*\*Get Work\*\*:) `br ready`' "$f"
+        refute grep -qE '(→|\*\*Get Work\*\*:) `br ready`' "$f"
     done
 }
 

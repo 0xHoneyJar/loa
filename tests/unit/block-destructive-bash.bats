@@ -1997,17 +1997,25 @@ fixture_repo() {
 }
 
 
-# D-5.9: `git branch -D spike/<slug>` unlocks only on a decided verdict row in the tracked ledger
-# (_fr11_spike_decided). Three ledger fixtures over one unmerged spike branch.
-spike_repo() { # $1 = ledger fixture: decided-operator | decided-agent | none
-    local r="$BATS_TEST_TMPDIR/spike-repo-$1"
+# D-5.9: `git branch -D spike/<slug>` unlocks only when the spike branch is fully pushed to
+# origin AND the main tree's ledger holds a decided verdict row (_fr11_spike_decided).
+# Ledger fixtures over one unmerged spike branch, with a local bare remote named origin.
+spike_repo() { # $1 = ledger fixture: decided-operator | decided-agent | none; $2 = pushed | unpushed | ahead
+    local r="$BATS_TEST_TMPDIR/spike-repo-$1-${2:-pushed}"
     export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
     export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
     git init -q -b main "$r" >/dev/null
+    git init -q --bare "$r.origin.git" >/dev/null
     (
       cd "$r"
+      git remote add origin "$r.origin.git"
       echo a > a; git add a; git commit -qm init
       git checkout -qb spike/x; echo s > s; git add s; git commit -qm spike
+      case "${2:-pushed}" in
+        pushed) git push -q origin spike/x ;;
+        ahead) git push -q origin spike/x; echo t > t; git add t; git commit -qm "local only" ;;
+        unpushed) ;;
+      esac
       git checkout -q main
     ) >/dev/null 2>&1
     mkdir -p "$r/grimoires/loa"
@@ -2047,4 +2055,93 @@ spike_yq_v4() { local v; v="$(yq --version 2>&1 || true)"; [[ "$v" == *mikefarah
     cd "$(spike_repo none)"
     run hook_invoke "git branch -D spike/x"
     [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+}
+@test "D-5.9 twin: decided but never pushed keeps the block (the delete would lose the only copy)" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    cd "$(spike_repo decided-operator unpushed)"
+    run git rev-parse -q --verify refs/remotes/origin/spike/x
+    [ "$status" -ne 0 ]
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+}
+@test "D-5.9 twin: decided and pushed but the local branch is ahead of origin keeps the block" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    cd "$(spike_repo decided-operator ahead)"
+    run git merge-base --is-ancestor refs/heads/spike/x refs/remotes/origin/spike/x
+    [ "$status" -ne 0 ]
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+}
+@test "D-5.9: the ledger is read from the main working tree, never from a linked worktree's checkout" {
+    spike_yq_v4 || skip "needs Mike Farah yq v4"
+    local main; main="$(spike_repo none)"
+    local wt="$BATS_TEST_TMPDIR/spike-linked-wt"
+    git -C "$main" worktree add -q --detach "$wt" main >/dev/null 2>&1
+    # a decided row only in the linked worktree's copy: not the authority
+    mkdir -p "$wt/grimoires/loa"
+    cp "$(spike_repo decided-operator pushed)/grimoires/loa/decisions.yaml" "$wt/grimoires/loa/decisions.yaml"
+    cd "$wt"
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[FR-1.1]" ]]
+    # the same row in the main tree's ledger unlocks it from the linked worktree too
+    mkdir -p "$main/grimoires/loa"
+    cp "$wt/grimoires/loa/decisions.yaml" "$main/grimoires/loa/decisions.yaml"
+    run hook_invoke "git branch -D spike/x"
+    [ "$status" -eq 0 ]
+}
+
+# SP-1 cases that need a checkout on a spike branch: HEAD and bare refspecs.
+spike_checkout_repo() {
+    local r="$BATS_TEST_TMPDIR/spike-head-repo"
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+    export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+    git init -q -b main "$r" >/dev/null
+    ( cd "$r"; git commit -q --allow-empty -m init; git checkout -qb spike/x ) >/dev/null 2>&1
+    echo "$r"
+}
+@test "SP-1 push: HEAD:<dst>, @:<dst> and :<dst> are blocked while the checkout is on spike/*" {
+    cd "$(spike_checkout_repo)"
+    run hook_invoke "git push origin HEAD:main"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git push origin HEAD:refs/heads/feature"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git push origin @:main"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git push origin :main"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+}
+@test "SP-1 push: on spike/*, HEAD, HEAD:<the same branch> and the -u forms stay allowed" {
+    cd "$(spike_checkout_repo)"
+    run hook_invoke "git push origin HEAD"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git push origin HEAD:spike/x"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git push -u origin spike/x"
+    [ "$status" -eq 0 ]
+    run hook_invoke "git push --set-upstream origin spike/x"
+    [ "$status" -eq 0 ]
+}
+@test "SP-1 push: HEAD:main from the working branch is not judged by SP-1" {
+    cd "$(spike_checkout_repo)"
+    git checkout -q main
+    run hook_invoke "git push origin HEAD:main"
+    [ "$status" -eq 0 ]
+}
+
+# LOW-004: SP-1 matches a whitespace-collapsed line, and its span consumes one
+# whitespace character per repetition, so a padded command stays linear.
+@test "SP-1 timing: commands padded with 20,000 spaces finish in under a second each" {
+    local sp; sp="$(printf '%20000s' '')"
+    local c start end
+    for c in "git merge${sp}a${sp}b${sp}axspike/" "git merge${sp}spike/x" "git push origin${sp}x:y${sp}spike/" "git -c a=b${sp}merge x spike/"; do
+        start=$(date +%s%N)
+        run hook_invoke "$c"
+        end=$(date +%s%N)
+        [ $(( (end - start) / 1000000 )) -lt 1000 ]
+    done
+    # the verdicts survive the collapse
+    run hook_invoke "git merge${sp}spike/x"
+    [ "$status" -eq 2 ]; [[ "$output" =~ "[SP-1]" ]]
+    run hook_invoke "git merge${sp}a${sp}b${sp}axspike/"
+    [ "$status" -eq 0 ]
 }

@@ -164,6 +164,10 @@ spike_repo() {
     BASE="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
     git -C "$REPO" checkout -q -b spike/ceiling-ui
     git -C "$REPO" commit -q --allow-empty -m "prototype"
+    # the spike is pushed (D-5.2), so the D-5.9 cases below turn on the ledger row alone
+    git init -q --bare "$WORK/origin.git"
+    git -C "$REPO" remote add origin "$WORK/origin.git"
+    git -C "$REPO" push -q origin spike/ceiling-ui
     git -C "$REPO" checkout -q "$BASE"
 }
 

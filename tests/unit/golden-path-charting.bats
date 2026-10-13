@@ -20,6 +20,9 @@ setup() {
 
 teardown() { cd /; rm -rf "$TEST_DIR"; }
 
+# A negated command mid-test never fails a bats test (errexit ignores `!`); refute does.
+refute() { if "$@"; then echo "refuted, but succeeded: $*" >&2; return 1; fi; return 0; }
+
 map() { # slug status
     printf '# Map: %s\n\n**Slug**: %s\n**Status**: %s\n**Epic**: bd-%s\n\n## Destination\nx\n\n## Decisions so far\n\n## Not yet specified\n\n## Out of scope\n' \
         "$1" "$1" "$2" "$1" > "$TEST_DIR/grimoires/loa/maps/$1.md"
@@ -82,7 +85,7 @@ tree() { (cd "$TEST_DIR" && find . -path ./.git -prune -o -print | LC_ALL=C sort
     map eval-workers handed-off
     menu="$(golden_menu_options)"
     [[ "$menu" == *"Plan a new project|"* ]]
-    ! grep -q '^Continue charting|' <<< "$menu"
+    refute grep -q '^Continue charting|' <<< "$menu"
     [ "$(golden_resolve_truename plan)" = "/plan-and-analyze" ]
 }
 
@@ -151,6 +154,34 @@ tree() { (cd "$TEST_DIR" && find . -path ./.git -prune -o -print | LC_ALL=C sort
     [[ "$output" == *"more than one open map: name one"* ]]
 }
 
+@test "GPC-13b the unattended check fails closed: an erroring writer, an autonomous PRD, LOA_UNATTENDED over the writer" {
+    mkdir -p "$TEST_DIR/.claude/scripts/lib"
+    map eval-workers charting
+    map second charting
+    # a writer that errors (prints nothing useful) counts as unattended
+    printf '#!/bin/sh\necho "dec-write: boom" >&2\nexit 1\n' > "$TEST_DIR/.claude/scripts/lib/dec-write-lib.sh"
+    chmod +x "$TEST_DIR/.claude/scripts/lib/dec-write-lib.sh"
+    source "$TEST_DIR/.claude/scripts/golden-path.sh"
+    run golden_resolve_open_map
+    [ "$status" -eq 1 ]
+    # a writer that prints something other than interactive counts as unattended
+    printf '#!/bin/sh\necho "WARN: odd"\n' > "$TEST_DIR/.claude/scripts/lib/dec-write-lib.sh"
+    run golden_resolve_open_map
+    [ "$status" -eq 1 ]
+    # a writer that says interactive is overruled by LOA_UNATTENDED=1
+    printf '#!/bin/sh\necho interactive\n' > "$TEST_DIR/.claude/scripts/lib/dec-write-lib.sh"
+    run golden_resolve_open_map
+    [ "$status" -eq 3 ]
+    LOA_UNATTENDED=1 run golden_resolve_open_map
+    [ "$status" -eq 1 ]
+    # the real writer reads this project's PRD Status line (--prd is passed)
+    cp "$REAL/.claude/scripts/lib/dec-write-lib.sh" "$TEST_DIR/.claude/scripts/lib/"
+    printf '# PRD\n\n**Status:** Draft, autonomous run\n' > "$TEST_DIR/grimoires/loa/prd.md"
+    run golden_resolve_open_map
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"more than one open map: name one"* ]]
+}
+
 @test "GPC-14 golden-path.sh still never reads run state for position" {
-    ! grep -q 'sprint-plan-state.json' "$REAL/.claude/scripts/golden-path.sh"
+    refute grep -q 'sprint-plan-state.json' "$REAL/.claude/scripts/golden-path.sh"
 }
