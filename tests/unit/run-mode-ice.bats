@@ -319,3 +319,139 @@ skip_if_script_missing() {
   [ "$status" -eq 2 ]
   [[ "$output" == *"Usage"* ]]
 }
+
+# ============================================================================
+# Spike branches (grimoires/loa/sdd.md D-5.3): push allowed, never merged into
+# another branch, never a PR; the default branch may be merged into a spike.
+# ============================================================================
+
+# The repo's default branch name (git init picks main or master).
+ice_default_branch() {
+  git -C "$TEST_REPO" for-each-ref --format='%(refname:short)' refs/heads | grep -xE 'main|master' | head -1
+}
+
+# A gh stub that records any call, so a refused pr-create provably never ran it.
+ice_gh_stub() {
+  mkdir -p "$TEST_TMPDIR/bin"
+  cat > "$TEST_TMPDIR/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "gh $*" >> "$GH_LOG"
+echo "https://example.invalid/pr/1"
+STUB
+  chmod +x "$TEST_TMPDIR/bin/gh"
+  export GH_LOG="$TEST_TMPDIR/gh.log"
+  : > "$GH_LOG"
+  export PATH="$TEST_TMPDIR/bin:$PATH"
+}
+
+@test "is_spike_branch: spike/x and remote or full spike refs are spike branches" {
+  run "$ICE_SCRIPT" is-spike spike/x
+  [ "$status" -eq 0 ]
+  [[ "$output" == "true" ]]
+  run "$ICE_SCRIPT" is-spike origin/spike/x
+  [ "$status" -eq 0 ]
+  run "$ICE_SCRIPT" is-spike refs/heads/spike/x
+  [ "$status" -eq 0 ]
+}
+
+@test "is_spike_branch: feature branches and lookalikes are not spike branches" {
+  local b
+  for b in feature/test main spike spikes/x myspike/x spike-x; do
+    run "$ICE_SCRIPT" is-spike "$b"
+    [ "$status" -eq 1 ]
+    [[ "$output" == "false" ]]
+  done
+}
+
+@test "cli: is-spike requires branch arg" {
+  run "$ICE_SCRIPT" is-spike
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Usage"* ]]
+}
+
+@test "spike: a spike branch is not protected, and safe_push pushes it" {
+  run "$ICE_SCRIPT" is-protected spike/x
+  [ "$status" -eq 1 ]
+  git init --bare --quiet "$TEST_TMPDIR/remote.git"
+  git remote add origin "$TEST_TMPDIR/remote.git"
+  git checkout -b spike/x --quiet
+  run "$ICE_SCRIPT" push origin spike/x
+  [ "$status" -eq 0 ]
+  git --git-dir="$TEST_TMPDIR/remote.git" rev-parse --verify --quiet refs/heads/spike/x
+}
+
+@test "safe_merge: the old call shape (no source) stays ALWAYS blocked, also on a spike branch" {
+  git checkout -b spike/x --quiet
+  run "$ICE_SCRIPT" merge
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"BLOCKED"* ]]
+  [[ "$output" == *"Human intervention"* ]]
+}
+
+@test "safe_merge: merging the default branch into a spike branch is allowed and merges" {
+  local base; base="$(ice_default_branch)"
+  [ -n "$base" ]
+  git checkout -b spike/x --quiet
+  git checkout "$base" --quiet
+  echo "more" > MORE.md && git add MORE.md && git commit -m "base moves on" --quiet
+  git checkout spike/x --quiet
+  run "$ICE_SCRIPT" merge "$base"
+  [ "$status" -eq 0 ]
+  [ -f MORE.md ]
+}
+
+@test "safe_merge: a spike source is refused with the spike message, whatever the current branch" {
+  git branch spike/x
+  run "$ICE_SCRIPT" merge spike/x
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ICE: spike branches are never merged into another branch"* ]]
+  git checkout -b spike/y --quiet
+  run "$ICE_SCRIPT" merge origin/spike/x
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"never merged into another branch"* ]]
+}
+
+@test "safe_merge: the default branch into a feature branch stays blocked" {
+  local base; base="$(ice_default_branch)"
+  run "$ICE_SCRIPT" merge "$base"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"BLOCKED"* ]]
+}
+
+@test "safe_merge: on a spike branch, a source other than the default branch stays blocked" {
+  git checkout -b spike/x --quiet
+  run "$ICE_SCRIPT" merge feature/test
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"BLOCKED"* ]]
+  run "$ICE_SCRIPT" merge --abort
+  [ "$status" -eq 1 ]
+}
+
+@test "safe_pr_create: a spike head is refused and gh never runs" {
+  ice_gh_stub
+  git checkout -b spike/x --quiet
+  run "$ICE_SCRIPT" pr-create "Title" "Body"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ICE: spike branches never get a PR"* ]]
+  [[ "$output" == *"ICE BLOCK"* ]]
+  [ ! -s "$GH_LOG" ]
+  git checkout feature/test --quiet
+  run "$ICE_SCRIPT" pr-create "Title" "Body" main spike/x
+  [ "$status" -eq 1 ]
+  [ ! -s "$GH_LOG" ]
+}
+
+@test "safe_pr_create: a feature head still creates a draft PR (control)" {
+  ice_gh_stub
+  run "$ICE_SCRIPT" pr-create "Title" "Body"
+  [ "$status" -eq 0 ]
+  grep -q -- '--draft' "$GH_LOG"
+  grep -q -- '--head feature/test' "$GH_LOG"
+}
+
+@test "spike: ICE has no cherry-pick operation (a Miss of the ICE seam; the fence rule SP-1 blocks it)" {
+  run "$ICE_SCRIPT" cherry-pick spike/x
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"Unknown command"* ]]
+  grep -q 'cherry-pick spike/' "$PROJECT_ROOT/tests/fixtures/fence-corpus/corpus.jsonl"
+}

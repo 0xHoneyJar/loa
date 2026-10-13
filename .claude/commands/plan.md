@@ -32,8 +32,30 @@ Run the golden-path state detection:
 ```bash
 source .claude/scripts/golden-path.sh
 phase=$(golden_detect_plan_phase)
-# Returns: "discovery" | "architecture" | "sprint_planning" | "complete"
+# Returns: "discovery" | "charting" | "architecture" | "sprint_planning" | "complete"
 ```
+
+`charting` means no PRD exists yet and a decision map (`grimoires/loa/maps/<slug>.md`) says
+`**Status**: charting`. Detection reads only the map doc, so it works without `br`.
+
+#### Open decision maps (charting phase)
+
+Resolve which map is meant before routing, and before writing anything:
+
+```bash
+map=$(golden_resolve_open_map); rc=$?
+```
+
+| `rc` | Meaning | Action |
+|---|---|---|
+| 0 with a slug | one open map | Status `charting`: the `charting` row in step 5; `handed-off`: route as `discovery` (`/plan-and-analyze` consumes it) |
+| 0, empty | no open map | continue as `discovery` |
+| 3 | several open maps, interactive | ask which with AskUserQuestion (one option per slug), then offer it |
+| 1 | several open maps, unattended | stop: print "more than one open map: name one" and the slugs, exit 1, write nothing |
+
+Also list the decision ledger's `proposed` rows when there are any
+(`.claude/scripts/lib/dec-write-lib.sh list --status proposed --format md`) and point at
+`/decisions confirm`; only the operator decides them.
 
 ### 2. Handle `--from` Override
 
@@ -134,6 +156,7 @@ Based on detected (or overridden) phase:
 | Phase | Action |
 |-------|--------|
 | `discovery` | Execute `/plan-and-analyze` with any user-provided context |
+| `charting` | Offer two choices: continue the map with `/chart <slug>` (one ticket per session), or `/plan --from discovery` to start the PRD now; `/plan-and-analyze` reads a handed-off map as priority-1 context. `/plan` never starts or continues a chart on its own. |
 | `architecture` | Execute `/architect` |
 | `sprint_planning` | Execute `/sprint-plan` |
 | `complete` | Show: "Planning complete. All artifacts exist. Next: /build" |
@@ -172,6 +195,7 @@ options:
 | `--from architect` without PRD | Show error, suggest `/plan` or `/plan --from discovery` |
 | `--from sprint` without SDD | Show error, suggest `/plan --from architect` |
 | All phases complete | Show success message, suggest `/build` |
+| Several open maps, unattended | Exit 1 with "more than one open map: name one" and the slugs; no artifacts written |
 
 ## Examples
 

@@ -8,7 +8,7 @@
 # bug-triaging.
 #
 # Usage:
-#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions --file <path>
+#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
 #                        [--base-file <path>] [--ledger <path>] [--json]
 #
 # Per-type checks (see designing-architecture/planning-sprints/bug-triaging
@@ -47,6 +47,21 @@
 #               flatline/dissent artifact hashes, append-only content against
 #               --base-file (else the merge-base copy), no operator attribution
 #               under a live unattended signal, plain-prose free text, PII scan
+#   map:        a /chart map doc (grimoires/loa/sdd.md §4.2): Slug, Status
+#               (charting|handed-off|closed|abandoned) and Epic headers; exactly
+#               the H2s Destination, Decisions so far, Not yet specified, Out of
+#               scope in order, then an optional final Closed (any other H2
+#               fails: a map carries no execution instructions); each Decisions
+#               so far bullet cites a DEC id; no URL; blockquotes <= 2 lines; PII
+#               scan. With br and .beads/: every epic child is a question bead
+#               with exactly one decision: label, no sprint: label and an
+#               external_ref naming a ledger row; a Status/epic disagreement WARNs
+#   spike:      a prototype report (grimoires/loa/spikes/TEMPLATE.md): the five
+#               H2s Question, What was built, Verdict, Pointer, Decided by,
+#               present and non-empty; Pointer names a spike/ branch or a path;
+#               Decided by names operator or agent; no URL; PII scan
+#   sprint also: with br and .beads/, no question bead carries a sprint: label
+#               or sits under a sprint epic (an info line without br)
 #
 # Exit codes: 0 = pass, 1 = fail (repair text on stderr), 2 = usage error
 # =============================================================================
@@ -67,14 +82,14 @@ source "${SCRIPT_DIR}/compat-lib.sh"
 
 show_help() {
     cat <<EOF
-Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions --file <path>
+Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
        [--base-file <path>] [--ledger <path>] [--json]
 
 Validate a Loa planning artifact against its skill-defined structural
 contract (grep-based, fail-closed).
 
 Options:
-  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions (required)
+  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions | map | spike (required)
   --file PATH   Artifact file to validate (required). For --type translation,
                 may also be a directory (validates every *.md under it).
   --base-file PATH
@@ -111,8 +126,8 @@ if [[ -z "$TYPE" || -z "$FILE" ]]; then
 fi
 
 case "$TYPE" in
-    prd|sdd|sprint|bug-triage|translation|decisions) ;;
-    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions (got: $TYPE)" >&2; exit 2 ;;
+    prd|sdd|sprint|bug-triage|translation|decisions|map|spike) ;;
+    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions|map|spike (got: $TYPE)" >&2; exit 2 ;;
 esac
 
 if [[ "$TYPE" == "translation" ]]; then
@@ -280,6 +295,7 @@ validate_sprint() {
     fi
 
     validate_sprint_deferred
+    validate_sprint_beads
 
     # Final sprint E2E/validation task (WARN only).
     local last_block
@@ -862,6 +878,322 @@ validate_sdd_open_questions() {
     done <<< "$hits"
 }
 
+# =============================================================================
+# Shared helpers for map and spike documents (grimoires/loa/sdd.md D-3.17)
+# =============================================================================
+# Lines outside fenced code, prefixed "NR<TAB>" (inline code kept: a URL in
+# backticks is still a URL in the document).
+_md_unfenced_lines() {
+    LC_ALL=C awk '
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+        fence { next }
+        { printf "%d\t%s\n", NR, $0 }
+    ' "$FILE"
+}
+
+# D-3.17 plain prose: no URL in the document text, no blockquote run longer
+# than two lines (copied external text stays short). $1 names the repair.
+_md_prose_rules() {
+    local repair="$1" ln text
+    while IFS=$'\t' read -r ln text; do
+        [[ -n "$ln" ]] || continue
+        violations+=("$FILE:$ln: a URL in the document; ${repair}")
+    done < <(_md_unfenced_lines | grep -iE $'^[0-9]+\t.*https?://' || true)
+    local runs
+    runs="$(_md_unfenced_lines | LC_ALL=C awk -F'\t' '
+        $2 ~ /^[[:space:]]*>/ { if (!n) s = $1; n++; next }
+        { if (n > 2) printf "%d\t%d\n", s, n; n = 0 }
+        END { if (n > 2) printf "%d\t%d\n", s, n }
+    ')"
+    local start count
+    while IFS=$'\t' read -r start count; do
+        [[ -n "$start" ]] || continue
+        violations+=("$FILE:$start: a blockquote of $count lines; quote at most two lines of external text and cite the rest by path")
+    done <<< "$runs"
+}
+
+# pii-filter.sh over $FILE; $1 is the violation suffix.
+_md_pii_scan() {
+    local pii_filter="${SCRIPT_DIR}/pii-filter.sh"
+    if [[ -x "$pii_filter" ]]; then
+        local pii_result redactions
+        pii_result=$("$pii_filter" --file "$FILE" 2>/dev/null) || pii_result=""
+        if [[ -n "$pii_result" ]]; then
+            redactions=$(echo "$pii_result" | jq -r '.redactions // 0' 2>/dev/null) || redactions=0
+            if [[ "$redactions" =~ ^[0-9]+$ ]] && [[ "$redactions" -gt 0 ]]; then
+                violations+=("pii-filter.sh detected $redactions likely PII pattern(s) in $FILE; $1")
+            fi
+        fi
+    else
+        info_lines+=("pii-filter.sh not available; PII scan skipped")
+    fi
+}
+
+# The value of a '**Key**: value' header line (first match, trimmed).
+_md_header() {
+    grep -m1 -E "^\*\*$1\*\*:" -- "$FILE" | sed -E "s/^\*\*$1\*\*:[[:space:]]*//; s/[[:space:]]+\$//" || true
+}
+
+# The body of the H2 section named $1 (outside fenced code), blank lines dropped.
+_md_section_body() {
+    LC_ALL=C awk -v want="$1" '
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; if (sec) print; next }
+        !fence && /^## / { h = $0; sub(/^## +/, "", h); sub(/[[:space:]]+$/, "", h); sec = (h == want); next }
+        !fence && /^# / { sec = 0; next }
+        sec && $0 ~ /[^[:space:]]/ { print }
+    ' "$FILE"
+}
+
+# H2 headings outside fenced code, "NR<TAB>title".
+_md_h2_list() {
+    LC_ALL=C awk '
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+        !fence && /^## / { h = $0; sub(/^## +/, "", h); sub(/[[:space:]]+$/, "", h); printf "%d\t%s\n", NR, h }
+    ' "$FILE"
+}
+
+# Beads cross-checks run against the project's own tracker only: br on PATH,
+# a .beads/ directory at the project root, and the validated file inside the
+# project (a fixture elsewhere has no relation to this project's beads).
+_beads_crosscheck_available() {
+    command -v br >/dev/null 2>&1 || return 1
+    [[ -d "${PROJECT_ROOT}/.beads" ]] || return 1
+    local root dir
+    root="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || return 1
+    dir="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)" || return 1
+    [[ "$dir/" == "$root/"* ]]
+}
+
+# br <args> run at the project root, stdout only; normalised to a JSON array
+# of issues ("list" replies are {issues: [...]}, "show" replies are arrays).
+_br_json_array() {
+    local out
+    out="$(cd "$PROJECT_ROOT" && br "$@" 2>/dev/null)" || return 1
+    printf '%s' "$out" | jq -c 'if type == "array" then . elif type == "object" then (.issues // [.]) else [] end' 2>/dev/null
+}
+
+# =============================================================================
+# sprint: no question bead carries a sprint: label or sits under a sprint epic
+# (grimoires/loa/sdd.md D-4.7 d, A16)
+# =============================================================================
+validate_sprint_beads() {
+    if ! _beads_crosscheck_available; then
+        info_lines+=("beads cross-check skipped (needs br, ${PROJECT_ROOT}/.beads and the plan inside the project): question beads were not checked for sprint labels")
+        return 0
+    fi
+    local questions epics
+    if ! questions="$(_br_json_array list --type question --limit 0 --json)" \
+       || ! epics="$(_br_json_array list --type epic --all --limit 0 --json)"; then
+        warnings+=("br list failed; the question-bead sprint cross-check did not run")
+        return 0
+    fi
+    local hits
+    hits="$(jq -rn --argjson q "$questions" --argjson e "$epics" '
+        def labels: [(.labels // [])[] | if type == "object" then (.name // "") else tostring end];
+        ($e | map(select(labels | any(startswith("sprint:")))) | map(.id)) as $sprint_epics
+        | $q[]
+        | . as $b
+        | (labels) as $l
+        | ([$l[] | select(startswith("sprint:"))]) as $sl
+        | ([(.dependencies // [])[] | select((.type // .dependency_type // "") == "parent-child") | (.depends_on_id // .id // "")]
+           + [$l[] | select(startswith("epic:")) | ltrimstr("epic:")]) as $parents
+        | ([$parents[] | select(. as $p | $sprint_epics | index([$p]) != null)] | unique) as $sp
+        | (if ($sl | length) > 0 then "L\t\($b.id)\t\($sl | join(","))" else empty end),
+          (if ($sp | length) > 0 then "E\t\($b.id)\t\($sp | join(","))" else empty end)
+    ' 2>/dev/null || true)"
+    local kind id what
+    while IFS=$'\t' read -r kind id what; do
+        [[ -n "$kind" ]] || continue
+        case "$kind" in
+            L) violations+=("question bead $id carries $what: decision tickets never join a sprint; remove it with br label remove $id <label>") ;;
+            E) violations+=("question bead $id sits under sprint epic $what: decision tickets belong to a /chart map; move it with /chart or close it") ;;
+        esac
+    done <<< "$hits"
+}
+
+# =============================================================================
+# map: a /chart decision map document (grimoires/loa/sdd.md D-4.8, §4.2)
+# =============================================================================
+MAP_SECTIONS=("Destination" "Decisions so far" "Not yet specified" "Out of scope")
+MAP_STATUSES="charting handed-off closed abandoned"
+BEAD_ID_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+
+validate_map() {
+    local slug status epic
+    slug="$(_md_header Slug)"; status="$(_md_header Status)"; epic="$(_md_header Epic)"
+    if [[ -z "$slug" ]]; then
+        violations+=("no '**Slug**:' header line; add '**Slug**: <slug>' under the title (see grimoires/loa/sdd.md §4.2)")
+    elif ! [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
+        violations+=("**Slug** '$slug' is not a slug (letters, digits, '.', '_', '-'; 64 characters at most)")
+    fi
+    if [[ -z "$status" ]]; then
+        violations+=("no '**Status**:' header line; add '**Status**: charting' (one of: $MAP_STATUSES)")
+    elif [[ " $MAP_STATUSES " != *" $status "* ]]; then
+        violations+=("**Status** '$status' is not one of: $MAP_STATUSES")
+    fi
+    if [[ -z "$epic" ]]; then
+        violations+=("no '**Epic**:' header line; add '**Epic**: <bead-id>' naming the map epic")
+    elif ! [[ "$epic" =~ $BEAD_ID_RE ]]; then
+        violations+=("**Epic** '$epic' is not a bead id")
+    fi
+
+    local h1s
+    h1s="$(_md_unfenced_lines | grep -cE $'^[0-9]+\t# ' || true)"
+    if [[ "${h1s:-0}" -ne 1 ]]; then
+        violations+=("a map doc has exactly one H1 ('# Map: <title>'); found ${h1s:-0}")
+    fi
+
+    # H2 allowlist, in order, plus an optional final '## Closed'. Any other H2
+    # is refused: a map plans and never carries execution instructions.
+    local ln title idx=0 seen_closed=false
+    while IFS=$'\t' read -r ln title; do
+        [[ -n "$ln" ]] || continue
+        if [[ "$seen_closed" == true ]]; then
+            violations+=("$FILE:$ln: '## $title' after '## Closed'; '## Closed' is the last section of a map doc")
+            continue
+        fi
+        if [[ "$title" == "Closed" ]]; then
+            seen_closed=true
+            continue
+        fi
+        if [[ $idx -lt ${#MAP_SECTIONS[@]} && "$title" == "${MAP_SECTIONS[$idx]}" ]]; then
+            idx=$((idx + 1))
+            continue
+        fi
+        local known=false s
+        for s in "${MAP_SECTIONS[@]}"; do [[ "$title" == "$s" ]] && known=true; done
+        if [[ "$known" == true ]]; then
+            violations+=("$FILE:$ln: '## $title' is out of order or repeated; the sections are, in order: ${MAP_SECTIONS[*]/#/## }")
+        else
+            violations+=("$FILE:$ln: '## $title' is not a map section; a map doc has exactly Destination, Decisions so far, Not yet specified and Out of scope (then an optional Closed), and carries no execution instructions")
+        fi
+    done < <(_md_h2_list)
+    if [[ $idx -lt ${#MAP_SECTIONS[@]} ]]; then
+        local i
+        for (( i = idx; i < ${#MAP_SECTIONS[@]}; i++ )); do
+            grep -qxF "## ${MAP_SECTIONS[$i]}" -- "$FILE" || violations+=("missing section '## ${MAP_SECTIONS[$i]}' (see grimoires/loa/sdd.md §4.2)")
+        done
+    fi
+    [[ -n "$(_md_section_body "Destination")" ]] || violations+=("'## Destination' is empty; state what is true when the effort is done (three sentences at most)")
+
+    local bullet
+    while IFS= read -r bullet; do
+        [[ -n "$bullet" ]] || continue
+        [[ "$bullet" =~ ^[[:space:]]*[-*][[:space:]] ]] || continue
+        [[ "$bullet" =~ DEC-[0-9]{4,} ]] || violations+=("a 'Decisions so far' bullet cites no DEC row: '${bullet:0:120}'; the form is '- <name> (DEC-NNNN, <bead-id>): <one line>'")
+    done < <(_md_section_body "Decisions so far")
+
+    _md_prose_rules "cite a repo path or a grimoires/loa/research/ report instead"
+    _md_pii_scan "a map doc is tracked state, remove them"
+
+    [[ -n "$epic" && "$epic" =~ $BEAD_ID_RE ]] || return 0
+    if ! _beads_crosscheck_available; then
+        warnings+=("beads cross-check skipped (needs br, ${PROJECT_ROOT}/.beads and the map inside the project): the children of $epic were not checked")
+        return 0
+    fi
+    _validate_map_beads "$epic" "$status" "$slug"
+}
+
+_validate_map_beads() {
+    local epic="$1" status="$2" slug="$3" epic_json all
+    if ! epic_json="$(_br_json_array show "$epic" --json)" || [[ "$(jq 'length' <<< "$epic_json" 2>/dev/null)" != "1" ]]; then
+        warnings+=("map epic $epic was not found in beads; repair the '**Epic**:' line or create the epic with /chart")
+        return 0
+    fi
+    if ! all="$(_br_json_array list --all --limit 0 --json)"; then
+        warnings+=("br list failed; the children of $epic were not checked")
+        return 0
+    fi
+    local ledger="${LEDGER_FILE:-${PROJECT_ROOT}/grimoires/loa/decisions.yaml}" ids="[]"
+    if [[ -f "$ledger" ]] && _dec_have_yq4; then
+        ids="$(yq -o=json -I0 '.' "$ledger" 2>/dev/null | jq -c '[(.decisions // [])[] | objects | .id]' 2>/dev/null || echo null)"
+    else
+        ids="null"
+        info_lines+=("decision ledger unreadable (${ledger}; needs the file and yq v4): child external_ref values were checked for shape only")
+    fi
+    local out
+    out="$(jq -rn --argjson ep "$epic_json" --argjson all "$all" --argjson ids "$ids" --arg epic "$epic" '
+        def labels: [(.labels // [])[] | if type == "object" then (.name // "") else tostring end];
+        ($ep[0]) as $e
+        | ("S\t\($e.status // "")"),
+          (if ($e | labels | any(. == "map")) then empty else "W\t\($epic) has no map label; a map epic carries the label map" end),
+          ($all[]
+           | select(.id != $epic)
+           | select(([(.dependencies // [])[] | select((.type // .dependency_type // "") == "parent-child") | (.depends_on_id // "")] | index([$epic]) != null)
+                    or (labels | index(["epic:" + $epic]) != null))
+           | . as $c
+           | (labels) as $l
+           | ([$l[] | select(startswith("decision:"))]) as $dl
+           | (if (.issue_type // "") != "question" then "V\t\(.id) is a \(.issue_type // "untyped") bead under map epic \($epic); a map holds question beads only" else empty end),
+             (if ($dl | length) != 1 then "V\t\(.id) carries \($dl | length) decision: labels; a ticket carries exactly one of decision:grilling, decision:prototype, decision:research, decision:unblock" else empty end),
+             ($dl[] | select(IN("decision:grilling", "decision:prototype", "decision:research", "decision:unblock") | not) | "V\t\($c.id) carries \(.); the four decision labels are decision:grilling, decision:prototype, decision:research, decision:unblock"),
+             ($l[] | select(startswith("sprint:")) | "V\t\($c.id) carries \(.); decision tickets never join a sprint"),
+             (($c.external_ref // "") as $x
+              | if ($x | test("^DEC-[0-9]{4,}$")) | not then "V\t\($c.id) has external_ref \"\($x)\"; a ticket points at its ledger row (br update \($c.id) --external-ref DEC-NNNN)"
+                elif $ids != null and ($ids | index([$x]) == null) then "V\t\($c.id) points at \($x), which is not in the decision ledger"
+                else empty end))
+    ' 2>/dev/null)" || { warnings+=("could not read the beads replies for $epic; the children were not checked"); return 0; }
+    local kind msg epic_status=""
+    while IFS=$'\t' read -r kind msg; do
+        case "$kind" in
+            S) epic_status="$msg" ;;
+            W) warnings+=("$msg") ;;
+            V) violations+=("$msg") ;;
+        esac
+    done <<< "$out"
+    # The doc wins for phase detection; a disagreement is repaired, not fatal.
+    case "$status" in
+        charting|handed-off)
+            [[ "$epic_status" == "closed" ]] && warnings+=("map Status is $status but epic $epic is closed; phase detection follows the doc: run /chart close ${slug} --reason <why>, or br reopen $epic") ;;
+        closed|abandoned)
+            [[ -n "$epic_status" && "$epic_status" != "closed" ]] && warnings+=("map Status is $status but epic $epic is $epic_status; phase detection follows the doc: run br close $epic --reason \"map ${status}\"") ;;
+    esac
+    return 0
+}
+
+# =============================================================================
+# spike: a prototype report (grimoires/loa/sdd.md D-5.5, §4.4)
+# =============================================================================
+SPIKE_SECTIONS=("Question" "What was built" "Verdict" "Pointer" "Decided by")
+
+validate_spike() {
+    local s body
+    for s in "${SPIKE_SECTIONS[@]}"; do
+        if ! _md_h2_list | cut -f2 | grep -qxF "$s"; then
+            violations+=("missing section '## $s' (see grimoires/loa/spikes/TEMPLATE.md)")
+            continue
+        fi
+        body="$(_md_section_body "$s")"
+        [[ -n "$body" ]] || violations+=("'## $s' is empty; a spike report fills all five sections (see grimoires/loa/spikes/TEMPLATE.md)")
+    done
+    local verdict_lines
+    verdict_lines="$(_md_section_body "Verdict" | wc -l | tr -d ' ')"
+    [[ "${verdict_lines:-0}" -le 1 ]] || warnings+=("'## Verdict' has ${verdict_lines} lines; the verdict is one line, the reasoning goes in 'What was built'")
+    body="$(_md_section_body "Pointer")"
+    if [[ -n "$body" ]] && ! grep -qE '(^|[^[:alnum:]_])spike/[^[:space:]`]+|[[:alnum:]_.{}-]+/[[:alnum:]_.{}/-]+' <<< "$body"; then
+        violations+=("'## Pointer' names neither a spike/<slug> branch nor a path; give the branch and commit, or the path of what was built")
+    fi
+    body="$(_md_section_body "Decided by")"
+    if [[ -n "$body" ]]; then
+        grep -qiE '(^|[^[:alnum:]_])(operator|agent)([^[:alnum:]_]|$)' <<< "$body" \
+            || violations+=("'## Decided by' names neither operator nor agent")
+        grep -qE 'DEC-[0-9]{4,}' <<< "$body" \
+            || warnings+=("'## Decided by' cites no DEC row; the verdict row is written with dec-write-lib.sh decide and cited here (DEC-NNNN)")
+    fi
+    local branch
+    branch="$(_md_header Branch)"
+    if [[ -n "$branch" && ! "$branch" =~ (^|[^[:alnum:]_])spike/ ]]; then
+        violations+=("**Branch** '$branch' is not a spike/<slug> branch")
+    fi
+    local cur
+    cur="$(git -C "$(dirname -- "$FILE")" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    case "$cur" in
+        spike/*) warnings+=("this checkout is on $cur; the spike report and its DEC row are committed on the working branch, never on a spike branch") ;;
+    esac
+    _md_prose_rules "point at the spike branch or a repo path instead"
+    _md_pii_scan "a spike report is tracked state, remove them"
+}
+
 case "$TYPE" in
     prd) validate_prd ;;
     sdd) validate_sdd ;;
@@ -869,6 +1201,8 @@ case "$TYPE" in
     bug-triage) validate_bug_triage ;;
     translation) validate_translation ;;
     decisions) validate_decisions ;;
+    map) validate_map ;;
+    spike) validate_spike ;;
 esac
 
 if [[ "$JSON_OUTPUT" == "true" ]]; then

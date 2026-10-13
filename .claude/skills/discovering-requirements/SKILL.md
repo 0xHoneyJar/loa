@@ -73,6 +73,8 @@ Mode, input-style and pacing tables: see `resources/REFERENCE.md` §Interview Mo
 When `no_infer` is true (the default): ask rather than infer — don't answer your own questions, write "Based on common patterns..."/"Typically...", combine phases in one response, generate output alongside the last question, or skip a phase as "sufficient." Before asking, state what you know (cited), what you don't, and why; wait for the response; keep phases in separate turns.
 
 **Fact or decision.** A fact (what code, reality files or docs say) is yours to find: look it up or dispatch an Explore subagent, never ask it. A decision (scope, trade-off, priority, taste) is the operator's: ask it; unattended, take it on a stated assumption, record it with `dec-write-lib.sh new` and tag it `[ASSUMPTION decision] (DEC-NNNN)`. Tag looked-up gaps `[ASSUMPTION fact]`.
+
+A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
 </interview_config>
 
 # Discovering Requirements

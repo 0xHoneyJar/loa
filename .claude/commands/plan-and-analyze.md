@@ -40,6 +40,12 @@ context_files:
     priority: 1
     purpose: "Code consistency analysis"
 
+  # Priority 1: a handed-off decision map (/chart): settled decisions, confirm, do not re-ask
+  - path: "grimoires/loa/context/chart-*.md"
+    required: false
+    priority: 1
+    purpose: "Hand-off snapshot of a decision map: the map doc and its ledger rows"
+
   # Priority 2: User-provided context
   - path: "grimoires/loa/context/*.md"
     required: false
@@ -176,6 +182,12 @@ All files are optional. The more context provided, the fewer questions asked.
 ## Discovery Phases
 
 ### Phase 0: Context Synthesis (NEW)
+- **Decision map first.** Before ingestion, apply the multi-map rule to the hand-off snapshots:
+  `source .claude/scripts/golden-path.sh; map=$(golden_resolve_open_map --snapshots); rc=$?`.
+  `rc` 3 (several snapshots, interactive): ask which map this PRD consumes. `rc` 1
+  (unattended): stop with "more than one open map: name one" and the slugs, exit 1, write
+  nothing. One snapshot, or the chosen one, is read as priority-1 context: its decisions are
+  settled, so confirm them in the interview and do not re-ask them. Other snapshots are not ingested.
 - Reads all files from `grimoires/loa/context/`
 - Maps discovered information to 7 phases
 - Presents understanding with citations
@@ -235,6 +247,10 @@ All files are optional. The more context provided, the fewer questions asked.
 | Path | Description |
 |------|-------------|
 | `grimoires/loa/prd.md` | Product Requirements Document with source tracing |
+
+After the PRD is written and validated, close a consumed map:
+`/chart close <slug> --consumed-by <cycle-id>` (the map doc gains `## Closed` and Status
+`closed`, the epic closes; allowed unattended). Skip it when no snapshot was consumed.
 
 ## PRD Source Tracing
 

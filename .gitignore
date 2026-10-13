@@ -220,6 +220,8 @@ grimoires/loa/analytics/*
 # Research files (project-specific discoveries)
 grimoires/loa/research/*
 !grimoires/loa/research/README.md
+# Research reports for /chart decision-map tickets are tracked: maps cite them (SDD D-4.9)
+!grimoires/loa/research/chart-*.md
 
 # Ground truth (generated codebase analysis, project-specific)
 grimoires/loa/ground-truth/*

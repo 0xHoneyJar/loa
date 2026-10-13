@@ -140,6 +140,23 @@ interview:
   #   batch: 3-6 numbered questions per turn, user responds freely
   # pacing: rounds   # sequential | batch | rounds; unset = rounds for thorough, batch for minimal
 
+  # Prototype-class questions: one the operator answers "I need to see it", or
+  # one the agent proposes as unanswerable by talking and the operator confirms.
+  # Interactive, it becomes a decision:prototype bead (a standalone question
+  # bead) with an open DEC row, never an [ASSUMPTION]. Unattended (run mode,
+  # /autonomous, a live unattended marker) there is no one to confirm, so:
+  #   defer (default): create the decision:prototype bead and the open DEC row,
+  #     mark the dependent requirement in the PRD with
+  #     **Deferred:** pending prototype <bead-id> (DEC-NNNN)
+  #     and continue planning; validate-artifact.sh --type sprint WARNs on any
+  #     task that cites the deferred requirement.
+  #   halt: create the same bead and row, then stop planning with
+  #     "planning halted: prototype <bead-id> (DEC-NNNN) needs an interactive
+  #     session; run /chart <slug> or build the spike, then resume"
+  # The prototype itself is built later, interactively, on a spike/<slug> branch
+  # (pushed, never merged, no PR); its report is grimoires/loa/spikes/<slug>.md.
+  unattended_prototype: defer   # defer | halt
+
   # Phase transition gates
   phase_gates:
     between_phases: true       # Require confirmation between discovery phases

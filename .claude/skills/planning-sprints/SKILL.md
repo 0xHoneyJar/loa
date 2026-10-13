@@ -171,14 +171,7 @@ Check if `grimoires/loa/a2a/integration-context.md` exists:
 [ -f "grimoires/loa/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
 ```
 
-**If EXISTS**, read it to understand:
-- Current state tracking: Where to find project status
-- Priority signals: Community feedback volume, CX Triage backlog
-- Team capacity: Team structure
-- Dependencies: Cross-team initiatives affecting sprint scope
-- Context linking: How to link sprint tasks to source discussions
-- Documentation locations: Where to update status
-- Available MCP tools: Discord, Linear, GitHub integrations
+**If EXISTS**, read it for status tracking, priority signals, team capacity and cross-team dependencies (what to take from it: see `resources/REFERENCE.md` §Integration Context).
 
 **If MISSING**, proceed with standard workflow using only PRD/SDD.
 
@@ -206,6 +199,7 @@ When creating tasks, quote the exact requirement (`> From prd.md: FR-1.2: "..."`
 ## Phase 2: Strategic Questioning
 
 Ask clarifying questions on priority conflicts, estimation uncertainty, resources, external dependencies, underspecified requirements and risk mitigation (full list: see `resources/REFERENCE.md` §Clarifying Questions Checklist). Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
+A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
 
 Wait for responses before proceeding. Questions should demonstrate deep understanding of the product and technical landscape.
 

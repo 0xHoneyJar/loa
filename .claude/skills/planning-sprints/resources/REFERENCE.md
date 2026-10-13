@@ -98,8 +98,8 @@ Before finalizing sprint plan:
    - Core utilities
 
 2. **High-Risk Early**
-   - Technical spikes
-   - Proof of concepts
+   - An open question only a prototype can answer ("I need to see it") is a `decision:prototype` ticket settled before the sprint that depends on it, not a spike task inside a build sprint: the prototype runs on a `spike/<slug>` branch (pushed, never merged, no PR) and its verdict becomes a DEC row (report: `grimoires/loa/spikes/<slug>.md`)
+   - A requirement the PRD marks `**Deferred:** pending prototype <bead> (DEC-NNNN)` is scheduled only after that row is decided
    - Integration testing
    - Performance validation
 
@@ -112,6 +112,17 @@ Before finalizing sprint plan:
    - Each sprint delivers working functionality
    - Demo-able progress after each sprint
    - User feedback opportunities
+
+## Integration Context
+
+When `grimoires/loa/a2a/integration-context.md` exists (Phase 0 Step 2), read it for:
+- Current state tracking: where to find project status
+- Priority signals: community feedback volume, CX triage backlog
+- Team capacity: team structure
+- Dependencies: cross-team initiatives affecting sprint scope
+- Context linking: how to link sprint tasks to source discussions
+- Documentation locations: where to update status
+- Available MCP tools: Discord, Linear, GitHub integrations
 
 ## Common Anti-Patterns
 

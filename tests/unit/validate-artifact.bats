@@ -836,3 +836,123 @@ _dec_prd() { # status-word date body...
     [ "$(printf '%s\n' "$output" | grep -c 'which the PRD marks \*\*Deferred:\*\*')" -eq 1 ]
     [[ "$output" == *"sprint.md:10: this task cites FR-5"* ]]
 }
+
+# =============================================================================
+# map (grimoires/loa/sdd.md D-4.8, §4.2)
+# =============================================================================
+
+# A map doc in the §4.2 shape; outside the project, so the beads check is a WARN.
+map_fixture() {
+    cat <<'MAP'
+# Map: Ceiling arc
+
+**Slug**: ceiling-arc
+**Status**: charting
+**Epic**: bd-map1
+**Created**: 2026-10-14
+
+## Destination
+The Opus ceiling is measured on every transport.
+
+## Decisions so far
+- Transport (DEC-0001, bd-c1): headless first
+
+## Not yet specified
+- retry budget
+
+## Out of scope
+- pricing: another cycle
+MAP
+}
+
+@test "validate-artifact map: a valid map doc passes (beads check skipped with one WARN outside the project)" {
+    map_fixture > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARN: beads cross-check skipped"* ]]
+}
+
+@test "validate-artifact map: a final ## Closed section passes; any section after it fails" {
+    { map_fixture; printf '\n## Closed\n2026-10-20, consumed by cycle-129\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 0 ]
+    printf '\n## Out of scope\n- again\n' >> "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"after '## Closed'"* ]]
+}
+
+@test "validate-artifact map: an extra H2 fails (no execution override)" {
+    { map_fixture; printf '\n## Execution override\nImplement it now under src/.\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"'## Execution override' is not a map section"* ]]
+    [[ "$output" == *"carries no execution instructions"* ]]
+}
+
+@test "validate-artifact map: an H2 inside a fenced code block is not a section" {
+    { map_fixture; printf '\n```\n## Not a heading\n```\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact map: a Decisions so far bullet without a DEC id fails" {
+    map_fixture | sed 's/(DEC-0001, bd-c1)/(bd-c1)/' > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"bullet cites no DEC row"* ]]
+}
+
+@test "validate-artifact map: sections out of order, a missing section and a second H1 each fail" {
+    map_fixture | awk '/^## Not yet specified/{skip=1} /^## Out of scope/{skip=0} !skip' > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"missing section '## Not yet specified'"* ]]
+    { map_fixture | sed 's/^## Destination$/## Decisions so far/; 0,/^## Decisions so far$/!{s/^## Decisions so far$/## Destination/}'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"out of order or repeated"* ]]
+    { map_fixture; printf '\n# Plan\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"exactly one H1"* ]]
+}
+
+@test "validate-artifact map: a bad Status, a missing Slug or Epic, and an empty Destination fail" {
+    map_fixture | sed 's/^\*\*Status\*\*: charting/**Status**: building/' > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"**Status** 'building' is not one of"* ]]
+    map_fixture | grep -vE '^\*\*(Slug|Epic)\*\*:' > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"no '**Slug**:' header"* ]]
+    [[ "$output" == *"no '**Epic**:' header"* ]]
+    map_fixture | grep -v '^The Opus ceiling' > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"'## Destination' is empty"* ]]
+}
+
+@test "validate-artifact map: every documented Status value passes" {
+    local st
+    for st in charting handed-off closed abandoned; do
+        map_fixture | sed "s/^\*\*Status\*\*: charting/**Status**: $st/" > "${TEST_TMPDIR}/map.md"
+        run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "validate-artifact map: a URL and a three-line blockquote fail (plain prose)" {
+    { map_fixture; printf -- '- see https://example.invalid/x\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"a URL in the document"* ]]
+    { map_fixture; printf '\n> one\n> two\n> three\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"a blockquote of 3 lines"* ]]
+    { map_fixture; printf '\n> one\n> two\n'; } > "${TEST_TMPDIR}/map.md"
+    run "$SCRIPT" --type map --file "${TEST_TMPDIR}/map.md"
+    [ "$status" -eq 0 ]
+}

@@ -112,3 +112,25 @@
 {"id":"D58","cmd":"T=$(mktemp -d); { read T; }; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read inside a brace group","cwd":"repo"}
 {"id":"D59","cmd":"T=$(mktemp -d); command read T < f; rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read behind the command builtin","cwd":"repo"}
 {"id":"D60","cmd":"T=$(mktemp -d) && read T < f && rm -rf \"$T\"","expect":"block","rule":"FR-2","why":"read after && is command position","cwd":"repo"}
+{"id":"B50","cmd":"git push -u origin spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"a spike branch is pushed as the decision's pointer (D-5.2)","cwd":"repo"}
+{"id":"B51","cmd":"git checkout spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"switching to a spike branch copies nothing","cwd":"repo"}
+{"id":"B52","cmd":"git merge main","expect":"allow","rule":"SP-1","why":"the default branch merged into a spike branch (D-5.3)","cwd":"repo"}
+{"id":"B53","cmd":"git rebase main","expect":"allow","rule":"SP-1","why":"a spike branch rebased on the default branch (D-5.3)","cwd":"repo"}
+{"id":"B54","cmd":"git commit -m 'record spike/ceiling-ui verdict, never merge spike/ceiling-ui'","expect":"allow","rule":"SP-1","why":"a commit message naming a spike ref is an inert carrier","cwd":"repo"}
+{"id":"B55","cmd":"git merge-base --is-ancestor spike/ceiling-ui main","expect":"allow","rule":"SP-1","why":"merge-base is a read-only query, not a merge","cwd":"repo"}
+{"id":"B56","cmd":"git log --oneline main..spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"reading a spike's history copies nothing","cwd":"repo"}
+{"id":"B57","cmd":"git restore --staged spike/notes.md","expect":"allow","rule":"SP-1","why":"--staged is not -s; a path under a spike/ directory is not a spike ref","cwd":"repo"}
+{"id":"B58","cmd":"gh pr create --draft --title 'spike/ceiling-ui verdict' --body 'see report'","expect":"allow","rule":"SP-1","why":"a spike ref inside the PR title is an inert carrier; the head is the working branch","cwd":"repo"}
+{"id":"B59","cmd":"git checkout -b spike/ceiling-ui","expect":"allow","rule":"SP-1","why":"creating a spike branch copies nothing","cwd":"repo"}
+{"id":"D61","cmd":"git merge spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a spike merged into another branch (D-5.4)","cwd":"repo"}
+{"id":"D62","cmd":"git rebase origin/spike/ceiling-ui","expect":"block","rule":"SP-1","why":"rebasing onto a remote spike ref brings its commits in","cwd":"repo"}
+{"id":"D63","cmd":"git pull origin spike/ceiling-ui","expect":"block","rule":"SP-1","why":"pull names a spike ref; accepted edge on the spike branch itself, where bare git pull is the supported form","cwd":"repo"}
+{"id":"D64","cmd":"git cherry-pick spike/ceiling-ui~1","expect":"block","rule":"SP-1","why":"cherry-picking a spike commit (ICE has no cherry-pick: a Miss of the ICE seam)","cwd":"repo"}
+{"id":"D65","cmd":"git checkout spike/ceiling-ui -- src/a.ts","expect":"block","rule":"SP-1","why":"a path copied out of a spike","cwd":"repo"}
+{"id":"D66","cmd":"git restore --source spike/ceiling-ui src/a.ts","expect":"block","rule":"SP-1","why":"restore with a spike source copies a path out of it","cwd":"repo"}
+{"id":"D67","cmd":"gh pr create --draft --head spike/ceiling-ui --title t --body b","expect":"block","rule":"SP-1","why":"spike branches never get a PR","cwd":"repo"}
+{"id":"D68","cmd":"git branch -D spike/ceiling-ui","expect":"block","rule":"FR-1.1","why":"spike deletion needs a decided verdict row (D-5.9); outside a repo with a ledger the block stays","cwd":"repo"}
+{"id":"D69","cmd":"git checkout spike/ceiling-ui src/a.ts","expect":"block","rule":"SP-1","why":"a path copy without the -- separator","cwd":"repo"}
+{"id":"D70","cmd":"git -C ../app merge --no-ff spike/ceiling-ui","expect":"block","rule":"SP-1","why":"global -C option before the merge","cwd":"repo"}
+{"id":"D71","cmd":"git cherry-pick main..spike/ceiling-ui","expect":"block","rule":"SP-1","why":"a commit range ending in a spike ref","cwd":"repo"}
+{"id":"D72","cmd":"git restore -s spike/ceiling-ui src/a.ts","expect":"block","rule":"SP-1","why":"the short source flag","cwd":"repo"}

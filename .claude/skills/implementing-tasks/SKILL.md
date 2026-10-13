@@ -210,7 +210,7 @@ status=$(echo "$health" | jq -r '.status')
 
 `HEALTHY` → import state (`br sync --import-only`; `update-beads-state.sh --sync-import`) and proceed. `DEGRADED` → warn, import, proceed. `NOT_INSTALLED`/`NOT_INITIALIZED` → check opt-out (`update-beads-state.sh --opt-out-check`); without one, warn (`cargo install beads_rust && br init` to add it) and fall back to markdown. `MIGRATION_NEEDED`/`UNHEALTHY` → warn, fall back to markdown. Record the outcome: `.claude/scripts/beads/update-beads-state.sh --health "$status"`.
 
-Run the full lifecycle per task yourself: health check → `br sync --import-only` → `br ready` → `br update <id> --status in_progress` → implement → `br close <id>` (run mode: then `.claude/scripts/run-checkpoint.sh write --sprint sprint-N --task <id> --phase IMPLEMENT`) → `br sync --flush-only` at session end. Log discovered issues as they surface — this adds a `discovered-during:<parent-id>` label for traceability:
+Run the full lifecycle per task yourself: health check → `br sync --import-only` → `.claude/scripts/beads/get-ready-work.sh` (not bare `br ready`) → `br update <id> --status in_progress` → implement → `br close <id>` (run mode: then `.claude/scripts/run-checkpoint.sh write --sprint sprint-N --task <id> --phase IMPLEMENT`) → `br sync --flush-only` at session end. Log discovered issues as they surface — this adds a `discovered-during:<parent-id>` label for traceability:
 
 ```bash
 .claude/scripts/beads/log-discovered-issue.sh "$CURRENT_TASK_ID" "Description of discovered issue" bug 2
