@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `validate-gitignore-state.sh` no longer reports a path re-included by a `!` negation as gitignored drift.
+- **The atomic-seeding CI gate judges the enum, not the file list** (`.github/workflows/cycle-108-schema-guard.yml`). A `role:` change that leaves `audited_review_skills` unchanged (a new planning skill such as `charting-decisions`) no longer fails for want of a schema edit: the gate compares the enum `migrate-skill-roles.sh --emit-enum` produces with the schema's and demands a schema change only when they differ.
 
 ### Security
 
