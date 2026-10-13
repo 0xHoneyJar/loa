@@ -88,7 +88,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 3 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 4 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 
 ---
@@ -1657,7 +1657,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 3
+**Recurrence count**: 4
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
 **Upstream issue**: none yet — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
@@ -1667,6 +1667,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-07 | three planning-doc reviews in one session (prd, sdd, sprint) with CLAUDE_HEADLESS_BIN=claude-bedrock | all three degraded the same way; integrated the 33 + 33 + sprint improvements by judgment into SDD §1.5 / PRD FR-x.5 | ~/.cache/loa/cycle-127/flatline-127.log; grimoires/loa/a2a/flatline/{prd,sdd,sprint}-final_consensus.json; commit 6daf2e06 |
+| 2026-10-14 | cycle-129 planning: three Flatline runs (prd flatline-24474-6736, sdd, sprint) with codex-headless + claude-headless, Phase 1 2/2 voices | all three degraded the same way (Phase 2 cross-scoring null, exit 6); blockers and per-voice improvements integrated by lead judgment into PRD App. G, SDD §11.4/§11.5, sprint App. D; routed to an upstream issue (sprint-255 Task 1.10) per DEC-0134, no retry | ~/.cache/loa/cycle-129/flatline/{prd,sdd,sprint}.{json,log}; grimoires/loa/a2a/flatline/*-final_consensus.json |
 
 ### Reading guide
 

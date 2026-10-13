@@ -3987,3 +3987,1507 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0125"
+    created_at: "2026-10-13T21:31:20Z"
+    updated_at: "2026-10-13T21:31:20Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Codebase grounding reuses the 2026-10-14 paradigm-review evidence files instead of re-running /ride on the stale May reality (D1)"
+    decision: "Phase -0.5 grounding is satisfied by the four evidence files under grimoires/loa/a2a/paradigm-review-2026-10/sources/ (control-surface inventory, gate yield, open-weight readiness, corpus) verified against main 864069f2; grimoires/loa/reality/ (2026-05-04) is cited only for unchanged structure"
+    rationale: "the evidence files are ten days fresher than any /ride output could be and are targeted at the surfaces this cycle changes; a /ride run costs about twenty minutes and produces generic inventories"
+    alternatives_considered:
+      - option: "re-run /ride before the PRD"
+        rejected_because: "generic output, twenty minutes, and the review sources already carry file:line cites for every surface in scope"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0126"
+    created_at: "2026-10-13T21:31:21Z"
+    updated_at: "2026-10-13T21:31:21Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "implement_gate.mode gains telemetry and deny; downstream default telemetry, this repo deny; ask kept; authoritative stays a tighten-only modifier (D2)"
+    decision: "implement_gate.mode accepts telemetry (default: an App-Zone write with no active run or sanction writes one compliance row to .run/audit.jsonl and never prompts), ask (today's behaviour), deny (exit 2 refusal when the file-derived run position is not RUNNING and no /implement or /bug sanction exists); the example config documents the key; this repository sets deny; the hooks reference stops calling the ask a fence"
+    rationale: "the ask was invalid output from cycle-050 to rc.3 and asks are not logged, so its base rate is unknown; a downstream deny would refuse every interactive application write outside /implement in every mount; telemetry feeds the guard register so the deny can be earned"
+    alternatives_considered:
+      - option: "deny by default in every mount"
+        rejected_because: "refuses ordinary interactive application writes in downstream repositories with no observed failure to justify it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0127"
+    created_at: "2026-10-13T21:31:22Z"
+    updated_at: "2026-10-13T21:31:22Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Advisory-voice promotion threshold is a maintainer-set config value, unset by default, so nothing promotes until it is set (D3)"
+    decision: "hounfour.advisory_promotion.min_recall_ratio (advisory recall divided by primary recall on the FR-2 corpus over three trials) and max_refuted_delta (refuted share at most this many points above the primary) gate promotion of an advisory voice to a counted one; both unset by default; promotion also requires a declared lineage distinct from the primary"
+    rationale: "the brief names the threshold as a maintainer decision; an unset default keeps the quorum arithmetic exactly as today until a human sets a number"
+    alternatives_considered:
+      - option: "a fixed 0.8 ratio in code"
+        rejected_because: "a code constant is the agent deciding the operator's threshold"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0128"
+    created_at: "2026-10-13T21:31:22Z"
+    updated_at: "2026-10-13T21:31:22Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "lean profile is opt-in this cycle; standard stays the downstream default; docs recommend lean once the FR-2 arms show no recall loss (D4)"
+    decision: "loa.profile defaults to standard, which reproduces today's defaults byte for byte; lean is documented as the recommended downstream profile only after the FR-2 control arms report no recall loss on the surfaces it disables"
+    rationale: "a default flip before the measurement exists is the invented-guard pattern in reverse"
+    alternatives_considered:
+      - option: "make lean the default now"
+        rejected_because: "no FR-2 result yet; the brief says nothing ships before its arm"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0129"
+    created_at: "2026-10-13T21:31:23Z"
+    updated_at: "2026-10-13T21:31:23Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Rule path-scoping keys on files: stash-safety for shell sources, skill-invariants for SKILL.md and agent definitions (D5)"
+    decision: "stash-safety.md gains paths frontmatter for **/*.sh, **/*.bats, .claude/scripts/**, .claude/hooks/**; skill-invariants.md gains paths for .claude/skills/**/SKILL.md, .claude/agents/**, .claude/data/agent-types.yaml; the fence FR-1.2b block message remains the repair prompt for a stash hazard typed as a Bash command"
+    rationale: "Claude Code rule frontmatter scopes on the file being read or edited, not on command text, so a git-command key cannot be expressed; the mechanical fence is what holds for commands"
+    alternatives_considered:
+      - option: "key on any git command in the Bash tool"
+        rejected_because: "rules frontmatter has no command-text selector; the fence already covers the command path"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0130"
+    created_at: "2026-10-13T21:31:24Z"
+    updated_at: "2026-10-13T21:31:24Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Fleet block logs are counted later; the register carries scope: host and a follow-up bead for mailbox ingestion (D6)"
+    decision: "guard-yield.sh reads this host's .run/audit.jsonl only and stamps every count with scope: host; cross-repo or mailbox ingestion is a follow-up bead, not this cycle"
+    rationale: "one host's log is the only data on hand; the register must say so rather than imply fleet coverage"
+    alternatives_considered:
+      - option: "ingest fleet block logs now"
+        rejected_because: "no fleet log transport exists for audit rows; the mailbox carries messages, not ledgers"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:31:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0131"
+    created_at: "2026-10-13T21:32:56Z"
+    updated_at: "2026-10-13T21:32:56Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "No hosted open-weight catalog price row this cycle; the catalog requires price_source and price_date; the dissent budget gate reads catalog prices (D7)"
+    decision: "the model catalog schema gains price_source and price_date, required on any non-zero open-weight price; no hosted open-weight row is added this cycle; adversarial-review.sh's budget gate reads the catalog price for the planned voice instead of the fixed 10 and 30 per million tokens; zero-priced local entries estimate at zero and are still logged"
+    rationale: "a price the agent cannot verify unattended must not enter a tracked catalog; the gate change is what lets an operator-added row be honoured"
+    alternatives_considered:
+      - option: "seed OpenRouter or Together rows now"
+        rejected_because: "prices change and cannot be verified from this session; a wrong catalog price misreports spend"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0132"
+    created_at: "2026-10-13T21:32:57Z"
+    updated_at: "2026-10-13T21:32:57Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "FR-7 family-and-lineage slice not built (no operator need declared); open-weight voices stay advisory_voice, never independent (D8)"
+    decision: "operator-declared family and lineage per model, companion_chain keys beyond anthropic and openai, and a merged-config _adv_family_of are deferred; an open-weight voice runs as an advisory voice whose findings are kept and tagged and which contributes no verdict-quality envelope"
+    rationale: "the brief conditions the M slice on a declared operator need during the cycle; an unattended cycle has none; the advisory accounting delivers the availability hedge and the locality posture without touching quorum arithmetic"
+    alternatives_considered:
+      - option: "build family and lineage now"
+        rejected_because: "no declared need; it is the slice with independence-inflation risk and it changes how voices count"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0133"
+    created_at: "2026-10-13T21:32:57Z"
+    updated_at: "2026-10-13T21:32:57Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "Carry-over defects fold into sprint tasks with red tests, not separate /bug micro-sprints (D9)"
+    decision: "the Bridgebuilder banner completed-count and non-zero exit on DEGRADED land as a Sprint 3 task; the prompt-budget workflow comment, the implementing-tasks permission lines and implement_gate.mode documentation land as Sprint 1 and 2 tasks; the hooks-reference registration table is generated by FR-1"
+    rationale: "each defect is small, observed and adjacent to a sprint's surface; a micro-sprint each would add five review and audit cycles for the same code"
+    alternatives_considered:
+      - option: "five /bug micro-sprints"
+        rejected_because: "five more review and audit rounds for one-line fixes already covered by the sprints' gates"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0134"
+    created_at: "2026-10-13T21:32:58Z"
+    updated_at: "2026-10-13T21:32:58Z"
+    phase: "discovery"
+    category: "process"
+    summary: "KF-041 (recurrence 3) goes to an upstream GitHub issue; the planning Flatline runs are accepted degraded and integrated by judgment (D10)"
+    decision: "an issue on 0xHoneyJar/loa records KF-041's shape, the three recurrences and the candidate fix (record each Phase 2 scorer call's failure_class in the final JSON execution block); this cycle's PRD, SDD and sprint Flatline runs are read as unscored per-voice input, no retry"
+    rationale: "the ledger's own rule makes recurrence 3 structural; retrying reproduces the known shape"
+    alternatives_considered:
+      - option: "retry the Flatline runs with --keep-temp until scoring succeeds"
+        rejected_because: "three identical recurrences; the reading guide says do not re-run to chase consensus"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0135"
+    created_at: "2026-10-13T21:32:59Z"
+    updated_at: "2026-10-13T21:32:59Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Three sprints 255-257 in the brief's order; Opus 5.5 implementers in worktrees; Fable 5.1 gates; at most three dissent runs per sprint (D11)"
+    decision: "Sprint 1 measures (FR-1, FR-2, FR-10, path-scoping); Sprint 2 thins and repairs (FR-4, FR-5, FR-6, FR-9, rest of FR-3); Sprint 3 opens voices (FR-7 recipe, schema, accounting; FR-8) and runs the E2E; implementers are Opus 5.5 subagents returning git diff --cached --binary patches; the lead applies, reviews and audits on Fable 5.1; dissent capped at three runs per sprint"
+    rationale: "the measurement must exist before the deletions it justifies; the model mix follows the 2026-10-05 operator policy; the cap follows the sprint-248 cost record"
+    alternatives_considered:
+      - option: "two sprints"
+        rejected_because: "the FR-2 arms must complete before the FR-3 deletions and the FR-9 profile can be judged"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0136"
+    created_at: "2026-10-13T21:32:59Z"
+    updated_at: "2026-10-13T21:32:59Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "guards.md is generated by guard-yield.sh from registrations, fence ids, validator rules and a tracked origin map; CI fails on a guard without origin (D12)"
+    decision: ".claude/data/guard-origins.yaml maps every registered hook, fence pattern id, validator rule and gate to class, origin (KF, issue, finding, cycle) and knob; .claude/scripts/guard-yield.sh joins it with .run/audit.jsonl counts (30-day blocks, likely false positives, last real catch; bats-replay rows excluded by cwd) and writes grimoires/loa/guards.md plus the hooks-reference registration table; tests/unit/guard-origins.bats fails when a hook in settings.json or a pattern id in the fence has no origin row"
+    rationale: "the registrations and pattern ids are mechanically enumerable; the origin is the one field a human must write, so the lint demands exactly that"
+    alternatives_considered:
+      - option: "a hand-maintained markdown table"
+        rejected_because: "the existing hand table omits six hooks; a generated file cannot drift"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:32:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0137"
+    created_at: "2026-10-13T21:33:00Z"
+    updated_at: "2026-10-13T21:33:00Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "FR-2 corpus seeded from the round-1 states of sprints 247-254 as commit-pinned manifests with accepted findings as labels (D13)"
+    decision: "each new review-recall and audit-recall fixture names the implementation commit under review and the fix commit, and carries a sanitised label file of the findings accepted in that round, extracted from the record branches; the arms are declared in the suites' ab: block; compare.sh refuses to compare arms captured under different executor model ids"
+    rationale: "the round-1 states are pre-review and the accepted findings are a hard label set; commit pins make the corpus reproducible from git alone"
+    alternatives_considered:
+      - option: "re-create synthetic planted defects"
+        rejected_because: "synthetic defects measure what the author imagined; the record measures what the gates found"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0138"
+    created_at: "2026-10-13T21:33:01Z"
+    updated_at: "2026-10-13T21:33:01Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "FR-5 derivation keeps the JSON shape: .state canonical, .status mirrored for legacy readers (D14)"
+    decision: "run-checkpoint.sh derive recomputes .run/sprint-plan-state.json and .run/circuit-breaker.json from COMPLETED markers, LOA-VERDICT trailers, ledger.json and the latest implementation commit, writing .state as the canonical key and .status as a mirror; /loa, run-resume and the implement gate read the derivation; a drift fixture (state RUNNING, files complete) resolves to JACKED_OUT"
+    rationale: "the cycle-128 jack-out wrote only .status, leaving .state RUNNING and a false idle-13h alarm at this cycle's start; keeping the shape keeps every reader working while removing the model from the write path"
+    alternatives_considered:
+      - option: "a new state schema"
+        rejected_because: "every reader (hooks, golden-path, preflight) would change at once for no gain in authority"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0139"
+    created_at: "2026-10-13T21:33:02Z"
+    updated_at: "2026-10-13T21:33:02Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Input guardrails and danger-level enforcement default off in the example config and this repository; code stays behind the knob (D15)"
+    decision: "guardrails.input.enabled: false and guardrails.danger_level.enforce: false in .loa.config.yaml.example and in this repository's .loa.config.yaml; the orchestrator, checks and tests remain"
+    rationale: "82 events, zero catches; all seven blocks were on run-mode, reviewing-code and auditing-security themselves"
+    alternatives_considered:
+      - option: "keep them on"
+        rejected_because: "a control whose only recorded effect is blocking the sanctioned path is cost without catch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0140"
+    created_at: "2026-10-13T21:33:02Z"
+    updated_at: "2026-10-13T21:33:02Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The five C-TEAM rows leave constraints.json and the kernel; guidance moves to agent-teams-reference.md; team hooks stay registered (D16)"
+    decision: "C-TEAM-001 to C-TEAM-005 are removed from .claude/data/constraints.json so the generated Agent Teams table leaves the kernel; the rules are stated once in the agent-teams reference next to the LOA_TEAM_MEMBER arming note; team-role-guard.sh, team-role-guard-write.sh and team-skill-guard.sh remain registered for operators who export the variable"
+    rationale: "under Claude Code native teams the lead has no spawn hook to export LOA_TEAM_MEMBER, so the rows describe guards that do not run in the live team session"
+    alternatives_considered:
+      - option: "export LOA_TEAM_MEMBER from the lead's spawn path"
+        rejected_because: "no harness surface runs on teammate spawn; the variable cannot be set for a subagent the platform creates"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0141"
+    created_at: "2026-10-13T21:33:03Z"
+    updated_at: "2026-10-13T21:33:03Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Karpathy surgical-diff hook resets per beads task and writes a per-task summary the review reads; the running total goes (D17)"
+    decision: "karpathy-surgical-diff-check.sh keys its counter on the task named by the run checkpoint (or the session when none), rotates .run/karpathy-task-state.jsonl to a bounded per-task file, and writes .run/karpathy-surgical-summary.json that reviewing-code's SURGICAL axis reads; the stderr warning stays"
+    rationale: "a 143,324-line running total against a 100-line threshold warns on every write and nobody reads stderr; a per-task figure the reviewer reads has a consumer"
+    alternatives_considered:
+      - option: "remove the hook"
+        rejected_because: "the review axis exists and the per-task diff size is the one number it lacks"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0142"
+    created_at: "2026-10-13T21:33:04Z"
+    updated_at: "2026-10-13T21:33:04Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "disallowed-tools strips Write, Edit, NotebookEdit from the four pure-review skills; the invariant doc's claim becomes true (D18)"
+    decision: "eval-running, flatline-knowledge, rtfm-testing and validating-construct-manifest (role review, write_files false) gain disallowed-tools: Write, Edit, NotebookEdit; validate-skill-capabilities.sh fails a pure-review skill that lacks the line"
+    rationale: "skill-invariants.md already states this barrier; making it true costs four frontmatter lines and a lint row"
+    alternatives_considered:
+      - option: "correct the doc to say only NotebookEdit is stripped"
+        rejected_because: "a documented barrier that is cheap to build should be built, not un-promised"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0143"
+    created_at: "2026-10-13T21:33:05Z"
+    updated_at: "2026-10-13T21:33:05Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "loa.profile offers lean, standard, full; standard equals today; no floor key under profile; per-key overrides win (D19)"
+    decision: "lean disables the KF and decisions surfaces, the Karpathy diff warning, the success-criteria gate, input guardrails, danger level, the invisible retrospective and the L6/L7 surfaces and selects interview.pacing rounds; standard reproduces today's defaults; full enables them all; any explicit key overrides the profile; review, audit, verdict-derive, the dissent artefact gate, the deny list, FR-1.2b, the System-Zone rules and the operator-only commands have no key under profile and a test asserts lean leaves them unchanged"
+    rationale: "one knob for the optional set; the absence of a floor key is the control"
+    alternatives_considered:
+      - option: "two profiles only"
+        rejected_because: "full is the cheap way to say every surface is on for framework development"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0144"
+    created_at: "2026-10-13T21:33:05Z"
+    updated_at: "2026-10-13T21:33:05Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "kind: is required on sprint tasks for plans dated from 2026-10-14; this cycle's own sprint plan carries the tags (D20)"
+    decision: "validate-artifact.sh --type sprint requires kind: mechanical | judgment | operator on every task line for plans dated on or after KINDS_REQUIRED_FROM = 2026-10-14 (WARN before); the reviewing-code spec axis flags mechanical tasks shipped as prose and operator tasks completed unattended"
+    rationale: "the rule should bind the plan that introduces it; a later date would exempt this cycle"
+    alternatives_considered:
+      - option: "a date one cycle out"
+        rejected_because: "the validator lands in Sprint 1 and this plan is its first fixture"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0145"
+    created_at: "2026-10-13T21:33:06Z"
+    updated_at: "2026-10-13T21:33:06Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "FR-6: interpreter-consumed heredocs scan as today; file- or tool-bound heredocs scan for destructive tokens at line start only; every D-row stays (D21)"
+    decision: "block-destructive-bash.sh classifies a heredoc by its consumer: bash, sh, zsh, python, node, eval, source or a pipe into one is interpreter-consumed and scanned as today; a redirect to a file or a pipe into cat, tee, grep, jq, yq, br, gh or git commit -F is scanned for destructive command tokens at line start only; the corpus gains B-rows for the recorded prose cases and D-rows for interpreter forms; no existing D-row is removed"
+    rationale: "96 of 105 real blocks in four weeks involved a heredoc body or scratch path; the two-step form (write a script, then run it) is fenced at the second command"
+    alternatives_considered:
+      - option: "skip heredoc bodies entirely"
+        rejected_because: "a python3 - <<PY body executes; the SQL and runner rules depend on body scanning"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D21)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0146"
+    created_at: "2026-10-13T21:33:07Z"
+    updated_at: "2026-10-13T21:33:07Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "FR-8 is named hounfour.locality: local_voices and covers the voices only; the session remains the platform (D22)"
+    decision: "the switch is hounfour.locality with values hosted (default) and local_voices; the docs state that the Claude Code session itself remains the platform and only the dissent, Flatline and Bridgebuilder voices are pinned local"
+    rationale: "local-only is a misnomer while the orchestrator talks to Anthropic"
+    alternatives_considered:
+      - option: "locality: local"
+        rejected_because: "overstates the posture; an operator would read it as no network"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D22)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0147"
+    created_at: "2026-10-13T21:33:08Z"
+    updated_at: "2026-10-13T21:33:08Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "No rule text or kernel row deleted before its FR-2 arm result; Sprint 1 only path-scopes; kernel cap lowered in Sprint 2 to the measured size (D23)"
+    decision: "Sprint 1 adds paths frontmatter to the two rule files and changes no kernel text; Sprint 2 shrinks mechanism-describing rows to pointers and moves prose-only rows only after the FR-2 arm for the rule files and the Karpathy block reports no recall loss; tools/check-prompt-budget.sh LOA_LIMIT is lowered to the post-diet size in the same sprint"
+    rationale: "the brief's own rule; deterrence is invisible to the block log so the arm is the only measurement"
+    alternatives_considered:
+      - option: "cut the prose now"
+        rejected_because: "no measurement yet"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D23)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0148"
+    created_at: "2026-10-13T21:33:09Z"
+    updated_at: "2026-10-13T21:33:09Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "bd-cq90 and bd-b4ji fold into the plan commit; bd-b4ji's structural fix stays an open bead (D24)"
+    decision: "the plan commit archives cycle-128 in ledger.json on main (status archived, archive_path set) and copies its PRD, SDD and sprint plan to the gitignored archive directory, matching the rc.4 tag commit; bd-cq90 closes; bd-b4ji keeps its open question (publication fast-forwarding main or opening a PR with the generated commits) as a bead comment for a later cycle"
+    rationale: "the carry-over asked for the archive row on main; the orchestrator change is new scope"
+    alternatives_considered:
+      - option: "change the post-merge orchestrator this cycle"
+        rejected_because: "out of the brief's scope and touches the publication path during an rc soak"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D24)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:33:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0149"
+    created_at: "2026-10-13T21:47:14Z"
+    updated_at: "2026-10-13T21:47:14Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "FR-2 arms run as a detached driver started at the end of Sprint 1 on an Opus 5.5 executor; Sprint 2 waits and falls back to path-scoping plus pointers (A1)"
+    decision: "evals/harness/run-arms.sh runs every declared arm over the seeded corpus with three trials on a pinned Opus 5.5 executor, started detached at the end of Sprint 1; Sprint 2's FR-3 deletions read evals/results/arms-report-*.md; if the run has not completed, Sprint 2 ships path-scoping and mechanism pointers only and defers each deletion to a named bead"
+    rationale: "eight fixtures times five arms times three trials is hours of executor time; running it while Sprint 2 builds keeps the measurement ahead of the deletions"
+    alternatives_considered:
+      - option: "run the arms inline during Sprint 1"
+        rejected_because: "blocks the sprint for hours of model time and the result is only needed by Sprint 2"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0150"
+    created_at: "2026-10-13T21:47:14Z"
+    updated_at: "2026-10-13T21:47:14Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Bridgebuilder exits 3 on a DEGRADED verdict and reports completed/planned voices; both callers accept 3 as completed-degraded (A2)"
+    decision: "main.ts passes the count of models whose result completed to reportComplete(totalMs, completed, planned) and exits 3 after writing its JSON when the consensus verdict is DEGRADED; post-pr-validation and run-bridge treat exit 3 as a completed run with a degraded verdict and surface it"
+    rationale: "an exit code is the only signal a caller that does not parse the JSON can see; the banner must count what completed, not what was configured"
+    alternatives_considered:
+      - option: "keep exit 0 and fix the banner only"
+        rejected_because: "a DEGRADED run would still read as success to every shell caller"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0151"
+    created_at: "2026-10-13T21:47:15Z"
+    updated_at: "2026-10-13T21:47:15Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "The implement gate reads the derived run-position cache written by run-checkpoint.sh and never computes the derivation itself (A3)"
+    decision: "implement-gate.sh keeps reading .run/sprint-plan-state.json and .run/state.json; those files are now written by run-checkpoint.sh derive --write at every checkpoint, so the gate's authority is the derivation without paying for it on every Write"
+    rationale: "a PreToolUse hook on every write must stay within its latency budget; the derivation reads git, the ledger and several feedback files"
+    alternatives_considered:
+      - option: "run the derivation inside the hook"
+        rejected_because: "two seconds of git and jq on every Write or Edit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0152"
+    created_at: "2026-10-13T21:47:16Z"
+    updated_at: "2026-10-13T21:47:16Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Profile defaults live in .claude/data/profiles.yaml with a forbidden-floor-key list; profile-lib.sh resolves explicit key, then profile, then fallback (A4)"
+    decision: "profiles.yaml lists the optional keys each profile sets and a floor_keys_forbidden list; profile-lib.sh exposes loa_profile, loa_knob and loa_profile_overrides; every knob reader calls loa_knob instead of its own yq default; the floor test reads the data file"
+    rationale: "a data file is reviewable in a diff and the floor test can check it directly"
+    alternatives_considered:
+      - option: "hard-code the table in the library"
+        rejected_because: "the floor list would live in code the test also lives in"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0153"
+    created_at: "2026-10-13T21:47:17Z"
+    updated_at: "2026-10-13T21:47:17Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Corpus fixtures are generated from git and the record branches by a script; the lead curates must_match anchors; labels are finding titles only (A6)"
+    decision: "evals/harness/seed-corpus-from-record.sh writes fixture.yaml, head.diff, instructions and labels.tsv from the implementation commit and the round-1 feedback files on the record branch; the lead edits must_match anchors so recall-vs-defects.sh can grade; labels carry control-stripped finding titles and pass the no-secrets grader"
+    rationale: "reproducible from git with one human pass over the anchors"
+    alternatives_considered:
+      - option: "hand-write the eight fixtures"
+        rejected_because: "not reproducible and slow; the record already holds the labels"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0154"
+    created_at: "2026-10-13T21:47:18Z"
+    updated_at: "2026-10-13T21:47:18Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "kind: sits at the end of the sprint task line after the dependency marker; the validator reuses the Seams gate's date parsing (A7)"
+    decision: "a task line ends with the dependency marker followed by kind: mechanical, judgment or operator; validate-artifact.sh --type sprint requires it on every checkbox line under Technical Tasks for plans dated from 2026-10-14 and WARNs before, parsing the plan date as the Seams gate does"
+    rationale: "one field on the line the reviewer already reads; the date logic exists"
+    alternatives_considered:
+      - option: "a separate task-kinds table per sprint"
+        rejected_because: "a second table drifts from the task list"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:47:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0155"
+    created_at: "2026-10-13T21:48:32Z"
+    updated_at: "2026-10-13T21:48:32Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Advisory voices are declared as flatline_protocol.<gate>.advisory_voices, run after primary and companion, tagged advisory_voice, never in voices_planned (A5)"
+    decision: "adversarial-review.sh reads flatline_protocol.code_review.advisory_voices and security_audit.advisory_voices (aliases), runs them on the same chunks with the same schema and repair rules, merges their findings tagged voice advisory and counted_as advisory_voice, adds an advisory_voices block to the envelope, and never adds them to voices_planned or voices_succeeded"
+    rationale: "the companion chain decides quorum; an advisory voice must be unable to touch it by construction"
+    alternatives_considered:
+      - option: "reuse companion_chain with an advisory flag"
+        rejected_because: "one list serving two purposes is how an advisory voice ends up counted"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:48:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0156"
+    created_at: "2026-10-13T21:56:58Z"
+    updated_at: "2026-10-13T21:56:58Z"
+    phase: "discovery"
+    category: "security"
+    summary: "FR-6 fails closed: an unlisted heredoc consumer scans in full; a body written to a file that the same line executes is interpreter-consumed (D25)"
+    decision: "a heredoc whose consumer is on neither list is scanned exactly as today; a heredoc redirected to a path that the same command line executes, sources, or marks executable (bash x.sh, ./x, source x, chmod +x x, exec) is interpreter-consumed; the non-executing list is an exact-form allowlist (cat/tee/printf with a file redirect, gh pr or issue comment -F -, git commit -F -, br create or update reading stdin, jq and yq without -i) with argument-level checks; line start means after leading whitespace and after ; && || |; scratch-path blocks are out of FR-6's scope and the KPI measures the likely-FP share after rc.5"
+    rationale: "the Flatline skeptics (SKP-001, SKP-004) named the write-then-execute form and the unlisted-consumer gap; the brief's relaxation must not become a bypass"
+    alternatives_considered:
+      - option: "two open lists with a permissive default"
+        rejected_because: "an unlisted consumer would skip the scan; the two-step form on one line would bypass the fence"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D25)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:56:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0157"
+    created_at: "2026-10-13T21:56:59Z"
+    updated_at: "2026-10-13T21:56:59Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The tracked register carries origins and the last yield snapshot; the CI check compares structure and origins only; live yield lives under .run (D26)"
+    decision: "grimoires/loa/guards.md is tracked and carries the origin table plus the yield columns from the last generation on the maintainer's host (day-granular dates, no commands, cwd, hostnames or model names); guard-yield.sh --check compares ids, origins, classes and knobs only; .run/guard-yield.json holds the live host yield that /loa reads; one row per unique hook script with its registrations listed; guards armed only by an environment variable carry status dormant and are excluded from the inert-controls KPI"
+    rationale: "host-local counts in a tracked file would churn CI on every host; identity per script keeps the denominator stable (Flatline opus IMP-008, IMP-012, IMP-023; gpt IMP-004)"
+    alternatives_considered:
+      - option: "track the full yield and fail CI on any drift"
+        rejected_because: "every host would produce a different file"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D26)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:56:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0158"
+    created_at: "2026-10-13T21:56:59Z"
+    updated_at: "2026-10-13T21:56:59Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Rollback knob per risky change: implement_gate.mode ask, heredoc classifier off, file-authoritative derivation off, locality hosted, profile standard (D27)"
+    decision: "each behaviour change ships behind a key that restores the prior behaviour: implement_gate.mode: ask; destructive_command_guard.heredoc_classifier: false; run_mode.file_authoritative: false (the caches are written as today, derive only reports); hounfour.locality: hosted; loa.profile: standard; the release notes name each key"
+    rationale: "an rc pre-release must be reversible per change without a revert commit (Flatline gpt IMP-006)"
+    alternatives_considered:
+      - option: "no knobs; revert by commit"
+        rejected_because: "a downstream mount cannot revert a framework commit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D27)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:56:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0159"
+    created_at: "2026-10-13T21:57:00Z"
+    updated_at: "2026-10-13T21:57:00Z"
+    phase: "discovery"
+    category: "security"
+    summary: "The insecure-endpoint opt-in admits only loopback or RFC1918 hosts and must name the exact host; non-loopback endpoints keep TLS; destinations are audited (D28)"
+    decision: "hounfour.providers.<p>.allow_insecure_endpoint is a host string, not a boolean; it admits http only to that host and only when the host is loopback or RFC1918; any other host keeps the TLS and address refusals; MODELINV rows record destination host, scheme and provider; request size is bounded by the declared context_window (an over-window dissent prompt refuses the hop with a named reason) and response size by max_output_tokens"
+    rationale: "the Flatline skeptic (SKP-005) and opus IMP-016/IMP-017 named exfiltration, SSRF-like abuse and the missing size rules"
+    alternatives_considered:
+      - option: "a boolean opt-in per provider"
+        rejected_because: "a boolean admits any http host the operator mistypes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D28)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:57:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0160"
+    created_at: "2026-10-13T21:57:01Z"
+    updated_at: "2026-10-13T21:57:01Z"
+    phase: "discovery"
+    category: "security"
+    summary: "App-Zone writes are sanctioned by the derived RUNNING state or a fresh marker the implementing skills write; an audited env override exists (D29)"
+    decision: "implement_gate deny treats a write as sanctioned when the derived run position is RUNNING, or when .run/implement-active.json (written by implementing-tasks and bug-triaging at start, carrying skill, sprint and started_at, valid two hours) is fresh; LOA_IMPLEMENT_GATE_OVERRIDE=1 allows one session with one compliance row per write; every sanction path writes its own compliance row so the register counts them"
+    rationale: "deny needs a sanction path for an interactive /implement or /bug outside a run and an operator escape for a wrong derivation mid-flight (Flatline opus IMP-010)"
+    alternatives_considered:
+      - option: "derived RUNNING as the only sanction"
+        rejected_because: "an interactive /bug micro-sprint would be refused in every mount that sets deny"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D29)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:57:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0161"
+    created_at: "2026-10-13T21:57:02Z"
+    updated_at: "2026-10-13T21:57:02Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Guardrails stay enabled in this repository as telemetry (danger-level enforcement off); the downstream example defaults both off; amends D15 (D30)"
+    decision: "this repository keeps guardrails.input.enabled: true with guardrails.danger_level.enforce: false so PII and injection checks keep logging to the trajectory without blocking; .loa.config.yaml.example defaults both to false; the rc.5 release notes carry the migration note for the implement_gate.mode default moving from ask to telemetry"
+    rationale: "the orchestrator's events are the only record of what the guardrails see; keeping the log costs one script call and blocks nothing (Flatline opus IMP-011, IMP-025)"
+    alternatives_considered:
+      - option: "off everywhere"
+        rejected_because: "loses the one data source that could show a catch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D30)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T21:57:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D30)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0162"
+    created_at: "2026-10-13T22:09:28Z"
+    updated_at: "2026-10-13T22:09:28Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The tracked register is structural only (ids, class, status, origin, knob, floor, registrations); yield lives untracked under .run; amends D26 (D32)"
+    decision: "grimoires/loa/guards.md carries no yield columns and no timestamps, so --check compares the whole file and CI can regenerate it; guard-yield.sh writes .run/guard-yield.md and .run/guard-yield.json with the 30-day host yield on demand; /loa and the sprint reports read those; the hooks-reference table is generated from the structural register"
+    rationale: "a tracked file generated from an untracked, host-local, time-windowed log can never match in CI (SDD Flatline SKP-007); the snapshot in D26 would churn on every regeneration"
+    alternatives_considered:
+      - option: "keep a yield snapshot in the tracked file"
+        rejected_because: "every host's regeneration rewrites tracked bytes nobody reviews"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D32)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:09:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D32)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0163"
+    created_at: "2026-10-13T22:14:31Z"
+    updated_at: "2026-10-13T22:14:31Z"
+    phase: "architecture"
+    category: "security"
+    summary: "implement_gate.mode keeps ask as the default; telemetry and deny are opt-ins; asks are logged; unknown position under deny falls back to ask (D31)"
+    decision: "the downstream default stays ask (today's behaviour, no silent change); telemetry and deny are explicit opt-ins documented in the example; this repository sets deny; every ask writes a compliance row so the register counts it; under deny a missing, stale or unparseable cache falls back to ask, never allow; implementing-tasks and bug-triaging run derive --write before their first App-Zone write; amends D2"
+    rationale: "the SDD Flatline skeptic (SKP-005, SKP-006) named the silent loosening of every mount and the first-write race; logging the asks gives the register the base rate the brief wanted from telemetry"
+    alternatives_considered:
+      - option: "telemetry as the downstream default"
+        rejected_because: "moves every mount from ask to log-and-allow without an operator decision"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D31)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:14:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D31)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0164"
+    created_at: "2026-10-13T22:14:32Z"
+    updated_at: "2026-10-13T22:14:32Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "The FR-2 arm executor is Fable 5.1, the production gate model, not an Opus 5.5 subagent (D33)"
+    decision: "run-arms.sh pins the executor to global.anthropic.claude-fable-5-1, the model that runs /review-sprint and /audit-sprint in production, so the arms measure the gate they inform; the 2026-10-05 operator policy keeps implementers on Opus 5.5 and is unaffected (the eval executor plays the gate role); cost estimate updated to 16 fixtures x (4 review + 2 audit arms) x 3 trials = 288 runs"
+    rationale: "an arm run on a different model than the gate measures a model-transfer assumption, not the gate (SDD review opus IMP-015)"
+    alternatives_considered:
+      - option: "Opus 5.5 executor with the transfer assumption recorded"
+        rejected_because: "cheaper but the deletions would rest on a different model's recall"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D33)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:14:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D33)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0165"
+    created_at: "2026-10-13T22:14:33Z"
+    updated_at: "2026-10-13T22:14:33Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Advisory-voice findings are written only to advisory_voices[].findings, never to the top-level findings array; amends A5 (A8)"
+    decision: "adversarial-review.sh writes each advisory voice's findings under advisory_voices[].findings with duplicate_of links to a matching primary or companion finding (same file, overlapping lines, same category); the top-level findings array, voices_planned, voices_succeeded and verdict-derive.sh output are byte-identical with and without advisory voices; reviewing-code and auditing-security read the advisory block explicitly; the budget pre-check sums advisory voices and they run under an overall wall-clock timeout"
+    rationale: "verdict-derive and the artefact gate read the top-level findings; keeping advisory findings out of that array is the only construction that cannot change a verdict (SDD review opus IMP-004, IMP-009, IMP-012; gpt IMP-009)"
+    alternatives_considered:
+      - option: "merge advisory findings into the top-level findings with a tag"
+        rejected_because: "a tag is a convention; a consumer that ignores it counts the voice"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:14:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0166"
+    created_at: "2026-10-13T22:14:34Z"
+    updated_at: "2026-10-13T22:14:34Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "One tracked floor source .claude/data/floor.yaml lists floor guard ids and floor config keys; the floor tests pin its sha256 (A9)"
+    decision: "guard-origins.bats (floor: true rows), profile-floor.bats (forbidden keys) and guard-yield.sh read .claude/data/floor.yaml; the tests pin the file's sha256 so an edit fails until deliberately updated; the register gains kind policy for floor items that are not hooks, fences, validator rules or gates (permission deny list, LOA-VERDICT one-way rule, FR-8 operator-only commands)"
+    rationale: "three tests encoding the floor three ways would drift (SDD review opus IMP-009, IMP-017)"
+    alternatives_considered:
+      - option: "the floor list repeated in each test"
+        rejected_because: "drift between copies"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A9)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:14:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0167"
+    created_at: "2026-10-13T22:19:19Z"
+    updated_at: "2026-10-13T22:19:19Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Replay audit rows are marked at the source (LOA_AUDIT_REPLAY=1 -> replay: true); the cwd heuristic stays as the fallback for older rows (A10)"
+    decision: "block-destructive-bash.sh, implement-gate.sh and the mutation loggers add replay: true to their audit rows when LOA_AUDIT_REPLAY=1 is set; tests/run-bats.sh, run-corpus.sh and execute-agent.sh export it; guard-yield.sh excludes replay: true rows first and applies the cwd-prefix heuristic only to rows that predate the flag"
+    rationale: "a flag written by the producer beats a path heuristic guessed by the consumer (SDD review opus IMP-008; KF-033 class)"
+    alternatives_considered:
+      - option: "cwd heuristic only"
+        rejected_because: "a test that runs inside the repository would count as real"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A10)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:19:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0168"
+    created_at: "2026-10-13T22:22:10Z"
+    updated_at: "2026-10-13T22:22:10Z"
+    phase: "sprint-planning"
+    category: "security"
+    summary: "Harness-affecting changes land dark for this repository during the run; the deny flip and the classifier default wait for the cycle-end validation (D34)"
+    decision: "implement-gate.sh, block-destructive-bash.sh, run-checkpoint.sh derive --write and profile-lib.sh are the hooks and readers the executing run depends on: after each apply the lead runs the fence corpus and the hook bats before any further tool call relies on them and records the result; this repository keeps implement_gate.mode: ask until the derived cache has been validated against the live run at the E2E step, then flips to deny in the cycle's last commit; destructive_command_guard.heredoc_classifier ships default true but the corpus and a smoke run gate each apply; a documented recovery step (git show HEAD:path > path for the hook, knob off) is in the Sprint 2 report"
+    rationale: "the Flatline skeptics (sprint SKP-005, opus IMP-003) named the self-hosting failure: a defect in a live hook lands on the lead's own next invocation"
+    alternatives_considered:
+      - option: "apply and rely immediately"
+        rejected_because: "one bad hook apply stalls the unattended run with no operator present"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D34)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:22:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D34)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0169"
+    created_at: "2026-10-13T22:28:51Z"
+    updated_at: "2026-10-13T22:28:51Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Kernel-row deletions by evidence class: arm verdict for review prose, pointers for mechanism rows, proposed DEC rows for behavioural rows (D35)"
+    decision: "Task 2.8 classifies every candidate row: review-affecting prose (the Karpathy block, the audit delta instruction) is removed only with a no-recall-loss verdict from its arm and the lead's missed-label reading; mechanism-describing rows shrink to pointers without evidence because the mechanism holds; behavioural prose-only rows (TaskCreate, /bug eligibility, beads creation) move to a protocol with a kernel pointer and each move is a proposed DEC row the operator confirms, with the register's block, ask and telemetry counts as the instrument going forward; the two rule files are path-scoped on the crosswalk, not on the arm"
+    rationale: "the review-recall arms measure reviewer behaviour, not implementer or operator behaviour, and the four arms are coarser than a row (sprint Flatline SKP-002, opus IMP-011)"
+    alternatives_considered:
+      - option: "one arm licenses every deletion"
+        rejected_because: "an arm measuring review recall cannot license removing an implementer rule"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D35)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:28:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D35)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0170"
+    created_at: "2026-10-13T22:28:52Z"
+    updated_at: "2026-10-13T22:28:52Z"
+    phase: "sprint-planning"
+    category: "security"
+    summary: "Bridgebuilder honours keyless or insecure providers only from trusted config (base branch or repo settings), never the PR head (D36)"
+    decision: "config.ts reads hounfour.providers from the base branch's .loa.config.yaml (the merge target) or from repository settings when running on a pull request; a keyless or allow_insecure_endpoint provider that exists only in the head checkout is refused with head-only provider declaration refused: <name> and logged; the health probe follows the same source; a vitest covers the head-only case; the config source precedence is documented in the Bridgebuilder reference; bridgebuilder.exit_on_degraded (default 3, 0 restores today) is the exit-code rollback key"
+    rationale: "a pull request could otherwise declare an attacker host as a keyless provider and have CI send it the diff; the probe would be an SSRF primitive (sprint Flatline SKP-008)"
+    alternatives_considered:
+      - option: "read the merged config from the checkout under review"
+        rejected_because: "the checkout under review is attacker-controlled on a pull request"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D36)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:28:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D36)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0171"
+    created_at: "2026-10-13T22:28:52Z"
+    updated_at: "2026-10-13T22:28:52Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Arm batches start as early as their inputs exist; Task 2.8 runs last; the fallback deletes nothing; amends A1 (D37)"
+    decision: "run-arms.sh accepts --fixtures; Tasks 1.4 and 1.6 are sequenced first in Sprint 1 so batch 1 (pr-01..pr-08, pinned at 864069f2) starts mid-Sprint 1 and batch 2 (pr-09..pr-16) starts when Task 1.5 lands; the lead checks STATUS.json when Sprint 2 opens and again before Task 2.8, the last Sprint 2 task; on the fallback path no kernel row is deleted and LOA_LIMIT stays at min(current, measured + 256 B), unchanged when nothing moved"
+    rationale: "a run started at the very end of Sprint 1 cannot finish before Sprint 2 opens in an unattended run, so the fallback would be near-certain rather than a risk (sprint Flatline SKP-001, opus IMP-020)"
+    alternatives_considered:
+      - option: "start at the end of Sprint 1"
+        rejected_because: "guarantees the fallback"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "864069f2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D37)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T22:28:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D37)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

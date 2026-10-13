@@ -1,11 +1,13 @@
-# Software Design Document: Decision Surfaces (cycle-128)
+# Software Design Document: Earned Guards and Open Voices (cycle-129)
 
-**Version:** 1.2
-**Date:** 2026-10-13
-**Status:** Draft — autonomous run (maintainer standing admin preapproval)
-**PRD:** `grimoires/loa/prd.md` (FR-1 … FR-8, G-1 … G-7; Appendix E decisions D1–D16 are fixed inputs; Appendix G Flatline integration)
-**Branch:** `feature/cycle-128-decision-surfaces` from `main` `76e7650b`
-**Revision:** 1.1 integrated the PRD's Flatline amendments (D10–D16). 1.2 integrates the Flatline reviews of the sprint plan and of this SDD: the single-writer and pending-file model, operator-only attribution through `/decisions`, a portable writer, and the red-test, harness and `/chart` fixes.
+**Version:** 1.0
+**Date:** 2026-10-14
+**Author:** Architecture Agent (Claude Fable 5.1, unattended)
+**PRD Reference:** `grimoires/loa/prd.md` (cycle-129, FR-1 … FR-10, Appendix E D1–D24 = DEC-0125 … DEC-0148)
+**Status:** Draft — autonomous run; design-level decisions taken on the operator's behalf are listed in §11.3 and recorded as `proposed` DEC rows
+**Branch:** `feature/cycle-129-earned-guards` from `main` `864069f2`
+
+---
 
 ## Table of Contents
 
@@ -21,527 +23,424 @@
 10. [Open Questions](#10-open-questions)
 11. [Appendix](#11-appendix)
 
+---
+
 ## 1. Project Architecture
 
 ### 1.1 Principle
-State Zone data plus thin System Zone surfaces at existing seams. A decision is an append-only YAML row written by one locked writer in the lead's main checkout. Every row a skill writes is `proposed`; only the operator, through the operator-only `/decisions` command, moves a row to `decided`. Attribution is tamper-evident (hashes, commit, append-only transitions), not signed. A multi-cycle effort is an epic of `question` beads the build path cannot select. Every check is a script with a bats suite. `/review-sprint`, `/audit-sprint`, `verdict-derive.sh`, `adversarial-review-gate.sh` and the implement gate's decisions are untouched. Writers fail closed, surfaces fail open, lints exit 1 with repair text.
+Measure before deleting, tighten before loosening, derive before trusting. Every change in this cycle is one of: a report (FR-1, FR-10), a measurement (FR-2), a removal justified by a measurement (FR-3), a control made true or made telemetry (FR-4), a write path moved from the model to a script (FR-5), a fence narrowed under corpus control (FR-6), a voice admitted without a vote (FR-7, FR-8), or a knob that cannot reach the floor (FR-9). Nothing in this cycle adds a model-executed instruction where a script can do the work.
 
 ### 1.2 Sprint shape
-| Sprint (global) | FRs | Theme |
-|---|---|---|
-| S1 (252) | FR-8 harness check first, then FR-3, FR-1, FR-2, FR-8 | The decision ledger and `/decisions`, interview rounds, fact/decision split, operator-only commands |
-| S2 (253) | FR-4, FR-5 | `/chart` decision maps, prototype tickets and spikes |
-| S3 (254) | FR-6, FR-7, E2E | Two glossaries and the drift check, seams under test, red-before-green, end-to-end validation |
+Three sprints (global 255, 256, 257). Sprint 1 produces the register, the arms and the corpus, and starts the arm run in two detached batches as soon as each batch's inputs exist (DEC-0171). Sprint 2 repairs or retires the inert controls and, as its last task, consumes whatever arm results are `complete` for the prose diet. Sprint 3 opens the voice path and runs the end-to-end validation; the cycle's last commit flips this repository's implement gate to `deny` once the E2E has validated the derived cache against the live run. Each sprint ends with review and audit on Fable 5.1 and at most three dissent runs.
 
-S1 lands the ledger before FR-2 because FR-2, FR-4, FR-5 and the FR-8 triage write through it. S2 depends on S1. S3 is independent of S2 except for the E2E walk.
+**Self-hosting rule (DEC-0168).** Sprint 2 changes `implement-gate.sh`, `block-destructive-bash.sh`, `run-checkpoint.sh` and the knob readers that the executing `/run sprint-plan` session itself depends on. After every patch apply the lead runs `tests/fixtures/fence-corpus/run-corpus.sh` and the hook bats before any further tool call relies on the changed hook, and records the result; a failure is reverted with `git show HEAD:<path> > <path>` (never `git checkout --`, which the fence blocks) or the knob is switched off; this repository stays on `implement_gate.mode: ask` until the cycle-end flip.
 
 ### 1.3 Component map
-Skill paths are under `.claude/skills/`, scripts under `.claude/scripts/`, suites under `tests/unit/`.
 
-| FR | New files | Edited files |
-|---|---|---|
-| FR-1 | `tools/check-round-independence.sh`; `tests/fixtures/rounds/`; `round-independence.bats` | `discovering-requirements/SKILL.md:57,66-86,283` and its `resources/REFERENCE.md`; `.loa.config.yaml.example:104-128`; `planning-sprints/SKILL.md:206-216`; `designing-architecture/SKILL.md:194-205` |
-| FR-2 | none | `discovering-requirements/SKILL.md:88-90`; `discovering-requirements/resources/REFERENCE.md:356-392` (debrief); `designing-architecture/SKILL.md:347`; `.claude/protocols/karpathy-principles.md:30-35`; `autonomous-agent/SKILL.md:66`; `run-mode/resources/render-templates.md:38-75`; `prd-template.md:259`; `sdd-template.md:382`; `validate-artifact.sh` (prd, sprint) |
-| FR-3 | `lib/dec-write-lib.sh`; `.claude/commands/decisions.md`; `.claude/hooks/session-start/loa-decisions-surface.sh`; `grimoires/loa/decisions.yaml`; `dec-write-lib.bats`; `dec-write-lib-bsd.bats`; `decisions-surface.bats` | `.gitignore:149`; `validate-gitignore-state.sh:55-61`; `grimoire-index.sh:173-221`; `validate-artifact.sh:11-37,89,140-185,478-484`; `.claude/hooks/hook-guard.sh`; `run-preflight.sh:9-33` (P9); `.claude/settings.json`; `INSTALLATION.md`; config example `decisions:` block |
-| FR-4 | `.claude/commands/chart.md`; `charting-decisions/{SKILL.md,resources/REFERENCE.md,resources/templates/map.md}`; `.claude/agents/chart-researcher.md`; `chart-unblock-probe.sh`; `charting-lint.bats`; `golden-path-charting.bats` | `golden-path.sh:56-66,549-556,607,1055-1063`; `commands/plan.md:34-44,136`; `commands/plan-and-analyze.md:233`; `beads/create-sprint-task.sh:99-103`; `beads/get-ready-work.sh:16`; `implementing-tasks/SKILL.md:213`; `commands/implement.md:196`; `.claude/data/agent-types.yaml`; `.gitignore:219` |
-| FR-5 | `grimoires/loa/spikes/TEMPLATE.md`; `spike-validator.bats`; `unattended-prototype.bats` | `run-mode-ice.sh:37-53,221,302-330`; `.claude/hooks/safety/block-destructive-bash.sh:619-681`; `tests/fixtures/fence-corpus/corpus.jsonl`; `planning-sprints/resources/REFERENCE.md:100-104`; three planning SKILL.md; config example `interview.unattended_prototype` |
-| FR-6 | `.claude/loa/GLOSSARY.md`; root `GLOSSARY.md`; `tools/check-glossary-terms.sh`; `.claude/data/glossary-allowlist.txt`; `.github/workflows/check-glossary-terms.yml`; `tests/fixtures/glossary/{ok,miss}/`; `glossary-terms.bats` | `discovering-requirements/SKILL.md:254-261`; `designing-architecture/SKILL.md:194-205`; `riding-codebase/SKILL.md:108-112`; `reviewing-code/resources/REFERENCE.md:30-37` |
-| FR-7 | `red-test-check.sh`; `red-test-check.bats`; `red-test-check-bsd.bats` | `planning-sprints/resources/templates/sprint-template.md:49-60,129-133`; `validate-artifact.sh:193-206`; `bug-triaging/resources/templates/micro-sprint.md:23-31`; `reviewing-code/SKILL.md:204-216` |
-| FR-8 | `.claude/data/user-invoked-commands.txt`; `user-invoked-commands.bats`; `harness-hidden-command.bats` | frontmatter of `commands/{loa-eject,toggle-gpt-review,permission-audit,loa-setup}.md`; `decisions.md` joins the set; qualifying triaged commands |
+| Component | Kind | New or changed | FR |
+|---|---|---|---|
+| `.claude/data/guard-origins.yaml` | data | new | FR-1 |
+| `.claude/scripts/guard-yield.sh` | bash | new | FR-1 |
+| `grimoires/loa/guards.md` | generated, tracked | new | FR-1 |
+| `.claude/loa/reference/hooks-reference.md` registration table | generated section | changed | FR-1 |
+| `.claude/scripts/loa-status.sh` | bash | Guards line, Profile line | FR-1, FR-9 |
+| `tests/unit/guard-origins.bats` | bats | new | FR-1 |
+| `evals/suites/{review,audit}-recall.yaml` `ab.arms` | yaml | changed | FR-2 |
+| `evals/harness/execute-agent.sh` arm toggles | bash | changed | FR-2 |
+| `evals/harness/seed-corpus-from-record.sh`, `run-arms.sh` | bash | new | FR-2 |
+| `evals/fixtures/review-prs/pr-09 … pr-16` | fixtures | new | FR-2 |
+| `evals/harness/compare.sh` | bash | model-skew refusal already exists; arm-aware report | FR-2 |
+| `.claude/rules/stash-safety.md`, `skill-invariants.md` | rule files | `paths:` frontmatter | FR-3 |
+| `.claude/loa/CLAUDE.loa.md`, `.claude/data/constraints.json`, `generate-constraints.sh` | kernel | rows shrink or leave | FR-3, FR-4(e) |
+| `tools/check-prompt-budget.sh` `LOA_LIMIT` | python/bash | lowered | FR-3 |
+| `.claude/hooks/compliance/implement-gate.sh` | hook | `telemetry`, `deny` modes | FR-4(a) |
+| four pure-review `SKILL.md` + `validate-skill-capabilities.sh` | frontmatter, lint | `disallowed-tools` | FR-4(b) |
+| `.claude/hooks/quality/karpathy-surgical-diff-check.sh` | hook | per-task reset, summary file | FR-4(c) |
+| `.loa.config.yaml.example`, `.loa.config.yaml` | config | guardrails off, `implement_gate.mode`, `loa.profile`, `hounfour.locality`, local provider example | FR-4(d), FR-7, FR-8, FR-9 |
+| `.claude/loa/reference/agent-teams-reference.md` | doc | receives the C-TEAM rules | FR-4(e) |
+| `.claude/scripts/run-checkpoint.sh` | bash | `record-round`, `derive` verbs | FR-4(f), FR-5 |
+| `.claude/skills/run-mode/SKILL.md`, `resources/completion-modes.md`, `halt-resume.md` | skill prose | breaker prose → one call; jack-out writes `.state` | FR-4(f), FR-5 |
+| `.claude/hooks/safety/block-destructive-bash.sh` + `tests/fixtures/fence-corpus/corpus.jsonl` | hook, corpus | heredoc consumer classification | FR-6 |
+| `.claude/adapters/loa_cheval/providers/openai_adapter.py`, `openai_streaming.py` | python | chat `response_format`, `reasoning_content`, `<think>` strip | FR-7 |
+| `.claude/adapters/loa_cheval/config/loader.py` | python | per-provider `allow_insecure_endpoint`; Azure/local examples load | FR-7 |
+| `.claude/scripts/lib/endpoint-validator.py`, `model-health-probe.sh` | python, bash | per-provider opt-in; configured-provider probe | FR-7 |
+| `.claude/scripts/adversarial-review.sh` | bash | `advisory_voices`, catalog-priced budget gate, locality | FR-7, FR-8 |
+| `.claude/scripts/flatline-orchestrator.sh` | bash | locality refusal of hosted voices | FR-8 |
+| `.claude/adapters/loa_cheval/audit/modelinv.py` | python | `locality` field | FR-8 |
+| `.claude/defaults/model-config.yaml` + `tests/test_catalog_pricing_provenance.py` | catalog, pytest | `price_source`, `price_date` | FR-7 |
+| `.claude/skills/bridgebuilder-review/resources/{config.ts,main.ts,core/progress.ts}` | typescript | keyless providers, completed count, exit 3 on DEGRADED | FR-7, carry-over |
+| `.claude/scripts/lib/profile-lib.sh`, `.claude/data/profiles.yaml` | bash, data | new | FR-9 |
+| knob readers (`loa-kf-surface.sh`, `loa-decisions-surface.sh`, `karpathy-surgical-diff-check.sh`, `guardrails-orchestrator.sh`, `danger-level-enforcer.sh`, `loa-l6-surface-handoffs.sh`, `loa-l7-surface-soul.sh`, the retrospective and success-criteria prose) | bash, prose | read through `profile-lib.sh` | FR-9 |
+| `tests/unit/profile-floor.bats` | bats | new | FR-9 |
+| `.claude/scripts/validate-artifact.sh` (`--type sprint`), `planning-sprints/resources/templates/sprint-template.md`, `reviewing-code/SKILL.md` spec axis | bash, template, prose | `kind:` | FR-10 |
+| `tools/cycle-ratio.sh` | bash | new | FR-10 |
+| `.github/workflows/check-prompt-budget.yml` comment, `implementing-tasks/SKILL.md:28` | docs | fixed | carry-over |
 
 ### 1.4 Prompt budget plan
-Every touched SKILL.md stays ≤ 16,384 B under `tools/check-prompt-budget.sh` (measured 2026-10-13). Text moves to `resources/REFERENCE.md` behind guarded pointers ("see", "if", "when", "only"), which the charging rule at `check-prompt-budget.sh:12-19` does not charge.
-
-| Skill | Now | Freed | Added | Expected | Named fallback cut |
-|---|---|---|---|---|---|
-| discovering-requirements | 16,304 | ≈ 1,077 (tables `:66-79` = 667; Question Pacing `:81-86` = 240; Phase 4 EARS line `:283` ≈ 170) | ≈ 1,000 | ≈ 16,230 | Phase 4 anti-inference directive behind a pointer |
-| planning-sprints | 16,370 | ≈ 650 (Phase 2 bullets `:208-213`, duplicated by REFERENCE.md `:39`; Semantic Labels table `:320-328` = 376) | ≈ 560 | ≈ 16,280 | Beads Flatline Loop section (`:336-345`) behind its existing `resources/beads-flatline-loop.md` pointer |
-| designing-architecture | 15,006 | 0 | ≈ 750 | ≈ 15,760 | none needed |
-| reviewing-code | 16,287 | ≈ 140 (Phase 1 step 5 `:209`) | ≈ 170 | ≈ 16,320 | Fast-Gate Parity examples (`:219`) shortened to the rule |
-| riding-codebase | 16,346 | ≈ 47 (parenthetical `:108`) | ≈ 45 | ≈ 16,344 | §1.4 Generate Claims sentence (`:124-126`) compressed |
-| autonomous-agent | 16,211 | ≈ 95 (`:66` parenthetical) | ≈ 150 | ≈ 16,266 | none needed |
-| implementing-tasks | 16,221 | ≈ 10 (`br ready` → `get-ready-work.sh`) | ≈ 25 | ≈ 16,236 | none needed |
-| charting-decisions (new) | 0 | n/a | target ≤ 10,000 | ≤ 10,000 | REFERENCE.md carries the algorithms |
-
-`CLAUDE.loa.md` is at 10,225 of 10,240 B and is not edited; `/chart` and `/decisions` are discoverable through `/plan`, `/loa` and the session surface.
+`CLAUDE.loa.md` is at 10,225 B of 10,240 B. Sprint 1 adds no kernel text (path-scoping is frontmatter in the rule files). Sprint 2 removes the five C-TEAM rows (≈ 900 B) and shrinks the mechanism-describing rows to pointers; the FR-4(f) breaker prose leaves `run-mode/SKILL.md` (≈ 1.9 KB) for one `run-checkpoint.sh record-round` call. The two rule files stop loading on ordinary turns (−7,301 B). Target after Sprint 2: kernel ≤ 9,000 B, always-on prose ≤ 12 KB; `LOA_LIMIT` lowered to the measured kernel size + 256 B. `reviewing-code/SKILL.md` (16,306 B of 16,384 B) gains two lines for FR-10 and must shed the same bytes elsewhere in the same change; `implementing-tasks/SKILL.md` gains nothing.
 
 ### 1.5 Design decisions
 
-#### FR-1: rounds pacing
-- **D-1.1 Key scope and resolution.** One key, `interview.pacing`, governs discovery, `/architect` Phase 2, `/sprint-plan` Phase 2 and `/chart`. `interview.per_skill` keeps selecting the mode per skill. Per-mode defaults are explicit: `thorough` → `rounds` (D1), `minimal` → `batch`; every other interview setting is unchanged. An explicit `interview.pacing` in a `thorough` config wins, so an existing `sequential` keeps working. `discovering-requirements/SKILL.md:57` changes its fallback from `"sequential"` to `"rounds"`. `.loa.config.yaml.example:125-128` becomes `pacing: rounds   # sequential | batch | rounds`, with comment lines for the frontier rule, the answer semantics, the key's scope and "`sequential` = one question per turn, the supported opt-out".
-- **D-1.2 Where the rule lives.** `discovering-requirements/resources/REFERENCE.md` gains §Interview Modes (the moved tables) and §Question Pacing (the pacing table plus §4.1). The SKILL.md keeps a 3-line pointer in place of `:66-86`: "Pacing, mode and input-style defaults: see `resources/REFERENCE.md` §Interview Modes and §Question Pacing. In `rounds` (the `thorough` default) ask the whole settled frontier per turn, numbered, each with a recommended answer; end each round with its comment block."
-- **D-1.3 Shared rule.** `designing-architecture/SKILL.md:194-205`, `planning-sprints/SKILL.md:206-216` and the charting skill each carry one line: "Ask in the configured pacing; in `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing."
-- **D-1.4 Scope of a round.** Rounds run within the current discovery phase; a later-phase question is parked for its phase. Phase gates are unchanged. A fact never enters a round (D-2.1).
-- **D-1.5 Answer semantics.** A bare "yes" accepts every recommendation in the round. A numbered answer overrides that question. If the operator answers some numbers and not others, the agent restates the unanswered ones and asks for confirmation; they take the recommendation only after it. Unconfirmed questions are re-asked in the next round.
-- **D-1.6 Round comment block.** Every round ends with one HTML comment holding a JSON array: `<!-- round: 2; questions: [{"id":"Q4","depends_on":[]},{"id":"Q2","depends_on":[],"reasked":true}] -->`. Ids are numbered across the session; a re-asked question keeps its id and carries `"reasked": true`.
-- **D-1.7 Independence check.** `tools/check-round-independence.sh` (§5.4) fails when a `depends_on` names a question of the same round or one not asked earlier, ignores `reasked` entries for the id-uniqueness and average rules, and reports rounds, questions and the average per round. `--min-average` defaults to 2. The final round is exempt from the minimum when there are two or more rounds.
+#### FR-1: guard register and yield
+- **D-1.1 Origin map.** `.claude/data/guard-origins.yaml` is the one hand-written artifact: a list of rows `{id, kind, class, status, origin: {kind, ref}, knob, floor, registrations, note}`. **Identity**: one row per unique hook script (`hook:safety/block-destructive-bash.sh`, with `registrations: [PreToolUse:Bash]` listing every event and matcher), one per fence pattern id (`fence:FR-1.2b`), one per validator rule marker (`validator:sprint.seams`, see D-1.2), one per gate from the fixed list `gate:verdict-derive`, `gate:adversarial-review-gate`, `gate:implement-gate`, `gate:success-criteria`, `gate:dissent-budget`, `gate:seams`, `gate:kinds`, `gate:prompt-budget`, `gate:guard-origins`. `kind ∈ hook|fence|validator|gate`; `class ∈ harness|script|prose`; `status ∈ active|dormant|telemetry` (`dormant` = armed only by an environment variable, with the variable named in `knob`); `origin.kind ∈ kf|issue|finding|cycle|design` with `ref` a KF id, `#NNN`, `sprint-NNN <gate> <item>`, `cycle-NNN`, or an ADR; `knob` is a config key, an env var, or `none`; `floor: true` marks the untouchable set. The map is seeded in Sprint 1 for every registered hook script (29), every fence pattern id (32), every validator rule marker and the gate list. Origins come from the inventory's cites and the KF ledger; a row whose origin is not known is written `origin: {kind: design, ref: "<cycle or commit that added it>"}` from `git log --follow`, never left empty.
+- **D-1.2 Enumeration.** `guard-yield.sh` enumerates hooks from `.claude/settings.json` with `jq` (`.hooks | to_entries[] | .value[] | .hooks[].command`) and parses each command against the **canonical hook command schema**: `"$(git rev-parse --show-toplevel)"/.claude/<path> [args]` or the same wrapped in `hook-guard.sh <path> [args]`; `<path>` is the script's path under `.claude/` with no spaces or quotes, resolved through symlinks once and compared canonically. A command that does not match the schema is reported and fails `guard-origins.bats` (no silent drop). Event and matcher become the `registrations` list. Fence ids are enumerated from `# @guard fence:<id>` marker comments that Sprint 1 adds above each `emit_block` site in `block-destructive-bash.sh`; the lint cross-checks that every quoted first argument of an `emit_block` call and every `pattern_id=` constant has a marker and that every marker has a call site. Validator rules are enumerated from `# @guard validator:<id>` marker comments that Sprint 1 adds above each rule block in `validate-artifact.sh` (one per `--type` rule family: `prd.sources`, `prd.assumption-tags`, `sdd.sections`, `sprint.sections`, `sprint.seams`, `sprint.kinds`, `decisions.*`, `map.*`, `spike.*`, `glossary.*`). Gates come from the fixed list in D-1.1; the lint checks that each gate's script exists.
+- **D-1.3 Yield join.** Rows of `.run/audit.jsonl` and of its rotated segments `.run/audit.jsonl.*` (retention: at least the 30-day window; `notes-guard`-style rotation is out of scope, the reader simply concatenates) with `action == "block"` carry `hook`, `pattern_id`, `ts`, `cwd`, and (for the fence) `command`; implement-gate `telemetry` rows (D-4.1) count as `telemetry_30d`. The 30-day window is `ts ≥ now − 30 d`. A row is a **replay** when it carries `replay: true` (the hooks write it when `LOA_AUDIT_REPLAY=1` is set, which `tests/run-bats.sh`, `run-corpus.sh` and `execute-agent.sh` export; DEC-0167) or, for rows that predate the flag, when its `cwd` starts with `${TMPDIR:-/tmp}/` or contains `/bats-run-` or `/bats.`; replays are excluded and counted in the header. A block is **likely false positive** by the predicate `heredoc_nonexec(command) OR outside_repo(cwd) OR (pattern_id ∈ {SP-1, FR-MERGE-2, FR-2-AMBIGUOUS} AND NOT destructive_verb_at_statement_start(command))`, where `heredoc_nonexec` sources the FR-6 classifier's consumer function when the fence provides it (a heredoc whose consumer the classifier calls non-executing) and falls back to `<<` presence otherwise; the column is labelled a heuristic and the fixture test mirrors the predicate. A **real catch** is a block that is not likely-FP; `last_real_catch` is the newest such block in the window at day granularity, else `none in window`. Hooks that never write `block` rows show `n/a` with their class.
+- **D-1.4 Outputs.** `guard-yield.sh` writes three things. (1) `grimoires/loa/guards.md` (tracked, **structural only**, DEC-0162): a header (`guards`, `guards_without_origin`, `dormant`, no timestamp) and one table per kind with columns `id | class | status | origin | knob | floor | registrations`; it is a pure function of the repository, so `--check` compares the whole file and CI can regenerate it. (2) `.run/guard-yield.md` and (3) `.run/guard-yield.json` (gitignored): the same rows plus `blocks_30d | likely_fp_30d | telemetry_30d | last_real_catch` and a header (`generated_at` at day granularity, `window_days: 30`, `scope: host`, `audit_rows_considered`, `replay_rows_excluded`), regenerated on demand by the operator and read by `/loa` and by the sprint reports. `guard-yield.sh --hooks-table` rewrites the registration table of `hooks-reference.md` between `<!-- guard-register:begin -->` and `<!-- guard-register:end -->` from the structural register (ids, class, status, registrations, knob, purpose from `note`). `--check` exits 1 when `guards.md` or the hooks table differ from what it would write (CI drift gate, run in the Shell Tests job). **Privacy**: nothing from a command string, `cwd`, hostname, user or model name is written to any of the three files; ids match `^[A-Za-z0-9._/-]+$`; origin text comes from the tracked map.
+- **D-1.5 `/loa` line.** `loa-status.sh` gains a `Guards` block that reads the structural register for the counts and `.run/guard-yield.json` for the yield (no recomputation at status time): `Guards: 78 (0 without origin, 3 dormant) · 30 d: 105 real blocks, 96 likely FP · scope host · regenerate: .claude/scripts/guard-yield.sh`. When the yield file is missing it prints the structural counts and the regenerate hint.
+- **D-1.6 Lint.** `tests/unit/guard-origins.bats`: every enumerated hook script, fence id and validator marker has a row with a non-empty `origin.ref`; every row's `id` resolves (hook script exists, fence id present in the hook, marker present in the validator, gate script exists); `floor: true` rows are exactly the PRD's floor set; `status: dormant` rows name an env var in `knob`; the map parses with yq v4. A fixture audit log with replay rows, a rotated segment and real rows proves D-1.3's exclusion, segment reading and columns; a fixture with a heredoc block, a scratch-path block and a prose-class block proves the FP heuristic.
 
-#### FR-2: fact / decision split
-- **D-2.1 Backpressure text.** `discovering-requirements/SKILL.md:88-90` gains (≤ 3 lines): "**Fact or decision.** A fact (what code, reality files or docs say) is yours to find: look it up or dispatch an Explore subagent, never ask it. A decision (scope, trade-off, priority, taste) is the operator's: ask it; unattended, take it on a stated assumption, record it with `dec-write-lib.sh new` and tag it `[ASSUMPTION decision] (DEC-NNNN)`. Tag looked-up gaps `[ASSUMPTION fact]`."
-- **D-2.2 Karpathy §1.** `karpathy-principles.md:30-35` replaces "record the open question and your chosen interpretation in NOTES.md Decision Log and proceed on the documented assumption" with "look facts up instead of assuming them; record a decision the operator would own with `dec-write-lib.sh new` (a linked worktree writes the pending file automatically; every row stays `proposed` until the operator confirms it with `/decisions`) and a one-line NOTES.md Decision Log pointer, then proceed on it".
-- **D-2.3 Prime directive.** `autonomous-agent/SKILL.md:66` parenthetical becomes "(unattended: mark the run with `dec-write-lib.sh context --set-unattended`, look facts up, record each decision with `dec-write-lib.sh new` (a linked worktree writes the pending file automatically), then proceed)".
-- **D-2.4 PR body.** `render-templates.md` completion-pr-body (`:38-75`) and the incomplete body gain `### Decisions taken on your behalf` after the Flatline block, filled by a new numbered step running `dec-write-lib.sh list --voice agent,flatline,dissent --cycle <cycle_id> --format md` (`--since <cycle created_at>` is the equivalent filter the PRD names). The table has a Voice column (§4.6) and ends with "Confirm with `/decisions confirm`". Zero rows renders "_None: every decision in this run was the operator's._". Never hand-filled.
-- **D-2.5 Tag classes and the PRD gate.** `validate_prd()` counts `[ASSUMPTION fact]`, `[ASSUMPTION decision]` and bare `[ASSUMPTION]` tags. A bare tag WARNs until `BARE_ASSUMPTION_FAILS_FROM=2026-11-13` (a dated constant compared with the PRD `**Date:**`) and fails for PRDs dated on or after it. Each `[ASSUMPTION decision]` line must cite a `DEC-[0-9]{4,}` present in the ledger whose `source` names the PRD file; unattended (D-3.14, which includes the PRD Status line) a miss fails, interactive it WARNs. A requirement carrying a `**Deferred:** pending prototype <bead> (DEC-NNNN)` line is recognised and must cite an existing row. `validate_sprint()` WARNs on a task that cites a deferred requirement's FR id.
-- **D-2.6 Interactive rows.** `discovering-requirements/resources/REFERENCE.md` §Post-Completion Debrief and `designing-architecture/SKILL.md:347` add: when the operator confirms the debrief, each Key Decision passing all three bar conditions is written with `dec-write-lib.sh new --answer-ref debrief:<artifact>#key-decisions` (it lands `proposed`); the debrief and `/plan` then list the proposed rows and tell the operator to run `/decisions confirm`, which records `decided_by: operator` (D-3.12).
-- **D-2.7 Template appendix.** `prd-template.md` (`## Appendix`, `:259`) and `sdd-template.md` (`## 11. Appendix`, `:382`) gain "Decisions taken on the operator's behalf" with `{rendered by dec-write-lib.sh list --voice agent,flatline,dissent --cycle <cycle> --format md}`.
+#### FR-2: control arms
+- **D-2.1 Arm declaration.** `ab.arms:` in each suite lists `{id, description, toggles}` with canonical ids. Review: `baseline` (no toggles), `no_companion` (`companion_voice: false`), `no_karpathy` (`karpathy_block: false`), `no_rule_files` (`rule_files: false`). Audit: `baseline`, `no_audit_delta` (`audit_delta_instruction: false`). `ab.threshold:` pre-registers the verdict rule: `trials_required: 3`, `coverage_required: full`, `mean_recall_max_drop: 0.10` (= `ci.regression_threshold`), `min_trial_recall_max_drop: 0.15`, `refuted_share_max_rise: 0.10`; `report.sh --arms` prints `no recall loss`, `recall loss` or `inconclusive` (any missing trial or fixture) per arm. `execute-agent.sh` reads `LOA_EVAL_ARM` and applies the arm's toggles to the sandbox copy only: `companion_voice: false` sets `flatline_protocol.code_review.companion_voice: false` in the sandbox `.loa.config.yaml`; `karpathy_block: false` removes the `## Karpathy Principles` section from the sandbox `CLAUDE.loa.md`; `rule_files: false` removes the two rule files from the sandbox `.claude/rules/`; `audit_delta_instruction: false` removes the "look for what the review did not" paragraph from the sandbox `auditing-security/SKILL.md`. Each trial's `results.jsonl` row records `arm` and the executor `model_id` (already recorded; `compare.sh --ab` already refuses model skew, `compare.sh:43`).
+- **D-2.2 Corpus from the record.** `evals/harness/seed-corpus-from-record.sh <global-sprint> <record-branch>` writes `evals/fixtures/review-prs/pr-NN/`: `fixture.yaml` (`sprint`, `base_commit` = parent of the round-1 implementation commit, `head_commit` = that commit, `fix_commit`, `record_branch`, `feedback_files`), `head.diff` from `git diff base..head`, `PR.md`, `REVIEW-INSTRUCTIONS.md` and `AUDIT-INSTRUCTIONS.md` (from the existing fixture templates), and `labels.tsv` (`defect_id, severity, category, file, must_match, label_source, source`) seeded from the round-1 `engineer-feedback*.md` and `auditor-sprint-feedback*.md` finding headings on the record branch. **Label rule**: a finding becomes a label only when `fix_commit` touches the file the finding cites (checked by the script against `git diff --name-only head..fix`); `label_source ∈ review|audit|bridgebuilder|fix`, where `fix` rows are generated from the hunks `fix_commit` touched (`source: fix/<sha>`, file and hunk range as the anchor) so that refuted share is computed only against findings matching neither a feedback label nor a fix-touched region. The lead curates `must_match` anchors so `recall-vs-defects.sh` can grade them and approves each `labels.tsv` before commit (a `# approved-by: lead <date>` header line the seed test requires). Labels carry control-stripped finding titles, severity, category, file and anchor only, and pass `graders/no-secrets.sh`. `corpus.tsv` and `SHA256SUMS` are extended; `ab.corpus_manifest` keeps pointing at `SHA256SUMS`.
+- **D-2.3 Running the arms.** `evals/harness/run-arms.sh --suite review-recall --arms baseline,no_companion,no_karpathy,no_rule_files --trials 3 --source-commit 864069f2` creates a detached git worktree at the recorded source commit (`main` `864069f2`, the pre-cycle tree, is the true baseline: its rule files are unscoped and its kernel is undieted) and points every trial's sandbox copy at that worktree, never at the live working tree Sprint 2 edits; `results.jsonl` rows record `source_commit`, `arm`, `model_id`, `trial`, `seed` (when the executor route accepts one; CLI hops record `seed: null` and the run date); `compare.sh --ab` refuses mixed `source_commit` values as it refuses model skew. The executor is pinned to `global.anthropic.claude-opus-5-5`. `arm-toggles.bats` asserts the toggled text is absent from the sandbox at the moment the executor starts (after any sandbox regeneration), not only after the toggle script runs; a sandbox that regenerates `CLAUDE.loa.md` from `constraints.json` at session start has the Karpathy toggle applied to `constraints.json` as well. **Executor**: `global.anthropic.claude-fable-5-1`, the production gate model (DEC-0164); the eval executor plays the gate role, so the 2026-10-05 implementer policy is unaffected. **Coverage**: all sixteen fixtures (`pr-01` … `pr-16`), 4 review + 2 audit arms with a shared baseline, 3 trials: 288 executor runs. **Retry policy**: a trial that fails for transport reasons is retried once; a second failure leaves the arm `inconclusive`. `run-arms.sh --fixtures <list>` runs in batches (batch 1: `pr-01` … `pr-08` as soon as the harness lands; batch 2: `pr-09` … `pr-16` when the record fixtures land; DEC-0171), interleaving trials across arms to spread provider drift, and writes `evals/results/arms/<suite>/MANIFEST.json` (`source_commit`, `harness_commit`, `model_id`, executor configuration, fixture `SHA256SUMS` verified before each run, OS and tool versions) and `STATUS.json` `{state: running|complete|partial|failed, per_arm: {trials_done, trials_planned}, source_commit, model_id, started, finished}`; `report.sh --arms` refuses to write a report while `state` is not `complete` unless `--partial` is passed, in which case the report header says so and every verdict reads `inconclusive`. **Sprint 2 gate** (Task 2.8): read `STATUS.json` at task start; `complete` → use the verdicts; anything else → the D-2.4 fallback, no waiting. The run is started detached (`setsid nohup`, log outside the scratchpad) at the end of Sprint 1. `report.sh --arms` writes `evals/results/arms-report-<date>.md`: per arm recall (mean, min, max and trial-to-trial spread), refuted share (findings matching neither a feedback label nor a fix-touched region ÷ findings), tokens per call, a percentile-bootstrap 90 % interval of the recall delta over fixtures, the pre-registered verdict (`no recall loss` requires the interval's upper bound on the recall drop ≤ `mean_recall_max_drop` and the delta to exceed the baseline's own spread before any change is named), and the missed labels per arm; the `no_companion` arm is marked informational (the companion voice is a floor key that no profile can remove; the arm measures its yield only) and the `no_karpathy` arm's description states that it removes the kernel block only, not the SURGICAL review axis or the surgical-diff hook. A deletion in Task 2.8 requires the lead to read the missed labels for the arm it relies on and record that reading. The gate type stays `advisory`; no flip happens in this cycle.
+- **D-2.4 Fallback.** If the arm run cannot complete in the cycle (provider limits, KF-037 class), Sprint 2 ships path-scoping and the mechanism pointers only, defers every text deletion to a follow-up bead naming the missing arm, and the Sprint 2 report says so. The cap is still lowered to the measured size.
 
-#### FR-3: decision ledger
-- **D-3.1 File and tracking.** `grimoires/loa/decisions.yaml` (D2) starts with a header comment (append-only rules, the bar, the writer and `/decisions`), `schema_version: 1`, `decisions: []`. `.gitignore:149` reads exactly `grimoires/loa/decisions.yaml`; that line stays and `!grimoires/loa/decisions.yaml` is added directly after it. `validate-gitignore-state.sh:55-61` `tracked_set` gains the path.
-- **D-3.2 Schema and bar.** §3.1. Every unattended agent decision gets a row; an interactive row needs all three of Pocock's conditions (hard to reverse, surprising without context, a real trade-off). The floor is `alternatives_considered` ≥ 1 once the row leaves `open`.
-- **D-3.3 Writer.** `.claude/scripts/lib/dec-write-lib.sh` mirrors `kf-write-lib.sh`: `LC_ALL=C`, `set -euo pipefail`, its `san1()`, `declare -A A` flags, `--file`, `--quiet`; CLI in §5.1. The temp is `mktemp "${f}.XXXXXX"` beside the target so `mv -f` is atomic. Every write goes through yq v4 with values passed only by `env()`/`strenv()`: the row is built by `jq -n --arg`/`--argjson`, exported as one variable and appended with `yq eval '.decisions += [env(ROW)]'`; no value is spliced into a yq expression or YAML text. Alternatives arrive as repeatable `--alternative-json '{"option":…,"rejected_because":…}'`, checked with `jq -e`. Mandatory fixtures in `dec-write-lib.bats`, each written, re-read with `yq -o=json` and compared byte-equal to the sanitised input, each temp validated before the rename: double and single quotes; `key: value` colons; `#` leading and mid-string; a leading `-` and `- `; multiline evidence (flattened by `san1`); Unicode (CJK, emoji, combining marks, RTL); control characters, C1 and U+2028/9 (stripped); YAML-looking strings `!!binary`, `!!str`, `&anchor`, `*alias`, `<<: *x`, `---`, `...`, `null`, `~`, `yes`, `0x1F`, `1e3`, which must come back as the same strings.
-- **D-3.4 Id allocation.** Under the lock, in the main checkout only, `max(DEC-n) + 1`, printed `DEC-%04d` (grammar `^DEC-[0-9]{4,}$`). Ids are never reused.
-- **D-3.5 Verify before swap.** In order: the temp parses with `.decisions` a sequence and a known `schema_version`; no id is missing and none repeats; row count does not fall (`new`, `supersede` and `import` add exactly their rows); every other row is JSON-equal (`jq ==`) to its old value; the named row's immutable fields (D-3.13) are unchanged, set-once fields change only at their allowed transition, and `transitions` keeps the old list as a prefix plus at most one entry; the temp passes `validate-artifact.sh --type decisions --base-file <current>`. Any failure deletes the temp, exits 1, the original untouched.
-- **D-3.6 Index.** `grimoire-index.sh` gains `emit_decisions()` (one `yq -o=json` call; TSV family `decisions`, id, status, summary, path `grimoires/loa/decisions.yaml#<id>`, refs = `source`, two empty slots, voice ninth: `decided_by // proposed_by`). `collect()` (`:173`) calls it; `to_json()` adds `voice:(.[8]//"")`; `render_md()` (`:187-221`) renders `| ID | Status | Voice | Summary | Source |`. yq stays optional here: absent, the family is skipped with a stderr note.
-- **D-3.7 Session surface.** `.claude/hooks/session-start/loa-decisions-surface.sh` copies the `loa-kf-surface.sh` contract. Key `decisions.surface_at_session_start`, default `false`. Disabled or no yq: silent. Enabled but unreadable or an unknown `schema_version`: one `[DECISIONS] WARNING` line. Healthy: up to 10 `proposed` then `open` rows, every map open more than 30 days, and one notice line when `.run/unattended.json` is stale (§4.3); each summary control-stripped and capped at 100 chars, then the block wrapped by the L6 data fence, `sanitize_for_session_start L6 <block> --max-chars 2000` (`context-isolation-lib.sh`). Always exit 0. Test seam `LOA_DEC_SURFACE_TEST_MODE=1` plus a bats marker. Wired in `.claude/settings.json` SessionStart after `loa-kf-surface.sh`, through `hook-guard.sh`, `once: true`, synchronous; the surface only reads.
-- **D-3.8 Validator type.** `validate-artifact.sh` adds `decisions` to the usage text (`:11,53,59`), the type case (`:89`) and the dispatch (`:478-484`), plus `--base-file PATH`. The append-only base is `--base-file`, else `git show $(git merge-base origin/main HEAD):<path>` when that commit has the file, else none (the writer always passes the pre-mutation file). `validate_decisions()` applies §3.1 and fails on: an unknown `schema_version`; a duplicate id; a `PEND-` id in the live ledger; a content edit against the base; a grammar miss in `decided_by_ref` or `transitions[].by`; a `flatline` or `dissent` ref whose file is missing or whose sha256 differs from `evidence_sha256`; a `decided` row without an operator transition; a `rejected` row without `follow_up` and `rejection_rationale`; a URL or a blockquote run over two lines in any free-text field.
-- **D-3.9 Existing readers.** `loa-learnings-index.sh:421` reads `.decisions // []` and adds its own fields; `path-lib.sh:483` returns the path. Both resolve the new file unchanged (bats over a two-row fixture).
-- **D-3.10 Ledger and NOTES.** NOTES Decision Log entries cite "Name (DEC-NNNN)"; release-epoch ADRs are unchanged; `rejected` rows with `prior_requests` replace a rejected-concepts registry.
-- **D-3.11 Attribution (D14).** No caller sets `decided_by`. Skills write `proposed` rows whose `proposed_by` the writer derives: `agent` by default; `flatline` or `dissent` only with `--as <voice> --answer-ref flatline:<path>|dissent:<path>` naming an existing artifact (`.flatline/runs/*.json` with `.phase`; `grimoires/loa/a2a/**/adversarial-*.json`), whose sha256 (`sha256_portable`, `compat-lib.sh:507`) is stored as `evidence_sha256`. `--answer-ref` is stored as `decided_by_ref` only in an interactive context and only when it matches the grammar `session:<id>#turn-<n>`, `debrief:<path>#<anchor>`, `transcript:<path>#L<n>`, `cli:<iso-8601>`, `flatline:<path>` or `dissent:<path>`; unattended it is ignored with a WARN. `decided_by` stays `null` until the row is `decided`. No orchestrator call site is added this cycle; a Flatline BLOCKER override is written by the lead with `--as flatline`.
-- **D-3.12 Lifecycle (D13) and `/decisions`.** Allowed transitions: creation `null → open` or `null → proposed`; `open → proposed` (`decide`); `proposed → decided` (`confirm` only); `open|proposed → rejected`; `decided → superseded` (only through `supersede` by the operator). Every skill write lands `open` or `proposed` regardless of flags. `.claude/commands/decisions.md` (`/decisions confirm|reject|supersede|list|clear-unattended`, `disable-model-invocation: true`, joins the FR-8 set) is the only caller of `confirm`, of `reject` and `supersede` on `decided` rows, and of `context --clear`; it runs them with `--recorded-by decisions-command` after showing the operator a preview. `confirm` sets `decided_by: operator` when the row carries an operator-kind ref (`session:`, `debrief:`, `transcript:`, `cli:`), else the `proposed_by` voice, and appends `{to: decided, by: "operator:decisions-command", evidence: <ref>}`; it refuses while a live-run signal holds (D-3.14). `confirm --cycle <c>` prints the matching rows and requires `--all` or explicit `--id`s when more than one matches. No skill's `allowed-tools` grants `confirm`, `supersede` or `context --clear`. From an agent, `supersede` of a `decided` row writes the new row `proposed` and sets `supersede_proposed_by: <new-id>` on the old row, which stays `decided` until the operator confirms the new row; `reject` records `rejection_rationale` and the transition `by`. The standing admin preapproval authorises shipping, not confirmation.
-- **D-3.13 Append-only content (D15).** Immutable after creation: `id`, `created_at`, `phase`, `category`, `summary`, `source`, `cycle`, `supersedes`, `recorded_by`, `commit`, `proposed_by` once set. Set once at `decide` (or at `new --status proposed`): `decision`, `rationale`, `alternatives_considered`, `consequences`, `decided_by_ref`, `evidence_sha256`. Set once at `decided`: `decided_by`. Set once at `reject`: `rejection_rationale`, `follow_up`, `prior_requests`. Set once by an agent supersede: `supersede_proposed_by`. Mutable: `status`, `updated_at`, `transitions` by append.
-- **D-3.14 Context and preflight.** `dec-write-lib.sh context` prints `unattended` or `interactive` and, with `--why`, the signals. It reads, in order: `.run/unattended.json` (`{reason, session_id, created_at}`; stale, and ignored, when `CLAUDE_SESSION_ID` differs or its age exceeds `decisions.unattended_marker_ttl_hours`, default 24); `.run/sprint-plan-state.json` or `.run/state.json` with `.state == "RUNNING"`; `LOA_UNATTENDED=1`; `LOA_FLATLINE_MODE=autonomous`; the PRD `**Status:**` line containing "autonomous" or "unattended", so `validate_prd` and the writer agree. The first four are live-run signals; the PRD line describes how the PRD was written and does not block `confirm`. `context --set-unattended` writes the marker; `--clear` runs only from `/decisions`. Writes exit 1 when the target is the live ledger and `CI` or `GITHUB_ACTIONS` is set or `LOA_HOOK_CONTEXT=1` (exported by `hook-guard.sh` to its child); `--file` fixtures are exempt so the suites run in CI. Preflight: `jq` and Mike Farah `yq` v4 (`yq --version` matches `mikefarah` and `v4.`), exit 1 with a repair line on a miss; `br` is not required. `cycle` defaults from `.run/sprint-plan-state.json` or `.run/state.json` and WARNs when null in an unattended context. `recorded_by` is `--recorded-by <skill-or-command>` plus `${CLAUDE_SESSION_ID:-unknown-session}`; `commit` is `git rev-parse HEAD` at creation.
-- **D-3.15 Backfill (D16).** Forward-only, written by the lead in Sprint 1 task 1.6. All seed rows land `proposed`, including cycle-127 D1–D3 (`source` `NOTES.md#decision-log-2026-10-07`), because the standing preapproval is not per-row confirmation; cycle-128 PRD D1–D16 and this SDD's A1–A41 follow with `source` the PRD or SDD appendix row. The seed precedes the first run of the PRD gate against this cycle's PRD, whose decision tags then cite the new ids.
-- **D-3.16 SDD Open Questions column.** `validate_sdd()` WARNs when an `## 10. Open Questions` row has `Resolved` in its Status cell and no `DEC-[0-9]{4,}` in its `DEC` cell (a WARN per PRD Appendix G).
-- **D-3.17 Plain prose.** URLs appear only in `source` and in `decided_by_ref` paths, never in any other free-text field. The decisions, map and spike validators fail on `https?://` in free text and on a blockquote run longer than two lines (copied external text ≤ 2 lines).
-- **D-3.18 Single writer and pending rows.** During a cycle only the lead's main checkout writes the live ledger; tests use `--file <fixture>`. The writer detects a linked worktree (`git rev-parse --git-common-dir` differs from `--git-dir`) or `--pending` and appends instead to `grimoires/loa/a2a/sprint-<N>/decisions-pending.yaml` with provisional ids `PEND-<8 hex>` (from `/dev/urandom`). The lead runs `dec-write-lib.sh import --from <pending> [--rewrite <path>]…` in the main checkout: under the lock it allocates `DEC-NNNN` ids, rewrites `PEND-` references in the imported rows, in each `--rewrite` file and in bead `external_ref`s (`br update --external-ref`, when `br` is present), prints the mapping, and deletes the pending file. A collision across cycles or branches is resolved by rebasing and replaying from the pending file, never by hand-merging the YAML. Seed rows (task 1.6) and FR-8 triage rows (task 1.8) are written by the lead at sprint close.
+#### FR-3: prose diet
+- **D-3.1 Path scoping.** `stash-safety.md` frontmatter: `paths: ["**/*.sh", "**/*.bats", ".claude/scripts/**", ".claude/hooks/**"]`; `skill-invariants.md`: `paths: [".claude/skills/**/SKILL.md", ".claude/agents/**", ".claude/data/agent-types.yaml", ".claude/scripts/validate-skill-capabilities.sh"]`. The fence FR-1.2b block message already names the repair; it gains a pointer to the rule file's path. **Crosswalk** (Task 1.8 writes it into the Sprint 1 report, `a2a/sprint-255/reviewer.md`): one row per hazard named in each rule file → the fence pattern id or lint that mechanises it and the corpus or bats row proving it; hazards without a mechanical check are listed as such (expected: the `stash -k` under pre-commit rule and the `fsck` before `gc` recovery advice, both judgment rules the `no_rule_files` arm measures).
+- **D-3.2 Kernel rows (evidence classes, DEC-0169).** In Sprint 2's last task, every candidate row is classified. *Review-affecting* prose (the Karpathy block; the audit's "look for what the review did not" instruction) changes only with its arm's `no recall loss` verdict and the lead's recorded reading of that arm's missed labels. *Mechanism-describing* rows become one line naming the mechanism without further evidence, because the mechanism holds (the implement gate row names `implement_gate.mode` and the hook; the breaker row names `run-checkpoint.sh record-round`; the Merge rows name `post-merge-orchestrator.sh` and `semver-bump.sh`). *Behavioural prose-only* rows (`TaskCreate`, `/bug` eligibility, beads creation) shape implementer and operator behaviour that no review-recall arm measures: they move to `.claude/protocols/process-compliance.md` with a one-line pointer in the kernel, each move is a `proposed` DEC row for the operator to confirm, and the register's block, ask and telemetry counts are the instrument going forward. The Agent Teams table leaves with FR-4(e). The two rule files are path-scoped on the crosswalk (D-3.1), not on an arm; the `no_rule_files` arm reports their review effect only. Each change is listed in the Sprint 2 report with its class and evidence (D-2.4 otherwise: no row deleted).
+- **D-3.3 Cap.** `tools/check-prompt-budget.sh` `LOA_LIMIT` becomes `min(current LOA_LIMIT, measured post-diet kernel size + 256 B)` so the cap never rises; the workflow comment is corrected to the script's values (160,000 / 114,688 B). The −7,301 B rule-file saving applies to turns that touch no shell source or SKILL.md; Task 1.8 records a harness observation (which rule files the session loaded on a matching and a non-matching turn) in the Sprint 1 report.
 
-#### FR-4: `/chart`
-- **D-4.1 Command file.** `.claude/commands/chart.md` (shape of `sprint-plan.md`): `name: "chart"`, `version: "1.0.0"`, description "Map a multi-cycle effort as decision tickets on beads. Plans; never builds. Interactive only.", argument `target` (a quoted idea starts a chart; a slug works the map; `close <slug> [--reason R | --consumed-by <cycle>]`), `agent: "charting-decisions"`, `agent_path: "skills/charting-decisions/"`, `pre_flight`: `br --version` (`command_succeeds`). Truename only (D3).
-- **D-4.2 Skill frontmatter.** `charting-decisions/SKILL.md`: `name: chart`, `role: planning`, `cost-profile: moderate`, no `agent:` key. `allowed-tools`: Read, Grep, Glob, Write, Edit, AskUserQuestion, Agent, `Bash(br *)`, `Bash(.claude/scripts/lib/dec-write-lib.sh new *)`, `Bash(.claude/scripts/lib/dec-write-lib.sh decide *)`, `Bash(.claude/scripts/lib/dec-write-lib.sh list *)`, `Bash(.claude/scripts/lib/dec-write-lib.sh context)`, `Bash(.claude/scripts/validate-artifact.sh *)`, `Bash(.claude/scripts/chart-unblock-probe.sh *)`, `Bash(git worktree add *)`, `Bash(git status *)`, `Bash(git push -u origin spike/*)`. Capabilities: read, search, write, `execute_commands.allowed` = those command shapes with `deny_raw_shell: true`, `user_interaction`, `agent_spawn`, `task_management` true; `web_access` false. Zones: system `none`; state read-write on `grimoires/loa/{maps,research,decisions.yaml,spikes,context}` and `.beads`; app `read`. Passes `validate-skill-capabilities.sh`.
-- **D-4.3 Chart algorithm** (a quoted idea), asked in the configured pacing:
-  0. **Unattended refusal (D12).** If `dec-write-lib.sh context` prints `unattended`, print "/chart is interactive: a map whose rounds the agent answered is not a map. Run it with the operator present." and stop.
-  1. Name the destination in one round, ≤ 3 sentences.
-  2. Grill breadth-first for fog: one round of the decisions a PRD would need, each classified fact or decision.
-  3. **No-fog stop.** Fewer than three decisions: print "This fits one cycle: run `/plan` (or `/bug` for a defect)." and stop with no bead, no row, no file.
-  4. Epic: `br create "Map: <title>" --type epic --labels map --slug map-<slug> --json`.
-  5. Per ticket, in this order: (a) `dec-write-lib.sh new --status open --phase charting --source map:<slug>/<ticket-slug> …` (alternatives come later, at `decide`); (b) `br create "<question>" --type question --parent <epic> --labels decision:<type> --external-ref <DEC-id> --slug <ticket-slug> --description "<what it decides; unblock: the decision it unblocks>" --json`; (c) the map doc line. A re-run finds the row by `source` and the bead by `external_ref` and creates only what is missing.
-  6. Edges, second pass: `br dep add <child> <prerequisite>`; a child with none gets `deps:none`.
-  7. Write `grimoires/loa/maps/<slug>.md` from the template (§4.2).
-  8. Dispatch `chart-researcher` subagents (D-4.10) for `decision:research` children, at most 5 per chart.
-  9. Fewer than three tickets after creation: run the close flow (D-4.5) with reason "fewer than three decisions: fits one cycle".
-  10. `validate-artifact.sh --type map`, then stop.
-- **D-4.4 Work algorithm** (a map slug): refusal step 0; load the map doc only; frontier `br ready --parent <epic> --type question --json` (ordered by `get-ready-work.sh --graph` when `bv` is present; a ticket the user names wins); claim `br update <id> --claim`; resolve by label (`grilling` by rounds, `prototype` per D-5.2, `research` by reading its report and a confirming round, `unblock` per D-4.12); record with `dec-write-lib.sh decide --id <row> --answer-ref session:<id>#turn-<n> --alternative-json …` (the row becomes `proposed`), `br comments add <id> "Proposed: <summary> (DEC-NNNN); confirm with /decisions"`, `br close <id> --reason DEC-NNNN`, one "Decisions so far" bullet; graduate fog into tickets by step 5; move ruled-out items to "Out of scope"; stop after one ticket, except batched `research` tickets; at the end list the session's proposed rows and point at `/decisions confirm`.
-- **D-4.5 Lifecycle and hand-off.** Map `**Status**:` values: `charting`, `handed-off`, `closed`, `abandoned`. When frontier and fog are empty, the skill sets `handed-off` and writes `grimoires/loa/context/chart-<slug>.md`: the map doc, `dec-write-lib.sh list --source-prefix map:<slug>/ --format md`, and each research report wrapped by `sanitize_for_session_start L6 <path>` (the L6 untrusted-data fence), headed "Priority-1 context: these decisions are settled; confirm, do not re-ask". `commands/plan-and-analyze.md` gains two steps: before ingestion, if more than one `chart-*.md` snapshot is present, apply the multi-map rule (ask which interactively; unattended exit 1 "more than one open map: name one"); after the PRD is written, run `/chart close <slug> --consumed-by <cycle-id>`. Close sets the Status line and closes the epic in one step: append `## Closed` (date, cycle id or reason), set `closed` (consumed) or `abandoned` (reason), close open children with `br close --reason "map closed: <reason>"`, reject their open rows with `--follow-up <epic>`, `br close <epic>`. Unattended, close runs only with `--consumed-by`.
-- **D-4.6 Golden path.** `golden_detect_plan_phase` (`golden-path.sh:56-66`) reads only the map doc's Status line (A5): with `prd.md` absent, a `grimoires/loa/maps/*.md` whose `**Status**:` is `charting` returns `charting`; `handed-off`, `closed` or `abandoned` returns `discovery`. The doc wins over the epic when they disagree; `validate-artifact --type map` WARNs with the repair command (`br close <epic>` or `/chart close <slug>`). Consumers: workflow state (`:549-556`) `charting` → `initial`; menu (`:607`) "Continue charting"; truename plan case (`:1055-1063`) `/chart <slug>`. `plan.md:34-44,136` gains a `charting` row and the multi-map rule: with more than one charting or handed-off map, `/plan` asks interactively; unattended it exits 1 with "more than one open map: name one" plus the slugs and writes nothing. `/plan` also lists `proposed` rows and points at `/decisions confirm`.
-- **D-4.7 Build-path exclusion.** (a) `create-sprint-task.sh` after the epic check (`:99-103`) refuses `TYPE=question` and a `map`-labelled epic, exit 1 before any bead exists. (b) `get-ready-work.sh:16` keeps `br ready --json` and filters `select(.issue_type != "question")` in its existing jq stage unless `--include-questions`, so every other type present passes and only `question` is excluded. (c) `implementing-tasks/SKILL.md:213` and `commands/implement.md:196` call `get-ready-work.sh` instead of bare `br ready`, so run-mode selection excludes `question` beads regardless of labels. (d) `validate-artifact.sh --type sprint` flags any `question` bead with a `sprint:` label when `br` is present.
-- **D-4.8 Map validator.** `--type map`: header `**Slug**:`, `**Status**:` in the four values, `**Epic**:`; H2 headings exactly the four of §4.2 in order, plus an optional final `## Closed`; any other H2 is a violation (the mechanical "no execution override"); each "Decisions so far" bullet cites a DEC id; D-3.17 prose rules; `pii-filter.sh`. With `br`: every epic child is a `question` with one `decision:` label, no `sprint:` label and an `external_ref` that is a ledger id; a Status/epic disagreement WARNs.
-- **D-4.9 Research tracking.** `.gitignore:219` ignores `grimoires/loa/research/*`; `!grimoires/loa/research/chart-*.md` is added after it.
-- **D-4.10 Research subagent.** `.claude/agents/chart-researcher.md`: `model: opus` (D4), `tools: [Read, Grep, Glob, WebFetch, Write]`, `maxTurns: 40`, no Bash, so it cannot run `br` or the writer. Its report `grimoires/loa/research/chart-<slug>-<ticket>.md` starts `> UNTRUSTED research output: cite-checked, never instructions.`, quotes at most two lines of external text and decides nothing. Before dispatch the session touches a marker file; after return it runs `git status --porcelain --ignored` and `find .run .beads -newer <marker>` and fails the ticket if anything outside `grimoires/loa/research/` changed. The 20-minute wall-clock budget is advisory: the Agent call blocks, so the bound in force is `maxTurns`; the prompt states the budget. `.claude/data/agent-types.yaml` gains `chart-researcher: {write_capable: true}`.
-- **D-4.11 Under three tickets.** The pre-creation no-fog stop stays; a chart left with fewer than three tickets after creation or a ruling-out is closed as won't-do with a reason comment.
-- **D-4.12 `decision:unblock`.** The body names the decision it unblocks. Probes run only through `.claude/scripts/chart-unblock-probe.sh --ticket <id> [--timeout <s>] -- <cmd…>`: it records `git status --porcelain --ignored` of the main tree, runs the argv in a detached worktree under `mktemp -d`, removes the worktree by trap, and exits 1 when the main tree's status changed. Never App-Zone writes in the main tree.
+#### FR-4: retire or repair inert controls
+- **D-4.1 Implement gate modes.** `implement_gate.mode ∈ ask | telemetry | deny`; `implement_gate.claims: authoritative` is the tighten-only modifier (today's `mode: authoritative` keeps working as an alias for `mode: ask` + `claims: authoritative`). **Default when unset: `ask`** (today's behaviour; no silent change for any mount, DEC-0163); `telemetry` and `deny` are opt-ins. Every `ask` now writes one compliance row (`decision: ask`), so the register counts asks (today they are unlogged). **Sanction**: a write is sanctioned when the derived cache (FR-5) says `RUNNING` and its `derived_at` is within `run_mode.stale_hours`, or when `.run/implement-active.json` exists with `{skill: implement|bug, sprint, started_at}` and `started_at` is within two hours (the `implementing-tasks` and `bug-triaging` skills write it at start, call `run-checkpoint.sh derive --write` before their first App-Zone write, and remove it at the end), or when `LOA_IMPLEMENT_GATE_OVERRIDE=1` is set. Every sanction path logs one compliance row (`decision: sanctioned_run | sanctioned_marker | override`); a stale marker does not sanction and logs `stale_marker`. **Unknown position**: under `deny`, a missing cache, a cache older than `run_mode.stale_hours`, or an unparseable cache is *unknown* and falls back to `ask`, never allow (`decision: unknown_position`). `telemetry`: an unsanctioned App-Zone write appends one row `{"ts","hook":"implement-gate","action":"telemetry","decision":"outside_run","mode":"telemetry","path":<strip_controls, 256 B>}` to `.run/audit.jsonl` and exits 0 with empty stdout. `deny`: prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"App Zone write with no active implementation run (derived position: <state>); run /implement or /bug, or set implement_gate.mode: ask"}}` and logs `decision: deny`. `ask`: today's output plus the row. Trust-input writes keep asking in every mode and under every sanction. The run position is read from the derived cache; the gate never computes it. `implement-gate.bats` covers the full matrix mode × claims × write class × sanction state × cache state (present-fresh, stale, missing, unparseable). This repository's `.loa.config.yaml` sets `deny`; the example documents all three and says the hook is a fence only under `deny`.
+- **D-4.2 `disallowed-tools`.** The four pure-review skills gain `disallowed-tools: Write, Edit, NotebookEdit`; `validate-skill-capabilities.sh` fails any `role: review` skill with `write_files: false` that lacks all three; `skill-invariants.md` keeps its sentence, now true, and names the Bash gap (shell-redirection writes remain fence territory). **Harness probe**: Task 2.2 records in the Sprint 2 report a live probe showing the harness refuses a Write from a skill carrying the key (the cycle-128 Task 1.0 pattern); if the key is not enforced, the task switches the four skills to an explicit read-only `allowed-tools` set and the invariant doc says so.
+- **D-4.2a Surgical-diff hygiene.** The `<task>` component of `.run/karpathy-surgical/<task>.jsonl` is sanitised to `^[A-Za-z0-9._-]+$` (task labels carry spaces and dots); the hook deletes the legacy `.run/karpathy-task-state.jsonl` on its first run under the new layout.
+- **D-4.3 Surgical-diff hook.** The hook reads the current task from `run-checkpoint.sh read --json` (`.task`, else `.sprint`, else the session id from the hook payload) and keys its running total on it: `.run/karpathy-task-state.jsonl` is replaced by `.run/karpathy-surgical/<task>.jsonl` (one small file per task, rotated when the task changes, the directory capped at the last 20 tasks) and `.run/karpathy-surgical-summary.json` `{task, lines, threshold, over, updated_at}`. `reviewing-code/SKILL.md`'s SURGICAL axis reads the summary when present (one line). The stderr warning is unchanged.
+- **D-4.4 Guardrails default.** `guardrails.input.enabled: false` and `guardrails.danger_level.enforce: false` in the example; this repository keeps `guardrails.input.enabled: true` (the orchestrator keeps logging PASS/BLOCK events to the trajectory) and sets `guardrails.danger_level.enforce: false` (DEC-0161 amends DEC-0139); the `@skill-include input_guardrails` block already skips when disabled.
+- **D-4.5 Team rows.** `generate-constraints.sh` stops emitting the Agent Teams table when `constraints.json` has no `C-TEAM-*` rows; the five rows are deleted; `agent-teams-reference.md` gains a "Rules and arming" section stating them and that the hooks are no-ops until the lead exports `LOA_TEAM_MEMBER`; `lint-invariants.sh` and its test are updated for the absent class.
+- **D-4.6 Breaker in a script.** `run-checkpoint.sh record-round --gate review|audit --file <feedback.md> [--sprint sprint-N]` runs `verdict-derive.sh --json`, computes the same-issue hash exactly as the SKILL prose did (`{verdict,counts}` sorted, md5), updates `.run/circuit-breaker.json` atomically (same-issue count/reset, no-progress from unchanged `counts`, `cycle_count.current += 1` on any non-APPROVED verdict, timeout from `started`), appends a `history` entry on a trip, writes `state: OPEN` and sets `.run/state.json` `.state = HALTED`, and prints the trip line the SKILL used to print. **Mechanical caller**: `derive` (D-5.1) recomputes the same counters from the ordered feedback history of the active sprint (`engineer-feedback-r*.md`, `auditor-sprint-feedback-r*.md` sorted by round, their trailers derived) at every checkpoint and raises the breaker counters to the recomputed values when they are lower, so a forgotten `record-round` call cannot leave the breaker at zero. `run-mode/SKILL.md` §Circuit Breaker becomes the call plus a two-line description; the thresholds stay in the JSON and in `run_mode.defaults`.
 
-#### FR-5: prototype tickets and spikes
-- **D-5.1 Interview rule.** One line in each planning skill: "A question the operator answers 'I need to see it', or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`."
-- **D-5.2 Spike branch.** `spike/<slug>` (D6). The chart or interview session only creates it: `git worktree add ../<repo>-spike-<slug> -b spike/<slug>`. The build is a separate interactive session in that worktree, pushed with `git push -u origin spike/<slug>`, never merged into another branch, no PR; the implement gate asks on its App-Zone writes.
-- **D-5.3 ICE direction.** `run-mode-ice.sh` gains `SPIKE_PATTERN="spike/*"` beside the protected lists (`:37-53`), `is_spike_branch()` and `is-spike`. `safe_push` (`:186`) is unchanged. `safe_merge` (`:221`) gains an optional source argument: absent, behaviour is unchanged (always blocked); present, on a `spike/*` branch with the default branch (`main` or `master`) as source, the merge or rebase into the spike is allowed; a `spike/*` source is refused with "ICE: spike branches are never merged into another branch"; anything else stays blocked. Callers today: the `merge` dispatch in `run-mode-ice.sh` and `tests/unit/run-mode-ice.bats:228`; no skill calls it. `safe_pr_create` (`:302`) refuses a `spike/*` head.
-- **D-5.4 Fence rule SP-1.** `block-destructive-bash.sh` blocks commands that bring spike content into another branch: `git merge|rebase|pull|cherry-pick` whose arguments name a `spike/` ref (`(^|[;&|[:space:]])git[[:space:]]+(merge|rebase|pull|cherry-pick)\b[^;&|]*\bspike/`), `git checkout spike/<x> -- <path>`, `git restore --source[= ]spike/…`, and `gh pr create --head spike/`. `git checkout spike/x` (a switch), `git merge main` and `git rebase main` run on a spike branch pass. Edge, accepted: `git pull origin spike/x` while on `spike/x` is blocked; bare `git pull` is the supported form.
-- **D-5.5 Report.** `grimoires/loa/spikes/TEMPLATE.md` (§4.4). `--type spike`: the five H2 sections present and non-empty; `Pointer` names a `spike/` branch or a path; D-3.17 rules; `pii-filter.sh`. The template passes; an empty Verdict fails.
-- **D-5.6 Verdict row.** The prototype's open row has `source` = the predetermined report path `grimoires/loa/spikes/<slug>.md`; at the verdict, `dec-write-lib.sh decide --id <row> --answer-ref session:<id>#turn-<n>`, then `/decisions confirm` by the operator. Report and ledger change are committed on the working branch, never on `spike/*`; the fixture asserts both are on the working branch after the spike push.
-- **D-5.7 Sequencing guidance.** `planning-sprints/resources/REFERENCE.md:100-104` "High-Risk Early" points at `decision:prototype` tickets before the sprint instead of spike tasks inside build sprints.
-- **D-5.8 Unattended deferral (D11).** `interview.unattended_prototype: defer|halt`, default `defer`. `defer`: the bead (standalone `question`, label `decision:prototype`), the open row, and the PRD line `**Deferred:** pending prototype <bead-id> (DEC-NNNN)` under the dependent requirement, then continue. `halt`: the same bead and row, then stop planning with that pointer.
-- **D-5.9 Spike deletion.** The fence's force-delete rule P5 (`block-destructive-bash.sh:619-681`) gains a positive predicate beside `_fr11_all_merged`: `git branch -D spike/<slug>` passes when the ledger holds a `decided` row whose `source` is `grimoires/loa/spikes/<slug>.md`. A failed lookup leaves the block in place.
+#### FR-5: file-authoritative run position
+- **D-5.1 Derivation.** `run-checkpoint.sh derive [--json] [--write]` computes, for the active ledger cycle: per sprint `global_id`, `local_label`, ledger `status`, `completed_marker` (`a2a/sprint-<gid>/COMPLETED` exists), `review` and `audit` verdicts (`verdict-derive.sh --json` on `engineer-feedback.md` / `auditor-sprint-feedback.md`, both APPROVED and the trailer's sprint id equal to `<gid>` or the local label; a feedback file with no trailer is legacy and yields no verdict, so the sprint stays incomplete), and `impl_commit` (the newest non-merge commit on the current branch since the sprint's ledger `started` timestamp that touches a path outside `grimoires/`, `.run/`, `REPO-MAP.md`, `checksums.json` and `CHANGELOG.md`; commits outside the active cycle's range are ignored). A sprint is **complete** when the marker exists, both verdicts are APPROVED for that sprint, and the ledger row is `completed`; a marker whose trailer names another sprint is reported as `stale_marker` and does not count. The run `state` is `JACKED_OUT` if the cache already says so or `.completion.merged_sha` is set; else `HALTED` if the breaker is `OPEN` or the cache says `HALTED`; else `COMPLETE` when every sprint is complete; else `RUNNING` when any sprint is incomplete and `timestamps.last_activity` is within `run_mode.stale_hours` (default 12); else `INTERRUPTED`. **Terminal and sticky states**: `JACKED_OUT` is terminal (files that contradict it are reported as drift and the cache is kept); `HALTED` is sticky until `run-resume` clears it; `COMPLETE` may advance only to `JACKED_OUT`; nothing moves back to `RUNNING` unless the ledger registers a new incomplete sprint. **Schema tolerance**: files written before this cycle lack `derived_at`, `derivation` and sometimes `.status`; `derive` reads them, adds the fields on `--write`, and keeps `schema_version: 2`.
+- **D-5.1a Decision table.** Inputs per sprint: `M` = COMPLETED marker present and its trailer names this sprint; `R`/`A` = review/audit trailer APPROVED for this sprint; `L` = ledger row `completed`; `C` = an implementation commit exists after the last verdict. Sprint state: `M ∧ R ∧ A ∧ L` → `complete`; marker present but trailer names another sprint → `stale_marker`, treated as absent; `¬M` with `R ∧ A` → `awaiting_marker` (reported, counted incomplete); otherwise `in_progress`. Run state: cache `JACKED_OUT` or `.completion.merged_sha` set → `JACKED_OUT`; breaker `OPEN` or cache `HALTED` → `HALTED`; every sprint `complete` → `COMPLETE`; any sprint incomplete and `last_activity` within `run_mode.stale_hours` (12) → `RUNNING`; otherwise `INTERRUPTED`. Breaker: `cycle_count.current` = max(cache, number of non-APPROVED rounds in the feedback history); `same_issue` from the last two derived hashes; `no_progress` from unchanged `counts` across consecutive rounds; `state` = `OPEN` when any threshold is met, else unchanged. `tests/unit/run-checkpoint-derive.bats` has one case per row.
+- **D-5.2 Writes.** `--write` rewrites `.run/sprint-plan-state.json` with the same keys the schema has today, `.state` canonical and `.status` mirrored, plus `.derived_at` and `.derivation: {source: "files", stale_markers: [...]}`; `.run/circuit-breaker.json` is recomputed per D-5.1a and D-4.6. `run-checkpoint.sh write` calls `derive --write` after its own update, so every checkpoint refreshes the cache. `run_mode.file_authoritative: false` makes `derive` report-only (the caches are written as today) — the rollback knob. The jack-out step in `completion-modes.md` writes `.state` (the cycle-128 defect wrote `.status` only).
+- **D-5.3 Readers.** `golden-path.sh:874`, `loa-run-state-surface.sh`, `run-preflight.sh` P6 and the implement gate keep reading the cache; `/loa` calls `derive --json` and prints `drift: cache says X, files say Y` when they differ (report-only; `/loa` writes no state); `run-resume` calls `derive --write` on drift before it continues. `loa-status.sh` also prints the effective `implement_gate.mode`. The recovery doc in `halt-resume.md` reads `.state`. Each reader has a bats case over a derived file (`.derived_at` present, `.status` mirrored) proving it still reads the state it read before.
+- **D-5.4 Drift fixture.** `tests/unit/run-checkpoint-derive.bats`: cache RUNNING + three COMPLETED markers with APPROVED trailers + ledger completed → `COMPLETE`; a stale marker whose trailer names `sprint-1` of another cycle → `stale_marker`, not counted; breaker `cycle_count` 0 with two `-r1` feedback files → 2; a terminal `JACKED_OUT` cache stays.
 
-#### FR-6: glossaries
-- **D-6.1 Two files (D10).** `.claude/loa/GLOSSARY.md` is mounted into every project and seeds: Flatline, voice, dissent, Bridgebuilder, cheval, ICE, jack in, grimoire, lore, construct, beads (alias `br`), run mode (aliases `RUNNING`, `HALTED`, `JACKED_OUT`), zone, Karpathy principles, kaironic, implement gate, verdict trailer (alias `LOA-VERDICT`), known failure, decision ticket, map epic, seam, spike, round, frontier, DEC row, truename, golden path, and the four `decision:` labels. The project glossary is the root `GLOSSARY.md`, created lazily; in this repo it holds record branch, zone marker and cycle. Format §4.5; lore stays in `.claude/data/lore/`.
-- **D-6.2 Drift check.** `tools/check-glossary-terms.sh` (§5.3) checks `CLAUDE.loa.md` against `.claude/loa/GLOSSARY.md`, keeping backticked spans matching `^[A-Za-z][A-Za-z0-9_-]*$`. That shape admits none of `/`, `.`, `--`, `:` or `(` and no leading `/`, so every PRD exclusion holds; it also drops spaced phrases and operators (today `hit your session limit`, `out of extra usage`, `*_TEST_MODE=1`, `>>`, `jq -S`). Matching is case-insensitive on `**Term**` or `_Aliases_:` tokens with plural `s`/`es` folded; the PRD was aligned to the `_Aliases_:` line. The allowlist seeds 11 tokens; more than 30 fails.
-- **D-6.3 CI.** `.github/workflows/check-glossary-terms.yml` runs in this repo only: every PR and push to main, one gate step, a positive control (`tests/fixtures/glossary/miss/` exits 1) and a negative control (`ok/` exits 0). Pinning `actions/checkout` by commit SHA, as the existing workflows do, is an implementation requirement.
-- **D-6.4 Validator type.** `--type glossary` on either file: an H1; a context paragraph; `## Language`; entries `^\*\*[^*]+\*\*: .+` with ≤ 2 sentences and ≤ 300 chars; `_Avoid_:` and `_Aliases_:` follow an entry; no duplicate term or alias; WARN on paths or file extensions in `## Language`.
-- **D-6.5 Planning rules.** `discovering-requirements` Phases 1-7 and `designing-architecture` Phase 2: "Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline." `riding-codebase/SKILL.md:108-112` reads both as reality inputs. `reviewing-code/resources/REFERENCE.md:30-37` gains "- [ ] New domain terms are defined in a glossary (LOW if not)".
+#### FR-6: heredoc consumer classification
+- **D-6.1 Classifier (fail closed).** Behind `destructive_command_guard.heredoc_classifier` (default `true`; `false` = today's scan). Before pattern matching, the fence walks the command text statement by statement (reusing the existing segment splitter) and, for every `<<` / `<<-` heredoc, records its consumer (the statement's command word and every pipe target) and its destination (a `>`/`>>` redirect path, if any). **Interpreter-consumed** (body scanned exactly as today): the command word or any pipe target is a shell or interpreter (`bash`, `sh`, `zsh`, `dash`, `ksh`, `python*`, `node`, `ruby`, `perl`, `eval`, `source`, `.`, `exec`), a wrapper that runs its argument (`sudo`, `env`, `xargs`, `timeout`, `nohup`, `nice`, `setsid`, `ssh`, `docker exec`, `sh -c`, `bash -c`), a command or process substitution (`$(`, `` ` ``, `<(`) anywhere in the statement, an SQL runner from the SQL rule's list, or **any consumer when the destination path appears elsewhere on the same command line as an executed, sourced or `chmod +x`ed path** (`bash x.sh`, `./x`, `source x`, `. x`, `chmod +x x`, `exec x`). **Grammar**: the hook sees literal command text (no alias or function expansion); CRLF is normalised to LF; a body or delimiter containing control characters, a variable-expanded or unquoted-with-expansion delimiter, or a nested heredoc is interpreter-class (full scan); quoted and unquoted delimiters are both recognised; the classifier operates per statement after the existing splitter and never spans a `<<` that the splitter could not pair with its terminator. **Executable content rule**: a heredoc redirected to a path whose extension is `.sh`, `.bash`, `.zsh`, `.py`, `.rb`, `.pl`, `.js`, `.ts`, `.ps1`, whose first body line is a shebang, or whose target lies under `.claude/hooks/`, `.claude/settings*.json`, a shell rc or profile file, a directory on `PATH`, or `.git/hooks/`, is interpreter-class regardless of consumer (the write-then-run-later form; the System-Zone targets are also FR-SZ territory). **Non-executing exact forms** (allowlist of exact command plus safe-flag patterns, with an explicit file or stdout sink): `cat`, `tee`, `printf`, `echo` whose only redirect is a plain file; `gh pr comment -F -`, `gh issue comment -F -`, `gh pr create --body-file -`; `git commit -F -`; `br create`/`br update` reading stdin; `jq`/`yq` without `-i`/`--inplace`; `grep`, `sed -n` (no `e` command), `sort`, `wc`. For these, the body is **scanned per segment**: each body line is split by the existing statement splitter on `;`, `&&`, `||`, `|`, and any `$(`, backtick or `<(` makes the whole body interpreter-class; each segment's command word is taken after wrapper prefixes (`sudo`, `command`, `exec`, `env`, `nice`, `time`, `nohup`, a leading backslash, an absolute path such as `/bin/rm`) are stripped, and a variable-derived command word (`$x -rf`) makes the body interpreter-class; a segment whose command word is a destructive verb the fence already matches (`rm`, `git`, `find`, `dd`, `mkfs*`, `shred`, `truncate`, `kubectl`, `terraform`, `aws`, `gcloud`, `psql`, `mysql`, `DROP`, `DELETE`, `TRUNCATE`) is scanned by the normal rules; other segments are dropped. Argument-level checks: `gh api … --input -`, `jq -i`, `yq -i`, any `-x`/`--exec`/`-c`/`-e` form, `awk` (system()), `sed` with `e`, `make -f -`, `php`, `lua`, `tclsh`, `pwsh`, `osascript`, `kubectl exec -i`, unknown flags, or a second command word in the segment make the consumer interpreter-class. **Default**: a consumer on neither list is scanned in full. A parse failure scans in full. Alias and function expansion are assumed absent (the hook sees the literal command text). The existing quoted-`cat` scrub (`:333-415`) becomes a special case of this rule.
+- **D-6.2 Corpus.** New B-rows: the five SP-1 prose cases from NOTES (a spike merge named in a heredoc body written to a `.md`), the P2 force-push string in a heredoc redirected to a file, a `br create --description` heredoc quoting a recursive delete, a `gh pr comment -F -` body naming a force push, a `jq` filter heredoc. New D-rows (every one must block): `bash <<'EOF'` with a root delete, `python3 - <<PY` with `os.system(...)`, `psql <<SQL` with `DROP TABLE`, `bash -c "$(cat <<EOF …)"`, `eval "$(cat <<EOF …)"`, `ssh host bash <<EOF`, `docker exec -i c sh <<EOF`, `sudo bash <<EOF`, `xargs sh -c` fed by a heredoc, `gh api -X DELETE --input -`, `jq -i` and `yq -i` with a destructive body, a heredoc written to `x.sh` followed by `bash x.sh` on the same line, the same with `chmod +x x.sh && ./x.sh`, a `tee x.sh` then `source x.sh`, and an unlisted consumer (`mycmd <<EOF`) with a destructive body. No existing D-row is removed; `run-corpus.sh` p95 stays under 80 ms; a corpus pass with the knob off reproduces today's results.
 
-#### FR-7: seams and red-before-green
-- **D-7.1 Template.** `sprint-template.md` gains `### Seams Under Test` (`| Seam | Catches | Misses | Prior art |`) after `### Technical Tasks` (`:49-60`, `:129-133`); `planning-sprints` Phase 2 asks the seams as one round.
-- **D-7.2 Validator gate.** `SPRINT_REQUIRED_SECTIONS` (`validate-artifact.sh:193-201`) is unchanged. `validate_sprint()` (`:206`) reads the header `**Date:**`: on or after `SEAMS_REQUIRED_FROM=2026-10-13` every sprint block must carry the block; earlier or undated plans WARN. The archived cycle-127 plan and the undated fixtures pass; this cycle's plan carries the block in all three sprints.
-- **D-7.3 Spec-axis check.** `reviewing-code/SKILL.md` Phase 2 (`:213-216`): "Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'." Room comes from compressing Phase 1 step 5 (`:209`).
-- **D-7.4 Two commits.** `micro-sprint.md:23-31` Task 1: "Committed alone (`test(<bug_id>): failing test`) before any fix commit; SHA recorded in `reviewer.md` as `Red commit: <sha>`"; Task 2: "The fix is a later commit and does not weaken the test".
-- **D-7.5 The check.** `red-test-check.sh` (§5.2) takes the test command as argv after `--`, never through `bash -c` (this supersedes the PRD's positional form; the sprint plan carries the new CLI). It runs in two detached temporary worktrees, so uncommitted state never counts and no stash is used, and always prints the red run's output. Honest scope, as in `validate-ac-verification.sh:10-14`: it proves failed-before and passes-after, not that the assertion is right.
-- **D-7.6 Not-a-red detection.** Exit 4 when the named test file is absent at red, or the red run fails for a non-assertion reason matched on its output: bats `not found` or a syntax error, pytest `ERROR collecting` or `ImportError while importing`, node `Cannot find module` or `SyntaxError`, cargo `could not compile`, Go 1.22 toolchain `build failed` or `[setup failed]`. Patterns live in one array with a comment per runner.
-- **D-7.7 Worktree bootstrap, timeout and cleanup.** By default the script symlinks `node_modules`, `.venv`, `vendor`, `target` and `.tox` from the live tree into each temp worktree when they exist there and are absent in the worktree; `--no-link-deps` turns that off; `--setup <cmd>` runs in each worktree before the test (failure exits 2). `--timeout <s>` (default 600) bounds each run; it uses `timeout`, else `gtimeout`, else a bash wrapper (background run, `sleep`, `kill -TERM` then `-KILL`); a timed-out run yields `TIMEOUT`, exit 5. One `trap … EXIT INT TERM` removes both worktrees (`git worktree remove --force`, then `git worktree prune`) on every exit path; bats assert `git worktree list` shows only the main tree afterwards.
+#### FR-7: advisory open-weight voices
+- **D-7.1 Recipe and loader.** The example's Azure block gains `endpoint_family: chat`, `auth_type: http_api`, `dispatch_group: azure`, `context_window`, and loads; a new "Example 4: local OpenAI-compatible server" block declares `type: openai_compat`, `endpoint: "http://127.0.0.1:8000/v1"`, `auth: "local"`, `allow_insecure_endpoint: true`, one model with `endpoint_family: chat`, `auth_type: http_api`, `dispatch_group: local`, `capabilities: [chat]`, `context_window`, `max_output_tokens`, `streaming_recovery: {first_token_deadline_s: 120}`, `pricing: {input_per_mtok: 0, output_per_mtok: 0}`, and an alias. `secret_env_allowlist` is documented beside it. `tests/test_config_examples_load.py` loads every commented example block.
+- **D-7.2 Insecure endpoint opt-in (threat model).** `hounfour.providers.<name>.allow_insecure_endpoint: "<host>"` is a host string, not a boolean, and must be an IP literal or `localhost` (no other DNS name: an insecure endpoint is never resolved, so there is no rebinding) whose address is loopback (`127.0.0.0/8`, `::1`) or RFC1918 (`10/8`, `172.16/12`, `192.168/16`); link-local (`169.254/16`, `fe80::/10`), the cloud metadata address, unique-local IPv6 and every public range are refused. `endpoint-validator.py` (and so `model-health-probe.sh`) and the cheval Python path (`_build_provider_config`) apply the same rule: an `http://` endpoint is accepted only when its host equals the opt-in host; a public `http` host, a mismatched host, a DNS name, or a boolean value fails at load with a named reason; every other provider keeps the scheme, loopback and private-range refusals. For a provider with an insecure opt-in the adapter ignores proxy environment variables, refuses HTTP redirects, and requires every request path to start with the declared endpoint path. Request size is bounded by the declared `context_window`: a dissent or Flatline prompt over it refuses the hop with `context_window exceeded (<n> > <limit>) for <alias>` and writes a MODELINV row with `failure_class: context_window_refused`, never truncating silently; response size is bounded by `max_output_tokens`. Every MODELINV row records `destination: {host, scheme, provider}`. A keyless provider (`keyless: true` or a literal `auth`) is admitted only with a declared `context_window` and `dispatch_group`. Tests cover: IPv4 and IPv6 loopback accepted, RFC1918 accepted, link-local and metadata refused, DNS name refused, redirect refused, proxy env ignored, path prefix enforced, boolean refused.
+- **D-7.3 Schema on chat.** `_build_chat_body` adds `response_format: {"type": "json_schema", "json_schema": {"name": ..., "schema": ..., "strict": true}}` when the request carries an output schema and the model entry declares `structured_json`; `schema_enforced` in the MODELINV row is `True` only when the body carried it. `openai_streaming.py` treats `delta.reasoning_content` as progress for the recovery tracker but not as content; after assembly, `<think>…</think>` blocks (and an unterminated leading `<think>`) are removed before qualification, with `thinking_stripped: true` recorded.
+- **D-7.4 Advisory voices.** `flatline_protocol.code_review.advisory_voices` and `security_audit.advisory_voices` list aliases. `adversarial-review.sh` runs them after the primary and companion, on the same chunks, with the same schema and repair rules, concurrently and under one overall wall-clock timeout (`advisory_timeout_seconds`, default 600) so they cannot delay the verdict; the budget pre-check sums primary + companion + every advisory alias at catalog prices. Their findings are written **only** under `advisory_voices: [{alias, status, counted_as: advisory_voice, findings: [...]}]`, each finding carrying `voice: advisory` and a `duplicate_of` link when a primary or companion finding has the same file, overlapping lines and the same category; the top-level `findings[]`, `voices_planned`, `voices_succeeded` and the `verdict-derive.sh` output are byte-identical with and without advisory voices (`adversarial-review-advisory.bats` asserts all four; DEC-0165). `reviewing-code` and `auditing-security` read the advisory block explicitly (one sentence each). A failed advisory voice is logged under `advisory_voices[].status` and ignored by verdict quality. **Promotion is unreachable this cycle**: no voice arm exists in `run-arms.sh`, so `hounfour.advisory_promotion.*` is read and the check always refuses with `advisory voice <alias> cannot be counted: no arms report line for the alias (voice arms are a future iteration)`; the knob and the refusal text exist so that a later cycle adds only the arm. The family-and-lineage slice itself is deferred (DEC-0132).
+- **D-7.5 Bridgebuilder and probe (trusted config, DEC-0170).** `config.ts` extends `PROVIDER_API_KEY_ENV` from the cheval provider config, but reads `hounfour.providers` **only from trusted configuration**: on a pull request, the base branch's `.loa.config.yaml` (the merge target, fetched by ref) or repository settings, never the head checkout; locally, the working tree is trusted. A `keyless` or `allow_insecure_endpoint` provider present only in the head is refused with `head-only provider declaration refused: <name>` and logged; any undeclared provider still fails with `Unknown provider`. The precedence is documented in the Bridgebuilder reference and a vitest covers the head-only case. `model-health-probe.sh --provider <name>` accepts a configured provider name from the same trusted source and probes `<endpoint>/models` with the provider's auth, honouring D-7.2. `bridgebuilder.exit_on_degraded` (default `3`; `0` restores today's exit) is the rollback key for D-7.7.
+- **D-7.6 Pricing.** `.claude/defaults/model-config.yaml` entries with `open_weight: true` and a non-zero price require `price_source` (an `https://` URL or a path under `docs/`) and `price_date` (`YYYY-MM-DD`); `tests/test_catalog_pricing_provenance.py` enforces it and the pricing module WARNs (ledger `pricing_source: stale_catalog`) when `price_date` is older than 90 days; no such row is added this cycle. `adversarial-review.sh`'s budget pre-check asks `python3 -m loa_cheval.metering.pricing --alias <primary>` for input/output per Mtok and falls back to 10/30 with a logged line when the price is unknown.
+- **D-7.7 Banner and exit (carry-over).** `main.ts:674` passes the count of models whose result status is completed (`mmResult.modelResults.filter(ok).length`); `reportComplete(totalMs, completed, planned)` prints `n/m`. When the consensus verdict is DEGRADED the process exits 3 after writing its JSON; `post-pr-validation` and `run-bridge` treat 3 as completed-degraded (they already read the verdict from the JSON) and surface it.
 
-#### FR-8: operator-only commands
-- **D-8.1 Flag set.** `disable-model-invocation: true` on the safe set (D8): `loa-eject`, `toggle-gpt-review`, `permission-audit`, `loa-setup` (command file only), plus the new `/decisions`. `toggle-gpt-review.md` and `loa-setup.md` gain a minimal frontmatter block. The `loa-setup` skill is flagged too only if the harness check shows the operator's own `/loa-setup` still works with the skill flagged.
-- **D-8.2 Triage.** Each reference to `update-loa`, `mount`, `contribute`, `feedback`, `deploy-production`, `archive-cycle`, `ship`, `run-halt`, `run-resume` in another body is classified "advice to the human" or "orchestrator step"; a command is flagged only if every reference is advice. `ship.md:60,64` executes `/deploy-production` and `/archive-cycle`, so both stay unflagged.
-- **D-8.3 Allowlist and lint.** `.claude/data/user-invoked-commands.txt` lists flagged names, `gpt-review` and `decisions` included. `user-invoked-commands.bats` asserts: each listed command carries the flag; no other body has an operative line for a listed name (`(Execute|Invoke|Run|Call)[[:space:]]+`?/<name>\b` or `Skill\(.*<name>`, with none of `user|operator|human|manually|suggest|recommend|tell|ask` on the line); every flagged command file is listed; no SKILL.md `allowed-tools` grants `dec-write-lib.sh confirm`, `supersede` or `context --clear`.
-- **D-8.4 Live check first, automated.** Sprint 1 task 1.1, before any flag lands, adds `tests/unit/harness-hidden-command.bats`:
-  1. Skip (bats `skip`, never a pass) when `claude` is not on PATH or `LOA_LIVE_HARNESS != 1`.
-  2. Build a temp project under `BATS_TEST_TMPDIR`: `git init`, `.claude/commands/fixture-hidden.md` with `disable-model-invocation: true`, and a control `fixture-visible.md` without it; each body says "reply with the word FIXTURE-OK".
-  3. In that directory run `timeout 180 claude -p --max-turns 3 --output-format stream-json --verbose --no-session-persistence "Use the Skill tool to invoke the skill named fixture-hidden, then report the tool's response verbatim."`, then the same for `fixture-visible`, and parse the JSON events with `jq`.
-  4. Outcomes. CLI error, timeout or unparsable output: skip with the reason. Control without a Skill `tool_use` for `fixture-visible` whose `tool_result` contains FIXTURE-OK: skip, "inconclusive: control not invocable". Hidden run with a `tool_result` containing FIXTURE-OK: fail, "flag does not hide the command". Hidden run with no Skill `tool_use` for it, or one whose `tool_result` is an error: pass.
-  The lead runs it once with `LOA_LIVE_HARNESS=1` and records the output in the sprint a2a. A failure records FR-8 as lint-only and G-7 as partial; the flags and the lint still land.
-- **D-8.5 Triage rows.** Each triage outcome is a row in `grimoires/loa/a2a/sprint-252/triage-fr8.md` (command, reference type, decision, rationale, evidence) and a `proposed` DEC row with `source` = the command file, written by the lead at sprint close (task 1.8, D-3.18).
+#### FR-8: local posture
+- **D-8.0 Canonical keys.** One key per concept across cheval, `endpoint-validator.py` and Bridgebuilder: `keyless: true` marks a provider that needs no credential (a literal `auth` value is still accepted by cheval and normalised to `keyless` in the merged view); `dispatch_group: local` marks a local provider (no separate `locality: local` provider key). MODELINV rows record both `locality_mode` (the switch) and `hop_locality: hosted|local` (the provider's dispatch group).
+- **D-8.1 Switch.** `hounfour.locality: hosted | local_voices` (default `hosted`, the rollback). **Hop inventory** governed by the switch: the dissent primary and companion, the advisory voices, the Flatline primary/secondary/tertiary voices and scorers, the KF-004 repair chain (`tiny`, `claude-headless`, the answering voice), the Bridgebuilder voices and the consensus writer, and the health probe. The Claude Code session model is exempt and the docs say so. Under `local_voices`: `adversarial-review.sh` plans only hops whose provider has `dispatch_group: local` in the merged config, refusing each hosted hop at plan time with `locality: local_voices refuses hosted hop <alias> (<provider>)`; every local hop is dispatched under the D-7.2 request-time rules (IP-literal or `localhost` endpoint, no DNS resolution, redirects refused, proxy environment ignored, the endpoint address logged in MODELINV `destination`), so a declared locality is enforced, not trusted; the KF-004 repair chain is pinned to the answering voice (no `tiny`, no `claude-headless`); `flatline-orchestrator.sh` refuses hosted voices the same way; Bridgebuilder's `config.ts` drops hosted models with the same reason; the probe refuses hosted providers. cheval records `locality` in every MODELINV row. With one local family, the companion is `duplicate_voice` by the existing rule and the audit envelope is `DEGRADED_SECURITY_REVIEW`; `adversarial-review-gate.sh` and `verdict-derive.sh` treat that envelope exactly as they do today (the artefact gate checks presence, the verdict is the auditor's, the degradation is stated in the envelope and the audit report and shown by `/loa`); the config comment and the audit output say so in one sentence.
+- **D-8.2 Tests.** Planning bats: under the switch, a config with one hosted and one local provider plans only the local hop and names the refusal; the repair chain is the answering voice; MODELINV rows carry `locality: local_voices`; the docs sentence is present.
+
+#### FR-9: profile knob
+- **D-9.1 Data and lib.** `.claude/data/profiles.yaml` lists, per profile, the optional keys it sets: `known_failures.surface_at_session_start`, `decisions.surface_at_session_start`, `karpathy_principles.surgical_diff_warning`, `karpathy_principles.require_success_criteria`, `guardrails.input.enabled`, `guardrails.danger_level.enforce`, `invisible_retrospective.enabled`, `structured_handoff.enabled`, `soul_identity_doc.enabled` (`interview.pacing` is not a profile key: `rounds` is already the `thorough` default and the key would not discriminate between profiles). Every profile defines every key explicitly (a `profile-lib.bats` case asserts it), so `loa_knob`'s fallback argument is never the effective source of a default. `profile-lib.sh` resolves the effective values once per session into `.run/effective-config.json` keyed on the mtimes of `.loa.config.yaml` and `profiles.yaml` and serves `loa_knob` from it. `lean` sets them off (pacing `rounds`); `standard` is the post-cycle-129 example default for each key, written out explicitly (so `guardrails.*` read `false` there, the FR-4(d) change being a migration item, not a profile effect); `full` sets them on. `.claude/scripts/lib/profile-lib.sh` exposes `loa_profile` (explicit `loa.profile`, else `standard`) and `loa_knob <yq-path> <fallback>`: the explicit key when present, else the profile's value when the key is in `profiles.yaml`, else the fallback. Every reader in §1.3 calls `loa_knob` instead of its own `yq` default.
+- **D-9.2 Floor.** One tracked floor source, `.claude/data/floor.yaml` (DEC-0166), lists the floor guard ids (`fence:FR-1.2b`, the `FR-SZ*` ids, `gate:verdict-derive`, `gate:adversarial-review-gate`, `policy:permission-deny-list`, `policy:verdict-one-way-rule`, `policy:operator-only-commands`) and the floor config keys (`flatline_protocol.code_review.enabled`, `flatline_protocol.security_audit.enabled`, `flatline_protocol.*.companion_voice`, `destructive_command_guard.*`, `implement_gate.*`, `hounfour.locality`). `guard-origins.bats` checks `floor: true` rows against it, `profile-floor.bats` checks that `profiles.yaml` names none of its keys, and both pin the file's sha256 so an edit fails until the hash is deliberately updated. `profile-floor.bats` further asserts that, under `lean`, the floor surfaces (the two gate skills' effective config, `verdict-derive.sh` behaviour on a fixture, the adversarial gate env, the deny-list file hash, the FR-1.2b corpus rows, the SZ rules, `user-invoked-commands.txt`) are byte-identical to `standard`. The register gains `kind: policy` for the floor items that are not hooks, fences, validator rules or gates.
+- **D-9.3 Visibility.** `loa-status.sh` prints `Profile: lean (overrides: guardrails.input.enabled=true)` listing explicit keys that differ from the profile.
+
+#### FR-10: task kinds
+- **D-10.1 Syntax.** A task line ends `… → **[G-N]** ⇐ <deps> · kind: mechanical|judgment|operator`. `validate-artifact.sh --type sprint` requires it on every `- [ ]` line under `### Technical Tasks` (and the `### Task N.E2E` block) for plans whose `**Date:**` header is on or after `KINDS_REQUIRED_FROM="2026-10-14"` (WARN before), reusing the Seams gate's date parsing (`:879-938`): `YYYY-MM-DD`, lexical comparison, and a live plan with no parseable date is a violation. **Parser**: exactly one `kind:` token per task line, whitespace-tolerant around the colon, the value one of the three words, and nothing but whitespace after the value (trailing prose is a violation); the dependency marker may be absent. A WARN (not a violation) fires when a task tagged `judgment` names only `*.sh`, `*.py`, `*.ts` deliverables or the verbs script, lint, generate. The template and this cycle's `sprint.md` carry it. The framework glossary defines the three kinds: *mechanical* (a script could do it reliably; ships as code with tests), *judgment* (needs reading and a decision; ships as prose or a reviewed artifact), *operator* (belongs to the human; unattended completion is flagged).
+- **D-10.2 Review axis.** `reviewing-code/SKILL.md` spec axis gains: "A `kind: mechanical` task delivered as skill prose or instructions the model re-executes is a MEDIUM (Karpathy ladder); a `kind: operator` task completed unattended without a `decision:unblock` ticket or a DEC row is a MEDIUM." The bytes come from the `@skill-include trajectory_logging` block's duplicated sentence about log paths (the include already states it once in `trajectory_logging.md`); the implementer records the removed text in the sprint report and the lead confirms it is not load-bearing.
+- **D-10.3 Ratio.** `tools/cycle-ratio.sh --from <sha> --to <sha> [--sprint-plan grimoires/loa/sprint.md]` prints two lines with a stated mapping: `kinds: mechanical N · judgment N · operator N` (counted from the plan's task lines) and `volume: script lines changed N (*.sh *.py *.ts *.js) · prose bytes changed N (*.md) · model calls N (MODELINV rows between the two commits' timestamps) · scope: host · modelinv: <path>`; the model-call count is host-local and says so; the release-notes report template gains both lines and the glossary defines them.
+
+### 1.6 Floor statement
+`/review-sprint`, `/audit-sprint`, `verdict-derive.sh`, the LOA-VERDICT one-way rule, `adversarial-review-gate.sh`, the permission deny list, fence FR-1.2b, the FR-SZ and FR-SZ2 rules, and the FR-8 operator-only commands are not touched by any task in this cycle; `tests/unit/profile-floor.bats` and the unchanged corpus D-rows are the proof.
+
+> Sources: PRD FR-1 … FR-10, Appendix E; S:inv §A–§G; S:yield §5, §7; S:ow §2, §4, §7; `implement-gate.sh:5-12,61-71`; `run-mode/SKILL.md:131-160`; `block-destructive-bash.sh:333-415`; `openai_adapter.py:323-341`; `adversarial-review.sh:2397-2419,3427-3445,3927-3929`; `config.ts:135-139,384-392`; `main.ts:674`; `progress.ts:149`; `compare.sh:37-43`; `evals/fixtures/review-prs/manifests/pr-01.json`
+
+---
 
 ## 2. Software Stack
-| Component | Version | Use |
-|---|---|---|
-| GNU bash | 5.2 (`set -euo pipefail`; bash-4 constructs guarded per `shell-conventions.md`) | every script and hook |
-| jq | 1.7 | row assembly, equality checks, INDEX JSON, round blocks, harness events |
-| yq (Mike Farah) | v4.44; a new hard dependency for the ledger (writer preflight, `run-preflight.sh` P9, `INSTALLATION.md`; already a README prerequisite at `README.md:45`); optional for `grimoire-index.sh` | ledger read and append (`strenv`/`env` only) |
-| beads_rust `br` | 0.2.6 (`--type question`, `--parent`, `--labels`, `--external-ref`, `--slug`, `dep add`, `update --claim`, `update --external-ref`, `comments add`, `ready --parent --type`) | decision tickets; not required by the writer |
-| Lock | util-linux flock 2.41 when present, else a `mkdir` lock | writer lock |
-| Timeout | coreutils `timeout` 9.x, or `gtimeout`, else a bash wrapper | `red-test-check.sh`, `chart-unblock-probe.sh` |
-| bats-core | 1.x, plus the BSD PATH-shim twins (`*-bsd.bats`, as `validate-artifact-bsd.bats`) | unit suites |
+
+| Layer | Technology | Version pin | Why |
+|---|---|---|---|
+| Hooks, scripts, lints | Bash 3.2-compatible (no `${var,,}`, no `${var^^}`) | bash ≥ 3.2 | the `${rel,,}` fail-open on macOS is in the record |
+| Data | YAML (yq v4), JSON (jq 1.6+), TSV | yq 4.x, jq 1.6 | existing dependencies; `IN` builtin avoided |
+| cheval | Python 3 | 3.11 | existing adapter package with pytest |
+| Bridgebuilder | TypeScript, Node | Node 20, vitest | existing skill |
+| Tests | bats-core, pytest, vitest | existing | one suite per seam |
+| CI | GitHub Actions Shell Tests (~60 min), Prompt Budget | existing | the lints run there |
+
+> Sources: feedback_cross_runtime_parity_traps; S:yield §2; CHANGELOG F-002/F-012 (jq 1.6 `IN`)
+
+---
 
 ## 3. Database Design
 
-### 3.1 `grimoires/loa/decisions.yaml`
+### 3.1 `.claude/data/guard-origins.yaml` (tracked, hand-written)
 ```yaml
 schema_version: 1
-decisions:
-  - id: DEC-0004                        # ^DEC-[0-9]{4,}$, never reused       (immutable)
-    created_at: "2026-10-13T12:00:00Z"  # writer clock, UTC                  (immutable)
-    updated_at: "2026-10-14T09:00:00Z"
-    phase: discovery                    # discovery|architecture|sprint-planning|implementation|review|charting|spike|operations
-    category: scope
-    summary: "rounds is the thorough default"           # one line, <= 160 chars, plain prose
-    decision: "interview.pacing defaults to rounds in thorough mode"   # set at decide
-    rationale: "brief recommendation; supported opt-out"                # set at decide
-    alternatives_considered:                                           # set at decide, >= 1
-      - {option: "keep sequential default", rejected_because: "one question per turn is the slow path"}
-    consequences: {positive: ["fewer turns"], negative: ["a default changes"]}
-    proposed_by: agent                  # agent|flatline|dissent, derived (D-3.11)
-    decided_by: operator                # null until decided; set by /decisions confirm
-    decided_by_ref: "session:4f2a#turn-12"   # grammar D-3.11, interactive only
-    evidence_sha256: null               # flatline/dissent artifact hash
-    recorded_by: "plan-and-analyze/4f2a"
-    commit: 76e7650b                    # HEAD at creation
-    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf-unattended-planning (D1)"
-    cycle: cycle-128
-    supersedes: null
-    supersede_proposed_by: null
-    status: decided                     # open|proposed|decided|superseded|rejected
-    transitions:
-      - {at: "2026-10-13T12:00:00Z", from: null, to: proposed, by: "agent:plan-and-analyze", evidence: "prd.md Appendix E"}
-      - {at: "2026-10-14T09:00:00Z", from: proposed, to: decided, by: "operator:decisions-command", evidence: "session:4f2a#turn-12"}
-    rejection_rationale: null           # set at reject
-    follow_up: null                     # set at reject: bead id or NOTES anchor
-    prior_requests: []
+guards:
+  - id: fence:FR-1.2b
+    kind: fence
+    class: harness
+    status: active
+    origin: { kind: issue, ref: "#555" }
+    knob: none
+    floor: true
+    note: "stash push/pop with swallowed output; recurred cycle-122"
+  - id: hook:compliance/implement-gate.sh
+    kind: hook
+    class: harness
+    status: telemetry
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    origin: { kind: cycle, ref: "cycle-050 FR-7" }
+    knob: implement_gate.mode
+    floor: false
+  - id: hook:safety/team-role-guard.sh
+    kind: hook
+    class: harness
+    status: dormant
+    registrations: ["PreToolUse:Bash"]
+    origin: { kind: cycle, ref: "cycle-agent-teams" }
+    knob: LOA_TEAM_MEMBER
+    floor: false
 ```
-Rules (`validate_decisions`): known `schema_version`; unique `DEC-` ids and no `PEND-` id; identity and provenance fields present; enums enforced; `decided_by` null unless `decided|superseded`; `transitions` start with `null → open|proposed`, each `from` equals the previous `to`, the last `to` equals `status`, every step allowed (D-3.12), every `by` matches `^(operator|agent|flatline|dissent):[A-Za-z0-9_.-]+$`; every `→ decided` and every `decided → superseded|rejected` step has `by: operator:*`; `decided_by_ref` matches its grammar; `flatline`/`dissent` rows' artifact exists and hashes to `evidence_sha256`; `rejected` rows carry `rejection_rationale` and `follow_up`; `supersedes` names an existing `superseded` row; content unchanged against the base (D-3.8, D-3.13); D-3.17 rules on every free-text field; `pii-filter.sh`. Pending files use the same schema with `PEND-<8 hex>` ids.
+Invariants: `id` unique; `origin.ref` non-empty; `floor: true` set equals the PRD floor; `kind`, `class` and `status` enumerated; `dormant` rows name an env var in `knob`; hook rows list `registrations`.
 
-### 3.2 Beads conventions
-| Object | Type | Labels | Links |
-|---|---|---|---|
-| Map | `epic` | `map` (never `sprint:`) | parent of its tickets |
-| Decision ticket | `question` | exactly one `decision:grilling|prototype|research|unblock`; `deps:none` when unblocked; never `sprint:` | `--external-ref <DEC-id>`; `br dep add <ticket> <prerequisite>` |
-| Interview prototype | `question`, no parent | `decision:prototype` | `--external-ref <DEC-id>` |
-| Resolution | comment + close | n/a | `br comments add <id> "Proposed: … (DEC-NNNN)"`; `br close <id> --reason DEC-NNNN` |
+### 3.2 `grimoires/loa/guards.md` (tracked, generated, structural) and `.run/guard-yield.{md,json}` (untracked, host yield)
+Fields as D-1.4. The tracked file is a pure function of the repository and `--check` is its drift gate; the `.run` files carry the 30-day host yield and are regenerated on demand.
+
+### 3.3 `evals/fixtures/review-prs/pr-NN/fixture.yaml` and `labels.tsv`
+`fixture.yaml`: `sprint, base_commit, head_commit, fix_commit, record_branch, feedback_files[]`. `labels.tsv` columns: `defect_id, severity, category, file, must_match, source`; `source` is a `record/<branch>:<path>#<heading>` pointer. `corpus.tsv` gains the rows; `SHA256SUMS` covers every new file.
+
+### 3.4 Derived run state (`.run/sprint-plan-state.json`, `.run/circuit-breaker.json`)
+Same keys as `run-mode/resources/state-schemas.md` plus `derived_at`, `derivation.source`, `derivation.stale_markers[]`; `.state` canonical, `.status` mirror.
+
+### 3.5 `.claude/data/profiles.yaml`
+```yaml
+schema_version: 1
+profiles:
+  lean:     { known_failures.surface_at_session_start: false, decisions.surface_at_session_start: false, karpathy_principles.surgical_diff_warning: false, karpathy_principles.require_success_criteria: false, guardrails.input.enabled: false, guardrails.danger_level.enforce: false, invisible_retrospective.enabled: false, structured_handoff.enabled: false, soul_identity_doc.enabled: false, interview.pacing: rounds }
+  standard: { }   # today's defaults, expressed explicitly by the implementer
+  full:     { ...all true, interview.pacing: rounds }
+floor_keys_forbidden: [flatline_protocol.code_review.enabled, flatline_protocol.security_audit.enabled, "flatline_protocol.*.companion_voice", "destructive_command_guard.*", "implement_gate.*", hounfour.locality]
+```
+
+### 3.6 Catalog fields and MODELINV
+`model-config.yaml` entries: optional `open_weight: true`, `price_source`, `price_date`. MODELINV rows: `locality: hosted|local_voices`, `thinking_stripped: bool`. Dissent envelope: `advisory_voices[]` and per-finding `voice: advisory`, `counted_as: advisory_voice`.
+
+### 3.7 Audit rows written by this cycle
+Implement-gate telemetry rows (D-4.1) use the existing plain-hook log shape; nothing enters the signed `audit_emit` chain.
+
+> Sources: `.run/audit.jsonl` key shapes; `state-schemas.md` §circuit-breaker-schema; `evals/fixtures/review-prs/corpus.tsv`; `modelinv.py:514,600-601`
+
+---
 
 ## 4. UI Design
 
-### 4.1 A round (REFERENCE.md §Question Pacing)
-The frontier is every open question whose prerequisites are settled. A question that depends on another still open waits. Questions are numbered across the session, each worded so "yes" accepts the recommendation. Answers follow D-1.5. The frontier is recomputed before the next round. There is no cap on round size, and "wrap up" ends the phase.
+### 4.1 `/loa` lines
 ```
-Round 2 (Functional Requirements)
-
-❓ Q4: Ledger location
-Should the decision ledger live at grimoires/loa/decisions.yaml, tracked?
-➡ Recommended: yes (the spec and two readers already point there; decision-lineage.md:23)
-
-❓ Q5: Unattended record
-Should unattended runs write a DEC row for every decision they take for you?
-➡ Recommended: yes (makes "which did a human decide?" answerable)
-
-"yes" accepts both; answer by number to override one.
-<!-- round: 2; questions: [{"id":"Q4","depends_on":[]},{"id":"Q5","depends_on":["Q1"]}] -->
+Guards:  78 (0 without origin) · 30 d: 105 real blocks, 96 likely FP · scope host · regenerate: .claude/scripts/guard-yield.sh
+Profile: standard (explicit overrides: none)
+Run:     files say COMPLETE, cache said RUNNING (drift) → run-checkpoint.sh derive --write
 ```
 
-### 4.2 Map doc (`charting-decisions/resources/templates/map.md`)
-```
-# Map: {title}
+### 4.2 `guards.md` row
+`| fence:FR-1.2b | harness | issue #555 | none | yes | 0 | 0 | none in window |`
 
-**Slug**: {slug}
-**Status**: charting
-**Epic**: {bead-id}
-**Created**: {YYYY-MM-DD}
+### 4.3 Refusal and telemetry texts
+- Implement gate deny: `App Zone write with no active implementation run (derived position: COMPLETE); run /implement or /bug, or set implement_gate.mode: telemetry`.
+- Locality: `locality: local_voices refuses hosted hop gpt-5.5 (openai); declare a local provider or set hounfour.locality: hosted`.
+- Promotion: `advisory voice <alias> cannot be counted: hounfour.advisory_promotion is unset (or no arms report line for the alias)`.
+- Compare: `arms captured under different executor model ids (A: …, B: …); comparison refused`.
 
-## Destination
-{What is true when the effort is done, ≤ 3 sentences.}
+### 4.4 Sprint task line
+`- [ ] Task 1.1: Seed guard-origins.yaml for every registered hook and fence id → **[G-1]** ⇐ none · kind: mechanical`
 
-## Decisions so far
-- {Decision name} ({DEC-NNNN}, {bead-id}): {one line}
+> Sources: PRD §User Experience; `loa-status.sh:901-926` (Providers block as the pattern)
 
-## Not yet specified
-- {fog item}
-
-## Out of scope
-- {item}: {why}
-```
-The only other H2 allowed is a final `## Closed` (D-4.8).
-
-### 4.3 Session-start surface (inside the L6 fence)
-```
-[DECISIONS] 2 proposed, 1 open (grimoires/loa/decisions.yaml):
-- DEC-0007 proposed: rounds is the thorough default
-- DEC-0008 proposed: decided_by is derived by the writer
-- DEC-0031 open: Which transport measures the Opus ceiling
-[DECISIONS] map ceiling-arc open 41 days: /chart ceiling-arc, or /chart close ceiling-arc --reason <why>
-[DECISIONS] .run/unattended.json is stale (other session or older than 24 h): ignored; clear it with /decisions clear-unattended
-Confirm proposed rows with /decisions confirm.
-```
-More than 10 rows adds "… and K more: dec-write-lib.sh list --status proposed".
-
-### 4.4 Spike report (`grimoires/loa/spikes/TEMPLATE.md`)
-H1 `# Spike: {slug}`, header lines `**Bead**:`, `**Branch**: spike/{slug}`, `**Date**:`, then H2 `Question`, `What was built`, `Verdict` (one line), `Pointer` (branch and commit, or path), `Decided by` (`operator` or `agent`, plus the DEC id).
-
-### 4.5 Glossary
-```
-# Glossary: Loa framework
-The shared language of the Loa agent framework, for humans and agents.
-
-## Language
-
-**Dissent**: A second model's independent review of the same diff, triaged before a gate verdict.
-_Avoid_: second opinion, cross-check
-
-**Run mode**: Unattended execution of a sprint plan with a circuit breaker.
-_Aliases_: RUNNING, HALTED, JACKED_OUT
-```
-
-### 4.6 PR body section
-```
-### Decisions taken on your behalf
-| Decision | Voice | Status | Why | Source |
-|---|---|---|---|---|
-| rounds is the thorough default (DEC-0007) | agent | proposed | brief recommendation | prd.md Appendix E D1 |
-| ceiling route policy (DEC-0019) | flatline | proposed | BLOCKER override | .flatline/runs/…json |
-Confirm with /decisions confirm.
-```
+---
 
 ## 5. API Specifications
 
-### 5.1 `dec-write-lib.sh`
-| Op | Required | Optional | Effect | Caller |
-|---|---|---|---|---|
-| `new` | `--summary --phase --category --recorded-by --source` | `--status open\|proposed` (default `open`), `--decision --rationale --alternative-json` (repeatable; required for `proposed`), `--consequence-pos/-neg`, `--answer-ref`, `--as flatline\|dissent`, `--cycle`, `--pending` | appends a row; prints the id (`PEND-…` in a worktree) | skills, lead |
-| `decide` | `--id --decision --rationale --alternative-json --recorded-by` | `--answer-ref`, `--as`, `--consequence-pos/-neg` | `open` → `proposed` | skills, lead |
-| `confirm` | `--recorded-by` and `--id …` or `--cycle <c>` | `--all`, `--answer-ref` | `proposed` → `decided`; preview; refused on a live-run signal | `/decisions` only |
-| `reject` | `--id --rationale --follow-up --recorded-by` | `--prior-request` (repeatable) | `open\|proposed` → `rejected`; on a `decided` row, `/decisions` only | skills (open/proposed), `/decisions` |
-| `supersede` | `--id <old>` plus the `new` flags | none | operator: new row, old → `superseded`; agent: new `proposed` row, old gains `supersede_proposed_by` | `/decisions` for decided rows |
-| `import` | `--from <pending>` | `--rewrite <path>` (repeatable) | pending rows → `DEC-` ids; refs rewritten; pending file deleted | lead, main checkout |
-| `list` | none | `--status --voice --decided-by --cycle --since --source-prefix --format tsv\|md\|json` | read-only; unknown `schema_version` WARNs | anyone |
-| `context` | none | `--why`, `--set-unattended --reason R`, `--clear` | prints `unattended\|interactive`; `--clear` from `/decisions` only | anyone |
-Common: `--file PATH`, `--quiet`. Exit: 0 ok; 1 refused (preflight, CI or hook context on the live ledger, validation, verify, lock busy, unknown id, illegal transition, ref grammar, missing artifact, ambiguous `confirm --cycle`); 2 usage. Lock: `flock -w 10` when present, else `mkdir "$LOCK.d"` with a pid file, broken only when older than 60 s and its pid is not alive.
+### 5.1 `guard-yield.sh`
+`guard-yield.sh [--window-days 30] [--audit-log PATH] [--origins PATH] [--out grimoires/loa/guards.md] [--hooks-table] [--check] [--json]`. Exit 0 written or in sync; 1 drift (`--check`, with the regenerate hint); 5 a guard without origin or a hook command outside the canonical schema; 2 usage; 3 unreadable inputs (a missing audit log is a WARN and an empty yield, not an error).
 
-### 5.2 `red-test-check.sh`
-```
-red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>]
-                  [--no-link-deps] [--timeout <s>] [--json] -- <test command...>
-```
-1. Resolve both commits; red must be a strict ancestor of green (default HEAD), else exit 2.
-2. With `--test-file`, it must exist at red (`git cat-file -e <red>:<path>`), else exit 4.
-3. Install the cleanup trap, then `git worktree add --detach` both under `mktemp -d`.
-4. In each worktree, link the present dependency dirs (D-7.7), then run `--setup` if given (failure exits 2).
-5. Run the argv in each under the timeout (default 600 s); print the red output (last 80 lines) and keep both exit codes.
-6. Verdict: red fails by assertion and green passes → 0 `VERIFIED`; green fails → 1 `GREEN_FAILS`; red passes → 3 `DECOY`; red fails by a D-7.6 pattern → 4 `NOT_A_RED`; a run times out → 5 `TIMEOUT`. `--json` adds `{red, green, red_exit, green_exit, verdict, red_tail, green_tail, linked_deps}`. No non-test file changed between red and green → WARN.
+### 5.2 `run-checkpoint.sh` new verbs
+- `record-round --gate review|audit --file PATH [--sprint sprint-N] [--file-state F] [--breaker F]` → exit 0; prints `TRIPPED: <trigger>: <reason>` and exits 10 on a trip.
+- `derive [--json] [--write] [--root DIR]` → exit 0; `--json` prints the derivation; `--write` rewrites the caches; exit 4 when the ledger has no active cycle.
 
-### 5.3 `check-glossary-terms.sh`
-`tools/check-glossary-terms.sh [--kernel PATH] [--glossary PATH] [--allowlist PATH] [--json]`; defaults `.claude/loa/CLAUDE.loa.md`, `.claude/loa/GLOSSARY.md`, `.claude/data/glossary-allowlist.txt`. Exit 0 ok (WARN on stale allowlist entries), 1 a miss or an allowlist over 30 entries, 2 usage.
+### 5.3 `profile-lib.sh`
+`loa_profile` → `lean|standard|full`; `loa_knob <yq-path> <fallback>` → the effective value; `loa_profile_overrides` → `key=value` lines that differ from the profile.
 
-### 5.4 `check-round-independence.sh`
-`tools/check-round-independence.sh <transcript> [--min-average N] [--json]` (default N = 2). Extract each `<!-- round: N; questions: […] -->` and parse the array with `jq`. Fail when a non-reasked id repeats, a `depends_on` names a question of the same round, or names one not asked in an earlier round. `reasked` entries are skipped for uniqueness and the average. Report rounds, questions and the average per round, excluding the final round when there are two or more. Exit 0/1, 2 when no block is found.
+### 5.4 `evals/harness/run-arms.sh`, `seed-corpus-from-record.sh`, `report.sh --arms`
+As D-2.2 and D-2.3; `run-arms.sh` exits 0 when every arm completed its trials, 1 when any trial failed (results kept), 2 usage.
 
-### 5.5 Validator types and other contracts
-- `validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary --file <path> [--base-file <path>] [--json]`, exit 0/1/2. `prd` gains tag classes, the dated bare-tag rule and `**Deferred:**` (D-2.5); `sdd` the DEC column WARN (D-3.16); `sprint` the Seams date gate, the beads cross-check and the deferred-requirement WARN.
-- `/decisions confirm [--id …|--cycle <c> [--all]] | reject --id … | supersede --id … | list | clear-unattended`.
-- `golden_detect_plan_phase` → `discovery|charting|architecture|sprint_planning|complete`.
-- `create-sprint-task.sh` exits 1 on `type=question` or a `map` epic before creating anything.
-- `get-ready-work.sh [limit] [--ids-only] [--graph] [--include-questions]`.
-- `chart-unblock-probe.sh --ticket <id> [--timeout <s>] -- <cmd…>`, exit 0, or 1 when the main tree changed.
-- `run-mode-ice.sh is-spike <branch>`; `merge [<source>]` per D-5.3; `pr-create` exits 1 on a `spike/*` head.
-- `run-preflight.sh` P9: Mike Farah yq v4 present, FAIL otherwise.
-- Config: `interview.pacing: sequential|batch|rounds`; `interview.unattended_prototype: defer|halt`; `decisions.surface_at_session_start: false`; `decisions.unattended_marker_ttl_hours: 24`.
+### 5.5 `tools/cycle-ratio.sh`
+`cycle-ratio.sh --from SHA --to SHA [--json]` → the three counts and the ratio line.
+
+### 5.6 Config keys added
+`implement_gate.mode`, `implement_gate.claims`, `loa.profile`, `hounfour.locality`, `hounfour.advisory_promotion.{min_recall_ratio,max_refuted_delta}`, `hounfour.providers.<p>.allow_insecure_endpoint` (host string), `hounfour.providers.<p>.keyless`, `flatline_protocol.{code_review,security_audit}.advisory_voices`, `run_mode.stale_hours`, `run_mode.file_authoritative`, `destructive_command_guard.heredoc_classifier`; env `LOA_IMPLEMENT_GATE_OVERRIDE`; catalog `open_weight`, `price_source`, `price_date`. Rollback keys (DEC-0158): `implement_gate.mode: ask`, `destructive_command_guard.heredoc_classifier: false`, `run_mode.file_authoritative: false`, `hounfour.locality: hosted`, `loa.profile: standard`.
+
+### 5.7 Validator contracts
+`--type sprint`: `kind:` required from 2026-10-14. `--type prd`, `--type sdd`: unchanged.
+
+> Sources: `run-checkpoint.sh` usage; `compare.sh:29-43`; PRD FR-1, FR-4(f), FR-5, FR-9, FR-10
+
+---
 
 ## 6. Error Handling Strategy
-| Surface | Posture | Behaviour |
-|---|---|---|
-| `dec-write-lib.sh` writes | fail closed | preflight miss, live-ledger write under `CI`/`GITHUB_ACTIONS`/`LOA_HOOK_CONTEXT`, lock wait over 10 s, ref or attribution refusal, any verify failure: exit 1, temp deleted, original untouched |
-| Live ledger writers | single writer (D-3.18) | only the lead's main checkout writes; a linked worktree writes the pending file; `import` allocates ids; a duplicate or `PEND-` id fails `--type decisions` |
-| Operator-only ops | `/decisions` only | `confirm`, decided-row `reject`/`supersede`, `context --clear` are absent from every skill's `allowed-tools` (bats-checked) |
-| `dec-write-lib.sh list`, `context` | read-only | unparsable ledger: exit 1; unknown `schema_version`: one WARN |
-| `loa-decisions-surface.sh` | fail open | disabled silent; broken or unknown schema: one WARNING line; stale marker: one notice; always exit 0; `hook-guard.sh` |
-| `grimoire-index.sh` decisions family | fail soft | no yq or unparsable ledger: skipped with a stderr note |
-| `/chart` unattended | refuse | message names the interactive path; nothing written; close only with `--consumed-by` |
-| `/plan` or `/plan-and-analyze` with several open maps, unattended | exit 1 | "more than one open map: name one" plus the slugs; nothing written |
-| Research subagents | bounded | ≤ 5 per chart; `maxTurns: 40`; 20 min advisory; out-of-scope writes fail the ticket |
-| `create-sprint-task.sh` lint | fail closed | exit 1 with repair text before `br create` |
-| `validate-artifact.sh` | fail closed | 0 pass, 1 violations with repair text, 2 usage; beads cross-checks skipped with an info line without `br` |
-| `red-test-check.sh`, `chart-unblock-probe.sh` | verdict codes | 0/1/2/3/4/5 (§5.2); worktrees removed by the EXIT/INT/TERM trap on every path |
-| `harness-hidden-command.bats` | skip, never pass | every outcome defined in D-8.4 |
-| `check-glossary-terms.sh`, `check-round-independence.sh` | fail closed in CI and bats | exit 1 lists each miss |
-| ICE spike rules, SP-1, the spike-delete predicate | fail closed | exit 1 (ICE) or 2 (fence); an unestablished predicate keeps the block |
+
+| Situation | Behaviour |
+|---|---|
+| Audit log missing or unparseable rows | WARN, skip bad rows, count them in the header; never crash |
+| Origin map missing | `guard-yield.sh` exits 3 naming the path; the lint fails |
+| Derivation inputs missing (no ledger, no a2a dir) | `derive` exits 4 with a named reason; callers keep the cache |
+| `verdict-derive.sh` non-zero on a feedback file | the round counts as findings (today's rule); the derivation marks the sprint incomplete |
+| Fence classifier cannot parse a heredoc | fall back to scanning the whole body (today's behaviour): fail-closed |
+| Local server unreachable | typed cheval error; an advisory voice failure never changes the verdict; a local *primary* unreachable under `local_voices` fails the hop like any primary and the existing verdict-quality rules decide FAILED or DEGRADED |
+| Local server rejects `response_format` (HTTP 400 naming it) | one retry without the schema, `schema_enforced: false` and `schema_rejected_by_server: true` recorded; the tolerant parser and repair loop apply as for any unenforced voice |
+| Feedback file without a LOA-VERDICT trailer in `derive` | legacy: no verdict, the sprint stays incomplete, the file is named in `derivation.legacy_feedback` |
+| Hook command outside the canonical schema | `guard-yield.sh` exit 5 naming the command; the lint fails |
+| Hosted hop under `local_voices` | refused at plan time with the named reason; never silently rerouted |
+| Profile key for a floor surface | schema test fails; `profile-lib.sh` ignores it with a WARN |
+| Arm run incomplete | D-2.4 fallback; the report names the missing arm |
+| Bridgebuilder DEGRADED | exit 3; callers surface it |
+
+> Sources: PRD NFR Reliability; S:ow §4 (typed aborts); `implement-gate.sh` fail-ask contract
+
+---
 
 ## 7. Testing Strategy
-Red first for every behaviour.
 
-| Suite | Cases |
-|---|---|
-| `dec-write-lib.bats` (mirrors `kf-write-lib.bats`, always `--file <copy>`) | next id; never shrinks; never drops an id; held lock makes a second writer exit 1; failed write leaves the file intact; missing `jq` or a non-v4 `yq` fails closed, missing `br` does not; live-ledger write refused under `CI=1` and `LOA_HOOK_CONTEXT=1`; every write lands `open`/`proposed` and `decided_by` stays null; `--answer-ref` ignored with a WARN under a RUNNING marker, a fresh `.run/unattended.json`, `LOA_UNATTENDED=1` and the PRD Status line; a stale marker is ignored; ref grammar refusal; `--as flatline` refused for a missing artifact and stores `evidence_sha256`; `confirm` sets `operator` for an operator ref and refuses on a live-run signal; `confirm --cycle` with two matches refuses without `--all`; agent `supersede` of a decided row sets `supersede_proposed_by`; `reject` without `--follow-up` refused and records `rejection_rationale`; content edits refused while a transition append is accepted; linked worktree writes `PEND-` rows to the pending file; `import` allocates ids, rewrites refs and deletes the file; duplicate id fails validation; the D-3.3 fixture set round-trips byte-equal against the sanitised input; 1,000-row op < 1 s; `list --format md --voice --cycle` output |
-| `dec-write-lib-bsd.bats`, `red-test-check-bsd.bats` | PATH shims hide `flock` and `timeout` and force POSIX regex: the `mkdir` lock serialises two writers and breaks a stale lock; the bash timeout wrapper yields exit 5 |
-| `decisions-surface.bats` | disabled silent; healthy table with proposed first; stale map line; stale-marker notice; unknown schema WARN; negative case: ESC sequences, a NUL, `</untrusted-content>` and "ignore previous instructions" text come out control-stripped, capped at 100 chars, inside the L6 fence with the closing tag neutralised |
-| `round-independence.bats` | independent fixture passes at the default minimum; a final one-question round does not lower the average; `reasked` entries are ignored; a same-round `depends_on` fails; an unknown or later dependency fails; no block → exit 2 |
-| `unattended-prototype.bats` | `defer`: bead, open row and the PRD `**Deferred:**` line, planning continues; `halt`: same bead and row, planning stops |
-| `harness-hidden-command.bats` | D-8.4 outcomes |
-| `user-invoked-commands.bats` | the D-8.3 assertions, including `/decisions` flagged and no skill granting operator-only ops |
-| `charting-lint.bats` | `create-sprint-task.sh` refuses `question` and `map` epics (stub `br` proves `create` never ran); `get-ready-work.sh` drops `question` and keeps every other type present; implement path calls `get-ready-work.sh`; sprint cross-check; `--type map` passes the template, fails on an extra H2, a URL, a bullet without a DEC id, WARNs on a Status/epic disagreement; fixture chart under `br --dry-run` creates epic, children, labels, edges and open rows in order; re-run idempotent by `source`; refusal with `LOA_UNATTENDED=1`; unattended close without `--consumed-by` refused; close flow; ≤ 5 research dispatches; scope check catches a write under `.beads/`; `chart-unblock-probe.sh` exits 1 when a probe touches the main tree |
-| `golden-path-charting.bats` | Status `charting`, no PRD → `charting`; none → `discovery`; `handed-off`, `closed` or `abandoned` → `discovery`; PRD plus open map → `architecture`; two open maps or two `chart-*.md` snapshots under `LOA_UNATTENDED=1` → exit 1 "more than one open map: name one", nothing written |
-| `spike-validator.bats`, `run-mode-ice.bats`, fence corpus | template passes, empty Verdict fails; `is-spike`; `merge` without a source unchanged; `merge main` on `spike/x` allowed, `merge spike/x` refused, `merge main` on a feature branch blocked, spike `pr-create` refused; corpus: `git push -u origin spike/x`, `git checkout spike/x`, `git merge main`, `git rebase main` allow; `git merge spike/x`, `git rebase origin/spike/x`, `git pull origin spike/x`, `git cherry-pick spike/x~1`, `git checkout spike/x -- src/a.ts`, `git restore --source spike/x src/a.ts`, `gh pr create --head spike/x` block; `git branch -D spike/x` blocked without a decided row, allowed with one |
-| `glossary-terms.bats` | live pair passes; undefined token named; alias and plural resolve; allowlist over 30 fails; stale allowlist WARN; `--type glossary` fails a three-sentence definition and a duplicate alias |
-| `red-test-check.bats` | `--red … -- cmd` VERIFIED → 0 with red output printed; decoy → 3; test file absent → 4; bats syntax error and pytest collection error at red → 4; non-fix → 1; non-ancestor → 2; a test importing a fixture `node_modules` dependency passes through the default link and is not-a-red under `--no-link-deps`; `--setup` runs in both worktrees; a sleeping test → 5; after every case, including an interrupted run, `git worktree list` shows only the main tree |
-| `validate-artifact.bats` additions | `decisions` (live file, duplicate id, `PEND-` id, missing operator transition, content edit, rejected without follow-up, bad ref grammar, hash mismatch, unknown schema); `prd` fixtures: tag classes, bare WARN before and FAIL after `BARE_ASSUMPTION_FAILS_FROM`, an unattended PRD with N `[ASSUMPTION decision]` tags each citing its row, an uncited tag failing unattended and WARNing interactive, `**Deferred:**` recognised; `sprint`: Seams date gate, deferred-requirement WARN; `sdd` DEC column WARN |
-| `grimoire-index` additions | `emit_decisions()` rows and the `## decisions` table from a two-row fixture; the same fixture through `loa-learnings-index.sh` and `get_decisions_path` |
-| `render-templates` check | the PR-body step renders the §4.6 table from a fixture ledger, and the zero-row line from an empty one |
+| Seam | Test | Catches | Misses |
+|---|---|---|---|
+| `guard-yield.sh` over a fixture audit log + fixture origins | `tests/unit/guard-yield.bats` | replay exclusion, FP heuristic, header counts, drift `--check` | the heuristic's false negatives |
+| settings.json ↔ origin map | `tests/unit/guard-origins.bats` | a hook or fence id without origin | validator rules not listed |
+| `execute-agent.sh` arm toggles on a sandbox tree | `evals/tests/arm-toggles.bats` | a toggle that leaves text or config behind | prompt caching effects |
+| `seed-corpus-from-record.sh` on a fixture record tree | `evals/tests/seed-corpus.bats` | malformed labels, secrets, missing commits | label quality |
+| `compare.sh --ab` with skewed model ids | existing `recall-baseline-freshness.bats` + new case | cross-model comparison | — |
+| implement gate modes | `tests/unit/implement-gate.bats` | deny/telemetry/ask outputs, trust-input ask, cache read | the live harness contract |
+| skill lint | `tests/unit/skill-capabilities.bats` | pure-review skill without the strip | — |
+| surgical-diff per task | `tests/unit/karpathy-surgical-diff.bats` | reset on task change, summary file, bounded dir | — |
+| kernel generation without C-TEAM | `tests/unit/lint-invariants.bats` | table still emitted | — |
+| breaker in script | `tests/unit/run-checkpoint-record-round.bats` | counts, hash reset, trip, HALTED | — |
+| derivation | `tests/unit/run-checkpoint-derive.bats` | drift resolution, stale marker, terminal states | a forged trailer with a matching sprint id |
+| fence corpus | `tests/fixtures/fence-corpus/run-corpus.sh` | every D-row still blocks; new B-rows allow; latency | commands outside the corpus |
+| chat schema, think strip | `tests/test_openai_chat_schema.py`, `test_openai_thinking_strip.py` | body without `response_format`, `schema_enforced` lie, `<think>` leakage | server-side schema behaviour |
+| example configs load | `tests/test_config_examples_load.py` | the Azure defect class | — |
+| insecure endpoint opt-in | `tests/test_endpoint_validator_optin.py` | opt-in leaking to other providers | — |
+| advisory accounting | `tests/unit/adversarial-review-advisory.bats` (mock mode) | envelope changed by an advisory voice; missing tags | real-model behaviour |
+| budget gate pricing | `tests/unit/adversarial-review-budget.bats` | fixed-rate fallback not logged; unknown price | — |
+| locality | `tests/unit/adversarial-review-locality.bats`, `flatline-locality.bats`, vitest for `config.ts` | hosted hop planned; repair chain leaving | — |
+| catalog provenance | `tests/test_catalog_pricing_provenance.py` | open-weight price without source/date | — |
+| Bridgebuilder banner/exit | `__tests__/progress.test.ts`, `main` exit test | configured-vs-completed count; exit 0 on DEGRADED | — |
+| profiles | `tests/unit/profile-lib.bats`, `profile-floor.bats` | floor key, override precedence, standard ≠ today | — |
+| sprint kinds | `tests/unit/validate-artifact-sprint-kinds.bats` | untagged task on a dated plan | — |
+| cycle ratio | `tests/unit/cycle-ratio.bats` | counts on a fixture repo | — |
 
-**Rounds fixture** (G-3): a scripted headless transcript on a fixture context in `rounds` mode is checked by `check-round-independence.sh` in bats; turns against a `sequential` run of the same fixture are recorded in `grimoires/loa/a2a/sprint-252/rounds-rubric.md`.
+Pre-PR checks: `check-no-raw-sha256sum.sh`, the shell-compat greps, `sync-fixtures.sh --check`, `check-prompt-budget.sh`, `guard-yield.sh --check`, `repo-map-gen.sh`.
 
-Regression suites that stay green: `prompt-budget.bats`, `skill-capabilities.bats`, `skill-capabilities-role-lint.bats`, `no-history-in-rule-text.bats`, `implement-gate.bats`, `verdict-derive.bats`, `validate-artifact.bats`, `validate-artifact-bsd.bats`, `kf-write-lib.bats`, `run-mode-ice.bats`, `block-destructive-bash.bats` (baseline unchanged except new rows), `tests/integration/test_golden_path.bats`. Before the PR: `check-no-raw-sha256sum.sh`, the shell-compat greps, `repo-map-gen.sh` with `REPO-MAP.md`, `.checksum` and `checksums.json` staged together.
+> Sources: PRD AC-1 … AC-10; feedback: pipe-masked bats runs (capture then validate)
+
+---
 
 ## 8. Development Phases
 
-### Sprint 1 (global 252): ledger, rounds, attribution, operator-only commands
-1. FR-8 live-harness check, before any flag lands: `harness-hidden-command.bats`, run once by the lead with `LOA_LIVE_HARNESS=1` (D-8.4).
-2. FR-3 writer: `dec-write-lib.sh` with context, preflight, portable lock, attribution, lifecycle, pending/import, append-only verify, the YAML fixture set, and its bats and BSD twin (D-3.3–D-3.5, D-3.11–D-3.14, D-3.18). Implementers use `--file` fixtures only.
-3. FR-3 surfaces: ledger file and tracking, `/decisions`, `--type decisions`, index family, session surface, `hook-guard.sh` export, `run-preflight.sh` P9, settings and config, `INSTALLATION.md`, readers check, SDD DEC-column WARN (D-3.1, D-3.6–D-3.10, D-3.12, D-3.16, D-3.17).
-4. FR-1: table moves, §Question Pacing, pointer, key scope, answer semantics, round block, `check-round-independence.sh`, config example, Phase 2 lines (D-1.1–D-1.7); budget check.
-5. FR-2: Backpressure with tag classes, Karpathy §1, prime directive, PR-body section, PRD and sprint validator rules, debrief rows, template appendices (D-2.1–D-2.7).
-6. Seed the live ledger, written by the lead at sprint close and before the PRD gate first runs on this cycle's PRD: cycle-127 D1–D3, cycle-128 D1–D16 and A1–A41, all `proposed` (D-3.15).
-7. Rounds fixture transcript and rubric (§7).
-8. FR-8: flags on the safe set and `/decisions`, the conditional `loa-setup` skill flag, triage table, allowlist, bats; triage DEC rows written by the lead at sprint close (D-8.1–D-8.3, D-8.5).
+### Sprint 1 (global 255): measure
+FR-1 (origin map seeded, `guard-yield.sh`, `guards.md`, hooks-reference table, lint, `/loa` line); FR-2 (arms declared, toggles, corpus seeding script and eight fixtures, report, `run-arms.sh` started detached at sprint end); FR-10 (validator, template, review axis, `cycle-ratio.sh`; this plan tagged); FR-3 path-scoping; doc fixes (workflow comment, `implementing-tasks/SKILL.md:28`); KF-041 upstream issue filed and recorded; CHANGELOG.
 
-### Sprint 2 (global 253): `/chart`, prototypes, spikes
-1. Build-path exclusion lints with bats (D-4.7).
-2. `chart.md`, `charting-decisions`, map template, `chart-researcher`, `chart-unblock-probe.sh` (D-4.1–D-4.4, D-4.10–D-4.12); capabilities lint; budget.
-3. Lifecycle: hand-off snapshot, close, `plan-and-analyze.md` steps, golden path, `plan.md` rules (D-4.5, D-4.6).
-4. Map validator and research negation (D-4.8, D-4.9).
-5. FR-5: interview rule, unattended deferral key, ICE direction, SP-1 and the spike-delete predicate with corpus rows, spike template and validator, verdict row on the working branch, High-Risk Early text (D-5.1–D-5.9).
-6. Fixture map walked end to end under `br --dry-run`; one-cycle idea stops without beads.
+### Sprint 2 (global 256): thin and repair
+FR-5 derivation first (Task 2.10), then FR-4 (a)–(f) with this repository kept on `ask`; FR-6 classifier and corpus rows; FR-9 profiles, lib, readers, floor test, `/loa` line; FR-3 kernel rows and cap as the last task (reading `STATUS.json`, with the D-2.4 fallback); `implement_gate.mode` documented; apply-time smoke runs; CHANGELOG.
 
-### Sprint 3 (global 254): glossaries, seams, red test, E2E
-1. `.claude/loa/GLOSSARY.md`, root `GLOSSARY.md`, allowlist, `check-glossary-terms.sh`, CI with controls, `--type glossary` (D-6.1–D-6.4).
-2. Planning-skill glossary rules and the review checklist row (D-6.5).
-3. Seams block, dated validator rule, this cycle's `sprint.md` blocks (D-7.1, D-7.2).
-4. `red-test-check.sh` with the `--red … --` CLI, dependency links, timeout, not-a-red detection and its BSD twin; micro-sprint two commits; review Phase 2 line (D-7.3–D-7.7).
-5. E2E: an unattended planning fixture writes `proposed` agent rows, the PRD validator passes its cited tags, the PR-body section renders them, `/decisions confirm` moves them to `decided`; a worktree writes a pending row and `import` lands it; a fixture chart from idea to `## Closed`; a spike report and verdict row on the working branch; the glossary drift check green; every regression suite green; CHANGELOG `[Unreleased]` entries.
+### Sprint 3 (global 257): open voices
+FR-7 (loader examples, insecure-endpoint opt-in, chat schema and thinking strip, advisory voices, Bridgebuilder key map and probe, catalog provenance and budget gate); FR-8 locality; Bridgebuilder banner and exit; the release-notes ratio line; E2E goal validation (G-1 … G-9); docs; CHANGELOG.
+
+> Sources: PRD §Timeline; DEC-0135
+
+---
 
 ## 9. Known Risks and Mitigation
+
 | Risk | Mitigation |
 |---|---|
-| Attribution is forgeable: an agent with Bash can run the writer directly, edit `.run/`, or invent a ref | honest limit: attribution is tamper-evident (`evidence_sha256`, `commit`, append-only transitions, ref grammar, review of the diff), not cryptographically signed; operator ops live only in `/decisions` and no skill grants them; signing rows through the existing `audit_emit_signed` chain (`audit-envelope.sh:551`) is a future iteration |
-| Parallel writers collide on ids or produce unmergeable YAML | single writer plus pending file and `import` (D-3.18); duplicate and `PEND-` ids fail validation |
-| Budgets: `discovering-requirements` margin ≈ 150 B, `planning-sprints` starts at 14 B | moves land first in their own commit; measure after each edit; named fallback cuts per skill (§1.4) |
-| yq v4 is now required for the ledger | preflight with repair text, `run-preflight.sh` P9, `INSTALLATION.md`; the index and surface degrade without it |
-| Portability (macOS has no `flock` or `timeout`) | `mkdir` lock and bash timeout fallbacks; BSD shim twins |
-| Old sprint plans break under the Seams rule | dated gate (D-7.2); a bats case pins archived and undated plans |
-| `br ready` lists `question` beads to `/implement` | exclusion in `get-ready-work.sh`, the implement path routed through it, the creation lint, the sprint cross-check |
-| yq round-trip reformats the ledger | verification is by row equality, not lines; a bats case pins comment survival |
-| `br` flag semantics drift (`--external-ref`, `--parent`, `ready --type`) | `br` 0.2.6 pinned; charting-lint runs the real binary in `--dry-run` and a stub |
-| SessionStart ordering hides the KF surface | synchronous, after the KF hook, `once: true`, `hook-guard.sh`, default off |
-| The ICE merge exception widens ICE | optional argument, one direction only; bats pin the refusals and the unchanged default |
-| `/chart` adds ceremony; `decision:unblock` drifts into build work | interactive only, no-fog stop, under-three close, one ticket per session; unblock only through the probe helper |
-| Glossary rots | CI drift check with controls; allowlist cap of 30 |
-| `disable-model-invocation` on a command an orchestrator needs | triage by reference class (D-8.2); bats assert no operative reference |
-| Flatline cross-scoring degraded (KF-041) | integrate raw reviews by judgment; record the degradation |
+| The arm run does not finish inside the cycle | D-2.4: ship path-scoping and pointers; defer deletions with a named bead |
+| The derivation disagrees with a live run | it runs at checkpoints only; never moves a terminal state to RUNNING; readers keep the cache shape |
+| The fence classifier opens a hole | corpus D-rows pin interpreter forms; the two-step form is fenced at the second command; p95 budget |
+| Profiles reach the floor by a key the test does not list | the forbidden-key list is in the data file and the test checks the file, not the code |
+| Advisory voices cost tokens for no verdict | opt-in list, empty by default; findings still reach the reviewer |
+| `exit 3` from Bridgebuilder breaks a caller | both callers updated in the same task; a vitest case per caller path |
+| Guard code generates review load (E2) | tighten-only; one bats per item; three dissent runs at most |
+| Kernel diet breaks the prompt-budget CI on the way down | cap lowered in the same commit as the diet |
+
+> Sources: PRD §Risks; S:yield E2, §4
+
+---
 
 ## 10. Open Questions
-There are no open questions. Every question raised by the PRD and this design is resolved; each resolution becomes a ledger row in Sprint 1 task 1.6.
+Every question raised by the PRD is resolved; the design-level resolutions below are DEC rows.
 
 | # | Question | Status | Resolved by | DEC |
 |---|---|---|---|---|
-| 1 | Default pacing for `thorough` | Resolved | D1, D-1.1 | DEC-0001 |
-| 2 | Ledger location and tracking | Resolved | D2, D-3.1 | DEC-0002 |
-| 3 | `/chart` as porcelain or truename | Resolved | D3, D-4.1 | DEC-0003 |
-| 4 | Research tickets via cheval or the Agent tool | Resolved | D4, D-4.10 | DEC-0004 |
-| 5 | Name of Pocock's `task` type | Resolved | D5, §3.2 | DEC-0005 |
-| 6 | Spike branch lifecycle | Resolved | D6, D-5.2–D-5.4, D-5.9 | DEC-0006 |
-| 7 | Glossary location | Resolved | D7 amended by D10, D-6.1 | DEC-0007, DEC-0010 |
-| 8 | Which commands get the flag | Resolved | D8, D-8.1–D-8.2 | DEC-0008 |
-| 9 | B7 and LEARN items | Resolved (out of scope) | D9 | DEC-0009 |
-| 10 | Unattended prototype questions | Resolved | D11, D-5.8 | DEC-0011 |
-| 11 | `/chart` unattended | Resolved | D12, D-4.3 step 0 | DEC-0012 |
-| 12 | Confirmation of agent decisions | Resolved | D13, D-3.12 | DEC-0013 |
-| 13 | Who sets `decided_by` | Resolved | D14, D-3.11, D-3.12 | DEC-0014 |
-| 14 | Row mutability | Resolved | D15, D-3.13 | DEC-0015 |
-| 15 | Backfill scope | Resolved | D16, D-3.15 | DEC-0016 |
-| 16 | How `charting` is detected | Resolved | D-4.6 (A5) | DEC-0025 |
-| 17 | How old sprint plans survive the Seams rule | Resolved | D-7.2 (A10) | DEC-0030 |
-| 18 | Whether the flag hides commands | Resolved by a first-task check | D-8.4 | DEC-0049 |
-| 19 | Parallel writers and merges | Resolved | D-3.18 (A33) | DEC-0053 |
-| 20 | Where operator attribution comes from | Resolved | D-3.12 (A31) | DEC-0051 |
+| 1 | Implement gate deny or telemetry | Resolved | D2, D-4.1 | DEC-0126 |
+| 2 | Promotion threshold | Resolved | D3, D-7.4 | DEC-0127 |
+| 3 | `lean` default | Resolved | D4, D-9.1 | DEC-0128 |
+| 4 | Path-scoping key | Resolved | D5, D-3.1 | DEC-0129 |
+| 5 | Fleet logs | Resolved (later) | D6, D-1.3 | DEC-0130 |
+| 6 | First hosted open-weight price | Resolved (none) | D7, D-7.6 | DEC-0131 |
+| 7 | How the arms run inside the cycle | Resolved | D-2.3, D-2.4 (A1) | DEC-0149 |
+| 8 | Bridgebuilder exit code on DEGRADED | Resolved | D-7.7 (A2) | DEC-0150 |
+| 9 | How the gate reads run position | Resolved | D-4.1, D-5.3 (A3) | DEC-0151 |
+| 10 | Where profile defaults live | Resolved | D-9.1 (A4) | DEC-0152 |
+| 11 | How advisory voices are declared | Resolved | D-7.4 (A5) | DEC-0155 |
+| 12 | Corpus provenance | Resolved | D-2.2 (A6) | DEC-0153 |
+| 13 | `kind:` syntax and date | Resolved | D-10.1 (A7) | DEC-0144 (the date, PRD D20), DEC-0154 (the line syntax, A7) |
+| 14 | Where advisory findings live | Resolved | D-7.4 (A8) | DEC-0165 |
+| 15 | One floor source | Resolved | D-9.2 (A9) | DEC-0166 |
+| 16 | How replay rows are marked | Resolved | D-1.3 (A10) | DEC-0167 |
+| 17 | Arm executor model | Resolved | D-2.3 (D33) | DEC-0164 |
+
+> Sources: PRD Appendix E; decisions.yaml DEC-0125 … DEC-0155
+
+---
 
 ## 11. Appendix
 
 ### 11.1 File inventory
-Per-FR paths are in §1.3.
-
-| Kind | Count | Items |
-|---|---|---|
-| New files and fixture dirs | 22 | round checker, rounds fixtures, writer, `/decisions`, surface hook, ledger, `/chart`, charting skill with REFERENCE and template (3), researcher agent, probe helper, spike template, two glossaries, glossary checker, allowlist, workflow, glossary fixtures (2), red-test check, command allowlist |
-| New bats suites | 13 | round-independence, dec-write-lib, dec-write-lib-bsd, decisions-surface, charting-lint, golden-path-charting, spike-validator, unattended-prototype, glossary-terms, red-test-check, red-test-check-bsd, user-invoked-commands, harness-hidden-command |
-| Modified scripts and hooks | 10 | validate-gitignore-state, grimoire-index, validate-artifact, golden-path, create-sprint-task, get-ready-work, run-mode-ice, block-destructive-bash, hook-guard, run-preflight |
-| Modified config and data | 5 | `.gitignore`, config example, `settings.json`, `agent-types.yaml`, `INSTALLATION.md` |
-| Modified protocol and render docs | 2 | karpathy-principles, render-templates |
-| Modified SKILL.md | 7 | discovering-requirements, designing-architecture, planning-sprints, autonomous-agent, reviewing-code, riding-codebase, implementing-tasks (plus `loa-setup` only if D-8.1's condition holds) |
-| Modified REFERENCE.md | 3 | discovering-requirements, planning-sprints, reviewing-code |
-| Modified templates | 4 | prd-template, sdd-template, sprint-template, micro-sprint |
-| Modified command files | 7 | plan, plan-and-analyze, implement, loa-eject, toggle-gpt-review, permission-audit, loa-setup |
-| Modified fixtures and suites | 3 | fence corpus, `validate-artifact.bats`, `run-mode-ice.bats` |
-
-Totals: 35 new, 41 modified, plus the triaged commands that qualify in Sprint 1.
+See §1.3. New files: `guard-origins.yaml`, `guard-yield.sh`, `guards.md`, `guard-origins.bats`, `guard-yield.bats`, `profiles.yaml`, `profile-lib.sh`, `profile-lib.bats`, `profile-floor.bats`, `seed-corpus-from-record.sh`, `run-arms.sh`, eight fixtures, `arm-toggles.bats`, `seed-corpus.bats`, `run-checkpoint-record-round.bats`, `run-checkpoint-derive.bats`, `karpathy-surgical-diff.bats`, `adversarial-review-advisory.bats`, `adversarial-review-budget.bats`, `adversarial-review-locality.bats`, `flatline-locality.bats`, `test_openai_chat_schema.py`, `test_openai_thinking_strip.py`, `test_config_examples_load.py`, `test_endpoint_validator_optin.py`, `test_catalog_pricing_provenance.py`, `validate-artifact-sprint-kinds.bats`, `cycle-ratio.sh`, `cycle-ratio.bats`, `.claude/protocols/process-compliance.md`.
 
 ### 11.2 PRD → SDD map
-| FR | SDD |
+
+| PRD | SDD |
 |---|---|
-| FR-1 | D-1.1–D-1.7, §4.1, §5.4 |
-| FR-2 | D-2.1–D-2.7, §4.6 |
-| FR-3 | D-3.1–D-3.18, §3.1, §4.3, §5.1 |
-| FR-4 | D-4.1–D-4.12, §3.2, §4.2 |
-| FR-5 | D-5.1–D-5.9, §4.4 |
-| FR-6 | D-6.1–D-6.5, §4.5, §5.3 |
-| FR-7 | D-7.1–D-7.7, §5.2 |
-| FR-8 | D-8.1–D-8.5 |
-| NFR Security | D-3.7, D-3.11, D-3.12, D-3.17, D-4.10, §9 attribution limit |
+| FR-1 | D-1.1 … D-1.6, §3.1, §3.2, §5.1 |
+| FR-2 | D-2.1 … D-2.4, §3.3, §5.4 |
+| FR-3 | D-3.1 … D-3.3, §1.4 |
+| FR-4 | D-4.1 … D-4.6, §5.2 |
+| FR-5 | D-5.1 … D-5.4, §3.4 |
+| FR-6 | D-6.1, D-6.2 |
+| FR-7 | D-7.1 … D-7.7, §3.6 |
+| FR-8 | D-8.1, D-8.2 |
+| FR-9 | D-9.1 … D-9.3, §3.5, §5.3 |
+| FR-10 | D-10.1 … D-10.3, §5.5 |
 
-### 11.3 Decisions taken on the operator's behalf (this SDD, `decided_by: agent`)
-Seeded as `proposed` rows in Sprint 1 task 1.6. Honest limit, restated: these rows and every ledger row are tamper-evident, not signed (§9).
+### 11.3 Decisions taken on the operator's behalf (this SDD, `proposed` rows)
 
-| # | Decision | Alternatives | Why |
-|---|---|---|---|
-| A1 | Ledger lock fails closed after 10 s | best-effort lock (kf-write) | a lost update on a tracked ledger is worse than a retry |
-| A2 | Temp file beside the target | `/tmp` | a cross-filesystem `mv` is not atomic |
-| A3 | Verify by row equality plus field classes | line and id checks only | YAML re-serialisation moves lines |
-| A4 | Optional `cycle` field, defaulted from run state | filter by timestamp only | a run spans days; `--since` is kept as the PRD's equivalent |
-| A5 | `charting` from the map doc Status line | an open `map` epic in beads | golden-path must work without `br`; the doc wins on disagreement |
-| A6 | Hand-off context snapshot; chart zones add `context` and `spikes` | edit discovering-requirements | no budget there. Widens the PRD's four-path zone list by two |
-| A7 | `research/chart-*.md` tracked by a negation | track all research, or none | maps need their cites |
-| A8 | Exclude `question` in `get-ready-work.sh` and route `/implement` through it | the `sprint:` lint alone | `br ready` is unfiltered today |
-| A9 | Fence rule SP-1 plus the ICE spike rules | ICE only | ICE covers run mode only |
-| A10 | Seams rule gated by Date ≥ 2026-10-13 | version gate, or always | old fixtures have no Date (PRD adopted it) |
-| A11 | `_Aliases_:` lines; identifier-shaped tokens only | one entry per token | run states are one concept (PRD adopted it) |
-| A12 | Flag the `loa-setup` skill only if the harness check shows the operator's command still works | always flag, never flag | a shared name may leave the skill reachable, but the operator's own command must keep working |
-| A13 | Rounds within a phase | one frontier across phases | keeps phase gates and section order |
-| A14 | Claim with `br update --claim` | `--status in_progress` | atomic assignee plus status |
-| A15 | Synchronous surface after the KF hook | async | async output is not reliably injected |
-| A16 | Sprint validator cross-checks beads | creation-time lint only | catches a `sprint:` label added by hand |
-| A17 | Map docs allow exactly four H2s plus `## Closed` | a heading denylist | an allowlist cannot be dodged by a new name |
-| A18 | `flatline`/`dissent` attribution needs an existing artifact and its sha256; no orchestrator call site this cycle | wire the orchestrators now | keeps the sanctioned review path unchanged; the hash makes the claim checkable |
-| A19 | `confirm --cycle` previews and needs `--all` or `--id`s for several rows | confirm every match silently | batch confirmation stays explicit |
-| A20 | The writer does not require `br` (superseded preflight rule) | preflight `br` everywhere | the ledger has no beads dependency; PR bodies render without beads |
-| A21 | The PRD Status line is an unattended signal for the gate and the writer, not for `confirm` | ignore it, or let it block `confirm` | the writer and the gate agree, and the operator can still confirm later |
-| A22 | Chart ticket rows use `source: map:<slug>/<ticket>`; the bead carries `--external-ref <DEC-id>` | `source` = bead id | the row is written before the bead exists and `source` is immutable |
-| A23 | A `chart-researcher` agent without Bash, plus an ignored-files and mtime scope check | a general-purpose subagent told not to write | tool removal is mechanical; prompts are not |
-| A24 | Spike deletion through a fence predicate on a decided row | operator deletes by hand only | the PRD allows deletion once decided; the predicate is positive and fails closed |
-| A25 | `.run/unattended.json` with session id and TTL, plus a `context` subcommand | env variables only | Bash calls do not share env; a stale marker must not outlive its session |
-| A26 | `/plan-and-analyze` closes a consumed map and applies the multi-map rule via command-file steps | edit discovering-requirements | no SKILL budget; the command file is not budgeted |
-| A27 | Each `[ASSUMPTION decision]` line cites its DEC id | count tags against rows | a per-tag link is checkable; counts are not |
-| A28 | ICE allows only the default branch into a `spike/*` branch, behind an optional argument | allow any merge into spikes | the narrowest exception, default behaviour unchanged |
-| A29 | The live-harness bats is opt-in (`LOA_LIVE_HARNESS=1`) and every outcome is defined | run it in every CI job | a model call per CI run costs money and flakes; a skip is visible, a false pass is not |
-| A30 | `red-test-check.sh` timeout is its own exit 5 and dependency linking is on by default | fold timeouts into exit 1; require `--setup` | a hung test is not a failing fix; fresh worktrees mostly fail on missing dependencies |
-| A31 | `proposed_by` records the proposing voice; `decided_by` is set once, by `confirm` | one `decided_by` set at proposal | lets `decided_by` stay null until a human acts, without rewriting a set-once field |
-| A32 | `/decisions` runs operator ops in the session, previewing first; no fence on the writer | a fence that blocks the ops for the model | the fence would also block the command itself; the boundary is the allowlists plus tamper evidence |
-| A33 | Linked worktrees write `PEND-` rows to a sprint pending file; the lead imports | worktrees write the live ledger and merge | max+1 ids collide and an append-only YAML list does not merge |
-| A34 | `mkdir` lock fallback with a 60 s stale check when `flock` is absent | require util-linux | macOS ships without `flock` |
-| A35 | `hook-guard.sh` exports `LOA_HOOK_CONTEXT=1`; live-ledger writes refuse under it and under CI | prose prohibition only | makes "no bot auto-append" mechanical while fixtures still run in CI |
-| A36 | `BARE_ASSUMPTION_FAILS_FROM=2026-11-13` | "one release" | a date is checkable; a release boundary is not |
-| A37 | `get-ready-work.sh` filters out `question` instead of allowlisting types | `--type task --type bug --type feature` | new types keep flowing; only decision tickets are excluded |
-| A38 | `decision:unblock` probes run only through `chart-unblock-probe.sh` | free Bash in the charting skill | the helper proves the main tree is untouched |
-| A39 | BSD coverage through PATH-shim twins | a macOS runner | follows `validate-artifact-bsd.bats`; no new CI runner |
-| A40 | `run-preflight.sh` P9 fails without yq v4 | WARN only | the ledger cannot be written without it |
-| A41 | The append-only base defaults to `git merge-base origin/main HEAD` | `HEAD` | rows added on the branch remain checkable against main |
+| # | Decision | Alternatives | Why | DEC |
+|---|---|---|---|---|
+| A1 | The FR-2 arms run as a detached driver started at the end of Sprint 1 on an Opus 5.5 executor; Sprint 2 waits for the result and falls back to path-scoping plus pointers if it does not arrive | run the arms inline in Sprint 1 | 8 fixtures × 5 arms × 3 trials is hours of executor time; the driver runs while Sprint 2 builds | DEC-0149 |
+| A2 | Bridgebuilder exits 3 on a DEGRADED verdict and reports completed/planned voices; the two callers accept 3 as completed-degraded | keep exit 0 and fix the banner only | an exit code is the only signal a caller that does not parse JSON can see | DEC-0150 |
+| A3 | The implement gate reads the derived cache written by `run-checkpoint.sh`; it never computes the derivation itself | derive inside the hook | a hook on every write must stay under the latency budget | DEC-0151 |
+| A4 | Profile defaults live in `.claude/data/profiles.yaml` with a forbidden-floor-key list; `profile-lib.sh` resolves explicit key → profile → fallback | hard-code the table in the lib | a data file is reviewable and the floor test reads it | DEC-0152 |
+| A5 | Advisory voices are declared as `flatline_protocol.<gate>.advisory_voices: [alias]`, run after primary and companion, merged with `counted_as: advisory_voice`, never in `voices_planned` | reuse `companion_chain` with a flag | the companion chain decides quorum; advisory voices must not touch it | DEC-0155 |
+| A6 | The corpus fixtures are generated from git and the record branches by a script with the lead curating `must_match` anchors; labels are finding titles only | hand-write eight fixtures | reproducible from git; the anchors need a human eye once | DEC-0153 |
+| A7 | `kind:` sits at the end of the task line after the dependency marker; the validator uses the Seams gate's date parsing | a separate `### Task kinds` table | one field per task line is what the reviewer reads | DEC-0154 |
+| A8 | Advisory-voice findings live only in `advisory_voices[].findings` with `duplicate_of` links; the top-level findings, voice counts and `verdict-derive.sh` output are byte-identical with and without them; amends A5 | merge with a tag | a tag is a convention a consumer can ignore (SDD review opus IMP-004) | DEC-0165 |
+| A9 | One tracked floor source `.claude/data/floor.yaml` read by the floor tests and the register, sha256-pinned; register kind `policy` for floor items that are not hooks, fences, rules or gates | the floor list in each test | copies drift (opus IMP-009, IMP-017) | DEC-0166 |
+| A10 | Replay rows are marked at the source with `LOA_AUDIT_REPLAY=1` → `replay: true`; the cwd heuristic is the fallback for older rows | cwd heuristic only | a test run inside the repo would count as real (opus IMP-008) | DEC-0167 |
+
+Sprint-planning decisions recorded after the sprint-plan review (PRD Appendix E D34–D37): the self-hosting rule (DEC-0168), the evidence classes for kernel rows (DEC-0169), Bridgebuilder's trusted config source (DEC-0170), and the two-batch arm schedule amending A1 (DEC-0171).
+
+### 11.5 Sprint-plan Flatline review (2026-10-14)
+The sprint-plan run (same two voices, same degraded shape, eleven skeptic blockers) changed this design in four places: §1.2 self-hosting rule and the deferred `deny` flip (SKP-005); D-3.2 evidence classes (SKP-002); D-7.5 trusted configuration source and the exit-code rollback key (SKP-008, gpt IMP-012); D-7.2 rules applied at request time to every local hop in D-8.1 (SKP-012); D-6.1 grammar, nested and variable-delimiter heredocs, control characters and the hook, settings, rc, PATH and `.git/hooks` targets (SKP-006, SKP-004); D-2.3 two batches, `MANIFEST.json`, interleaved trials, `failed` state (SKP-001, SKP-002 isolation); D-7.6 freshness WARN (gpt IMP-010). The sprint plan's Appendix D carries the full record.
+
+### 11.4 Flatline review integration (2026-10-14)
+Run on the pre-integration SDD: two voices (`gpt-5.5`, `claude-headless`), cross-scoring degraded (KF-041, exit 6), ten skeptic blockers, integrated by judgment. SKP-005 (silent default change) → `ask` stays the default, asks logged (D-4.1, DEC-0163); SKP-006 (deny with a missing or stale cache, first-write race) → unknown position falls back to `ask`, the implementing skills checkpoint before their first write (D-4.1); SKP-001 and SKP-011 (fence inversion, side-effecting tools, wrapper prefixes, substitutions) → exact-form allowlist with safe flags, per-segment body scan, wrapper stripping, substitution and variable-command detection, the named executors added to the interpreter class (D-6.1); SKP-012 (write-then-run-later) → executable-extension and shebang rule (D-6.1), separate-line execution stated as the per-command limit the Write tool already shares; SKP-004 (statistical power) → bootstrap interval, retry policy, missed-label review before deletion (D-2.3); SKP-002 (unpinned sandbox source, path-scoping confounds the baseline, kernel regeneration undoes a toggle) → pinned worktree at `864069f2`, `source_commit` recorded and refused when mixed, toggle asserted at executor start, `constraints.json` toggled too (D-2.3); SKP-001 (endpoint SSRF) → IP-literal or `localhost` only, no DNS, link-local and metadata refused, redirects refused, proxy env ignored, path prefix enforced, test list (D-7.2); SKP-002 (grep-based enumeration) → canonical hook command schema parsed with jq, `# @guard fence:<id>` markers cross-checked against call sites, unparseable commands fail the lint (D-1.2); SKP-007 (tracked yield can never match in CI) → structural register tracked, yield untracked under `.run` (D-1.4, DEC-0162). Per-voice improvements folded: gpt IMP-001 (identity per script with registrations), IMP-002 (FP heuristic uses the FR-6 classifier), IMP-003 and opus IMP-023 (`STATUS.json`, Sprint 2 gate, no waiting), IMP-004 and opus IMP-024 (fix-hunk labels, refuted share), IMP-005 and opus IMP-016 (spread, bootstrap interval), IMP-006 (commit selection constrained to the cycle), IMP-007 and opus IMP-028 (schema tolerance, terminal set), IMP-008 and opus IMP-006 (opt-in lifts only loopback and RFC1918), IMP-009 and opus IMP-004/IMP-012 (advisory block only, `duplicate_of`, budget sum, timeout; A8), IMP-010 (kind parser), IMP-011 (config-key AC in Tasks 2.9 and 3.6), IMP-012 (generated files regenerated in the same commit and `--check` in CI); opus IMP-001 (structural register), IMP-002 (cap never rises), IMP-003 (pinned worktree, source recorded), IMP-005 (unknown cache → ask; `run-resume` writes on drift), IMP-007 (substitution D-rows), IMP-008 (`LOA_AUDIT_REPLAY`; A10), IMP-009 and IMP-017 (`floor.yaml`, kind `policy`; A9), IMP-010 (promotion unreachable, stated), IMP-011 (every profile defines every key), IMP-014 (harness probe for `disallowed-tools`), IMP-015 (Fable executor; D33), IMP-018 (effective-config cache), IMP-019 (explicit predicate), IMP-020 (error rows), IMP-021 (canonical keys), IMP-025 (`locality_mode` and `hop_locality`), IMP-026 (gate behaviour under DEGRADED_SECURITY_REVIEW), IMP-027 (coverage and arm arithmetic), IMP-029 (task-name sanitisation, legacy file removed), IMP-030 (`/loa` prints the gate mode), IMP-031 (DEC references fixed), IMP-032 (the bytes to remove named), IMP-034 (paths frontmatter observation), IMP-035 (ratio provenance), IMP-036 (informational arms), IMP-037 and IMP-038 (tests and component rows), IMP-039 (exit codes), IMP-040 (pacing dropped from profiles), IMP-041 (judgment-tag WARN). **Declined**: opus IMP-013 (a new PostToolUse hook to call `record-round`: `derive` at every checkpoint already recomputes the counters from the feedback history, and this cycle adds no guard without an origin); opus IMP-022 (moving FR-6 to Sprint 1: Sprint 1 is already the larger sprint; the intra-sprint ordering FR-5 before FR-4(a) is kept as a bead dependency); opus IMP-033 (tagging the KF-041 issue task `operator`: the maintainer's end-to-end instruction and DEC-0134 are the record, and the review flags an unattended operator task by design).
+
+> Sources: PRD Appendix E; proposals.md A1–A3, B1–B7; S:inv, S:yield, S:ow as cited above
+
+---
+
+*Generated by Architecture Agent*
