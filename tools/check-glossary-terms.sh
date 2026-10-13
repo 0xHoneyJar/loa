@@ -24,6 +24,12 @@
 # through **Term** entries (review alias lines in a glossary diff as closely
 # as allowlist lines), and a WARN for an _Aliases_: line that precedes every
 # entry (ignored here; validate-artifact.sh --type glossary fails it).
+# --report also lists, for information only, the entries that the glossary's
+# own prose (the context paragraph and the other entries' definitions) never
+# mentions and that no kernel token resolves to by its term: "resolution-only"
+# when kernel tokens resolve only through its aliases, "unreferenced" when none
+# does. The gate is lint-grade by design: kernel, glossary and allowlist are
+# tracked, agent-editable files, so a reviewer reads these lists in the diff.
 #
 # Usage:
 #   tools/check-glossary-terms.sh [--kernel PATH] [--glossary PATH]
@@ -171,6 +177,33 @@ awk -F'\t' '
   }
 ' "$WORK/names.tsv" "$WORK/allow.tsv" "$WORK/tokens.tsv" > "$WORK/resolved.tsv"
 
+# 5. Entry references (only --report and --json show them; the exit code never
+#    depends on them). "kind<TAB>entry<TAB>alias tokens" with kind
+#    resolution-only or unreferenced, in glossary order.
+awk -F'\t' "$FENCE_SRC"'
+  function key(x) { x = tolower(x); gsub(/[^a-z0-9:]+/, " ", x); return " " x " " }
+  FILENAME == ARGV[1] {
+    if (md_fence($0)) next
+    if ($0 ~ /^#/ || $0 ~ /^_(Avoid|Aliases)_:/ || $0 !~ /[^[:space:]]/) next
+    owner = ""; text = $0
+    if ($0 ~ /^\*\*[^*]+\*\*:/) { owner = $0; sub(/^\*\*/, "", owner); sub(/\*\*:.*$/, "", owner); gsub(/`/, "", owner)
+                                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", owner); sub(/^\*\*[^*]+\*\*:/, "", text) }
+    np++; pown[np] = owner; ptext[np] = key(text); next
+  }
+  FILENAME == ARGV[2] { if ($1 == "term") { ne++; ent[ne] = $2 } next }
+  { if ($1 == "defined") byterm[$4] = 1; else if ($1 == "alias") byalias[$4] = byalias[$4] (byalias[$4] == "" ? "" : ", ") $2 }
+  END {
+    for (i = 1; i <= ne; i++) {
+      e = ent[i]; if (e in byterm) continue
+      k = key(e); sub(/^ /, "", k); sub(/ $/, "", k); hit = 0
+      for (j = 1; j <= np && !hit; j++)
+        if (pown[j] != e && (index(ptext[j], " " k " ") || index(ptext[j], " " k "s ") || index(ptext[j], " " k "es "))) hit = 1
+      if (hit) continue
+      printf "%s\t%s\t%s\n", ((e in byalias) ? "resolution-only" : "unreferenced"), e, byalias[e]
+    }
+  }
+' "$GLOSSARY" "$WORK/names.tsv" "$WORK/resolved.tsv" > "$WORK/entries.tsv"
+
 kept="$(wc -l < "$WORK/tokens.tsv" | tr -d '[:space:]')"
 allow_count="$(wc -l < "$WORK/allow.tsv" | tr -d '[:space:]')"
 n_of() { awk -F'\t' -v k="$1" '$1 == k' "$WORK/resolved.tsv" | wc -l | tr -d '[:space:]'; }
@@ -200,7 +233,8 @@ if [[ "$JSON" -eq 1 ]]; then
   jq -Rn --arg kernel "$DK" --arg glossary "$DG" --arg allowlist "$DA" \
      --argjson allow_count "$allow_count" --argjson allow_max "$ALLOWLIST_MAX" \
      --arg v "$(printf '%s\n' ${violations[@]+"${violations[@]}"})" \
-     --arg w "$(printf '%s\n' ${warnings[@]+"${warnings[@]}"})" '
+     --arg w "$(printf '%s\n' ${warnings[@]+"${warnings[@]}"})" \
+     --arg ents "$(cat "$WORK/entries.tsv")" '
     [inputs | split("\t") | {resolution: .[0], token: .[1], line: (.[2] | tonumber), entry: .[3]}] as $rows
     | ($rows | map(select(.resolution == "defined" or .resolution == "alias"
                           or .resolution == "allowlisted" or .resolution == "MISS"))) as $tokens
@@ -216,6 +250,8 @@ if [[ "$JSON" -eq 1 ]]; then
        missing: ($tokens | map(select(.resolution == "MISS") | .token)),
        stale_allowlist: ($rows | map(select(.resolution == "STALE") | .token)),
        redundant_allowlist: ($rows | map(select(.resolution == "REDUNDANT") | .token)),
+       unreferenced_entries: ($ents | split("\n") | map(select(length > 0) | split("\t")
+                              | {entry: .[1], kind: .[0], alias_tokens: ((.[2] // "") | split(", ") | map(select(length > 0)))})),
        violations: ($v | split("\n") | map(select(length > 0))),
        warnings: ($w | split("\n") | map(select(length > 0)))}
     | .ok = ((.violations | length) == 0)
@@ -224,6 +260,10 @@ else
   if [[ "$REPORT" -eq 1 ]]; then
     awk -F'\t' '$1 != "STALE" && $1 != "REDUNDANT" {
       printf "%-11s %-24s line %-4s %s\n", $1, $2, $3, ($4 == "" ? "" : "-> " $4) }' "$WORK/resolved.tsv"
+    if [[ -s "$WORK/entries.tsv" ]]; then
+      echo "resolution-only or unreferenced entries (information only; no kernel token names the term and no glossary prose mentions it):"
+      awk -F'\t' '{ printf "  %-15s %s%s\n", $1, $2, ($3 == "" ? "" : " (kernel tokens via aliases: " $3 ")") }' "$WORK/entries.tsv"
+    fi
   fi
   for w in ${warnings[@]+"${warnings[@]}"}; do echo "WARN: $w"; done
   for v in ${violations[@]+"${violations[@]}"}; do echo "$v" >&2; done

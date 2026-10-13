@@ -115,3 +115,33 @@ plan() {
     [ "$(grep -c '^### Seams Under Test$' "$t")" -eq 2 ]
     [ "$(grep -c '^| Seam | Catches | Misses | Prior art |$' "$t")" -eq 2 ]
 }
+
+@test "SEAMS-11 a four-backtick fence holding a three-backtick line no longer hides the next sprint block" {
+    plan 2026-10-13 yes no | awk '/^## Sprint 2/ { print "````"; print "```"; print "````"; print "" } { print }' > "$T/sprint.md"
+    run "$SCRIPT" --type sprint --file "$T/sprint.md"
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Sprint 2 (Final): Wrap-up (line"*"has no '### Seams Under Test' table"* ]]
+}
+
+@test "SEAMS-12 a live plan under grimoires/loa/ without a parseable header Date fails; the archive keeps the WARN" {
+    local root="$T/proj"
+    mkdir -p "$root/grimoires/loa/archive/cycle-x"
+    plan "" yes yes > "$root/grimoires/loa/sprint.md"
+    run env PROJECT_ROOT="$root" "$SCRIPT" --type sprint --file "$root/grimoires/loa/sprint.md"
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"a sprint plan carries **Date:** YYYY-MM-DD in its header"* ]]
+    # an unparseable date is the same failure
+    plan "" yes yes | sed 's/^\*\*Author:\*\*/**Date:** October 13, 2026\n**Author:**/' > "$root/grimoires/loa/sprint.md"
+    grep -q '^\*\*Date:\*\* October' "$root/grimoires/loa/sprint.md"
+    run env PROJECT_ROOT="$root" "$SCRIPT" --type sprint --file "$root/grimoires/loa/sprint.md"
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    # the same undated plan in the archive, or outside the project, passes with the WARN
+    plan "" no no > "$root/grimoires/loa/archive/cycle-x/sprint.md"
+    run env PROJECT_ROOT="$root" "$SCRIPT" --type sprint --file "$root/grimoires/loa/archive/cycle-x/sprint.md"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"WARN: undated plan: 2 sprint block(s)"* ]]
+    # a dated live plan with its blocks passes
+    plan 2026-10-14 yes yes > "$root/grimoires/loa/sprint.md"
+    run env PROJECT_ROOT="$root" "$SCRIPT" --type sprint --file "$root/grimoires/loa/sprint.md"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}

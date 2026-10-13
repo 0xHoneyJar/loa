@@ -212,14 +212,14 @@ Complete the decision surfaces with a shared vocabulary and two verifiable test-
 - [x] Task 3.E2E completed with evidence per goal
 
 ### Acceptance Criteria
-- [ ] `check-glossary-terms.sh` exits 0 on the kernel and 1 when a term is removed from the glossary (bats)
-- [ ] `.claude/loa/GLOSSARY.md` validates; every backticked framework term in `CLAUDE.loa.md` resolves (exclusion heuristic applied; allowlist ≤ 30)
-- [ ] Sprint validator fails on a missing Seams block for a plan dated on or after 2026-10-13 and still passes the archived cycle-127 plan and undated fixtures
-- [ ] `red-test-check.sh` bats: red+green passes; a decoy passing at both commits exits 3; a missing test file or collection error at the red commit exits 4; a timeout yields `TIMEOUT`; a fixture whose test imports an external dependency passes through the bootstrap; `git worktree list` is clean after every case; the red output is printed
-- [ ] `micro-sprint.md` Task 1 requires the separate red commit; `reviewing-code` names the script
-- [ ] CHANGELOG, README, hooks-reference, REPO-MAP updated; `repo-map` checksum consistent
+- [x] `check-glossary-terms.sh` exits 0 on the kernel and 1 when a term is removed from the glossary (bats)
+- [x] `.claude/loa/GLOSSARY.md` validates; every backticked framework term in `CLAUDE.loa.md` resolves (exclusion heuristic applied; allowlist ≤ 30)
+- [x] Sprint validator fails on a missing Seams block for a plan dated on or after 2026-10-13 and still passes the archived cycle-127 plan and undated fixtures
+- [x] `red-test-check.sh` bats: red+green passes; a decoy passing at both commits exits 3; a missing test file or collection error at the red commit exits 4; a timeout yields `TIMEOUT`; a fixture whose test imports an external dependency passes through the bootstrap; `git worktree list` is clean after every case; the red output is printed
+- [x] `micro-sprint.md` Task 1 requires the separate red commit; `reviewing-code` names the script
+- [x] CHANGELOG, README, hooks-reference, REPO-MAP updated; `repo-map` checksum consistent
 - [x] Task 3.E2E: every goal G-1…G-7 validated with documented evidence in a report table (goal, command run, artifact path, pass/fail) under `grimoires/loa/a2a/sprint-254/e2e.md`; G-3 scores a transcript other than the Sprint 1 fixture
-- [ ] Existing `validate-artifact`, `reviewing-code` and CI suites stay green (backward compatibility)
+- [x] Existing `validate-artifact`, `reviewing-code` and CI suites stay green (backward compatibility)
 
 ### Technical Tasks
 

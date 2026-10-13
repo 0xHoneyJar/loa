@@ -286,3 +286,32 @@ check() {
     [[ "$output" != *"Foo"* ]]
     [[ "$output" == *"kernel tokens kept: 1;"* ]]
 }
+
+@test "GT-29 --report lists resolution-only and unreferenced entries; the exit code is unchanged" {
+    printf '# Glossary: t\nctx about the Box.\n\n## Language\n\n**Widget**: A thing.\n\n**Gizmo**: Nobody mentions it.\n\n**Run mode**: Unattended runs.\n_Aliases_: RUNNING\n\n**Box**: A container.\n' > "$W/g.md"
+    check 'A `Widget` while `RUNNING`.' --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"resolution-only or unreferenced entries (information only"* ]]
+    [[ "$output" == *"  unreferenced    Gizmo"* ]]
+    [[ "$output" == *"  resolution-only Run mode (kernel tokens via aliases: RUNNING)"* ]]
+    [[ "$output" != *"unreferenced    Widget"* && "$output" != *"resolution-only Widget"* ]]
+    [[ "$output" != *"unreferenced    Box"* ]]
+    check 'A `Widget` while `RUNNING`.'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"unreferenced"* ]]
+}
+
+@test "GT-30 --json carries the unreferenced entries; a prose mention by plural or separator counts" {
+    command -v jq >/dev/null 2>&1 || skip "jq not installed"
+    printf '# Glossary: t\nctx\n\n## Language\n\n**Widget**: Holds run-modes and gizmos.\n\n**Gizmo**: A part.\n\n**Run mode**: Unattended runs.\n\n**Lonely**: A lonely entry its own definition names.\n' > "$W/g.md"
+    check 'A `Widget`.' --json
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.unreferenced_entries == [{entry: "Lonely", kind: "unreferenced", alias_tokens: []}]' >/dev/null
+}
+
+@test "GT-31 the live report lists the framework entries the kernel and the glossary prose never name" {
+    run "$CHECK" --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"  resolution-only Beads (kernel tokens via aliases: br)"* ]]
+    [[ "$output" != *"unreferenced    Run mode"* && "$output" != *"resolution-only Run mode"* ]]
+}

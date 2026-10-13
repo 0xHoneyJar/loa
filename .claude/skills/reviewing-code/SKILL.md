@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
@@ -25,7 +25,7 @@ capabilities:
       - command: ".claude/scripts/qmd-context-query.sh"
         args: ["*"]
       - command: ".claude/scripts/red-test-check.sh"
-        args: ["*"]
+        args: ["--red", "*"]
       - command: ".claude/scripts/guardrails-orchestrator.sh"
         args: ["*"]
       - command: "br"
@@ -110,7 +110,7 @@ You are not a rubber stamp; you are a rival.
 Report every finding you observe — minor, uncertain, or on an otherwise clean sprint;
 a separate mechanical step filters, and a finding you drop here is lost.
 
-Each finding carries a `file:line` citation of the failing statement itself — a range
+Each finding carries a `file:line` citation of the failing statement — a range
 (`file:start-end`) when the defect spans lines — a concrete failure scenario, a severity
 (`critical|high|medium|low`) and an independent confidence (`high|medium|low`): severity is the
 damage if the scenario happens, confidence is how sure you are that it happens. `high` needs a
@@ -132,7 +132,7 @@ failure scenario.
 <zone_constraints>
 ## Zone Constraints
 
-Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; this skill's app zone (`src/`, `lib/`, `app/`) = **Read-only**.
+Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; app zone (`src/`, `lib/`, `app/`) = **Read-only**.
 </zone_constraints>
 
 <integrity_precheck>
@@ -194,7 +194,7 @@ Log each significant step to `grimoires/loa/a2a/trajectory/{agent}-{date}.jsonl`
 </trajectory_logging>
 
 <citation_requirements>
-Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links (Discord, Linear) when present.
+Cite OWASP/CWE for security issues and SDD sections for architecture concerns; quote acceptance criteria and previous feedback when checking them; preserve `integration-context.md` links when present.
 </citation_requirements>
 
 <workflow>
@@ -209,13 +209,13 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
-5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
+5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) as advisory context; a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
 Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
 
-Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'.
+Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --json --red <Red commit from reviewer.md> -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
@@ -289,7 +289,7 @@ Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Compl
 </complexity_review>
 
 <beads_workflow>
-With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, the review comment, the `review-approved` / `needs-revision` labels); protocol: `.claude/protocols/beads-integration.md`.
+With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, comment, labels); protocol: `.claude/protocols/beads-integration.md`.
 </beads_workflow>
 
 <retrospective_postlude>

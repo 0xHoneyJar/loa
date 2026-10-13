@@ -866,17 +866,40 @@ validate_sprint_deferred() {
 # Gated on the plan header's **Date:** (the first one before the first H2): from
 # SEAMS_REQUIRED_FROM on, every '## Sprint N' block (up to the next H2) must carry
 # the block with at least one table row below its separator line; older and
-# undated plans WARN once. Headings inside fenced code do not count.
+# undated plans WARN once, except that a live plan (under grimoires/loa/, not its
+# archive/) without a parseable header date fails. Fenced code is tracked by
+# lib/md-fence.awk (CommonMark lengths and characters); headings inside it do not count.
 SEAMS_REQUIRED_FROM="2026-10-13"
 
 validate_sprint_seams() {
+    local fence_src
+    if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
+        violations+=("cannot read ${SCRIPT_DIR}/lib/md-fence.awk; the sprint Seams check needs it (reinstall the framework scripts)")
+        return 0
+    fi
     local plan_date
-    plan_date="$(awk '/^## / { exit } /^\*\*Date:?\*\*:?/ { print; exit }' "$FILE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)"
+    plan_date="$(LC_ALL=C awk "$fence_src"'
+        md_fence($0) { next }
+        /^## / { exit }
+        /^\*\*Date:?\*\*:?/ { if (match($0, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) print substr($0, RSTART, RLENGTH); exit }
+    ' "$FILE")"
+    # A live plan (under grimoires/loa/, not its archive) must carry a parseable header date,
+    # or the gate below would fail open; archived plans and fixtures keep the WARN.
+    local canon="" root=""
+    canon="$(cd "$(dirname -- "$FILE")" 2>/dev/null && pwd -P)/$(basename -- "$FILE")" || canon=""
+    root="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || root=""
+    if [[ -z "$plan_date" && -n "$root" ]]; then
+        case "$canon" in
+            "${root}/grimoires/loa/archive/"*) ;;
+            "${root}/grimoires/loa/"*)
+                violations+=("a sprint plan carries **Date:** YYYY-MM-DD in its header (before the first '## ' heading); ${FILE} has none that parses, so the Seams gate (from ${SEAMS_REQUIRED_FROM}) cannot be judged")
+                return 0 ;;
+        esac
+    fi
     local missing
-    missing="$(awk '
+    missing="$(LC_ALL=C awk "$fence_src"'
         function emit() { if (insp && rows < 1) printf "%s (line %d)\n", head, hl }
-        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
-        fence { next }
+        md_fence($0) { next }
         /^## / {
             emit(); insp = 0
             if ($0 ~ /^## Sprint [0-9]/) { insp = 1; head = substr($0, 4); hl = NR; rows = 0; inseam = 0 }
@@ -1253,6 +1276,7 @@ validate_spike() {
 # =============================================================================
 GLOSSARY_MAX_CHARS=300
 GLOSSARY_MAX_ALIASES=6
+GLOSSARY_MAX_ALIASES_TOTAL=40
 
 validate_glossary() {
     local kind msg fence_src
@@ -1266,13 +1290,16 @@ validate_glossary() {
             V) violations+=("$msg") ;;
             W) warnings+=("$msg") ;;
         esac
-    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" "$fence_src"'
+    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" -v maxtotal="$GLOSSARY_MAX_ALIASES_TOTAL" "$fence_src"'
         function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
         function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
         # names compare as the drift check matches them: case and "-", "_", " " folded
         function norm(x) { x = tolower(x); gsub(/[-_ ]+/, " ", x); gsub(/^ | $/, "", x); return x }
         function claim(x, what) {
             if (x == "") return
+            # norm() folds ASCII only, so a look-alike letter from another
+            # script (Greek beta in "Beads") would pass the duplicate check
+            if (x ~ /[\200-\377]/) w(what " \"" x "\" has a non-ASCII character; glossary names are ASCII so a look-alike letter cannot slip past the duplicate check")
             if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
             else seen[norm(x)] = what " \"" x "\" (line " NR ")"
         }
@@ -1339,7 +1366,7 @@ validate_glossary() {
                 for (i = 1; i <= m; i++) {
                     p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
                     if (p == "") continue
-                    n_alias++
+                    n_alias++; total_alias++
                     claim(p, "alias")
                     if (!alias_related(p, t, d)) w("alias \"" p "\" of \"" t "\" shares no word with the term or its definition and is not its initials; name it in the definition, or give it its own entry")
                 }
@@ -1352,6 +1379,7 @@ validate_glossary() {
         END {
             NR = 1
             if (!h1) v("no H1; start with \"# Glossary: <name>\"")
+            if (total_alias > maxtotal) v("the glossary has " total_alias " aliases, over the budget of " maxtotal "; an alias names the same thing as its entry, so define distinct names as entries")
             if (!lang_line) v("no \"## Language\" section")
             else {
                 if (!context) v("no context paragraph between the H1 and \"## Language\"; say whose language this is in one paragraph")

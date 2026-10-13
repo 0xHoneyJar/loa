@@ -2891,3 +2891,23 @@ structured_handoff:
   # skip). Read-path only — INDEX.md and read_by are untouched; old handoffs
   # stay recoverable via the structured-handoff skill.
   surface_max_age_days: 30
+
+# =============================================================================
+# red_test — inputs to .claude/scripts/red-test-check.sh (the /bug red-before-green check)
+# =============================================================================
+# The check runs a test command at the red commit and at the fix, under `env -i`, and accepts
+# only a known runner as the first word of the command and of --setup: bats, pytest,
+# python -m pytest, npm/pnpm/yarn test|run, cargo test, go test, make, mix test,
+# bundle exec rspec. Shells, env, eval, exec and inline-code interpreters (python -c, node -e,
+# perl -e, ruby -e) are always refused. This block widens that list for one project. Edit it as
+# the operator: the file is tracked, and a red_test change on the branch under review makes the
+# check WARN.
+#
+# red_test:
+#   # The project's test command; the exact string (whitespace-normalised) is accepted.
+#   command: "make test"
+#   # The exact --setup string accepted besides the runner list (e.g. a dependency install).
+#   setup: "npm ci"
+#   # ./... or tests/... scripts accepted as the first word, matched exactly.
+#   allowed_runners:
+#     - ./scripts/run-tests.sh

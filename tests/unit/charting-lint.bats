@@ -250,7 +250,12 @@ EOF
 # --- validate-artifact.sh --type sprint: beads cross-check -------------------------
 
 sprint_fixture() {
+    # Dated before the Seams gate (2026-10-13): a live plan needs a header Date since r254-2
     cat > "$1" <<'EOF'
+# Sprint Plan: fixture
+
+**Date:** 2026-10-01
+
 ## Sprint 1 (Final): Only
 
 ### Sprint Goal

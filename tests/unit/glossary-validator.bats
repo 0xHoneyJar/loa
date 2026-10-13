@@ -204,3 +204,43 @@ val() { run "$SCRIPT" --type glossary --file "$G" "$@"; }
     [[ "$output" != *"shares no word"* ]]
     [[ "$output" != *"aliases, over"* ]]
 }
+
+# aliases_glossary <entries> <aliases-per-entry> [<extra-aliases-on-last>]: N entries
+# each with K related aliases (every alias named in its definition)
+aliases_glossary() {
+    local n="$1" k="$2" i j list def
+    local lines=()
+    for i in $(seq 1 "$n"); do
+        list=""; def="Entry $i, also"
+        for j in $(seq 1 "$k"); do list="${list:+$list, }e${i}x${j}"; def="$def e${i}x${j}"; done
+        lines+=("**Entry$i**: $def." "_Aliases_: $list" "")
+    done
+    glossary "${lines[@]}"
+}
+
+@test "GV-25 a glossary with 41 aliases fails on the global alias budget; 40 pass" {
+    aliases_glossary 8 5
+    { printf '**Extra**: One more, also xone.\n_Aliases_: xone\n'; } >> "$G"
+    val
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"the glossary has 41 aliases, over the budget of 40"* ]]
+    aliases_glossary 8 5
+    val
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"budget"* ]]
+}
+
+@test "GV-26 a Greek-letter look-alike alias WARNs (and would otherwise pass the duplicate check)" {
+    glossary '**Beads**: A tracker run through its br command, also Βeads.' '_Aliases_: br, Βeads'
+    val
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'WARN:'*'alias "Βeads" has a non-ASCII character'* ]]
+    [[ "$output" != *'alias "br" has a non-ASCII'* ]]
+}
+
+@test "GV-27 a non-ASCII letter in a term WARNs" {
+    glossary '**Café**: A place.'
+    val
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'WARN:'*'term "Café" has a non-ASCII character'* ]]
+}
