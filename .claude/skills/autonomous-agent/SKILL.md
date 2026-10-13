@@ -63,7 +63,7 @@ Orchestrate the full Loa lifecycle — discovery through learning — passing ev
 <prime_directive>
 ## Prime Directive
 
-Pass every gate; when uncertain, STOP and ASK rather than proceed on assumptions (in unattended runs: record the assumption in NOTES.md Decision Log per CLAUDE.loa.md principle 1 and proceed).
+Pass every gate; when uncertain, STOP and ASK rather than proceed on assumptions (unattended: mark the run with `dec-write-lib.sh context --set-unattended --reason <why>`, look facts up, record each decision with `dec-write-lib.sh new` (a linked worktree writes the pending file automatically), then proceed).
 </prime_directive>
 
 <execution_model>

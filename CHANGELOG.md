@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+> cycle-128 "decision surfaces" (sprint-252, FR-1 / FR-2 / FR-3 / FR-8): the interview asks in rounds, decisions become attributable ledger rows, and operator-only commands are out of the model's reach.
+
+### Added
+
+- **A decision ledger** (FR-3, PRD D2, D13–D21). `grimoires/loa/decisions.yaml` is a tracked, append-only ledger of planning decisions (`DEC-NNNN` rows with phase, summary, decision, rationale, alternatives, consequences, provenance and a transition history). Its single writer is `.claude/scripts/lib/dec-write-lib.sh` (`new`, `decide`, `confirm`, `reject`, `supersede`, `import`, `list`, `context`): a portable lock, yq v4 writes with values passed by environment, verify-before-rename, ids never reused, and attribution derived from the run context rather than passed by the caller. In an unattended context every write lands `proposed` with `proposed_by: agent` and `decided_by` null; a linked worktree writes a per-sprint pending file that the lead imports in the main checkout. Mike Farah `yq` v4 is now a hard dependency for writing the ledger.
+- **`/decisions`**, an operator-only command (`disable-model-invocation: true`) and the only path to `confirm`, to `reject` or `supersede` a decided row, and to clearing the unattended marker (PRD D17). No skill's `allowed-tools` grants those operations (lint).
+- **`validate-artifact.sh --type decisions`** (schema, duplicate ids, transition invariants, ref grammars, artifact hashes, append-only content against `--base-file` or the merge-base). `--type prd` classifies `[ASSUMPTION fact]` and `[ASSUMPTION decision]` tags: a decision tag must cite a ledger row (FAIL in an unattended cycle, WARN interactive); a bare tag WARNs and fails for PRDs dated from 2026-11-13; `**Deferred:**` lines are recognised. `--type sdd` WARNs on a Resolved open question without a `DEC` id.
+- **A `## decisions` family in `grimoires/loa/INDEX.md`** (`grimoire-index.sh`, plus a `--tsv` mode) and a default-off SessionStart surface, `decisions.surface_at_session_start`, that prints pending rows inside the L6 data fence with a notice for a stale unattended marker.
+- **Interview rounds** (FR-1, PRD D1). `interview.pacing: rounds` asks every question whose prerequisites are settled in one numbered round, each with a recommended answer; a bare "yes" accepts every recommendation and a numbered answer overrides one; each round ends with a `<!-- round: N; questions: [...] -->` block. `tools/check-round-independence.sh` fails on a same-round dependency and on rounds averaging fewer than two questions (final round exempt). The Mode Behavior, Input Style and Question Pacing tables moved from `discovering-requirements/SKILL.md` (16,304 → 15,439 B) to its `resources/REFERENCE.md`.
+- **Fact or decision** (FR-2, PRD D14). The discovery Backpressure Protocol splits questions into facts, which the agent looks up and never asks, and decisions, which belong to the operator. Karpathy principle 1 and the `/autonomous` prime directive record each decision taken for the operator with `dec-write-lib.sh new`. Run-mode PR bodies gain a "Decisions taken on your behalf" section rendered from `dec-write-lib.sh list`; the PRD and SDD templates gain the same appendix.
+- **Operator-only commands** (FR-8, PRD D8). `disable-model-invocation: true` on `/loa-eject`, `/toggle-gpt-review`, `/permission-audit`, `/loa-setup` (command file), `/contribute`, `/run-halt` and `/decisions`; the model's Skill tool refuses them and the operator types them. Allowlist `.claude/data/user-invoked-commands.txt`, lint `tests/unit/user-invoked-commands.bats`, and a live harness check `tests/unit/user-invoked-harness.bats` (verified 2026-10-13 on Claude Code 2.1.296; `LOA_HARNESS_CHECK=0` skips the live call).
+
+### Changed
+
+- **Migration: the `thorough` interview pacing default moves from `sequential` to `rounds`.** An explicit `interview.pacing` value is unchanged; set `interview.pacing: sequential` to keep one question per turn; `minimal` mode still defaults to `batch`.
+- Agents must ask the operator to type `/run-halt` and `/contribute`; an agent can no longer invoke them.
+- `AGENTS.md` regenerated for the new command (50 commands).
+
+### Fixed
+
+- `validate-gitignore-state.sh` no longer reports a path re-included by a `!` negation as gitignored drift.
 
 ## [2.0.0-rc.3] — 2026-10-07 — Operator decisions (release candidate)
 

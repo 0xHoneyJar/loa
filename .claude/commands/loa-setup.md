@@ -1,3 +1,9 @@
+---
+name: loa-setup
+description: "Run the Loa environment setup wizard: validate dependencies, check configuration, configure feature toggles"
+disable-model-invocation: true
+---
+
 # /loa setup — Environment Setup Wizard
 
 Run the Loa environment setup wizard. Validates dependencies, checks configuration, and optionally configures feature toggles.

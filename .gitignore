@@ -147,6 +147,8 @@ grimoires/loa/NOTES.md
 grimoires/loa/BEAUVOIR.md
 grimoires/loa/SOUL.md
 grimoires/loa/decisions.yaml
+!grimoires/loa/decisions.yaml
+# ^ the decision ledger is tracked team state (written only by dec-write-lib.sh); the negation re-includes it
 
 # /ride --enriched analysis artifacts (regenerable from current codebase state).
 # Were untracked across multiple sessions causing git-status noise; pinning

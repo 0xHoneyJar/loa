@@ -30,9 +30,12 @@ Mechanical agent hygiene: `.claude/protocols/agent-ergonomics.md`.
 Surface assumptions explicitly. When multiple interpretations exist, present
 them rather than choosing silently. When requirements are unclear, ask before
 implementing — in interactive sessions via `AskUserQuestion`; in unattended
-runs (Run Mode state RUNNING), record the open question and your chosen
-interpretation in NOTES.md Decision Log and proceed on the documented
-assumption instead of halting to ask.
+runs (Run Mode state RUNNING), look facts up instead of assuming them (code,
+reality files and docs answer them), and record a decision the operator would
+own with `.claude/scripts/lib/dec-write-lib.sh new` (a linked worktree writes
+the pending file automatically; every row stays `proposed` until the operator
+confirms it with `/decisions`) plus a one-line NOTES.md Decision Log pointer,
+then proceed on it instead of halting to ask.
 
 ### 2. Simplicity First
 

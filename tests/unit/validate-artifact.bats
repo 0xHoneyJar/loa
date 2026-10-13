@@ -607,3 +607,232 @@ EOF2
     run grep -nE "printf '%s' \"\\\$[a-z_]+\" \| grep -q" "$SCRIPT"
     [ "$status" -eq 1 ]
 }
+
+# =============================================================================
+# decisions (the decision ledger) + the prd tag-to-row rule + the sdd DEC column
+# =============================================================================
+# Hermetic: a temp project under BATS_TEST_TMPDIR holds a copy of the validator, the ledger writer
+# and compat-lib, so the host's run state (a RUNNING run makes the context unattended) never leaks
+# in. Fixtures are written by the writer, then mutated by yq as a hand edit would be.
+
+_dec_skip_unless_tools() {
+    skip_if_no_jq
+    [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip "Mike Farah yq v4 not installed"
+}
+
+_dec_project() {
+    unset LOA_UNATTENDED LOA_FLATLINE_MODE CI GITHUB_ACTIONS LOA_HOOK_CONTEXT CLAUDE_SESSION_ID CLAUDE_CODE_SESSION_ID
+    DP="$BATS_TEST_TMPDIR/dproj"
+    mkdir -p "$DP/.claude/scripts/lib" "$DP/grimoires/loa"
+    cp "$SCRIPT" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$DP/.claude/scripts/"
+    [[ -f "$PROJECT_ROOT/.claude/scripts/pii-filter.sh" ]] && cp "$PROJECT_ROOT/.claude/scripts/pii-filter.sh" "$DP/.claude/scripts/"
+    cp "$PROJECT_ROOT/.claude/scripts/lib/dec-write-lib.sh" "$DP/.claude/scripts/lib/"
+    { sed '/^schema_version:/,$d' "$PROJECT_ROOT/grimoires/loa/decisions.yaml"; printf 'schema_version: 1\ndecisions: []\n'; } > "$DP/grimoires/loa/decisions.yaml"
+    git -C "$DP" init -q
+    DV="$DP/.claude/scripts/validate-artifact.sh"
+    DW="$DP/.claude/scripts/lib/dec-write-lib.sh"
+    DL="$DP/grimoires/loa/decisions.yaml"
+    DALT='{"option":"keep sequential","rejected_because":"slow"}'
+}
+# _dec_rows N: N proposed rows in the fixture ledger; DEC-0001 confirmed by the operator when $1 == confirm
+_dec_new_prop() { bash "$DW" new --file "$DL" --summary "${1:-rounds is the default}" --phase discovery --category scope --recorded-by t \
+    --source "${2:-prd.md#e (D1)}" --status proposed --decision d --rationale r --alternative-json "$DALT" --cycle cycle-128 --quiet; }
+_dec_confirm() { bash "$DW" confirm --file "$DL" --id "$1" --recorded-by decisions-command --evidence "cli:2026-10-13T12:00:00Z" --answer-ref "cli:2026-10-13T12:00:00Z" --quiet; }
+
+@test "validate-artifact decisions: the live ledger passes" {
+    _dec_skip_unless_tools
+    run "$SCRIPT" --type decisions --file "$PROJECT_ROOT/grimoires/loa/decisions.yaml"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact decisions: a writer-built ledger passes (open, proposed, decided, rejected, superseded rows)" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null; _dec_new_prop >/dev/null; _dec_new_prop >/dev/null
+    _dec_confirm DEC-0001
+    bash "$DW" reject --file "$DL" --id DEC-0002 --rationale no --follow-up bd-x --recorded-by t --quiet
+    bash "$DW" supersede --file "$DL" --id DEC-0001 --summary s2 --phase discovery --category scope --recorded-by decisions-command --source s --decision d --rationale r --alternative-json "$DALT" --quiet >/dev/null
+    run "$DV" --type decisions --file "$DL"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"4 decision rows"* ]]
+}
+
+# _dec_bad <yq mutation> <expected message fragment> [--base]
+_dec_bad() {
+    local expr="$1" want="$2" base="${3:-}"
+    cp "$DL" "$BATS_TEST_TMPDIR/base.yaml"
+    yq -i "$expr" "$DL"
+    if [[ "$base" == "--base" ]]; then run "$DV" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    else run "$DV" --type decisions --file "$DL"; fi
+    [ "$status" -eq 1 ] || { echo "expected exit 1 for: $expr; got $status: $output"; return 1; }
+    [[ "$output" == *"$want"* ]] || { echo "missing [$want] in: $output"; return 1; }
+    cp "$BATS_TEST_TMPDIR/base.yaml" "$DL"
+}
+
+@test "validate-artifact decisions: each negative fixture exits 1 with its reason" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null; _dec_new_prop >/dev/null; _dec_confirm DEC-0001
+    _dec_bad 'del(.decisions[1].decided_by)' "DEC-0002: missing field decided_by"
+    _dec_bad '.decisions += [.decisions[1]]' "duplicate id DEC-0002"
+    _dec_bad '.decisions[1].id = "PEND-0a1b2c3d"' "PEND- id in the live ledger"
+    _dec_bad '.decisions[0].transitions[1].evidence = ""' "the -> decided transition has no evidence"
+    _dec_bad '.decisions[0].decided_by_ref = null' "decided_by operator needs an operator answer reference"
+    _dec_bad '.decisions[0].transitions[1].by = "agent:run-mode"' "needs by operator:*"
+    _dec_bad '.decisions[1].decided_by = "agent"' "decided_by must stay null until /decisions confirm"
+    _dec_bad '.decisions[1].decided_by_ref = "trust me"' "does not match the ref grammar"
+    _dec_bad '.schema_version = 2' "unknown schema_version 2"
+    _dec_bad '.decisions[1].rationale = "see https://example.com/x"' "a URL in free text"
+    _dec_bad '.decisions[1].phase = "whenever"' "phase \"whenever\" is not one of"
+    _dec_bad '.decisions[1].alternatives_considered = []' "at least one alternatives_considered entry"
+    _dec_bad '.decisions[1].transitions[0].from = "open"' "the first transition must be null -> open|proposed"
+}
+
+@test "validate-artifact decisions: an illegal transition (rejected -> decided) fails" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null
+    bash "$DW" reject --file "$DL" --id DEC-0001 --rationale no --follow-up bd-x --recorded-by t --quiet
+    _dec_bad '.decisions[0].transitions += [{"at":"2026-10-14T00:00:00Z","from":"rejected","to":"decided","by":"operator:decisions-command","evidence":"cli:2026-10-14T00:00:00Z"}] | .decisions[0].status = "decided" | .decisions[0].decided_by = "operator" | .decisions[0].decided_by_ref = "cli:2026-10-14T00:00:00Z"' 'illegal transition "rejected" -> "decided"'
+    _dec_bad '.decisions[0].follow_up = null' "a rejected row needs rejection_rationale and follow_up"
+}
+
+@test "validate-artifact decisions: content edits, dropped rows and rewritten history fail against the base; an appended transition passes" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null; _dec_new_prop >/dev/null
+    _dec_bad '.decisions[0].summary = "rewritten"' "DEC-0001: content edit to summary" --base
+    _dec_bad '.decisions[1].source = "elsewhere"' "DEC-0002: content edit to source" --base
+    _dec_bad 'del(.decisions[1])' "DEC-0002: dropped (rows are append-only)" --base
+    _dec_bad '.decisions[0].transitions[0].evidence = "edited"' "DEC-0001: transitions rewritten" --base
+    cp "$DL" "$BATS_TEST_TMPDIR/base.yaml"
+    _dec_confirm DEC-0001
+    run "$DV" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    [ "$status" -eq 0 ]
+}
+
+@test "validate-artifact decisions: an operator row written under a live unattended signal fails" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null
+    cp "$DL" "$BATS_TEST_TMPDIR/base.yaml"
+    _dec_confirm DEC-0001
+    run env LOA_UNATTENDED=1 "$DV" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    [ "$status" -eq 1 ]; [[ "$output" == *"decided_by operator written while a live unattended signal holds"* ]]
+}
+
+@test "validate-artifact decisions: supersede leaves the old row superseded and removes nothing" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop >/dev/null; _dec_confirm DEC-0001
+    cp "$DL" "$BATS_TEST_TMPDIR/base.yaml"
+    run bash "$DW" supersede --file "$DL" --id DEC-0001 --summary s2 --phase discovery --category scope --recorded-by decisions-command --source s --decision d --rationale r --alternative-json "$DALT" --quiet
+    [ "$status" -eq 0 ]
+    [ "$(yq '.decisions | length' "$DL")" -eq 2 ]
+    [ "$(yq '.decisions[0].status' "$DL")" = "superseded" ]
+    run "$DV" --type decisions --file "$DL" --base-file "$BATS_TEST_TMPDIR/base.yaml"
+    [ "$status" -eq 0 ]
+    _dec_bad '.decisions[1].supersedes = "DEC-0042"' "supersedes DEC-0042 names no row"
+}
+
+# ---- prd: tag classes and the tag-to-row rule ------------------------------------------
+
+_dec_prd() { # status-word date body...
+    local st="$1" dt="$2"; shift 2
+    { printf '# PRD\n\n**Date:** %s\n**Status:** %s\n\n## 1. Problem\n\n' "$dt" "$st"; printf '%s\n' "$@"; printf '\n> Sources: brief\n'; } > "$DP/grimoires/loa/prd.md"
+}
+
+@test "validate-artifact prd: an [ASSUMPTION decision] tag without a DEC row FAILS unattended and WARNs interactive" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_prd "Draft (autonomous run)" 2026-10-13 "We take rounds. [ASSUMPTION decision] (DEC-0001)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 1 ]; [[ "$output" == *"cites no DEC row whose source names prd.md"* ]]
+    _dec_prd "Draft" 2026-10-13 "We take rounds. [ASSUMPTION decision] (DEC-0001)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 0 ]; [[ "$output" == *"WARN:"*"cites no DEC row"* ]]
+}
+
+@test "validate-artifact prd: a cited row whose source names the PRD passes; one naming another file does not" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_new_prop "rounds" "grimoires/loa/prd.md#appendix-e (D1)" >/dev/null
+    _dec_new_prop "other" "grimoires/loa/sdd.md#11.3 (A1)" >/dev/null
+    _dec_prd "Draft (unattended)" 2026-10-13 "Rounds. [ASSUMPTION decision] (DEC-0001)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 0 ]; [[ "$output" != *"cites no DEC row"* ]]
+    _dec_prd "Draft (unattended)" 2026-10-13 "Other. [ASSUMPTION decision] (DEC-0002)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 1 ]
+    # --ledger points the check at another ledger
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md" --ledger "$BATS_TEST_TMPDIR/none.yaml"
+    [ "$status" -eq 1 ]; [[ "$output" == *"ledger unreadable"* ]]
+}
+
+@test "validate-artifact prd: a fixture unattended PRD with N [ASSUMPTION decision] tags has N proposed agent rows, each cited" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_prd "Draft (autonomous run)" 2026-10-13 "placeholder"
+    local i ids=() id
+    for i in 1 2 3; do
+        id="$(bash "$DW" new --file "$DL" --summary "decision $i" --phase discovery --category scope --recorded-by plan-and-analyze \
+            --source "grimoires/loa/prd.md#appendix-e (D$i)" --decision "d$i" --rationale "r$i" --alternative-json "$DALT" --answer-ref "session:x#turn-$i" 2>/dev/null)"
+        ids+=("$id")
+    done
+    _dec_prd "Draft (autonomous run)" 2026-10-13 \
+        "One. [ASSUMPTION decision] (${ids[0]})" "Two. [ASSUMPTION decision] (${ids[1]})" "Three. [ASSUMPTION decision] (${ids[2]})" "A fact. [ASSUMPTION fact]"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md" --json
+    [ "$status" -eq 0 ]
+    [[ "$(echo "$output" | jq -r '.info[1]')" == "assumption tag classes: fact=1 decision=3 bare=0" ]]
+    [ "$(yq -o=json '.' "$DL" | jq '[.decisions[] | select(.status == "proposed" and .proposed_by == "agent" and .decided_by == null and .decided_by_ref == null)] | length')" -eq 3 ]
+}
+
+@test "validate-artifact prd: a bare [ASSUMPTION] WARNs before BARE_ASSUMPTION_FAILS_FROM and FAILs from it; tags in code are not counted" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_prd "Draft" 2026-10-13 "Users have internet. [ASSUMPTION]" 'The tag `[ASSUMPTION decision]` is documented here.'
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md" --json
+    [ "$status" -eq 0 ]
+    [[ "$(echo "$output" | jq -r '.warnings | join(" ")')" == *"1 bare [ASSUMPTION] tag(s)"* ]]
+    [[ "$(echo "$output" | jq -r '.info[1]')" == "assumption tag classes: fact=0 decision=0 bare=1" ]]
+    _dec_prd "Draft" 2026-11-13 "Users have internet. [ASSUMPTION]"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 1 ]; [[ "$output" == *"on or after 2026-11-13"* ]]
+}
+
+@test "validate-artifact prd: a **Deferred:** line must cite an existing DEC row" {
+    _dec_skip_unless_tools; _dec_project
+    _dec_prd "Draft (autonomous run)" 2026-10-13 "**Deferred:** pending prototype bd-abcd (DEC-0001)"
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 1 ]; [[ "$output" == *"**Deferred:** line cites no existing DEC row"* ]]
+    bash "$DW" new --file "$DL" --summary "look and feel" --phase discovery --category ux --recorded-by t --source "grimoires/loa/prd.md#fr-5" --status open --quiet >/dev/null
+    run "$DV" --type prd --file "$DP/grimoires/loa/prd.md"
+    [ "$status" -eq 0 ]
+}
+
+# ---- sdd: Open Questions DEC column ------------------------------------------------------
+
+@test "validate-artifact sdd: WARNs on a Resolved open question without a DEC id; a cited row does not" {
+    {
+        sdd_all_sections | sed '/^## 10. Open Questions/,$d'
+        printf '## 10. Open Questions\n\n| # | Question | Status | DEC |\n|---|---|---|---|\n| 1 | pacing | Resolved | pending |\n| 2 | ledger | Resolved | DEC-0002 |\n| 3 | later | Open | |\n'
+    } > "${TEST_TMPDIR}/sdd.md"
+    run "$SCRIPT" --type sdd --file "${TEST_TMPDIR}/sdd.md"
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -c 'Resolved without a DEC id')" -eq 1 ]
+    [[ "$output" == *"sdd.md:23:"* ]]
+}
+
+@test "validate-artifact: the PRD and SDD templates carry the decisions appendix rendered by dec-write-lib.sh list" {
+    local t
+    for t in "$PROJECT_ROOT/.claude/skills/discovering-requirements/resources/templates/prd-template.md" \
+             "$PROJECT_ROOT/.claude/skills/designing-architecture/resources/templates/sdd-template.md"; do
+        grep -q "Decisions taken on the operator's behalf" "$t"
+        grep -q 'dec-write-lib.sh list --not-decided-by operator --cycle {cycle} --format md' "$t"
+    done
+    grep -q '| Question | Owner | Due Date | Status | DEC |' "$PROJECT_ROOT/.claude/skills/designing-architecture/resources/templates/sdd-template.md"
+}
+
+@test "validate-artifact sprint: a task citing a PRD requirement marked **Deferred:** WARNs (never fails)" {
+    mkdir -p "${TEST_TMPDIR}/plan"
+    printf '# PRD\n\n### FR-5: prototypes\n**Deferred:** pending prototype bd-abcd (DEC-0009)\n\n### FR-6: glossary\nnot deferred\n' > "${TEST_TMPDIR}/plan/prd.md"
+    {
+        printf '## Sprint 1: x\n\n### Sprint Goal\ng\n### Deliverables\nd\n### Acceptance Criteria\na\n### Technical Tasks\n'
+        printf -- '- [ ] Task 1.1: build FR-5 spike UI\n- [ ] Task 1.2: FR-6 glossary\n- [ ] Task 1.3: E2E\n'
+        printf '### Dependencies\nn\n### Risks & Mitigation\nr\n### Security Considerations\ns\n### Success Metrics\nm\n'
+    } > "${TEST_TMPDIR}/plan/sprint.md"
+    run "$SCRIPT" --type sprint --file "${TEST_TMPDIR}/plan/sprint.md"
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | grep -c 'which the PRD marks \*\*Deferred:\*\*')" -eq 1 ]
+    [[ "$output" == *"sprint.md:10: this task cites FR-5"* ]]
+}

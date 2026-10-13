@@ -27,6 +27,9 @@ Sprint plan execution stopped at **{failed_sprint}**.
 ### Flatline Review Summary (v1.22.0)
 {generate_flatline_summary — see below}
 
+### Decisions taken on your behalf
+{decisions section from decisions-section-steps}
+
 {generate_deleted_tree — see "Deleted Files Tracking"}
 
 ---
@@ -64,6 +67,9 @@ Sprint plan execution stopped at **{failed_sprint}**.
 ### Flatline Review Summary (v1.22.0)
 {flatline summary from step 4}
 
+### Decisions taken on your behalf
+{decisions section from decisions-section-steps}
+
 ### Test Results
 All tests passing (verified by /audit-sprint for each sprint).
 
@@ -90,6 +96,31 @@ Discovery context cleaned and ready for next cycle.
    `.flatline/runs/{run_id}-disputed.json` (`.[] | "- **{id}**: {description} (delta: {delta})"`).
 6. If `total_high > 0`: append the rollback hint:
    `` `.claude/scripts/flatline-rollback.sh run --run-id <run_id> --dry-run` ``.
+
+## decisions-section-steps
+
+Fills the "Decisions taken on your behalf" section of the completion and sprint-plan incomplete PR bodies from the decision ledger. The section is rendered by the ledger writer, never hand-filled: copy its output, do not summarise or edit rows.
+
+1. Resolve the cycle: `cycle_id="$(jq -r '.active_cycle' grimoires/loa/ledger.json)"`.
+2. Render the rows the operator did not decide (agent, Flatline and dissent voices):
+   `decisions_md="$(.claude/scripts/lib/dec-write-lib.sh list --voice agent,flatline,dissent --cycle "$cycle_id" --format md)"`.
+3. If step 2 exits non-zero, emit
+   `_Decision ledger unavailable: dec-write-lib.sh list exited {code}. Run it by hand before merging._`
+   and stop. An empty section would claim the operator decided everything.
+4. If the output has no data row (nothing beyond the `| Decision | Voice | Status | Why | Source |`
+   header and its separator), emit `_None: every decision in this run was the operator's._` and stop.
+5. Otherwise emit the output unchanged, then the line `Confirm with /decisions confirm.` unless the
+   output already ends with it. Expected shape:
+
+```
+| Decision | Voice | Status | Why | Source |
+|---|---|---|---|---|
+| rounds is the thorough default (DEC-0007) | agent | proposed | brief recommendation | prd.md Appendix E D1 |
+| ceiling route policy (DEC-0019) | flatline | proposed | BLOCKER override | .flatline/runs/…json |
+Confirm with /decisions confirm.
+```
+
+Only the operator moves a row out of `proposed`, through the operator-only `/decisions` command; the PR section is how they see what to confirm.
 
 ## local-mode-report
 

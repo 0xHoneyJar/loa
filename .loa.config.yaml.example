@@ -97,7 +97,7 @@ plan_and_analyze:
 # Interview Depth Configuration (v1.41.0)
 # -----------------------------------------------------------------------------
 # Controls question depth, input style, and pacing across planning skills.
-# Default: thorough mode with sequential plain-text discovery questions.
+# Default: thorough mode with rounds of plain-text discovery questions.
 #
 # Construct override: Schema supports future construct manifest interview
 # overrides gated by trust tier (RFC #379). Not wired yet.
@@ -122,10 +122,22 @@ interview:
     # confirmation: AskUserQuestion for understanding checks
     confirmation: structured     # structured | plain
 
-  # Question pacing
-  #   sequential: one question per turn, wait for response (default for thorough)
+  # Question pacing. One key for the discovery interview, /architect Phase 2,
+  # /sprint-plan Phase 2 and /chart; per_skill above still picks the mode.
+  # Unset: rounds for thorough, batch for minimal. An explicit value always wins.
+  #   rounds: each turn asks the whole frontier, every open question whose
+  #     prerequisites are settled; a question that depends on another one still
+  #     open waits for a later round. Questions are numbered across the session
+  #     (Q1, Q2, ...), each with a recommended answer. "yes" accepts every
+  #     recommendation in the round; a numbered answer overrides that question;
+  #     unanswered numbers are restated and take the recommendation only after
+  #     you confirm. The frontier is recomputed after each round. Each round ends
+  #     with a <!-- round: N; questions: [...] --> block that
+  #     tools/check-round-independence.sh checks.
+  #   sequential: one question per turn, wait for the answer (the supported
+  #     opt-out if you prefer one question at a time)
   #   batch: 3-6 numbered questions per turn, user responds freely
-  pacing: sequential   # sequential | batch
+  pacing: rounds   # sequential | batch | rounds
 
   # Phase transition gates
   phase_gates:
@@ -257,6 +269,22 @@ known_failures:
   # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
   # (known-failures.md unreadable or zero entries parsed).
   surface_at_session_start: false
+
+# -----------------------------------------------------------------------------
+# Decision ledger (grimoires/loa/decisions.yaml)
+# -----------------------------------------------------------------------------
+# Rows are written only by .claude/scripts/lib/dec-write-lib.sh (needs jq and Mike
+# Farah yq v4). Skills record decisions as `proposed`; the operator confirms them
+# with /decisions confirm. See grimoires/loa/sdd.md §3.1 for the schema.
+decisions:
+  # When true, .claude/hooks/session-start/loa-decisions-surface.sh prints up to 10
+  # proposed and open rows (id, status, summary) at session start, inside the L6
+  # untrusted-content fence, plus a notice when .run/unattended.json is stale.
+  # DEFAULT-OFF: the hook prints nothing while this is false and always exits 0.
+  surface_at_session_start: false
+  # Hours after which `dec-write-lib.sh context --set-unattended`'s marker is stale
+  # and ignored (a marker from another session is stale at once).
+  unattended_marker_ttl_hours: 24
 
 # -----------------------------------------------------------------------------
 # Skills (v1.14.0)

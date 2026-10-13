@@ -1,6 +1,7 @@
 ---
 description: View and analyze HITL permission requests to optimize settings.json
 output: Permission audit report with suggestions
+disable-model-invocation: true
 ---
 
 # Permission Audit Command

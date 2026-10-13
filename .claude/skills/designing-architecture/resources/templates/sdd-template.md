@@ -373,9 +373,9 @@ Authorization: Bearer {token}
 
 ## 10. Open Questions
 
-| Question | Owner | Due Date | Status |
-|----------|-------|----------|--------|
-| {Question} | {Person} | {Date} | Open/Resolved |
+| Question | Owner | Due Date | Status | DEC |
+|----------|-------|----------|--------|-----|
+| {Question} | {Person} | {Date} | Open/Resolved | {DEC-NNNN once Resolved} |
 
 ---
 
@@ -394,6 +394,13 @@ Authorization: Bearer {token}
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | {Date} | Initial version | Architecture Designer |
+
+### D. Decisions taken on the operator's behalf
+Rendered from the decision ledger, never hand-filled:
+`.claude/scripts/lib/dec-write-lib.sh list --not-decided-by operator --cycle {cycle} --format md`
+(the rows an agent, Flatline or dissent took; each stays `proposed` until `/decisions confirm`).
+
+{rendered table}
 
 ---
 

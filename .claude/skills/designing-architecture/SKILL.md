@@ -201,6 +201,8 @@ Before proceeding with design, ask targeted questions about:
 - Security, compliance, or regulatory requirements
 - Performance expectations and SLAs
 
+Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
+
 Wait for responses before finalizing design decisions.
 Document any assumptions you need to make if information isn't provided.
 

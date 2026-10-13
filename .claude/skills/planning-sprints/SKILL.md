@@ -205,13 +205,7 @@ When creating tasks, quote the exact requirement (`> From prd.md: FR-1.2: "..."`
 
 ## Phase 2: Strategic Questioning
 
-Ask clarifying questions about:
-- Priority conflicts or feature trade-offs
-- Technical uncertainties impacting effort estimation
-- Resource availability or team composition
-- External dependencies or third-party integrations
-- Underspecified requirements
-- Risk mitigation strategies
+Ask clarifying questions on priority conflicts, estimation uncertainty, resources, external dependencies, underspecified requirements and risk mitigation (full list: see `resources/REFERENCE.md` §Clarifying Questions Checklist). Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
 
 Wait for responses before proceeding. Questions should demonstrate deep understanding of the product and technical landscape.
 
@@ -318,13 +312,7 @@ fi
 ```
 
 ### Semantic Labels for Relationships
-Use labels instead of dependency types:
-
-| Relationship | Label | Example |
-|--------------|-------|---------|
-| Sprint membership | `sprint:<n>` | `br label add beads-xxx sprint:1` |
-| Epic association | `epic:<epic-id>` | Auto-added by create-sprint-task.sh |
-| Review status | `needs-review` | `br label add beads-xxx needs-review` |
+Use labels instead of dependency types: `sprint:<n>` (`br label add beads-xxx sprint:1`), `epic:<epic-id>` (auto-added by create-sprint-task.sh), `needs-review`. Full table: see `.claude/protocols/beads-integration.md` §Labels.
 
 ### Session End
 ```bash

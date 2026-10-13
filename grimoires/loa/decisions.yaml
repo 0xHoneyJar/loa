@@ -1,0 +1,2355 @@
+# grimoires/loa/decisions.yaml: the decision ledger (schema: grimoires/loa/sdd.md §3.1,
+# docs/architecture/decision-lineage.md). Tracked team state, like known-failures.md.
+#
+# Append-only. Rows are written only by .claude/scripts/lib/dec-write-lib.sh, which takes a lock,
+# verifies every candidate (no id dropped, no content edit, transitions appended, the
+# validate-artifact.sh --type decisions check) and renames it into place. Do not hand-edit rows:
+# the validator rejects content edits against the base, and a rejected row is superseded, not rewritten.
+#
+# Lifecycle: open -> proposed (decide) -> decided (operator only, through /decisions confirm)
+# -> superseded (operator only); open|proposed -> rejected (with rationale and follow-up).
+# Skills write open or proposed rows; decided_by stays null until /decisions confirm sets it.
+# A linked worktree writes grimoires/loa/a2a/sprint-<N>/decisions-pending.yaml instead and the
+# lead imports it here (dec-write-lib.sh import), so ids are allocated in one place.
+#
+# The bar: every decision an agent takes on the operator's behalf unattended gets a row; an
+# interactive decision gets one only when it is hard to reverse, surprising without context and
+# a real trade-off (all three).
+schema_version: 1
+decisions:
+  - id: "DEC-0001"
+    created_at: "2026-10-13T02:07:22Z"
+    updated_at: "2026-10-13T02:07:22Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`rounds` becomes the default pacing for `thorough`; `sequential` stays as the documented opt-out (D1)"
+    decision: "`rounds` becomes the default pacing for `thorough`; `sequential` stays as the documented opt-out"
+    rationale: "the brief recommended it; Pocock's 1.2.0 made the same flip with a supported opt-out"
+    alternatives_considered:
+      - option: "keep `sequential` default, add `rounds` as opt-in"
+        rejected_because: "not chosen: the brief recommended it; Pocock's 1.2.0 made the same flip with a supported opt-out"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0002"
+    created_at: "2026-10-13T02:07:23Z"
+    updated_at: "2026-10-13T02:07:23Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`decisions.yaml` lives at `grimoires/loa/decisions.yaml` and is tracked (D2)"
+    decision: "`decisions.yaml` lives at `grimoires/loa/decisions.yaml` and is tracked"
+    rationale: "the original spec and two existing readers point there; team surface like `known-failures.md`"
+    alternatives_considered:
+      - option: "`docs/architecture/decisions.yaml`"
+        rejected_because: "not chosen: the original spec and two existing readers point there; team surface like `known-failures.md`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0003"
+    created_at: "2026-10-13T02:07:23Z"
+    updated_at: "2026-10-13T02:07:23Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`/chart` is a truename command, not a golden-path porcelain command; `/plan` reports `charting` (D3)"
+    decision: "`/chart` is a truename command, not a golden-path porcelain command; `/plan` reports `charting`"
+    rationale: "narrow trigger; Pocock calls wayfinder a situational on-ramp"
+    alternatives_considered:
+      - option: "add to the five porcelain commands"
+        rejected_because: "not chosen: narrow trigger; Pocock calls wayfinder a situational on-ramp"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0004"
+    created_at: "2026-10-13T02:07:24Z"
+    updated_at: "2026-10-13T02:07:24Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Research tickets run as Opus subagents via the Agent tool, not cheval (D4)"
+    decision: "Research tickets run as Opus subagents via the Agent tool, not cheval"
+    rationale: "host-local, no provider dependency"
+    alternatives_considered:
+      - option: "cheval route"
+        rejected_because: "not chosen: host-local, no provider dependency"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0005"
+    created_at: "2026-10-13T02:07:24Z"
+    updated_at: "2026-10-13T02:07:24Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Pocock's `task` type is named `decision:unblock` (D5)"
+    decision: "Pocock's `task` type is named `decision:unblock`"
+    rationale: "the type that \"goes wrong most often\"; the name must not read as a build task"
+    alternatives_considered:
+      - option: "keep `task`"
+        rejected_because: "not chosen: the type that \"goes wrong most often\"; the name must not read as a build task"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0006"
+    created_at: "2026-10-13T02:07:24Z"
+    updated_at: "2026-10-13T02:07:24Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Spike branches are `spike/<slug>`, pushed, never merged, no PR (D6)"
+    decision: "Spike branches are `spike/<slug>`, pushed, never merged, no PR"
+    rationale: "a pushed branch is the pointer the spike report needs; no PR keeps it off review"
+    alternatives_considered:
+      - option: "local-only worktrees"
+        rejected_because: "not chosen: a pushed branch is the pointer the spike report needs; no PR keeps it off review"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0007"
+    created_at: "2026-10-13T02:07:25Z"
+    updated_at: "2026-10-13T02:07:25Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`GLOSSARY.md` at the repo root, tracked; Loa dogfoods it (D7)"
+    decision: "`GLOSSARY.md` at the repo root, tracked; Loa dogfoods it"
+    rationale: "root is where humans and Pocock's consumer rule look; the kernel drift check needs one path"
+    alternatives_considered:
+      - option: "`grimoires/loa/glossary.md`"
+        rejected_because: "not chosen: root is where humans and Pocock's consumer rule look; the kernel drift check needs one path"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0008"
+    created_at: "2026-10-13T02:07:25Z"
+    updated_at: "2026-10-13T02:07:25Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "FR-8 safe set = zero-reference leaves; the referenced set is triaged per reference (D8)"
+    decision: "FR-8 safe set = zero-reference leaves; the referenced set is triaged per reference"
+    rationale: "a flagged command an orchestrator executes as a step would break `/ship`"
+    alternatives_considered:
+      - option: "flag all operator commands"
+        rejected_because: "not chosen: a flagged command an orchestrator executes as a step would break `/ship`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0009"
+    created_at: "2026-10-13T02:07:26Z"
+    updated_at: "2026-10-13T02:07:26Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "B7 two-axis presentation and the LEARN items are future iterations, not this cycle (D9)"
+    decision: "B7 two-axis presentation and the LEARN items are future iterations, not this cycle"
+    rationale: "simplicity first; the eight FRs are the brief's scope"
+    alternatives_considered:
+      - option: "fold into Sprint 3"
+        rejected_because: "not chosen: simplicity first; the eight FRs are the brief's scope"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0010"
+    created_at: "2026-10-13T02:07:26Z"
+    updated_at: "2026-10-13T02:07:26Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Two glossaries: the framework glossary ships at `.claude/loa/GLOSSARY.md` (drift-checked against the kernel i… (D10)"
+    decision: "Two glossaries: the framework glossary ships at `.claude/loa/GLOSSARY.md` (drift-checked against the kernel in this repo's CI); the project glossary is the root `GLOSSARY.md` (amends D7)"
+    rationale: "consumer projects need the framework terms mounted, and their own terms must not live in the System Zone (Flatline opus IMP-009)"
+    alternatives_considered:
+      - option: "one root file for both"
+        rejected_because: "not chosen: consumer projects need the framework terms mounted, and their own terms must not live in the System Zone (Flatline opus IMP-009)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0011"
+    created_at: "2026-10-13T02:07:27Z"
+    updated_at: "2026-10-13T02:07:27Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Unattended prototype-class questions defer by default (`interview.unattended_prototype: defer`): open `DEC` r… (D11)"
+    decision: "Unattended prototype-class questions defer by default (`interview.unattended_prototype: defer`): open `DEC` row, `decision:prototype` bead, requirement marked deferred; the run continues"
+    rationale: "a halt on every look-and-feel question would stall unattended planning; the deferred requirement is visible in the PRD and the ledger (Flatline gpt IMP-004, opus IMP-004)"
+    alternatives_considered:
+      - option: "halt the run"
+        rejected_because: "not chosen: a halt on every look-and-feel question would stall unattended planning; the deferred requirement is visible in the PRD and the ledger (Flatline gpt IMP-004, opus IMP-004)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0012"
+    created_at: "2026-10-13T02:07:27Z"
+    updated_at: "2026-10-13T02:07:27Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`/chart` refuses in unattended mode; research tickets are the only AFK work in a map (D12)"
+    decision: "`/chart` refuses in unattended mode; research tickets are the only AFK work in a map"
+    rationale: "a charted map whose questions the agent answered is the wayfinder failure pattern by construction (Flatline opus IMP-020)"
+    alternatives_considered:
+      - option: "allow the agent to answer destination and fog rounds"
+        rejected_because: "not chosen: a charted map whose questions the agent answered is the wayfinder failure pattern by construction (Flatline opus IMP-020)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0013"
+    created_at: "2026-10-13T02:07:28Z"
+    updated_at: "2026-10-13T02:07:28Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Agent decisions are `status: proposed` until `dec-write-lib.sh confirm` by the operator; the standing admin p… (D13)"
+    decision: "Agent decisions are `status: proposed` until `dec-write-lib.sh confirm` by the operator; the standing admin preapproval authorises shipping, not confirmation of each row"
+    rationale: "confirmation must be explicit and auditable per row (Flatline SKP-001a)"
+    alternatives_considered:
+      - option: "treat the PR merge as confirmation"
+        rejected_because: "not chosen: confirmation must be explicit and auditable per row (Flatline SKP-001a)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0014"
+    created_at: "2026-10-13T02:07:28Z"
+    updated_at: "2026-10-13T02:07:28Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`decided_by` is derived by the writer from run context; `operator` needs an `--answer-ref` (D14)"
+    decision: "`decided_by` is derived by the writer from run context; `operator` needs an `--answer-ref`"
+    rationale: "self-reported attribution is unfalsifiable (Flatline SKP-001b)"
+    alternatives_considered:
+      - option: "caller argument"
+        rejected_because: "not chosen: self-reported attribution is unfalsifiable (Flatline SKP-001b)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0015"
+    created_at: "2026-10-13T02:07:29Z"
+    updated_at: "2026-10-13T02:07:29Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Rows are append-only with status transitions; content edits are rejected; `supersede` creates a new row (D15)"
+    decision: "Rows are append-only with status transitions; content edits are rejected; `supersede` creates a new row"
+    rationale: "a decision history that can be rewritten is not a record (Flatline SKP-002)"
+    alternatives_considered:
+      - option: "editable rows"
+        rejected_because: "not chosen: a decision history that can be rewritten is not a record (Flatline SKP-002)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0016"
+    created_at: "2026-10-13T02:07:29Z"
+    updated_at: "2026-10-13T02:07:29Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Backfill is forward-only except cycle-127 D1–D3, seeded like every other seed row as `proposed` (D16)"
+    decision: "Backfill is forward-only except cycle-127 D1–D3, seeded like every other seed row as `proposed`"
+    rationale: "three rows give the validator a live fixture without a migration project, and no seed can claim a confirmation the operator has not given per row (Flatline gpt IMP-001, opus IMP-027; SDD review SKP-001)"
+    alternatives_considered:
+      - option: "backfill all NOTES decisions; seed them `decided`"
+        rejected_because: "not chosen: three rows give the validator a live fixture without a migration project, and no seed can claim a confirmation the operator has not given per row (Flatline gpt IMP-001, opus IMP-027; SDD review SKP-001)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0017"
+    created_at: "2026-10-13T02:07:30Z"
+    updated_at: "2026-10-13T02:07:30Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Operator transitions (`confirm`, `reject` or `supersede` of a decided row, clearing the unattended marker) ex… (D17)"
+    decision: "Operator transitions (`confirm`, `reject` or `supersede` of a decided row, clearing the unattended marker) exist only behind the operator-only `/decisions` command; no skill may call them"
+    rationale: "an agent that can clear its own unattended marker or confirm its own rows makes attribution meaningless (SDD review SKP-002)"
+    alternatives_considered:
+      - option: "a writer flag any caller may pass"
+        rejected_because: "not chosen: an agent that can clear its own unattended marker or confirm its own rows makes attribution meaningless (SDD review SKP-002)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0018"
+    created_at: "2026-10-13T02:07:30Z"
+    updated_at: "2026-10-13T02:07:30Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Implementers in linked worktrees write a per-sprint pending file with provisional ids; the lead imports it in… (D18)"
+    decision: "Implementers in linked worktrees write a per-sprint pending file with provisional ids; the lead imports it in the main checkout, the only place real ids are allocated"
+    rationale: "an append-only tracked YAML is unmergeable across branches and max+1 ids collide (SDD review SKP-003)"
+    alternatives_considered:
+      - option: "let every worktree append to the live ledger"
+        rejected_because: "not chosen: an append-only tracked YAML is unmergeable across branches and max+1 ids collide (SDD review SKP-003)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0019"
+    created_at: "2026-10-13T02:07:31Z"
+    updated_at: "2026-10-13T02:07:31Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Attribution is tamper-evident (artifact hashes, HEAD commit, append-only transitions), not signed; signing th… (D19)"
+    decision: "Attribution is tamper-evident (artifact hashes, HEAD commit, append-only transitions), not signed; signing through the existing signed audit chain is a future iteration"
+    rationale: "proportionate to a planning ledger; the signing infrastructure exists and can be attached later (SDD review SKP-002)"
+    alternatives_considered:
+      - option: "require signatures now"
+        rejected_because: "not chosen: proportionate to a planning ledger; the signing infrastructure exists and can be attached later (SDD review SKP-002)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0020"
+    created_at: "2026-10-13T02:07:31Z"
+    updated_at: "2026-10-13T02:07:31Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Mike Farah yq v4 becomes a hard dependency for the ledger writer; the lock is portable (`flock` or a `mkdir` … (D20)"
+    decision: "Mike Farah yq v4 becomes a hard dependency for the ledger writer; the lock is portable (`flock` or a `mkdir` lock); `timeout` falls back to `gtimeout` or a bash wrapper"
+    rationale: "hand-rolled YAML is the corruption risk the review named; macOS and BSD hosts are supported (SDD review SKP-004)"
+    alternatives_considered:
+      - option: "shell-only YAML handling"
+        rejected_because: "not chosen: hand-rolled YAML is the corruption risk the review named; macOS and BSD hosts are supported (SDD review SKP-004)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0021"
+    created_at: "2026-10-13T02:07:32Z"
+    updated_at: "2026-10-13T02:07:32Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Ledger lock fails closed after 10 s (A1)"
+    decision: "Ledger lock fails closed after 10 s"
+    rationale: "a lost update on a tracked ledger is worse than a retry"
+    alternatives_considered:
+      - option: "best-effort lock (kf-write)"
+        rejected_because: "not chosen: a lost update on a tracked ledger is worse than a retry"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A1)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0022"
+    created_at: "2026-10-13T02:07:32Z"
+    updated_at: "2026-10-13T02:07:32Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Temp file beside the target (A2)"
+    decision: "Temp file beside the target"
+    rationale: "a cross-filesystem `mv` is not atomic"
+    alternatives_considered:
+      - option: "`/tmp`"
+        rejected_because: "not chosen: a cross-filesystem `mv` is not atomic"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A2)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0023"
+    created_at: "2026-10-13T02:07:33Z"
+    updated_at: "2026-10-13T02:07:33Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Verify by row equality plus field classes (A3)"
+    decision: "Verify by row equality plus field classes"
+    rationale: "YAML re-serialisation moves lines"
+    alternatives_considered:
+      - option: "line and id checks only"
+        rejected_because: "not chosen: YAML re-serialisation moves lines"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A3)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0024"
+    created_at: "2026-10-13T02:07:33Z"
+    updated_at: "2026-10-13T02:07:33Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Optional `cycle` field, defaulted from run state (A4)"
+    decision: "Optional `cycle` field, defaulted from run state"
+    rationale: "a run spans days; `--since` is kept as the PRD's equivalent"
+    alternatives_considered:
+      - option: "filter by timestamp only"
+        rejected_because: "not chosen: a run spans days; `--since` is kept as the PRD's equivalent"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A4)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0025"
+    created_at: "2026-10-13T02:07:34Z"
+    updated_at: "2026-10-13T02:07:34Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`charting` from the map doc Status line (A5)"
+    decision: "`charting` from the map doc Status line"
+    rationale: "golden-path must work without `br`; the doc wins on disagreement"
+    alternatives_considered:
+      - option: "an open `map` epic in beads"
+        rejected_because: "not chosen: golden-path must work without `br`; the doc wins on disagreement"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A5)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0026"
+    created_at: "2026-10-13T02:07:34Z"
+    updated_at: "2026-10-13T02:07:34Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Hand-off context snapshot; chart zones add `context` and `spikes` (A6)"
+    decision: "Hand-off context snapshot; chart zones add `context` and `spikes`"
+    rationale: "no budget there. Widens the PRD's four-path zone list by two"
+    alternatives_considered:
+      - option: "edit discovering-requirements"
+        rejected_because: "not chosen: no budget there. Widens the PRD's four-path zone list by two"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A6)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0027"
+    created_at: "2026-10-13T02:07:35Z"
+    updated_at: "2026-10-13T02:07:35Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`research/chart-*.md` tracked by a negation (A7)"
+    decision: "`research/chart-*.md` tracked by a negation"
+    rationale: "maps need their cites"
+    alternatives_considered:
+      - option: "track all research, or none"
+        rejected_because: "not chosen: maps need their cites"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A7)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0028"
+    created_at: "2026-10-13T02:07:35Z"
+    updated_at: "2026-10-13T02:07:35Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Exclude `question` in `get-ready-work.sh` and route `/implement` through it (A8)"
+    decision: "Exclude `question` in `get-ready-work.sh` and route `/implement` through it"
+    rationale: "`br ready` is unfiltered today"
+    alternatives_considered:
+      - option: "the `sprint:` lint alone"
+        rejected_because: "not chosen: `br ready` is unfiltered today"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A8)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0029"
+    created_at: "2026-10-13T02:07:36Z"
+    updated_at: "2026-10-13T02:07:36Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Fence rule SP-1 plus the ICE spike rules (A9)"
+    decision: "Fence rule SP-1 plus the ICE spike rules"
+    rationale: "ICE covers run mode only"
+    alternatives_considered:
+      - option: "ICE only"
+        rejected_because: "not chosen: ICE covers run mode only"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A9)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0030"
+    created_at: "2026-10-13T02:07:36Z"
+    updated_at: "2026-10-13T02:07:36Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Seams rule gated by Date ≥ 2026-10-13 (A10)"
+    decision: "Seams rule gated by Date ≥ 2026-10-13"
+    rationale: "old fixtures have no Date (PRD adopted it)"
+    alternatives_considered:
+      - option: "version gate, or always"
+        rejected_because: "not chosen: old fixtures have no Date (PRD adopted it)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A10)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0031"
+    created_at: "2026-10-13T02:07:37Z"
+    updated_at: "2026-10-13T02:07:37Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`_Aliases_:` lines; identifier-shaped tokens only (A11)"
+    decision: "`_Aliases_:` lines; identifier-shaped tokens only"
+    rationale: "run states are one concept (PRD adopted it)"
+    alternatives_considered:
+      - option: "one entry per token"
+        rejected_because: "not chosen: run states are one concept (PRD adopted it)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A11)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0032"
+    created_at: "2026-10-13T02:07:37Z"
+    updated_at: "2026-10-13T02:07:37Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Flag the `loa-setup` skill only if the harness check shows the operator's command still works (A12)"
+    decision: "Flag the `loa-setup` skill only if the harness check shows the operator's command still works"
+    rationale: "a shared name may leave the skill reachable, but the operator's own command must keep working"
+    alternatives_considered:
+      - option: "always flag, never flag"
+        rejected_because: "not chosen: a shared name may leave the skill reachable, but the operator's own command must keep working"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A12)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0033"
+    created_at: "2026-10-13T02:07:38Z"
+    updated_at: "2026-10-13T02:07:38Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Rounds within a phase (A13)"
+    decision: "Rounds within a phase"
+    rationale: "keeps phase gates and section order"
+    alternatives_considered:
+      - option: "one frontier across phases"
+        rejected_because: "not chosen: keeps phase gates and section order"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A13)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0034"
+    created_at: "2026-10-13T02:07:38Z"
+    updated_at: "2026-10-13T02:07:38Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Claim with `br update --claim` (A14)"
+    decision: "Claim with `br update --claim`"
+    rationale: "atomic assignee plus status"
+    alternatives_considered:
+      - option: "`--status in_progress`"
+        rejected_because: "not chosen: atomic assignee plus status"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A14)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0035"
+    created_at: "2026-10-13T02:07:39Z"
+    updated_at: "2026-10-13T02:07:39Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Synchronous surface after the KF hook (A15)"
+    decision: "Synchronous surface after the KF hook"
+    rationale: "async output is not reliably injected"
+    alternatives_considered:
+      - option: "async"
+        rejected_because: "not chosen: async output is not reliably injected"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A15)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0036"
+    created_at: "2026-10-13T02:07:39Z"
+    updated_at: "2026-10-13T02:07:39Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Sprint validator cross-checks beads (A16)"
+    decision: "Sprint validator cross-checks beads"
+    rationale: "catches a `sprint:` label added by hand"
+    alternatives_considered:
+      - option: "creation-time lint only"
+        rejected_because: "not chosen: catches a `sprint:` label added by hand"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A16)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0037"
+    created_at: "2026-10-13T02:07:40Z"
+    updated_at: "2026-10-13T02:07:40Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Map docs allow exactly four H2s plus `## Closed` (A17)"
+    decision: "Map docs allow exactly four H2s plus `## Closed`"
+    rationale: "an allowlist cannot be dodged by a new name"
+    alternatives_considered:
+      - option: "a heading denylist"
+        rejected_because: "not chosen: an allowlist cannot be dodged by a new name"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A17)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0038"
+    created_at: "2026-10-13T02:07:40Z"
+    updated_at: "2026-10-13T02:07:40Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`flatline`/`dissent` attribution needs an existing artifact and its sha256; no orchestrator call site this cy… (A18)"
+    decision: "`flatline`/`dissent` attribution needs an existing artifact and its sha256; no orchestrator call site this cycle"
+    rationale: "keeps the sanctioned review path unchanged; the hash makes the claim checkable"
+    alternatives_considered:
+      - option: "wire the orchestrators now"
+        rejected_because: "not chosen: keeps the sanctioned review path unchanged; the hash makes the claim checkable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A18)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0039"
+    created_at: "2026-10-13T02:07:41Z"
+    updated_at: "2026-10-13T02:07:41Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`confirm --cycle` previews and needs `--all` or `--id`s for several rows (A19)"
+    decision: "`confirm --cycle` previews and needs `--all` or `--id`s for several rows"
+    rationale: "batch confirmation stays explicit"
+    alternatives_considered:
+      - option: "confirm every match silently"
+        rejected_because: "not chosen: batch confirmation stays explicit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A19)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0040"
+    created_at: "2026-10-13T02:07:41Z"
+    updated_at: "2026-10-13T02:07:41Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The writer does not require `br` (superseded preflight rule) (A20)"
+    decision: "The writer does not require `br` (superseded preflight rule)"
+    rationale: "the ledger has no beads dependency; PR bodies render without beads"
+    alternatives_considered:
+      - option: "preflight `br` everywhere"
+        rejected_because: "not chosen: the ledger has no beads dependency; PR bodies render without beads"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A20)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0041"
+    created_at: "2026-10-13T02:07:42Z"
+    updated_at: "2026-10-13T02:07:42Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The PRD Status line is an unattended signal for the gate and the writer, not for `confirm` (A21)"
+    decision: "The PRD Status line is an unattended signal for the gate and the writer, not for `confirm`"
+    rationale: "the writer and the gate agree, and the operator can still confirm later"
+    alternatives_considered:
+      - option: "ignore it, or let it block `confirm`"
+        rejected_because: "not chosen: the writer and the gate agree, and the operator can still confirm later"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A21)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0042"
+    created_at: "2026-10-13T02:07:42Z"
+    updated_at: "2026-10-13T02:07:42Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Chart ticket rows use `source: map:<slug>/<ticket>`; the bead carries `--external-ref <DEC-id>` (A22)"
+    decision: "Chart ticket rows use `source: map:<slug>/<ticket>`; the bead carries `--external-ref <DEC-id>`"
+    rationale: "the row is written before the bead exists and `source` is immutable"
+    alternatives_considered:
+      - option: "`source` = bead id"
+        rejected_because: "not chosen: the row is written before the bead exists and `source` is immutable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A22)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0043"
+    created_at: "2026-10-13T02:07:43Z"
+    updated_at: "2026-10-13T02:07:43Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "A `chart-researcher` agent without Bash, plus an ignored-files and mtime scope check (A23)"
+    decision: "A `chart-researcher` agent without Bash, plus an ignored-files and mtime scope check"
+    rationale: "tool removal is mechanical; prompts are not"
+    alternatives_considered:
+      - option: "a general-purpose subagent told not to write"
+        rejected_because: "not chosen: tool removal is mechanical; prompts are not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A23)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0044"
+    created_at: "2026-10-13T02:07:43Z"
+    updated_at: "2026-10-13T02:07:43Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Spike deletion through a fence predicate on a decided row (A24)"
+    decision: "Spike deletion through a fence predicate on a decided row"
+    rationale: "the PRD allows deletion once decided; the predicate is positive and fails closed"
+    alternatives_considered:
+      - option: "operator deletes by hand only"
+        rejected_because: "not chosen: the PRD allows deletion once decided; the predicate is positive and fails closed"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A24)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0045"
+    created_at: "2026-10-13T02:07:44Z"
+    updated_at: "2026-10-13T02:07:44Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`.run/unattended.json` with session id and TTL, plus a `context` subcommand (A25)"
+    decision: "`.run/unattended.json` with session id and TTL, plus a `context` subcommand"
+    rationale: "Bash calls do not share env; a stale marker must not outlive its session"
+    alternatives_considered:
+      - option: "env variables only"
+        rejected_because: "not chosen: Bash calls do not share env; a stale marker must not outlive its session"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A25)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0046"
+    created_at: "2026-10-13T02:07:44Z"
+    updated_at: "2026-10-13T02:07:44Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`/plan-and-analyze` closes a consumed map and applies the multi-map rule via command-file steps (A26)"
+    decision: "`/plan-and-analyze` closes a consumed map and applies the multi-map rule via command-file steps"
+    rationale: "no SKILL budget; the command file is not budgeted"
+    alternatives_considered:
+      - option: "edit discovering-requirements"
+        rejected_because: "not chosen: no SKILL budget; the command file is not budgeted"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A26)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0047"
+    created_at: "2026-10-13T02:07:45Z"
+    updated_at: "2026-10-13T02:07:45Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Each `[ASSUMPTION decision]` line cites its DEC id (A27)"
+    decision: "Each `[ASSUMPTION decision]` line cites its DEC id"
+    rationale: "a per-tag link is checkable; counts are not"
+    alternatives_considered:
+      - option: "count tags against rows"
+        rejected_because: "not chosen: a per-tag link is checkable; counts are not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A27)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A27)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0048"
+    created_at: "2026-10-13T02:07:45Z"
+    updated_at: "2026-10-13T02:07:45Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "ICE allows only the default branch into a `spike/*` branch, behind an optional argument (A28)"
+    decision: "ICE allows only the default branch into a `spike/*` branch, behind an optional argument"
+    rationale: "the narrowest exception, default behaviour unchanged"
+    alternatives_considered:
+      - option: "allow any merge into spikes"
+        rejected_because: "not chosen: the narrowest exception, default behaviour unchanged"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A28)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A28)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0049"
+    created_at: "2026-10-13T02:07:46Z"
+    updated_at: "2026-10-13T02:07:46Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The live-harness bats is opt-in (`LOA_LIVE_HARNESS=1`) and every outcome is defined (A29)"
+    decision: "The live-harness bats is opt-in (`LOA_LIVE_HARNESS=1`) and every outcome is defined"
+    rationale: "a model call per CI run costs money and flakes; a skip is visible, a false pass is not"
+    alternatives_considered:
+      - option: "run it in every CI job"
+        rejected_because: "not chosen: a model call per CI run costs money and flakes; a skip is visible, a false pass is not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A29)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A29)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0050"
+    created_at: "2026-10-13T02:07:47Z"
+    updated_at: "2026-10-13T02:07:47Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`red-test-check.sh` timeout is its own exit 5 and dependency linking is on by default (A30)"
+    decision: "`red-test-check.sh` timeout is its own exit 5 and dependency linking is on by default"
+    rationale: "a hung test is not a failing fix; fresh worktrees mostly fail on missing dependencies"
+    alternatives_considered:
+      - option: "fold timeouts into exit 1; require `--setup`"
+        rejected_because: "not chosen: a hung test is not a failing fix; fresh worktrees mostly fail on missing dependencies"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A30)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A30)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0051"
+    created_at: "2026-10-13T02:07:47Z"
+    updated_at: "2026-10-13T02:07:47Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`proposed_by` records the proposing voice; `decided_by` is set once, by `confirm` (A31)"
+    decision: "`proposed_by` records the proposing voice; `decided_by` is set once, by `confirm`"
+    rationale: "lets `decided_by` stay null until a human acts, without rewriting a set-once field"
+    alternatives_considered:
+      - option: "one `decided_by` set at proposal"
+        rejected_because: "not chosen: lets `decided_by` stay null until a human acts, without rewriting a set-once field"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A31)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A31)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0052"
+    created_at: "2026-10-13T02:07:48Z"
+    updated_at: "2026-10-13T02:07:48Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`/decisions` runs operator ops in the session, previewing first; no fence on the writer (A32)"
+    decision: "`/decisions` runs operator ops in the session, previewing first; no fence on the writer"
+    rationale: "the fence would also block the command itself; the boundary is the allowlists plus tamper evidence"
+    alternatives_considered:
+      - option: "a fence that blocks the ops for the model"
+        rejected_because: "not chosen: the fence would also block the command itself; the boundary is the allowlists plus tamper evidence"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A32)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A32)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0053"
+    created_at: "2026-10-13T02:07:48Z"
+    updated_at: "2026-10-13T02:07:48Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "Linked worktrees write `PEND-` rows to a sprint pending file; the lead imports (A33)"
+    decision: "Linked worktrees write `PEND-` rows to a sprint pending file; the lead imports"
+    rationale: "max+1 ids collide and an append-only YAML list does not merge"
+    alternatives_considered:
+      - option: "worktrees write the live ledger and merge"
+        rejected_because: "not chosen: max+1 ids collide and an append-only YAML list does not merge"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A33)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A33)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0054"
+    created_at: "2026-10-13T02:07:49Z"
+    updated_at: "2026-10-13T02:07:49Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`mkdir` lock fallback with a 60 s stale check when `flock` is absent (A34)"
+    decision: "`mkdir` lock fallback with a 60 s stale check when `flock` is absent"
+    rationale: "macOS ships without `flock`"
+    alternatives_considered:
+      - option: "require util-linux"
+        rejected_because: "not chosen: macOS ships without `flock`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A34)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A34)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0055"
+    created_at: "2026-10-13T02:07:50Z"
+    updated_at: "2026-10-13T02:07:50Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`hook-guard.sh` exports `LOA_HOOK_CONTEXT=1`; live-ledger writes refuse under it and under CI (A35)"
+    decision: "`hook-guard.sh` exports `LOA_HOOK_CONTEXT=1`; live-ledger writes refuse under it and under CI"
+    rationale: "makes \"no bot auto-append\" mechanical while fixtures still run in CI"
+    alternatives_considered:
+      - option: "prose prohibition only"
+        rejected_because: "not chosen: makes \"no bot auto-append\" mechanical while fixtures still run in CI"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A35)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A35)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0056"
+    created_at: "2026-10-13T02:07:50Z"
+    updated_at: "2026-10-13T02:07:50Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`BARE_ASSUMPTION_FAILS_FROM=2026-11-13` (A36)"
+    decision: "`BARE_ASSUMPTION_FAILS_FROM=2026-11-13`"
+    rationale: "a date is checkable; a release boundary is not"
+    alternatives_considered:
+      - option: "\"one release\""
+        rejected_because: "not chosen: a date is checkable; a release boundary is not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A36)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A36)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0057"
+    created_at: "2026-10-13T02:07:51Z"
+    updated_at: "2026-10-13T02:07:51Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`get-ready-work.sh` filters out `question` instead of allowlisting types (A37)"
+    decision: "`get-ready-work.sh` filters out `question` instead of allowlisting types"
+    rationale: "new types keep flowing; only decision tickets are excluded"
+    alternatives_considered:
+      - option: "`--type task --type bug --type feature`"
+        rejected_because: "not chosen: new types keep flowing; only decision tickets are excluded"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A37)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A37)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0058"
+    created_at: "2026-10-13T02:07:51Z"
+    updated_at: "2026-10-13T02:07:51Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`decision:unblock` probes run only through `chart-unblock-probe.sh` (A38)"
+    decision: "`decision:unblock` probes run only through `chart-unblock-probe.sh`"
+    rationale: "the helper proves the main tree is untouched"
+    alternatives_considered:
+      - option: "free Bash in the charting skill"
+        rejected_because: "not chosen: the helper proves the main tree is untouched"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A38)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A38)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0059"
+    created_at: "2026-10-13T02:07:52Z"
+    updated_at: "2026-10-13T02:07:52Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "BSD coverage through PATH-shim twins (A39)"
+    decision: "BSD coverage through PATH-shim twins"
+    rationale: "follows `validate-artifact-bsd.bats`; no new CI runner"
+    alternatives_considered:
+      - option: "a macOS runner"
+        rejected_because: "not chosen: follows `validate-artifact-bsd.bats`; no new CI runner"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A39)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A39)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0060"
+    created_at: "2026-10-13T02:07:53Z"
+    updated_at: "2026-10-13T02:07:53Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "`run-preflight.sh` P9 fails without yq v4 (A40)"
+    decision: "`run-preflight.sh` P9 fails without yq v4"
+    rationale: "the ledger cannot be written without it"
+    alternatives_considered:
+      - option: "WARN only"
+        rejected_because: "not chosen: the ledger cannot be written without it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A40)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A40)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0061"
+    created_at: "2026-10-13T02:07:53Z"
+    updated_at: "2026-10-13T02:07:53Z"
+    phase: "architecture"
+    category: "planning"
+    summary: "The append-only base defaults to `git merge-base origin/main HEAD` (A41)"
+    decision: "The append-only base defaults to `git merge-base origin/main HEAD`"
+    rationale: "rows added on the branch remain checkable against main"
+    alternatives_considered:
+      - option: "`HEAD`"
+        rejected_because: "not chosen: rows added on the branch remain checkable against main"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A41)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf (A41)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0062"
+    created_at: "2026-10-13T02:07:54Z"
+    updated_at: "2026-10-13T02:07:54Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "agy opt-in, default off (c127-D1)"
+    decision: "agy opt-in, default off"
+    rationale: "Facts: `gemini-headless` → `AgyHeadlessAdapter` on any host with agy on PATH; hosts without agy (this one) plan a voice that fails (BB #1274 DEGRADED 2/3); the prompt rides on argv. Decision: a config key (default off) gates the agy route; planners (BB voice list, dissent family chain, Flatline tertiary, preflight, `/loa`) treat it as disabled unless opted in; the argv exposure is the documented r"
+    alternatives_considered:
+      - option: "(see NOTES Facts/Decision)"
+        rejected_because: "not chosen: Facts: `gemini-headless` → `AgyHeadlessAdapter` on any host with agy on PATH; hosts without agy (this one) plan a voice that fails (BB #1274 DEGRADED 2/3); the prompt rides on argv. Decision: a config key (default off) gates the agy route; planners (BB voice list, dissent family chain, Flatline tertiary, preflight, `/loa`) treat it as disabled unless opted in; the argv exposure is the documented r"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (bd-ugmi) (c127-D1)"
+    cycle: "cycle-127"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (bd-ugmi) (c127-D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0063"
+    created_at: "2026-10-13T02:07:54Z"
+    updated_at: "2026-10-13T02:07:54Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "`claude-opus-5-5` catalog effort default `high` (c127-D2)"
+    decision: "`claude-opus-5-5` catalog effort default `high`"
+    rationale: "Fact (claude-api skill, 2026-10-07): Opus 5.5's vendor effort default is `medium`, one below Opus 5's `high`, so every `opus` caller passing no `--effort` lost a level at the alias retarget; the headless adapter already reads a catalog `extra.effort`, the HTTP adapter does not. Decision: resolve the catalog default once at the cheval chokepoint when the caller passes none; `--effort` overrides; MO"
+    alternatives_considered:
+      - option: "(see NOTES Facts/Decision)"
+        rejected_because: "not chosen: Fact (claude-api skill, 2026-10-07): Opus 5.5's vendor effort default is `medium`, one below Opus 5's `high`, so every `opus` caller passing no `--effort` lost a level at the alias retarget; the headless adapter already reads a catalog `extra.effort`, the HTTP adapter does not. Decision: resolve the catalog default once at the cheval chokepoint when the caller passes none; `--effort` overrides; MO"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (bd-9qe2) (c127-D2)"
+    cycle: "cycle-127"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (bd-9qe2) (c127-D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0064"
+    created_at: "2026-10-13T02:07:55Z"
+    updated_at: "2026-10-13T02:07:55Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "probe the ceiling through this host's route (c127-D3)"
+    decision: "probe the ceiling through this host's route"
+    rationale: "Facts: `tools/ceiling-probe-live.py` uses the direct API (geo-refused here, no key); every Opus 5.5 hop here runs through `claude-bedrock` → `global.anthropic.claude-opus-5-5`. Decision: add `--transport claude-headless` to the probe (mirrors the adapter's CLI flags), bisect 180K→1M (≈ $12–20 Bedrock input, authorized), record a clean bound as `ceiling_calibration.source: operator_set` + `calibrat"
+    alternatives_considered:
+      - option: "(see NOTES Facts/Decision)"
+        rejected_because: "not chosen: Facts: `tools/ceiling-probe-live.py` uses the direct API (geo-refused here, no key); every Opus 5.5 hop here runs through `claude-bedrock` → `global.anthropic.claude-opus-5-5`. Decision: add `--transport claude-headless` to the probe (mirrors the adapter's CLI flags), bisect 180K→1M (≈ $12–20 Bedrock input, authorized), record a clean bound as `ceiling_calibration.source: operator_set` + `calibrat"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (c127-D3)"
+    cycle: "cycle-127"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/NOTES.md#decision-log-2026-10-07 (c127-D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0065"
+    created_at: "2026-10-13T02:07:56Z"
+    updated_at: "2026-10-13T02:07:56Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/update-loa: not flagged (deferred) (refs 11, orchestrator steps 0) (fr8-update-loa)"
+    decision: "/update-loa: not flagged (deferred) (refs 11, orchestrator steps 0)"
+    rationale: "Every reference is advice, but the D-8.3 lint reads `Run /update-loa --force-restore` in the `translate-ride.md:145` troubleshooting table as operative; part C may not edit that file; evidence `translate-ride.md:145`; probe output below"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: Every reference is advice, but the D-8.3 lint reads `Run /update-loa --force-restore` in the `translate-ride.md:145` troubleshooting table as operative; part C may not edit that file; evidence `translate-ride.md:145`; probe output below"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-update-loa)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-update-loa)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0066"
+    created_at: "2026-10-13T02:07:56Z"
+    updated_at: "2026-10-13T02:07:56Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/mount: not flagged (deferred) (refs 13, orchestrator steps 0) (fr8-mount)"
+    decision: "/mount: not flagged (deferred) (refs 13, orchestrator steps 0)"
+    rationale: "Every reference is advice, but seven user-facing error strings (`error: \"... Run /mount first.\"`, troubleshooting rows) trip the lint; part C may not edit those files; evidence `ride.md:62,66,70,282,283`, `run.md:60`, `run-sprint-plan.md:44`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: Every reference is advice, but seven user-facing error strings (`error: \"... Run /mount first.\"`, troubleshooting rows) trip the lint; part C may not edit those files; evidence `ride.md:62,66,70,282,283`, `run.md:60`, `run-sprint-plan.md:44`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-mount)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-mount)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0067"
+    created_at: "2026-10-13T02:07:57Z"
+    updated_at: "2026-10-13T02:07:57Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/contribute: FLAGGED (refs 1, orchestrator steps 0) (fr8-contribute)"
+    decision: "/contribute: FLAGGED (refs 1, orchestrator steps 0)"
+    rationale: "The only reference is advice (`loa-eject.md`); the command opens an upstream PR, an outward-facing act; evidence `loa-eject.md:260`"
+    alternatives_considered:
+      - option: "leave it model-reachable"
+        rejected_because: "not chosen: The only reference is advice (`loa-eject.md`); the command opens an upstream PR, an outward-facing act; evidence `loa-eject.md:260`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-contribute)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-contribute)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0068"
+    created_at: "2026-10-13T02:07:57Z"
+    updated_at: "2026-10-13T02:07:57Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/feedback: not flagged (refs 24 (10 are path matches), orchestrator steps 0 in bodies) (fr8-feedback)"
+    decision: "/feedback: not flagged (refs 24 (10 are path matches), orchestrator steps 0 in bodies)"
+    rationale: "Body references are advice, but `.claude/loa/reference/agent-teams-reference.md:59,278` sanctions teammate invocation of `/feedback`, a model invocation path outside the command and skill bodies; evidence `agent-teams-reference.md:59`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: Body references are advice, but `.claude/loa/reference/agent-teams-reference.md:59,278` sanctions teammate invocation of `/feedback`, a model invocation path outside the command and skill bodies; evidence `agent-teams-reference.md:59`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-feedback)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-feedback)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0069"
+    created_at: "2026-10-13T02:07:58Z"
+    updated_at: "2026-10-13T02:07:58Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/deploy-production: not flagged (refs 12, orchestrator steps 7) (fr8-deploy-production)"
+    decision: "/deploy-production: not flagged (refs 12, orchestrator steps 7)"
+    rationale: "`/ship` executes it and the autonomous agent runs it in Phase 6; evidence `ship.md:60`, `autonomous-agent/SKILL.md:180`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: `/ship` executes it and the autonomous agent runs it in Phase 6; evidence `ship.md:60`, `autonomous-agent/SKILL.md:180`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-deploy-production)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-deploy-production)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0070"
+    created_at: "2026-10-13T02:07:58Z"
+    updated_at: "2026-10-13T02:07:58Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/archive-cycle: not flagged (refs 12, orchestrator steps 7) (fr8-archive-cycle)"
+    decision: "/archive-cycle: not flagged (refs 12, orchestrator steps 7)"
+    rationale: "`/ship` executes it; `/loa` invokes it after the user confirms; evidence `ship.md:64`, `loa.md:265`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: `/ship` executes it; `/loa` invokes it after the user confirms; evidence `ship.md:64`, `loa.md:265`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-archive-cycle)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-archive-cycle)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0071"
+    created_at: "2026-10-13T02:07:59Z"
+    updated_at: "2026-10-13T02:07:59Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/ship: not flagged (refs 16, orchestrator steps 1) (fr8-ship)"
+    decision: "/ship: not flagged (refs 16, orchestrator steps 1)"
+    rationale: "`/loa` invokes it when the user picks the menu option; evidence `loa.md:262`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: `/loa` invokes it when the user picks the menu option; evidence `loa.md:262`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-ship)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:07:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-ship)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0072"
+    created_at: "2026-10-13T02:08:00Z"
+    updated_at: "2026-10-13T02:08:00Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/run-halt: FLAGGED (refs 9, orchestrator steps 0) (fr8-run-halt)"
+    decision: "/run-halt: FLAGGED (refs 9, orchestrator steps 0)"
+    rationale: "Every reference is a related-commands list, help line or recovery option for the human; the run-mode circuit breaker halts without the command; evidence `run-mode/SKILL.md:224`, `escalation-report.md:151`"
+    alternatives_considered:
+      - option: "leave it model-reachable"
+        rejected_because: "not chosen: Every reference is a related-commands list, help line or recovery option for the human; the run-mode circuit breaker halts without the command; evidence `run-mode/SKILL.md:224`, `escalation-report.md:151`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-run-halt)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:08:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-run-halt)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0073"
+    created_at: "2026-10-13T02:08:00Z"
+    updated_at: "2026-10-13T02:08:00Z"
+    phase: "implementation"
+    category: "planning"
+    summary: "/run-resume: not flagged (refs 29, orchestrator steps 2) (fr8-run-resume)"
+    decision: "/run-resume: not flagged (refs 29, orchestrator steps 2)"
+    rationale: "`/simstim` resume invokes it in place of a fresh run; evidence `simstim.md:462`, `simstim-workflow/resources/resume-support.md:132`"
+    alternatives_considered:
+      - option: "flag it"
+        rejected_because: "not chosen: `/simstim` resume invokes it in place of a fresh run; evidence `simstim.md:462`, `simstim-workflow/resources/resume-support.md:132`"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "e9f175a6"
+    source: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-run-resume)"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T02:08:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-252/triage-fr8.md#decision-per-command (fr8-run-resume)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

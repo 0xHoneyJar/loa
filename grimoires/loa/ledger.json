@@ -2407,7 +2407,7 @@
         {
           "global_id": 252,
           "local_label": "sprint-1",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-12T23:58:21Z",
           "completed": null,
           "theme": "Rounds, fact/decision attribution, decision ledger, operator-only commands",
@@ -2423,7 +2423,8 @@
             "bd-wu7v",
             "bd-r55h",
             "bd-zncg"
-          ]
+          ],
+          "started": "2026-10-13T01:01:49Z"
         },
         {
           "global_id": 253,
@@ -2862,5 +2863,5 @@
     }
   ],
   "next_sprint_number": 255,
-  "last_updated": "2026-10-13T00:20:19Z"
+  "last_updated": "2026-10-13T01:01:49Z"
 }

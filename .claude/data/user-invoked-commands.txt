@@ -1,0 +1,13 @@
+# Operator-only commands: each carries `disable-model-invocation: true`, so the
+# model's Skill tool refuses them and only the operator can type them.
+# One command name per line; `#` starts a comment. Checked by
+# tests/unit/user-invoked-commands.bats. Add a name only when no other command
+# or skill body runs it as an orchestrator step.
+gpt-review          # deprecated stub; already flagged
+loa-eject           # irreversible: transfers framework ownership to the user
+toggle-gpt-review   # deprecated, non-functional; no caller
+permission-audit    # operator tooling over the HITL permission log; no caller
+loa-setup           # command file only; the loa-setup skill stays model-reachable
+contribute          # outward-facing: opens a PR upstream; every reference is advice
+run-halt            # commits, pushes and opens an incomplete PR; every reference is advice
+decisions  # operator-only ledger transitions: confirm, reject, supersede, clear-unattended (FR-3, D17)
