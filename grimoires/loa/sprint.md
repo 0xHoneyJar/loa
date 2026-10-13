@@ -1,103 +1,395 @@
-# Sprint Plan: Operator Decisions (cycle-127)
+# Sprint Plan: Decision Surfaces (cycle-128)
 
-**Version:** 1.0
-**Date:** 2026-10-07
-**Status:** Draft — autonomous run (maintainer delegation with admin preapproval)
-**PRD:** `grimoires/loa/prd.md` · **SDD:** `grimoires/loa/sdd.md` · **Decision record:** `grimoires/loa/NOTES.md` § Decision Log — 2026-10-07
-**Branch:** `feature/cycle-127-operator-decisions` · **Ledger:** cycle `cycle-127-operator-decisions`, sprint 251 (= sprint-1)
+**Version:** 1.3
+**Date:** 2026-10-13
+**Author:** Sprint Planner Agent (Claude Fable 5.1, unattended)
+**PRD Reference:** grimoires/loa/prd.md
+**SDD Reference:** grimoires/loa/sdd.md
+**Ledger:** cycle `cycle-128-decision-surfaces`, sprints global 252 / 253 / 254 (local sprint-1 / sprint-2 / sprint-3)
+**Branch:** `feature/cycle-128-decision-surfaces` from `main` `76e7650b`
 
 ---
 
 ## Executive Summary
 
-One sprint, one lead agent, unattended, with an Opus 5.5 implementer and Fable review and audit. Three narrow changes at existing seams (SDD §1.1): the agy route becomes opt-in and every planner treats "off" as *not planned*; `claude-opus-5-5` gets a typed catalog effort default resolved once at the cheval chokepoint; the ceiling probe gains a headless-CLI transport and is run once through this host's Bedrock route to replace the 180K shortcut with a measured, provenance-tagged bound.
+Three sprints deliver the eight functional requirements of the cycle-128 PRD without changing verdict derivation, gate ordering or the dissent artefact gate (the review skill gains two checklist rows and one citation line; nothing it gates changes). Sprint 1 lands the small, high-leverage changes and the decision ledger the later sprints write to. Sprint 2 builds the decision map (`/chart`) and the prototype-ticket discipline on top of the ledger. Sprint 3 adds the glossary, the seams-under-test and red-before-green checks, the documentation, and the end-to-end validation of every PRD goal. Each sprint is implemented by Opus 5.5 subagents in worktrees, reviewed and audited on Fable 5.1 with at most three dissent runs per gate, and closed through the run loop. Sequencing constraint: tasks that edit shared files (`validate-artifact.sh`, `golden-path.sh`, `settings.json`, `.gitignore`, the planning SKILL.md files) are serialised through the lead's merge of patches; independent tasks run in parallel worktrees. The lead's main checkout is the only writer of `grimoires/loa/decisions.yaml`; implementers and tests write fixtures only (`--file`). Evidence for every acceptance criterion lives under `grimoires/loa/a2a/sprint-<global>/` (implementation report `reviewer.md`, triage tables, transcripts, command output).
+
+**Total Sprints:** 3
+**Sprint Duration:** 1 day each (unattended)
+**Estimated Completion:** 2026-10-16
+
+> Sources: prd.md §Executive Summary, §Timeline & Milestones; sdd.md §8 Development Phases
+
+---
 
 ## Sprint Overview
 
-| Sprint | Global | Theme | FR | Exit gate |
-|---|---|---|---|---|
-| 1 (Final) | 251 | agy opt-in, Opus 5.5 effort default, ceiling probe | FR-1 … FR-3 | SC-1 … SC-4: refusal + not-planned on this host; `effort: high (catalog default)` in a dry run; probe record + catalog write (or documented attempt); review and audit APPROVED |
+| Sprint | Theme | Key Deliverables | Dependencies |
+|--------|-------|------------------|--------------|
+| 1 (252) | Rounds, fact/decision attribution, decision ledger, operator-only commands | `rounds` pacing (FR-1); fact/decision rule and PR-body section (FR-2); `decisions.yaml` + `dec-write-lib.sh` + INDEX + SessionStart surface (FR-3); `disable-model-invocation` allowlist and lint (FR-8) | None |
+| 2 (253) | Decision map (`/chart`) and prototype tickets | `/chart` command + `charting-decisions` skill, map doc, lint, golden-path phase, research subagents (FR-4); spike template, validator, ICE rule, interview sentence (FR-5) | Sprint 1 (ledger, rounds) |
+| 3 (254) | Glossary, seams under test, red-test check, E2E | `GLOSSARY.md` + drift check (FR-6); Seams Under Test block + `red-test-check.sh` (FR-7); CHANGELOG, README, hooks-reference, REPO-MAP; Task 3.E2E | Sprints 1–2 |
 
 ---
 
-## Sprint 1 (Final): agy opt-in, Opus 5.5 effort default, ceiling probe
+## Sprint 1: Rounds, fact/decision attribution, decision ledger, operator-only commands
 
-**Global id:** 251 · **FR:** FR-1, FR-2, FR-3 · **SDD:** §1.2 (D-1.1 … D-1.4), §1.3 (D-2.1 … D-2.4), §1.4 (D-3.1 … D-3.4)
+**Duration:** 1 day
+**Dates:** 2026-10-13 - 2026-10-14
 
 ### Sprint Goal
-On a host without `agy` and without the opt-in, no planner counts the agy route as a voice and none reports it as failed; an `opus` call with no `--effort` reasons at `high` through both adapters; the Opus 5.5 input bound on this host's route is measured and recorded with its provenance — or the attempt is recorded and 180K stays.
+Make the interview ask in prerequisite-ordered rounds, make every unattended decision attributable through a built decision ledger, and take operator-only commands out of the model's reach.
 
 ### Deliverables
-- `hounfour.headless.agy_opt_in` (default false) read by the agy adapter (refusal, `opt_in_required`), the dissent, Flatline, Bridgebuilder registration, `run-preflight.sh` and `/loa` Providers; `.loa.config.yaml.example` key with rationale.
-- `params.default_effort` in the v3 schema; `claude-opus-5-5: high`; `resolve_effort(args, entry)` at the cheval chokepoint; MODELINV `effort_source`; `--dry-run` line.
-- `tools/ceiling-probe-live.py --transport claude-headless`; the record under `grimoires/loa/reports/`; the catalog write (`operator_set`) if clean; the 180K pin sweep; regenerated maps/registry.
-- Docs: migration addendum (gate, effort default replacing the caveat, probe transport), CHANGELOG `[Unreleased]`, cycle-126 SDD D-4.1 pointer, beads bd-ugmi (decision) and bd-9qe2 (closed).
+- [ ] `interview.pacing: rounds` implemented in `discovering-requirements` (REFERENCE.md §Question Pacing + ≤ 3-line SKILL.md pointer), default for `thorough`, documented in `.loa.config.yaml.example`; the Mode Behavior and Input Style tables moved to `resources/REFERENCE.md`; `planning-sprints` and `designing-architecture` Phase 2 point at the same rule
+- [ ] Fact/decision rule in the Backpressure Protocol; the unattended-decision sentence in `karpathy-principles.md` §1 and `autonomous-agent/SKILL.md`; "Decisions taken on your behalf" section in the run-mode completion PR template
+- [ ] `grimoires/loa/decisions.yaml` (tracked; `.gitignore:149` negated; `validate-gitignore-state.sh` row) with the schema from SDD §3, seeded with cycle-127 D1–D3 as `decided` and this cycle's PRD D1–D16 and SDD A1–A11 as `proposed` (`decided_by: agent`)
+- [ ] `.claude/scripts/lib/dec-write-lib.sh` (`new`, `decide`, `confirm`, `reject`, `supersede`, `list --format md`) with flock, append-only verify, atomic rename, context-derived `decided_by`, yq v4 writes with values passed by environment, duplicate-id refusal, and a fixture corpus of hostile strings (quotes, colons, `#`, leading `-`, multiline, Unicode, control characters, YAML-looking values)
+- [ ] `validate-artifact.sh --type decisions`; `grimoire-index.sh` `## decisions` section; SessionStart surface script behind `decisions.surface_at_session_start` (default false); the two existing readers (`loa-learnings-index.sh`, `path-lib.sh`) resolve the live file
+- [ ] An automated harness check (bats: a temp project with a fixture command carrying the flag, `claude -p --max-turns 1` asked to invoke it, the skill reported unavailable; skipped when the CLI is absent) recorded first; then `disable-model-invocation: true` on the safe set (`loa-eject`, `toggle-gpt-review`, `permission-audit`, `loa-setup`), the referenced set triaged per reference with a table row and a `DEC` row each, `.claude/data/user-invoked-commands.txt`, `tests/unit/user-invoked-commands.bats`; if the flag does not hide the command, FR-8 is recorded as lint-only and G-7 partial
+- [ ] CHANGELOG `[Unreleased]` entries for Sprint 1 and the pacing-default migration note (explicit `pacing` values are unchanged; only the `thorough` default moves; `sequential` is the opt-out)
 
 ### Acceptance Criteria
-- [x] With `hounfour.headless.agy_opt_in` absent or `false`: `cheval` refuses an agy dispatch before any subprocess with a message naming the key; the dissent envelope, Flatline and Bridgebuilder record the voice as `planned: false, reason: opt_in_required` (verdict quality not DEGRADED on its account); `/loa` Providers and `run-preflight.sh` show "agy: opt-in (disabled)". With `true`, today's path runs (binary absent here → the existing `INVALID_CONFIG` "agy CLI not found" refusal, unchanged by this cycle).
-- [x] `cheval invoke --model opus --dry-run` with no `--effort` reports `effort: high (catalog default)`; `--effort low` reports `low (caller)`; the HTTP adapter emits `output_config.effort: high` and the CLI adapter passes `--effort high` for the default; `claude-opus-5` (no default) sends nothing; the MODELINV envelope carries `effort_source`; a bad `params.default_effort` fails schema validation.
-- [x] `tools/ceiling-probe-live.py --transport claude-headless` is tested (command shape, OK/size/other classification, partial → no write, `operator_set` write shape) and was run once for `claude-opus-5-5` through `claude-bedrock` within the $20 budget; the record is under `grimoires/loa/reports/`; the catalog carries either the measured `operator_set` bound with `calibrated_at` and `reprobe_trigger` or the unchanged 180K with the attempt documented; no test pins the Opus 5.5 bound by literal.
-- [x] Docs present (migration addendum, CHANGELOG, example config, SDD pointer); beads updated; every touched suite green with 0 skips; REPO-MAP + sidecar + checksums regenerated; `reviewer.md` with `## AC Verification` and the live evidence (refusal, dry-run line, `/loa` line, probe record).
+- [ ] `tools/check-prompt-budget.sh` green; `discovering-requirements/SKILL.md` ≤ 16,384 B
+- [ ] `.loa.config.yaml.example` documents `pacing: rounds` (frontier rule, numbered format, "yes accepts the recommendation", the `sequential` opt-out)
+- [ ] A fixture transcript in `rounds` mode carries `<!-- round: N; questions: [{id, depends_on}] -->` blocks; `tools/check-round-independence.sh` reports ≥ 2 questions per round (final round exempt) and no same-round dependency (bats); transcript in the sprint a2a directory
+- [ ] `dec-write-lib.sh` bats: ids allocate max+1 under the lock in the main checkout; a linked worktree writes the pending file and `import` allocates real ids and rewrites references; the file never shrinks and never drops an id; content edits to an existing row are rejected; a failed write leaves the previous file intact; `decide`/`confirm` without `--evidence` and `reject` without a follow-up exit non-zero; under every unattended signal (run-state marker, `LOA_UNATTENDED`, autonomous Flatline mode, PRD Status line) a write lands `proposed` with `decided_by: agent` whatever the flags; `CI=1` makes the writer exit 1; the hostile-string corpus round-trips against the sanitised input
+- [ ] `validate-artifact.sh --type decisions` exits 0 on the live file and 1 on each negative fixture: missing `decided_by`, duplicate id, illegal transition (`rejected` → `decided`), `decided` row without evidence, `operator` row without an answer reference, a content edit to an existing row; `supersede` leaves the old row `superseded` and removes nothing
+- [ ] `validate-artifact.sh --type prd` fails a fixture where an `[ASSUMPTION decision]` tag has no `DEC` row; `--type sdd` WARNs on a Resolved open question without a `DEC` id; `prd-template.md` and `sdd-template.md` carry the decisions appendix; `loa-learnings-index.sh` and `path-lib.sh` resolve the tracked ledger (bats)
+- [ ] The SessionStart surface wraps its block in the L6 data fence, caps summaries at 100 chars, and a negative bats case shows control characters and instruction-like text neutralised
+- [ ] Existing suites for `validate-artifact`, `grimoire-index`, `prompt-budget` and `skill-capabilities` stay green (backward compatibility)
+- [ ] `grimoire-index.sh` emits `## decisions` with ID / status / decided_by / summary / source (bats for TSV, JSON and markdown, and the no-yq skip); the SessionStart surface prints nothing when the key is off
+- [ ] No skill's `allowed-tools` grants `dec-write-lib.sh confirm`, `supersede` or `context --clear`; `/decisions` carries `disable-model-invocation: true` and is the only caller (bats over frontmatter) and the open rows when on
+- [ ] `tests/unit/user-invoked-commands.bats` green; the automated harness check passes or is recorded as skipped (CLI absent) with the lint-only contingency stated; the triage table and its `DEC` rows exist under `grimoires/loa/a2a/sprint-252/triage-fr8.md`
+- [ ] `no-history-in-rule-text.bats`, `skill-capabilities.bats`, `implement-gate.bats`, `verdict-derive.bats`, `validate-artifact` suites green
 
 ### Technical Tasks
-- **Task 1.1 — Failing tests.** Agy gate (adapter spy: no spawn when off), dissent `planned: false` reason, Bridgebuilder registration + verdict quality, preflight/`/loa` line; schema enum + bad value; `resolve_effort` precedence (caller > catalog > none) and both adapters' emission; probe CLI transport shape, classification, partial → no write, `operator_set` write.
-- **Task 1.2 — agy opt-in gate (FR-1).** Key + loader; adapter refusal; planner mapping in `adversarial-review.sh`, `flatline-orchestrator.sh`, Bridgebuilder `config.ts`/registration, `run-preflight.sh`, `loa-status.sh`; example config; bd-ugmi comment.
-- **Task 1.3 — Effort default (FR-2).** Schema field; catalog value; `resolve_effort` at the three `CompletionRequest` sites; MODELINV `effort_source`; `--dry-run` line; migration caveat replaced; bd-9qe2 closed.
-- **Task 1.4 — Probe transport (FR-3.1–3.2).** `--transport claude-headless` mirroring the adapter's command; record fields; `operator_set` write path; the 180K pin sweep (literal → catalog read).
-- **Task 1.5 — The probe run (FR-3.3, lead).** One run through `claude-bedrock`, budget $20; record committed; catalog written if clean; maps/registry regenerated; affected suites re-run.
-- **Task 1.6 — Docs + E2E.** Migration addendum, CHANGELOG, SDD pointer; live evidence collected into `reviewer.md` (refusal transcript, `/loa` line, dry-run line, probe record); full affected-suite table.
 
-### Task 1.5 result (2026-10-07)
-One live run through `claude-bedrock`: three needle-verified accepts (696,136 / 880,634 / 972,887 measured input tokens), two CLI pre-flight rejections at the 1,000,000 window, $12.74 CLI-reported spend, outcome `partial` (budget cap before the filler tolerance). Catalog written by the lead as `operator_set` at 936,000 (I2 clamp: 1M − 64K default output; measured 972,887 recorded in `ceiling_calibration.measured_input_tokens`). Record: `grimoires/loa/reports/2026-10-07-opus-5-5-ceiling-probe-cli.json`. See SDD §1.6.
+<!-- → **[G-N]** = contributing goal(s); ⇐ = blockers (becomes --deps at bead creation) -->
+
+- [ ] Task 1.0: Automated harness check for `disable-model-invocation` (fixture command in a temp project, `claude -p --max-turns 1`, skip when the CLI is absent); record the outcome and the lint-only contingency → **[G-7]** ⇐ none
+- [ ] Task 1.1: Move the Mode Behavior and Input Style tables from `discovering-requirements/SKILL.md:66-79` to `resources/REFERENCE.md` behind guarded pointers; free at least the bytes this cycle adds to that file (rounds pointer ≤ 3 lines, fact/decision rule ≤ 3 lines, prototype sentence ≤ 2 lines, glossary sentence ≤ 3 lines) plus 400 B headroom; record the bytes freed → **[G-3]** ⇐ none
+- [ ] Task 1.2: `rounds` pacing: REFERENCE.md §Question Pacing text (frontier rule, ❓/➡ format, answer semantics, recompute per round, the per-round `<!-- round -->` comment block), SKILL.md pointer, config default `rounds` for `thorough` with the key's scope, `.loa.config.yaml.example` block, `planning-sprints` and `designing-architecture` Phase 2 pointers, `tools/check-round-independence.sh` → **[G-3]** ⇐ Task 1.1
+- [ ] Task 1.3: `decisions.yaml` schema (SDD §3: provenance fields, `status` enum with `proposed`, `transitions`), an empty-but-valid ledger (header and `decisions: []`; rows come only from Task 1.6), `.gitignore` negation, `validate-gitignore-state.sh` row, `validate-artifact.sh --type decisions` with the negative fixtures (schema, transition invariants, `decided_by` consistency, duplicate id, content edit), SDD Open Questions `DEC` column WARN, PRD/SDD template appendix → **[G-1]** ⇐ none
+- [ ] Task 1.4: `dec-write-lib.sh` (`new`, `decide`, `confirm`, `reject`, `supersede`, `import`, `list --format md`, `context`) modelled on `kf-write-lib.sh`: every unattended write lands `proposed` with `decided_by: agent`, operator attribution only via `/decisions`, linked worktrees write the per-sprint pending file and `import` allocates real ids, portable lock, append-only transitions with `by`/`evidence`, ref grammars and artifact hashes, `jq`/`yq` v4 preflight, mechanical CI/hook write refusal → **[G-1]** ⇐ Task 1.3
+- [ ] Task 1.5: `grimoire-index.sh` `## decisions` section; SessionStart surface script + `settings.json` row (L6 data fence, stale-marker notice); `decisions.surface_at_session_start` config key (default false); operator-only command `.claude/commands/decisions.md` (`confirm|reject|supersede|list`, `disable-model-invocation: true`, added to the FR-8 allowlist); existing readers resolve the live file → **[G-1, G-7]** ⇐ Task 1.4
+- [ ] Task 1.6: Seed the ledger through the lib, run by the lead in the main checkout, before Task 1.9 exercises the PRD gate: cycle-127 D1–D3 (source NOTES Decision Log 2026-10-07), cycle-128 PRD D1–D20 and SDD A-decisions, all `proposed` with `decided_by: agent` → **[G-1]** ⇐ Task 1.4
+- [ ] Task 1.7: Fact/decision split — Backpressure Protocol rule and `[ASSUMPTION fact|decision]` tag classes (≤ 3 lines), `karpathy-principles.md` §1 and the autonomous-agent prime directive ("a linked worktree writes the pending file automatically"), `render-templates.md` PR section rendered by `list --not-decided-by operator --format md` with a Voice column, `validate-artifact --type prd` tag-to-row rule with the `BARE_ASSUMPTION_FAILS_FROM` date constant and the `**Deferred:**` line → **[G-1]** ⇐ Task 1.4
+- [ ] Task 1.8: FR-8 allowlist file, frontmatter flags on the safe set, per-reference triage table of the referenced set (`a2a/sprint-252/triage-fr8.md`) with a `DEC` row each written by the lead, `tests/unit/user-invoked-commands.bats`, CHANGELOG entries for Sprint 1 and the pacing migration note → **[G-7]** ⇐ Task 1.0, Task 1.4
+- [ ] Task 1.9: Sprint 1 verification: `dec-write-lib.bats` (hostile-string corpus, derived `decided_by` refusal, content-edit rejection, duplicate id), decisions-validator negative fixtures, `check-round-independence.bats` over the fixture transcript, surface negative case, readers check, budget and regression suites → **[G-1, G-3, G-7]** ⇐ Task 1.2, Task 1.5, Task 1.6, Task 1.7, Task 1.8
+
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| `dec-write-lib.sh` CLI (subcommands, exit codes, file after each op) | lost ids, shrinking file, missing evidence, lock contention | the content quality of a row | `tests/unit/kf-write-lib.bats` |
+| `validate-artifact.sh --type decisions` exit code + stderr | schema drift, missing `decided_by` | semantic duplicates | `tests/unit/validate-artifact.bats` |
+| `grimoire-index.sh` output section | missing or malformed `## decisions` | INDEX ordering vs other sections | `tests/unit/grimoire-index.bats` |
+| `user-invoked-commands.bats` over `.claude/commands/*.md` | missing flag, operative reference to a flagged command | the harness actually hiding the command (manual check) | `tests/unit/skill-capabilities.bats` |
+| `check-prompt-budget.sh` on the touched skills | budget breach, unguarded resource charge | prose quality | `tests/unit/prompt-budget.bats` |
+| `tools/check-round-independence.sh` over the rounds fixture transcript | a same-round dependency, a one-question round | that the live skill produces rounds at all | new |
+| SessionStart surface script stdout (key off / key on / hostile row) | leaking when off, missing rows when on, unsanitised text | the hook's ordering among other SessionStart hooks | `tests/unit/loa-kf-surface.bats` |
 
 ### Dependencies
-Task 1.1 before 1.2–1.4 (test-first); 1.5 after 1.4; 1.6 last.
+- None (first sprint). `br` 0.2.6, `jq`, `yq` v4, bats-core present on the host.
+- Rollback: `interview.pacing: sequential` restores the old default; `decisions.surface_at_session_start` is already off by default; removing the `.gitignore` negation and the flagged frontmatter lines reverts FR-3 tracking and FR-8.
 
-### Testing Requirements
-Serial bats and pytest in the real tree (`env -u CLAUDE_HEADLESS_BIN -u AWS_BEARER_TOKEN_BEDROCK`); Bridgebuilder vitest; the one live probe (Task 1.5) is the only model spend besides review/audit dissent.
+### Security Considerations
+- **Trust boundaries**: `decisions.yaml` rows are agent-authored text surfaced at SessionStart; the surface prints only id, status and summary with control characters stripped, inside the L6 data fence; rows are never interpreted as instructions; a negative bats case proves it. Only the lead's main checkout writes the live ledger.
+- **External dependencies**: none added; `dec-write-lib.sh` uses the same `flock` + atomic-rename pattern as `kf-write-lib.sh`.
+- **Sensitive data**: none; `pii-filter.sh` runs on `--type decisions` validation; the zone-state rule (no secrets in tracked state) applies to the ledger.
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Budget: `discovering-requirements/SKILL.md` has 80 B headroom | High | Med | Task 1.1 first; charged-resource rule respected (guard words on pointers); budget gate in CI |
+| Default pacing flip surprises operators | Med | Low | `sequential` documented as the opt-out in the example config and CHANGELOG |
+| `.gitignore` negation ordering swallows the ledger anyway | Med | Med | `validate-gitignore-state.sh` row; `git check-ignore -v` in the bats |
+| A flagged command is reached by an orchestrator as a step | Low | High | Only the zero-reference safe set is flagged without triage; lint for operative references |
+| Parallel implementers allocate the same `DEC` id | High | High | Linked worktrees write a pending file with provisional ids; the lead imports in the main checkout; duplicate-id FAIL in the validator |
+| An agent confirms its own rows or clears the unattended marker | Med | High | Operator transitions exist only behind the operator-only `/decisions` command; no skill may call them (bats over frontmatter) |
+| `flock`/`timeout` absent on macOS | Med | Med | Portable lock and timeout fallbacks; BSD bats matrix; yq v4 named as a hard dependency |
+| Hostile strings corrupt the YAML ledger | Med | High | yq v4 with environment-passed values; hostile-string fixture corpus; validate before rename |
+
+### Success Metrics
+- `discovering-requirements/SKILL.md` ≤ 16,384 B with `rounds` present
+- At least 34 `DEC` rows in the live ledger, all `proposed` with `decided_by: agent` (3 from cycle-127, 20 from this PRD, the SDD A-decisions, one per triaged FR-8 command)
+- ≥ 4 commands flagged; lint green
+- Review and audit APPROVED with consistent LOA-VERDICT trailers
+
+> Sources: prd.md FR-1, FR-2, FR-3, FR-8, Appendix E; sdd.md §1.5 D-1.x, D-2.x, D-3.x, D-8.x, §7 Testing Strategy
 
 ---
 
-### Flatline review integration (2026-10-07; scoring degraded — KF-041 — integrated by judgment)
-- **Clean vs partial probe outcome (AC 3, SDD D-3.7/3.8).** *Clean*: an attempt at N accepted and verified by the echoed needle, a size-class rejection at the next step within `--tolerance-tokens`, and no `other` classification anywhere in the bisection. *Partial*: any `other` failure, a budget abort, an unverified completion counted as the bound, or inconsistent classifications (accept above a rejection). Only a clean outcome writes the catalog; a partial one writes the record and keeps the prior bound (superseded in r251-1: a partial record reaches the catalog only through `--write-partial-as-operator-set`, and the entry's `probe_outcome: partial`, `sample_size` and comment name the record — `reprobe_trigger` itself was not changed).
-- **Budget (Task 1.5).** Before the first call the probe prints the worst-case per-step cost and the step count that fits in `--budget-usd 20` at the catalog price; spend is cumulative across attempts and retries; the lead runs with `CLAUDE_HEADLESS_BIN=$HOME/.local/bin/claude-bedrock` and `AWS_BEARER_TOKEN_BEDROCK` present (the wrapper reads its own secret), then re-runs the affected suites under the usual `env -u CLAUDE_HEADLESS_BIN -u AWS_BEARER_TOKEN_BEDROCK` isolation.
-- **Conformance.** One fixture config pair (opt-in on / off) is read by every reader — the agy adapter, `adversarial-review.sh`, `flatline-orchestrator.sh`, Bridgebuilder, `run-preflight.sh`, `loa-status.sh` — and a conformance test asserts they agree; a non-boolean value fails loudly at the loader. With agy off and a *different* voice failing, verdict quality still reports DEGRADED (negative test).
-- **SC ↔ AC map.** SC-1 ↔ AC 1 (gate and planners), SC-2 ↔ AC 2 (effort), SC-3 ↔ AC 3 (probe), SC-4 ↔ AC 4 plus the review/audit gates.
-- **Loop stop condition.** The unattended loop is `/run sprint-plan`'s: at most the circuit breaker's cycles per gate; CHANGES_REQUIRED → `/implement` round; APPROVED review → `/audit-sprint`; APPROVED audit → COMPLETED → PR. Dissent ≤ 2 runs per gate for this one-sprint cycle.
-- **Scope-cut order if blocked.** FR-1 > FR-2 > FR-3 transport code > FR-3 live run (the live run may end as "attempt recorded, 180K kept" and still satisfy AC 3).
-- **Rollback.** FR-1: unset or set the key to false (default-off is the safe state); FR-2: delete the `default_effort` line from the `claude-opus-5-5` entry; FR-3: revert the catalog diff and keep the report.
+## Sprint 2: Decision map (`/chart`) and prototype tickets
 
-### Review dissent round r251-1 (2026-10-07; run 1: 58 findings, 7 BLOCKING; triage `a2a/sprint-251/review-dissent-triage-run-1.md`)
-- **Blocking, fixed.** n2 — cheval's own chain walk now plans around a gated agy hop (`models_not_planned: [{model, provider, reason: opt_in_required}]` in MODELINV, one WARN, never a breaker count; a direct `--model gemini-headless` still refuses). n8 — one routing predicate (`.claude/scripts/lib/agy-gate-lib.sh` `routes_to_agy` / `agy_opted_in` / `agy_gate_warn_once`; Python twin `loader.routes_to_agy`) used by the dissent, Flatline, preflight, `/loa`, Bridgebuilder and cheval; `tests/unit/agy-gate-conformance.bats`. n55 — SDD D-1.6 / PRD name the wire class `INVALID_CONFIG` + `failure_class: opt_in_required`. n27 — the real defect was a units gap (provider-measured bound vs a chars/3.5 estimate, ratio 1.405 on the probe filler): calibrated entries now ask `count_tokens` from 0.5 × bound (`CALIBRATED_COUNT_NEAR_BOUND`), Bridgebuilder's generated budget for a measured-unit calibration divides by 1.8 (916,000 → 508,000), a calibration measured on a foreign transport may be tightened by a verified observation on the HTTP route (`/loa`: `calibrated 936000 (claude-headless); observed N below on this route`); the catalog value stays 936,000. n1, n36, n44 refuted by probe.
-- **Advisory, fixed.** Loader fail-closed root walk and project-config-only read (n3, n7); non-boolean value WARNs (n16); `failure_class` in the error envelope and MODELINV (n5); `validate_config` early return (n4); preflight P3 wording (n11); test hygiene (n18, n13's FTA-2); Bridgebuilder `readError` state, required gate parameter, registry-backed `isAgyRouted`, strict-mode warn, opt-in named in the no-models throw (n19, n22, n23, n20); SDD D-1.7 availability WARN implemented (verifier A); adapter-derived `effort_effective` via `wire_effort` (n24), one `EFFORT_LEVELS` constant pinned to both schemas (n26), both `extra` keys read (n25). Probe: fair charging at the 1.25× cache-write rate (n35, n38, n46), TPM-window backoff and persisting-token-limit = size (n39, n45), throttle markers win over context markers (verifier B), full-diag classification (n47) and the CLI `~N tokens (limit M)` shape (C9), classifier exceptions and interrupts keep the record (n48), write prerequisites before the first call (n49), process-group kill (n50), anchored 5xx (n51), api-only flags refused on the CLI transport (n42), SYNTH-fixture coverage instead of a live-catalog skip (n40), fail-closed fake (n34), `probe_outcome` + `sample_size` structured provenance and `--write-partial-as-operator-set` (n30, n57; the live entry carries `probe_outcome: partial`, `sample_size: 5`), measured-entry assertions in the catalog-floor tests (n33), LSP-5 split (n15), docs (n29, n37, n41, n52, n53, n54, n56, n58).
-- **Refuted / declined with evidence.** n6, n9, n10, n12, n13, n17, n21, n28, n31, n32, n43, n54 (effort is already carried across the walk). Bead **bd-c2rd**: estimator calibration proper.
-- **Suites (real tree, serial).** adapters pytest 2804 passed / 6 skipped; bats agy-gate-conformance 10, flatline-tertiary-agy-opt-in 5, run-preflight 18, loa-status-providers 9, adversarial-review-companion (filtered) 46, gen-bb-registry-codegen 40, model-config-v3-schema 35, cycle-124-anthropic-catalog + schema 47 — 0 failures; Bridgebuilder 785/786 (`persona.test.ts` = KF-036); regen-model-artifacts drift-free, dist fresh; lints clean.
+**Duration:** 1 day
+**Dates:** 2026-10-14 - 2026-10-15
 
-### Review dissent round r251-2 (2026-10-07; run 2 on `059e26be`: 76 findings, 10 BLOCKING → 0 standing; triage `a2a/sprint-251/review-dissent-triage-run-2.md`)
-- **Real, fixed (MEDIUM).** n16 — the bash and Python opt-in readers disagreed on `yes/on/True/TRUE` (bash off, Python on): one strict rule on both sides — only the YAML scalar whose source text is exactly `true` opts in; other truthy spellings stay off with the one-shot type WARN; rows added to AGC-7 and the Python tests. n2/n8 — an agy-alone refusal was recorded in both `models_requested` and `models_not_planned` and counted as a planned-dropped voice: now `models_failed` (INVALID_CONFIG / `opt_in_required`) only, `models_not_planned` reserved for hops dropped before the walk, `voices_dropped` reason named, docstrings and tests pin the relation. n12/n13/n11 — `run-preflight.sh` P3 judged an agy-routed voice (opt-in on, `cli-only`, or any `gemini-headless:<m>` form) by its Google credential → false PASS without `agy`; now `routes_to_agy → cli=agy`, PF-AGY cases. n51 — the probe's `429` lookahead rejected "429." so `API Error: 429. Too many tokens` was a clean-eligible context bracket; fixed, and the throttle verdict reads the CLI's own answer (stderr only when there is no result). n65 (pre-existing, now load-bearing) — `ClaudeHeadlessAdapter._raise_for_error` mapped the CLI's own pre-flight rejection to `ProviderUnavailableError` (walked, breaker-counted); now `ProviderContextLimitError` (not walked, no breaker count), `test_claude_headless_context_limit.py`.
-- **Real, fixed (LOW/NIT).** n9 lib-missing path keeps an inline name filter (fail closed); n10 yq flavour selects the fallback; n14/n15/n17 vacuous bats assertions; n19/n20/n22/n23/n25/n26 Bridgebuilder (`readError` fail-closed for google voices, messages, template literal, startup prints, behavioural gate test); n35/n36/n40/n41 tests and `__all__`; probe n58 writability before spend, n59 `written_*` only after the write lands, n60 `write_skipped`, n62 traceback kept, n46/n49 test NITs, n63 import-time schedule assertion.
-- **Docs (lead).** n64/n71 one current Bridgebuilder value (508,000 = (936,000 − 20,000) ÷ 1.8; 916,000 as history); n69/n70 the two-case routing rule (no key clause); n72 PRD FR-3.5 / SDD D-3.8 name `--write-partial-as-operator-set`; n73 effort carried to every hop as existing behaviour; n74 "only a dispatch whose sole hop is agy-routed refuses"; n65/n75 the count_tokens gate scoped to the HTTP adapter and the headless mapping stated; n66 the lead's draft long-context pricing sentence removed (the entry carries no `pricing.long_context`).
-- **Refuted / declined with evidence (30 + 10).** Chunker mislabels n6/n7/n18/n33/n39/n40/n56/n67 (the chunker now keeps per-file headers); n1, n3, n4, n5, n21, n28, n29, n31, n34, n43, n45, n47, n48, n50, n52, n53, n54, n57, n63, n76 refuted by probe; n24, n27, n32, n37, n38, n42, n44, n55, n61, n68 declined by design. Beads: bd-y49y (pre-existing payload-schema drift on `capability_evaluation`), bd-c2rd note (per-entry tokenizer ratio).
-- **Suites (real tree, serial).** adapters pytest 2842 passed / 6 skipped; bats agy-gate-conformance 12 (AGC-6 is a load flake: failed once in the batch while the Bridgebuilder build ran, passed alone), run-preflight 19, flatline-tertiary-agy-opt-in 5, adversarial-review-companion (filtered) 47, loa-status-providers 9, gen-bb-registry-codegen 40 — 0 failures; Bridgebuilder 797/798 (`persona.test.ts` = KF-036); regen-model-artifacts drift-free, dist fresh; lints clean. No third review dissent run (≤ 2 per gate): the r251-2 delta is covered by the Fable review and the full-range audit dissent.
+### Sprint Goal
+Give multi-cycle efforts a decision map on beads that plans and cannot build, and give ungrillable questions a prototype route with a spike discipline.
 
-### Review round r251-3 (2026-10-07; Fable `/review-sprint` round 1: CHANGES_REQUIRED — 1 HIGH, 3 MEDIUM, 7 LOW; `a2a/sprint-251/engineer-feedback.md`)
-- **HIGH, fixed.** The r251-2 K8 mapping classified Bedrock's tokens-per-minute throttle ("Too many tokens, please wait before trying again" — it carries the context marker `too many tokens`) as a context limit: terminal, not walked, no retry, on this host's primary route. One shared `is_throttle_message()` in `routing/ceiling.py` (the probe's `_THROTTLE` rule + `overloaded`, `too many requests`, `quota`, a 429/529 in status position; digits inside a token count never read as a status) now serves both `ClaudeHeadlessAdapter._raise_for_error` (a throttle wins → `RateLimitError`, retried then walked) and the probe's `_classify_unguarded`; the adapter test is parametrised with the four Bedrock shapes; a probe-vs-adapter conformance test feeds the same strings to both classifiers.
-- **MEDIUM, fixed.** AC 3: the K9 `_lookup_max_input_tokens` pin now reads its expectation from the catalog entry and the literal guard also sweeps the current bound's digits; AC 4: the cycle-126 SDD D-4.1 amendment carries the promised cycle-127 pointer, and the beads export was flushed (`bd-c2rd`, `bd-y49y`, `bd-n6lk`, `bd-rbkz` in `.beads/issues.jsonl`). Observation 2 (SIMPLICITY: extract a `Bisection` object from the probe's 300-line `_main_cli` on the next touch) → bead `bd-rbkz`.
-- **LOW, fixed.** Obs 4: the shared routing rule is provider-based under `cli-only` (Python through the catalog, bash through the generated maps; `deep-research-pro` → agy-alone everywhere; AGC rows). Obs 6: the context-limit remedy for a CLI hop names the chain-head HTTP entry with `--transport claude-headless`, or states that the CLI's own window refused the payload. Obs 7: SDD §5 (`effort_source` enum incl. `extra`, `effort_effective`), §6 (resolve-time WARN; headless size verdict vs throttle; the partial flag), the superseded `reprobe_trigger` sentence above, AC 1 / PRD SC-1 (the binary-absent path is the existing `INVALID_CONFIG` refusal). Obs 8: the probe suite's host-global ledger assertion dropped (the `CLAUDE_HEADLESS_BIN` sentinel is the guard). Obs 9: `cycle-124-effort-flag.bats` setup unsets the two host variables. Obs 10: AGC-6's `loa-status` timeout 180 s. Obs 5 (Bedrock adapter ignores `request.effort`, pre-existing, outside FR-2's scope) → bead `bd-n6lk`.
-- **Suites (real tree, serial).** adapters pytest 2910 passed / 6 skipped; bats agy-gate-conformance 11/1 in the batch (AGC-6 again — fails only in the batch while the audit dissent runs, passes alone every time; recorded as a load flake with LSP-1), run-preflight 20, cycle-124-effort-flag 13, loa-status-providers 9 — 0 other failures; lints clean.
+### Deliverables
+- [ ] `.claude/commands/chart.md` and `.claude/skills/charting-decisions/SKILL.md` (+ `resources/`), ≤ 16,384 B, capability frontmatter passing `validate-skill-capabilities.sh`
+- [ ] Chart algorithm (destination round, breadth-first fog round, no-fog stop, `map` epic, `question` beads with one `decision:<type>` label each, `br dep` second pass, map doc, research subagents) and work algorithm (load, claim, resolve by type, record via `br comments add` + `br close` + `dec-write-lib.sh decide`, graduate fog, one ticket per session)
+- [ ] Map doc template and `validate-artifact.sh --type map`; `grimoires/loa/maps/` convention; `grimoires/loa/research/<slug>.md` convention
+- [ ] Lint in `create-sprint-task.sh` and `validate-artifact --type sprint`: a `question` bead under a sprint epic or with a `sprint:` label is rejected
+- [ ] `golden-path.sh`: `golden_detect_plan_phase` returns `charting` while a map doc says `**Status**: charting` and `discovery` once it says `handed-off` or `abandoned` (file-based, so it degrades to today's behaviour without `br`); `/plan` reports it and, with several open maps, asks interactively or exits 1 unattended with the message and no artifacts; `/plan-and-analyze` consumes a handed-off map and its `DEC` rows as priority-1 context
+- [ ] `interview.unattended_prototype: defer|halt` (default `defer`) in `.loa.config.yaml.example` with bats for both values; `/chart` refuses under an unattended marker (bats via the env override); research subagents capped at 5 per chart and 20 minutes each; CHANGELOG `[Unreleased]` entries for Sprint 2
+- [ ] Integration checkpoint at sprint start: the Sprint 1 ledger commands, schema and the live `decisions.yaml` are verified before any `/chart` work
+- [ ] Spike discipline: `grimoires/loa/spikes/TEMPLATE.md`, `validate-artifact.sh --type spike`, `run-mode-ice.sh` rule (allow `spike/*` push, refuse `spike/*` merge), the "I need to see it" sentence in the three planning skills, `planning-sprints/resources/REFERENCE.md` "High-Risk Early" pointer
 
-### Audit round r251-4 (2026-10-07; audit dissent run 1 full range 60 findings + run 2 delta 11 findings; triage `a2a/sprint-251/audit-dissent-triage.md`; commit `cbfccab2`)
-- **MEDIUM, fixed.** n22 — Bridgebuilder's merge gate subtracted not-planned voices even under a config read error, so a missing yq or malformed YAML shrank the quorum: now `mergeBlocked` with the reason, strict mode throws.
-- **Security-relevant LOW, fixed.** n6 — cheval read the opt-in from a cwd-ancestor config (a planted `/tmp/.loa.config.yaml` opted in under /tmp): anchored to cheval's install root; foreign-owned or writable configs read off. n5/n17 — exact bool tag, alias/merge-key nodes off in all three readers. n10/n15 — shell-only include guard; preflight fails closed without the lib. n52 (n45/n47/n57) — `--host-route` / `--cli-model` / `cli_version` with control characters rewrote `effective_input_ceiling` in the loaded catalog YAML: refused before any spend, dry run with the real kwargs, the written text re-parsed and asserted before `os.replace`.
-- **LOW, fixed.** Provider-map caching and fallback WARNs; throttle-status word boundaries; CLI-shape sentence anchor; shell-quoted calibrate hint; observation plausibility floor; finite CLI numbers; 1.8 budget prior; `~`-relative record paths (committed record too); schema if/then + maxLength; test sentinels; AGC-6 diagnostics.
-- **Refuted / declined with evidence.** 36 of 60 (run 1) and 6 of 11 (run 2) — chunk-visibility artefacts, pre-existing design (agy argv exposure, env-selected `CLAUDE_HEADLESS_BIN` trust model), recorded decisions (D-3.10/C1, C7), or disproved by probe.
-- **Suites.** adapters pytest 3015 passed / 6 skipped; nine bats suites 206/0; Bridgebuilder 807/808 (KF-036); lints clean. No third audit dissent run (≤ 2 per gate).
+### Acceptance Criteria
+- [ ] A fixture one-cycle idea stops at the no-fog check without creating beads
+- [ ] A fixture map creates the epic, children, labels and edges under `br --dry-run` and the map doc validates
+- [ ] A `question` bead with a `sprint:` label or under a sprint epic is rejected by the lint (bats)
+- [ ] `golden-path.sh` returns `charting` with a charting map, `discovery` without one, `discovery` after `/chart close`, and `discovery` with exit 0 when `br` is absent (bats with a `br` stub)
+- [ ] Resolving a fixture `question` bead writes a `DEC` row via `decide` with evidence, closes the bead and appends to the map doc; `/plan-and-analyze` Phase 0 with a handed-off fixture map loads the map doc and its `DEC` rows as priority-1 context (bats)
+- [ ] `get-ready-work.sh` omits a `question` bead even when it carries a `sprint:` label or sits under a sprint epic (bats)
+- [ ] Existing `golden-path`, `run-mode-ice` and `validate-artifact` suites stay green (backward compatibility)
+- [ ] `validate-artifact --type spike` passes the template and fails on a missing verdict
+- [ ] Fence corpus: `spike/x` push allowed; merging `spike/x` into another branch refused; `main` merged into `spike/x` allowed; `gh pr create --head spike/x` refused; cherry-pick from a `spike/*` ref listed under Misses (bats)
+- [ ] The charting skill's frontmatter passes `validate-skill-capabilities.sh`; `check-prompt-budget.sh` green
+- [ ] The planning skills carry the prototype sentence (≤ 2 lines each) with budgets green
 
-## MVP Definition
-All three FRs; the probe may legitimately end with "attempt recorded, 180K kept" if the bound is unclean — that outcome still satisfies the AC. (Outcome: the live run was `partial`; the operator vouched for the last verified accept and the entry says so — `probe_outcome: partial`, `sample_size: 5`; the tool refuses such a write without `--write-partial-as-operator-set`.)
+### Technical Tasks
 
-## Risk Assessment
-See SDD §9. The probe is the only step with external uncertainty; it is bounded by budget and by the no-write-on-partial rule.
+- [ ] Task 2.1: `charting-decisions` skill + `/chart` command: frontmatter, chart and work algorithms (write order DEC row → bead → map doc, idempotent by source), map doc template with `## Closed`, label and type conventions, unattended refusal, `/chart close`, research-subagent scope (read-only + WebFetch, writes `grimoires/loa/research/` only) → **[G-2]** ⇐ none
+- [ ] Task 2.2: Lints: `create-sprint-task.sh` rejects `question` under a sprint epic or with `sprint:`; `get-ready-work.sh` and the implement path exclude `question` beads regardless of labels; `validate-artifact.sh --type map`; sprint validator cross-check → **[G-2]** ⇐ none
+- [ ] Task 2.3: `golden-path.sh` `charting` phase (open `map` epic; `discovery` again after `## Closed`); `/plan` routing line and the multiple-open-maps rule (ask interactively, refuse unattended); `/plan-and-analyze` Phase 0 priority-1 load of the map doc and `DEC` rows and closure of the consumed map → **[G-2]** ⇐ Task 2.1
+- [ ] Task 2.4: Frontier helper for a map (`get-ready-work.sh --graph` filtered by the map epic) and the claim/resolve shell steps the skill calls → **[G-2]** ⇐ Task 2.1
+- [ ] Task 2.5: Spike discipline: `spikes/TEMPLATE.md`, `validate-artifact.sh --type spike`, `run-mode-ice.sh` `spike/*` rule (push allowed; merge into any other branch refused; `main` into spike allowed), `interview.unattended_prototype: defer|halt`, the working-branch rule for report and row, interview sentence in three planning skills, REFERENCE.md pointer → **[G-4]** ⇐ none
+- [ ] Task 2.6: Sprint 2 verification: `charting-lint.bats`, `golden-path-charting.bats`, `spike-validator.bats`, ICE fence-corpus case, fixture map dry-run, no-fog stop fixture, budget and capability lints → **[G-2, G-4]** ⇐ Task 2.2, Task 2.3, Task 2.4, Task 2.5
 
-## Success Metrics
-PRD KPIs: verdict quality on this host not DEGRADED on the agy route's account (the google-family voice, which reaches Gemini only through agy here); `effort: high` by default for `opus`; a measured Opus 5.5 bound or a documented attempt.
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| `create-sprint-task.sh` exit code on a `question` type / `sprint:` label | a decision ticket entering a sprint | a hand-run `br create` that bypasses the helper | `tests/unit/beads-*.bats` |
+| `golden_detect_plan_phase` stdout | wrong phase with an open map | `/plan` prose routing | `tests/unit/golden-path.bats` |
+| `validate-artifact.sh --type map|spike` | malformed map/spike docs | the quality of a verdict | `tests/unit/validate-artifact.bats` |
+| `run-mode-ice.sh` decision for `spike/*` push and merge | a spike merged to a protected branch | a spike copied by hand into `src/` (the implement gate asks) | ICE fence corpus |
+| `validate-skill-capabilities.sh` on the new skill | capability/tool mismatch, write-capable agent type | runtime behaviour of the skill | `tests/unit/skill-capabilities.bats` |
+
+### Dependencies
+- Sprint 1: `dec-write-lib.sh decide` (resolution rows), `rounds` pacing (the grilling rounds inside `/chart`); verified by the integration checkpoint before Task 2.1 starts
+- Rollback: `/chart` is a truename with no auto-start, so removing the command file and the `charting` branch of `golden_detect_plan_phase` restores `/plan`; the ICE spike rule and the `question` exclusion are single `if` blocks; `interview.unattended_prototype: halt` is the conservative setting
+
+### Security Considerations
+- **Trust boundaries**: map docs, ticket bodies and research subagent output are agent- or operator-authored text; surfaced as data, never as instructions; research output is sanitised like L6 handoff bodies.
+- **External dependencies**: none added; `br` is the only tracker.
+- **Sensitive data**: none; `pii-filter.sh` on `--type map|spike`; no execution override exists on the map, so a map cannot authorise App-Zone writes (the implement gate asks on any).
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| `decision:unblock` drifts into build work | Med | High | Pocock's `task` type renamed `decision:unblock`; the lint and work algorithm depend on exactly the four labels `decision:grilling|prototype|research|unblock` (SDD §3.2); no `sprint:` label by lint; App-Zone writes ask; body must name the decision it unblocks |
+| `/chart` adds ceremony | Med | Med | Multi-cycle trigger only; mandatory no-fog stop; a chart under three tickets is deleted |
+| `br` label semantics differ from the design (one `decision:` label per bead) | Low | Med | `question` is a supported `br` type (schema enum); the dry-run fixture in Task 2.6 confirms labels and edges before the skill text is final |
+| Phase detection misreads a stale map | Low | Med | Detection keys on the map doc's `**Status**` line (file-based, works without `br`); `/chart close` sets it; maps open over 30 days are listed by the SessionStart surface |
+
+### Success Metrics
+- Fixture map: 1 epic, ≥ 3 `question` children, edges present, 0 `sprint:` labels
+- `golden-path.sh` phase table has `charting`; bats green
+- `spike/*` corpus case green; spike template validates
+
+> Sources: prd.md FR-4, FR-5, UC-2, UC-3; sdd.md §1.5 D-4.x, D-5.x, §5 API Specifications, §7 Testing Strategy
+
+---
+
+## Sprint 3 (Final): Glossary, seams under test, red-test check, E2E
+
+**Duration:** 1 day
+**Dates:** 2026-10-15 - 2026-10-16
+
+### Sprint Goal
+Complete the decision surfaces with a shared vocabulary and two verifiable test-discipline checks, document the cycle, and validate all PRD goals end to end.
+
+### Deliverables
+- [ ] Framework glossary `.claude/loa/GLOSSARY.md` seeded for Loa's vocabulary and the root project `GLOSSARY.md` convention; `validate-artifact.sh --type glossary`; `tools/check-glossary-terms.sh` + `.claude/data/glossary-allowlist.txt` (≤ 30) wired into CI; planning-skill challenge/update sentences; `riding-codebase` reads both glossaries; `reviewing-code` checklist row for undefined new terms
+- [ ] `sprint-template.md` `### Seams Under Test` block; sprint validator rule (version-gated so older plans still validate); `planning-sprints` Phase 2 asks seams as a round; `reviewing-code` spec-axis seam check
+- [ ] `.claude/scripts/red-test-check.sh` with `--setup` and default symlinking of `node_modules`, `.venv`, `vendor`, `target`, `.tox` into the temp worktrees, a per-run timeout with a `TIMEOUT` verdict, trap-based worktree cleanup; `micro-sprint.md` two-commit rule; `reviewing-code` cites the script's output
+- [ ] A report-only run of the glossary checker against `CLAUDE.loa.md` before Task 3.1 sizes the seed and the allowlist; false positives are reviewed before any allowlist entry
+- [ ] Docs: CHANGELOG `[Unreleased]`, README what's-new, `hooks-reference.md` rows for the new SessionStart surface and ICE rule, `REPO-MAP.md` regenerated with `.checksum` and `checksums.json` staged together, migration note for the pacing default
+- [ ] Task 3.E2E completed with evidence per goal
+
+### Acceptance Criteria
+- [ ] `check-glossary-terms.sh` exits 0 on the kernel and 1 when a term is removed from the glossary (bats)
+- [ ] `.claude/loa/GLOSSARY.md` validates; every backticked framework term in `CLAUDE.loa.md` resolves (exclusion heuristic applied; allowlist ≤ 30)
+- [ ] Sprint validator fails on a missing Seams block for a plan dated on or after 2026-10-13 and still passes the archived cycle-127 plan and undated fixtures
+- [ ] `red-test-check.sh` bats: red+green passes; a decoy passing at both commits exits 3; a missing test file or collection error at the red commit exits 4; a timeout yields `TIMEOUT`; a fixture whose test imports an external dependency passes through the bootstrap; `git worktree list` is clean after every case; the red output is printed
+- [ ] `micro-sprint.md` Task 1 requires the separate red commit; `reviewing-code` names the script
+- [ ] CHANGELOG, README, hooks-reference, REPO-MAP updated; `repo-map` checksum consistent
+- [ ] Task 3.E2E: every goal G-1…G-7 validated with documented evidence in a report table (goal, command run, artifact path, pass/fail) under `grimoires/loa/a2a/sprint-254/e2e.md`; G-3 scores a transcript other than the Sprint 1 fixture
+- [ ] Existing `validate-artifact`, `reviewing-code` and CI suites stay green (backward compatibility)
+
+### Technical Tasks
+
+- [ ] Task 3.1: Report-only sizing run of the checker over `CLAUDE.loa.md`, then `.claude/loa/GLOSSARY.md` framework glossary seed (incl. `_Aliases_` lines) and the root project `GLOSSARY.md` convention; `validate-artifact.sh --type glossary` → **[G-5]** ⇐ none
+- [ ] Task 3.2: `tools/check-glossary-terms.sh` (token exclusion heuristic, case-insensitive plural and alias matching, allowlist ≤ 30) + CI workflow step; planning-skill sentences; `riding-codebase` read; `reviewing-code` checklist row → **[G-5]** ⇐ Task 3.1
+- [ ] Task 3.3: Seams Under Test: template block, validator rule gated on the plan `Date` ≥ 2026-10-13 (undated plans WARN), `planning-sprints` Phase 2 round, `reviewing-code` seam check → **[G-6]** ⇐ none
+- [ ] Task 3.4: `red-test-check.sh --red <commit> [--green] [--test-file] [--setup] [--timeout] -- <test command...>` (detached temp worktrees with dependency symlinks or `--setup`; red must fail with the output printed; green must pass; decoy exit 3; missing test file or collection error exit 4; `TIMEOUT` verdict via `timeout`/`gtimeout`/bash wrapper; trap cleanup), `micro-sprint.md` two-commit rule, `reviewing-code` citation line → **[G-6]** ⇐ none
+- [ ] Task 3.5: Sprint 3 verification: `glossary-terms.bats`, sprint-validator seams bats (new plan fails without the block; cycle-127 plan passes), `red-test-check.bats` with decoy → **[G-5, G-6]** ⇐ Task 3.2, Task 3.3, Task 3.4
+- [ ] Task 3.6: Docs and release surfaces: CHANGELOG `[Unreleased]` entries for Sprint 3 and reconciliation of Sprints 1–2, README, `hooks-reference.md`, REPO-MAP + checksums → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.5
+- [ ] Task 3.E2E: End-to-End Goal Validation → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.6
+
+### Task 3.E2E: End-to-End Goal Validation
+
+**Priority:** P0 (Must Complete)
+**Goal Contribution:** All goals (G-1 … G-7)
+
+**Description:**
+Validate that all PRD goals are achieved through the complete implementation, with evidence recorded in the sprint report.
+
+**Validation Steps:**
+
+| Goal ID | Goal | Validation Action | Expected Result |
+|---------|------|-------------------|-----------------|
+| G-1 | Every planning decision recorded with who decided it | `grimoire-index.sh` → `## decisions`; cycle-127 D1–D3, cycle-128 D1–D20 and the SDD A-decisions as `proposed` rows with `decided_by: agent`, plus the FR-8 triage rows; PR-body section rendered by `list --not-decided-by operator --format md` (a `proposed` row counts as an agent decision for attribution) | ≥ 34 rows; the section lists every `proposed` row |
+| G-2 | A decision map plans and cannot build | fixture map dry-run; lint rejects `question` + `sprint:`; `golden-path.sh` reports `charting` | all three green |
+| G-3 | Interview asks in prerequisite-ordered rounds | `check-round-independence.sh` over a transcript other than the Sprint 1 fixture | ≥ 2 questions per round (final exempt), no dependent pair |
+| G-4 | Ungrillable questions become prototype tickets | spike template validates; ICE corpus case; prototype sentence in three skills | green |
+| G-5 | Shared vocabulary that does not rot | `check-glossary-terms.sh` on `CLAUDE.loa.md` | exit 0; removing a term → exit 1 |
+| G-6 | Review verifies test discipline from artefacts | sprint validator on this plan (seams present) and on cycle-127's (no gate); `red-test-check.sh` bats | green; decoy exits 3 |
+| G-7 | Operator-only commands unreachable to the model | `user-invoked-commands.bats`; the automated harness check's recorded outcome | green; verified, or partial with the lint-only contingency stated |
+
+**Acceptance Criteria:**
+- [ ] Each goal validated with documented evidence
+- [ ] Integration points verified (ledger → INDEX → SessionStart; map → `/plan-and-analyze` context; spike → `DEC` row)
+- [ ] No goal marked as "not achieved" without explicit justification
+
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| `check-glossary-terms.sh` exit code on the kernel | an undefined framework term | prose that avoids backticks | `tests/unit/prompt-budget.bats` (CI-check style) |
+| `validate-artifact.sh --type sprint` on new vs archived plans | missing Seams block; false failure on old plans | the quality of a declared seam | `tests/unit/validate-artifact.bats` |
+| `red-test-check.sh` exit codes on fixture repos | decoy tests, missing red commit | a red test whose assertion is weak (reviewer reads it) | `tests/unit/validate-ac-verification.bats` |
+| REPO-MAP checksum consistency | stale map after script changes | nothing beyond drift | `repo-map-gen.sh` sidecar |
+
+### Dependencies
+- Sprint 1: ledger rows for the E2E check; Sprint 2: map and spike surfaces for the E2E check
+- Rollback: the glossary CI step and the Seams validator rule each sit behind one gate (`check-glossary-terms.yml` and `SEAMS_REQUIRED_FROM`); `red-test-check.sh` is review-time only and can be bypassed by reverting the one `reviewing-code` line
+
+### Security Considerations
+- **Trust boundaries**: `GLOSSARY.md` is tracked prose; the drift check reads only the kernel and the glossary; `red-test-check.sh` runs project tests in a temporary worktree it creates and removes (never the live tree).
+- **External dependencies**: none added.
+- **Sensitive data**: none; the glossary is implementation-free by rule.
+
+### Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Glossary rots | High | Low | Drift check in CI; glossary small by rule; the kernel is the only extraction scope; aliases via `_Aliases_:`; allowlist entries reviewed as false positives first |
+| Fresh worktrees lack dependencies for the red test | High | Med | Default symlinks of dependency dirs; `--setup` hook; a fixture with an external dependency in the bats |
+| Seams rule breaks validation of archived plans | Med | Med | Date gate (plan header Date ≥ 2026-10-13; undated plans WARN); bats case on cycle-127's plan |
+| `red-test-check.sh` gamed by a decoy | Low | Low | Decoy exit 3; reviewer reads the assertion |
+| REPO-MAP / checksums drift at commit | Med | Low | Stage REPO-MAP.md, its `.checksum` and `checksums.json` together |
+
+### Success Metrics
+- `check-glossary-terms.sh` exit 0 in CI; ≥ 18 glossary entries
+- Sprint validator: this plan passes, cycle-127 plan passes
+- `red-test-check.bats` 3/3; E2E table complete
+
+> Sources: prd.md FR-6, FR-7, UC-4, §Success Criteria; sdd.md §1.5 D-6.x, D-7.x, §7 Testing Strategy, §11 Appendix
+
+---
+
+## Risk Register
+
+| ID | Risk | Sprint | Probability | Impact | Mitigation | Owner |
+|----|------|--------|-------------|--------|------------|-------|
+| R1 | `discovering-requirements` budget breach | 1 | High | Med | Task 1.1 first; guarded pointers; CI gate | implementer |
+| R2 | `.gitignore` negation ineffective | 1 | Med | Med | `validate-gitignore-state.sh` row; `git check-ignore` bats | implementer |
+| R3 | Flagged command needed by an orchestrator | 1 | Low | High | safe set only without triage; operative-reference lint | implementer |
+| R9 | Parallel `DEC` id allocation across worktrees | 1–3 | High | High | pending-file import by the lead; duplicate-id FAIL | lead |
+| R11 | Agent-forgeable attribution or self-confirmation | 1 | Med | High | operator-only `/decisions`; unattended writes always `proposed`; tamper-evident refs | implementer |
+| R10 | Red test cannot run in a bare worktree | 3 | High | Med | dependency symlinks + `--setup`; external-dependency fixture | implementer |
+| R4 | `decision:unblock` becomes build work | 2 | Med | High | lint, gate ask, body rule | implementer |
+| R5 | `/chart` ceremony | 2 | Med | Med | multi-cycle trigger; no-fog stop | lead |
+| R6 | Seams rule breaks old plans | 3 | Med | Med | version gate; archived-plan bats | implementer |
+| R7 | Flatline cross-scoring degraded (KF-041) | all | High | Low | integrate raw reviews by judgment | lead |
+| R8 | Dissent companion contention (KF-037) | all | Med | Low | ≤ 3 runs per gate; retry when the CLI is idle | lead |
+
+---
+
+## Success Metrics Summary
+
+| Metric | Target | Measurement Method | Sprint |
+|--------|--------|-------------------|--------|
+| `DEC` rows seeded | ≥ 34, all `proposed`, all `decided_by: agent` | `grimoire-index.sh` `## decisions` | 1 |
+| Questions per round (fixture) | ≥ 2 | rubric over the transcript | 1 |
+| Flagged operator commands | ≥ 4, lint green | `user-invoked-commands.bats` | 1 |
+| `question` beads with `sprint:` label | 0, enforced | lint bats | 2 |
+| `golden-path.sh` charting detection | correct on both fixtures | bats | 2 |
+| Spike corpus case | push allowed, merge refused | ICE bats | 2 |
+| Kernel terms without glossary entry | 0 | `check-glossary-terms.sh` | 3 |
+| `red-test-check.sh` decoy detection | exit 3 | bats | 3 |
+| Review + audit per sprint | APPROVED, consistent trailers | `verdict-derive.sh` | all |
+
+---
+
+## Dependencies Map
+
+```
+Sprint 1 (252) ──────────────▶ Sprint 2 (253) ──────────────▶ Sprint 3 (254)
+   │ rounds, DEC ledger,          │ /chart on the ledger,        │ glossary, seams,
+   │ fact/decision, FR-8          │ prototype tickets            │ red test, docs, E2E
+```
+
+---
+
+## Appendix
+
+### A. PRD Feature Mapping
+
+| PRD Feature (FR-X) | Sprint | Status |
+|--------------------|--------|--------|
+| FR-1 Rounds | Sprint 1 | Planned |
+| FR-2 Fact/decision split | Sprint 1 | Planned |
+| FR-3 Decision ledger | Sprint 1 | Planned |
+| FR-8 Operator-only commands | Sprint 1 | Planned |
+| FR-4 Decision map (`/chart`) | Sprint 2 | Planned |
+| FR-5 Prototype tickets and spikes | Sprint 2 | Planned |
+| FR-6 Glossary | Sprint 3 | Planned |
+| FR-7 Seams and red-test check | Sprint 3 | Planned |
+
+### B. SDD Component Mapping
+
+| SDD Component | Sprint | Status |
+|---------------|--------|--------|
+| D-1.x rounds pacing (REFERENCE.md §Question Pacing, config default) | Sprint 1 | Planned |
+| D-2.x fact/decision rule and PR-body section | Sprint 1 | Planned |
+| D-3.x `decisions.yaml` schema, `dec-write-lib.sh`, INDEX section, SessionStart surface, validator type | Sprint 1 | Planned |
+| D-8.x user-invoked command allowlist and lint | Sprint 1 | Planned |
+| D-4.x `/chart` command, `charting-decisions` skill, map doc, lints, golden-path phase, frontier helper | Sprint 2 | Planned |
+| D-5.x spike template, validator type, ICE rule, interview sentence | Sprint 2 | Planned |
+| D-6.x `GLOSSARY.md`, drift check, validator type, skill sentences | Sprint 3 | Planned |
+| D-7.x Seams Under Test block, validator gate, `red-test-check.sh`, micro-sprint rule | Sprint 3 | Planned |
+
+### C. PRD Goal Mapping
+
+| Goal ID | Goal Description | Contributing Tasks | Validation Task |
+|---------|------------------|-------------------|-----------------|
+| G-1 | Every planning decision recorded with who decided it | Sprint 1: Task 1.3, Task 1.4, Task 1.5, Task 1.6, Task 1.7, Task 1.9 | Sprint 3: Task 3.E2E |
+| G-2 | A decision map that plans and cannot build | Sprint 2: Task 2.1, Task 2.2, Task 2.3, Task 2.4, Task 2.6 | Sprint 3: Task 3.E2E |
+| G-3 | Interview asks in prerequisite-ordered rounds | Sprint 1: Task 1.1, Task 1.2, Task 1.9 | Sprint 3: Task 3.E2E |
+| G-4 | Ungrillable questions become prototype tickets | Sprint 2: Task 2.5, Task 2.6 | Sprint 3: Task 3.E2E |
+| G-5 | Shared vocabulary that does not rot | Sprint 3: Task 3.1, Task 3.2, Task 3.5 | Sprint 3: Task 3.E2E |
+| G-6 | Review verifies test discipline from artefacts | Sprint 3: Task 3.3, Task 3.4, Task 3.5 | Sprint 3: Task 3.E2E |
+| G-7 | Operator-only commands unreachable to the model | Sprint 1: Task 1.0, Task 1.8, Task 1.9 | Sprint 3: Task 3.E2E |
+
+**Goal Coverage Check:**
+- [x] All PRD goals have at least one contributing task
+- [x] All goals have a validation task in the final sprint
+- [x] No orphan tasks (Task 3.6 contributes to every goal through documentation)
+
+### D. Flatline review integration (2026-10-13)
+
+Two voices (codex-headless as `gpt-5.5`, claude-headless), cross-scoring degraded (KF-041, exit 6); integrated by judgment. Blockers integrated: ledger single-writer rule (later refined into the pending-file import mechanism by the SDD review) and duplicate-id FAIL, yq v4 writer with a hostile-string fixture corpus, red-test dependency bootstrap, automated harness check for FR-8 with a lint-only contingency. The SDD review's seven blockers (forgeable attribution, self-confirmation via an agent-controlled marker, unmergeable ledger, portability, operator-row supersession) are reflected in Tasks 1.4–1.7, the acceptance criteria and risks R9 and R11. Improvements integrated into the task lines, acceptance criteria, rollback lines, risk tables and the E2E report format (gpt IMP-001…015, opus IMP-001…030). Narrowed: the glossary CI step lands as FAIL after a report-only sizing run rather than a WARN-first release (opus IMP-017); the `red-test-check.sh` test command stays free-form, taken from the micro-sprint's `Test command:` line, rather than an allowlisted runner (opus IMP-014).
+
+**Per-Sprint Goal Contribution:**
+
+Sprint 1: G-1 (complete: ledger + attribution), G-3 (complete: rounds), G-7 (complete: flag + lint)
+Sprint 2: G-2 (complete: map), G-4 (complete: spikes)
+Sprint 3: G-5 (complete: glossary), G-6 (complete: seams + red test), E2E validation of all goals
+
+---
+
+*Generated by Sprint Planner Agent*

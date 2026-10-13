@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-127-operator-decisions",
+  "active_cycle": "cycle-128-decision-surfaces",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2368,10 +2368,10 @@
     {
       "id": "cycle-127-operator-decisions",
       "label": "Operator decisions — agy opt-in, Opus 5.5 effort default, ceiling probe",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-07T08:21:56Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-12T23:53:15Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/cycle-127-operator-decisions",
       "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
       "sdd": null,
       "sprints": [
@@ -2391,6 +2391,74 @@
             "bd-mpf2"
           ],
           "theme": "agy opt-in, Opus 5.5 effort default, ceiling probe"
+        }
+      ]
+    },
+    {
+      "id": "cycle-128-decision-surfaces",
+      "label": "Decision surfaces — rounds and fact/decision split, decision ledger, /chart decision map, prototype tickets, glossary, seams and red-test check, operator-only command flag",
+      "status": "active",
+      "created": "2026-10-12T23:58:21Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 252,
+          "local_label": "sprint-1",
+          "status": "planned",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": null,
+          "theme": "Rounds, fact/decision attribution, decision ledger, operator-only commands",
+          "epic": "bd-23qq",
+          "beads": [
+            "bd-tm46",
+            "bd-wepc",
+            "bd-te78",
+            "bd-g1dm",
+            "bd-cw24",
+            "bd-izux",
+            "bd-e8gm",
+            "bd-wu7v",
+            "bd-r55h",
+            "bd-zncg"
+          ]
+        },
+        {
+          "global_id": 253,
+          "local_label": "sprint-2",
+          "status": "planned",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": null,
+          "theme": "Decision map (/chart) and prototype tickets",
+          "epic": "bd-nmej",
+          "beads": [
+            "bd-tqm6",
+            "bd-kz6i",
+            "bd-axbc",
+            "bd-qwfm",
+            "bd-6dma",
+            "bd-01pk"
+          ]
+        },
+        {
+          "global_id": 254,
+          "local_label": "sprint-3",
+          "status": "planned",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": null,
+          "theme": "Glossary, seams under test, red-test check, E2E",
+          "epic": "bd-9oyc",
+          "beads": [
+            "bd-hafl",
+            "bd-28ud",
+            "bd-twdf",
+            "bd-0b6s",
+            "bd-e9m8",
+            "bd-6j3l",
+            "bd-0icm"
+          ]
         }
       ]
     }
@@ -2793,6 +2861,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 252,
-  "last_updated": "2026-10-07T17:52:17Z"
+  "next_sprint_number": 255,
+  "last_updated": "2026-10-13T00:20:19Z"
 }
