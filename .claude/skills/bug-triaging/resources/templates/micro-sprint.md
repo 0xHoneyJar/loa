@@ -29,6 +29,7 @@ Fix the reported bug with a failing test proving the fix.
 - Test fails with current code, proving the bug exists
 - Test name clearly describes the bug scenario
 - Test is isolated (no side effects on other tests)
+- Committed alone (`test(<bug_id>): failing test`) before any fix commit; SHA recorded in `reviewer.md` as `Red commit: <sha>`
 
 #### Task 2: Implement Fix [G-1, G-2]
 - Fix root cause in {suspected_files}
@@ -39,6 +40,7 @@ Fix the reported bug with a failing test proving the fix.
 - Failing test now passes
 - No regressions in existing tests
 - Fix addresses root cause (not just symptoms)
+- The fix is a later commit and does not weaken the test (`.claude/scripts/red-test-check.sh --red <Red commit> -- <test command>` exits 0)
 
 ### Acceptance Criteria
 - [ ] Bug is no longer reproducible

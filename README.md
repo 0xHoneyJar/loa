@@ -2,7 +2,7 @@
 
 <!-- AGENT-CONTEXT: Loa is an agent-driven development framework for Claude Code.
 Primary interface: 5 Golden Path commands (/loa, /plan, /build, /review, /ship).
-Power user interface: 49 slash commands (truenames).
+Power user interface: 51 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
@@ -18,6 +18,18 @@ Version: 2.0.0-rc.3
 ## What's new in v2.0.0-rc.2 (release candidate)
 
 The 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [rc.1 release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
+
+**Unreleased — decision surfaces** (cycle-128, [CHANGELOG](CHANGELOG.md)):
+
+- **Decision maps**: `/chart <slug>` maps an effort that spans more than one cycle as `question` tickets and a map doc in `grimoires/loa/maps/`. It plans and never builds, and `/plan` reports the `charting` phase.
+- **Decision ledger**: every planning decision becomes a `DEC` row in `grimoires/loa/decisions.yaml` with who decided it. Agent decisions stay `proposed` until you confirm them with `/decisions`.
+- **Rounds and attribution**: the interview asks every question whose prerequisites are settled in one round, each with a recommended answer. Facts are looked up, never asked; decisions are yours, and PR bodies list the ones taken on your behalf.
+- **Spike tickets**: a question talk cannot settle becomes a prototype ticket on a `spike/<slug>` branch that is pushed, never merged and never opened as a PR.
+- **Glossaries**: `.claude/loa/GLOSSARY.md` and a project `GLOSSARY.md`; `tools/check-glossary-terms.sh` fails CI when a kernel term has no entry.
+- **Test discipline**: sprint plans name their Seams Under Test, and `red-test-check.sh` proves a bug fix's test failed before the fix and passes after it.
+- **Operator-only commands**: `/decisions`, `/contribute`, `/run-halt`, `/loa-eject` and three others carry `disable-model-invocation`, so only you can run them.
+
+Upgrading: `interview.pacing` unset now means rounds in `thorough` mode, and plans dated from 2026-10-13 need the Seams block (see the CHANGELOG Migration notes).
 
 **rc.2 — friction floor** (cycle-125, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.2.md)): the destructive-command fence stops blocking cache/scratch cleanups it cannot lose data on (corpus-gated, 49 benign / 60 dangerous rows), the big planning artefacts read by section (`notes-guard.sh read --file F --section 'Sprint N'`), `/run` refuses to start a run it cannot finish (`run-preflight.sh`, eight predicates, the fix named) and the next session is told how to resume, `/loa` shows provider health (breakers, credential presence, CLI hops) and artefact sizes, and the ids the fleet actually calls are priced (dated releases, aliases, CLI hops) with the unpriced share always visible. No new configuration key.
 
@@ -122,7 +134,7 @@ For fine-grained control, use the underlying commands directly:
 | 5.5 | `/audit-sprint sprint-N` | Security Approval |
 | 6 | `/deploy-production` | Infrastructure |
 
-**49 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
+**51 total commands.** Type `/loa` for the Golden Path or see [PROCESS.md](PROCESS.md) for all commands.
 
 ## The Agents
 

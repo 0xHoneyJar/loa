@@ -17,10 +17,12 @@ set -euo pipefail
 #   checkout <branch>         Safe checkout (blocks protected)
 #   push [remote] [branch]    Safe push (blocks protected)
 #   push-upstream <r> <b>     Safe push with -u flag
-#   merge                     ALWAYS BLOCKED
+#   is-spike <branch>         Check if branch is a spike branch (spike/*)
+#   merge [source]            BLOCKED; the one exception: on a spike/* branch,
+#                             merging the default branch (main/master) in
 #   pr-merge                  ALWAYS BLOCKED
 #   branch-delete             ALWAYS BLOCKED
-#   pr-create <title> <body>  Create draft PR only
+#   pr-create <title> <body>  Create draft PR only (never from a spike/* head)
 #
 # Exit codes:
 #   0 - Success
@@ -51,6 +53,20 @@ PROTECTED_PATTERNS=(
   "release-*"
   "hotfix/*"
   "hotfix-*"
+)
+
+# Spike branches (grimoires/loa/sdd.md D-5.2, D-5.3): a prototype pushed for a
+# decision. Pushes are allowed (spike/* is not protected); merging one into any
+# other branch, and opening a PR from one, are refused. A spike may take the
+# default branch in, so it can be rebuilt on current main.
+SPIKE_PATTERN="spike/*"
+
+# Default branches a spike branch may merge in (exact names only).
+SPIKE_MERGE_SOURCES=(
+  "main"
+  "master"
+  "origin/main"
+  "origin/master"
 )
 
 # ============================================================================
@@ -103,6 +119,23 @@ is_protected_branch() {
     esac
   done
 
+  echo "false"
+  return 1
+}
+
+# Check if a branch or ref names a spike branch: spike/<x>, or a remote or
+# full ref ending in one (origin/spike/<x>, refs/heads/spike/<x>).
+# Returns: 0 and prints true if it does, 1 and prints false otherwise.
+is_spike_branch() {
+  local branch="$1"
+  # The pattern is trusted (hard-coded); glob match, never regex.
+  # shellcheck disable=SC2254
+  case "$branch" in
+    $SPIKE_PATTERN|*/$SPIKE_PATTERN)
+      echo "true"
+      return 0
+      ;;
+  esac
   echo "false"
   return 1
 }
@@ -216,12 +249,44 @@ safe_push_set_upstream() {
   git push -u "$remote" "$branch"
 }
 
-# Safe merge - ALWAYS BLOCKED
-# Run Mode never merges. Humans merge PRs.
+# Safe merge - BLOCKED. Run Mode never merges; humans merge PRs.
+# Args: source (optional). Absent: always blocked (the original contract).
+# Present: a spike/* source is refused; on a spike/* branch the default branch
+# (main, master, origin/main, origin/master) may be merged in; anything else
+# stays blocked.
 safe_merge() {
+  local source="${1:-}"
+
+  if [[ -n "$source" ]]; then
+    if [[ $(is_spike_branch "$source") == "true" ]]; then
+      echo "ICE: spike branches are never merged into another branch" >&2
+      echo "Record the verdict in grimoires/loa/spikes/<slug>.md on the working branch instead" >&2
+      log_ice_block "merge" "$source"
+      return 1
+    fi
+
+    local current allowed
+    current=$(get_current_branch)
+    if [[ $(is_spike_branch "$current") == "true" ]]; then
+      for allowed in "${SPIKE_MERGE_SOURCES[@]}"; do
+        if [[ "$source" == "$allowed" ]]; then
+          echo "ICE: merging $source into spike branch '$current'" >&2
+          # --ff overrides a merge.ff=only config: a spike usually diverged
+          # from the default branch, so a merge commit is the normal outcome.
+          local merge_rc=0
+          git merge --no-edit --ff "$allowed" || merge_rc=$?
+          if [[ $merge_rc -ne 0 ]]; then
+            echo "ICE: merge of $source into $current did not complete; resolve the conflicts and commit, or abort with plain \`git merge --abort\` (ICE does not wrap abort)" >&2
+          fi
+          return $merge_rc
+        fi
+      done
+    fi
+  fi
+
   echo "ICE: Merge operations are BLOCKED in Run Mode" >&2
   echo "Human intervention required to merge pull requests" >&2
-  log_ice_block "merge" "any"
+  log_ice_block "merge" "${source:-any}"
   return 1
 }
 
@@ -310,6 +375,13 @@ safe_pr_create() {
     return 1
   fi
 
+  # A spike is a pointer for a decision, never a change to review or merge.
+  if [[ $(is_spike_branch "$head") == "true" ]]; then
+    echo "ICE: spike branches never get a PR" >&2
+    log_ice_block "pr-create" "$head"
+    return 1
+  fi
+
   # Verify we're not creating PR from protected branch
   if [[ $(is_protected_branch "$head") == "true" ]]; then
     echo "ICE: Cannot create PR from protected branch '$head'" >&2
@@ -343,21 +415,26 @@ Usage: run-mode-ice.sh <command> [args...]
 
 Commands:
   is-protected <branch>     Check if branch is protected (outputs true/false)
+  is-spike <branch>         Check if branch is a spike branch (outputs true/false)
   validate                  Verify current branch is safe for operations
   ensure-branch <name>      Create or checkout a feature branch
   checkout <branch>         Safe checkout (blocks protected branches)
   push [remote] [branch]    Safe push (blocks protected branches)
   push-upstream <r> <b>     Safe push with -u flag
-  merge                     ALWAYS BLOCKED - humans merge PRs
+  merge [source]            BLOCKED - humans merge PRs; on a spike/* branch,
+                            merge main/master in; a spike/* source is refused
   pr-merge                  ALWAYS BLOCKED - humans merge PRs
   branch-delete [branch]    ALWAYS BLOCKED - humans delete branches
   force-push                ALWAYS BLOCKED - dangerous operation
-  pr-create <title> <body>  Create DRAFT pull request only
+  pr-create <title> <body>  Create DRAFT pull request only (never from spike/*)
   should-push [override]    Determine push mode (LOCAL, PROMPT, or AUTO)
 
 Protected Branches (immutable, not configurable):
   main, master, staging, develop, development, production, prod
   release/*, release-*, hotfix/*, hotfix-*
+
+Spike Branches (spike/*):
+  push allowed; never merged into another branch; never a PR
 
 Exit Codes:
   0 - Success
@@ -394,6 +471,15 @@ main() {
       [[ $(is_protected_branch "$1") == "true" ]]
       ;;
 
+    is-spike)
+      if [[ $# -lt 1 ]]; then
+        echo "Usage: run-mode-ice.sh is-spike <branch>" >&2
+        exit 2
+      fi
+      # Return 0 if a spike branch (true), 1 if not (false)
+      is_spike_branch "$1"
+      ;;
+
     validate)
       validate_working_branch
       ;;
@@ -427,7 +513,7 @@ main() {
       ;;
 
     merge)
-      safe_merge
+      safe_merge "${1:-}"
       ;;
 
     pr-merge)

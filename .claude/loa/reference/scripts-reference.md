@@ -36,6 +36,24 @@ Core scripts in `.claude/scripts/`. Run any script with `--help` for usage detai
 | `compound-orchestrator.sh` | `/compound` command orchestration |
 | `collect-trace.sh` | Execution trace collection for `/feedback` |
 
+## Decision Surfaces (cycle-128)
+
+Exit codes are `0` ok, `1` refused or failed, `2` usage unless the row says otherwise. Paths are under `.claude/scripts/` unless they start with `tools/`.
+
+| Script | Contract | Exit codes |
+|--------|----------|------------|
+| `lib/dec-write-lib.sh` | Single writer of `grimoires/loa/decisions.yaml`: `new`, `decide`, `confirm`, `reject`, `supersede`, `import --from PENDING`, `list [--status] [--decided-by] [--not-decided-by] [--format md]`, `context [--why] \| --set-unattended \| --clear`. Lock, yq v4, verify before rename; attribution from the run context; unattended writes land `proposed`; a linked worktree writes the sprint pending file; refuses the live ledger under CI or a hook context. | 0 ok; 1 refused (preflight, CI/hook context, lock busy, verify, validation, unknown id, illegal transition, ref grammar, missing artifact, ambiguous confirm); 2 usage |
+| `../hooks/session-start/loa-decisions-surface.sh` | SessionStart surface of pending rows, default off (`decisions.surface_at_session_start`); sanitised and L6-fenced. | always 0 |
+| `chart-guard.sh [--close-consumed] [--root DIR]` | First step of `/chart`: prints `interactive` and exits 0, or refuses when the context is unattended or `br` is missing. | 0 go; 1 refused; 2 usage |
+| `chart-ticket.sh <subcommand> [--dry-run]` | The `/chart` write steps: `epic`, `ticket`, `edge`, `claim`, `resolve`, `rule-out`, `handoff`, `close`, `research-begin`, `research-end`. Idempotent by ledger `source` and bead `external_ref`; every write refuses an unattended context (`--dry-run` and `close --consumed-by` exempt). | 0 ok; 1 refused or failed, nothing further written; 2 usage |
+| `chart-frontier.sh <epic-id\|map-slug> [--json] [--root DIR]` | Lists a map's unclaimed, unblocked `question` tickets through `br ready`; an empty frontier prints nothing. | 0 ok; 1 unknown map or unreadable `br` output; 2 usage or `br` missing |
+| `chart-unblock-probe.sh --ticket <bead> [--timeout <s>] -- <cmd…>` | Runs a `decision:unblock` probe argv in a throwaway detached worktree under a scrubbed environment and prints `probe-exit: N` (124 on a timeout) as information. | 0 nothing it watches changed; 1 something changed or the worktree could not be created; 2 usage |
+| `red-test-check.sh --red <commit> [--green <rev>] [--test-file <path>] [--setup <cmd>] [--no-link-deps] [--timeout <s>] [--json] -- <test cmd…>` | Runs the test at the red commit and the green revision in temporary worktrees with dependency directories linked; prints the red run's tail; `--json` prints `{red, green, red_exit, green_exit, verdict, red_tail, green_tail, linked_deps}`. | 0 `VERIFIED`; 1 `GREEN_FAILS`; 2 usage, unresolvable commit, red not an ancestor, worktree or `--setup` failure; 3 `DECOY`; 4 `NOT_A_RED`; 5 `TIMEOUT` |
+| `tools/check-round-independence.sh <transcript> [--min-average N] [--json]` | Scores an interview transcript's `<!-- round: … -->` blocks: no same-round or forward dependency, no repeated id, increasing rounds, at least N (default 2) new questions per round on average, the final round exempt. | 0 independent; 1 violation; 2 usage, unreadable file or no round block |
+| `tools/check-glossary-terms.sh [--kernel P] [--glossary P] [--allowlist P] [--json] [--report]` | Every identifier-shaped backticked span of `CLAUDE.loa.md` outside fenced code resolves to a glossary entry or alias, or to `.claude/data/glossary-allowlist.txt` (at most 30 entries); stale or redundant allowlist entries WARN. | 0 every token resolves; 1 a miss or more than 30 allowlist entries; 2 usage or unreadable input |
+
+`validate-artifact.sh` gains `--type decisions`, `--type map`, `--type spike` and `--type glossary`, the Seams Under Test rule in `--type sprint`, and fact/decision tag checks in `--type prd` and `--type sdd`. `run-mode-ice.sh` gains `is-spike`; `golden-path.sh` reports the `charting` phase.
+
 ## Visual & Documentation
 
 | Script | Purpose |

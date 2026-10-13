@@ -9,7 +9,9 @@
 #   source .claude/scripts/golden-path.sh
 #
 #   golden_detect_sprint          # → "sprint-2" or ""
-#   golden_detect_plan_phase      # → "discovery" | "architecture" | "sprint_planning" | "complete"
+#   golden_detect_plan_phase      # → "discovery" | "charting" | "architecture" | "sprint_planning" | "complete"
+#   golden_open_maps              # → slugs of open decision maps (Status charting or handed-off)
+#   golden_resolve_open_map [--snapshots] [slug]  # → the one map to work or consume (multi-map rule)
 #   golden_detect_review_target   # → "sprint-2" or ""
 #   golden_check_ship_ready       # → exit 0 (ready) | exit 1 (not ready)
 #   golden_format_journey         # → visual journey bar string
@@ -51,11 +53,102 @@ _GP_A2A_DIR="${_GP_GRIMOIRE_DIR}/a2a"
 # Planning Phase Detection
 # ─────────────────────────────────────────────────────────────
 
+# Decision maps (/chart, charting-decisions skill): grimoires/loa/maps/<slug>.md. Detection reads
+# only each map doc's **Status**: line, so it works without br (SDD D-4.6): the doc wins over the
+# map epic when they disagree.
+_GP_MAPS_DIR="${_GP_GRIMOIRE_DIR}/maps"
+_GP_CONTEXT_DIR="${_GP_GRIMOIRE_DIR}/context"
+_GP_DEC_WRITER="${SCRIPT_DIR}/lib/dec-write-lib.sh"
+
+# Print "<slug><TAB><status>" for every map doc (README.md and non-slug names skipped), sorted.
+golden_list_maps() {
+    [[ -d "${_GP_MAPS_DIR}" ]] || return 0
+    local f slug st
+    for f in "${_GP_MAPS_DIR}"/*.md; do
+        [[ -f "${f}" ]] || continue
+        slug="${f##*/}"; slug="${slug%.md}"
+        [[ "${slug}" =~ ^[a-z0-9][a-z0-9-]{0,47}$ ]] || continue
+        st=$(grep -m1 -E '^\*\*Status\*\*:' "${f}" 2>/dev/null | sed -E 's/^\*\*Status\*\*:[[:space:]]*//; s/[[:space:]]+$//' || true)
+        printf '%s\t%s\n' "${slug}" "${st}"
+    done | LC_ALL=C sort
+}
+
+# Slugs of maps still being charted (Status charting).
+golden_charting_maps() {
+    golden_list_maps | LC_ALL=C awk -F'\t' '$2 == "charting" { print $1 }'
+}
+
+# Slugs of open maps (Status charting or handed-off): the set the multi-map rule counts.
+golden_open_maps() {
+    golden_list_maps | LC_ALL=C awk -F'\t' '$2 == "charting" || $2 == "handed-off" { print $1 }'
+}
+
+# Unattended context: LOA_UNATTENDED=1, or the decision ledger writer's verdict when it is
+# installed (anything but "interactive" counts, fail closed). Read-only.
+_gp_is_unattended() {
+    local dw="${_GP_DEC_WRITER}" ctx=""
+    # LOA_UNATTENDED=1 always counts, whatever the writer prints.
+    if [[ "${LOA_UNATTENDED:-}" == "1" ]]; then return 0; fi
+    # Without the writer installed, the environment is the only signal.
+    [[ -x "${dw}" ]] || return 1
+    # Fail closed: any first line other than "interactive" (unattended, an error, nothing) counts.
+    ctx=$("${dw}" context --prd "${_GP_PRD_FILE}" 2>/dev/null | head -n 1) || ctx=""
+    [[ "${ctx}" == "interactive" ]] && return 1
+    return 0
+}
+
+# The multi-map rule for /plan, /chart and /plan-and-analyze (SDD D-4.5, D-4.6).
+# Candidates: open maps, or with --snapshots the grimoires/loa/context/chart-<slug>.md hand-off
+# snapshots. A named slug must be a candidate. Writes nothing.
+# Returns: 0 and the slug (exactly one candidate, or the named one); 0 and no output (none);
+#          1 when the named slug is not a candidate, or several candidates and the context is
+#          unattended ("more than one open map: name one" plus the slugs on stderr);
+#          3 and every slug, one per line, when several candidates need an interactive choice.
+golden_resolve_open_map() {
+    local snapshots=false want="" cands f s n
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --snapshots) snapshots=true; shift ;;
+            *) want="$1"; shift ;;
+        esac
+    done
+    if [[ "${snapshots}" == true ]]; then
+        cands=$(for f in "${_GP_CONTEXT_DIR}"/chart-*.md; do
+                    [[ -f "${f}" ]] || continue
+                    s="${f##*/chart-}"; s="${s%.md}"
+                    [[ "${s}" =~ ^[a-z0-9][a-z0-9-]{0,47}$ ]] && printf '%s\n' "${s}"
+                done | LC_ALL=C sort)
+    else
+        cands=$(golden_open_maps)
+    fi
+    if [[ -n "${want}" ]]; then
+        if printf '%s\n' "${cands}" | grep -qxF -- "${want}"; then echo "${want}"; return 0; fi
+        echo "no open map named '${want}' (open: $(printf '%s' "${cands}" | tr '\n' ' '))" >&2
+        return 1
+    fi
+    n=$(printf '%s' "${cands}" | grep -c . || true)
+    if [[ "${n}" -eq 0 ]]; then return 0; fi
+    if [[ "${n}" -eq 1 ]]; then echo "${cands}"; return 0; fi
+    if _gp_is_unattended; then
+        echo "more than one open map: name one" >&2
+        printf '%s\n' "${cands}" | sed 's/^/  /' >&2
+        return 1
+    fi
+    printf '%s\n' "${cands}"
+    return 3
+}
+
 # Detect which planning phase the user is in.
-# Returns: "discovery" | "architecture" | "sprint_planning" | "complete"
+# Returns: "discovery" | "charting" | "architecture" | "sprint_planning" | "complete"
+# "charting": no PRD yet and a map doc says **Status**: charting; "discovery" again once every
+# map says handed-off, closed or abandoned.
 golden_detect_plan_phase() {
     if [[ ! -f "${_GP_PRD_FILE}" ]]; then
-        echo "discovery"
+        if [[ -n "$(golden_charting_maps)" ]]; then
+            echo "charting"
+        else
+            echo "discovery"
+        fi
     elif [[ ! -f "${_GP_SDD_FILE}" ]]; then
         echo "architecture"
     elif [[ ! -f "${_GP_SPRINT_FILE}" ]]; then
@@ -550,7 +643,7 @@ golden_detect_workflow_state() {
     local plan_phase
     plan_phase=$(golden_detect_plan_phase)
     case "${plan_phase}" in
-        discovery) echo "initial"; return ;;
+        discovery|charting) echo "initial"; return ;;
         architecture) echo "prd_created"; return ;;
         sprint_planning) echo "sdd_created"; return ;;
     esac
@@ -618,6 +711,9 @@ golden_menu_options() {
 
     case "${state}" in
         initial)
+            if [[ -n "$(golden_charting_maps)" ]]; then
+                lines+=("Continue charting|Resolve the next decision ticket on the open map|plan")
+            fi
             lines+=("Plan a new project|Gather requirements and design your project|plan")
             lines+=("Run setup wizard|Check dependencies and configure Loa|loa-setup")
             lines+=("Check system health|Run full diagnostic check|loa-doctor")
@@ -1057,6 +1153,15 @@ golden_resolve_truename() {
             phase=$(golden_detect_plan_phase)
             case "${phase}" in
                 discovery) echo "/plan-and-analyze" ;;
+                charting)
+                    local maps
+                    maps=$(golden_charting_maps)
+                    if [[ $(printf '%s\n' "${maps}" | grep -c .) -eq 1 ]]; then
+                        echo "/chart ${maps}"
+                    else
+                        echo "/chart"
+                    fi
+                    ;;
                 architecture) echo "/architect" ;;
                 sprint_planning) echo "/sprint-plan" ;;
                 complete) echo "" ;;

@@ -1,3 +1,9 @@
+---
+name: toggle-gpt-review
+description: "DEPRECATED and non-functional: toggled GPT cross-model review on or off"
+disable-model-invocation: true
+---
+
 # /toggle-gpt-review Command
 
 > [!WARNING]

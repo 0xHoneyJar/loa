@@ -83,7 +83,7 @@ if [ -z "$EPIC_ID" ] || [ -z "$TITLE" ]; then
   echo "  epic-id   - Parent epic ID (e.g., beads-a1b2)" >&2
   echo "  title     - Task title" >&2
   echo "  priority  - 0-4, default: 2" >&2
-  echo "  type      - task|bug|feature, default: task" >&2
+  echo "  type      - task|bug|feature, default: task (question is refused: use /chart)" >&2
   echo "  --deps    - Blocking dependencies: comma-separated bead ids, or 'none'" >&2
   echo "              to assert the task has no blockers (label deps:none)" >&2
   echo "" >&2
@@ -93,12 +93,51 @@ if [ -z "$EPIC_ID" ] || [ -z "$TITLE" ]; then
   exit 1
 fi
 
+# Decision tickets (type question) belong to a /chart map, never to a sprint:
+# the build path cannot select them (get-ready-work.sh excludes the type), and
+# a sprint epic is build work. Refused here, before any br call, so no bead
+# exists afterwards (grimoires/loa/sdd.md D-4.7).
+TYPE_LC="$(printf '%s' "$TYPE" | tr '[:upper:]' '[:lower:]')"
+if [ "$TYPE_LC" = "question" ]; then
+  echo "ERROR: type 'question' refused: decision tickets never go under a sprint epic; chart them with /chart" >&2
+  exit 1
+fi
+
 # Navigate to project root
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # Verify epic exists
-if ! br show "$EPIC_ID" --json &>/dev/null; then
+if ! EPIC_JSON="$(br show "$EPIC_ID" --json 2>/dev/null)"; then
   echo "ERROR: Epic $EPIC_ID not found" >&2
+  exit 1
+fi
+
+# A map epic (label `map`) is a /chart decision map: its children are question
+# beads only, so no sprint task is created under it. br show --json is a
+# one-element array, an {"issues":[...]} envelope, or a bare object; labels are
+# strings (older releases: {name} objects). A reply without a labels key is not
+# read as "no labels": br omits the key for an unlabelled bead, so the answer
+# comes from `br label list`, and a failure there refuses (unknown).
+EPIC_IS_MAP="$(printf '%s' "$EPIC_JSON" | jq -r '
+  (if type == "array" then (.[0] // {}) elif type == "object" and has("issues") then (.issues[0] // {}) else . end)
+  | if type != "object" or (has("id") | not) then "unknown"
+    elif has("labels") | not then "nolabels"
+    else [(.labels // [])[] | if type == "object" then (.name // "") else tostring end]
+         | if any(.[]; . == "map") then "yes" else "no" end
+    end' 2>/dev/null || echo "unknown")"
+if [ "$EPIC_IS_MAP" = "nolabels" ]; then
+  if EPIC_LABEL_LIST="$(br label list "$EPIC_ID" 2>/dev/null)"; then
+    if printf '%s\n' "$EPIC_LABEL_LIST" | grep -qE '(^|[^[:alnum:]:_-])map([^[:alnum:]:_-]|$)'; then EPIC_IS_MAP="yes"; else EPIC_IS_MAP="no"; fi
+  else
+    EPIC_IS_MAP="unknown"
+  fi
+fi
+if [ "$EPIC_IS_MAP" = "unknown" ] || [ -z "$EPIC_IS_MAP" ]; then
+  echo "ERROR: could not read the labels of $EPIC_ID from 'br show $EPIC_ID --json'; task not created (check br and jq, then retry)" >&2
+  exit 1
+fi
+if [ "$EPIC_IS_MAP" = "yes" ]; then
+  echo "ERROR: $EPIC_ID is a map epic (label map): it holds decision tickets only, and decision tickets never go under a sprint epic; chart them with /chart" >&2
   exit 1
 fi
 

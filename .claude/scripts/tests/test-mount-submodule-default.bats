@@ -227,6 +227,8 @@ teardown() {
 }
 
 @test "update_gitignore_for_submodule removes .loa/ if present" {
-    run grep -A50 "update_gitignore_for_submodule()" "$SUBMODULE_SCRIPT"
+    # the function body grew with the framework's optional mounted files (cycle-128 added
+    # .claude/loa/GLOSSARY.md to its symlink list); read the whole function, not a fixed window
+    run awk '/^update_gitignore_for_submodule\(\)/{f=1} f{print} f && /^}/{exit}' "$SUBMODULE_SCRIPT"
     echo "$output" | grep -q "Removed .loa/"
 }

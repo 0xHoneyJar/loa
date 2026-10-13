@@ -171,14 +171,7 @@ Check if `grimoires/loa/a2a/integration-context.md` exists:
 [ -f "grimoires/loa/a2a/integration-context.md" ] && echo "EXISTS" || echo "MISSING"
 ```
 
-**If EXISTS**, read it to understand:
-- Current state tracking: Where to find project status
-- Priority signals: Community feedback volume, CX Triage backlog
-- Team capacity: Team structure
-- Dependencies: Cross-team initiatives affecting sprint scope
-- Context linking: How to link sprint tasks to source discussions
-- Documentation locations: Where to update status
-- Available MCP tools: Discord, Linear, GitHub integrations
+**If EXISTS**, read it for status tracking, priority signals, team capacity and cross-team dependencies (what to take from it: see `resources/REFERENCE.md` §Integration Context).
 
 **If MISSING**, proceed with standard workflow using only PRD/SDD.
 
@@ -199,21 +192,17 @@ When creating tasks, quote the exact requirement (`> From prd.md: FR-1.2: "..."`
    - Ambiguous requirements or acceptance criteria
    - Missing technical specifications
    - Unclear priorities or sequencing
-   - Potential scope creep — if MVP is too large, recommend specific reductions
-   - Misalignment between SDD's approach and the PRD — flag and seek clarification
-   - Integration points needing clarification
+   - Scope creep — if MVP is too large, recommend reductions
+   - SDD/PRD misalignment — flag and seek clarification
+   - Unclear integration points
 
 ## Phase 2: Strategic Questioning
 
-Ask clarifying questions about:
-- Priority conflicts or feature trade-offs
-- Technical uncertainties impacting effort estimation
-- Resource availability or team composition
-- External dependencies or third-party integrations
-- Underspecified requirements
-- Risk mitigation strategies
+Ask clarifying questions on priority conflicts, estimation uncertainty, resources, external dependencies, underspecified requirements and risk mitigation (full list: see `resources/REFERENCE.md` §Clarifying Questions Checklist). Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
+A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
 
-Wait for responses before proceeding. Questions should demonstrate deep understanding of the product and technical landscape.
+Ask the seams as one round: per sprint, the interfaces its tests drive, what each catches and misses, and prior art (`### Seams Under Test`).
+Wait for responses before proceeding.
 
 ## Phase 3: Sprint Plan Creation
 
@@ -229,7 +218,7 @@ Design sprint breakdown with:
 - Sprint Goal (1 sentence)
 - Scope: SMALL (1-3 tasks) / MEDIUM (4-6) / LARGE (7-10) — no sprint exceeds 10 tasks
 - Deliverables, Acceptance Criteria, and Technical Tasks (checkboxes; annotate each task's goal contribution, `→ **[G-1]**`; specific/testable examples: `resources/REFERENCE.md` §Common Anti-Patterns)
-- Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
+- Seams Under Test, Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
 
 A complete plan lets engineers start immediately without clarification.
 
@@ -293,11 +282,9 @@ TASK_B=$(.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Wire login rout
 
 **Edge-or-none rule (REQUIRED):** every non-epic bead declares either `--deps <id1,id2>`
 (what blocks it) or `--deps none` (an explicit no-blockers assertion, recorded as the
-`deps:none` label). A sprint plan is an ordered list — the ordering knowledge exists NOW
-and is captured in one flag; retrofitting edges later costs O(n²) review. A task graph
-with edges is schedulable (topological order, parallel tracks, honest unblock counts);
-a flat list silently degrades every downstream consumer (`get-ready-work.sh --graph`,
-`bv --robot-plan` wave dispatch) into priority-only guessing.
+`deps:none` label). The ordering is known now and costs one flag; retrofitting edges costs
+O(n²) review, and a flat list degrades `get-ready-work.sh --graph` and `bv --robot-plan`
+wave dispatch to priority-only guessing.
 
 ### Structural Validation
 
@@ -318,13 +305,7 @@ fi
 ```
 
 ### Semantic Labels for Relationships
-Use labels instead of dependency types:
-
-| Relationship | Label | Example |
-|--------------|-------|---------|
-| Sprint membership | `sprint:<n>` | `br label add beads-xxx sprint:1` |
-| Epic association | `epic:<epic-id>` | Auto-added by create-sprint-task.sh |
-| Review status | `needs-review` | `br label add beads-xxx needs-review` |
+Use labels instead of dependency types: `sprint:<n>` (`br label add beads-xxx sprint:1`), `epic:<epic-id>` (auto-added by create-sprint-task.sh), `needs-review`. Full table: see `.claude/protocols/beads-integration.md` §Labels.
 
 ### Session End
 ```bash
@@ -364,9 +345,9 @@ Present the following in this exact order:
 
 1. **Confirmation**: "✓ Sprint Plan saved to grimoires/loa/sprint.md"
 
-2. **Key Decisions** (3-5 items): The most impactful planning choices. Each decision should be one line: "• {choice made} (not {alternative rejected})"
+2. **Key Decisions** (3-5 items): The most impactful planning choices, one line each: "• {choice made} (not {alternative rejected})"
 
-3. **Assumptions** (1-3 items): Things assumed true but not explicitly confirmed by the user. Each assumption should be falsifiable: "• {assumption} — if wrong, {consequence}"
+3. **Assumptions** (1-3 items): Things assumed but not confirmed by the user, each falsifiable: "• {assumption} — if wrong, {consequence}"
 
 4. **Biggest Tradeoff** (1 item): The most consequential either/or decision. Format: "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
 

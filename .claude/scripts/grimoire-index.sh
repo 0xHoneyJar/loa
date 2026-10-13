@@ -9,6 +9,7 @@
 #
 # Families (v1): KF (## KF-NNN: headings, enriched from the ## Index table),
 #   vision (visions/entries/), lore (lore/index.yaml), handoff (handoffs/INDEX.md),
+#   decisions (grimoires/loa/decisions.yaml rows; needs yq v4, else skipped with a note),
 #
 # SECURITY: L5/L6/L7 + observation bodies are UNTRUSTED (CLAUDE.md universal
 #   invariant). This generator extracts ONLY id/status/path/title/tags and
@@ -21,7 +22,7 @@
 # Emits: grimoires/loa/INDEX.md (human) + .run/grimoire-index.json (machine).
 #   Both are DERIVED + gitignored — regenerate on demand (e.g. at session start); they
 #   index partly-gitignored families, so committing them would carry dangling refs.
-# Flags: --json (print JSON to stdout) --validate (integrity + KF-table drift) --quiet
+# Flags: --json (print JSON to stdout) --tsv (print the raw sorted TSV records) --validate (integrity + KF-table drift) --quiet
 # =============================================================================
 export LC_ALL=C
 export TZ=UTC
@@ -42,6 +43,7 @@ log(){ [[ $QUIET -eq 0 ]] && echo "$@" >&2 || true; }
 parse_args(){
   while [[ $# -gt 0 ]]; do case "$1" in
     --json) MODE="json" ;;
+    --tsv) MODE="tsv" ;;
     --validate) MODE="validate" ;;
     --quiet) QUIET=1 ;;
     -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -168,16 +170,40 @@ emit_notes(){
   done < "$f"
 }
 
+# decisions family: one row per grimoires/loa/decisions.yaml entry. Columns: id,
+# status, summary (title slot), path <ledger>#<id>, refs = source, two empty slots,
+# voice ninth (decided_by // proposed_by). yq is optional here: without Mike Farah
+# yq v4, or on an unparsable ledger, the family is skipped with a stderr note.
+emit_decisions(){
+  local f="${G}/decisions.yaml" j v=""; [[ -f "$f" ]] || return 0
+  command -v yq >/dev/null 2>&1 && v="$(yq --version 2>&1 || true)"
+  if [[ "$v" != *mikefarah*"version v4."* ]]; then
+    echo "grimoire-index: NOTE: decisions family skipped (needs Mike Farah yq v4)" >&2; return 0
+  fi
+  if ! j="$(yq -o=json -I0 '.decisions // []' "$f" 2>/dev/null)" || ! printf '%s' "$j" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    echo "grimoire-index: NOTE: decisions family skipped (grimoires/loa/decisions.yaml does not parse)" >&2; return 0
+  fi
+  # Rows are agent-authored and UNTRUSTED (as in loa-decisions-surface.sh): every field is cleaned in jq.
+  # C0/C1 controls (tab and newline included, so no cell shifts the TAB columns) and U+2028/9 become
+  # spaces, < and > become single guillemets, and each field is capped at 160 code points.
+  printf '%s' "$j" | jq -r '
+    def s: tostring | gsub("[[:cntrl:]\u0080-\u009f\u2028\u2029]"; " ") | gsub("<"; "\u2039") | gsub(">"; "\u203a")
+           | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];
+    .[] | objects | select(((.id // "") | s) != "")
+    | ["decisions", (.id | s), ((.status // "") | s), ((.summary // "") | s), ("grimoires/loa/decisions.yaml#" + (.id | s)),
+       ((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'
+}
+
 # emit_obs removed cycle-121 (observation store deleted)
 
-collect(){ { emit_kf; emit_vision; emit_lore; emit_handoff; emit_notes; } | LC_ALL=C sort -t$'\t' -k1,1 -k2,2; }
+collect(){ { emit_kf; emit_vision; emit_lore; emit_handoff; emit_notes; emit_decisions; } | LC_ALL=C sort -t$'\t' -k1,1 -k2,2; }
 
 to_json(){
   collect | jq -R -s '
     [ split("\n")[] | select(length>0) | split("\t")
       | {family:.[0], id:.[1], status:.[2], title:.[3], path:.[4],
          refs:(.[5]//""|if .=="" then [] else split(",") end),
-         symptom:(.[6]//""), recurrence:(.[7]//"")} ]
+         symptom:(.[6]//""), recurrence:(.[7]//""), voice:(.[8]//"")} ]
     | { families: (group_by(.family) | map({key:.[0].family, value:.}) | from_entries),
         counts: (group_by(.family) | map({key:.[0].family, value:length}) | from_entries),
         total: length }
@@ -192,12 +218,17 @@ render_md(){
   echo
   echo "Unified cross-family catalog of the grimoire knowledge corpus (KF · vision · lore · handoff · observation). Generated; do not hand-edit. Total entries: $(echo "$json" | jq -r '.total')."
   echo
-  for fam in handoff kf lore notes vision; do
+  for fam in decisions handoff kf lore notes vision; do
     count="$(echo "$json" | jq -r --arg f "$fam" '.counts[$f] // 0')"
     [[ "$count" == "0" ]] && continue
     echo "## ${fam} (${count})"
     echo
-    if [[ "$fam" == "kf" ]]; then
+    if [[ "$fam" == "decisions" ]]; then
+      # decisions rows: Decided by = decided_by, or the proposing voice while the row awaits /decisions confirm.
+      echo "| ID | Status | Decided by | Summary | Source |"
+      echo "|----|--------|------------|---------|--------|"
+      echo "$json" | jq -r --arg f "$fam" 'def esc: gsub("\\|";"\\|"); .families[$f][] | "| \(.id|esc) | \(.status|esc) | \((.voice//"")|esc) | \(.title|esc) | \((.refs//[])|join(",")|esc) |"'
+    elif [[ "$fam" == "kf" ]]; then
       # kf rows are generated from the ## KF-NNN: headings (source of truth) and
       # carry a parsed Symptom + numeric Recurrence — drift-proof by construction.
       echo "| ID | Status | Recurrence | Symptom | Title | Path |"
@@ -215,6 +246,7 @@ render_md(){
 # --- main ---
 parse_args "$@"
 require_jq
+if [[ "$MODE" == "tsv" ]]; then collect; exit 0; fi
 mkdir -p "${PROJECT_ROOT}/.run"
 JSON="$(to_json)"
 

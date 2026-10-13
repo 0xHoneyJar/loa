@@ -55,6 +55,7 @@ roots=("$grimoire_dir" "${LOA_BEADS_DIR:-.beads}" ".ck" ".run")
 tracked_set=(
   "${grimoire_dir}/loa/zones.yaml"
   "${grimoire_dir}/loa/known-failures.md"
+  "${grimoire_dir}/loa/decisions.yaml"
   "${grimoire_dir}/loa/ledger.json"
   "${grimoire_dir}/loa/REPO-MAP.md"
   "${grimoire_dir}/loa/runbooks"
@@ -64,9 +65,18 @@ warnings=()
 
 warn() { warnings+=("$1|$2|$3"); }
 
+# `git check-ignore -v` also prints (and exits 0 for) a NEGATION match such as
+# `.gitignore:150:!grimoires/loa/decisions.yaml`: the path is then NOT ignored, so
+# such a match is no drift. Fields: <source>:<line>:<pattern><TAB><path>.
+is_ignored_match() {
+  local m="${1%%$'\t'*}" pat
+  pat="${m#*:}"; pat="${pat#*:}"
+  [[ "$pat" != '!'* ]]
+}
+
 for root in "${roots[@]}"; do
   [[ -e "$root" ]] || continue
-  if pattern=$(git check-ignore -v -- "$root" 2>/dev/null); then
+  if pattern=$(git check-ignore -v -- "$root" 2>/dev/null) && is_ignored_match "$pattern"; then
     warn "$root" "${pattern%%$'\t'*}" \
       "whole State-Zone root is gitignored — if content here should be tracked, add a \`!${root}\` negation AFTER that .gitignore line"
   fi
@@ -74,7 +84,7 @@ done
 
 for f in "${tracked_set[@]}"; do
   [[ -e "$f" ]] || continue
-  if pattern=$(git check-ignore -v -- "$f" 2>/dev/null); then
+  if pattern=$(git check-ignore -v -- "$f" 2>/dev/null) && is_ignored_match "$pattern"; then
     warn "$f" "${pattern%%$'\t'*}" \
       "this path is meant to stay tracked but is gitignored — add a \`!${f}\` negation AFTER that .gitignore line"
   fi

@@ -79,6 +79,21 @@ get_symlink_manifest() {
     ".claude/checksums.json:../${submodule}/.claude/checksums.json"
   )
 
+  # Phase 2b: framework files newer than some pinned framework versions. Each
+  # is linked only when the pinned submodule ships it, like the discovered
+  # skills, commands and agents below: a project pinned to an older framework
+  # gets a one-time notice on stderr and no dangling link (create, verify,
+  # migrate and eject all read this list, so none of them sees the entry).
+  local _optional_rel
+  for _optional_rel in ".claude/loa/GLOSSARY.md"; do
+    if [[ -e "${repo_root}/${submodule}/${_optional_rel}" ]]; then
+      MANIFEST_FILE_SYMLINKS+=("${_optional_rel}:../../${submodule}/${_optional_rel}")
+    elif [[ " ${_LOA_MANIFEST_NOTICED:-} " != *" ${_optional_rel} "* ]]; then
+      echo "NOTICE: ${submodule}/${_optional_rel} is not in the pinned framework version; ${_optional_rel} is not linked (update Loa to get it)" >&2
+      _LOA_MANIFEST_NOTICED="${_LOA_MANIFEST_NOTICED:-} ${_optional_rel}"
+    fi
+  done
+
   # Phase 3: Per-skill symlinks (dynamic — discovered from submodule content)
   MANIFEST_SKILL_SYMLINKS=()
   if [[ -d "${repo_root}/${submodule}/.claude/skills" ]]; then

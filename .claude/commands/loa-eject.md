@@ -3,6 +3,7 @@ name: loa-eject
 description: Eject from Loa framework - transfer full ownership of all framework files to user
 output: Ejected project with all framework files owned by user
 command_type: wizard
+disable-model-invocation: true
 ---
 
 # /loa eject - Framework Eject Command

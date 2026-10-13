@@ -634,6 +634,37 @@ fi
 # through the sanctioned helper `.claude/scripts/git-branch-prune.sh`, which
 # may consult `gh` with a timeout. Any doubt (no git, no such branch, a name
 # with shell metacharacters, no base ref) keeps the block.
+# grimoires/loa/sdd.md D-5.9: a spike/<slug> branch also qualifies once it is
+# pushed and its verdict is decided. Pushed: refs/remotes/origin/spike/<slug>
+# exists and the local branch is an ancestor of it (nothing local-only is lost;
+# the remote-tracking ref is as fresh as the last fetch or push, no network).
+# Decided: the decision ledger of the MAIN working tree (the parent of
+# `git rev-parse --git-common-dir`, so a linked worktree's checkout is not the
+# authority) holds a row with status decided, a transition to decided by
+# operator:*, and source grimoires/loa/spikes/<slug>.md. Positive and offline
+# (git, yq v4, jq); any failed lookup keeps the block.
+_fr11_spike_decided() {
+  local slug="$1" common top ledger v
+  [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ && "$slug" != *..* ]] || return 1
+  git rev-parse -q --verify "refs/remotes/origin/spike/$slug" >/dev/null 2>&1 || return 1
+  git merge-base --is-ancestor "refs/heads/spike/$slug" "refs/remotes/origin/spike/$slug" >/dev/null 2>&1 || return 1
+  common=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
+  common=$(cd "$common" 2>/dev/null && pwd -P) || return 1
+  [[ "${common##*/}" == ".git" ]] || return 1
+  top="${common%/.git}"
+  [[ -n "$top" && -d "$top" ]] || return 1
+  ledger="$top/grimoires/loa/decisions.yaml"
+  [[ -f "$ledger" && ! -L "$ledger" ]] || return 1
+  command -v yq >/dev/null 2>&1 || return 1
+  v=$(yq --version 2>&1 || true)
+  [[ "$v" == *mikefarah* && "$v" == *"version v4."* ]] || return 1
+  yq -o=json -I0 '.' "$ledger" 2>/dev/null | jq -e --arg src "grimoires/loa/spikes/${slug}.md" '
+    any((.decisions // [])[] | objects;
+        .status == "decided"
+        and (((.source // "") | tostring | split("#")[0]) == $src)
+        and ([(.transitions // [])[] | objects | select(.to == "decided") | (.by // "") | tostring | startswith("operator:")] | last == true))
+  ' >/dev/null 2>&1
+}
 _fr11_all_merged() {
   local seg names name base merged tok deleting segs=0
   command -v git >/dev/null 2>&1 || return 1
@@ -667,6 +698,8 @@ _fr11_all_merged() {
     [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || return 1
     case "$name" in main|master|develop|trunk) return 1 ;; esac
     git rev-parse -q --verify "refs/heads/$name" >/dev/null 2>&1 || return 1
+    # Trust boundary: decisions.yaml is tracked state the operator owns; a forged decided row is an operator-level trust failure, and its consequence is a local delete of a spike branch the predicate has checked is fully pushed.
+    if [[ "$name" == spike/* ]] && _fr11_spike_decided "${name#spike/}"; then continue; fi
     merged=0
     for base in origin/main main origin/master master; do
       git rev-parse -q --verify "$base" >/dev/null 2>&1 || continue
@@ -680,7 +713,7 @@ if [[ "$command" == *"branch"* && "$command" == *"-"* ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+branch[[:space:]]+(-[a-zA-Z]*D[a-zA-Z]*|--delete[[:space:]]+--force|--force[[:space:]]+--delete|-d[[:space:]]+-f|-f[[:space:]]+-d|--delete([^[:alnum:]_].*)?--force|--force([^[:alnum:]_].*)?--delete)' \
    && ! _fr11_all_merged; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^[:space:]&|;]+([[:space:]]+[^[:space:]&|;]+)?' | head -1)
-  emit_block "FR-1.1" "$matched" "git branch -D loses unmerged work. Use 'git branch -d' (lowercase) — it refuses to drop branches with unmerged commits. A branch already merged into main/master is allowed; for squash-merged branches use .claude/scripts/git-branch-prune.sh."
+  emit_block "FR-1.1" "$matched" "git branch -D loses unmerged work. Use 'git branch -d' (lowercase) — it refuses to drop branches with unmerged commits. A branch already merged into main/master is allowed, and so is a spike/<slug> branch that is fully pushed to origin and whose verdict row (source grimoires/loa/spikes/<slug>.md) is decided; for squash-merged branches use .claude/scripts/git-branch-prune.sh."
 fi
 
 # -----------------------------------------------------------------------------
@@ -792,6 +825,320 @@ if [[ "$command" == *"checkout"* && "$command" == *"--"* ]] \
 fi
 
 fi  # ── end pass-8 git-family pre-filter ──
+
+# -----------------------------------------------------------------------------
+# SP-1: spike content never enters another branch (grimoires/loa/sdd.md D-5.4)
+# A spike/<slug> branch is a prototype pushed as the pointer for a decision:
+# pushed, never merged, no PR. Judged on the carrier-scrubbed line model (a
+# commit message or echo that merely mentions spike/x stays allowed).
+# Blocked:
+#   git merge|rebase|pull|cherry-pick|reset|read-tree|update-ref with a spike
+#     ref operand (also main..spike/x, origin/spike/x, "spike/x")
+#   git checkout <spike ref> -- <path>, and git checkout <spike ref> <path>
+#     (a path copy without --), and git checkout -p|--patch <spike ref> (hunks
+#     copied into the working tree, with or without paths)
+#   git restore --source[= ]<spike ref> / -s <spike ref>
+#   git branch -f|--force|-m|-M|-c|-C|--move|--copy with a spike ref operand
+#     (moves or copies a branch onto the spike head, or renames a spike out of
+#     the spike/ namespace)
+#   git push refspecs: src:dst with a spike ref on either side (spike/x:main,
+#     +spike/x:main, origin/spike/x:main, main:spike/x), except the same spike
+#     branch on both sides; HEAD:<dst>, @:<dst> and :<dst> while the checkout is
+#     on spike/* (one offline git rev-parse), except HEAD:<that same branch>;
+#     HEAD here is any spelling of the checkout or its ancestors: HEAD, @,
+#     HEAD~N, HEAD^N, @~N and HEAD@{N} in any combination;
+#     a force push (--force, -f, --force-with-lease, --force-if-includes) or a
+#     +refspec naming a spike ref (P2/P2b already block --force/-f generally)
+#   git fetch naming a spike ref on the same line as merge|rebase|cherry-pick|
+#     reset of FETCH_HEAD
+#   git -c alias.<x>=... / --config-env=alias.<x>=... anywhere in a git call,
+#     and git config alias.<x> definitions (get, list and unset forms pass):
+#     agents do not define aliases, and an alias hides the verb from this fence
+#   gh pr create --head|-H [owner:]spike/<x>, gh pr create with no head while
+#     the checkout is on spike/* (one offline git call), and gh api on a
+#     .../pulls path with a head= field naming a spike ref
+# Allowed: git push [-u|--set-upstream] origin spike/x, git push origin
+# spike/x:spike/x, git push origin HEAD on spike/x, git checkout spike/x,
+# git checkout -b|-B|--orphan spike/x, git branch spike/x and git branch new
+# spike/x (a plain create, the same class as git switch -c new spike/x below),
+# and on a spike branch git merge main / git rebase main (the default branch
+# flows in).
+# Accepted edge: 'git pull origin spike/x' while on spike/x is blocked too
+# (it names a spike ref); bare 'git pull' is the supported form there.
+# Span rule for the verb patterns: between the verb and the spike ref sit
+# whitespace-separated tokens (each may open with a quote) with no backtick,
+# comma, quote or separator inside, so the ref must sit in the verb's own shell
+# segment; prose naming `git merge FETCH_HEAD` and, later on the line, a spike
+# path passes. Each repetition of the span consumes exactly ONE whitespace
+# character and then a token that cannot contain whitespace, so a run of spaces
+# has a single parse and matching stays linear under bash =~ (glibc regexec).
+# Misses (fence, not boundary): git show spike/x:path > file, git diff spike/x |
+# git apply, git format-patch main..spike/x then git am (one line or two),
+# git archive spike/x | tar -x, git switch -c new spike/x, git worktree add -b new <dir> spike/x,
+# git branch new spike/x then a merge of new, git fetch origin spike/x and a
+# FETCH_HEAD merge in a later command, an alias defined outside the agent's
+# Bash calls (~/.gitconfig edited by hand), gh api --input <file>, and refs
+# spelled without the spike/ prefix (a SHA). ICE (run-mode-ice.sh) refuses the
+# same merges and PRs inside run mode. The skill grant
+# Bash(git push -u origin spike/*) cannot exclude a colon by glob (the * spans
+# ':'), so this fence, not the grant, is the control for push refspecs.
+# -----------------------------------------------------------------------------
+_sp1_git='(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:];&|]+|[[:space:]]+--[a-z-]+(=[^[:space:];&|]+)?)*[[:space:]]+'
+_sp1_ref='["'"'"']?([^[:space:];&|"'"'"']*/)?spike/'
+# One whitespace character, an optional opening quote, one token (see Span rule).
+_sp1_span='([[:space:]]["'"'"']?[^];&|`,"'"'"'[:space:]]*)*'
+_sp1_msg="Spike branches are never merged, cherry-picked, copied from, pushed onto another branch or opened as a PR: a spike/<slug> branch is the pointer for a decision. Record the verdict in grimoires/loa/spikes/<slug>.md and its DEC row on the working branch. Allowed: git push -u origin spike/<slug>, git checkout spike/<slug>, and on the spike branch git merge main or git rebase main."
+_sp1_alias_msg="Agents do not define git aliases (git -c alias.*, git config alias.*): an alias hides the verb from this fence. Spell the git command out."
+
+# SP-1 judges a whitespace-collapsed copy of the scrubbed command: tabs become
+# spaces and every run of spaces one space (pure bash, each pass halves a run).
+# Every SP-1 pattern treats a whitespace run as one separator, so the verdict is
+# unchanged, and a command padded with thousands of spaces stays linear to match
+# (glibc regexec is quadratic in a long run under a leading [[:space:]]*).
+_sp1_text="${_cmd_match//$'\t'/ }"
+while [[ "$_sp1_text" == *"  "* ]]; do _sp1_text="${_sp1_text//  / }"; done
+_sp1_lines=()
+while IFS= read -r _sp1_l; do _sp1_lines+=("$_sp1_l"); done <<< "$_sp1_text"
+
+# _sp1_match <ere>: exit 0 iff any collapsed line matches (as _match does).
+_sp1_match() {
+  local _l
+  for _l in "${_sp1_lines[@]}"; do
+    [[ "$_l" =~ $1 ]] && return 0
+  done
+  return 1
+}
+
+# Is $1 (quotes stripped) a spike ref: spike/<x>, or a ref path ending in one
+# (origin/spike/<x>, refs/heads/spike/<x>, refs/remotes/origin/spike/<x>)?
+_sp1_is_spike_ref() {
+  local r="${1//[\"\']/}"
+  [[ "$r" =~ (^|/)spike/[^/] ]]
+}
+
+# A spike ref reduced to its branch name: refs/heads/spike/x, origin/spike/x
+# and spike/x all give spike/x.
+_sp1_spike_name() {
+  local r="${1//[\"\']/}"
+  printf 'spike/%s' "${r##*spike/}"
+}
+
+# Segments of the scrubbed command for one git verb, from the git word on.
+_sp1_segments() {
+  printf '%s' "$_sp1_text" | grep -oE "git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:];&|]+|[[:space:]]+--[a-z-]+(=[^[:space:];&|]+)?)*[[:space:]]+$1([[:space:]][^;&|]*)?" || true
+}
+
+# Every `git checkout` segment: a spike ref as the first operand followed by
+# another operand is a path copy (no create flag in the segment).
+_sp1_checkout_copies() {
+  local seg tok create n first patch
+  local -a toks
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    read -ra toks <<< "${seg#*checkout}"
+    create=0 n=0 first="" patch=0
+    for tok in "${toks[@]}"; do
+      case "$tok" in
+        -b|-B|--orphan|-t|--track|--orphan=*|--track=*) create=1 ;;
+        -p|--patch) patch=1 ;;
+        -*) ;;
+        *) n=$((n + 1)); [[ $n -eq 1 ]] && first="$tok" ;;
+      esac
+    done
+    (( create )) && continue
+    # -p/--patch copies hunks from the first operand even with no path after it
+    if (( n >= 2 || (patch && n >= 1) )) && [[ "$first" =~ ^${_sp1_ref} ]]; then
+      return 0
+    fi
+  done < <(_sp1_segments checkout)
+  return 1
+}
+
+# Every `git branch` segment with a force, move or copy flag and a spike ref
+# among its operands.
+_sp1_branch_moves() {
+  local seg tok mover spike
+  local -a toks
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    read -ra toks <<< "${seg#*branch}"
+    mover=0 spike=0
+    for tok in "${toks[@]}"; do
+      case "$tok" in
+        --force|--move|--copy) mover=1 ;;
+        --*) ;;
+        -*[fmMcC]*) mover=1 ;;
+        -*) ;;
+        *) _sp1_is_spike_ref "$tok" && spike=1 ;;
+      esac
+    done
+    (( mover && spike )) && return 0
+  done < <(_sp1_segments branch)
+  return 1
+}
+
+# Is $1 a spelling of the checked-out commit or an ancestor of it: HEAD, @, HEAD~N,
+# HEAD^N, @~N, HEAD@{N} and their combinations (HEAD~0, HEAD^^, @{0}~2)?
+_sp1_is_head_src() {
+  [[ "$1" =~ ^(HEAD|@)(\{[0-9]+\}|@\{[0-9]+\}|[~^][0-9]*)*$ ]]
+}
+
+# Every `git push` segment: judge each refspec (see the header).
+_sp1_push_refspec() {
+  local seg tok force skip n plus src dst cur="" curset=0
+  local -a toks
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    read -ra toks <<< "${seg#*push}"
+    force=0 skip=0 n=0
+    for tok in "${toks[@]}"; do
+      if (( skip )); then skip=0; continue; fi
+      case "$tok" in
+        --force|--force=*|--force-with-lease|--force-with-lease=*|--force-if-includes) force=1; continue ;;
+        -o|--push-option|--repo|--receive-pack|--exec) skip=1; continue ;;
+        --*) continue ;;
+        -*f*) force=1; continue ;;
+        -*) continue ;;
+      esac
+      n=$((n + 1))
+      (( n == 1 )) && continue   # the remote
+      tok="${tok//[\"\']/}"
+      plus=0
+      if [[ "$tok" == +* ]]; then plus=1; tok="${tok#+}"; fi
+      if [[ "$tok" == *:* ]]; then
+        src="${tok%%:*}" dst="${tok#*:}"
+        # HEAD:<the spike branch checked out> is the spike pushed under its own name
+        if _sp1_is_head_src "$src" && _sp1_is_spike_ref "$dst" && (( ! plus && ! force )); then
+          if (( ! curset )); then
+            cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true); curset=1
+          fi
+          [[ "$cur" == spike/* && "$(_sp1_spike_name "$dst")" == "$cur" ]] && continue
+        fi
+        if _sp1_is_spike_ref "$src" || _sp1_is_spike_ref "$dst"; then
+          # the same spike branch on both sides moves nothing between branches
+          if _sp1_is_spike_ref "$src" && _sp1_is_spike_ref "$dst" \
+             && [[ "$(_sp1_spike_name "$src")" == "$(_sp1_spike_name "$dst")" ]] \
+             && (( ! plus && ! force )); then
+            continue
+          fi
+          return 0
+        fi
+        if [[ -z "$src" ]] || _sp1_is_head_src "$src"; then
+          if (( ! curset )); then
+            cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true); curset=1
+          fi
+          if [[ "$cur" == spike/* ]]; then
+            [[ -n "$src" && ( "$dst" == "$cur" || "$dst" == "refs/heads/$cur" ) ]] && (( ! plus && ! force )) && continue
+            return 0
+          fi
+        fi
+      elif (( plus || force )) && _sp1_is_spike_ref "$tok"; then
+        return 0
+      fi
+    done
+  done < <(_sp1_segments push)
+  return 1
+}
+
+_sp1_re_fetch="${_sp1_git}fetch${_sp1_span}"'[^[:alnum:]_]["'"'"']?spike/'
+_sp1_re_fetchhead="${_sp1_git}(merge|rebase|cherry-pick|reset)${_sp1_span}"'[^[:alnum:]_]["'"'"']?FETCH_HEAD'
+# A line that fetches a spike ref and merges, rebases, cherry-picks or resets
+# FETCH_HEAD.
+_sp1_fetch_head() {
+  local l
+  for l in "${_sp1_lines[@]}"; do
+    [[ "$l" =~ $_sp1_re_fetch ]] || continue
+    [[ "$l" =~ $_sp1_re_fetchhead ]] && return 0
+  done
+  return 1
+}
+
+# Every `git config` segment that defines an alias (not a get, list or unset).
+_sp1_alias_def() {
+  local seg tok defines reads n
+  local -a toks
+  while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    read -ra toks <<< "${seg#*config}"
+    defines=0 reads=0 n=0
+    for tok in "${toks[@]}"; do
+      tok="${tok//[\"\']/}"
+      case "$tok" in
+        --get|--get-all|--get-regexp|--get-urlmatch|-l|--list|--unset|--unset-all|--remove-section|--rename-section) reads=1 ;;
+        -*) ;;
+        *)
+          n=$((n + 1))
+          if (( n == 1 )); then
+            case "$tok" in get|list|unset|remove-section|rename-section) reads=1 ;; esac
+          fi
+          [[ "$tok" == alias.* ]] && defines=1 ;;
+      esac
+    done
+    (( defines && ! reads )) && return 0
+  done < <(_sp1_segments config)
+  return 1
+}
+
+if [[ "$command" == *"git"* && "$command" == *"alias."* ]]; then
+  if _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]([^;&|]*[[:space:]])?(-c[[:space:]]*|--config-env[=[:space:]])["'"'"']?alias\.' \
+     || _sp1_alias_def; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*alias\.[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_alias_msg"
+  fi
+fi
+
+if [[ "$command" == *"git"* && "$command" == *"push"* ]] \
+   && [[ "$command" == *":"* || "$command" == *"spike/"* ]] \
+   && _sp1_push_refspec; then
+  matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*push[^;&|]*' | head -1)
+  emit_block "SP-1" "$matched" "$_sp1_msg"
+fi
+
+if [[ "$command" == *"spike/"* ]]; then
+  if [[ "$command" == *"git"* ]] \
+     && _sp1_match "${_sp1_git}"'(merge|rebase|pull|cherry-pick|reset|read-tree|update-ref)'"${_sp1_span}"'[^[:alnum:]_]["'"'"']?spike/'; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]].*(merge|rebase|pull|cherry-pick|reset|read-tree|update-ref)[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"git"* && "$command" == *"checkout"* ]] \
+     && { _sp1_match "${_sp1_git}"'checkout[[:space:]]([^;&|]*[[:space:]])?'"${_sp1_ref}"'[^;&|]*[[:space:]]--([[:space:]]|$)' \
+          || _sp1_checkout_copies; }; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]].*checkout[^;&|]*spike/[^;&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"git"* && "$command" == *"restore"* ]] \
+     && _sp1_match "${_sp1_git}"'restore([[:space:]][^;&|]*)?[[:space:]](--source[=[:space:]]+|-s[[:space:]]*)'"${_sp1_ref}"; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]].*restore[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"git"* && "$command" == *"branch"* ]] && _sp1_branch_moves; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*branch[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"git"* && "$command" == *"fetch"* && "$command" == *"FETCH_HEAD"* ]] && _sp1_fetch_head; then
+    matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*fetch[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"gh"* ]] \
+     && _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]][^;&|]*)?[[:space:]](--head[=[:space:]]+|-H[[:space:]]*)["'"'"']?([^[:space:];&|"'"'"']*:)?spike/'; then
+    matched=$(echo "$command" | grep -oE 'gh[[:space:]]+pr[[:space:]]+create[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+  if [[ "$command" == *"gh"* && "$command" == *"/pulls"* && "$command" == *"head="* ]] \
+     && { _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]][^;&|]*/pulls[^;&|]*[^[:alnum:]_]head=["'"'"']?([^[:space:];&|"'"'"']*:)?spike/' \
+          || _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]][^;&|]*[^[:alnum:]_]head=["'"'"']?([^[:space:];&|"'"'"']*:)?spike/[^;&|]*/pulls'; }; then
+    matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+    emit_block "SP-1" "$matched" "$_sp1_msg"
+  fi
+fi
+if [[ "$command" == *"gh"* && "$command" == *"create"* ]] \
+   && _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)' \
+   && ! _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+pr[[:space:]]+create[^;&|]*[[:space:]](--head|-H)([=[:space:]]|[^[:space:]])'; then
+  _sp1_cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if [[ "$_sp1_cur" == spike/* ]]; then
+    emit_block "SP-1" "gh pr create (on $_sp1_cur)" "$_sp1_msg"
+  fi
+fi
 
 # -----------------------------------------------------------------------------
 # pass-8: one C-locale fold of the whole command for the case-insensitive

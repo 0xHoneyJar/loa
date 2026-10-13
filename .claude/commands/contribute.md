@@ -53,6 +53,7 @@ mode:
 git_safety:
   bypass: true
   reason: "Command has its own safeguards for intentional upstream contributions"
+disable-model-invocation: true
 ---
 
 # Contribute

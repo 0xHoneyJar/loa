@@ -137,6 +137,18 @@ jobs:
             -- '.claude/data/schemas/advisor-strategy.schema.json' \
             | wc -l)
 
+          # A role: change that leaves the audited review-skill set unchanged (a
+          # planning or implementation role, cycle-128) needs no schema edit: the
+          # property under guard is that the schema enum equals what the migration
+          # script emits, so compare them before demanding a schema touch.
+          emitted=$(bash .claude/scripts/migrate-skill-roles.sh --emit-enum | jq -c 'sort')
+          current=$(jq -c '[.. | objects | select(has("audited_review_skills")) | .audited_review_skills | (.enum // .items.enum // .)] | first | sort' \
+            .claude/data/schemas/advisor-strategy.schema.json)
+          if [[ "$schema_changed" -eq 0 && -n "$emitted" && "$emitted" == "$current" ]]; then
+            echo "Atomic-seeding gate passed: the role: change leaves audited_review_skills unchanged ($emitted)."
+            exit 0
+          fi
+
           if [[ "$schema_changed" -eq 0 ]]; then
             cat <<EOF
           ::error::Atomic-seeding violation (SDD §21.2 / IMP-010):

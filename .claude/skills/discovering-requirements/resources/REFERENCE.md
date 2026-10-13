@@ -26,6 +26,8 @@
 - What data needs to be captured, stored, or processed?
 - What integrations or dependencies exist?
 
+**EARS notation**: for security-critical, regulatory, or complex-trigger requirements, see `resources/templates/ears-requirements.md`.
+
 ### Phase 5: Technical & Non-Functional Requirements
 - What are the performance, scalability, or reliability requirements?
 - What are the security, privacy, or compliance considerations?
@@ -43,6 +45,70 @@
 - What dependencies exist (other teams, systems, external factors)?
 - What assumptions are we making?
 - What could cause this to fail?
+
+## Interview Modes
+
+The skill resolves `interview_mode` (`interview.mode`, overridden per skill by `interview.per_skill.<skill>`), `pacing` and the input styles in its Config Reading block. These tables say what each value does.
+
+### Mode Behavior Table
+
+| Mode | Questions/Phase | Default pacing | Phase Gates | Gap Skipping |
+|---|---|---|---|---|
+| `thorough` | 3-6 (scales down with context) | `rounds` | All ON | Always ask `min_confirm` |
+| `minimal` | 1-2 | `batch` | `before_generation` only | Skip covered phases |
+
+`interview.pacing` is unset by default (the shipped `.loa.config.yaml.example` leaves it commented), so the mode default above applies. An explicit value wins over the mode default for every mode, so a config that sets `sequential` keeps it.
+
+### Input Style Resolution
+
+| Interaction Type | `structured` | `plain` |
+|---|---|---|
+| Routing gates | AskUserQuestion with options | "Continue, go back, or skip ahead?" |
+| Discovery questions | AskUserQuestion with suggested answers | Markdown question, user responds freely |
+| Confirmations | AskUserQuestion (Yes/Correct/Adjust) | "Is this accurate? [yes/corrections]" |
+
+In `rounds` pacing, a round is one message even when `discovery_questions` is `structured`: present the numbered round as markdown and take the reply as text, because a round can hold more questions than one AskUserQuestion call allows.
+
+## Question Pacing
+
+One key, `interview.pacing`, sets the pacing for the discovery interview, `/architect` Phase 2, `/sprint-plan` Phase 2 and `/chart`. Those skills point here.
+
+| Pacing | Behavior |
+|---|---|
+| `sequential` | Ask ONE question per turn. Wait for response. Then ask the next. The supported opt-out from rounds. |
+| `batch` | Present 3-6 numbered questions. User responds to all at once. The `minimal` default. |
+| `rounds` | Ask the whole frontier per turn, as below. The `thorough` default. |
+
+### Rounds
+
+1. **Frontier.** The frontier is every open question whose prerequisites are settled. A question that depends on another question still open waits for a later round. There is no cap on round size.
+2. **Facts stay out.** A fact (what code, reality files or docs say) is looked up, never asked; only decisions enter a round (Backpressure Protocol, "Fact or decision").
+3. **Phase scope.** A round runs within the current discovery phase. A question that belongs to a later phase is parked for that phase. Phase gates are unchanged.
+4. **Format.** Number questions across the session (`Q1`, `Q2`, ...), so ids never restart. Each question has a short title line starting `❓ Q<n>:`, the question worded so that "yes" accepts the recommendation, and a `➡ Recommended:` line giving the answer and its reason, with a citation when there is one. Close the round with the answer prompt and the comment block.
+5. **Answers.** A bare "yes" accepts every recommendation in the round. A numbered answer (`2: no, keep it local`) overrides that question. If the operator answers some numbers and not others, restate the unanswered ones with their recommendations and ask for confirmation; they take the recommendation only after the operator confirms. A question still unconfirmed is re-asked in the next round.
+6. **Recompute.** Before the next round, recompute the frontier from the answers: settled questions leave, questions whose prerequisites just settled join. "wrap up" ends the phase.
+7. **Comment block.** End every round with one HTML comment holding a JSON array, one object per question: `{"id": "Q4", "depends_on": ["Q1"]}`. `depends_on` lists the earlier questions this one needed settled, `[]` when none. A re-asked question keeps its id and carries `"reasked": true`. The block is how `tools/check-round-independence.sh` checks that no question in a round depends on another question in the same round.
+
+```
+Round 2 (Functional Requirements)
+
+❓ Q4: Ledger location
+Should the decision ledger live at grimoires/loa/decisions.yaml, tracked?
+➡ Recommended: yes (the spec and two readers already point there; decision-lineage.md:23)
+
+❓ Q5: Unattended record
+Should unattended runs write a DEC row for every decision they take for you?
+➡ Recommended: yes (makes "which did a human decide?" answerable)
+
+❓ Q2: Default pacing (re-asked)
+Should rounds be the default pacing for thorough mode?
+➡ Recommended: yes (one turn per frontier instead of one per question)
+
+"yes" accepts all three; answer by number to override one.
+<!-- round: 2; questions: [{"id":"Q4","depends_on":[]},{"id":"Q5","depends_on":["Q1"]},{"id":"Q2","depends_on":[],"reasked":true}] -->
+```
+
+The checker: `tools/check-round-independence.sh <transcript> [--min-average N] [--json]` exits 0 when every round is independent and the rounds average at least N questions (default 2; the final round is exempt when there are two or more rounds), 1 on a violation, 2 when the transcript has no round block.
 
 ## PRD Quality Checklist
 

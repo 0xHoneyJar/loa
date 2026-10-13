@@ -50,44 +50,31 @@ prompt unchanged.
 ### Config Reading
 
 ```bash
-interview_mode=$(yq eval '.interview.mode // "thorough"' .loa.config.yaml 2>/dev/null || echo "thorough")
-skill_mode=$(yq eval '.interview.per_skill.discovering-requirements // ""' .loa.config.yaml 2>/dev/null || echo "")
+cfg() { yq eval "$1 // \"$2\"" .loa.config.yaml 2>/dev/null || echo "$2"; }
+interview_mode=$(cfg .interview.mode thorough)
+skill_mode=$(cfg .interview.per_skill.discovering-requirements "")
 [[ -n "$skill_mode" ]] && interview_mode="$skill_mode"
-
-pacing=$(yq eval '.interview.pacing // "sequential"' .loa.config.yaml 2>/dev/null || echo "sequential")
-routing_style=$(yq eval '.interview.input_style.routing_gates // "structured"' .loa.config.yaml 2>/dev/null || echo "structured")
-confirmation_style=$(yq eval '.interview.input_style.confirmation // "structured"' .loa.config.yaml 2>/dev/null || echo "structured")
-no_infer=$(yq eval '.interview.backpressure.no_infer // true' .loa.config.yaml 2>/dev/null || echo "true")
-gate_between=$(yq eval '.interview.phase_gates.between_phases // true' .loa.config.yaml 2>/dev/null || echo "true")
-gate_before_gen=$(yq eval '.interview.phase_gates.before_generation // true' .loa.config.yaml 2>/dev/null || echo "true")
-min_confirm=$(yq eval '.interview.backpressure.min_confirmation_questions // 1' .loa.config.yaml 2>/dev/null || echo "1")
+pacing=$(cfg .interview.pacing "")
+[[ -z "$pacing" ]] && { [[ "$interview_mode" == "minimal" ]] && pacing="batch" || pacing="rounds"; }
+routing_style=$(cfg .interview.input_style.routing_gates structured)
+confirmation_style=$(cfg .interview.input_style.confirmation structured)
+no_infer=$(cfg .interview.backpressure.no_infer true)
+gate_between=$(cfg .interview.phase_gates.between_phases true)
+gate_before_gen=$(cfg .interview.phase_gates.before_generation true)
+min_confirm=$(cfg .interview.backpressure.min_confirmation_questions 1)
 ```
 
-### Mode Behavior Table
+### Modes and Pacing
 
-| Mode | Questions/Phase | Pacing | Phase Gates | Gap Skipping |
-|---|---|---|---|---|
-| `thorough` | 3-6 (scales down with context) | sequential | All ON | Always ask `min_confirm` |
-| `minimal` | 1-2 | batch | `before_generation` only | Skip covered phases |
-
-### Input Style Resolution
-
-| Interaction Type | `structured` | `plain` |
-|---|---|---|
-| Routing gates | AskUserQuestion with options | "Continue, go back, or skip ahead?" |
-| Discovery questions | AskUserQuestion with suggested answers | Markdown question, user responds freely |
-| Confirmations | AskUserQuestion (Yes/Correct/Adjust) | "Is this accurate? [yes/corrections]" |
-
-### Question Pacing
-
-| Pacing | Behavior |
-|---|---|
-| `sequential` | Ask ONE question per turn. Wait for response. Then ask the next. |
-| `batch` | Present 3-6 numbered questions. User responds to all at once. |
+Mode, input-style and pacing tables: see `resources/REFERENCE.md` §Interview Modes and §Question Pacing. In `rounds` (the `thorough` default) ask the whole settled frontier per turn, numbered, each with a recommended answer that "yes" accepts; end each round with its `<!-- round -->` comment block.
 
 ### Backpressure Protocol
 
-When `no_infer` is true (the default): ask rather than infer — don't answer your own questions, write "Based on common patterns..."/"Typically...", combine phases in one response, generate output alongside the last question, or skip a phase as "sufficient." Before asking, state what you know (cited), what you don't, and why; wait for the response; keep phases in separate turns; record assumptions with `[ASSUMPTION]` tags.
+When `no_infer` is true (the default): ask rather than infer — don't answer your own questions, write "Based on common patterns..."/"Typically...", combine phases in one response, generate output alongside the last question, or skip a phase as "sufficient." Before asking, state what you know (cited), what you don't, and why; wait for the response; keep phases in separate turns.
+
+**Fact or decision.** A fact (what code, reality files or docs say) is yours to find: look it up or dispatch an Explore subagent, never ask it. A decision (scope, trade-off, priority, taste) is the operator's: ask it; unattended, take it on a stated assumption, record it with `dec-write-lib.sh new` and tag it `[ASSUMPTION decision] (DEC-NNNN)`. Tag looked-up gaps `[ASSUMPTION fact]`.
+
+A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
 </interview_config>
 
 # Discovering Requirements
@@ -276,11 +263,11 @@ Run the Phase Transition Protocol (`resources/REFERENCE.md` §Phase Transition P
 
 ### Phase Topics
 
-Per-phase topics and the underlying discovery questions: → `resources/REFERENCE.md` §Discovery Phase Questions.
+Per-phase topics, discovery questions and the Phase 4 EARS notation rule: see `resources/REFERENCE.md` §Discovery Phase Questions.
 
-**Phase 4 — Anti-Inference Directive**: When the user provides a feature list, don't expand it with unrequested additions ("you'll probably also need..."). If something seems missing, ask: "I notice [X] isn't mentioned — intentional, or should we add it?"
+**Phase 4 anti-inference**: never expand the user's feature list with unrequested additions; if something seems missing, ask whether leaving out [X] is intentional.
 
-**Phase 4 — EARS notation**: for security-critical, regulatory, or complex-trigger requirements, see `resources/templates/ears-requirements.md`.
+**Terms (Phases 1-7)**: Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline.
 
 ### Pre-Generation Gate
 
@@ -299,14 +286,7 @@ Only generate PRD when:
 - [ ] All ambiguities resolved
 - [ ] Developer confirms understanding is accurate
 
-Generate PRD with source tracing:
-```markdown
-## 1. Problem Statement
-
-[Content derived from vision.md:12-30 and Phase 1 interview]
-
-> Sources: vision.md:12-15, confirmed in Phase 1 Q2
-```
+Generate the PRD with source tracing (see Output Format).
 </workflow>
 
 <parallel_execution>
@@ -318,7 +298,7 @@ If Phase -1 returns `LARGE`, spawn 4 parallel `Task(subagent_type="Explore")` in
 <output_format>
 PRD structure with source tracing - see `resources/templates/prd-template.md`
 
-Each section must include:
+Each section ends with its sources, interview answers included:
 ```markdown
 > **Sources**: vision.md:12-30, users.md:45-67, Phase 3 Q1-Q2
 ```

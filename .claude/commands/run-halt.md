@@ -31,6 +31,7 @@ outputs:
 mode:
   default: "foreground"
   allow_background: true
+disable-model-invocation: true
 ---
 
 # /run-halt - Gracefully Stop Execution
