@@ -76,6 +76,7 @@ get_symlink_manifest() {
     ".claude/loa/reference:../../${submodule}/.claude/loa/reference"
     ".claude/loa/learnings:../../${submodule}/.claude/loa/learnings"
     ".claude/loa/feedback-ontology.yaml:../../${submodule}/.claude/loa/feedback-ontology.yaml"
+    ".claude/loa/GLOSSARY.md:../../${submodule}/.claude/loa/GLOSSARY.md"
     ".claude/checksums.json:../${submodule}/.claude/checksums.json"
   )
 

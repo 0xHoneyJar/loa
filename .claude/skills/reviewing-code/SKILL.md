@@ -3,7 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
 # Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
 disallowed-tools:
   - NotebookEdit
@@ -23,6 +23,8 @@ capabilities:
       - command: ".claude/scripts/adversarial-review.sh"
         args: ["*"]
       - command: ".claude/scripts/qmd-context-query.sh"
+        args: ["*"]
+      - command: ".claude/scripts/red-test-check.sh"
         args: ["*"]
       - command: ".claude/scripts/guardrails-orchestrator.sh"
         args: ["*"]
@@ -105,7 +107,7 @@ You are not a rubber stamp; you are a rival.
 
 ### Coverage
 
-Report every finding you actually observe — minor, uncertain, or on an otherwise clean sprint;
+Report every finding you observe — minor, uncertain, or on an otherwise clean sprint;
 a separate mechanical step filters, and a finding you drop here is lost.
 
 Each finding carries a `file:line` citation of the failing statement itself — a range
@@ -199,7 +201,7 @@ Cite OWASP/CWE for security issues and SDD sections for architecture concerns; q
 <workflow>
 ## Phase -1: Scope
 
-Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large sprint, or one with more than 3 tasks, splits per task (`<parallel_execution>`).
+Parallelise (`parallel_threshold`) when the scope warrants (the lead decides); a sprint with more than 3 tasks splits per task (`<parallel_execution>`).
 
 ## Phase 1: Context Gathering
 
@@ -207,16 +209,18 @@ Read, in order:
 1. `grimoires/loa/a2a/integration-context.md` if it exists
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
-4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback; verify every item was addressed
-5. Unless `qmd_context.enabled: false` (`.loa.config.yaml`), run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) and add the output as advisory context (the criteria and code stay primary); a missing script or no output is a no-op.
+4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
+5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
-Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the two checks below.
+Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
+
+Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>` and cite its output for 'Test fails with current code'.
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, `ruff format --check`, …) and type checker (`tsc --noEmit`, `mypy`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
@@ -234,7 +238,7 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 
 **Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
 
-**Automatic CHANGES_REQUIRED**, regardless of other findings, when
+**Automatic CHANGES_REQUIRED** when
 `reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
 scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
 Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
@@ -276,13 +280,13 @@ Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocki
 </subagent_report_check>
 
 <checklists>
-Complete checklists, the Red Flags list (private keys, SQL string concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and the optional Mermaid standards: `resources/REFERENCE.md`.
+Checklists, Red Flags (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and Mermaid standards: `resources/REFERENCE.md`.
 </checklists>
 
 <complexity_review>
 ## Complexity Review (Required)
 
-Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion — that is the YAGNI minimum, not bloat.
+Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
 </complexity_review>
 
 <beads_workflow>

@@ -203,6 +203,7 @@ Before proceeding with design, ask targeted questions about:
 
 Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
 A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
+Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline.
 
 Wait for responses before finalizing design decisions.
 Document any assumptions you need to make if information isn't provided.

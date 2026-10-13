@@ -57,6 +57,13 @@
 - [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]** ⇐ Task 1.1
 - [ ] {Additional tasks...} → **[G-N]** ⇐ {blockers | none}
 
+### Seams Under Test
+<!-- One row per interface the tests drive (a CLI exit code, a function's output, a file
+     after an operation). Required for plans dated on or after 2026-10-13 (validate-artifact.sh). -->
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| {interface the tests drive} | {defects a test here catches} | {what it cannot see} | {existing test to copy, or new} |
+
 ### Dependencies
 - {Any dependencies on previous sprints or external factors}
 - None (first sprint)
@@ -129,6 +136,11 @@ Validate that all PRD goals are achieved through the complete implementation.
 ### Technical Tasks
 - [ ] {Specific technical task 1}
 - [ ] {Specific technical task 2}
+
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| {interface the tests drive} | {defects a test here catches} | {what it cannot see} | {existing test to copy, or new} |
 
 ### Dependencies
 - Sprint 1: {Specific dependency}

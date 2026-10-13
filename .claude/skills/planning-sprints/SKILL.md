@@ -192,16 +192,17 @@ When creating tasks, quote the exact requirement (`> From prd.md: FR-1.2: "..."`
    - Ambiguous requirements or acceptance criteria
    - Missing technical specifications
    - Unclear priorities or sequencing
-   - Potential scope creep — if MVP is too large, recommend specific reductions
-   - Misalignment between SDD's approach and the PRD — flag and seek clarification
-   - Integration points needing clarification
+   - Scope creep — if MVP is too large, recommend reductions
+   - SDD/PRD misalignment — flag and seek clarification
+   - Unclear integration points
 
 ## Phase 2: Strategic Questioning
 
 Ask clarifying questions on priority conflicts, estimation uncertainty, resources, external dependencies, underspecified requirements and risk mitigation (full list: see `resources/REFERENCE.md` §Clarifying Questions Checklist). Ask in the configured `interview.pacing`; when it is `rounds`, follow `discovering-requirements/resources/REFERENCE.md` §Question Pacing.
 A question the operator answers "I need to see it", or one you propose as unanswerable by talking and the operator confirms, becomes a `decision:prototype` bead with an open DEC row, never an `[ASSUMPTION]`; unattended, follow `interview.unattended_prototype`.
 
-Wait for responses before proceeding. Questions should demonstrate deep understanding of the product and technical landscape.
+Ask the seams as one round: per sprint, the interfaces its tests drive, what each catches and misses, and prior art (`### Seams Under Test`).
+Wait for responses before proceeding.
 
 ## Phase 3: Sprint Plan Creation
 
@@ -217,7 +218,7 @@ Design sprint breakdown with:
 - Sprint Goal (1 sentence)
 - Scope: SMALL (1-3 tasks) / MEDIUM (4-6) / LARGE (7-10) — no sprint exceeds 10 tasks
 - Deliverables, Acceptance Criteria, and Technical Tasks (checkboxes; annotate each task's goal contribution, `→ **[G-1]**`; specific/testable examples: `resources/REFERENCE.md` §Common Anti-Patterns)
-- Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
+- Seams Under Test, Dependencies, Risks & Mitigation, Success Metrics (quantifiable)
 
 A complete plan lets engineers start immediately without clarification.
 

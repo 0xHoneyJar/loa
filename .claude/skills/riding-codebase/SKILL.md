@@ -109,7 +109,7 @@ Scan `grimoires/loa/context/` for existing documentation files, then use `AskUse
 
 ### 1.2 Analyze Existing Context (Pre-Interview)
 
-If context files exist, analyze them before the interview and generate `grimoires/loa/context/context-coverage.md` listing the topics covered (skippable in the interview), the gaps still to explore, and the claims extracted to verify against code.
+If context files exist, analyze them first and write `grimoires/loa/context/context-coverage.md`: topics covered (skip in the interview), gaps to explore, claims to verify against code. Read `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md`, when present, as reality inputs.
 
 ### 1.3 Interactive Discovery (Gap-Focused Interview)
 

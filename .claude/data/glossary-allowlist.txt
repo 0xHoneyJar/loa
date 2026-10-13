@@ -1,0 +1,15 @@
+# Backticked kernel tokens that are code identifiers, not framework terms.
+# Read by tools/check-glossary-terms.sh: one token per line, "#" starts a
+# comment and every entry gives its reason. At most 30 entries; a framework
+# term belongs in .claude/loa/GLOSSARY.md, never here.
+TaskCreate            # Claude Code tool name (Task Tracking Hierarchy)
+TaskUpdate            # Claude Code tool name (Task Tracking Hierarchy)
+simplicity_intensity  # config key under the Karpathy principles
+full                  # value of simplicity_intensity
+ultra                 # value of simplicity_intensity
+audit_emit            # library function name (Agent-Network Primitives)
+audit_emit_signed     # library function name (Agent-Network Primitives)
+trust_grant           # library function name (Agent-Network Primitives)
+handoff_write         # library function name (Agent-Network Primitives)
+cycle_invoke          # library function name (Agent-Network Primitives)
+soul_validate         # library function name (Agent-Network Primitives)

@@ -2144,6 +2144,7 @@ EOF
     ".claude/loa/CLAUDE.loa.md"
     ".claude/loa/reference"
     ".claude/loa/feedback-ontology.yaml"
+    ".claude/loa/GLOSSARY.md"
     ".claude/loa/learnings"
     ".claude/settings.json"
     ".claude/checksums.json"

@@ -26,6 +26,7 @@
 - [ ] Consistent with project conventions
 - [ ] Appropriate comments for complex logic
 - [ ] No commented-out code without explanation
+- [ ] New domain terms are defined in a glossary (LOW if not)
 
 ### Testing
 - [ ] Tests exist for all new code

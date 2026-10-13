@@ -267,6 +267,8 @@ Per-phase topics, discovery questions and the Phase 4 EARS notation rule: see `r
 
 **Phase 4 anti-inference**: never expand the user's feature list with unrequested additions; if something seems missing, ask whether leaving out [X] is intentional.
 
+**Terms (Phases 1-7)**: Challenge fuzzy or conflicting terms against `.claude/loa/GLOSSARY.md` and the project `GLOSSARY.md` (create it if needed); update only the project one, inline.
+
 ### Pre-Generation Gate
 
 When `gate_before_gen` is true, present a completeness summary (phases covered, questions/assumptions counts, up to 3 top assumptions), ask "Ready to generate PRD?" via `routing_style`, and generate only after the user confirms. Template: → `resources/REFERENCE.md` §Pre-Generation Gate.

@@ -8,7 +8,7 @@
 # bug-triaging.
 #
 # Usage:
-#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
+#   validate-artifact.sh --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary --file <path>
 #                        [--base-file <path>] [--ledger <path>] [--json]
 #
 # Per-type checks (see designing-architecture/planning-sprints/bug-triaging
@@ -28,7 +28,9 @@
 #   sprint:     every '## Sprint N' block has its 8 required sections; every
 #               goal ID (G-N) referenced in the plan appears in the '##
 #               Appendix' goal table; WARN if the final sprint has no
-#               E2E/end-to-end task
+#               E2E/end-to-end task; a plan whose header **Date:** is on or
+#               after SEAMS_REQUIRED_FROM needs a '### Seams Under Test' table
+#               in every sprint block (older and undated plans WARN)
 #   bug-triage: bug_id matches the bug-triaging ID grammar; its sibling
 #               .run/bugs/<id>/state.json has a schema_version; a PII scan
 #               via pii-filter.sh (skipped if unavailable)
@@ -60,6 +62,13 @@
 #               H2s Question, What was built, Verdict, Pointer, Decided by,
 #               present and non-empty; Pointer names a spike/ branch or a path;
 #               Decided by names operator or agent; no URL; PII scan
+#   glossary:   the framework .claude/loa/GLOSSARY.md or a project GLOSSARY.md
+#               (grimoires/loa/sdd.md §4.5): an H1, a context paragraph before
+#               '## Language', then one-line '**Term**: definition' entries of
+#               at most two sentences and 300 characters; _Avoid_: and
+#               _Aliases_: only directly below an entry; no duplicate term or
+#               alias (case, '-', '_' and spaces folded); WARN on a path or file
+#               extension in '## Language'; PII scan
 #   sprint also: with br and .beads/, no question bead carries a sprint: label
 #               or sits under a sprint epic (an info line without br)
 #
@@ -82,14 +91,14 @@ source "${SCRIPT_DIR}/compat-lib.sh"
 
 show_help() {
     cat <<EOF
-Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike --file <path>
+Usage: $SCRIPT_NAME --type prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary --file <path>
        [--base-file <path>] [--ledger <path>] [--json]
 
 Validate a Loa planning artifact against its skill-defined structural
 contract (grep-based, fail-closed).
 
 Options:
-  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions | map | spike (required)
+  --type TYPE   Artifact type: prd | sdd | sprint | bug-triage | translation | decisions | map | spike | glossary (required)
   --file PATH   Artifact file to validate (required). For --type translation,
                 may also be a directory (validates every *.md under it).
   --base-file PATH
@@ -126,8 +135,8 @@ if [[ -z "$TYPE" || -z "$FILE" ]]; then
 fi
 
 case "$TYPE" in
-    prd|sdd|sprint|bug-triage|translation|decisions|map|spike) ;;
-    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions|map|spike (got: $TYPE)" >&2; exit 2 ;;
+    prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary) ;;
+    *) echo "Error: --type must be one of prd|sdd|sprint|bug-triage|translation|decisions|map|spike|glossary (got: $TYPE)" >&2; exit 2 ;;
 esac
 
 if [[ "$TYPE" == "translation" ]]; then
@@ -295,6 +304,7 @@ validate_sprint() {
     fi
 
     validate_sprint_deferred
+    validate_sprint_seams
     validate_sprint_beads
 
     # Final sprint E2E/validation task (WARN only).
@@ -848,6 +858,47 @@ validate_sprint_deferred() {
 }
 
 # =============================================================================
+# sprint: '### Seams Under Test' per sprint block (grimoires/loa/sdd.md D-7.2)
+# =============================================================================
+# Gated on the plan header's **Date:** (the first one before the first H2): from
+# SEAMS_REQUIRED_FROM on, every '## Sprint N' block (up to the next H2) must carry
+# the block with at least one table row below its separator line; older and
+# undated plans WARN once. Headings inside fenced code do not count.
+SEAMS_REQUIRED_FROM="2026-10-13"
+
+validate_sprint_seams() {
+    local plan_date
+    plan_date="$(awk '/^## / { exit } /^\*\*Date:?\*\*:?/ { print; exit }' "$FILE" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)"
+    local missing
+    missing="$(awk '
+        function emit() { if (insp && rows < 1) printf "%s (line %d)\n", head, hl }
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+        fence { next }
+        /^## / {
+            emit(); insp = 0
+            if ($0 ~ /^## Sprint [0-9]/) { insp = 1; head = substr($0, 4); hl = NR; rows = 0; inseam = 0 }
+            next
+        }
+        !insp { next }
+        /^###/ { inseam = ($0 ~ /^### Seams Under Test[[:space:]]*$/); sep = 0; next }
+        inseam && /^\|/ {
+            if ($0 ~ /^\|[[:space:]:|-]+$/) { sep = 1 } else if (sep) { rows++ }
+        }
+        END { emit() }
+    ' "$FILE")"
+    [[ -n "$missing" ]] || return 0
+    if [[ -n "$plan_date" && ! "$plan_date" < "$SEAMS_REQUIRED_FROM" ]]; then
+        local m
+        while IFS= read -r m; do
+            [[ -n "$m" ]] || continue
+            violations+=("sprint block '${m}' has no '### Seams Under Test' table with at least one row: a plan dated ${plan_date} (on or after ${SEAMS_REQUIRED_FROM}) needs | Seam | Catches | Misses | Prior art | per sprint — see planning-sprints/resources/templates/sprint-template.md")
+        done <<< "$missing"
+    else
+        warnings+=("${plan_date:-undated} plan: $(wc -l <<< "$missing" | tr -d ' ') sprint block(s) without a '### Seams Under Test' table; the block is required for plans dated from ${SEAMS_REQUIRED_FROM}")
+    fi
+}
+
+# =============================================================================
 # sdd: Open Questions rows marked Resolved name their DEC row (WARN only, D-3.16)
 # =============================================================================
 validate_sdd_open_questions() {
@@ -1194,6 +1245,87 @@ validate_spike() {
     _md_pii_scan "a spike report is tracked state, remove them"
 }
 
+# =============================================================================
+# glossary: the framework or a project glossary (grimoires/loa/sdd.md D-6.4, §4.5)
+# =============================================================================
+GLOSSARY_MAX_CHARS=300
+
+validate_glossary() {
+    local kind msg
+    while IFS=$'\t' read -r kind msg; do
+        case "$kind" in
+            V) violations+=("$msg") ;;
+            W) warnings+=("$msg") ;;
+        esac
+    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" '
+        function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
+        function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
+        # names compare as the drift check matches them: case and "-", "_", " " folded
+        function norm(x) { x = tolower(x); gsub(/[-_ ]+/, " ", x); gsub(/^ | $/, "", x); return x }
+        function claim(x, what) {
+            if (x == "") return
+            if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
+            else seen[norm(x)] = what " \"" x "\" (line " NR ")"
+        }
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; prev = "other"; next }
+        fence { next }
+        /^# / {
+            if (!h1) { h1 = NR; if ($0 !~ /^# Glossary: [^[:space:]]/) w("the H1 is not \"# Glossary: <name>\"") }
+            prev = "other"; next
+        }
+        /^## / {
+            hd = $0; sub(/^## +/, "", hd); sub(/[[:space:]]+$/, "", hd)
+            if (hd == "Language") { if (lang_line) v("a second \"## Language\" section (the first is on line " lang_line ")"); else lang_line = NR; lang = 1 }
+            else lang = 0
+            prev = "other"; next
+        }
+        !lang_line && h1 && $0 ~ /[^[:space:]]/ { context = 1 }
+        !lang { prev = ($0 ~ /[^[:space:]]/) ? "other" : "blank"; next }
+        $0 !~ /[^[:space:]]/ { prev = "blank"; next }
+        /^### / { prev = "other"; next }
+        {
+            if ($0 ~ /(^|[^A-Za-z0-9_])[A-Za-z0-9_.~-]+\/[A-Za-z0-9_.-]/ || $0 ~ /\.(md|sh|bash|py|ts|js|json|jsonl|yaml|yml|toml|txt|bats|lock)([^A-Za-z0-9]|$)/)
+                w("a path or file extension; glossary definitions are implementation-free")
+        }
+        /^\*\*[^*]+\*\*: [^[:space:]]/ {
+            entries++
+            t = $0; sub(/^\*\*/, "", t); sub(/\*\*: .*$/, "", t); gsub(/`/, "", t); gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
+            claim(t, "term")
+            d = $0; sub(/^\*\*[^*]+\*\*: /, "", d); sub(/[[:space:]]+$/, "", d)
+            c = d; gsub(/[\200-\277]/, "", c)   # count characters, not UTF-8 continuation bytes
+            if (length(c) > max) v("the definition of \"" t "\" is " length(c) " characters, over " max "; shorten it")
+            s = d " "; n = gsub(/[.!?]+[)"]*[[:space:]]/, "&", s); if (n == 0) n = 1
+            if (n > 2) v("the definition of \"" t "\" has " n " sentences; at most two")
+            prev = "entry"; seen_avoid = 0; seen_alias = 0; next
+        }
+        /^_(Avoid|Aliases)_:/ {
+            k = ($0 ~ /^_Avoid_:/) ? "Avoid" : "Aliases"
+            if (prev != "entry" && prev != "annot") { v("_" k "_: is not directly after an entry; put it on the line below the **Term**: line"); prev = "other"; next }
+            if ((k == "Avoid" && seen_avoid) || (k == "Aliases" && seen_alias)) v("a second _" k "_: line for \"" t "\"; merge them")
+            if (k == "Avoid") seen_avoid = 1; else seen_alias = 1
+            a = $0; sub(/^_(Avoid|Aliases)_:[[:space:]]*/, "", a)
+            if (a !~ /[^[:space:]]/) v("an empty _" k "_: line")
+            if (k == "Aliases") {
+                gsub(/`/, "", a); m = split(a, parts, /,/)
+                for (i = 1; i <= m; i++) { p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p); claim(p, "alias") }
+            }
+            prev = "annot"; next
+        }
+        /^\*\*[^*]+\*\*:/ { v("an entry needs \"**Term**: definition\" with a space and text after the colon"); prev = "other"; next }
+        { v("a line in \"## Language\" that is not an entry, an _Avoid_:/_Aliases_: line or a ### heading; a definition stays on its entry line"); prev = "other" }
+        END {
+            NR = 1
+            if (!h1) v("no H1; start with \"# Glossary: <name>\"")
+            if (!lang_line) v("no \"## Language\" section")
+            else {
+                if (!context) v("no context paragraph between the H1 and \"## Language\"; say whose language this is in one paragraph")
+                if (!entries) v("\"## Language\" has no **Term**: entries")
+            }
+        }
+    ' "$FILE")
+    _md_pii_scan "a glossary is tracked prose, remove them"
+}
+
 case "$TYPE" in
     prd) validate_prd ;;
     sdd) validate_sdd ;;
@@ -1203,6 +1335,7 @@ case "$TYPE" in
     decisions) validate_decisions ;;
     map) validate_map ;;
     spike) validate_spike ;;
+    glossary) validate_glossary ;;
 esac
 
 if [[ "$JSON_OUTPUT" == "true" ]]; then
