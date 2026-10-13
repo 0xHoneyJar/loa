@@ -1,0 +1,243 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "injection",
+      "anchor": ".claude/agents/chart-researcher.md:hunk_header",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The chart-researcher agent is allowed unrestricted Write while also fetching and processing untrusted external web content. The prompt asks it to write exactly one report path, but that is only an instruction, not an enforcement boundary. A prompt-injected page or malicious repository content can cause the research subagent to write outside grimoires/loa/research/, including command, skill, config, or project files.",
+      "failure_mode": "Running a decision:research ticket can mutate arbitrary repository files before chart-ticket.sh research-end detects or rejects the report. That is a security exposure because untrusted web content reaches a write-capable agent with no path-scoped write guard.",
+      "suggested_fix": "Remove direct Write from chart-researcher and have it return report text for the parent charting session to write after validation, or use a path-scoped write mechanism that only permits the exact grimoires/loa/research/chart-<slug>-<ticket>.md path. Keep the existing research-end validation as a secondary check, not the primary write boundary.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tests/unit/charting-decisions.bats:@test \"CD-22 unattended close needs --consumed-by; --reason is refused with nothing changed\"",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/charting-decisions.bats:@test \"CD-22 unattended close needs --consumed-by; --reason is refused with nothing changed\"",
+      "cross_file_justification": "The behaviour lives in .claude/scripts/chart-ticket.sh `close` and the `--close-consumed` bypass in chart-guard.sh (not in this diff). The diff's test is the executable spec: it runs `ct close --map eval-workers --consumed-by cycle-test` under LOA_UNATTENDED=1 against a map that is still `**Status**: charting`, has three open question beads and open DEC rows, and has never produced a hand-off snapshot, and asserts exit 0 with Status closed.",
+      "description": "`--consumed-by` is documented in chart.md and CD-28 as the one unattended exception, \"what /plan-and-analyze runs\" after it has read grimoires/loa/context/chart-<slug>.md. CD-22 proves the branch has no precondition tying it to an actual consumption: no check that Status is handed-off, that the snapshot exists, that the frontier/open children are empty, or that <cycle-id> is real. The only thing the guard verifies is the flag's presence.",
+      "failure_mode": "Any unattended actor (run mode, /autonomous, a hook) can issue `close <slug> --consumed-by anything` and close a live chart with open tickets: the epic and question beads are closed and the open DEC rows are transitioned or orphaned with no operator present. This defeats the interactive-only rule chart-guard exists for, and the in-flight decisions are lost silently.",
+      "suggested_fix": "In chart-ticket.sh `close`, when `--consumed-by` is given require `**Status**: handed-off` (or the snapshot file grimoires/loa/context/chart-<slug>.md to exist) and zero open/in_progress question children; otherwise exit 1 with \"map <slug> was not handed off; nothing to consume\". Rewrite CD-22 to resolve the tickets and run `ct handoff` before the consumed close, and add a negative case on a charting map asserting exit 1 and no state change.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "injection",
+      "anchor": ".claude/agents/chart-researcher.md:tools",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The agent combines WebFetch (arbitrary external text in context) with an unrestricted Write tool; the only bound on write scope is prose (\"Write exactly one file\"). The post-hoc guard exercised by CD-24/CD-25 (research-end) scans the project tree for files changed since research-begin, so a Write to ~/.claude/settings.json, ~/.claude/CLAUDE.md, ~/.bashrc, or another checkout is never observed and the ticket still passes.",
+      "failure_mode": "A fetched page with embedded instructions gets the subagent to write a hook, settings or profile file outside the repo; research-end reports the ticket clean and the persistence survives the session.",
+      "suggested_fix": "Enforce the report path mechanically rather than by prose: add a `hooks:` PreToolUse entry in the agent frontmatter (or a project permissions rule) that denies Write unless tool_input.file_path resolves to grimoires/loa/research/chart-<slug>-<ticket>.md; have the dispatcher pass that exact path, and have research-end fail the ticket if any other Write was attempted.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/charting-lint.bats:@test \"validate-artifact map: without br the children check is one WARN and the doc rules still apply\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The test simulates 'no br' with `PATH=\"/usr/bin:/bin\"`. Where jq or yq live elsewhere (Homebrew /opt/homebrew/bin, ~/.local/bin, CI images using /usr/local/bin) the validator loses jq; where br was installed into /usr/bin the real br runs against the developer's machine. The fixture project also has no .beads/, so the single WARN can come from the missing database rather than the missing binary and the test cannot tell which path it exercised.",
+      "failure_mode": "Spurious red on macOS and some CI images; or a real `br list --all` executed outside the stub; and the 'br missing' code path in validate-artifact.sh --type map may be untested.",
+      "suggested_fix": "Filter br out of the existing PATH (the `path_without_br` helper in charting-decisions.bats does this), keep .beads/ present in the fixture so the skip is attributable to br, and assert the WARN text names br rather than counting WARN lines.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/charting-decisions.bats:@test \"CD-14 a failed row write creates no bead\"",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "CD-14 forces the ledger write to fail with `chmod a-w` on the file and its directory. Under uid 0 (Docker-based CI, most container runners) permission bits are ignored: the row write succeeds, br create runs, and both `status -eq 1` and the 'no question bead' assertion fail.",
+      "failure_mode": "The write-order guarantee test is red whenever the suite runs as root, masking real regressions behind an expected failure.",
+      "suggested_fix": "Use an ENOTDIR path that fails for root too: create a regular file $BATS_TEST_TMPDIR/notadir and pass `--ledger \"$BATS_TEST_TMPDIR/notadir/decisions.yaml\"`; or `skip` when `id -u` is 0.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/fixtures/charting/br-stub.sh:create",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The stub's create parser swallows any unknown flag with `-*) shift 2`, so a flag the real br rejects passes every test (the stub explicitly handles `--slug` and `--dry-run`, neither confirmed against br 0.2.x). A trailing boolean unknown flag makes `shift 2` fail under `set -e`, exiting 1 with no message. `save()` is fed by `jq ... | save`: when jq fails, cat writes an empty temp file and mv installs it over $BR_STATE, so every later call in that test reads an empty document and fails with unrelated jq errors.",
+      "failure_mode": "Contract drift between chart-ticket.sh and the real br CLI is invisible to the suite; stub failures surface as confusing downstream errors rather than at the offending call.",
+      "suggested_fix": "Make unknown flags fatal (`echo \"br-stub: unknown flag $1\" >&2; exit 2`) and enumerate exactly the flags br create accepts; in save(), write to the temp file, validate with `jq -e . \"$t\" >/dev/null`, and refuse to mv an empty or invalid document.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "tests/fixtures/fence-corpus/corpus.jsonl:@@ -112,3 +112,25 @@",
+      "anchor_type": "hunk",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/fixtures/fence-corpus/corpus.jsonl:@@ -112,3 +112,25 @@",
+      "cross_file_justification": "SP-1 is implemented in .claude/scripts/block-destructive-bash.sh (not in this diff); the corpus rows added here are its executable specification and define what the rule is required to block.",
+      "description": "SP-1 blocks the one-liners (merge/rebase/pull/cherry-pick/checkout/restore naming a spike ref, plus `-C`). None of the two-step or non-ref routes are covered: `git fetch origin spike/x && git merge FETCH_HEAD`, `git fetch origin spike/x:tmp` (ref rename), `git show spike/x:src/a.ts > src/a.ts`, `git diff main spike/x | git apply`, `git archive spike/x | tar x`, `git worktree add ../w spike/x` followed by cp (the charting skill's allowed-tools grants `git worktree add *`), and the `-c k=v` / `--git-dir=` global options (only `-C` has a row, D70).",
+      "failure_mode": "The invariant 'spike code never reaches another branch' holds only for direct forms; an agent that fetches then merges FETCH_HEAD, or redirects `git show`, imports spike content with no fence hit while the SDD implies the fence covers it.",
+      "suggested_fix": "Add block rows for `fetch` with a spike refspec, `show <spike>:<path>` with redirection, `diff`/`format-patch` naming a spike ref piped into `apply`/`am`, `archive <spike>`, and `-c`/`--git-dir` globals; or state explicitly in the SP-1 rule text that fetch/show/apply laundering is out of scope and is caught by ICE and review instead.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-007",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/charting-decisions.bats:@test \"CD-20 hand-off waits for an empty frontier and fog, then writes the priority-1 snapshot\"",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/charting-decisions.bats:@test \"CD-20 hand-off waits for an empty frontier and fog, then writes the priority-1 snapshot\"",
+      "cross_file_justification": "`handoff` lives in .claude/scripts/chart-ticket.sh (not in this diff). The diff's test fixes the gate's semantics through the message 'frontier is not empty' and only exercises unclaimed, unblocked, correctly labelled tickets.",
+      "description": "The frontier (CF-1, CF-8) excludes claimed (in_progress) beads, blocked beads, and beads with a wrong number of decision labels by design. CD-20's gate reports 'frontier is not empty', which indicates it uses the same filter. No test covers a claimed-but-unresolved ticket, a blocked ticket whose prerequisite is claimed, or a two-label ticket at hand-off time.",
+      "failure_mode": "A map with a ticket mid-resolution or mislabelled has an empty frontier; hand-off writes the priority-1 snapshot 'these decisions are settled' while an open DEC row and an open question bead remain, and /plan-and-analyze consumes and closes the map on that basis.",
+      "suggested_fix": "Gate hand-off on 'no question child with status open or in_progress' via `br list` by parent, independent of labels and claims, instead of the frontier; add CD-20 cases for a claimed ticket and a two-label ticket expecting exit 1 with a message naming the bead.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-008",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/run-mode-ice.bats:@test \"safe_merge: merging the default branch into a spike branch is allowed and merges\"",
+      "anchor_type": "function",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/run-mode-ice.bats:@test \"safe_merge: merging the default branch into a spike branch is allowed and merges\"",
+      "cross_file_justification": "safe_merge is in .claude/scripts/run-mode-ice.sh (not in this diff). The new tests show the allowed path runs a real merge in run mode and, in the next test, that `ICE merge --abort` exits 1.",
+      "description": "The newly allowed path performs a real `git merge` of the default branch into the spike branch inside run mode. Only the clean case is tested. A conflicting merge leaves MERGE_HEAD and conflict markers in the worktree, and ICE refuses `merge --abort`, so the agent has no sanctioned way back to a clean tree.",
+      "failure_mode": "Mid-run the spike branch is stuck in a conflicted merge; later ICE commits or pushes operate on a half-merged tree or fail, and the agent is pushed toward raw `git merge --abort` or `reset --hard`, which the fence treats as destructive.",
+      "suggested_fix": "In safe_merge, on a non-zero merge status run `git merge --abort` (or merge with `--no-commit` and abort on conflict) and print 'ICE: merge of <base> into <spike> conflicted; aborted, tree unchanged'; add a conflicting-merge test asserting exit 1 and a clean `git status --porcelain` afterwards.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-009",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "tests/fixtures/fence-corpus/corpus.jsonl:D68",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/fixtures/fence-corpus/corpus.jsonl:D68",
+      "cross_file_justification": "The FR-1.1 relaxation `_fr11_spike_decided` is in .claude/scripts/block-destructive-bash.sh (not in this diff). D68 and the spike-validator.bats header define the unlock: force-deleting spike/<slug> passes once a decided verdict row exists in the ledger.",
+      "description": "The unlock keys off a row in grimoires/loa/decisions.yaml, a tracked YAML the agent can Write or Edit directly. The fence cannot distinguish a row produced by `dec-write-lib.sh confirm` from one typed in, and the corpus only covers the no-ledger case; the guard against a forged `→ decided` transition is unverified.",
+      "failure_mode": "An agent that writes a decided row for spike:<slug> can force-delete an unpushed spike branch and lose its commits; the operator-only gate becomes agent-bypassable.",
+      "suggested_fix": "Also require that the branch is fully contained in its pushed remote counterpart (`git rev-parse --verify refs/remotes/origin/spike/<slug>` and `git merge-base --is-ancestor spike/<slug> origin/spike/<slug>`), which matches D-5.2 (pushed, never merged) and makes a forged row harmless to the commits; add a case with a decided row but unpushed commits expecting block.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-253",
+    "timestamp": "2026-10-13T04:37:58Z",
+    "tokens_input": 47916,
+    "tokens_output": 37098,
+    "cost_usd": 0,
+    "latency_ms": 19897,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-253/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-253/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "4be8bbb4da1a07793803b2b2c8ff8a7a77457e9ea63de8d93926ce45b9c7f010",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

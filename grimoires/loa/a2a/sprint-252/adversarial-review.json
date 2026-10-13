@@ -1,0 +1,162 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": "tools/check-round-independence.sh:report",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "description": "The jq membership checks wrap scalar ids in one-element arrays, e.g. `index([$q.id])`, `index([$d])`. The tracked arrays contain strings, so these checks never match.",
+      "failure_mode": "Valid dependencies on earlier-round questions are reported as missing, same-round dependencies are not classified correctly, duplicate ids are not detected, and valid `reasked` ids are rejected as never asked. This makes the new checker fail or misreport normal transcripts, including the intended independent-round case.",
+      "suggested_fix": "Use scalar membership checks: `index($q.id)` and `index($d)` for `.asked`, `$before`, and `$here` arrays.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/user-invoked-commands.bats:check_operative",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The FR-8 operative-reference lint has systematic false negatives. (1) `grep -viE \"$exempt\"` discards any line containing user/operator/human/ask/tell/suggest/recommend/manually, so \"Run `/decisions confirm` on the operator's behalf\" or \"Invoke /contribute for the user\" is never reported; for /decisions almost every plausible sentence mentions the operator. (2) The verb group has no inflections and no left boundary, so \"runs /run-halt\", \"Running /contribute\", \"by invoking /decisions\", \"calls /loa-eject\" escape (while \"rerun /x\" false-positives). (3) The name boundary is `/${name}`, but loa-eject.md documents its invocation as `/loa eject` (dispatched by the loa router), so references to `/loa eject` are never matched. (4) Only .claude/commands and .claude/skills are scanned; .claude/loa/CLAUDE.loa.md, .claude/protocols/*.md and .claude/agents/*.md are also model-read bodies.",
+      "failure_mode": "A skill, protocol or agent body can instruct the model to run a disable-model-invocation command as a step and the lint stays green; the FR-8 invariant is then enforced only by the Skill-tool harness refusal at runtime.",
+      "suggested_fix": "Narrow the exempt filter to explicit \"the user/operator runs|types /x\" phrasings instead of any line containing those words; add `(s|ning|ing|es)?` inflections and a `(^|[^[:alnum:]])` left boundary to the verb group; derive alternate invocation forms from each command's `## Invocation` block (e.g. `/loa eject`); extend the scan to .claude/loa, .claude/protocols and .claude/agents; add a negative fixture per gap.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/check-round-independence.sh:@@ -0,0 +1,147 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The shape check `printf '%s' \"$arr\" | jq -e 'type == \"array\" and all(...)'` evaluates a JSON stream and `-e` reflects only the last output. If the greedy `\\[.*\\]` capture yields two or more well-shaped arrays (e.g. `questions: [] [{\"id\":\"Q1\",\"depends_on\":[]}] -->`), the check passes, then `jq -cn --argjson q \"$arr\"` fails with \"Invalid JSON text passed to --argjson\" and `set -e` aborts the script with jq's exit 2 and a raw error, instead of the documented exit-1 \"malformed questions array\" violation.",
+      "failure_mode": "A malformed transcript returns exit 2 (the usage/unreadable code) with a jq stack message, contradicting the header contract and RI-11's \"malformed is a violation, not a crash\"; callers branching on 1 vs 2 misclassify the result.",
+      "suggested_fix": "Slurp so the text must be exactly one value: `jq -es 'length == 1 and (.[0] | type == \"array\" and all(...))'`, or guard the `--argjson` call with `if ! entry=$(...)` and fall through to the malformed branch.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".loa.config.yaml.example:@@ -122,10 +122,22 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new comment says \"Unset: rounds for thorough, batch for minimal. An explicit value always wins\", yet the example ships `pacing: rounds` as an explicit value. Any project that copies the example gets rounds for minimal-mode skills too, so the documented per-mode default is unreachable from the shipped template.",
+      "failure_mode": "Minimal-mode interviews run in rounds pacing instead of the documented batch for every project that starts from the example; the mode-dependent default described two lines above never applies.",
+      "suggested_fix": "Comment the key out (`# pacing: rounds   # unset picks rounds (thorough) / batch (minimal)`), or remove the \"Unset:\" sentence if an explicit `rounds` for all modes is the intended shipped behavior.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "authz",
+      "anchor": "tests/unit/dec-write-lib.bats:@test \"dec-write: CI, GITHUB_ACTIONS and LOA_HOOK_CONTEXT=1 make a live-ledger write exit 1; --file fixtures still run\"",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The CI/hook refusal test proves only that a write without `--file` is refused and that `--file $F` (a temp fixture) is allowed. It never asserts that `--file grimoires/loa/decisions.yaml` (relative or absolute path to the live ledger) is still refused under CI=1, GITHUB_ACTIONS or LOA_HOOK_CONTEXT=1. If the writer's exemption keys on the presence of the flag rather than the resolved target path, a hook or CI step can write the live ledger by naming it, and this suite stays green.",
+      "failure_mode": "The \"never written from CI or a hook\" guarantee that decisions.md and the config example rely on is unpinned; an implementation (current or future) that exempts by flag passes the suite.",
+      "suggested_fix": "Add cases `run env CI=1 bash \"$D\" new --file \"$L\" ...` and `--file \"$(cd \"$T\" && pwd -P)/grimoires/loa/decisions.yaml\"` asserting exit 1 and `cmp \"$L\" before`, plus a linked-worktree variant targeting the main checkout's ledger.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-252",
+    "timestamp": "2026-10-13T02:32:22Z",
+    "tokens_input": 99962,
+    "tokens_output": 40556,
+    "cost_usd": 0,
+    "latency_ms": 52468,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-252/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-252/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "2c69544256f7cf85af12cd191ef0ae0eed6652cac9fed7e216f134db8b9f3c19",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

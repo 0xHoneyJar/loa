@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "authz",
+      "anchor": "@test \"dec-write confirm: only --recorded-by decisions-command may confirm\"",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/dec-write-lib.bats: @test \"dec-write confirm: an operator-kind ref makes decided_by operator; without one decided_by is the proposing voice\"",
+      "cross_file_justification": "The tests added in this diff pin the behaviour of .claude/scripts/lib/dec-write-lib.sh (not in the diff) and .claude/commands/decisions.md (P0 context): the writer treats a caller-supplied string as the operator-only gate, and the command file states this is what keeps agents from confirming their own decisions.",
+      "description": "The ledger's operator-only operations (confirm, reject or supersede of a decided row, context --clear) are authorised solely by the caller passing `--recorded-by decisions-command`, and `decided_by: operator` is derived from a caller-supplied `--answer-ref \"cli:<timestamp>\"`. Nothing binds either value to a human. Any process with shell access, including the model's Bash tool in a normal session or a prompt-injected skill, can run `dec-write-lib.sh confirm --id DEC-NNNN --recorded-by decisions-command --evidence cli:... --answer-ref cli:...` and turn its own proposed rows into decided rows attributed to the operator. The unattended guard is equally soft: every signal it reads (LOA_UNATTENDED, .run/unattended.json, .run/state.json RUNNING, a PRD Status line) is writable or unsettable by the same process, so making `context --clear` operator-only is moot when `rm .run/unattended.json` or `env -u LOA_UNATTENDED` works. The compensating controls (a grep that no SKILL.md or command passes the flag, and `disable-model-invocation: true` on /decisions) do not restrict ad-hoc Bash, and once the operator types /decisions the model is the process that runs the confirm anyway.",
+      "failure_mode": "An agent, or injected content steering it, self-confirms decisions. The ledger then records operator consent that never happened and downstream readers (session-start surface, INDEX.md, learnings index, later skills) treat those decisions as settled.",
+      "suggested_fix": "Treat --recorded-by and --answer-ref as attribution, not authorisation, and add an enforced control outside the agent's reach: a Claude Code PreToolUse hook or a permissions `ask`/`deny` rule matching `dec-write-lib.sh confirm`, `supersede` and `context --clear` so each call needs interactive approval. Optionally have the writer require a single-use nonce that only the /decisions flow can mint (e.g. written by the hook from its own event payload, mode 0600, consumed on use). Document that decided_by: operator is a claim unless such a control is in place.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "secrets",
+      "anchor": "#### Secrets Scanning",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/commands/contribute.md: git_safety:\n  bypass: true",
+      "cross_file_justification": null,
+      "description": "/contribute pushes a branch to the public upstream repository with `git_safety.bypass: true`, relying on its own checks. The secrets check is a five-item substring list (sk-, AKIA, ghp_, xox, BEGIN PRIVATE KEY) applied to \"changed files\", i.e. the final tree diff. A credential committed and later removed within the branch is absent from that diff but present in the commits the PR publishes. The list also misses common formats (AWS secret access keys, GitLab glpat- tokens, Slack webhooks, JWTs, `password=`/`.env` literals), and the flow offers a blanket \"These are false positives\" bypass. The remote pre-flight is also loose: `grep -qE '^(upstream|loa).*0xHoneyJar/loa'` matches a remote named `loathing` pointing at `github.com/attacker/0xHoneyJar/loa-fork`.",
+      "failure_mode": "A secret that existed in any commit on the feature branch lands in a public GitHub PR and is picked up by secret scanners within minutes; the Git Safety bypass means no second check fires.",
+      "suggested_fix": "Scan the full commit range, not the final diff: `gitleaks detect --log-opts=\"loa/main..HEAD\"` or at minimum `git log -p loa/main..HEAD | grep -E <patterns>`. Fail closed and require a per-finding acknowledgement recorded in the PR body instead of a one-click bypass. Verify the remote with an exact URL comparison (`git remote get-url loa` equals the upstream URL) and pass that remote explicitly to the PR creation step.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "type == \"object\" and (.id | type == \"string\" and length > 0)",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tools/check-round-independence.sh: printf '%s\\n' \"$report\" | jq -r '",
+      "cross_file_justification": null,
+      "description": "The checker validates that each `id` and `depends_on` entry is a non-empty string but not its content. Ids and dependency names are interpolated into violation messages and the per-round lines and printed with `jq -r`, which decodes `\\u001b` and other escapes into raw bytes. The transcript is model-generated and therefore untrusted input. A block like `{\"id\":\"Q1\\u001b[2K\\rPASS\",\"depends_on\":[]}` writes terminal control sequences into CI logs and can visually overwrite the real verdict (the exit code stays correct). Under LC_ALL=C raw C0/C1 bytes in the transcript line also pass grep and sed unchanged. Ids with spaces, quotes or markdown are likewise echoed verbatim into any surface that consumes the text or JSON report.",
+      "failure_mode": "Terminal escape injection / log spoofing from an untrusted transcript; a human reading the report sees a forged PASS or FAIL line.",
+      "suggested_fix": "Tighten the jq validation to `(.id | test(\"^Q[0-9]+$\"))` and `all(.depends_on[]; test(\"^Q[0-9]+$\"))`, treating anything else as a malformed block (exit 1). If free-form ids must be allowed, strip control characters before printing, e.g. `gsub(\"[\\\\u0000-\\\\u001f\\\\u007f-\\\\u009f]\"; \"\")`, and quote ids in messages.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": "rounds_json=\"$(jq -cn --argjson a \"$rounds_json\" --argjson e \"$entry\" '$a + [$e]')\"",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": "tools/check-round-independence.sh: entry=\"$(jq -cn --argjson r \"$n\" --arg raw \"$arr\" '{round: $r, malformed: $raw}')\"",
+      "cross_file_justification": null,
+      "description": "Every block is appended by re-passing the whole accumulated `rounds_json`, and each captured `arr`, as single command-line arguments to jq. Linux caps one argument at 128 KiB (MAX_ARG_STRLEN) and the loop re-parses the growing array each iteration. A long transcript, or one block whose questions array exceeds the cap, makes jq fail with \"Argument list too long\"; under `set -e` the script dies with status 126 and no diagnostic rather than the documented 1 (violation) or 2 (usage). Callers that map 1 to fail and 2 to skip misclassify the result. Fail-closed, so low severity.",
+      "failure_mode": "Unhandled exit path on oversized but otherwise valid input; CI or a wrapping skill misreads the status code.",
+      "suggested_fix": "Stream one JSON object per line to a temp file and build the report with `jq -s 'reduce .[] as $r (...)' \"$tmp\"` (or `--slurpfile`); feed `arr` to jq on stdin instead of `--argjson`. Add an explicit size cap on a block with a clear exit-1 message.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": "@test \"grimoire-index decisions: INDEX.md has a ## decisions table with ID / Status / Decided by / Summary / Source\"",
+      "anchor_type": "line",
+      "scope": "cross_file",
+      "trigger_anchor": "tests/unit/grimoire-index.bats: [[ \"$output\" == *\"| DEC-0001 | open | agent | an open \\| question | prd.md#fr-3 |\"* ]]",
+      "cross_file_justification": "The tests added here pin the new decisions family in .claude/scripts/grimoire-index.sh (not in the diff), which renders ledger summaries into grimoires/loa/INDEX.md; the contrasting sanitised path is .claude/hooks/session-start/loa-decisions-surface.sh, whose tests are also in this diff.",
+      "description": "The decisions family writes each row's `summary` and `source` into INDEX.md with only `|` escaped, and into the TSV and JSON outputs unmodified. The repo elsewhere treats ledger rows as untrusted text written by agent, flatline or dissent voices (decisions.md rule 4) and, before they reach the model at session start, strips control characters, caps summaries at 100 chars, neutralises closing fence tags and `<invoke` text, and wraps the block in an L6 `<untrusted-content>` fence. INDEX.md is read by the model with none of that. A row proposed by another voice with an instruction-shaped summary reaches the next session's context unmarked through the index. TSV consumers also depend on the writer's tab-to-space sanitiser; a hand-edited or imported ledger row containing a tab shifts columns.",
+      "failure_mode": "Indirect prompt injection via the ledger surfaces through INDEX.md, bypassing the sanitisation the surface hook applies; TSV column injection from unsanitised rows.",
+      "suggested_fix": "Reuse the surface hook's sanitiser for the decisions family (strip C0/C1, cap length, drop angle-bracket tags, replace tabs) and emit the section inside the same untrusted-content fence or render only id, status and voice with a link to the ledger.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --force",
+      "anchor_type": "line",
+      "scope": "diff",
+      "trigger_anchor": ".claude/commands/loa-eject.md: ## Recovery",
+      "cross_file_justification": null,
+      "description": "The eject command's Recovery section instructs the operator to `rm -rf .claude` and then pipe an unpinned script from the `main` branch of a remote repository straight into bash with `--force`. Whatever is at that URL at the time runs with the operator's privileges and skips the mount script's confirmations. The command is operator-only, so the risk is to the human following the doc, but it is the only recovery path documented.",
+      "failure_mode": "A compromised or simply changed upstream `main` executes arbitrary code on the operator's machine during recovery, with no checksum or version pin to notice.",
+      "suggested_fix": "Pin the recovery to a release tag or commit SHA and verify a checksum (or `git clone --branch vX.Y.Z` and run the local script), and drop `--force` from the documented command so the mount script's own prompts still apply.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-252",
+    "timestamp": "2026-10-13T03:01:11Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 20898,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "1fba659f10b3a1fbdeff3d9ccee38737d2664ec777f794af44aceb2b37e19f92",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

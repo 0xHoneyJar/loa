@@ -1,0 +1,6 @@
+sprint-252 (cycle-128 Sprint 1: rounds, fact/decision attribution, decision ledger, operator-only commands) COMPLETED 2026-10-13
+review: APPROVED (round 2, engineer-feedback.md; round 1 CHANGES_REQUIRED in engineer-feedback-r1.md)
+audit: APPROVED - LET'S FUCKING GO (auditor-sprint-feedback.md; 0 critical, 0 high, 2 medium carried as beads bd-g6k3 bd-48ni, 4 low: 3 fixed in r252-2, 1 bead bd-xtip)
+dissent: adversarial-review.json (gpt-5.5-pro + claude-headless, 0 rejected), adversarial-audit.json (clean, 0 rejected)
+commits: 8dc4a49d (implementation), 2bcf0e40 (review round r252-1), 16f38539 (audit round r252-2)
+verification: 353/353 across 14 bats suites; check-prompt-budget exit 0; check-no-raw-sha256sum OK; validate-artifact decisions 73 rows exit 0; agents-md-gen --check exit 0; validate-ac-verification exit 0

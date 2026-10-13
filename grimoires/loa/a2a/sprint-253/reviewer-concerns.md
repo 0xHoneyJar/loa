@@ -1,0 +1,16 @@
+# Reviewer concerns — sprint-253 (cycle-128 Sprint 2)
+
+Scope: commit cea919ca (Sprint 2) on top of Sprint 1 (16f38539). Review the code, not the reports.
+
+1. `chart-ticket.sh`: idempotency by ledger `source` (`map:<slug>/<ticket>`) and bead `external_ref`; can a re-run create a duplicate bead or row (e.g. br list unreadable, external_ref missing)? Does `resolve` leave a consistent state when `br comments add` succeeds and `br close` fails? Are the map-doc rewrites (awk + mv) safe against a concurrent edit? Any way for a chart session to create a `task` bead or add a `sprint:` label?
+2. `chart-guard.sh`: fail-closed when the context is unreadable; can `--close-consumed` be abused unattended to close a map that was not consumed (it skips the refusal)? Is `--root` a path-traversal vector?
+3. `chart-unblock-probe.sh`: the porcelain snapshot compares `--untracked-files=all --ignored=matching`; writes into `.run/`, `.beads/`, `~`, or `/tmp` are not covered (state the boundary); worktree cleanup on every exit path; `run_with_timeout` semantics.
+4. `chart-frontier.sh`: the double filter (br flags + jq) and the `bv --robot-triage` ranking; a stubbed `br` returning an error envelope.
+5. `golden-path.sh`: `golden_resolve_open_map` exit codes (0/1/3), the multi-map unattended refusal, slug regex on map filenames; does `_gp_is_unattended` falling back to `LOA_UNATTENDED` match the writer's definition?
+6. `charting-decisions/SKILL.md`: `allowed-tools` grants `Bash(br *)` (any br subcommand, incl. `br create --type task` or `br label add x sprint:1`) — the lints catch those downstream, but is the grant wider than the skill needs? `Bash(git worktree add *)` and `Bash(git push -u origin spike/*)` scope; the `chart-researcher` agent (`.claude/agents/chart-researcher.md`): tools, no Bash, write scope.
+7. `validate-artifact.sh --type map` / `--type spike`: the H2 allowlist (any other H2 = violation) vs an H1 or `#####` headings; the DEC cite regex; beads cross-checks only inside PROJECT_ROOT; `--type sprint` beads cross-check runtime (br list over 900 beads) and failure posture.
+8. `create-sprint-task.sh` / `get-ready-work.sh`: the `question` refusal before any br call; `br show --json` label shapes (strings vs objects); the type-enumeration exclusion (a `question` with a `sprint:` label still dropped); `--include-questions`.
+9. `run-mode-ice.sh`: `merge [source]` with the exact allowlist (main, master, origin/main, origin/master) — does it run a real `git merge --no-edit` inside run mode safely; `safe_pr_create` spike refusal; `is-spike`; the old `merge` call shape unchanged (callers enumerated?).
+10. `block-destructive-bash.sh` SP-1: the carrier-scrubbed line model, `-C`/`-c` forms, the `gh pr create` on-spike-branch check does an offline `git rev-parse` (hook runtime); the FR-1.1 relaxation for `git branch -D spike/<slug>` once its verdict row is decided (`_fr11_spike_decided`: ledger lookup by source and an operator `→ decided` transition) — can a forged ledger row unlock a destructive delete?
+11. `.loa.config.yaml.example` `interview.unattended_prototype` semantics; the three planning-skill sentences (budgets: planning-sprints 16,360 B of 16,384); REFERENCE "High-Risk Early".
+12. Tests: fixtures must not touch real beads or the live ledger; the `br` stub coverage; any test that writes outside its temp dir.

@@ -1,0 +1,170 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tools/check-glossary-terms.sh:@@ -0,0 +1,203 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The resolver accepts any token on an `_Aliases_:` line as a legitimate definition with no limit on alias count, no reason requirement, and no stale/redundant reporting (those exist only for the allowlist). The 30-entry cap guards the allowlist only. A single `_Aliases_:` line enumerating every backticked kernel token satisfies the gate without defining anything, so the FR-6 gate can be trivially bypassed via the glossary itself rather than the capped allowlist.",
+      "failure_mode": "Kernel vocabulary drift is hidden: `--report` shows every token as `alias` and CI passes, while the glossary carries no real definition for the token.",
+      "suggested_fix": "Have the glossary validator cap aliases per entry (for example 5) and/or have the checker report alias-resolved tokens separately and WARN when an entry's alias count exceeds a threshold; alternatively require that an alias share a normalized stem with its entry or be explicitly justified.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/check-glossary-terms.sh:@@ -0,0 +1,203 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both awk fence trackers toggle `fence` on any line beginning with ``` or ~~~ regardless of fence character or length. CommonMark fences close only on a matching character with at least the opening length. A kernel block opened with four backticks that contains three-backtick lines (markdown examples), or a ``` block containing a ~~~ line, inverts the fence state for the remainder of the file.",
+      "failure_mode": "After an inverted toggle, prose tokens are silently skipped (gate stops biting) or code-block identifiers are extracted as candidates (spurious MISS failures) with no diagnostic pointing at the fence.",
+      "suggested_fix": "Record the opening fence char and length (`match($0,/^[[:space:]]*(`{3,}|~{3,})/)`), and close only on a line of the same char with length >= opening; share one implementation between the kernel and glossary passes.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tools/check-glossary-terms.sh:@@ -0,0 +1,203 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The shape filter `^[A-Za-z][A-Za-z0-9_-]*$` excludes `:`, so the four `**decision:*` glossary entries can never be resolved by the gate and any kernel reference such as `decision:grilling` is silently dropped as a candidate rather than checked. Term extraction itself handles the colon correctly (`sub(/\\*\\*:.*$/, ...)` strips at the first `**:`), so the entries parse but are dead weight for the check.",
+      "failure_mode": "A kernel typo like `decision:griling` passes the gate unnoticed; the glossary entries give a false sense that these labels are drift-checked.",
+      "suggested_fix": "Either widen the kept shape to allow a single interior `:` when the prefix is a known label namespace (e.g. `^[A-Za-z][A-Za-z0-9_-]*(:[A-Za-z0-9_-]+)?$`), or document in the header that label-style terms are out of scope.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/check-glossary-terms.sh:@@ -0,0 +1,203 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The `--json` path uses `--rawfile` and the `IN(...)` builtin, both introduced in jq 1.6. The preflight only checks `command -v jq`, so on jq 1.5 (Debian 10, Ubuntu 18.04, some RHEL builds) jq rejects `--rawfile` as an unknown option and exits 2, which `set -e` propagates as the script's exit 2 with a jq usage dump instead of the documented message.",
+      "failure_mode": "`--json` fails with a confusing jq option error on older hosts; exit code collides with the documented usage/unreadable-file code.",
+      "suggested_fix": "Check `jq --version` >= 1.6 in the preflight with a clear message, or replace `--rawfile` with `--slurpfile`/`--arg` and `IN` with `. as $r | [\"defined\",...] | index($r)`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/red-test-check.bats:RTC-9",
+      "anchor_type": "function",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "RTC-9 builds the no-`timeout` shim by symlinking everything under the fixed directories `/usr/local/bin`, `/usr/bin`, `/bin`. On macOS with Homebrew on Apple Silicon (`/opt/homebrew/bin`), Nix, asdf or any non-standard toolchain location, `jq`, a modern `bash`, `git` or `bats` live outside those directories, so the script under test runs with `/bin/bash` 3.2 or cannot find its tools and the test fails for environmental reasons unrelated to the bash watcher. The shim also inherits the `/usr/local/bin/*` literal when that directory is empty, producing a dangling `*` symlink.",
+      "failure_mode": "RTC-9 fails or behaves differently on developer machines versus CI, masking whether the watcher path actually works.",
+      "suggested_fix": "Build the shim from the current `$PATH` entries (split on `:`) rather than fixed directories, skipping only `timeout`/`gtimeout`; guard the glob with `[ -e \"$f\" ] || continue`.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tools/check-glossary-terms.sh:@@ -0,0 +1,203 @@",
+      "anchor_type": "hunk",
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`lookup()` treats an empty stored entry as 'not found'. An `_Aliases_:` line that appears in `## Language` before any `**Term**:` line is emitted with an empty entry, and `put()` is first-wins, so that empty record also blocks a later legitimate alias with the same normalized name from ever resolving. The glossary validator is expected to reject orphan aliases, but the checker gives no diagnostic of its own and reports a plain MISS.",
+      "failure_mode": "A glossary that passes the checker's own parser but has a misplaced alias line yields MISS results that point at the kernel rather than the glossary, sending the author to the wrong file.",
+      "suggested_fix": "In the glossary pass, skip `_Aliases_:` lines when `entry == \"\"` and print a WARN naming the glossary line; or have `put()` overwrite an empty value.",
+      "anchor_status": "valid",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-254",
+    "timestamp": "2026-10-13T06:48:36Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 38279,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "5abd065addfa5208dab1f2216fa61de73ca0674c5b114b90c537236a4ef76e59",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

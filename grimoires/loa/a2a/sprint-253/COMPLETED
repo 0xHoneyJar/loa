@@ -1,0 +1,6 @@
+sprint-253 (cycle-128 Sprint 2: /chart decision map, decision tickets, spikes, fence SP-1, bead lints) COMPLETED 2026-10-13
+review: APPROVED (round 2, engineer-feedback.md; round 1 CHANGES_REQUIRED 0/1/1/8 in engineer-feedback-r1.md)
+audit: APPROVED - LET'S FUCKING GO (round 2, auditor-sprint-feedback.md; round 1 CHANGES_REQUIRED 0/1/6/8 in auditor-sprint-feedback-r1.md; 0 critical, 0 high, 0 medium, 1 low carried as bead bd-akas)
+dissent: adversarial-review.json (gpt-5.5-pro via codex-headless + claude-headless, 10 findings, 0 rejected), adversarial-audit.json (same voices, 18 findings, 0 rejected)
+commits: cea919ca (implementation), 30727c95 (review round r253-1), 8f7932b2 (audit round r253-2)
+verification: 589/589 across 12 bats suites on the merged tree; check-prompt-budget exit 0; validate-skill-capabilities 37/37; agents-md-gen --check 51 commands; check-no-swallowed-jq and check-no-raw-sha256sum OK; validate-artifact --type sprint exit 0 with the live question-bead cross-check; validate-artifact --type decisions 91 rows

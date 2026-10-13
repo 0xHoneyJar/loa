@@ -1,0 +1,6 @@
+1..1
+verdict=verified rc=0
+skill_call: fixture-hidden	true
+skill_call: fixture-visible	false
+ok 1 live harness: disable-model-invocation hides a command from the Skill tool
+exit=0
