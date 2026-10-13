@@ -140,11 +140,24 @@ rtc() { (cd "$R" && "$SCRIPT" "$@"); }
 @test "RTC-9 without timeout/gtimeout on PATH the bash watcher yields TIMEOUT, exit 5" {
     local shim="${BATS_TEST_TMPDIR}/shim" f b
     mkdir -p "$shim"
-    for f in /usr/local/bin/* /usr/bin/* /bin/*; do
-        b="${f##*/}"
-        case "$b" in timeout|gtimeout) continue ;; esac
-        [ -e "$shim/$b" ] || ln -s "$f" "$shim/$b" 2>/dev/null || true
+    # Every executable on the current PATH (first entry wins, as in lookup) except the two
+    # timeout binaries, so hosts with tools under Homebrew, Nix or asdf keep them.
+    local dir old_ifs="$IFS"
+    IFS=:
+    for dir in $PATH; do
+        IFS="$old_ifs"
+        [ -n "$dir" ] && [ -d "$dir" ] || continue
+        for f in "$dir"/*; do
+            [ -e "$f" ] || continue
+            [ -x "$f" ] && [ ! -d "$f" ] || continue
+            b="${f##*/}"
+            case "$b" in timeout|gtimeout) continue ;; esac
+            [ -e "$shim/$b" ] || [ -L "$shim/$b" ] || ln -s "$f" "$shim/$b"
+        done
     done
+    IFS="$old_ifs"
+    local dangling; dangling="$(find "$shim" -type l ! -exec test -e {} \; -print)"
+    [ -z "$dangling" ] || { echo "dangling shim links: $dangling"; return 1; }
     PATH="$shim" command -v timeout && { echo "the shim still exposes timeout"; return 1; }
     mkdir -p "$R/tests"; printf 'sleep 30\n' > "$R/tests/test_slow.sh"
     red="$(commit "test: slow")"
@@ -281,4 +294,15 @@ EOF
     awk '/^## Phase 2: Code Review/,/^## Phase 2.5/' "$r" | grep -qF '.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> -- <test command>'
     awk '/^## Phase 2: Code Review/,/^## Phase 2.5/' "$r" | grep -qF 'Tests exist at each declared `### Seams Under Test` seam'
     grep -qF 'Bash(.claude/scripts/red-test-check.sh *)' "$r"
+}
+
+@test "RTC-18 a silent run prints (no output) inside its marker block, never a blank line" {
+    mkdir -p "$R/tests"; printf 'exit 1\n' > "$R/tests/test_silent.sh"
+    red="$(commit "test(bug): silent failing test")"
+    fix_lib; commit "fix: still fails, silently" >/dev/null
+    run rtc --red "$red" -- sh tests/test_silent.sh
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    [[ "$output" == *$'--- red run (last 80 lines) ---\n(no output)\n--- end red run ---'* ]]
+    [[ "$output" == *$'--- green run (last 80 lines) ---\n(no output)\n--- end green run ---'* ]]
+    assert_clean
 }

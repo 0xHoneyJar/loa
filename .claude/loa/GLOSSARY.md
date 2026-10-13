@@ -4,7 +4,7 @@ The shared language of the Loa agent framework, for humans and agents. It is mou
 
 ## Language
 
-**Beads**: The local-first task tracker that is the single source of truth for sprint tasks, decision tickets and their dependencies.
+**Beads**: The local-first task tracker, driven through its br command, that is the single source of truth for sprint tasks, decision tickets and their dependencies.
 _Aliases_: br
 
 **Bridgebuilder**: The automated pull-request reviewer that posts findings on a pull request and drives the iterative improvement loop of a bridge run.

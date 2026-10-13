@@ -163,3 +163,44 @@ val() { run "$SCRIPT" --type glossary --file "$G" "$@"; }
     val
     [ "$status" -eq 0 ]
 }
+
+@test "GV-20 an entry with seven aliases fails naming the term; six pass" {
+    glossary '**Hub**: A hub, also a1 a2 a3 a4 a5 a6 a7.' '_Aliases_: a1, a2, a3, a4, a5, a6, a7'
+    val
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'"Hub" has 7 aliases, over 6'* ]]
+    glossary '**Hub**: A hub, also a1 a2 a3 a4 a5 a6.' '_Aliases_: a1, a2, a3, a4, a5, a6'
+    val
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"WARN"* ]]
+}
+
+@test "GV-21 an alias unrelated to its term and definition WARNs; a shared word, a definition word or the initials do not" {
+    glossary '**Known failure**: A recorded degradation.' '_Aliases_: KF, failures, degradation, sprocket'
+    val
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^WARN:' <<< "$output")" -eq 1 ]
+    [[ "$output" == *'WARN:'*'alias "sprocket" of "Known failure" shares no word with the term or its definition and is not its initials'* ]]
+}
+
+@test "GV-22 a single-word term has no initials alias: a one-letter acronym still WARNs" {
+    glossary '**Beads**: A tracker.' '_Aliases_: b'
+    val
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'alias "b" of "Beads" shares no word'* ]]
+}
+
+@test "GV-23 fences close only on the same character and length: an entry-shaped line in a nested block is not judged" {
+    glossary '**A**: B.' '' '````md' '```' 'not an entry' '_Aliases_: x' '```' '~~~' '````' '' '**C**: D.' 'stray line'
+    val
+    [ "$status" -eq 1 ]
+    [ "$(grep -c 'not an entry, an _Avoid_' <<< "$output")" -eq 1 ]
+    [[ "$output" == *":18: a line in"* ]]
+}
+
+@test "GV-24 the live framework glossary keeps every alias within the cap and related to its entry" {
+    run "$SCRIPT" --type glossary --file "$PROJECT_ROOT/.claude/loa/GLOSSARY.md"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"shares no word"* ]]
+    [[ "$output" != *"aliases, over"* ]]
+}

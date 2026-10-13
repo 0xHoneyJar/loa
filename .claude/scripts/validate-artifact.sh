@@ -67,8 +67,11 @@
 #               '## Language', then one-line '**Term**: definition' entries of
 #               at most two sentences and 300 characters; _Avoid_: and
 #               _Aliases_: only directly below an entry; no duplicate term or
-#               alias (case, '-', '_' and spaces folded); WARN on a path or file
-#               extension in '## Language'; PII scan
+#               alias (case, '-', '_' and spaces folded); at most six aliases
+#               per entry; WARN on an alias that shares no word with its term
+#               or definition and is not the term's initials; WARN on a path or
+#               file extension in '## Language'; CommonMark fences
+#               (lib/md-fence.awk); PII scan
 #   sprint also: with br and .beads/, no question bead carries a sprint: label
 #               or sits under a sprint epic (an info line without br)
 #
@@ -1249,15 +1252,21 @@ validate_spike() {
 # glossary: the framework or a project glossary (grimoires/loa/sdd.md D-6.4, §4.5)
 # =============================================================================
 GLOSSARY_MAX_CHARS=300
+GLOSSARY_MAX_ALIASES=6
 
 validate_glossary() {
-    local kind msg
+    local kind msg fence_src
+    # The CommonMark fence tracker shared with tools/check-glossary-terms.sh.
+    if ! fence_src="$(cat "${SCRIPT_DIR}/lib/md-fence.awk" 2>/dev/null)" || [[ -z "$fence_src" ]]; then
+        violations+=("cannot read ${SCRIPT_DIR}/lib/md-fence.awk; the glossary check needs it (reinstall the framework scripts)")
+        return
+    fi
     while IFS=$'\t' read -r kind msg; do
         case "$kind" in
             V) violations+=("$msg") ;;
             W) warnings+=("$msg") ;;
         esac
-    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" '
+    done < <(LC_ALL=C awk -v f="$FILE" -v max="$GLOSSARY_MAX_CHARS" -v maxal="$GLOSSARY_MAX_ALIASES" "$fence_src"'
         function v(m) { printf "V\t%s:%d: %s\n", f, NR, m }
         function w(m) { printf "W\t%s:%d: %s\n", f, NR, m }
         # names compare as the drift check matches them: case and "-", "_", " " folded
@@ -1267,8 +1276,28 @@ validate_glossary() {
             if (norm(x) in seen) v(what " \"" x "\" duplicates " seen[norm(x)] "; each term and alias names one entry")
             else seen[norm(x)] = what " \"" x "\" (line " NR ")"
         }
-        /^[[:space:]]*(```|~~~)/ { fence = !fence; prev = "other"; next }
-        fence { next }
+        # word sets: a name splits on case-folded "-", "_" and spaces, prose on
+        # anything that is not a letter or digit; words under two characters drop
+        function words(x, set,   n, i, parts) {
+            split("", set); n = split(x, parts, / /)
+            for (i = 1; i <= n; i++) if (length(parts[i]) >= 2) set[parts[i]] = 1
+        }
+        function plural_eq(a, b) { return a == b || a "s" == b || a "es" == b || b "s" == a || b "es" == a }
+        # An alias names the same thing as its entry, so it shares a word with
+        # the term or the definition, or it is the initials of the term
+        # ("KF" for Known failure); anything else is a name the entry never explains.
+        function alias_related(al, term, def,   aw, tw, x, y, ini, n, i, parts) {
+            words(norm(al), aw)
+            words(norm(term), tw)
+            for (x in aw) for (y in tw) if (plural_eq(x, y)) return 1
+            def = tolower(def); gsub(/[^a-z0-9]+/, " ", def); words(def, tw)
+            for (x in aw) for (y in tw) if (plural_eq(x, y)) return 1
+            n = split(norm(term), parts, / /); ini = ""
+            for (i = 1; i <= n; i++) ini = ini substr(parts[i], 1, 1)
+            x = norm(al); gsub(/ /, "", x)
+            return n >= 2 && x == ini
+        }
+        md_fence($0) { prev = "other"; next }
         /^# / {
             if (!h1) { h1 = NR; if ($0 !~ /^# Glossary: [^[:space:]]/) w("the H1 is not \"# Glossary: <name>\"") }
             prev = "other"; next
@@ -1296,7 +1325,7 @@ validate_glossary() {
             if (length(c) > max) v("the definition of \"" t "\" is " length(c) " characters, over " max "; shorten it")
             s = d " "; n = gsub(/[.!?]+[)"]*[[:space:]]/, "&", s); if (n == 0) n = 1
             if (n > 2) v("the definition of \"" t "\" has " n " sentences; at most two")
-            prev = "entry"; seen_avoid = 0; seen_alias = 0; next
+            prev = "entry"; seen_avoid = 0; seen_alias = 0; n_alias = 0; next
         }
         /^_(Avoid|Aliases)_:/ {
             k = ($0 ~ /^_Avoid_:/) ? "Avoid" : "Aliases"
@@ -1307,7 +1336,14 @@ validate_glossary() {
             if (a !~ /[^[:space:]]/) v("an empty _" k "_: line")
             if (k == "Aliases") {
                 gsub(/`/, "", a); m = split(a, parts, /,/)
-                for (i = 1; i <= m; i++) { p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p); claim(p, "alias") }
+                for (i = 1; i <= m; i++) {
+                    p = parts[i]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+                    if (p == "") continue
+                    n_alias++
+                    claim(p, "alias")
+                    if (!alias_related(p, t, d)) w("alias \"" p "\" of \"" t "\" shares no word with the term or its definition and is not its initials; name it in the definition, or give it its own entry")
+                }
+                if (n_alias > maxal) v("\"" t "\" has " n_alias " aliases, over " maxal "; an alias list is not a place to resolve tokens, so define the extra names as entries or allowlist the code identifiers")
             }
             prev = "annot"; next
         }

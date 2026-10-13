@@ -2929,3 +2929,995 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0092"
+    created_at: "2026-10-13T07:21:20Z"
+    updated_at: "2026-10-13T07:21:20Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Matching also folds `-`, `_` and spaces, so `run-mode` and `run_mode` resolve to **Run mode**. The plural fold (S3-F1)"
+    decision: "Matching also folds `-`, `_` and spaces, so `run-mode` and `run_mode` resolve to **Run mode**. The plural fold is symmetric: a singular token resolves to a plural term."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0093"
+    created_at: "2026-10-13T07:21:20Z"
+    updated_at: "2026-10-13T07:21:20Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Only entries and aliases inside `## Language` resolve tokens or count for duplicates. Other H2 sections are al (S3-F2)"
+    decision: "Only entries and aliases inside `## Language` resolve tokens or count for duplicates. Other H2 sections are allowed and ignored."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0094"
+    created_at: "2026-10-13T07:21:21Z"
+    updated_at: "2026-10-13T07:21:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A missing allowlist file is a usage error (exit 2), never an empty allowlist. An allowlist entry is the first (S3-F3)"
+    decision: "A missing allowlist file is a usage error (exit 2), never an empty allowlist. An allowlist entry is the first word of a line, and the rest after `#` is its reason."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0095"
+    created_at: "2026-10-13T07:21:21Z"
+    updated_at: "2026-10-13T07:21:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The checker WARNs on a redundant allowlist entry, one the glossary already resolves, in addition to the specif (S3-F4)"
+    decision: "The checker WARNs on a redundant allowlist entry, one the glossary already resolves, in addition to the specified stale-entry WARN."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0096"
+    created_at: "2026-10-13T07:21:22Z"
+    updated_at: "2026-10-13T07:21:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The validator fails any non-blank line in `## Language` that is not an entry, an `_Avoid_:` or `_Aliases_:` li (S3-F5)"
+    decision: "The validator fails any non-blank line in `## Language` that is not an entry, an `_Avoid_:` or `_Aliases_:` line, or a `###` heading, so a wrapped definition cannot slip past the 300-character rule. A second `_Avoid_:` or `_Aliases_:` line for one entry, an empty annotation line and an empty `## Language` also fail."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0097"
+    created_at: "2026-10-13T07:21:22Z"
+    updated_at: "2026-10-13T07:21:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sentences are counted as runs of `.`, `!` or `?` followed by whitespace; abbreviations like \"e.g.\" count as se (S3-F6)"
+    decision: "Sentences are counted as runs of `.`, `!` or `?` followed by whitespace; abbreviations like \"e.g.\" count as sentence ends. Length counts characters of the definition text after `**Term**: `, not the whole line."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0098"
+    created_at: "2026-10-13T07:21:23Z"
+    updated_at: "2026-10-13T07:21:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A non-`# Glossary: <name>` H1 WARNs rather than fails, since D-6.4 asks only for an H1. (S3-F7)"
+    decision: "A non-`# Glossary: <name>` H1 WARNs rather than fails, since D-6.4 asks only for an H1."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0099"
+    created_at: "2026-10-13T07:21:23Z"
+    updated_at: "2026-10-13T07:21:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The CI gate step also validates both glossaries with `--type glossary`, so a format break fails the same job. (S3-F8)"
+    decision: "The CI gate step also validates both glossaries with `--type glossary`, so a format break fails the same job."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0100"
+    created_at: "2026-10-13T07:21:24Z"
+    updated_at: "2026-10-13T07:21:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The framework glossary seeds Circuit breaker and Fog of war beyond D-6.1; the PRD Appendix D glossary already (S3-F9)"
+    decision: "The framework glossary seeds Circuit breaker and Fog of war beyond D-6.1; the PRD Appendix D glossary already defines fog of war."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0101"
+    created_at: "2026-10-13T07:21:24Z"
+    updated_at: "2026-10-13T07:21:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The validator suite is a new file, `glossary-validator.bats`, rather than cases in `validate-artifact.bats`, t (S3-F10)"
+    decision: "The validator suite is a new file, `glossary-validator.bats`, rather than cases in `validate-artifact.bats`, to keep this patch from colliding with implementer G's seams cases."
+    rationale: "implementer F's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-f.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-f.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-f.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0102"
+    created_at: "2026-10-13T07:21:25Z"
+    updated_at: "2026-10-13T07:21:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The header date is the first `**Date:**` line before the first H2. A date line further down does not gate the (S3-G1)"
+    decision: "The header date is the first `**Date:**` line before the first H2. A date line further down does not gate the plan."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0103"
+    created_at: "2026-10-13T07:21:26Z"
+    updated_at: "2026-10-13T07:21:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A sprint block runs from its `## Sprint N` heading to the next H2 of any kind. Headings inside fenced code are (S3-G2)"
+    decision: "A sprint block runs from its `## Sprint N` heading to the next H2 of any kind. Headings inside fenced code are ignored."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0104"
+    created_at: "2026-10-13T07:21:27Z"
+    updated_at: "2026-10-13T07:21:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A Seams block passes only with at least one table row below its separator line. A heading with only the header (S3-G3)"
+    decision: "A Seams block passes only with at least one table row below its separator line. A heading with only the header row counts as missing."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0105"
+    created_at: "2026-10-13T07:21:27Z"
+    updated_at: "2026-10-13T07:21:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "An earlier or undated plan WARNs once, and only when at least one sprint block lacks the block. (S3-G4)"
+    decision: "An earlier or undated plan WARNs once, and only when at least one sprint block lacks the block."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0106"
+    created_at: "2026-10-13T07:21:28Z"
+    updated_at: "2026-10-13T07:21:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "`--setup` is split on whitespace into an argv and never passed to `bash -c`. This keeps the no-`bash -c` rule. (S3-G5)"
+    decision: "`--setup` is split on whitespace into an argv and never passed to `bash -c`. This keeps the no-`bash -c` rule. Anything more complex should point `--setup` at a script."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0107"
+    created_at: "2026-10-13T07:21:28Z"
+    updated_at: "2026-10-13T07:21:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A `--setup` failure or timeout exits 2. TIMEOUT (exit 5) is kept for test runs. (S3-G6)"
+    decision: "A `--setup` failure or timeout exits 2. TIMEOUT (exit 5) is kept for test runs."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0108"
+    created_at: "2026-10-13T07:21:29Z"
+    updated_at: "2026-10-13T07:21:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Verdict precedence judges the red side first (timeout, then DECOY, then NOT_A_RED), then the green side (timeo (S3-G7)"
+    decision: "Verdict precedence judges the red side first (timeout, then DECOY, then NOT_A_RED), then the green side (timeout, then GREEN_FAILS)."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0109"
+    created_at: "2026-10-13T07:21:29Z"
+    updated_at: "2026-10-13T07:21:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Both runs always happen, so `--json` reports both exits. (S3-G8)"
+    decision: "Both runs always happen, so `--json` reports both exits."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0110"
+    created_at: "2026-10-13T07:21:30Z"
+    updated_at: "2026-10-13T07:21:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A red exit of 126 or 127 is NOT_A_RED alongside the D-7.6 patterns. The bats patterns also cover the gather fa (S3-G9)"
+    decision: "A red exit of 126 or 127 is NOT_A_RED alongside the D-7.6 patterns. The bats patterns also cover the gather failure (`not ok N bats-gather-tests`), the missing-file message and dash's `: not found`."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0111"
+    created_at: "2026-10-13T07:21:30Z"
+    updated_at: "2026-10-13T07:21:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "With `timeout` or `gtimeout`, exit 124 means a timeout. So does exit 137 once the limit has elapsed. A test th (S3-G10)"
+    decision: "With `timeout` or `gtimeout`, exit 124 means a timeout. So does exit 137 once the limit has elapsed. A test that itself exits 124 reads as a timeout, and the script header says so. The bash watcher uses a flag file instead and is exact."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0112"
+    created_at: "2026-10-13T07:21:31Z"
+    updated_at: "2026-10-13T07:21:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Each run gets its own process group through `set -m`, so a timeout or an interrupt stops the whole tree it spa (S3-G11)"
+    decision: "Each run gets its own process group through `set -m`, so a timeout or an interrupt stops the whole tree it spawned. Dependency symlinks are removed before `git worktree remove --force`."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0113"
+    created_at: "2026-10-13T07:21:32Z"
+    updated_at: "2026-10-13T07:21:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A path counts as a test path for the WARN if it is under `test/`, `tests/`, `spec/`, `__tests__/`, `testdata/` (S3-G12)"
+    decision: "A path counts as a test path for the WARN if it is under `test/`, `tests/`, `spec/`, `__tests__/`, `testdata/` or `fixtures/`. So does a basename matching `test_*`, `*_test.*`, `*.test.*`, `*.spec.*`, `*_spec.*` or `*.bats`, and the `--test-file` itself."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0114"
+    created_at: "2026-10-13T07:21:32Z"
+    updated_at: "2026-10-13T07:21:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "`--test-file` must be relative to the repository root. `--red` and `--green` values starting with `-` are reje (S3-G13)"
+    decision: "`--test-file` must be relative to the repository root. `--red` and `--green` values starting with `-` are rejected, so a value can never be read as an option."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0115"
+    created_at: "2026-10-13T07:21:33Z"
+    updated_at: "2026-10-13T07:21:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Exit-2 errors print to stderr only. `--json` emits its object for verdicts 0, 1, 3, 4 and 5, with exits set to (S3-G14)"
+    decision: "Exit-2 errors print to stderr only. `--json` emits its object for verdicts 0, 1, 3, 4 and 5, with exits set to null when a run did not happen."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0116"
+    created_at: "2026-10-13T07:21:33Z"
+    updated_at: "2026-10-13T07:21:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "`reviewing-code` gains the allowed-tools and `execute_commands` grant for the script, so the Phase 2 instructi (S3-G15)"
+    decision: "`reviewing-code` gains the allowed-tools and `execute_commands` grant for the script, so the Phase 2 instruction can run without a permission prompt."
+    rationale: "implementer G's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-g.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-g.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-g.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0117"
+    created_at: "2026-10-13T07:21:34Z"
+    updated_at: "2026-10-13T07:21:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "`checksums.json` was refreshed for git-tracked files only: changed tracked files were re-hashed, new tracked f (S3-H1)"
+    decision: "`checksums.json` was refreshed for git-tracked files only: changed tracked files were re-hashed, new tracked files added, and untracked entries left byte-for-byte. Rerunning the generator from this clean worktree would delete about 1,400 entries for local-only files. Every refreshed path is in `git diff 304a2480 -- .claude`. The output is identical to jq's formatting. The script is `~/.cache/loa/cycle-128/h-checksums-update.py`."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0118"
+    created_at: "2026-10-13T07:21:35Z"
+    updated_at: "2026-10-13T07:21:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The fixture sync is in scope as a release surface. Without it, the required `sync-fixtures.sh --check` would f (S3-H2)"
+    decision: "The fixture sync is in scope as a release surface. Without it, the required `sync-fixtures.sh --check` would fail on the cycle's own code."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0119"
+    created_at: "2026-10-13T07:21:35Z"
+    updated_at: "2026-10-13T07:21:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The CHANGELOG gains a `### Migration` heading, following the release-level \"Migration guide\" heading already i (S3-H3)"
+    decision: "The CHANGELOG gains a `### Migration` heading, following the release-level \"Migration guide\" heading already in the file. The post-merge finaliser keeps every `###` heading."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0120"
+    created_at: "2026-10-13T07:21:36Z"
+    updated_at: "2026-10-13T07:21:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The cycle-128 surfaces in hooks-reference get one table of their own. `chart-guard.sh` and the FR-8 lint are g (S3-H4)"
+    decision: "The cycle-128 surfaces in hooks-reference get one table of their own. `chart-guard.sh` and the FR-8 lint are gates rather than hooks, and the existing Event/Matcher table cannot hold them. The All Hook Registrations table still gets the SessionStart row."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0121"
+    created_at: "2026-10-13T07:21:36Z"
+    updated_at: "2026-10-13T07:21:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Fixed now holds only the fix to pre-existing behaviour (`validate-gitignore-state.sh`). Fixes to code that had (S3-H5)"
+    decision: "Fixed now holds only the fix to pre-existing behaviour (`validate-gitignore-state.sh`). Fixes to code that had not been released are folded into their Added or Security entry."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0122"
+    created_at: "2026-10-13T07:21:37Z"
+    updated_at: "2026-10-13T07:21:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The E2E rows that H ran with read-only commands are marked H. The lead's G-1 to G-4 and G-7 rows keep the lead (S3-H6)"
+    decision: "The E2E rows that H ran with read-only commands are marked H. The lead's G-1 to G-4 and G-7 rows keep the lead's evidence. The G-2 live beads cross-check is left for the lead to re-run, because the worktree has no `.beads/`."
+    rationale: "implementer H's call while building sprint-254, recorded as an [ASSUMPTION decision] line in reviewer-h.md; alternatives not enumerated there"
+    alternatives_considered:
+      - option: "the SDD's literal reading, or leaving the behaviour unspecified"
+        rejected_because: "not chosen: the implementer judged the recorded reading the safer or more useful one; see reviewer-h.md"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/4d651ab5-a623-401b-a6d4-efba0d6cd6b1"
+    commit: "efacf754"
+    source: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    cycle: "cycle-128"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-13T07:21:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-254/reviewer-h.md#assumptions"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

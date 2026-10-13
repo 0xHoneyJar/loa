@@ -20,7 +20,7 @@ Complete index of `.claude/protocols/` (one row per file — regenerate this tab
 | `reference/helper-scripts.md` | Comprehensive script documentation | scripts-reference.md pointer |
 | `implementation-compliance.md` | C-PROC enforcement checklist (generated from constraints.json) | CLAUDE.loa.md Process Compliance pointer |
 | `input-guardrails.md` | Guardrails orchestrator detail (PII/injection/danger) | guardrails-reference.md; skill preludes |
-| `karpathy-principles.md` | Enforcement map + config keys (canonical TEXT lives in CLAUDE.loa.md) | implementing-tasks pointer; CLAUDE.loa.md pointer |
+| `karpathy-principles.md` | Enforcement map + config keys (canonical TEXT lives in CLAUDE.loa.md); unattended runs look facts up and record operator-owned decisions with `dec-write-lib.sh new` | implementing-tasks pointer; CLAUDE.loa.md pointer |
 | `reference/recommended-hooks.md` | Optional Claude Code hook patterns | hooks-reference.md; operators |
 | `ride-translation.md` | /ride codebase-translation flow | riding-codebase skill |
 | `safe-file-creation.md` | Write-tool-vs-heredoc decision tree | shell-conventions.md pointer; implementing-tasks |

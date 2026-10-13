@@ -282,11 +282,9 @@ TASK_B=$(.claude/scripts/beads/create-sprint-task.sh "$EPIC_ID" "Wire login rout
 
 **Edge-or-none rule (REQUIRED):** every non-epic bead declares either `--deps <id1,id2>`
 (what blocks it) or `--deps none` (an explicit no-blockers assertion, recorded as the
-`deps:none` label). A sprint plan is an ordered list — the ordering knowledge exists NOW
-and is captured in one flag; retrofitting edges later costs O(n²) review. A task graph
-with edges is schedulable (topological order, parallel tracks, honest unblock counts);
-a flat list silently degrades every downstream consumer (`get-ready-work.sh --graph`,
-`bv --robot-plan` wave dispatch) into priority-only guessing.
+`deps:none` label). The ordering is known now and costs one flag; retrofitting edges costs
+O(n²) review, and a flat list degrades `get-ready-work.sh --graph` and `bv --robot-plan`
+wave dispatch to priority-only guessing.
 
 ### Structural Validation
 
@@ -347,9 +345,9 @@ Present the following in this exact order:
 
 1. **Confirmation**: "✓ Sprint Plan saved to grimoires/loa/sprint.md"
 
-2. **Key Decisions** (3-5 items): The most impactful planning choices. Each decision should be one line: "• {choice made} (not {alternative rejected})"
+2. **Key Decisions** (3-5 items): The most impactful planning choices, one line each: "• {choice made} (not {alternative rejected})"
 
-3. **Assumptions** (1-3 items): Things assumed true but not explicitly confirmed by the user. Each assumption should be falsifiable: "• {assumption} — if wrong, {consequence}"
+3. **Assumptions** (1-3 items): Things assumed but not confirmed by the user, each falsifiable: "• {assumption} — if wrong, {consequence}"
 
 4. **Biggest Tradeoff** (1 item): The most consequential either/or decision. Format: "• Chose {A} over {B} — {reason}. Risk: {what could go wrong}"
 

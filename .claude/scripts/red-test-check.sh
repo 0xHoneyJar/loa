@@ -129,6 +129,11 @@ RED_TAIL=""
 GREEN_TAIL=""
 LINKED=""
 
+# One run's output tail between markers; an empty tail reads "(no output)", never a blank line.
+tail_block(){
+  printf -- '--- %s run (last %s lines) ---\n%s\n--- end %s run ---\n' "$1" "$TAIL_LINES" "${2:-(no output)}" "$1"
+}
+
 # Report a verdict (text or JSON) and exit with its code.
 finish(){
   local verdict="$1" code="$2"
@@ -140,17 +145,11 @@ finish(){
         green_exit: (if $ge == "" then null else ($ge | tonumber) end),
         verdict: $verdict, red_tail: $rt, green_tail: $gt,
         linked_deps: ($linked | split(" ") | map(select(. != "")))}'
-    if [[ -n "$RED_TAIL" ]]; then
-      printf -- '--- red run (last %s lines) ---\n%s\n--- end red run ---\n' "$TAIL_LINES" "$RED_TAIL" >&2
-    fi
+    if [[ -n "$RED_EXIT" ]]; then tail_block red "$RED_TAIL" >&2; fi
   else
     echo "${PROG}: red ${RED_SHA} exit ${RED_EXIT:-n/a}; green ${GREEN_SHA} exit ${GREEN_EXIT:-n/a}; linked deps: ${LINKED:-none}"
-    if [[ -n "$RED_EXIT" ]]; then
-      printf -- '--- red run (last %s lines) ---\n%s\n--- end red run ---\n' "$TAIL_LINES" "$RED_TAIL"
-    fi
-    if [[ -n "$GREEN_EXIT" && "$GREEN_EXIT" != "0" ]]; then
-      printf -- '--- green run (last %s lines) ---\n%s\n--- end green run ---\n' "$TAIL_LINES" "$GREEN_TAIL"
-    fi
+    if [[ -n "$RED_EXIT" ]]; then tail_block red "$RED_TAIL"; fi
+    if [[ -n "$GREEN_EXIT" && "$GREEN_EXIT" != "0" ]]; then tail_block green "$GREEN_TAIL"; fi
     echo "verdict: ${verdict}"
   fi
   exit "$code"

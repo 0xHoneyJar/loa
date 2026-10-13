@@ -5,14 +5,25 @@
 #
 # The kernel (.claude/loa/CLAUDE.loa.md) is the only extraction scope. Every
 # backticked span outside fenced code is a candidate; a span is kept only when
-# it matches ^[A-Za-z][A-Za-z0-9_-]*$, which drops paths, scripts, flags,
-# commands and config keys (anything with "/", ".", "--", ":" or "(") as well
-# as spaced phrases and operators. A kept token resolves when it matches,
+# it matches ^[A-Za-z][A-Za-z0-9_-]*(:[A-Za-z0-9_-]+)?$: a word, optionally
+# with one interior colon so label-style terms such as decision:grilling are
+# checked too (grimoires/loa/sdd.md D-6.2 widened by sprint-254 review round
+# 1; on the kernel of that day the widening added no token). The shape drops
+# paths, scripts, flags, commands and config values (anything with "/", ".",
+# "--", "(", a second colon or a colon at either end) as well as spaced
+# phrases such as "audit: skip" and operators. Fences follow CommonMark
+# (.claude/scripts/lib/md-fence.awk). A kept token resolves when it matches,
 # case-insensitively, a **Term** entry or an _Aliases_: token in the glossary's
 # "## Language" section, with a plural "s" or "es" folded and "-", "_" and a
 # space treated alike; or when the allowlist names it. The allowlist holds
 # code identifiers the heuristic cannot tell from a term: one token per line,
 # "#" starts a comment (give the reason there), at most 30 entries.
+#
+# Aliases are a second way to resolve a token, so they are reported too: an
+# advisory WARN when more kernel tokens resolve through _Aliases_: lines than
+# through **Term** entries (review alias lines in a glossary diff as closely
+# as allowlist lines), and a WARN for an _Aliases_: line that precedes every
+# entry (ignored here; validate-artifact.sh --type glossary fails it).
 #
 # Usage:
 #   tools/check-glossary-terms.sh [--kernel PATH] [--glossary PATH]
@@ -25,7 +36,8 @@
 #   --report          list every kept token with its resolution
 #                     (defined, alias, allowlisted or MISS)
 #
-# Exit codes: 0 every token resolves (a stale allowlist entry only WARNs)
+# Exit codes: 0 every token resolves (stale or redundant allowlist entries,
+#               orphan alias lines and the alias ratio only WARN)
 #             1 a token misses, or the allowlist has more than 30 entries
 #             2 usage, or an input file is unreadable
 # =============================================================================
@@ -39,6 +51,7 @@ KERNEL="$ROOT/.claude/loa/CLAUDE.loa.md"
 GLOSSARY="$ROOT/.claude/loa/GLOSSARY.md"
 ALLOWLIST="$ROOT/.claude/data/glossary-allowlist.txt"
 ALLOWLIST_MAX=30
+FENCE_AWK="$ROOT/.claude/scripts/lib/md-fence.awk"
 JSON=0
 REPORT=0
 ME="check-glossary-terms.sh"
@@ -56,12 +69,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for f in "$KERNEL" "$GLOSSARY" "$ALLOWLIST"; do
+for f in "$KERNEL" "$GLOSSARY" "$ALLOWLIST" "$FENCE_AWK"; do
   [[ -f "$f" && -r "$f" ]] || { echo "$ME: cannot read $f" >&2; exit 2; }
 done
 if [[ "$JSON" -eq 1 ]]; then
+  # jq 1.5 is enough: the report avoids --rawfile and IN() (jq 1.6 only).
   command -v jq >/dev/null 2>&1 || { echo "$ME: --json needs jq" >&2; exit 2; }
 fi
+FENCE_SRC="$(cat "$FENCE_AWK")"
 
 # Display names: repo-relative when the file sits under the repo root.
 rel() { case "$1" in "$ROOT"/*) printf '%s' "${1#"$ROOT"/}" ;; *) printf '%s' "$1" ;; esac; }
@@ -71,32 +86,41 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/check-glossary-terms.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 # 1. Kept kernel tokens, "line<TAB>token", first occurrence only, in order.
-awk '
-  /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
-  fence { next }
+awk "$FENCE_SRC"'
+  md_fence($0) { next }
   {
+    # CommonMark code spans: a run of n backticks closes on the next run of
+    # exactly n; an unmatched run is literal text.
     s = $0
-    while (match(s, /`[^`]+`/)) {
-      t = substr(s, RSTART + 1, RLENGTH - 2)
-      s = substr(s, RSTART + RLENGTH)
-      if (t ~ /^[A-Za-z][A-Za-z0-9_-]*$/ && !(t in seen)) { seen[t] = 1; printf "%d\t%s\n", NR, t }
+    while ((i = index(s, "`")) > 0) {
+      n = 0; while (substr(s, i + n, 1) == "`") n++
+      rest = substr(s, i + n); found = 0; off = 0
+      while ((j = index(substr(rest, off + 1), "`")) > 0) {
+        j += off; m = 0; while (substr(rest, j + m, 1) == "`") m++
+        if (m == n) { t = substr(rest, 1, j - 1); s = substr(rest, j + m); found = 1; break }
+        off = j + m - 1
+      }
+      if (!found) { s = rest; continue }
+      if (t ~ /^ / && t ~ / $/ && t ~ /[^ ]/) t = substr(t, 2, length(t) - 2)
+      if (t ~ /^[A-Za-z][A-Za-z0-9_-]*(:[A-Za-z0-9_-]+)?$/ && !(t in seen)) { seen[t] = 1; printf "%d\t%s\n", NR, t }
     }
   }
 ' "$KERNEL" > "$WORK/tokens.tsv"
 
 # 2. Glossary names, "kind<TAB>name<TAB>entry": kind is term or alias, entry is
-#    the **Term** the name belongs to. Only the "## Language" section counts.
-awk '
-  /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
-  fence { next }
-  /^## / { h = $0; sub(/^## +/, "", h); sub(/[[:space:]]+$/, "", h); lang = (h == "Language"); next }
-  /^# / { lang = 0; next }
+#    the **Term** the name belongs to; "orphan<TAB>line<TAB>" for an _Aliases_:
+#    line before any entry. Only the "## Language" section counts.
+awk "$FENCE_SRC"'
+  md_fence($0) { next }
+  /^## / { h = $0; sub(/^## +/, "", h); sub(/[[:space:]]+$/, "", h); lang = (h == "Language"); entry = ""; next }
+  /^# / { lang = 0; entry = ""; next }
   !lang { next }
   /^\*\*[^*]+\*\*:/ {
     t = $0; sub(/^\*\*/, "", t); sub(/\*\*:.*$/, "", t); gsub(/`/, "", t)
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
     entry = t; printf "term\t%s\t%s\n", t, entry; next
   }
+  /^_Aliases_:/ && entry == "" { printf "orphan\t%d\t\n", NR; next }
   /^_Aliases_:/ {
     a = $0; sub(/^_Aliases_:[[:space:]]*/, "", a); gsub(/`/, "", a)
     n = split(a, parts, /,/)
@@ -128,7 +152,7 @@ awk -F'\t' '
                             if (x ~ /es$/) put(map, substr(x, 1, length(x) - 2), v)
                             if (x ~ /s$/) put(map, substr(x, 1, length(x) - 1), v) }
   function lookup(map, x,   k) { k = norm(x); return (k in map) ? map[k] : "" }
-  FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else add(alias, $2, $3); next }
+  FILENAME == ARGV[1] { if ($1 == "term") add(term, $2, $3); else if ($1 == "alias") add(alias, $2, $3); next }
   FILENAME == ARGV[2] { allow[norm($2)] = $1; allowtok[norm($2)] = $2; next }
   {
     used[norm($2)] = 1
@@ -161,6 +185,13 @@ while IFS=$'\t' read -r r tok ln entry; do
     REDUNDANT) warnings+=("allowlist entry '$tok' ($DA:$ln) is already resolved by the glossary entry **$entry**; remove it") ;;
   esac
 done < "$WORK/resolved.tsv"
+while IFS=$'\t' read -r kind ln _; do
+  [[ "$kind" == orphan ]] || continue
+  warnings+=("_Aliases_: line $DG:$ln comes before any **Term**: entry, so its aliases resolve nothing; put it directly below its entry (validate-artifact.sh --type glossary fails this line)")
+done < "$WORK/names.tsv"
+if [[ "$n_alias" -gt "$n_def" ]]; then
+  warnings+=("advisory: $n_alias kernel token(s) resolve through _Aliases_: lines and $n_def through **Term** entries; the kernel does not reference the glossary's terms in backticks, so this gate mostly checks aliases and identifiers. Review _Aliases_: lines in a glossary diff as closely as allowlist lines")
+fi
 if [[ "$allow_count" -gt "$ALLOWLIST_MAX" ]]; then
   violations+=("the allowlist $DA has $allow_count entries, over the limit of $ALLOWLIST_MAX; define the framework terms among them in the glossary instead")
 fi
@@ -168,10 +199,11 @@ fi
 if [[ "$JSON" -eq 1 ]]; then
   jq -Rn --arg kernel "$DK" --arg glossary "$DG" --arg allowlist "$DA" \
      --argjson allow_count "$allow_count" --argjson allow_max "$ALLOWLIST_MAX" \
-     --rawfile v <(printf '%s\n' ${violations[@]+"${violations[@]}"}) \
-     --rawfile w <(printf '%s\n' ${warnings[@]+"${warnings[@]}"}) '
+     --arg v "$(printf '%s\n' ${violations[@]+"${violations[@]}"})" \
+     --arg w "$(printf '%s\n' ${warnings[@]+"${warnings[@]}"})" '
     [inputs | split("\t") | {resolution: .[0], token: .[1], line: (.[2] | tonumber), entry: .[3]}] as $rows
-    | ($rows | map(select(.resolution | IN("defined", "alias", "allowlisted", "MISS")))) as $tokens
+    | ($rows | map(select(.resolution == "defined" or .resolution == "alias"
+                          or .resolution == "allowlisted" or .resolution == "MISS"))) as $tokens
     | {ok: null,
        kernel: $kernel, glossary: $glossary, allowlist: $allowlist,
        kept: ($tokens | length),

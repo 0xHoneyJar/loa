@@ -445,26 +445,26 @@ There are no open questions. Every question raised by the PRD and this design is
 
 | # | Question | Status | Resolved by | DEC |
 |---|---|---|---|---|
-| 1 | Default pacing for `thorough` | Resolved | D1, D-1.1 | pending seed, Task 1.6 |
-| 2 | Ledger location and tracking | Resolved | D2, D-3.1 | pending seed, Task 1.6 |
-| 3 | `/chart` as porcelain or truename | Resolved | D3, D-4.1 | pending seed, Task 1.6 |
-| 4 | Research tickets via cheval or the Agent tool | Resolved | D4, D-4.10 | pending seed, Task 1.6 |
-| 5 | Name of Pocock's `task` type | Resolved | D5, §3.2 | pending seed, Task 1.6 |
-| 6 | Spike branch lifecycle | Resolved | D6, D-5.2–D-5.4, D-5.9 | pending seed, Task 1.6 |
-| 7 | Glossary location | Resolved | D7 amended by D10, D-6.1 | pending seed, Task 1.6 |
-| 8 | Which commands get the flag | Resolved | D8, D-8.1–D-8.2 | pending seed, Task 1.6 |
-| 9 | B7 and LEARN items | Resolved (out of scope) | D9 | pending seed, Task 1.6 |
-| 10 | Unattended prototype questions | Resolved | D11, D-5.8 | pending seed, Task 1.6 |
-| 11 | `/chart` unattended | Resolved | D12, D-4.3 step 0 | pending seed, Task 1.6 |
-| 12 | Confirmation of agent decisions | Resolved | D13, D-3.12 | pending seed, Task 1.6 |
-| 13 | Who sets `decided_by` | Resolved | D14, D-3.11, D-3.12 | pending seed, Task 1.6 |
-| 14 | Row mutability | Resolved | D15, D-3.13 | pending seed, Task 1.6 |
-| 15 | Backfill scope | Resolved | D16, D-3.15 | pending seed, Task 1.6 |
-| 16 | How `charting` is detected | Resolved | D-4.6 (A5) | pending seed, Task 1.6 |
-| 17 | How old sprint plans survive the Seams rule | Resolved | D-7.2 (A10) | pending seed, Task 1.6 |
-| 18 | Whether the flag hides commands | Resolved by a first-task check | D-8.4 | pending seed, Task 1.6 |
-| 19 | Parallel writers and merges | Resolved | D-3.18 (A33) | pending seed, Task 1.6 |
-| 20 | Where operator attribution comes from | Resolved | D-3.12 (A31) | pending seed, Task 1.6 |
+| 1 | Default pacing for `thorough` | Resolved | D1, D-1.1 | DEC-0001 |
+| 2 | Ledger location and tracking | Resolved | D2, D-3.1 | DEC-0002 |
+| 3 | `/chart` as porcelain or truename | Resolved | D3, D-4.1 | DEC-0003 |
+| 4 | Research tickets via cheval or the Agent tool | Resolved | D4, D-4.10 | DEC-0004 |
+| 5 | Name of Pocock's `task` type | Resolved | D5, §3.2 | DEC-0005 |
+| 6 | Spike branch lifecycle | Resolved | D6, D-5.2–D-5.4, D-5.9 | DEC-0006 |
+| 7 | Glossary location | Resolved | D7 amended by D10, D-6.1 | DEC-0007, DEC-0010 |
+| 8 | Which commands get the flag | Resolved | D8, D-8.1–D-8.2 | DEC-0008 |
+| 9 | B7 and LEARN items | Resolved (out of scope) | D9 | DEC-0009 |
+| 10 | Unattended prototype questions | Resolved | D11, D-5.8 | DEC-0011 |
+| 11 | `/chart` unattended | Resolved | D12, D-4.3 step 0 | DEC-0012 |
+| 12 | Confirmation of agent decisions | Resolved | D13, D-3.12 | DEC-0013 |
+| 13 | Who sets `decided_by` | Resolved | D14, D-3.11, D-3.12 | DEC-0014 |
+| 14 | Row mutability | Resolved | D15, D-3.13 | DEC-0015 |
+| 15 | Backfill scope | Resolved | D16, D-3.15 | DEC-0016 |
+| 16 | How `charting` is detected | Resolved | D-4.6 (A5) | DEC-0025 |
+| 17 | How old sprint plans survive the Seams rule | Resolved | D-7.2 (A10) | DEC-0030 |
+| 18 | Whether the flag hides commands | Resolved by a first-task check | D-8.4 | DEC-0049 |
+| 19 | Parallel writers and merges | Resolved | D-3.18 (A33) | DEC-0053 |
+| 20 | Where operator attribution comes from | Resolved | D-3.12 (A31) | DEC-0051 |
 
 ## 11. Appendix
 

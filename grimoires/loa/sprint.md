@@ -209,7 +209,7 @@ Complete the decision surfaces with a shared vocabulary and two verifiable test-
 - [ ] `.claude/scripts/red-test-check.sh` with `--setup` and default symlinking of `node_modules`, `.venv`, `vendor`, `target`, `.tox` into the temp worktrees, a per-run timeout with a `TIMEOUT` verdict, trap-based worktree cleanup; `micro-sprint.md` two-commit rule; `reviewing-code` cites the script's output
 - [ ] A report-only run of the glossary checker against `CLAUDE.loa.md` before Task 3.1 sizes the seed and the allowlist; false positives are reviewed before any allowlist entry
 - [ ] Docs: CHANGELOG `[Unreleased]`, README what's-new, `hooks-reference.md` rows for the new SessionStart surface and ICE rule, `REPO-MAP.md` regenerated with `.checksum` and `checksums.json` staged together, migration note for the pacing default
-- [ ] Task 3.E2E completed with evidence per goal
+- [x] Task 3.E2E completed with evidence per goal
 
 ### Acceptance Criteria
 - [ ] `check-glossary-terms.sh` exits 0 on the kernel and 1 when a term is removed from the glossary (bats)
@@ -218,18 +218,18 @@ Complete the decision surfaces with a shared vocabulary and two verifiable test-
 - [ ] `red-test-check.sh` bats: red+green passes; a decoy passing at both commits exits 3; a missing test file or collection error at the red commit exits 4; a timeout yields `TIMEOUT`; a fixture whose test imports an external dependency passes through the bootstrap; `git worktree list` is clean after every case; the red output is printed
 - [ ] `micro-sprint.md` Task 1 requires the separate red commit; `reviewing-code` names the script
 - [ ] CHANGELOG, README, hooks-reference, REPO-MAP updated; `repo-map` checksum consistent
-- [ ] Task 3.E2E: every goal G-1…G-7 validated with documented evidence in a report table (goal, command run, artifact path, pass/fail) under `grimoires/loa/a2a/sprint-254/e2e.md`; G-3 scores a transcript other than the Sprint 1 fixture
+- [x] Task 3.E2E: every goal G-1…G-7 validated with documented evidence in a report table (goal, command run, artifact path, pass/fail) under `grimoires/loa/a2a/sprint-254/e2e.md`; G-3 scores a transcript other than the Sprint 1 fixture
 - [ ] Existing `validate-artifact`, `reviewing-code` and CI suites stay green (backward compatibility)
 
 ### Technical Tasks
 
-- [ ] Task 3.1: Report-only sizing run of the checker over `CLAUDE.loa.md`, then `.claude/loa/GLOSSARY.md` framework glossary seed (incl. `_Aliases_` lines) and the root project `GLOSSARY.md` convention; `validate-artifact.sh --type glossary` → **[G-5]** ⇐ none
-- [ ] Task 3.2: `tools/check-glossary-terms.sh` (token exclusion heuristic, case-insensitive plural and alias matching, allowlist ≤ 30) + CI workflow step; planning-skill sentences; `riding-codebase` read; `reviewing-code` checklist row → **[G-5]** ⇐ Task 3.1
-- [ ] Task 3.3: Seams Under Test: template block, validator rule gated on the plan `Date` ≥ 2026-10-13 (undated plans WARN), `planning-sprints` Phase 2 round, `reviewing-code` seam check → **[G-6]** ⇐ none
-- [ ] Task 3.4: `red-test-check.sh --red <commit> [--green] [--test-file] [--setup] [--timeout] -- <test command...>` (detached temp worktrees with dependency symlinks or `--setup`; red must fail with the output printed; green must pass; decoy exit 3; missing test file or collection error exit 4; `TIMEOUT` verdict via `timeout`/`gtimeout`/bash wrapper; trap cleanup), `micro-sprint.md` two-commit rule, `reviewing-code` citation line → **[G-6]** ⇐ none
-- [ ] Task 3.5: Sprint 3 verification: `glossary-terms.bats`, sprint-validator seams bats (new plan fails without the block; cycle-127 plan passes), `red-test-check.bats` with decoy → **[G-5, G-6]** ⇐ Task 3.2, Task 3.3, Task 3.4
-- [ ] Task 3.6: Docs and release surfaces: CHANGELOG `[Unreleased]` entries for Sprint 3 and reconciliation of Sprints 1–2, README, `hooks-reference.md`, REPO-MAP + checksums → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.5
-- [ ] Task 3.E2E: End-to-End Goal Validation → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.6
+- [x] Task 3.1: Report-only sizing run of the checker over `CLAUDE.loa.md`, then `.claude/loa/GLOSSARY.md` framework glossary seed (incl. `_Aliases_` lines) and the root project `GLOSSARY.md` convention; `validate-artifact.sh --type glossary` → **[G-5]** ⇐ none
+- [x] Task 3.2: `tools/check-glossary-terms.sh` (token exclusion heuristic, case-insensitive plural and alias matching, allowlist ≤ 30) + CI workflow step; planning-skill sentences; `riding-codebase` read; `reviewing-code` checklist row → **[G-5]** ⇐ Task 3.1
+- [x] Task 3.3: Seams Under Test: template block, validator rule gated on the plan `Date` ≥ 2026-10-13 (undated plans WARN), `planning-sprints` Phase 2 round, `reviewing-code` seam check → **[G-6]** ⇐ none
+- [x] Task 3.4: `red-test-check.sh --red <commit> [--green] [--test-file] [--setup] [--timeout] -- <test command...>` (detached temp worktrees with dependency symlinks or `--setup`; red must fail with the output printed; green must pass; decoy exit 3; missing test file or collection error exit 4; `TIMEOUT` verdict via `timeout`/`gtimeout`/bash wrapper; trap cleanup), `micro-sprint.md` two-commit rule, `reviewing-code` citation line → **[G-6]** ⇐ none
+- [x] Task 3.5: Sprint 3 verification: `glossary-terms.bats`, sprint-validator seams bats (new plan fails without the block; cycle-127 plan passes), `red-test-check.bats` with decoy → **[G-5, G-6]** ⇐ Task 3.2, Task 3.3, Task 3.4
+- [x] Task 3.6: Docs and release surfaces: CHANGELOG `[Unreleased]` entries for Sprint 3 and reconciliation of Sprints 1–2, README, `hooks-reference.md`, REPO-MAP + checksums → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.5
+- [x] Task 3.E2E: End-to-End Goal Validation → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** ⇐ Task 3.6
 
 ### Task 3.E2E: End-to-End Goal Validation
 

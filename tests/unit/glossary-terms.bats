@@ -35,7 +35,10 @@ check() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"missing: 0"* ]]
     [[ "$output" == *"PASS"* ]]
-    [[ "$output" != *"WARN"* ]]
+    # the only WARN is the advisory alias ratio (the kernel names no glossary
+    # term in backticks; sprint-254 review item 1)
+    [ "$(grep -c '^WARN:' <<< "$output")" -eq 1 ]
+    [[ "$output" == *"WARN: advisory: 5 kernel token(s) resolve through _Aliases_: lines and 0 through **Term** entries"* ]]
 }
 
 @test "GT-2 removing a term from a copy of the glossary fails and names the token" {
@@ -98,9 +101,25 @@ check() {
 }
 
 @test "GT-8 the shape heuristic drops paths, files, flags, keys, calls, commands, phrases and operators" {
-    check 'Dropped: `a/b`, `file.md`, `--flag`, `-x`, `key:value`, `call()`, `/loa`, `two words`, `>>`, `*_TEST_MODE=1`, `9lives`, `x=y`.' --report
+    check 'Dropped: `a/b`, `file.md`, `--flag`, `-x`, `key: value`, `audit: skip`, `a:b:c`, `:lead`, `trail:`, `x::y`, `flatline:<path>`, `call()`, `/loa`, `two words`, `>>`, `*_TEST_MODE=1`, `9lives`, `x=y`.' --report
     [ "$status" -eq 0 ]
     [[ "$output" == *"kernel tokens kept: 0;"* ]]
+}
+
+@test "GT-8b one interior colon is kept: decision:grilling resolves to its entry, a typo misses" {
+    printf '# Glossary: t\nctx\n\n## Language\n\n**decision:grilling**: A label.\n' > "$W/g.md"
+    check 'Label `decision:grilling`, `Decision:Grilling` and the typo `decision:griling`.' --report
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"defined     decision:grilling"*"-> decision:grilling"* ]]
+    [[ "$output" == *"defined     Decision:Grilling"* ]]
+    [[ "$output" == *'MISS: `decision:griling`'* ]]
+}
+
+@test "GT-8c the live framework glossary resolves all four decision labels" {
+    printf 'Labels: `decision:grilling`, `decision:prototype`, `decision:research`, `decision:unblock`.\n' > "$W/k.md"
+    run "$CHECK" --kernel "$W/k.md" --allowlist "$W/a.txt" --report
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^defined     decision:' <<< "$output")" -eq 4 ]
 }
 
 @test "GT-9 an allowlisted token resolves; an allowlist of 31 entries fails" {
@@ -196,4 +215,74 @@ check() {
 @test "GT-19 the framework glossary has at least 18 entries" {
     n="$(grep -cE '^\*\*[^*]+\*\*: ' "$GLOSSARY")"
     [ "$n" -ge 18 ]
+}
+
+@test "GT-20 kernel fences close only on the same character and length (CommonMark)" {
+    check $'A `Widget`.\n````md\n```\n`Hidden1`\n```\n````\nThen `Box`.\n```\n~~~\n`Hidden2`\n~~~\n```\nAnd `Widgets`.\n~~~~\n```\n`Hidden3`\n~~~~~\nEnd.' --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"kernel tokens kept: 3;"* ]]
+    [[ "$output" != *"Hidden"* ]]
+}
+
+@test "GT-21 an inline triple-backtick span does not open a fence; spans match backtick runs of equal length" {
+    check $'Inline ```Code``` here, ``a `Widget` b`` there, and a `Sprocket`.\nNext line `Box`.' --report
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'MISS: `Code`'* ]]
+    [[ "$output" == *'MISS: `Sprocket`'* ]]
+    [[ "$output" == *"defined     Box"* ]]
+    [[ "$output" == *"kernel tokens kept: 3;"* ]]
+}
+
+@test "GT-22 glossary fences follow the same rule: entries in a nested block do not count" {
+    printf '# Glossary: t\nctx\n\n## Language\n\n````md\n```\n**Ghost**: inside the block.\n```\n````\n\n**Widget**: A thing.\n' > "$W/g.md"
+    check 'A `Widget` and a `Ghost`.'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'MISS: `Ghost`'* ]]
+    [[ "$output" != *'MISS: `Widget`'* ]]
+}
+
+@test "GT-23 an orphan _Aliases_: line WARNs with its glossary line and does not shadow a later alias" {
+    printf '# Glossary: t\nctx\n\n## Language\n\n_Aliases_: wid\n\n**Widget**: A thing, also wid.\n_Aliases_: wid\n' > "$W/g.md"
+    check 'A `wid`.' --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"alias       wid"*"-> Widget"* ]]
+    [[ "$output" == *"WARN: _Aliases_: line $W/g.md:6 comes before any **Term**: entry"* ]]
+}
+
+@test "GT-24 one alias line naming every kernel token passes the checker with the advisory WARN, and the validator fails it" {
+    toks="$("$CHECK" --report 2>/dev/null | awk '$1 ~ /^(alias|allowlisted|defined)$/ {print $2}' | paste -sd, - | sed 's/,/, /g')"
+    [ -n "$toks" ]
+    printf '# Glossary: t\nctx\n\n## Language\n\n**Stuff**: Everything.\n_Aliases_: %s\n' "$toks" > "$W/g.md"
+    : > "$W/a.txt"
+    run "$CHECK" --glossary "$W/g.md" --allowlist "$W/a.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARN: advisory: 16 kernel token(s) resolve through _Aliases_: lines and 0 through **Term** entries"* ]]
+    run "$PROJECT_ROOT/.claude/scripts/validate-artifact.sh" --type glossary --file "$W/g.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'"Stuff" has 16 aliases, over 6'* ]]
+}
+
+@test "GT-25 no advisory WARN when defined terms outnumber alias resolutions" {
+    check 'A `Widget`, a `Box` and `running`.'
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"advisory"* ]]
+}
+
+@test "GT-26 --json avoids jq 1.6-only features (jq 1.5 portability)" {
+    run bash -c 'grep -vE "^[[:space:]]*#" "$1" | grep -nE -- "--rawfile|[^A-Za-z_]IN\\("' _ "$CHECK"
+    [ "$status" -eq 1 ]
+}
+
+@test "GT-27 a line that starts with an inline triple-backtick span is text, not a fence opener" {
+    check $'```Code``` starts this line and a `Sprocket` follows.\nThen a `Gizmo`.'
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'MISS: `Sprocket`'* ]]
+    [[ "$output" == *'MISS: `Gizmo`'* ]]
+}
+
+@test "GT-28 a double-backtick span holding a single backtick is one span, not two" {
+    check $'Here ``Foo`Bar`` and a `Widget`.' --report
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"Foo"* ]]
+    [[ "$output" == *"kernel tokens kept: 1;"* ]]
 }

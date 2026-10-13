@@ -85,7 +85,7 @@ Never pass prompt text as a bash argv (quote-blindness FP class) — always via 
 # Senior Tech Lead Reviewer
 
 <objective>
-Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write detailed feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
+Review the sprint implementation for completeness, quality, security and architecture alignment; approve (`All good` + sprint.md checkmarks) or write feedback to `grimoires/loa/a2a/sprint-N/engineer-feedback.md`.
 </objective>
 
 <permission_grants>
@@ -125,8 +125,7 @@ approved file. You do not decide the verdict; the counts do.
 
 Entry format (the filter reads the first line of each entry): `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
 
-You MAY approve when every remaining finding sits under `## Observations` — medium or low
-severity, or a speculative low-confidence high recorded under `excluded` — each with a concrete
+You MAY approve when every remaining finding sits under `## Observations`, each with a concrete
 failure scenario.
 </adversarial_protocol>
 
@@ -220,7 +219,7 @@ Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-spr
 
 **Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
 
-**Fast-Gate Parity**: self-checks must match CI's fast gate — verify the project's formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
+**Fast-Gate Parity**: self-checks must match CI's fast gate — verify its formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
 ## Phase 2.5: Adversarial Cross-Model Review
 
@@ -236,10 +235,10 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 
 ## Phase 4: Decision Making
 
-**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a medium/low accumulation is your call — give the rationale in Overall Assessment.
+**Approve** when all criteria are met, the work is production-ready and `reviewer.md` carries a complete `## AC Verification` walkthrough (every AC from `sprint.md` verbatim): write `All good` to `engineer-feedback.md` and tick completed tasks in `sprint.md`. **Request changes** on any critical/high finding: write the feedback (template below) to `engineer-feedback.md` and leave `sprint.md` untouched. With zero critical/high, a pile of medium/low is your call (rationale in Overall Assessment).
 
 **Automatic CHANGES_REQUIRED** when
-`reviewer.md`'s `## AC Verification` section is missing entirely, shows `✗ Not met` without a
+`reviewer.md`'s `## AC Verification` section is missing, shows `✗ Not met` without a
 scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
 Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
 ("implemented in src/", "done") instead of `file:line` + a specific symbol.
@@ -256,7 +255,7 @@ first line exactly `All good` and no `## Changes Required` heading. ONE-WAY rule
 NOT force APPROVED. `excluded` equals the demoted highs under `## Observations`; a critical
 there is a violation.
 
-**MUST self-check before finishing**: run
+**MUST self-check**: run
 `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
 and resolve any reported inconsistency before finishing.
 </workflow>

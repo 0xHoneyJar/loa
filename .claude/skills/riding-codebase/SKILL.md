@@ -89,7 +89,7 @@ from it. Big files: `notes-guard.sh read --file F --section <H>` / `--index` fir
 
 ## Phase 0.5: Codebase Probing
 
-Before loading any files, probe the codebase to pick a loading strategy. Run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (fall back to eager loading if unavailable) for file count, lines, tokens, and size category:
+Before loading files, pick a loading strategy: run `.claude/scripts/context-manager.sh probe "$TARGET_REPO" --json` (eager loading if unavailable) for file count, lines, tokens and size category:
 
 | Codebase Size | Lines | Strategy |
 |---------------|-------|----------|
@@ -97,7 +97,7 @@ Before loading any files, probe the codebase to pick a loading strategy. Run `.c
 | Medium | 10K-50K | Prioritized — high-relevance first |
 | Large | >50K | Excerpts only — too large for full load |
 
-Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-load decision; for prioritized/excerpts strategies, sort by relevance score using `.claude/scripts/context-manager.sh should-load "$file" --json`. Log probe results to trajectory.
+Create `grimoires/loa/reality/loading-plan.md` grouping files by should-load decision (prioritized/excerpts: sort by relevance score via `.claude/scripts/context-manager.sh should-load "$file" --json`); log probe results to trajectory.
 
 ---
 
@@ -105,7 +105,7 @@ Create `grimoires/loa/reality/loading-plan.md` with files categorized by should-
 
 ### 1.1 Context Discovery Setup
 
-Scan `grimoires/loa/context/` for existing documentation files, then use `AskUserQuestion` to offer the user a chance to add more (architecture docs, tribal knowledge, roadmaps) to `grimoires/loa/context/` before the interview.
+Scan `grimoires/loa/context/` for existing docs, then offer via `AskUserQuestion` to add more there (architecture docs, tribal knowledge, roadmaps) before the interview.
 
 ### 1.2 Analyze Existing Context (Pre-Interview)
 
@@ -153,7 +153,7 @@ Clear raw tool outputs after extraction; report counts for routes, entities, env
 
 ## Phase 2b: Code Hygiene Audit
 
-Generate `grimoires/loa/reality/hygiene-report.md` flagging potential issues for HUMAN DECISION: files outside standard directories, potential temporary/WIP folders, commented-out code blocks, and potential dependency conflicts. **WRITE TO DISK.**
+Generate `grimoires/loa/reality/hygiene-report.md` flagging for HUMAN DECISION: files outside standard directories, likely temporary/WIP folders, commented-out code blocks and possible dependency conflicts. **WRITE TO DISK.**
 
 **See**: `resources/references/deep-analysis-guide.md` for the hygiene report template and dead code philosophy.
 
@@ -267,7 +267,7 @@ Generate `grimoires/loa/governance-report.md`. **WRITE TO DISK.**
 
 ## Phase 8: Legacy Deprecation
 
-For each file in `legacy/doc-files.txt`, prepend a deprecation notice pointing to `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth, referencing `grimoires/loa/drift-report.md`.
+Prepend to each file in `legacy/doc-files.txt` a deprecation notice naming `grimoires/loa/prd.md` and `grimoires/loa/sdd.md` as the new source of truth and citing `grimoires/loa/drift-report.md`.
 
 ---
 
