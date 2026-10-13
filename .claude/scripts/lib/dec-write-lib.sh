@@ -648,6 +648,15 @@ op_import(){
     local why; if why="$(ci_blocked)"; then die "refused: ${why} is set"; fi
     TARGET="$LIVE"; TARGET_KIND="live"; [[ -f "$TARGET" ]] || die "ledger not found: $TARGET"
   fi
+  # --rewrite targets are checked before anything is written: an existing regular file (not a symlink)
+  # whose canonical path lies under PROJECT_ROOT, named without '..'.
+  local rw rwc proot; proot="$(abs_dir "$PROJECT_ROOT")"
+  while IFS= read -r -d '' rw; do
+    [[ "$rw" != *".."* ]] || die "import: --rewrite path may not contain '..': $rw"
+    [[ -f "$rw" && ! -L "$rw" ]] || die "import: --rewrite target is not an existing regular file: $rw"
+    rwc="$(canon "$rw")"
+    case "$rwc" in "${proot}/"*) ;; *) die "import: --rewrite target is outside the project (${proot}): $rw" ;; esac
+  done < <(om rewrite)
   local pv; pv="$(PROJECT_ROOT="$PROJECT_ROOT" bash "$VALIDATOR" --type decisions --file "$from" 2>&1)" || die "import: the pending file fails validation:"$'\n'"$pv"
   acquire_lock "$TARGET"
   local old pend n; old="$(read_ledger "$TARGET")"; pend="$(read_ledger "$from")"

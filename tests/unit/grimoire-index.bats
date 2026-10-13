@@ -138,3 +138,31 @@ _need_yq4() { [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip 
   [ "$output" = "$dir/grimoires/loa/decisions.yaml" ]
   [ -f "$output" ]
 }
+
+@test "grimoire-index decisions: untrusted row text is cleaned in TSV, JSON and md (tab, newline, ESC, C1, <script>)" {
+  _need_yq4
+  local dir="$BATS_TEST_TMPDIR/dproj"; _decisions_project "$dir"
+  # a hand-edited row (the index reads whatever the file holds) with a real TAB, LF, ESC and C1 NEL
+  SUM="$(printf 'a\tb\nc\033[31md\302\205e <script>alert(1)</script>')" SRC="$(printf 's\t<x>\ny')" \
+    yq -i '.decisions[0].summary = strenv(SUM) | .decisions[0].source = strenv(SRC)' "$dir/grimoires/loa/decisions.yaml"
+  # the fixture really holds the hostile bytes
+  yq -o=json '.decisions[0].summary' "$dir/grimoires/loa/decisions.yaml" | jq -e 'test("\t") and test("\n") and test("\u001b") and test("\u0085") and test("<script>")' >/dev/null
+  local tsv json md row out lq rq
+  lq="$(printf '\342\200\271')"; rq="$(printf '\342\200\272')"   # the single guillemets < and > become
+  tsv="$(bash "$dir/.claude/scripts/grimoire-index.sh" --tsv | grep '^decisions' | head -1)"
+  [ "$(printf '%s' "$tsv" | awk -F'\t' '{print NF}')" -eq 9 ]
+  [ "$(printf '%s' "$tsv" | cut -f4)" = "a b c [31md e ${lq}script${rq}alert(1)${lq}/script${rq}" ]
+  [ "$(printf '%s' "$tsv" | cut -f6)" = "s ${lq}x${rq} y" ]
+  json="$(bash "$dir/.claude/scripts/grimoire-index.sh" --json)"
+  [ "$(echo "$json" | jq -r '.families.decisions[0].title')" = "a b c [31md e ${lq}script${rq}alert(1)${lq}/script${rq}" ]
+  bash "$dir/.claude/scripts/grimoire-index.sh" --quiet
+  md="$(cat "$dir/grimoires/loa/INDEX.md")"
+  row="$(printf '%s\n' "$md" | grep '^| DEC-0001 ')"
+  [ "$row" = "| DEC-0001 | open | agent | a b c [31md e ${lq}script${rq}alert(1)${lq}/script${rq} | s ${lq}x${rq} y |" ]
+  for out in "$tsv" "$json" "$md"; do
+    [[ "$out" != *"<script>"* && "$out" != *"<x>"* ]]
+    run bash -c 'printf "%s" "$1" | tr -d "\t\n" | LC_ALL=C grep -c "[[:cntrl:]]"' _ "$out"
+    [ "$output" = "0" ]
+    [[ "$out" != *$'\xc2\x85'* ]]
+  done
+}

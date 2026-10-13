@@ -143,6 +143,56 @@ transcript() {
     [[ "$output" == *"round 1: malformed questions array"* ]]
 }
 
+@test "RI-11c ids carrying escapes are malformed (exit 1) and no ESC byte reaches the output" {
+    run "$CHECK" "$FIX/escape-id.md"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"round 1: malformed questions array"* ]]
+    [[ "$output" == *"round 2: malformed questions array"* ]]
+    [[ "$output" != *$'\e'* ]]
+    run "$CHECK" "$FIX/escape-id.md" --json
+    [ "$status" -eq 1 ]
+    [[ "$output" != *$'\e'* ]]
+}
+
+@test "RI-11d an id outside [A-Za-z0-9_.-]{1,64} is malformed" {
+    transcript '[{"id":"Q 1","depends_on":[]},{"id":"Q2","depends_on":[]}]'
+    run "$CHECK" "$T"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"round 1: malformed questions array"* ]]
+    local long; long="$(printf 'Q%.0s' $(seq 1 65))"
+    transcript "[{\"id\":\"$long\",\"depends_on\":[]},{\"id\":\"Q2\",\"depends_on\":[]}]"
+    run "$CHECK" "$T"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"round 1: malformed questions array"* ]]
+}
+
+@test "RI-11e a 200 KiB block is a malformed violation with a clear message, not a jq crash" {
+    {
+        printf '<!-- round: 1; questions: [{"id":"Q1","depends_on":[]},{"id":"Q2","depends_on":[]}'
+        local i; for i in $(seq 1 2300); do printf ',{"id":"P%04d","depends_on":[],"note":"%080d"}' "$i" 0; done
+        printf '] -->\n'
+        printf '%s\n' '<!-- round: 2; questions: [{"id":"Q3","depends_on":[]},{"id":"Q4","depends_on":[]}] -->'
+    } > "$T"
+    [ "$(wc -c < "$T")" -gt 204800 ]
+    run "$CHECK" "$T"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"round 1: malformed questions array (block is "*"over the 65536-byte limit)"* ]]
+}
+
+@test "RI-11f a transcript whose rounds total more than 128 KiB is checked, not crashed" {
+    local i pad; pad="$(printf 'x%.0s' $(seq 1 60))"
+    : > "$T"
+    for i in $(seq 1 900); do
+        printf '<!-- round: %d; questions: [{"id":"A%s%04d","depends_on":[]},{"id":"B%s%04d","depends_on":[]}] -->\n' \
+            "$i" "${pad:0:58}" "$i" "${pad:0:58}" "$i" >> "$T"
+    done
+    [ "$(wc -c < "$T")" -gt 131072 ]
+    run "$CHECK" "$T" --json
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.rounds' <<< "$output")" -eq 900 ]
+    [ "$(jq -r '.questions' <<< "$output")" -eq 1800 ]
+}
+
 @test "RI-12 no round block exits 2; usage errors exit 2" {
     printf 'an interview with no round blocks\n' > "$T"
     run "$CHECK" "$T"

@@ -183,10 +183,12 @@ emit_decisions(){
   if ! j="$(yq -o=json -I0 '.decisions // []' "$f" 2>/dev/null)" || ! printf '%s' "$j" | jq -e 'type == "array"' >/dev/null 2>&1; then
     echo "grimoire-index: NOTE: decisions family skipped (grimoires/loa/decisions.yaml does not parse)" >&2; return 0
   fi
-  # Sanitised in jq (control characters, C1, U+2028/9 flattened; capped at 160 code points) so an
-  # empty cell never shifts the TAB columns.
+  # Rows are agent-authored and UNTRUSTED (as in loa-decisions-surface.sh): every field is cleaned in jq.
+  # C0/C1 controls (tab and newline included, so no cell shifts the TAB columns) and U+2028/9 become
+  # spaces, < and > become single guillemets, and each field is capped at 160 code points.
   printf '%s' "$j" | jq -r '
-    def s: tostring | gsub("[[:cntrl:]\u2028\u2029]"; " ") | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];
+    def s: tostring | gsub("[[:cntrl:]\u0080-\u009f\u2028\u2029]"; " ") | gsub("<"; "\u2039") | gsub(">"; "\u203a")
+           | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];
     .[] | objects | select(((.id // "") | s) != "")
     | ["decisions", (.id | s), ((.status // "") | s), ((.summary // "") | s), ("grimoires/loa/decisions.yaml#" + (.id | s)),
        ((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'

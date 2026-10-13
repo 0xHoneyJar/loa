@@ -62,35 +62,51 @@ if [[ -z "$blocks" ]]; then
   exit 2
 fi
 
-rounds_json="[]"
+# Transcript content never travels as a jq argv string (Linux caps one argument
+# at 128 KiB): each block and the accumulated rounds go through temp files.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/check-round-independence.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+MAX_BLOCK_BYTES=65536
+ID_RE='^[A-Za-z0-9_.-]{1,64}$'
+: > "$WORK/rounds.jsonl"
+
 while IFS= read -r block; do
   [[ -n "$block" ]] || continue
   n="$(printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*([0-9]+).*/\1/')"
   [[ ${#n} -le 9 ]] || { echo "check-round-independence.sh: round number $n is too long" >&2; exit 1; }
   n=$((10#$n))   # "02" is not valid JSON; the round number is decimal
-  arr="$(printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*[0-9]+[[:space:]]*;[[:space:]]*questions:[[:space:]]*//; s/[[:space:]]*-->$//')"
-  # -s slurps the capture: exactly one JSON value, and it is a well-formed
-  # array. Without -s, `[] [{...}]` (two values) would pass on the last one
-  # and break --argjson below.
-  if printf '%s' "$arr" | jq -se 'length == 1 and (.[0] | type == "array" and all(.[];
-        type == "object" and (.id | type == "string" and length > 0)
-        and (.depends_on | type == "array" and all(.[]; type == "string"))))' >/dev/null 2>&1; then
-    entry="$(jq -cn --argjson r "$n" --argjson q "$arr" '{round: $r, questions: $q}')"
+  printf '%s\n' "$block" | sed -E 's/^<!--[[:space:]]*round:[[:space:]]*[0-9]+[[:space:]]*;[[:space:]]*questions:[[:space:]]*//; s/[[:space:]]*-->$//' > "$WORK/arr.json"
+  bytes="$(wc -c < "$WORK/arr.json" | tr -d '[:space:]')"
+  if [[ "$bytes" -gt "$MAX_BLOCK_BYTES" ]]; then
+    jq -cn --argjson r "$n" --arg why "block is $bytes bytes, over the $MAX_BLOCK_BYTES-byte limit" \
+      '{round: $r, malformed: $why}' >> "$WORK/rounds.jsonl"
+  # -s slurps the capture: exactly one JSON value, a well-formed array whose
+  # ids and depends_on names match ID_RE. Without -s, `[] [{...}]` (two values)
+  # would pass on the last one. Ids are untrusted model output, so the pattern
+  # also keeps escapes and control characters out of every printed line.
+  elif jq -se --arg re "$ID_RE" 'length == 1 and (.[0] | type == "array" and all(.[];
+        type == "object" and (.id | type == "string" and test($re))
+        and (.depends_on | type == "array" and all(.[]; type == "string" and test($re)))))' \
+        "$WORK/arr.json" >/dev/null 2>&1; then
+    jq -c --argjson r "$n" '{round: $r, questions: .}' "$WORK/arr.json" >> "$WORK/rounds.jsonl"
   else
-    entry="$(jq -cn --argjson r "$n" --arg raw "$arr" '{round: $r, malformed: $raw}')"
+    jq -cn --argjson r "$n" \
+      '{round: $r, malformed: "each entry needs an id and depends_on names matching [A-Za-z0-9_.-]{1,64}"}' \
+      >> "$WORK/rounds.jsonl"
   fi
-  rounds_json="$(jq -cn --argjson a "$rounds_json" --argjson e "$entry" '$a + [$e]')"
 done <<< "$blocks"
+jq -s '.' "$WORK/rounds.jsonl" > "$WORK/rounds.json"
 
-report="$(jq -n --argjson rounds "$rounds_json" --argjson min "$MIN_AVG" '
-  reduce range(0; $rounds | length) as $i (
+report="$(jq -n --slurpfile rs "$WORK/rounds.json" --argjson min "$MIN_AVG" '
+  $rs[0] as $rounds
+  | reduce range(0; $rounds | length) as $i (
     {asked: [], violations: [], per_round: [], prev: null};
     $rounds[$i] as $r
     | (if .prev != null and $r.round <= .prev
          then .violations += ["round \($r.round) does not follow round \(.prev)"] else . end)
     | .prev = $r.round
     | if $r.malformed != null then
-        .violations += ["round \($r.round): malformed questions array (each entry needs a string id and a depends_on array of strings)"]
+        .violations += ["round \($r.round): malformed questions array (\($r.malformed))"]
         | .per_round += [{round: $r.round, new: 0, reasked: 0, ids: []}]
       else
         ($r.questions | map(.id)) as $here
@@ -139,11 +155,14 @@ report="$(jq -n --argjson rounds "$rounds_json" --argjson min "$MIN_AVG" '
 if [[ "$JSON" -eq 1 ]]; then
   printf '%s\n' "$report"
 else
+  # Strip control characters from every printed line: ids are validated above,
+  # this keeps any future field from putting a raw ESC on the terminal.
   printf '%s\n' "$report" | jq -r '
-    (.per_round[] | "round \(.round): \(.new) new question(s)\(if .reasked > 0 then ", \(.reasked) re-asked" else "" end) [\(.ids | join(" "))]"),
+    def clean: gsub("[[:cntrl:]]"; "?");
+    ((.per_round[] | "round \(.round): \(.new) new question(s)\(if .reasked > 0 then ", \(.reasked) re-asked" else "" end) [\(.ids | join(" "))]"),
     "rounds: \(.rounds); questions: \(.questions); average: \(.average) per round\(if .final_round_exempt then " (final round exempt)" else "" end); min-average: \(.min_average)",
     (.violations[] | "VIOLATION: \(.)"),
-    .verdict'
+    .verdict) | clean'
 fi
 
 verdict="$(printf '%s\n' "$report" | jq -r '.verdict')"

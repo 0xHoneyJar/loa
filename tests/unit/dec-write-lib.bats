@@ -455,6 +455,27 @@ assert_unattended_write(){
   [ "$status" -eq 0 ]
 }
 
+@test "dec-write import: --rewrite targets outside the project, with '..', symlinks or missing files are refused before any write" {
+  run bash "$D" new --pending --sprint 252 --summary p --phase discovery --category scope --recorded-by x --source s --quiet
+  [ "$status" -eq 0 ]; local pid="$output"
+  local P="$T/grimoires/loa/a2a/sprint-252/decisions-pending.yaml"
+  printf 'see %s\n' "$pid" > "$BATS_TEST_TMPDIR/outside.md"
+  printf 'see %s\n' "$pid" > "$T/inside.md"
+  ln -s "$BATS_TEST_TMPDIR/outside.md" "$T/link.md"
+  cp "$L" "$BATS_TEST_TMPDIR/live-before.yaml"
+  local bad
+  for bad in "$BATS_TEST_TMPDIR/outside.md" "$T/grimoires/../inside.md" "$T/link.md" "$T/missing.md"; do
+    run bash "$D" import --from "$P" --rewrite "$bad"
+    [ "$status" -eq 1 ] || { echo "--rewrite $bad: status $status: $output"; return 1; }
+    [[ "$output" == *"--rewrite"* ]]
+  done
+  cmp "$L" "$BATS_TEST_TMPDIR/live-before.yaml"; [ -f "$P" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/outside.md")" = "see $pid" ]
+  run bash "$D" import --from "$P" --rewrite "$T/inside.md"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$T/inside.md")" = "see DEC-0001" ]
+}
+
 # ---- lock --------------------------------------------------------------------------
 
 @test "dec-write: a held flock makes a second writer exit 1 and leaves the file intact" {
