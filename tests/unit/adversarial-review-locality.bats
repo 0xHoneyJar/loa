@@ -231,9 +231,9 @@ _hosted_in() {  # <file of hop names, one per line> → the hosted ones, as hop-
 @test "LOC-9 a declared dispatch_group local on a hosted DNS endpoint (or a CLI provider) is hosted and refused by name (r257-1)" {
     _cfg local_voices
     yq -i '.hounfour.providers.hostedbox = {"type": "openai_compat", "endpoint": "https://api.acme.example/v1",
-             "models": {"qwen-hosted": {"dispatch_group": "local"}}}
+             "models": {"qwen-hosted": {"dispatch_group": "local", "endpoint_family": "chat", "auth_type": "http_api", "context_window": 32768}}}
            | .hounfour.providers.blockbox = {"type": "openai_compat", "endpoint": "https://203.0.113.5/v1", "dispatch_group": "local",
-             "models": {"qwen-b": {}}}
+             "models": {"qwen-b": {"dispatch_group": "local", "endpoint_family": "chat", "auth_type": "http_api", "context_window": 32768}}}
            | .hounfour.providers.clibox = {"type": "claude-headless", "models": {"c1": {"kind": "cli", "dispatch_group": "local"}}}
            | .hounfour.providers.noend = {"type": "openai_compat", "models": {"n1": {"dispatch_group": "local"}}}
            | .hounfour.aliases.hb = "hostedbox:qwen-hosted"
@@ -247,12 +247,28 @@ _hosted_in() {  # <file of hop names, one per line> → the hosted ones, as hop-
     [ "$(sed -n 4p <<<"$output" | cut -f2-4)" = "noend	hosted	endpoint_missing" ]
     [ "$(sed -n 5p <<<"$output" | cut -f2-4)" = "localbox	local	dispatch_group=local" ]
     [ "$(sed -n 6p <<<"$output" | cut -f3)" = "local" ]
-    # the whole run: the mislabelled hop is refused by name at plan time and never dispatched; the local hop answers
+    # two layers, same config (r257-2 LOW-2): the planner refuses the mislabelled hop by name at plan time and never
+    # dispatches it (shown under the harness stub, which stands in for cheval) …
     result=$(s3_run review)
-    [ "$(cat "$T/rc")" = "0" ] || { cat "$T/stderr.log"; return 1; }
-    grep -qxF "[adversarial-review] locality: local_voices refuses hosted hop hb (hostedbox)" "$T/stderr.log"
+    grep -qxF "[adversarial-review] locality: local_voices refuses hosted hop hb (hostedbox)" "$T/stderr.log" || { cat "$T/stderr.log"; return 1; }
     ! grep -qx "hb" "$CALLS" || { echo "the mislabelled hosted hop was dispatched"; return 1; }
-    [ "$(sort -u "$CALLS" | tr '\n' ' ')" = "lq " ]
+    # … and in production cheval's loader refuses the WHOLE config by name at the first dispatch, so no hop of this
+    # config — local ones included — answers until the label or the endpoint is fixed (the outcome an operator sees).
+    mkdir -p "$T/proj9/.claude/defaults"
+    cp "$PROJECT_ROOT/.claude/defaults/model-config.yaml" "$T/proj9/.claude/defaults/"
+    cp "$CONFIG_FILE" "$T/proj9/.loa.config.yaml"
+    # (clibox and noend are classifier-only shapes: the loader's older field checks would refuse them first; the two
+    # complete HTTP providers reach the local-label rule itself)
+    yq -i 'del(.hounfour.providers.clibox) | del(.hounfour.providers.noend)' "$T/proj9/.loa.config.yaml"
+    run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[2] + "/.claude/adapters")
+from loa_cheval.config.loader import load_config
+try:
+    load_config(project_root=sys.argv[1])
+except Exception as exc:
+    print(exc); sys.exit(3)
+print("loaded"); sys.exit(0)' "$T/proj9" "$PROJECT_ROOT"
+    [ "$status" -eq 3 ] || { echo "the loader admitted a mislabelled provider: $output"; return 1; }
+    [[ "$output" == *"[CONFIG-INVALID] providers."*"dispatch_group local"* ]] || { echo "$output"; return 1; }
 }
 
 @test "LOC-10 the suite's localbox fixture is a provider the cheval loader admits (LOW-1, r257-1)" {

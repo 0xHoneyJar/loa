@@ -51,6 +51,9 @@ _vd() {  # → verdict-derive's --json output on the standing envelope (status r
     [ "$(jq -r '.advisory_voices[0].alias' "$env")" = "adv-two" ]
     [ "$(jq -r '.advisory_voices[0].status' "$env")" = "succeeded" ]
     [ "$(jq -r '.advisory_voices[0].counted_as' "$env")" = "advisory_voice" ]
+    # (r257-2 LOW-3) the advisory voice's own spend is recorded on its entry; the counted envelope's cost is the counted voices' alone
+    [ "$(jq -r '.advisory_voices[0].cost_usd' "$env")" = "0.002" ]
+    [ "$(jq '((.metadata.cost_usd // 0) * 10000 | round) as $c | ($c == 123 or $c == 246)' "$env")" = "true" ]   # the stub's counted voices cost 0.0123 each; never + the advisory 0.002
     [ "$(jq '.advisory_voices[0].findings | length' "$env")" = "3" ]
     [ "$(jq -r '[.advisory_voices[0].findings[].voice] | unique | join(",")' "$env")" = "advisory" ]
     [ "$(jq -r '[.advisory_voices[0].findings[].id] | join(",")' "$env")" = "DISS-A1-001,DISS-A1-002,DISS-A1-003" ]

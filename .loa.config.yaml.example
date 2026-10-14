@@ -2508,7 +2508,9 @@ bridgebuilder:
   # Exit code of a multi-model run whose consensus is DEGRADED: fewer voices completed than planned, or a
   # degraded verdict-quality band (cycle-129, DEC-0150). The JSON and the PR comments are written first;
   # callers treat 3 as "completed, degraded" and print a WARN naming the voices. 0 restores the pre-cycle-129
-  # exit (rollback key). Integer 0..125. On a pull request this key is read from the trusted config
+  # exit (rollback key). Two values are meaningful to the callers (spiral-harness.sh, the session-cap dispatcher):
+  # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
+  # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
   # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
   exit_on_degraded: 3
 
