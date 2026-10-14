@@ -49,3 +49,16 @@ base_show() { git -C "$ROOT" show "$BASE:$1"; }
   ids() { grep -oE 'emit_block "[A-Za-z0-9._-]+"|pattern_id(: |=)"[A-Za-z0-9._-]+"'; }
   diff <(base_show .claude/hooks/safety/block-destructive-bash.sh | ids) <(ids < "$ROOT/.claude/hooks/safety/block-destructive-bash.sh")
 }
+
+@test "FS-5 the live permission deny list (policy:permission-deny-list) is identical to origin/main" {
+  # review r1 DISS-C-003: floor_files pins the deny template, not the live rules
+  diff <(base_show .claude/settings.json | jq -c '.permissions.deny') <(jq -c '.permissions.deny' "$ROOT/.claude/settings.json")
+}
+
+@test "FS-6 every floor gate implemented as a hook is registered in settings.json" {
+  # review r1 DISS-C-003: a gate present on disk but unregistered never runs
+  while IFS= read -r s; do
+    [[ -n "$s" ]] || continue
+    grep -qF -- "$s" "$ROOT/.claude/settings.json" || { echo "floor gate script $s is not registered in settings.json" >&2; return 1; }
+  done < <(yq -r '.guards[] | select(.floor == true and .kind == "gate") | .script' "$ROOT/.claude/data/guard-origins.yaml" | grep '^\.claude/hooks/' | sed 's#^\.claude/##')
+}

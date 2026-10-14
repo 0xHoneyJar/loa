@@ -89,6 +89,12 @@ jobs:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      # cycle-129 FR-1: tests/unit/floor-snapshot.bats compares the floor files and
+      # corpus rows with origin/main; the depth-1 checkout has no origin/main, so
+      # fetch that one ref (no tags) or the floor proof would skip in CI.
+      - name: Fetch origin/main for the floor snapshot
+        run: git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+
       - name: Configure git identity for tests
         run: |
           git config --global user.name "CI Bot"

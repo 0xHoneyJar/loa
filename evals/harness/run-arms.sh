@@ -42,8 +42,12 @@
 #       2 usage / refused before starting, 3 failed (no trial completed, or
 #       the corpus drifted mid-run)
 #
-# Executor: Fable 5.1 (D33, DEC-0164); the default --model is the id the
-# local claude CLI accepted on the cycle-129 probe (claude-fable-5-1).
+# Executor: Opus 5.5 (DEC-0172, amending D33/DEC-0164): the cycle-129 proof
+# trial on claude-fable-5-1 was refused by a safeguard and the CLI fell back to
+# Opus mid-session, so a Fable run is not homogeneous; the default --model is
+# the homogeneous id. The arms therefore carry a model-transfer assumption
+# (measured on Opus 5.5, the production gates run on Fable 5.1), stated in the
+# report header and next to every change the arms clear.
 # Tested by evals/tests/run-arms.bats (stubbed CLI; no model call).
 # =============================================================================
 set -euo pipefail
@@ -53,7 +57,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EVALS_DIR="$REPO_ROOT/evals"
 CORPUS_DIR="$EVALS_DIR/fixtures/review-prs"
-DEFAULT_MODEL="claude-fable-5-1"
+DEFAULT_MODEL="global.anthropic.claude-opus-5-5"
 CACHE_ROOT="${LOA_ARMS_CACHE:-$HOME/.cache/loa/cycle-129}"
 # the repository the pinned source worktree is cut from (tests point it at a
 # throwaway repo so they never register a worktree in the real one)

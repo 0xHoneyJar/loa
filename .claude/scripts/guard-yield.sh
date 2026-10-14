@@ -217,16 +217,25 @@ while IFS="$US" read -r tag ev mt rel wrapped; do
         continue
     fi
     abs="$ROOT/.claude/$rel"
-    if [[ -L "$abs" ]]; then
-        tgt="$(readlink "$abs")"
-        case "$tgt" in /*) ;; *) tgt="$(dirname "$abs")/$tgt" ;; esac
+    if [[ ! -e "$abs" ]]; then
+        echo "hook script .claude/$rel registered for $ev does not exist" >> "$ERRORS"
+        continue
+    fi
+    # Containment on the physical path: every component resolved (pwd -P on the
+    # parent, readlink on the leaf), so an intermediate symlinked directory under
+    # .claude/ cannot point the register at a file outside it (review r1 DISS-C-002).
+    tdir="$(cd "$(dirname "$abs")" 2>/dev/null && pwd -P)" || tdir=""
+    canon="$tdir/$(basename "$abs")"
+    if [[ -L "$canon" ]]; then
+        tgt="$(readlink "$canon")"
+        case "$tgt" in /*) ;; *) tgt="$tdir/$tgt" ;; esac
         tdir="$(cd "$(dirname "$tgt")" 2>/dev/null && pwd -P)" || tdir=""
         canon="$tdir/$(basename "$tgt")"
-        case "$canon" in
-            "$ROOT/.claude/"*) rel="${canon#"$ROOT/.claude/"}"; abs="$canon" ;;
-            *) echo "hook script .claude/$rel is a symlink that leaves .claude/ (registered for $ev)" >> "$ERRORS"; continue ;;
-        esac
     fi
+    case "$canon" in
+        "$ROOT/.claude/"*) rel="${canon#"$ROOT/.claude/"}"; abs="$canon" ;;
+        *) echo "hook script .claude/$rel resolves outside .claude/ (registered for $ev): $canon" >> "$ERRORS"; continue ;;
+    esac
     if [[ ! -f "$abs" ]]; then
         echo "hook script .claude/$rel registered for $ev does not exist" >> "$ERRORS"
         continue
@@ -332,6 +341,18 @@ while IFS= read -r spath; do
     [[ -f "$ROOT/$spath" ]] || echo "gate or policy script $spath does not exist" >> "$ERRORS"
 done < <(jq -r '.guards[] | select(.kind == "gate" or .kind == "policy") | .script' <<<"$MAP_JSON")
 
+# A floor gate implemented as a hook must be REGISTERED, not merely present on disk:
+# a row whose script lives under .claude/hooks/ needs a command in settings.json that
+# runs it (review r1 DISS-C-003 — unregistering adversarial-review-gate.sh and dropping
+# its hook row would otherwise leave --check green while the COMPLETED gate never runs).
+jq -r --argjson e "$ENUM_JSON" '
+  ($e.hooks | map(.id)) as $hooks
+  | .guards[] | select(.floor == true and .kind == "gate" and ((.script // "") | startswith(".claude/hooks/")))
+  | . as $g | ("hook:" + ($g.script | ltrimstr(".claude/hooks/"))) as $hid
+  | select($hooks | index($hid) | not)
+  | "floor gate \($g.id) names \($g.script) but no command in .claude/settings.json runs it (the gate is not registered)"
+' <<<"$MAP_JSON" >> "$ERRORS"
+
 if [[ -s "$ERRORS" ]]; then
     sed "s/^/$SCRIPT_NAME: /" "$ERRORS" >&2
     exit 5
@@ -391,6 +412,13 @@ render_hooks_ref() {
     ne="$(grep -c '^<!-- guard-register:end -->$' "$HOOKS_REF" || true)"
     [[ "$nb" == "1" && "$ne" == "1" ]] \
         || die 3 "$HOOKS_REF needs exactly one <!-- guard-register:begin --> and one <!-- guard-register:end --> line (found $nb and $ne)"
+    # The end marker must follow the begin marker, else the awk pass below would drop
+    # everything after a misplaced end line (review r1 DISS-C-006).
+    local lb le
+    lb="$(grep -n '^<!-- guard-register:begin -->$' "$HOOKS_REF" | cut -d: -f1)"
+    le="$(grep -n '^<!-- guard-register:end -->$' "$HOOKS_REF" | cut -d: -f1)"
+    [[ "$lb" -lt "$le" ]] \
+        || die 3 "$HOOKS_REF has its <!-- guard-register:end --> marker (line $le) before the begin marker (line $lb); restore the order"
     awk -v blockfile="$block" '
       /^<!-- guard-register:begin -->$/ { while ((getline l < blockfile) > 0) print l; skip = 1; next }
       /^<!-- guard-register:end -->$/ { skip = 0; next }

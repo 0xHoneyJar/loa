@@ -3368,6 +3368,6 @@
     ".claude/scripts/lib/md-fence.awk": "9ad121328797f7b85a57af25c3c16ec8c9b257ed3b51e8b7268c7f02c7428cc8",
     ".claude/data/floor.yaml": "bd1f22dce9b6f18a0fda36d5a65dacd8103075c66c8c649b21de04fffcc92587",
     ".claude/data/guard-origins.yaml": "de0ef166065de119cca659ec328fbc905a90c1cd9124a86d6248d8dab5a3708c",
-    ".claude/scripts/guard-yield.sh": "6631bb681336bb235ca5b1a834d5b52a117234e0bcbb074981d2d4aad3496e38"
+    ".claude/scripts/guard-yield.sh": "ddd32385fac2cc5bcccd439910461c265d75c7e009090c9d9d6b5891a483c9fb"
   }
 }

@@ -49,7 +49,7 @@ teardown() {
   M="$RES/review-recall/batch-pr-01-pr-02-n2/MANIFEST.json"
   [ -f "$M" ]
   [ "$(jq -r '.source_commit' "$M")" = "$SHA" ]
-  [ "$(jq -r '.model_id' "$M")" = "claude-fable-5-1" ]
+  [ "$(jq -r '.model_id' "$M")" = "global.anthropic.claude-opus-5-5" ]   # the DEC-0172 default
   [ "$(jq -r '.dry_run' "$M")" = "true" ]
   [ "$(jq -r '.trials_planned' "$M")" = "8" ]
   [ "$(jq -r '.corpus.sha256 | length' "$M")" = "64" ]
