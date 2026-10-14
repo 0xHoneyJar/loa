@@ -532,7 +532,11 @@ YIELD_JSON="$(jq -R -n \
   def destructive_start: (.command // "") | tostring | [splits("(;|&&|\\|\\||\\||\n)")] | map(sub("^\\s+"; "") | (split("\\s+"; null)[0] // "")) | any(.[]; IN(verbs[]));
   def heredoc: if $nonexec == null then ((.command // "") | tostring | contains("<<")) else (._i | IN($nonexec[])) end;
   def prose_class: (.pattern_id // "") | IN("SP-1", "FR-MERGE-2", "FR-2-AMBIGUOUS");
-  def likely_fp: heredoc or outside_repo or (prose_class and (destructive_start | not));
+  # A System-Zone block is never a false positive on account of its body: the hazard is the
+  # target (files under .claude/ are read as instructions), so the heredoc heuristic applies to
+  # content rules only (cycle-129 sprint-256 audit MEDIUM-A2).
+  def system_zone: (.pattern_id // "") | tostring | startswith("FR-SZ");
+  def likely_fp: (heredoc and (system_zone | not)) or outside_repo or (prose_class and (destructive_start | not));
   def day: strftime("%Y-%m-%d");
   def origin_txt: .origin as $o | if ($o.ref | tostring | startswith($o.kind | tostring)) then ($o.ref | tostring) else "\($o.kind) \($o.ref)" end;
   ($hooks | map({key: (.rel | split("/") | last | sub("\\.sh$"; "")), value: .id}) | from_entries) as $hookid

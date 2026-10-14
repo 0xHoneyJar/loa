@@ -68,7 +68,8 @@ g() { jq -c --arg id "$1" '.guards[] | select(.id == $id) | [.blocks_30d, .likel
   [ "$(jq '.replay_rows_excluded' "$J")" = "13" ]
   [ "$(jq -c '.replay_rows_by_rule' "$J")" = '{"flag":1,"cwd":2,"burst":10}' ]
   [ "$(jq '.audit_rows_unparseable' "$J")" = "1" ]
-  [ "$(jq -c '.totals | [.blocks_30d, .real_blocks_30d, .likely_fp_30d, .telemetry_30d]' "$J")" = '[5,2,3,2]' ]
+  # the FR-SZ2-REDIR row is a real block since audit r256-4 (System-Zone target), so 3 real / 2 likely FP
+  [ "$(jq -c '.totals | [.blocks_30d, .real_blocks_30d, .likely_fp_30d, .telemetry_30d]' "$J")" = '[5,3,2,2]' ]
   [ "$(jq -r '.scope' "$J")" = "host" ]
   [ "$(jq -r '.window_days' "$J")" = "30" ]
 }
@@ -79,14 +80,15 @@ g() { jq -c --arg id "$1" '.guards[] | select(.id == $id) | [.blocks_30d, .likel
   [ "$(g fence:P3)" = '[1,0,0,"2026-10-10"]' ]
 }
 
-@test "GY-3 heredoc, scratch-path and prose-class blocks classify as likely false positives; a prose class with a destructive verb is real" {
+@test "GY-3 scratch-path and prose-class blocks classify as likely false positives; a prose class with a destructive verb is real; a System-Zone block is real whatever its heredoc body" {
   run bash "$GY" "${ARGS[@]}"
   [ "$status" -eq 0 ]
-  [ "$(g fence:FR-SZ2-REDIR)" = '[1,1,0,"none in window"]' ]
+  # FR-SZ2-REDIR: a prose heredoc into .claude/ is the hazard SZ2 exists for (audit r256-4 MEDIUM-A2)
+  [ "$(g fence:FR-SZ2-REDIR)" = '[1,0,0,"2026-10-12"]' ]
   [ "$(g fence:P2)" = '[1,1,0,"none in window"]' ]
   [ "$(g fence:SP-1)" = '[1,1,0,"none in window"]' ]
   [ "$(g fence:FR-2-AMBIGUOUS)" = '[1,0,0,"2026-10-13"]' ]
-  [ "$(g hook:safety/block-destructive-bash.sh)" = '[5,3,0,"2026-10-13"]' ]
+  [ "$(g hook:safety/block-destructive-bash.sh)" = '[5,2,0,"2026-10-13"]' ]
 }
 
 @test "GY-4 last_real_catch and generated_at are day-granular; telemetry counts implement-gate rows; non-writers show n/a" {

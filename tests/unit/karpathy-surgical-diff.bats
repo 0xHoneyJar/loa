@@ -150,12 +150,16 @@ write_lines() {
     printf 'x\n' > "$KARPATHY_LEGACY_STATE"
     run --separate-stderr write_lines 9
     [ "$status" -eq 0 ]
-    [ -z "$output" ] && [ -z "$stderr" ]
-    [ ! -e "$KARPATHY_STATE_DIR" ] && [ ! -e "$KARPATHY_SUMMARY_FILE" ]
+    # One assertion per line: an `a && b` chain only fails when a passes and b fails (audit r256-4 MEDIUM-A1).
+    [ -z "$output" ]
+    [ -z "$stderr" ]
+    [ ! -e "$KARPATHY_STATE_DIR" ]
+    [ ! -e "$KARPATHY_SUMMARY_FILE" ]
     # The `lean` profile turns it off without the key; an explicit true wins over lean.
     printf 'loa:\n  profile: lean\nkarpathy_principles:\n  diff_lines_per_task: 1\n' > "$LOA_CONFIG_OVERRIDE"
     run --separate-stderr write_lines 9
-    [ -z "$stderr" ] && [ ! -e "$KARPATHY_SUMMARY_FILE" ]
+    [ -z "$stderr" ]
+    [ ! -e "$KARPATHY_SUMMARY_FILE" ]
     printf 'loa:\n  profile: lean\nkarpathy_principles:\n  surgical_diff_warning: true\n  diff_lines_per_task: 1\n' > "$LOA_CONFIG_OVERRIDE"
     run --separate-stderr write_lines 9
     [[ "$stderr" == *"[karpathy-surgical-warn]"* ]]
@@ -170,7 +174,9 @@ b
 c
 d
 e" '{tool_name: "Write", session_id: "s", tool_input: {file_path: "/repo/x", content: $c}}' | bash "$HOOK" 2>/dev/null
-    ! grep -rqF "$secret" "$KARPATHY_STATE_DIR" "$KARPATHY_SUMMARY_FILE" "$KARPATHY_TRAJECTORY_DIR"
+    # `run` + status: a bare mid-test `! grep` is exempt from errexit and could never fail (audit r256-4 MEDIUM-A1).
+    run grep -rqF "$secret" "$KARPATHY_STATE_DIR" "$KARPATHY_SUMMARY_FILE" "$KARPATHY_TRAJECTORY_DIR"
+    [ "$status" -ne 0 ]
     [ -f "$KARPATHY_TRAJECTORY_DIR/karpathy-$(date -u +%Y-%m-%d).jsonl" ]
 }
 

@@ -187,7 +187,7 @@ _bdb_hd_re_ctl=$'[\x01-\x08\x0b-\x1f\x7f]'
 _bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'
 _bdb_hd_re_exlong='^--(exec|eval|command|in-?place)'
 _bdb_hd_re_ext='\.(sh|bash|zsh|ksh|csh|fish|py|pyw|rb|pl|pm|js|mjs|cjs|ts|mts|cts|ps1|psm1|php|lua|tcl|command|bat|cmd)$'
-_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$)'
+_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$)'
 _bdb_hd_re_rc='(^|/)\.(bashrc|bash_profile|bash_login|bash_logout|profile|zshrc|zshenv|zprofile|zlogin|zlogout|kshrc|mkshrc|cshrc|tcshrc|login|logout|envrc)$'
 _bdb_hd_re_sedp='^(([0-9]+|[$]|/[^/]*/)(,([0-9]+|[$]|/[^/]*/))?)?p$'
 _bdb_hd_re_assign='^[A-Za-z_][A-Za-z0-9_]*='
@@ -1315,6 +1315,24 @@ check_and_block() {
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# FR-GH-1 — gh api with a destructive method (DELETE, PUT, PATCH; `-X`, `-XDELETE`,
+# `--method`, `--method=`) against refs, branch protection, tags, releases or the
+# repository itself (cycle-129 sprint-256 audit HIGH-A1). The porcelain twins are
+# governed by P2 (force push), P5 (branch force-delete) and SP-1 (spike pushes);
+# the REST escape hatch was not. GET, POST and PATCH on issues or pulls stay allowed.
+# Judged on the carrier-scrubbed command: the gh scrub redacts --body/--title
+# values only, so the path and the method remain visible. Placed OUTSIDE the
+# git-family pre-filter below: a gh api call need not contain the word git.
+# -----------------------------------------------------------------------------
+if [[ "$command" == *"gh"* && "$command" == *"api"* ]] \
+   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
+   && _match 'gh[[:space:]]+api[[:space:]][^;&|]*(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|repos/[^/[:space:];&|]+/[^/[:space:];&|]+(["'"'"'[:space:];&|]|$))'; then
+  matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+  # @guard fence:FR-GH-1
+  emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+fi
+
 # pass-8 git-family pre-filter (wraps P2, P2b, P3, P4, P5, P6, P7).
 # NECESSITY PROOF (`git`): each of the eight EREs inside this block contains
 # the literal run `git` as a mandatory concatenation element (it sits outside

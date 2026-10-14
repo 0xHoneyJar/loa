@@ -9720,3 +9720,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0304"
+    created_at: "2026-10-14T05:07:29Z"
+    updated_at: "2026-10-14T05:07:29Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: guard-yield.sh never calls a System-Zone (FR-SZ*) block a likely false positive on account of its heredoc body; GY-3 expects that row as real"
+    decision: "The register's heredoc heuristic applies to content rules only: for an FR-SZ* pattern the hazard is the target (files under .claude/ are read as instructions), so a prose body does not make the block a likely false positive; the GY-3 fixture row for FR-SZ2-REDIR counts as a real block."
+    rationale: "audit MEDIUM-A2 (dissent DISS-C-007): yield statistics that called SZ blocks false positives would steer a relaxation the wrong way"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "5ecf13f5"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-24)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:07:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0305"
+    created_at: "2026-10-14T05:07:52Z"
+    updated_at: "2026-10-14T05:07:52Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: fence rule FR-GH-1 refuses gh api DELETE/PUT/PATCH on refs, branch protection, tags, releases or the repository (REST twin of P2/P5/SP-1)"
+    decision: "Audit HIGH-A1: gh api with a destructive method against /git/refs/, /git/tags/, /branches/<b>/protection, /releases, /tags or a bare repos/<o>/<r> is refused by the new fence rule FR-GH-1 (joined and separate method flags, quoted paths); GET, POST and PATCH on issues or pulls stay allowed; D156-D161 and B95-B97 pin it; the register gains the row."
+    rationale: "a pre-existing bypass of the branch-protection intent that the sprint's own corpus had recorded as a documented miss"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "5ecf13f5"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-22)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:07:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0306"
+    created_at: "2026-10-14T05:07:53Z"
+    updated_at: "2026-10-14T05:07:53Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: the corpus miss class is count-gated (EXPECTED_MISS_ROWS pinned at 0 in run-corpus.sh); a new miss row is a mismatch until the pin is raised"
+    decision: "The miss class stays for documented false negatives but can no longer land silently: run-corpus.sh pins EXPECTED_MISS_ROWS and reports a mismatch when the corpus carries a different number of miss rows, so adding a documented miss requires raising the pin in the same change."
+    rationale: "audit HIGH-A1: an ungated miss class would institutionalise gaps with CI green"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "5ecf13f5"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-23)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:07:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-4 (lead-23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

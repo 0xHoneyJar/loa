@@ -4,7 +4,7 @@
 
 Every guard Loa ships, with its class, status, origin, knob and floor flag. Structural only: the 30-day yield of a host is untracked, in `.run/guard-yield.md` and `.run/guard-yield.json` (regenerate with `.claude/scripts/guard-yield.sh`). Classes: harness (the model cannot override it), script (a script checks or reports), prose (the model is asked to comply). Status: dormant means armed only by the env var in the knob column; telemetry means it observes and never refuses.
 
-- guards: 95
+- guards: 96
 - guards_without_origin: 0
 - dormant: 3
 - floor: 21
@@ -44,11 +44,12 @@ Every guard Loa ships, with its class, status, origin, knob and floor flag. Stru
 | hook:hygiene/settings-cleanup.sh | script | active | issue #339 | none | no | `Stop` |
 | hook:scripts/permission-audit.sh | script | telemetry | design v0.19.0 b10450fa | none | no | `PermissionRequest` |
 
-## fence (34)
+## fence (35)
 
 | id | class | status | origin | knob | floor | registrations |
 |----|-------|--------|--------|------|-------|---------------|
 | fence:LEGACY | harness | active | design cycle-111 sprint-164 check_and_block back-compat | none | no | - |
+| fence:FR-GH-1 | harness | active | cycle-129 sprint-256 audit HIGH-A1 (dissent DISS-C-001) | none | no | - |
 | fence:P2 | harness | active | cycle-011 | none | no | - |
 | fence:P2b | harness | active | cycle-011 | none | no | - |
 | fence:P3 | harness | active | cycle-011 | none | no | - |

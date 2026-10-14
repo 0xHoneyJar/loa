@@ -56,6 +56,9 @@ if (( knob_off )); then
 fi
 
 bp=0 bt=0 db=0 dt=0 rp=0 rt=0 mp=0 mt=0
+# The miss class is gated by count (audit r256-4 HIGH-A1): a new documented miss is a
+# mismatch until this pin is raised deliberately in the same change that documents it.
+EXPECTED_MISS_ROWS=0
 mismatches=()
 durations=()
 # Microsecond clock: $EPOCHREALTIME (bash ≥ 5) everywhere; GNU date fallback.
@@ -94,6 +97,7 @@ while IFS= read -r row; do
     *) mismatches+=("$id:unknown-expect:$expect") ;;
   esac
 done < "$corpus"
+(( mt == EXPECTED_MISS_ROWS )) || mismatches+=("miss-rows:$mt (pinned $EXPECTED_MISS_ROWS; raise EXPECTED_MISS_ROWS in the change that documents a new miss)")
 end_us=$(now_us)
 runtime=$(( (end_us - start_us) / 1000 ))
 n=${#durations[@]}

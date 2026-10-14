@@ -309,6 +309,15 @@ guards:
     floor: false
     registrations: []
     note: "check_and_block back-compat wrapper; no call site invokes it today"
+  - id: fence:FR-GH-1
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-129 sprint-256 audit HIGH-A1 (dissent DISS-C-001)"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "gh api with DELETE, PUT or PATCH against refs, branch protection, tags, releases or the repository: the REST escape hatch of the porcelain forms P2, P5 and SP-1 govern"
   - id: fence:P2
     kind: fence
     class: harness
