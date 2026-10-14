@@ -11352,3 +11352,2627 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0355"
+    created_at: "2026-10-14T14:06:04Z"
+    updated_at: "2026-10-14T14:06:04Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Component under test is v2.0.0-rc.5 at tag commit 4d69c3c4, not the rc.3 the brief names; every manifest pins that SHA (D1)"
+    decision: "Every arm runs against a detached worktree at 4d69c3c4 (the v2.0.0-rc.5 tag commit; main 9e53d5d2 is its parent and has the same .claude/ tree); MANIFEST.json, runs.jsonl rows and the report carry the full SHA"
+    rationale: "the brief predates rc.4 and rc.5; the prompt corrects the target; the published artefact is the tag commit"
+    alternatives_considered:
+      - option: "pin main 9e53d5d2"
+        rejected_because: "the published rc is the tag commit; its tree differs from main only in the generated ledger, CHANGELOG and version markers"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0356"
+    created_at: "2026-10-14T14:06:06Z"
+    updated_at: "2026-10-14T14:06:06Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The cycle-129 arm instruments are reused and the four completed cycle-129 arm verdicts are cited, never re-run (D2)"
+    decision: "run-arms.sh, execute-agent.sh toggles, report.sh --arms, the eighteen review fixtures and their hidden manifests are the review-catch half of the suite and the arm runner; no_karpathy, no_rule_files, no_companion (review) and no_audit_delta (audit) are cited from a2a/sprint-257 reports as no recall loss on eight fixtures"
+    rationale: "re-running four finished arms would spend about USD 300 of the cap to repeat a measurement taken one day earlier on the same executor"
+    alternatives_considered:
+      - option: "re-run them under the new suite for one table"
+        rejected_because: "the cap is the binding constraint and the brief's priority order puts A0 to A4 first"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0357"
+    created_at: "2026-10-14T14:06:08Z"
+    updated_at: "2026-10-14T14:06:08Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Two executors: the existing single-skill executor for review-catch tasks and a new pipeline executor for build tasks (D3)"
+    decision: "Review-catch tasks run one skill per trial as cycle-129 did; bug-fix, refactor and feature-build tasks run a pipeline executor (evals/harness/pipeline-run.sh) that drives the Loa phases as separate fresh-context claude -p sessions inside a sandbox repository carrying the Loa mount from the pinned tree"
+    rationale: "sprint decomposition, the review and audit gates, Flatline and context resets live between skills, not inside one; a Read/Grep/Glob/Write single-skill trial cannot remove or keep them, so H2, H4, H5 and H6 are only measurable with a pipeline executor"
+    alternatives_considered:
+      - option: "measure every arm with the single-skill executor"
+        rejected_because: "A2, A4, A5 and A6 would differ from A1 by nothing the executor exercises; the suite would read every component as removable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0358"
+    created_at: "2026-10-14T14:06:10Z"
+    updated_at: "2026-10-14T14:06:10Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Arm applicability is pre-registered: A0, A1, A3, A4, A7 on all task types; A2, A5, A6 on build tasks only; A8 dropped as component-absent (D4)"
+    decision: "A2 (no sprint decomposition), A5 (no Flatline) and A6 (one window, no resets) remove components a review-catch trial never runs, so they are measured on the twelve build tasks only; A8 is not run: /meeting geometries and the Sosyete panel do not exist at 4d69c3c4 (no command, skill or config key), so H8 has no component to remove in Loa core"
+    rationale: "an arm that removes nothing from a task reads as identical to A1 by construction and would dilute the paired comparison; a component that does not exist cannot be ablated"
+    alternatives_considered:
+      - option: "run A8 against a construct that ships a meeting geometry"
+        rejected_because: "constructs are out of the brief's scope and no construct is in the suite"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0359"
+    created_at: "2026-10-14T14:06:12Z"
+    updated_at: "2026-10-14T14:06:12Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Task sources: review-catch from the frozen corpus; bug-fix and refactor from post-cutoff Loa history; feature-build from open Loa beads at rc.5 (D5)"
+    decision: "Four review-catch tasks are two planted fixtures (three seeded defects each) and two record fixtures (approved labels); four bug-fix tasks are reverted Loa fixes dated 2026-08 or later whose fix commit added or changed tests (hidden tests), base = the fix commit's parent; four refactor tasks are Loa refactor commits whose tests are unchanged and green at both ends; four feature-build tasks are open beads at rc.5 (bd-j4lwr --max-usd/--screen, bd-yzzb9, bd-8o5rx and one more chosen by the Sprint 2 criteria) with hidden bats written for the suite"
+    rationale: "the brief wants half the tasks post-cutoff and real backlog items; Loa's own history after 2026-07 is post-cutoff for Opus 5.5, ships bats and pytest the grader can run in a sandbox, and needs no secrets or network; Freeside and Hounfour items need their own toolchains and credentials inside the sandbox"
+    alternatives_considered:
+      - option: "draw feature-build tasks from loa-freeside or loa-hounfour"
+        rejected_because: "their toolchains and secrets would have to enter the sandbox and the grader; the brief's grading rule is mechanical and offline"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0360"
+    created_at: "2026-10-14T14:06:14Z"
+    updated_at: "2026-10-14T14:06:14Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The grader is mechanical for both primary metrics; the cross-family model matcher is reserved for an appeal pass that no decision reads (D6)"
+    decision: "Hidden-test pass rate comes from pytest or bats run by the grader after the run, from test files kept outside the agent tree; defect catch rate comes from recall-vs-defects.sh (path:line within three lines of the key anchor); reviewer false positives, verdict accuracy and regressions are mechanical too; a different-family model may be asked to re-read missed labels for the report's appeal column only"
+    rationale: "the brief says the grader is a script wherever the check is mechanical, and the anchor rule has graded every cycle-124 to 129 arm; a model judge would re-introduce the grading-itself risk the brief lists first"
+    alternatives_considered:
+      - option: "a cross-family model matcher as the primary defect grader"
+        rejected_because: "a model's reading of a review is the judgment the suite is meant to keep out of the numbers"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0361"
+    created_at: "2026-10-14T14:06:16Z"
+    updated_at: "2026-10-14T14:06:16Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Hidden-test fairness review is done per task by an Opus 5.5 subagent that did not author the task, recorded as REVIEW.md (D7)"
+    decision: "For every frozen task a reviewer subagent other than the author checks: the task text does not leak the solution, the hidden tests fail at base and pass at the reference patch (run, not read), the success criterion is one mechanically checkable line; the record is grimoires/loa/evals/ablation-2.0/tasks/<id>/REVIEW.md"
+    rationale: "the brief requires one person who did not write a task to review its hidden tests; unattended, the nearest honest equivalent is a separate model session with a written record"
+    alternatives_considered:
+      - option: "the author self-reviews"
+        rejected_because: "the brief's rule exists to catch the author's blind spots"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0362"
+    created_at: "2026-10-14T14:06:18Z"
+    updated_at: "2026-10-14T14:06:18Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The sandbox is the host temp-dir sandbox with a recorded toolchain fingerprint; no container image carries the executor's credentials (D8)"
+    decision: "Every run records image_digest = sha256 of the toolchain versions (claude, codex, python3, node, yq, jq, bats, git) plus the pinned source tree id; all arms run on this one host through the same CLI route (claude via Bedrock, codex CLI for the cross-model voice); Dockerfile.sandbox is kept for grader isolation and is not the executor's image"
+    rationale: "the executor CLI needs the operator's credentials and the Bedrock route; copying them into an image is a secret-handling defect the brief would not want; the brief's rule protects infrastructure parity across arms, which one host, one route and one fingerprint give"
+    alternatives_considered:
+      - option: "build the pinned image and mount the credential directories into it"
+        rejected_because: "a mounted ~/.claude and AWS credentials inside an eval container is the same exposure with more moving parts, and the eval would then run on a different route than production"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:06:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0363"
+    created_at: "2026-10-14T14:07:10Z"
+    updated_at: "2026-10-14T14:07:10Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Spend caps enforced by scripts (USD 1,500 cycle, USD 12 per run); cycle spend = executor-reported run cost + cost-ledger rows since kickoff (D9)"
+    decision: "run-arms.sh --max-usd stops launching trials when the batch's executor-reported cost reaches the ceiling and writes cut_reason; the pipeline executor aborts a run whose cumulative phase cost passes USD 12 and records status cap_failure (a failure, never discarded); evals/harness/spend.sh sums runs.jsonl plus .run/cost-ledger.jsonl rows since the kickoff timestamp; the lead posts the figure in NOTES after every batch; the interactive lead session is outside the metered figure"
+    rationale: "the operator set the two numbers; a cap that is read by hand is not a cap; the lead session is not metered by the ledger and cannot be summed mechanically"
+    alternatives_considered:
+      - option: "count only the arm runs"
+        rejected_because: "planning Flatline, sprint dissent and Bridgebuilder runs are cycle spend the operator pays for"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0364"
+    created_at: "2026-10-14T14:07:12Z"
+    updated_at: "2026-10-14T14:07:12Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Decision rules are the brief's table, pre-registered in NOTES before the first run; three points = 0.03 absolute on unit-interval rates (D10)"
+    decision: "Per arm versus A1 on hidden-test pass rate and defect catch rate: paired bootstrap over tasks, 10,000 resamples, 90 percent percentile interval; Remove when both within -0.03 and cost or wall-clock at least 15 percent lower; Simplify when within -0.03 and cost similar; Keep when either is worse by more than 0.03 with the interval excluding zero; Inconclusive adds two seeds once; Better than A1 is Investigate; H1 and A4 escalation rules verbatim; cut order A0 A1 A2 A3 A4 then A7 A5 A6"
+    rationale: "the brief fixes the rules before any run and says results do not change them; a point on a rate is one hundredth"
+    alternatives_considered:
+      - option: "three points as 3 percent relative"
+        rejected_because: "relative thresholds move with the baseline and the brief writes points"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0365"
+    created_at: "2026-10-14T14:07:14Z"
+    updated_at: "2026-10-14T14:07:14Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Smoke rule: two tasks times one seed per arm before the batch, and a mechanical took-effect check per arm from the run artefacts (D11)"
+    decision: "Before the priority batch every arm runs one review-catch and one build smoke task; the check reads executor.json, pipeline.json, the sandbox MODELINV and the dissent envelopes: A0 no .claude in the sandbox and no appended system prompt; A2 no plan phase; A3 companion_voice.planned false; A4 no review or audit phase and LOA_ADVERSARIAL_REVIEW_ENFORCE=false in the sandbox environment; A5 no Flatline rows; A6 one session across phases; A7 effort medium on every phase; a failed check stops the batch"
+    rationale: "the brief's run protocol step 7; a toggle that did not take effect would make an arm its own baseline"
+    alternatives_considered:
+      - option: "trust the suite declaration"
+        rejected_because: "cycle-129 audit DISS-C-001 found toggles that could leak from the environment; the check is cheap"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0366"
+    created_at: "2026-10-14T14:07:16Z"
+    updated_at: "2026-10-14T14:07:16Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Five sprints 258 to 262 as the brief's breakdown; Opus 5.5 implementers in worktrees; Fable 5.1 gates; at most three dissent runs per sprint (D12)"
+    decision: "Sprint 258 mount integrity and plumbing, 259 suite and grader, 260 runs, 261 analysis, 262 prune and document; each ends with review and audit on Fable 5.1 with the cycle-129 dispatch practice; Sprint 260's gates run only between arm batches (KF-037)"
+    rationale: "the brief names five sprints in order; the cycle-129 process shipped three sprints in a day with the same instruments"
+    alternatives_considered:
+      - option: "three sprints by merging runs into analysis"
+        rejected_because: "the runs take about a day of compute and the analysis cannot start before they finish"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0367"
+    created_at: "2026-10-14T14:07:34Z"
+    updated_at: "2026-10-14T14:07:34Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Floor never pruned (review, audit, verdict-derive, dissent gate, deny list, FR-1.2b, zone rules, operator-only commands); A4 informs the report only (D13)"
+    decision: "Whatever A4 measures, no Sprint 262 change touches a floor guard (.claude/data/floor.yaml); removal candidates are the optional surfaces reachable through profile knobs and config keys; floor-snapshot.bats stays green on every commit"
+    rationale: "the prompt fixes the floor; the brief's own mitigation table says a component with governance value can look removable"
+    alternatives_considered:
+      - option: "let A4 decide the gates' fate"
+        rejected_because: "a separate evaluator is the control that keeps the suite honest; removing it on its own number is the fox guarding the henhouse"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0368"
+    created_at: "2026-10-14T14:07:36Z"
+    updated_at: "2026-10-14T14:07:36Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "#1267 fix: manifest generated from the tracked .claude tree, CI checks every manifest path, check-loa scopes a mount's missing paths (D14)"
+    decision: "tools/gen-checksums.sh writes .claude/checksums.json from git ls-files .claude (no overrides, no checksums.json) and --check compares; a Shell Tests step fails when a manifest path is untracked, absent, or under a build, cache or runtime class; check-loa.sh reports a manifest path absent from a submodule mount but present under .loa/.claude as not-mounted (informational) and fails only on Tampered or on a missing path the mount should link; tools/fresh-mount-proof.sh mounts this branch into a temp dir with Aleph absent and runs check-loa"
+    rationale: "the issue and three downstream reports show 242 build artefacts and 1,308 untracked paths in the manifest, zero mismatches on anything mounted; regeneration alone leaves the mount-layout class"
+    alternatives_considered:
+      - option: "regenerate only"
+        rejected_because: "the downstream comment shows regeneration still leaves paths the mount does not link"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0369"
+    created_at: "2026-10-14T14:07:38Z"
+    updated_at: "2026-10-14T14:07:38Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Planning skills not invoked via the Skill tool in the lead session; the lead authors the artefacts on the templates and runs every mechanical step (D15)"
+    decision: "prd.md, sdd.md and sprint.md follow the three templates and pass validate-artifact.sh; Flatline runs on each; DEC rows, ledger, beads and the NOTES entries are written through their libraries exactly as the skills prescribe"
+    rationale: "KF-043: a skill frontmatter tool policy loaded in the lead session binds the whole session; the planning skills carry allowed-tools lists, and losing Bash or Write mid-cycle would end an unattended run; cycle-129 followed the same practice"
+    alternatives_considered:
+      - option: "invoke /plan-and-analyze, /architect and /sprint-plan"
+        rejected_because: "an interview-shaped skill in an unattended session adds prompts it cannot answer and a tool-policy risk it cannot undo"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0370"
+    created_at: "2026-10-14T14:07:40Z"
+    updated_at: "2026-10-14T14:07:40Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Planning Flatline runs are integrated by judgment when the scorer degrades (KF-041, recurrence 4), never retried for consensus (D16)"
+    decision: "Each of the three Flatline runs is read from raw_reviews when gpt_score is null; every blocker is answered in the artefact's Flatline appendix; a degraded run is recorded with its envelope under the cache directory"
+    rationale: "KF-041 recurrence is 4, the ledger's structural threshold; the upstream issue was filed in cycle-129"
+    alternatives_considered:
+      - option: "retry until the scorer returns"
+        rejected_because: "the ledger says do not retry a structural failure"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0371"
+    created_at: "2026-10-14T14:07:42Z"
+    updated_at: "2026-10-14T14:07:42Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Carry-overs: bd-s93s8 plan commit; bd-j4lwr flags Sprint 258; bd-8o5rx Sprint 259; bd-2txz1 decided Sprint 262; bd-yzzb9 task source + Sprint 262 fix (D17)"
+    decision: "The archive is in this plan commit; the spend-cap flags land before any run; the fix_regions exclusion lands in the grader sprint and regrades cycle-129 batch 1; the kernel deletions are decided by the arm outcomes in the prune sprint; the metering guard is a frozen feature-build task and its production fix is a Sprint 262 task gated on remaining budget"
+    rationale: "the prompt lists them; each lands in the sprint whose exit criterion depends on it"
+    alternatives_considered:
+      - option: "separate /bug micro-sprints"
+        rejected_because: "five more review and audit rounds for changes the sprints already own"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0372"
+    created_at: "2026-10-14T14:07:44Z"
+    updated_at: "2026-10-14T14:07:44Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The Google voice stays off on every arm: hounfour.headless.agy_opt_in unset, recorded in every manifest (D18)"
+    decision: "No arm plans the gemini-headless hop; the dissent and Flatline voices are codex-headless (OpenAI) and claude-headless; manifests record agy_opt_in false"
+    rationale: "the brief requires the same setting on every host; this host has it unset and cycle-129 ran the same way"
+    alternatives_considered:
+      - option: "opt in for the arms"
+        rejected_because: "a mixed-voice setting across arms would invalidate the review-voice comparison, and the opt-in has its own argv exposure"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0373"
+    created_at: "2026-10-14T14:07:46Z"
+    updated_at: "2026-10-14T14:07:46Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "A seed is the trial index; the CLI route takes no sampling seed, so rows record seed null and trial N (D19)"
+    decision: "runs.jsonl rows carry trial (1..N) and seed null; the brief's seeds are trials; randomisation is of the arm times task times trial order"
+    rationale: "the Claude CLI exposes no sampling seed; cycle-129 recorded the same"
+    alternatives_considered:
+      - option: "pass a seed parameter"
+        rejected_because: "none exists on the route"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0374"
+    created_at: "2026-10-14T14:07:48Z"
+    updated_at: "2026-10-14T14:07:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Build-task pipeline shape for A1: plan, implement, review with dissent, one fix round, audit with dissent, one fix round; each phase a fresh session (D20)"
+    decision: "PLAN writes grimoires/loa/sprint.md from the task brief and runs Flatline on it when on; IMPLEMENT runs implementing-tasks on Opus 5.5; REVIEW runs reviewing-code on Fable 5.1 with adversarial-review.sh (codex-headless primary, claude-headless companion); FIX runs once when CHANGES_REQUIRED; AUDIT runs auditing-security on Fable 5.1 with its dissent; FIX once; every phase is its own claude -p session reading the a2a handoff files; A2 skips PLAN, A4 stops after IMPLEMENT, A5 runs PLAN without Flatline, A6 runs every phase in one session, A3 sets companion_voice false, A7 passes --effort medium to every session, A0 runs one bare session"
+    rationale: "this is the production shape of a Loa sprint reduced to one task; one fix round per gate keeps a run under the per-run cap"
+    alternatives_considered:
+      - option: "unbounded fix rounds as in production"
+        rejected_because: "a run would exceed USD 12 on a second round and read as a cap failure, which would bias A1 against itself"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0375"
+    created_at: "2026-10-14T14:07:50Z"
+    updated_at: "2026-10-14T14:07:50Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "runs.jsonl row schema carries every brief metric plus per-phase effort_effective, voices run and a degraded flag (D21)"
+    decision: "One row per run: run_id, arm, task_id, task_type, trial, source_commit, host_fingerprint, image_digest, phases (name, session, model_id, effort_requested, effort_effective, tokens_in, tokens_out, cost_usd, duration_ms, exit), voices_run, hidden_test_pass_rate, defects_caught, defects_seeded, flags, false_positives, verdict, verdict_accuracy, regressions, cost_usd, wall_clock_ms, stalls, degraded, status"
+    rationale: "the brief's instrumentation checklist; effort_effective and voices run make a silently degraded run visible and excludable"
+    alternatives_considered:
+      - option: "reuse the arms results row as is"
+        rejected_because: "it has no phases, no verdict accuracy and no hidden-test field"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D21)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0376"
+    created_at: "2026-10-14T14:07:51Z"
+    updated_at: "2026-10-14T14:07:51Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Blind grading: the grader reads run directories by run_id and never the arm label; the arm map is a separate file joined only by the report (D22)"
+    decision: "ablation-grade.sh takes a run directory and the task id; arm labels live in the batch manifest; ablation-report.py joins them after grading"
+    rationale: "the brief asks for blind grading where possible; a mechanical grader has no label to be biased by, and the layout makes that structural"
+    alternatives_considered:
+      - option: "grade in the runner with the arm in scope"
+        rejected_because: "the arm would be one variable away from the grader"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D22)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D22)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0377"
+    created_at: "2026-10-14T14:07:53Z"
+    updated_at: "2026-10-14T14:07:53Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Budget: priority arms about USD 1,270 incl. smoke; USD 150 reserved for the pruned-default re-run; A7 then A5 and A6 only if actuals leave room (D23)"
+    decision: "Projected: smoke 16 runs about 60; review-catch 4 tasks x 5 trials x A0/A1/A3/A4 about 200; build 12 tasks x 3 trials x A0..A4 about 1,010 (A1 and A3 about 8 and 7.5 per run, A2 7, A4 4, A0 1.5); planning Flatline and sprint dissent about 50; the reserve funds the re-verification at 4 review-catch x 3 trials plus 12 build x 1 trial; the cut and any A5 to A7 run are recorded with the actual figures"
+    rationale: "cycle-129 measured USD 0.9 to 3.5 per single-skill trial; a pipeline run is four to six sessions; the brief's roughly 500 runs do not fit the cap and the brief's priority order governs the cut"
+    alternatives_considered:
+      - option: "run every arm at three seeds and skip the re-verification"
+        rejected_because: "the brief's exit criterion is the pruned default within three points of old A1, which needs a re-run"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D23)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D23)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0378"
+    created_at: "2026-10-14T14:07:55Z"
+    updated_at: "2026-10-14T14:07:55Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Per-run cap fit: if the A1 smoke median exceeds USD 9 the build tasks are shrunk, never the cap (D24)"
+    decision: "After the smoke pass the lead reads A1's cost per build task; a median above USD 9 (75 percent of the cap) sends the task set back to Sprint 259 for smaller tasks (fewer files, fewer tests) before the batch starts; the cap stays USD 12"
+    rationale: "the operator set the cap; a full-harness run that fails at the cap structurally would bias H1 against the harness and the brief counts cap failures as failures"
+    alternatives_considered:
+      - option: "raise the per-run cap when A1 runs cost more"
+        rejected_because: "the cap is the operator's number"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D24)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:07:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#e-decisions-taken-on-the-operators-behalf (D24)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0379"
+    created_at: "2026-10-14T14:27:52Z"
+    updated_at: "2026-10-14T14:27:52Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "One executor runs every task type; review-catch tasks run the gate phases so the dissent voices count as gates (A1)"
+    decision: "pipeline-run.sh runs review-catch tasks as REVIEW then AUDIT on the fixture PR under pr/ and build tasks as PLAN, IMPLEMENT, REVIEW, FIX, AUDIT, FIX; the cycle-129 single-skill path stays unchanged for the recall suites and lends its materialisation and toggle functions through lib/sandbox-mount.sh"
+    rationale: "with Read, Grep, Glob and Write only no dissent runs, so A3 would remove nothing; cycle-129's no_companion arm measured exactly that and read 0.028"
+    alternatives_considered:
+      - option: "single-skill review for review-catch tasks"
+        rejected_because: "the companion voice and the audit gate never run in that executor"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:27:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0380"
+    created_at: "2026-10-14T14:27:54Z"
+    updated_at: "2026-10-14T14:27:54Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "The arm config is the pinned tree's .loa.config.yaml with the arm's toggles applied, as cycle-129 materialised it (A2)"
+    decision: "lib/sandbox-mount.sh copies the pinned worktree's .loa.config.yaml into the sandbox and applies the arm's toggles with yq; the shipped example config is not used"
+    rationale: "the example's route defaults (prefer-api, keys) do not run on this host; the repository config is what the harness runs with here and it is identical for every arm"
+    alternatives_considered:
+      - option: "the shipped example config"
+        rejected_because: "it would not dispatch on this host without edits, and edits would be a second variable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:27:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0381"
+    created_at: "2026-10-14T14:27:56Z"
+    updated_at: "2026-10-14T14:27:56Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "A1 passes no --effort; A0 passes --effort high; A7 strips skill effort lines, passes --effort medium and sets default_effort medium (A3)"
+    decision: "a1_full sessions carry no --effort so the skills' frontmatter efforts (xhigh implement and review, medium audit) apply as shipped; a0_bare passes --effort high (the brief's baseline); a7_effort_medium removes every effort: line from the sandbox SKILL.md frontmatters, passes --effort medium on every session and sets default_effort: medium in the sandbox model-config with its .checksum refreshed"
+    rationale: "the brief's A1 is the default config and the skills' efforts are part of it; a session flag alone would be overridden by a skill's own effort"
+    alternatives_considered:
+      - option: "--effort high on A1 as well"
+        rejected_because: "that would change the default under test"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:27:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0382"
+    created_at: "2026-10-14T14:27:58Z"
+    updated_at: "2026-10-14T14:27:58Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Review-catch trials are 3, not 5; the budget is recalibrated from smoke actuals before the batch with a written projection (A4)"
+    decision: "evals/suites/ablation-2.0.yaml sets trials build 3, review-catch 3; after the smoke the lead writes a2a/sprint-260/batch-plan.md projecting the priority batch from actual per-arm costs and fixes the trial counts and the arms beyond A0 to A4 that fit under cap minus reserve"
+    rationale: "under the gate pipeline a review-catch trial is two Fable sessions plus two dissent runs and costs as much as a build run; the brief's five trials assumed cheaper trials"
+    alternatives_considered:
+      - option: "five review-catch trials as the brief says"
+        rejected_because: "about USD 160 more per arm for a trial class that is no longer cheap"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:27:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0383"
+    created_at: "2026-10-14T14:28:00Z"
+    updated_at: "2026-10-14T14:28:00Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Decision rules live in the suite file and are mirrored in NOTES; ablation-report.py reads the suite file (A5)"
+    decision: "the rules block (threshold 0.03, cost 15 percent, bootstrap 10,000 at 90 percent over tasks, extension 2 trials once, H1 and A4 sentences) is in evals/suites/ablation-2.0.yaml and quoted verbatim in the NOTES pre-registration; the report applies the file"
+    rationale: "a script applies rules; prose is for the record; one source avoids drift between the two"
+    alternatives_considered:
+      - option: "rules only in NOTES prose"
+        rejected_because: "a human would apply them"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0384"
+    created_at: "2026-10-14T14:28:02Z"
+    updated_at: "2026-10-14T14:28:02Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Sandbox sessions use --setting-sources project so only the mounted tree's settings and hooks apply (A6)"
+    decision: "every pipeline phase runs claude -p with --setting-sources project; the sandbox's own .claude/settings.json (the pinned tree's hooks) is the only settings source; the operator's user settings never reach a trial"
+    rationale: "the operator's user settings are not part of any arm; the harness under test must run its own hooks"
+    alternatives_considered:
+      - option: "inherit every settings layer"
+        rejected_because: "operator allow rules and hooks would be a hidden arm variable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0385"
+    created_at: "2026-10-14T14:28:04Z"
+    updated_at: "2026-10-14T14:28:04Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Fixture trees are materialised as files with a fresh git init at base, never as clones (A7)"
+    decision: "lib/sandbox-mount.sh copies the task's fixture tree, runs git init and commits it as base; no history before base exists in the sandbox"
+    rationale: "a clone at the pinned commit would carry the fix commit, the answer, in reachable history"
+    alternatives_considered:
+      - option: "clone at the pinned commit"
+        rejected_because: "git log would show the solution"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0386"
+    created_at: "2026-10-14T14:28:06Z"
+    updated_at: "2026-10-14T14:28:06Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Gate phases run on Fable 5.1 with a pre-registered contingency to Opus 5.5 for every arm if more than 20 percent of A1 gate phases degrade in the smoke (A8)"
+    decision: "REVIEW and AUDIT sessions use global.anthropic.claude-fable-5-1; a phase whose models_used differs from the request or whose refusal_fallbacks is non-empty is degraded; if more than one in five A1 gate phases degrade in the Sprint 260 smoke the lead switches every arm's gates to Opus 5.5 before the batch and records it"
+    rationale: "the brief names Fable as the reviewer; cycle-129 saw Fable refuse a review trial and the CLI fall back silently, so a contingency protects homogeneity"
+    alternatives_considered:
+      - option: "Opus gates from the start"
+        rejected_because: "not the production shape the brief describes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0387"
+    created_at: "2026-10-14T14:28:08Z"
+    updated_at: "2026-10-14T14:28:08Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "The fairness reviewer is a separate Opus 5.5 session per task that runs the hidden tests red-then-green itself (A9)"
+    decision: "each REVIEW.md pastes the red run at base and the green run at the reference patch as executed by the reviewer session, plus the solution-leak and criterion checks"
+    rationale: "running is the check that catches an unsolvable task or a leaked answer; a read-only review would not"
+    alternatives_considered:
+      - option: "a read-only review"
+        rejected_because: "cannot tell a red test from a broken one"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0388"
+    created_at: "2026-10-14T14:28:10Z"
+    updated_at: "2026-10-14T14:28:10Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "runs.jsonl and report.md are tracked; raw run artefacts stay under evals/results/ablation (gitignored) and go to the record branch (A10)"
+    decision: "grimoires/loa/reports/ablation-2.0/{runs.jsonl,report.md,report.json,smoke.md} are committed; pipeline.json, events, envelopes and sandbox ledgers live under evals/results/ablation/ and are pushed on record/cycle-130-a2a"
+    rationale: "megabytes of transcripts per run do not belong in the tracked tree; the rows and the report are the deliverable"
+    alternatives_considered:
+      - option: "track every artefact"
+        rejected_because: "repository bloat"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0389"
+    created_at: "2026-10-14T14:28:12Z"
+    updated_at: "2026-10-14T14:28:12Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "The image_digest row field is fp:<sha256 of toolchain versions plus the source tree id> (A11)"
+    decision: "fingerprint.sh prints sha256 over sorted tool=version lines (claude, codex, python3, node, yq, jq, bats, git) and the pinned tree id; every row and manifest carries it as image_digest"
+    rationale: "the brief asks for a digest per run; one host with a recorded fingerprint is what can honestly be recorded without an image carrying credentials"
+    alternatives_considered:
+      - option: "an empty field"
+        rejected_because: "the brief's instrumentation row would be unfilled"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0390"
+    created_at: "2026-10-14T14:28:14Z"
+    updated_at: "2026-10-14T14:28:14Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "A cap-failed run keeps its tree's hidden-test score in the row but counts as a failed run (0) in both primaries (A12)"
+    decision: "ablation-grade.sh grades whatever the sandbox tree passes and records it; ablation-report.py reads status cap_failure as 0 on hidden_test_pass_rate and defect_catch_rate and lists the run under failures"
+    rationale: "the brief says a run at the per-run cap is a failure, not a discard; keeping the raw score in the row preserves the evidence"
+    alternatives_considered:
+      - option: "exclude cap failures from the metrics"
+        rejected_because: "that would be a discard"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:28:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#113-decisions-taken-on-the-operators-behalf-this-sdd-proposed-rows (A12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0391"
+    created_at: "2026-10-14T14:35:51Z"
+    updated_at: "2026-10-14T14:35:51Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "A6 keeps one continuous implementer session (PLAN, IMPLEMENT, FIX resumed) while the gates stay separate Fable sessions (F1)"
+    decision: "a6_one_window runs PLAN, IMPLEMENT and both FIX rounds in one Opus 5.5 session continued with --resume <session_id>; REVIEW and AUDIT run exactly as in A1 (separate Fable 5.1 sessions with dissent); took-effect: one session id across the implementer records, distinct ids on the gates"
+    rationale: "Flatline SKP-010: a single session for every phase would remove the separate evaluator as well as the resets, confounding H6 with H4; the brief's H6 is reset-and-handoff versus long context on the implementer's side"
+    alternatives_considered:
+      - option: "every phase in one session"
+        rejected_because: "two components removed at once; the gates could not run on Fable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:35:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0392"
+    created_at: "2026-10-14T14:35:53Z"
+    updated_at: "2026-10-14T14:35:53Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The arms pin the Sprint 258 completion commit (rc.5 plus the #1267 mount fix), with the .claude delta against 4d69c3c4 recorded (F2)"
+    decision: "--source-commit is the commit that closes Sprint 258; MANIFEST.json records git diff --stat 4d69c3c4..<pin> -- .claude/ and the report states the delta is confined to checksums.json, the check-loa.sh integrity scoping and the version marker; the A1 smoke evidence includes check-loa.sh green inside the sandbox mount; amends D1 (DEC-0355)"
+    rationale: "Flatline SKP-007: FR-1 says no arm runs on a broken mount, and 4d69c3c4 carries the broken manifest; the brief itself allows the rc plus fixes as the pinned commit"
+    alternatives_considered:
+      - option: "pin the tag commit regardless"
+        rejected_because: "every A1 to A7 session would run on the mount the prerequisite forbids"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:35:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0393"
+    created_at: "2026-10-14T14:35:55Z"
+    updated_at: "2026-10-14T14:35:55Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "One cap rule: a cap failure counts as a failed run; degraded and contaminated runs are excluded pairwise with a 25 percent inconclusive guard (F3)"
+    decision: "status cap_failure scores 0 on every applicable primary and is listed; degraded (model fallback, effort mismatch, DEGRADED envelope, fewer voices than planned) and contaminated runs are excluded by dropping the task-trial cell from both arms of a comparison; a task with no valid cell in an arm leaves that pair and is listed; an arm whose excluded share exceeds 25 percent reads Inconclusive-by-degradation whatever its interval; the report also shows a labelled sensitivity figure with cap failures excluded, which no decision uses"
+    rationale: "Flatline SKP-004, SKP-005: FR-2 and FR-8 stated the cap rule two ways; the brief says a cap failure is a failure; the bias against the most expensive arm is made visible by the sensitivity figure, not hidden"
+    alternatives_considered:
+      - option: "exclude cap failures"
+        rejected_because: "that is the discard the brief forbids"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:35:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0394"
+    created_at: "2026-10-14T14:35:57Z"
+    updated_at: "2026-10-14T14:35:57Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Phase environment is an enumerated allowlist under env -i; containment beyond it is the contamination scan, stated as a limit (F4)"
+    decision: "every phase runs under env -i with PATH, HOME, LANG, LC_ALL, TERM, TMPDIR (inside the sandbox), CLAUDE_CODE_USE_BEDROCK, AWS_REGION, AWS_DEFAULT_REGION, AWS_PROFILE, CLAUDE_CODE_SUBAGENT_MODEL, LOA_MODELINV_LOG_PATH, LOA_COST_LEDGER_PATH and the arm's own variables; no AWS access key, GH, OpenAI or Google key is present; the Bedrock route and the codex CLI authenticate from the operator's profile files under HOME; network and HOME cannot be isolated without breaking the CLI's route and the report says so"
+    rationale: "Flatline SKP-012, SKP-013: the exceptions were not enumerated; an allowlist is checkable by the stub tests"
+    alternatives_considered:
+      - option: "a denylist of known secrets"
+        rejected_because: "the cycle-128 lesson: denylists are whack-a-mole"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:35:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0395"
+    created_at: "2026-10-14T14:35:59Z"
+    updated_at: "2026-10-14T14:35:59Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Hidden material is protected in layers: never in the sandbox, graded in a restored fresh tree, and a contamination scan of every transcript (F5)"
+    decision: "the grader copies the agent's final tree to a grading directory, restores the task's grader_protected files (conftest.py, pytest.ini and pyproject test config, bats helpers, Makefile test targets, runner configs) from the frozen reference, overlays the hidden tests, runs python3 -I -s -m pytest -p no:cacheprovider --rootdir or bats under env -i with PATH limited to /usr/bin:/bin plus the declared toolchain directory and a 120 s timeout; regressions run on the restored tests; every phase transcript is scanned for tool inputs naming an absolute path outside the sandbox (the CLI's own HOME config excepted), the string hidden, the repository's evals path, or git log --all/reflog, and a hit marks the run contaminated (excluded, listed, counted per arm); report and logs print defect and test ids only"
+    rationale: "Flatline SKP-002, SKP-009, opus IMP-003/004/015: a Bash agent on the same host can alter test infrastructure or read the repository; the grading tree and the scan make both mechanical"
+    alternatives_considered:
+      - option: "trust the sandbox directory boundary"
+        rejected_because: "AC-6.1 covered a same-named file only"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:35:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0396"
+    created_at: "2026-10-14T14:36:01Z"
+    updated_at: "2026-10-14T14:36:01Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Build-task fixtures never touch .claude, CLAUDE.md, .loa.config.yaml, grimoires or .run; Loa-history tasks come from tools, evals and tests (F6)"
+    decision: "the seeders refuse a candidate whose changed paths or tests touch the mount paths; bug-fix and refactor tasks are drawn from tools/, evals/ and tests/ (and the Python implement fixtures); bd-yzzb9 (code under .claude/adapters) is dropped as a feature-build source and replaced by an evals- or tools-scoped bead or a synthetic feature on the Python fixtures; amends D5 (DEC-0359)"
+    rationale: "Flatline SKP-001, opus IMP-003: the mount copies the rc .claude tree over the fixture, so a task under .claude would either see the answer or overwrite the harness under test"
+    alternatives_considered:
+      - option: "relocate .claude tasks under src/"
+        rejected_because: "path rewrites in tests and scripts are a second task"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0397"
+    created_at: "2026-10-14T14:36:03Z"
+    updated_at: "2026-10-14T14:36:03Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Budget table and cut ladder pre-registered: beyond the arms, A2/A3 build trials 3 to 2, then review-catch trials 3 to 2; A0, A1, A4 keep 3 (F7)"
+    decision: "PRD Appendix F carries the arm x type x trials x unit-cost table (about USD 1,160 for the priority batch plus smoke at the planning estimates); the ladder is (1) A5, A6, A7 not run, (2) A2 and A3 build trials 3 to 2, (3) A3 review-catch trials 3 to 2; A0, A1 and A4 keep three build trials because H1 and the sensitivity check rest on them; the smoke calibration picks the rung in batch-plan.md; --max-usd reserves the per-run cap for each in-flight trial; the wall-clock estimate is 30 to 45 hours at concurrency 3"
+    rationale: "Flatline SKP-003, SKP-006, gpt IMP-016, opus IMP-005/020/021: the arithmetic was referenced, not shown, and the planned counts did not fit"
+    alternatives_considered:
+      - option: "cut tasks instead of trials"
+        rejected_because: "sixteen tasks is the brief's suite"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0398"
+    created_at: "2026-10-14T14:36:27Z"
+    updated_at: "2026-10-14T14:36:27Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Re-verification: nothing pruned, no re-run; one pruned, its arm rows are the check; several, a1_pruned at 3 trials or only the first removal applied (F8)"
+    decision: "if no component reads Remove or Simplify there is no re-run; if exactly one does, that arm's rows already measure the pruned default and the bound is read from them; if several do, a1_pruned runs the full suite at three build and three review trials when the remaining budget allows, else only the removal with the largest cost saving is applied and the others are recorded as decided, not applied this cycle; the bound is the paired point estimate at or above -0.03 on each applicable primary with the 90 percent interval reported; the reserve is USD 250, released to A7 when the first two cases apply"
+    rationale: "Flatline SKP-006, opus IMP-007: twelve tasks at one trial resolve 0.083, not 0.03; a single removal is already measured by its own arm"
+    alternatives_considered:
+      - option: "re-run at one trial"
+        rejected_because: "cannot resolve the bound it checks"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0399"
+    created_at: "2026-10-14T14:36:29Z"
+    updated_at: "2026-10-14T14:36:29Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Statistics pre-registered: catch rate resamples defects, pass rate resamples tasks; no correction, stated; H1 not established halts and reports (F9)"
+    decision: "the defect catch rate interval resamples defect ids (about 150 units across the four review-catch tasks, paired across arms) with the task-level interval also shown; the hidden-test pass rate resamples the twelve build tasks over trial means; the minimum detectable effect is computed from smoke variance in batch-plan.md; six components are decided on their own pre-registered rule with no correction and the expected false-positive count at 90 percent (about 0.6) is printed; an H1 interval that includes zero is reported as not established and the cycle halts before promotion for the operator's decision, as the brief says"
+    rationale: "Flatline SKP-004, opus IMP-009/027, gpt IMP-001: a bootstrap over four tasks has 256 resamples; the brief's H1 rule is the operator's and stands with its power stated"
+    alternatives_considered:
+      - option: "a correction across components"
+        rejected_because: "the brief fixes one rule per component; a correction would change the thresholds after the fact"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0400"
+    created_at: "2026-10-14T14:36:31Z"
+    updated_at: "2026-10-14T14:36:31Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Primaries apply per arm: build-only arms on hidden-test pass rate alone; all-type arms on both; A4 is build-only; KPI reads 6 of 6 measurable components (F10)"
+    decision: "A2, A4, A5 and A6 are decided on hidden-test pass rate with cost and wall-clock from build runs; A3 and A7 on both primaries; A4 is not run on review-catch tasks because the gates are the task there; the KPI reads 6 of 6 measurable components (A2 to A7) decided, A8 component-absent; A4's own row can only read Keep or Investigate (it is the sensitivity control)"
+    rationale: "Flatline SKP-007, gpt IMP-005, opus IMP-010/026: the rules did not say how two primaries combine for an arm that touches one task type"
+    alternatives_considered:
+      - option: "decide every arm on both primaries"
+        rejected_because: "an arm that cannot touch a metric would read as unchanged on it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0401"
+    created_at: "2026-10-14T14:36:33Z"
+    updated_at: "2026-10-14T14:36:33Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Refactor tasks carry a structural hidden assertion that fails at base; review-catch known-bad is an empty review and known-good cites every key anchor (F11)"
+    decision: "each refactor task's hidden tests are the unchanged suite plus a structural check the reference refactor satisfies (a symbol moved, a file under a line bound, no duplicate bodies) written as a hidden bats or pytest case that is red at base and green at the reference; churn is recorded; for review-catch tasks the self-check known-bad is an empty findings file (recall 0) and known-good a findings file citing every key anchor (recall 1)"
+    rationale: "Flatline opus IMP-002, gpt IMP-009: a refactor whose tests are unchanged has no red state, so the self-check could not fail at base"
+    alternatives_considered:
+      - option: "tests pass is the only criterion"
+        rejected_because: "the self-check would pass known-bad"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0402"
+    created_at: "2026-10-14T14:36:35Z"
+    updated_at: "2026-10-14T14:36:35Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Verdict accuracy is measured against the tree state each gate reviewed, snapshotted in the sandbox after IMPLEMENT and after each FIX (F12)"
+    decision: "pipeline-run.sh commits the sandbox tree after IMPLEMENT and after each FIX; the grader runs the hidden tests on the snapshot each gate saw and scores accuracy per gate (APPROVED and passing, or CHANGES_REQUIRED and failing); the run-level figure is the audit gate's when it ran, else the review gate's"
+    rationale: "Flatline opus IMP-014: comparing a review verdict with the final tree scores the fix round, not the verdict"
+    alternatives_considered:
+      - option: "final tree only"
+        rejected_because: "a correct CHANGES_REQUIRED followed by a good fix would read as wrong"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0403"
+    created_at: "2026-10-14T14:36:37Z"
+    updated_at: "2026-10-14T14:36:37Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "A0 receives the same task text, test command, tools and environment, --effort high, and a time and turn budget equal to A1's implementer-side sum (F13)"
+    decision: "the BARE session's --max-turns is the sum of A1's PLAN, IMPLEMENT and two FIX caps and its timeout the sum of those timeouts; review-catch TASK.md carries an arm-neutral output contract (findings file path, one path:line and description per line, a verdict line) that A0 writes and the gates' files are concatenated to for grading; recall-vs-defects.sh reads only citations"
+    rationale: "Flatline opus IMP-012/017/018, gpt IMP-012: A0 must not be time-starved or instruction-starved relative to A1"
+    alternatives_considered:
+      - option: "A0 gets the IMPLEMENT timeout only"
+        rejected_because: "an arm handicapped by the clock measures the clock"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F13)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0404"
+    created_at: "2026-10-14T14:36:39Z"
+    updated_at: "2026-10-14T14:36:39Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Freeze and hardening: the suite freezes at Sprint 259 end; any change after the smoke re-versions it and the main batch runs on one version (F14)"
+    decision: "MANIFEST.sha256 and its hash in NOTES close Sprint 259; the Sprint 260 smoke runs on that version; a cap-fit shrink or an insensitivity hardening bumps suite_version, writes a new manifest, describes the change, archives smoke rows under the old version and runs the main batch on the new version only; if H1 is not established or A4 is insensitive, FR-9 pruning is skipped entirely, the report ships with rc.6 and the operator decides between hardening (cost estimate given) and halting"
+    rationale: "Flatline opus IMP-019/023, gpt IMP-023/024: tasks replaced after smoke without a version would mix suites"
+    alternatives_considered:
+      - option: "edit tasks in place"
+        rejected_because: "rows from two suites would share one manifest"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F14)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0405"
+    created_at: "2026-10-14T14:36:42Z"
+    updated_at: "2026-10-14T14:36:42Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Interrupted runs get status interrupted; the applicability guard lives in the planner; results live under evals/results/ablation-2.0/<batch>/ (F15)"
+    decision: "a run killed mid-phase (reboot, batch kill) is status interrupted: not graded, not counted, listed, rerun by --resume when budget allows; run-ablation.sh refuses to schedule an arm on a task type outside its task_types (the report checks again); STATUS.json, MANIFEST.json, pipeline.json and grade.json live under evals/results/ablation-2.0/<batch>/ (gitignored, record branch); runs.jsonl is committed with its sha256 in report.md and every report cell cites run_ids"
+    rationale: "Flatline opus IMP-022/029/030, gpt IMP-017/028: half-built trees must not be graded and locations must be pinned"
+    alternatives_considered:
+      - option: "grade whatever exists"
+        rejected_because: "an interrupted tree is not the agent's result"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F15)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0406"
+    created_at: "2026-10-14T14:36:44Z"
+    updated_at: "2026-10-14T14:36:44Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "The 1,308 (#1267, vs the tag) and 1,411 (this checkout, vs the tracked tree) figures differ by denominator; AC-1.1 uses the tracked-tree measure (F16)"
+    decision: "the PRD states both figures with their denominators; AC-1.1's entry count is tracked .claude files minus overrides and the manifest; the downstream figure is reproduced by fresh-mount-proof.sh"
+    rationale: "Flatline opus IMP-031: two counts for one defect read as a contradiction unless the denominators are named"
+    alternatives_considered:
+      - option: "report one figure"
+        rejected_because: "the two audiences (maintainer, downstream) see different trees"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F16)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0407"
+    created_at: "2026-10-14T14:36:46Z"
+    updated_at: "2026-10-14T14:36:46Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Drift guard: a batch refuses a CLI version or model id change mid-batch; randomisation is trial-major with a seeded shuffle within each trial block (F17)"
+    decision: "MANIFEST.json pins cli_version and the phase model ids; a row whose executor reports a different model or version fails the batch's drift check (state failed, listed); the plan is trial-major (every arm x task once before any second trial) with a seeded shuffle inside each block, which balances arms and tasks across the batch's clock"
+    rationale: "Flatline gpt IMP-014/015: provider or CLI drift inside a batch would be invisible otherwise; a plain shuffle can cluster an arm"
+    alternatives_considered:
+      - option: "fully random order"
+        rejected_because: "an arm could run late in the day under different load"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F17)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0408"
+    created_at: "2026-10-14T14:36:48Z"
+    updated_at: "2026-10-14T14:36:48Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "A3 is a new measurement, not a repeat of cycle-129's no_companion: here the companion voice actually runs inside the gate pipeline (F18)"
+    decision: "D2's citation covers the four single-skill arms as measured (Read, Grep, Glob, Write; no dissent ran); A3 in this cycle toggles the companion inside REVIEW and AUDIT phases that execute adversarial-review.sh, so its yield is measured for the first time"
+    rationale: "Flatline opus IMP-013: the PRD read as if A3 re-ran a settled arm"
+    alternatives_considered:
+      - option: "cite no_companion for A3"
+        rejected_because: "the cited arm never ran the dissent"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F18)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0409"
+    created_at: "2026-10-14T14:36:50Z"
+    updated_at: "2026-10-14T14:36:50Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "H1-fails or A4-insensitive path defined: pruning skipped, report ships with rc.6, operator decides hardening or halt with the cost estimate (F19)"
+    decision: "when H1 is not established or A4 is not clearly worse than A1, Sprint 262 performs no opt-in move, writes the report and the addendum stating no pruning was made and why, publishes rc.6 with the report linked, and the halt-before-promotion is handed to the operator with the hardening cost estimate; the suite stays runnable"
+    rationale: "Flatline gpt IMP-006, opus IMP-023: the brief says halt and escalate; the cycle must still deliver its report"
+    alternatives_considered:
+      - option: "harden and rerun inside the cycle"
+        rejected_because: "a second suite and batch would exceed the cap"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F19)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0410"
+    created_at: "2026-10-14T14:36:52Z"
+    updated_at: "2026-10-14T14:36:52Z"
+    phase: "discovery"
+    category: "planning"
+    summary: "Every mechanical script's exit codes map to retryability and batch status in the SDD; degraded runs count in spend and cap accounting (F20)"
+    decision: "SDD section 6 maps each exit code to retry (transport only), batch state and CI behaviour; a degraded or contaminated run's cost counts in spend and against --max-usd like any other; the self-check and the re-verification treat a degraded run as missing (rerun once)"
+    rationale: "Flatline gpt IMP-022/026: exclusion from metrics must not mean exclusion from the money"
+    alternatives_considered:
+      - option: "exclude degraded cost from spend"
+        rejected_because: "the operator paid for it"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F20)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:36:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/prd.md#g-flatline-review-integration-2026-10-15 (F20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0411"
+    created_at: "2026-10-14T14:47:25Z"
+    updated_at: "2026-10-14T14:47:25Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Phases run in a Docker container with per-run read-only copies of the CLI credential directories; the host sandbox is the recorded fallback (S1)"
+    decision: "evals/harness/Dockerfile.ablation (from Dockerfile.sandbox: pinned node base, claude CLI 2.1.299, codex 0.137.0, python3 and pytest, bats, yq, jq, git) runs every phase with --network bridge (the CLI needs its route), --read-only root, the sandbox directory read-write, per-run copies of ~/.aws, ~/.claude and ~/.codex mounted read-only at the container HOME, --pids-limit, --memory 4g, --cpus 2, no other host path; the repository, the hidden directories, the results tree, ~/.ssh and ~/.config/gh are unreachable; the real image digest fills image_digest; if the Sprint 258 smoke cannot authenticate or complete a run inside the container, every arm runs on the host sandbox with the limit stated in the report; the choice is made once for the whole cycle and recorded; amends D8 (DEC-0362)"
+    rationale: "SDD Flatline SKP-004, SKP-001, SKP-002: a Bash agent with bypass permissions on the host can read the hidden tests, other sandboxes, ~/.ssh and ~/.config/gh, rewrite runs.jsonl, or call Bedrock outside the ledger; unprivileged user namespaces are not permitted on this host (probe: unshare -Urm refused), so the container is the one containment available; mounting read-only copies at run time is not baking credentials into an image"
+    alternatives_considered:
+      - option: "host sandbox only with the limit stated"
+        rejected_because: "the brief asked for one container image and the exposure is the skeptics' strongest point"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0412"
+    created_at: "2026-10-14T14:47:27Z"
+    updated_at: "2026-10-14T14:47:27Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Phase hygiene: GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1, GH_CONFIG_DIR empty, no SSH_AUTH_SOCK or BASH_ENV, descriptors beyond 0-2 closed (S2)"
+    decision: "the phase launcher adds GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1 and GH_CONFIG_DIR=<empty sandbox dir> to the allowlist environment, never passes SSH_AUTH_SOCK or BASH_ENV, and closes every descriptor above 2 before exec; the stub test asserts the captured environment and descriptor table"
+    rationale: "SDD Flatline SKP-002: the operator's git credential helper (gh keyring), ssh agent and shell startup files were reachable through inherited state even with the credential variables unset"
+    alternatives_considered:
+      - option: "rely on the allowlist alone"
+        rejected_because: "git and gh read their configuration from HOME, not from variables"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0413"
+    created_at: "2026-10-14T14:47:29Z"
+    updated_at: "2026-10-14T14:47:29Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Grader input contract: arm-aware files live under <run-dir>/meta/; the grader reads sandbox/ and snapshots/ only; a bats case runs it with meta/ removed (S3)"
+    decision: "pipeline-run.sh writes pipeline.json, the phase argv captures and the arm id under <run-dir>/meta/ and the agent's tree, snapshots and transcripts under <run-dir>/sandbox/ and <run-dir>/snapshots/; ablation-grade.sh opens nothing under meta/; ablation-grade.bats grades a fixture run with meta/ removed and asserts byte-identical grade.json; ablation-row.sh joins meta/ and MANIFEST.json after grading"
+    rationale: "SDD Flatline SKP-003, gpt IMP-004/008, opus IMP-008: pipeline.json carried the arm and sat beside the grader's inputs"
+    alternatives_considered:
+      - option: "strip arm from pipeline.json"
+        rejected_because: "the row writer needs it; a directory boundary is simpler to test"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0414"
+    created_at: "2026-10-14T14:47:31Z"
+    updated_at: "2026-10-14T14:47:31Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "freeze.sh --check runs again before every grading and the hidden tests are read from the repository checkout, never from a sandbox copy (S4)"
+    decision: "ablation-grade.sh runs freeze.sh --check and refuses to grade on drift; hidden tests are read from grimoires/loa/evals/ablation-2.0/tasks/<id>/hidden/ in the main checkout (unreachable from a container phase) and overlaid into the grading tree; a retry or resume always creates a fresh sandbox"
+    rationale: "SDD Flatline SKP-002, SKP-004: the freeze check ran only at batch start and hidden artefacts could persist across retries"
+    alternatives_considered:
+      - option: "check once per batch"
+        rejected_because: "an agent on the host could edit the suite mid-batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0415"
+    created_at: "2026-10-14T14:47:33Z"
+    updated_at: "2026-10-14T14:47:33Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Cap bias accepted as the brief's rule; the report prints per-arm cap-failure counts beside the primaries and the labelled cap-free sensitivity figure (S5)"
+    decision: "no change to the rule (DEC-0393); report.md shows, per arm, cap failures, interrupted, degraded and contaminated counts next to the primaries, and the H1 and A4 lines are also computed on the cap-free sensitivity figure for the reader, with the decision taken on the pre-registered figure"
+    rationale: "SDD Flatline SKP-003: the cost penalty embedded in the primaries is the operator's rule; making it visible is what the design can do"
+    alternatives_considered:
+      - option: "exclude cap failures"
+        rejected_because: "the brief forbids the discard"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0416"
+    created_at: "2026-10-14T14:47:35Z"
+    updated_at: "2026-10-14T14:47:35Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Decision predicates written as executable conditions in the suite rules block and in ablation-report.py, in the fixed order (S6)"
+    decision: "with d = arm minus A1 point estimate and [lo, hi] the 90 percent interval on each applicable primary, c = cost delta percent, w = wall-clock delta percent: Investigate if any primary has lo > 0; else Keep if any primary has d < -0.03 and hi < 0; else Inconclusive if any primary has d < -0.03 (interval includes 0) or the arm's excluded share exceeds 0.25; else Remove if every primary has d >= -0.03 and (c <= -15 or w <= -15); else Simplify (every primary within -0.03 and cost similar); an arm with no valid pair reads Inconclusive"
+    rationale: "SDD Flatline opus IMP-001/005, gpt IMP-005/006: the order was named but not the predicates; a script needs the conditions"
+    alternatives_considered:
+      - option: "prose rules only"
+        rejected_because: "two readers could apply them differently"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0417"
+    created_at: "2026-10-14T14:47:57Z"
+    updated_at: "2026-10-14T14:47:57Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Status to metric: completed graded; cap_failure 0; agent_error scores its tree; other failure statuses excluded pairwise (S7)"
+    decision: "agent_error (a phase exited non-zero or timed out on the model's own account) is the agent's result and scores what the final tree earns, with the hidden-test outcome counted; transport_error after the retry, infrastructure_error, interrupted, degraded and contaminated are excluded pairwise and listed; a transport-failed first attempt writes no row, attempts counts it and its sandbox ledger cost counts in spend; the table is in SDD section 3.1 and ablation-report.py"
+    rationale: "SDD Flatline gpt IMP-002/011, opus IMP-002/018: one normative treatment per status"
+    alternatives_considered:
+      - option: "exclude agent errors"
+        rejected_because: "a model that gives up is a result, not an infrastructure event"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:47:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0418"
+    created_at: "2026-10-14T14:48:00Z"
+    updated_at: "2026-10-14T14:48:00Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "took-effect.sh runs per trial inside run-ablation.sh; a failed evidence check makes the trial infrastructure_error and pauses that arm until cleared (S8)"
+    decision: "after every trial the runner evaluates the arm's evidence rules from the trial's artefacts; a miss marks the row infrastructure_error (excluded, listed), writes the arm into STATUS.json.paused_arms and launches no further trial of that arm until --clear-arm <id> is passed after the operator or lead has read the cause"
+    rationale: "SDD Flatline opus IMP-012, gpt IMP-007: a toggle that stops taking effect mid-batch would silently turn an arm into its baseline"
+    alternatives_considered:
+      - option: "check at smoke only"
+        rejected_because: "the smoke is one trial per arm"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0419"
+    created_at: "2026-10-14T14:48:02Z"
+    updated_at: "2026-10-14T14:48:02Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Effort fields: effort_requested resolved per phase (A1 skill frontmatter, A0 high, A7 medium); effort_effective from MODELINV cheval hops, else null (S9)"
+    decision: "the CLI session does not report an effective effort; rows carry effort_requested per phase as resolved by the materialiser and effort_effective from the sandbox MODELINV rows (dissent and Flatline hops) with null elsewhere; the A7 took-effect evidence is the argv flag plus the stripped frontmatters; the report states which phases have an observed effective effort"
+    rationale: "SDD Flatline gpt IMP-013: the field's source and nullability were undefined"
+    alternatives_considered:
+      - option: "infer effort from token counts"
+        rejected_because: "not a measurement"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0420"
+    created_at: "2026-10-14T14:48:04Z"
+    updated_at: "2026-10-14T14:48:04Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Review-catch grading: a defect counts once if any gate cites it; false positives dedupe by region; verdict accurate iff it matches the key's severity (S10)"
+    decision: "recall-vs-defects.sh runs on the arm-neutral reduction of every gate output and both dissent envelopes; a defect detected by any document counts once; cited regions outside every key anchor and fix region are deduplicated across documents before the false-positive count; the review-catch verdict is accurate when the final gate verdict is CHANGES_REQUIRED and the key holds at least one high or critical seeded defect, or APPROVED and it holds none"
+    rationale: "SDD Flatline gpt IMP-017, opus IMP-031: the combination rule and the review-catch verdict truth were undefined"
+    alternatives_considered:
+      - option: "grade the review file only"
+        rejected_because: "the brief counts defects flagged by any gate"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0421"
+    created_at: "2026-10-14T14:48:06Z"
+    updated_at: "2026-10-14T14:48:06Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Sandbox checksums.json is regenerated with gen-checksums.sh after the arm toggles, identically for every arm, and recorded in arm_evidence (S11)"
+    decision: "lib/sandbox-mount.sh runs tools/gen-checksums.sh --root <ws> after every toggle so check-loa.sh and any integrity reader inside the sandbox see a clean manifest for every arm alike; the regeneration is the last materialisation step and its digest goes to arm_evidence"
+    rationale: "SDD Flatline opus IMP-004: toggles edit mounted files, which would otherwise read as Tampered inside the sandbox"
+    alternatives_considered:
+      - option: "leave the manifest"
+        rejected_because: "A3 to A7 would carry integrity warnings A1 does not"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0422"
+    created_at: "2026-10-14T14:48:09Z"
+    updated_at: "2026-10-14T14:48:09Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Per-phase cost watchdog from per-turn usage times catalog price kills a phase that would pass the remaining run cap; overshoot is bounded by one turn (S12)"
+    decision: "pipeline-run.sh tails the stream-json events, prices each assistant turn's usage from the catalog, and sends SIGTERM when the estimate plus the run's spent cost would pass --max-run-usd; the phase is recorded cap_failure with the turn count; the result event's total_cost_usd is authoritative after exit; the report states the maximum single-turn overshoot observed"
+    rationale: "SDD Flatline opus IMP-028: a between-phase check lets one phase overshoot the cap by a whole phase"
+    alternatives_considered:
+      - option: "between-phase check only"
+        rejected_because: "one Fable gate phase can cost several dollars"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0423"
+    created_at: "2026-10-14T14:48:11Z"
+    updated_at: "2026-10-14T14:48:11Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "A2 phases read the brief as the sprint when no sprint.md exists; the materialiser registers sprint-1 in the sandbox ledger and the PLAN prompt does not (S13)"
+    decision: "for a2_no_sprint_plan the materialiser writes task-brief.md with the agent-facing criterion and no sprint.md; the IMPLEMENT, REVIEW and AUDIT prompts say the brief is the sprint; for every arm the materialiser registers sprint-1 planned in the sandbox ledger and the PLAN prompt only writes sprint.md"
+    rationale: "SDD Flatline opus IMP-006/026: the skills read sprint.md and the PLAN prompt duplicated the ledger step"
+    alternatives_considered:
+      - option: "a skeleton sprint.md for A2"
+        rejected_because: "a skeleton is a plan; A2 removes the plan"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S13)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0424"
+    created_at: "2026-10-14T14:48:13Z"
+    updated_at: "2026-10-14T14:48:13Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "Task files split success_criterion (grader) from criterion (agent-facing); validate-suite.sh checks schema, counts, allowlist, destinations, leakage (S14)"
+    decision: "task.yaml carries criterion (what the agent sees; names behaviour, never a hidden path or test name) and success_criterion (what the grader evaluates); evals/harness/validate-suite.sh checks every task.yaml against the schema, the four-by-four type counts, the test_command allowlist, hidden/manifest.json destinations inside the tree, the fixture path rule, the absence of hidden paths, defect keys or arm ids in TASK.md, task-brief text and phase prompts, and arm applicability; freeze.sh --check and run-ablation.sh call it; the schema, freeze.sh and validate-suite.sh move to Sprint 258 so the smoke runs on real task files"
+    rationale: "SDD Flatline opus IMP-010/022/023, gpt IMP-003/009: a criterion naming test paths leaks; the smoke needed task files before Sprint 259"
+    alternatives_considered:
+      - option: "one criterion field"
+        rejected_because: "the grader's phrasing would reach the agent"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S14)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:48:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sdd.md#115-sdd-flatline-review-integration-2026-10-15 (S14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0425"
+    created_at: "2026-10-14T14:56:15Z"
+    updated_at: "2026-10-14T14:56:15Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Re-verification case 3: a1_pruned (the shipped Sprint 262 tree) and a fresh a1_full control interleaved, one trial per task, paired by task (P1)"
+    decision: "a1_pruned is the actual Sprint 262 tree (changed config, profiles, docs) pinned as its own source commit, not toggles on the old commit; when several components are pruned the re-verification interleaves a1_pruned and a fresh a1_full control on the same day, one trial per task over the sixteen tasks (about 32 runs, USD 230), compares them pairwise by task on each applicable primary, reads the bound on the point estimate at or above -0.03 with the 90 percent interval and the minimum detectable effect printed, and states that this sample detects a gross regression only; the first removal applied when the budget cannot fund the control pair is the one with the largest measured cost saving"
+    rationale: "sprint Flatline SKP-005, opus IMP-003/005/013/020: a1_pruned rows from a later day against a1_full rows from the batch day confound drift with the prune; the run set and the ordering of removals were undefined"
+    alternatives_considered:
+      - option: "a1_pruned alone at three trials over the suite"
+        rejected_because: "about USD 350 and still a different day than the control"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P1)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0426"
+    created_at: "2026-10-14T14:56:17Z"
+    updated_at: "2026-10-14T14:56:17Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "ablation-report.py moves to Sprint 260 (Task 3.8, owner H) so the early H1 and A4 reads use a tested script; Sprint 261 hardens it on real rows (P2)"
+    decision: "Task 3.8 (H) builds ablation-report.py with its planted-row bats in Sprint 260 alongside G's runner; Task 3.6 depends on it; Sprint 261's Task 4.1 becomes the fixes and extra cases found on real rows plus the threshold-boundary rows"
+    rationale: "sprint Flatline opus IMP-002: Task 3.6 called a Sprint 4 script"
+    alternatives_considered:
+      - option: "a hand computation for the early reads"
+        rejected_because: "the reads decide an escalation; they need the same script as the report"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P2)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0427"
+    created_at: "2026-10-14T14:56:19Z"
+    updated_at: "2026-10-14T14:56:19Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Grading is inline per trial and Sprint 261 re-grades every run directory from scratch, asserting byte-identical grade.json (P3)"
+    decision: "run-ablation.sh grades each trial after it finishes (the row needs it); Sprint 261 Task 4.2 runs ablation-grade.sh over every run directory again with the arm map withheld and asserts the new grade.json equals the inline one before the report is built"
+    rationale: "sprint Flatline opus IMP-003: the plan described grading twice without saying both happen"
+    alternatives_considered:
+      - option: "grade once in Sprint 4"
+        rejected_because: "rows could not be written during the batch"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P3)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0428"
+    created_at: "2026-10-14T14:56:21Z"
+    updated_at: "2026-10-14T14:56:21Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Pre-registration precedes the smoke; the chosen rung and trial counts get a second NOTES entry before the first main-batch row; smoke rows never decide (P4)"
+    decision: "Task 3.1's entry (rules, predicates, applicability, ladder, caps, contingencies, manifest hash) is written before the Sprint 260 smoke; Task 3.4 writes the batch-plan entry (rung, trial counts, MDE, concurrency, --max-usd formula) before the first priority-batch row; smoke rows live under the smoke batch and never enter a decision; the inconclusive extension is two trials per task for the arm concerned, budgeted in batch-plan.md"
+    rationale: "sprint Flatline opus IMP-004/006: trial counts were chosen after the entry that had to quote them"
+    alternatives_considered:
+      - option: "one entry after the smoke"
+        rejected_because: "the rules would be written after seeing smoke numbers"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P4)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0429"
+    created_at: "2026-10-14T14:56:24Z"
+    updated_at: "2026-10-14T14:56:24Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Batch --max-usd = remaining minus reserve minus concurrency times the per-run cap; both smokes run under --max-usd and post their spend (P5)"
+    decision: "Task 3.4 sets --max-usd for a batch to (cap minus spend so far minus reserve minus concurrency times 12); Tasks 1.9 and 3.3 run under --max-usd 100 each and post spend in NOTES; a batch-level watchdog kills a trial with no row after twice its phase-sum timeout (status interrupted)"
+    rationale: "sprint Flatline SKP-003, opus IMP-007/017, gpt IMP-013: in-flight overshoot and un-capped smokes could pass the cycle cap; a hung trial had no stop"
+    alternatives_considered:
+      - option: "trust the per-trial reservation"
+        rejected_because: "the formula makes the overshoot bound explicit"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P5)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0430"
+    created_at: "2026-10-14T14:56:26Z"
+    updated_at: "2026-10-14T14:56:26Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "The cycle cap covers executor-reported run cost plus cost-ledger rows; the lead session and its Agent-tool subagents are unmetered and outside the cap (P6)"
+    decision: "spend.sh and the report state the coverage: arm, smoke, re-verification and extension runs (executor total_cost_usd plus sandbox ledgers), planning Flatline, dissent and Bridgebuilder rows from .run/cost-ledger.jsonl; the Fable lead session and the Opus implementer and fairness-review subagents run inside the lead's Claude Code session, are not metered by the ledger, and are listed as outside the cap"
+    rationale: "sprint Flatline opus IMP-008: the cap's coverage was implicit"
+    alternatives_considered:
+      - option: "estimate the lead session from tokens"
+        rejected_because: "no ledger row exists for it; an estimate would be invented"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P6)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0431"
+    created_at: "2026-10-14T14:56:28Z"
+    updated_at: "2026-10-14T14:56:28Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "A3 gets its own toggle and pipeline test cases (companion_voice false; envelopes planned false); the gate-model contingency is never called A8 (P7)"
+    decision: "arm-toggles.bats gains the a3_one_voice case; pipeline-run.bats gains the A3 envelope case; every mention of the Fable-refusal contingency reads the gate-model contingency (SDD A8, DEC-0386) so A8 means only the component-absent arm"
+    rationale: "sprint Flatline opus IMP-009/010: A3 had no test case and A8 named two things"
+    alternatives_considered:
+      - option: "leave A3 to the smoke"
+        rejected_because: "the smoke is one trial"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P7)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0432"
+    created_at: "2026-10-14T14:56:30Z"
+    updated_at: "2026-10-14T14:56:30Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "All sixteen tasks date from 2026-08-01 or later, said once; the review-catch self-check adds a known-noisy file that must score worse on false positives (P8)"
+    decision: "AC-2.8 reads: all sixteen tasks come from code dated 2026-08-01 or later, dates in task.yaml; the review-catch self-check adds a known-noisy findings file (every head line flagged) that must score a false-positive count above the known-good file's"
+    rationale: "sprint Flatline opus IMP-011/012: the plan said half and all sixteen in one sentence with two dates; recall alone would reward a flag-everything review"
+    alternatives_considered:
+      - option: "keep recall only"
+        rejected_because: "a noisy review would pass known-good"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P8)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0433"
+    created_at: "2026-10-14T14:56:33Z"
+    updated_at: "2026-10-14T14:56:33Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Every arm's sandbox is integrity-clean after toggles, and the took-effect evidence lists live in one canonical table in the suite file (P9)"
+    decision: "gen-checksums.sh runs for every arm after toggles and the A1 integrity evidence line applies to every arm; the suite file's took_effect lists are the one source took-effect.sh, the ACs and smoke.md reference"
+    rationale: "sprint Flatline opus IMP-014, gpt IMP-014: evidence was spread across ACs and the SDD, and only A1 was checked clean"
+    alternatives_considered:
+      - option: "A1 only"
+        rejected_because: "A3 to A7 would carry integrity warnings"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P9)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0434"
+    created_at: "2026-10-14T14:56:35Z"
+    updated_at: "2026-10-14T14:56:35Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Decision states gain Not run (cut) and Inconclusive-by-power; an MDE above 0.10 at affordable trials pre-declares an arm Inconclusive-by-power (P10)"
+    decision: "the rule set and the report carry Not run (cut) for arms the ladder removed and Inconclusive-by-power for arms whose minimum detectable effect at the affordable trial count exceeds 0.10 on a primary; such an arm is cut before running and recorded; G-1 counts a decided component as one with any of the five rule outcomes, and Not run and Inconclusive-by-power are reported as undecided with the figure that stopped them"
+    rationale: "sprint Flatline SKP-004, opus IMP-016/019, gpt IMP-006/007: the plan had no state for an arm it could not run or decide"
+    alternatives_considered:
+      - option: "run everything and call it inconclusive after"
+        rejected_because: "spending the cap on a measurement that cannot decide"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P10)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P10)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0435"
+    created_at: "2026-10-14T14:56:37Z"
+    updated_at: "2026-10-14T14:56:37Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Hard gate: run-ablation.sh refuses a non-smoke batch unless the manifest hash, self-check output and sixteen REVIEW.md files exist and are referenced (P11)"
+    decision: "run-ablation.sh (non-smoke) requires grimoires/loa/evals/ablation-2.0/MANIFEST.sha256, the recorded self-check 16/16 output and a REVIEW.md per task, and writes their paths and hashes into MANIFEST.json; every report and release note cites suite_version, source commit and the manifest hash; every artefact carries schema_version and a reader refuses an unknown major"
+    rationale: "sprint Flatline gpt IMP-004/008/018: the Sprint 2 exit criteria were not enforced by the runner"
+    alternatives_considered:
+      - option: "trust the sprint order"
+        rejected_because: "a batch started early would measure an unfrozen suite"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P11)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:56:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0436"
+    created_at: "2026-10-14T14:57:53Z"
+    updated_at: "2026-10-14T14:57:53Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "Housekeeping: reserve 250 everywhere, AC order, F owns the Sprint 2 bats edit, interfaces in briefs, no dissent in any batch, rc.6 marker via pipeline (P12)"
+    decision: "the Sprint 5 risk row reads USD 250; AC-2.9/2.10 are in numerical order; F owns the pipeline-run.bats extension in Sprint 259; the shared interfaces (sandbox-mount.sh signature, task.yaml schema) are written into every implementer's brief by the lead, who reconciles at apply time; AC-3.9's no-dissent-during-batch rule applies to the Sprint 261 extension and the Sprint 262 re-verification with the same log evidence; Task 5.6 names bd-s93s8 (the cycle-129 archive on main, closed at the plan commit); the rc.6 version markers are written by the post-merge pipeline on the tag and folded onto main next cycle as rc.5 was (bd-b4ji class), so no Sprint 262 task pre-bumps them"
+    rationale: "sprint Flatline gpt IMP-001/009, opus IMP-001/021/022/024/025/027: figures and ownership disagreed across sections; a pre-bump would put main's marker ahead of its tag"
+    alternatives_considered:
+      - option: "pre-bump the markers to rc.6"
+        rejected_because: "semver-bump.sh reads the CHANGELOG, and the published tag commit carries the marker"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/59fef925-e922-4ddd-a75f-2113566c0491"
+    commit: "9e53d5d2"
+    source: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P12)"
+    cycle: "cycle-130"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T14:57:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/sprint.md#d-flatline-review-integration-2026-10-15 (P12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

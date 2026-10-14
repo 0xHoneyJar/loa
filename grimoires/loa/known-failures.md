@@ -76,7 +76,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-019](#kf-019-confabulated-absence--an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth--potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts--gitignored--check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
-| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 4 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 5 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
@@ -88,7 +88,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 4 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 5 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 
@@ -1210,7 +1210,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 **Feature**: beads_rust (br) sync
 **Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
 **First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
 **Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
 **Related visions / lore**: none
@@ -1223,6 +1223,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 | 2026-07-11 | br create x5 then br sync --flush-only | recurred: new beads stranded until --force (2nd time same day) | agent-ergonomics pass 1 session; beads bd-5fpl..bd-y04d |
 | 2026-07-29 | br sync + br sync --flush-only after 25 creates (br 0.2.6, cycle-121 kickoff) | Both report 'current/nothing to export' while all 25 cycle-121 ids are DB-only (issues.jsonl has 0). Proceeded per Reading guide: DB authoritative, NO --rebuild/--import-only, JSONL export deferred. | run-20260729-68d1b75c |
 | 2026-09-17 | framework review session: br sync --status vs beads-health on branch feature/cycle-123-bug-burndown (br 0.2.6) | --status reports 'Dirty issues: 1 / Database is newer' while beads-health reports JSONL 1607h stale; not chased per Reading guide | framework-review-2026-09-17.md §3.4 (grimoires/loa/a2a/); local HEAD 65e0c4a0 |
+| 2026-10-15 | cycle-130 kickoff: 44 br create (5 epics, 39 tasks) left issues.jsonl at its 2026-10-13 mtime; --status said Dirty issues: 1 while --flush-only exported nothing; --flush-only --force once | ids landed in .beads/issues.jsonl (verified by grep); Dirty issues: 1 persists after the force; also br create --parent fails on this DB (no such column: last_child in table child_counters) so tasks carry epic:<id> labels and the epic depends on its tasks | grimoires/loa/NOTES.md 2026-10-15 kickoff entry; ~/.cache/loa/cycle-130/seed-beads.sh; cycle-130 plan commit |
 
 ### Reading guide
 
@@ -1659,7 +1660,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
 **Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
@@ -1670,6 +1671,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 |------|---------------|---------|----------|
 | 2026-10-07 | three planning-doc reviews in one session (prd, sdd, sprint) with CLAUDE_HEADLESS_BIN=claude-bedrock | all three degraded the same way; integrated the 33 + 33 + sprint improvements by judgment into SDD §1.5 / PRD FR-x.5 | ~/.cache/loa/cycle-127/flatline-127.log; grimoires/loa/a2a/flatline/{prd,sdd,sprint}-final_consensus.json; commit 6daf2e06 |
 | 2026-10-14 | cycle-129 planning: three Flatline runs (prd flatline-24474-6736, sdd, sprint) with codex-headless + claude-headless, Phase 1 2/2 voices | all three degraded the same way (Phase 2 cross-scoring null, exit 6); blockers and per-voice improvements integrated by lead judgment into PRD App. G, SDD §11.4/§11.5, sprint App. D; routed to an upstream issue (sprint-255 Task 1.10) per DEC-0134, no retry | ~/.cache/loa/cycle-129/flatline/{prd,sdd,sprint}.{json,log}; grimoires/loa/a2a/flatline/*-final_consensus.json |
+| 2026-10-15 | cycle-130 planning Flatline on prd.md (2 voices codex-headless + claude-headless, Phase 1 2/2, 18 blockers, 61 improvements): cross-scoring returned gpt_score null on every item, scoring_degraded true, high_consensus 0; integrated by judgment per DEC-0370, no retry | KF-041 shape again; raw_reviews read and 20 integration decisions recorded (DEC-0391..DEC-0410, PRD Appendix G) | ~/.cache/loa/cycle-130/flatline/prd.json; grimoires/loa/a2a/flatline/prd-flatline-16617-*-final_consensus.json; cycle-130 plan commit |
 
 ### Reading guide
 
