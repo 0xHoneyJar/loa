@@ -2522,9 +2522,9 @@
         {
           "global_id": 257,
           "local_label": "sprint-3",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-13T21:27:40Z",
-          "completed": null,
+          "completed": "2026-10-14T10:32:34Z",
           "theme": "Advisory open-weight voices, local_voices posture, Bridgebuilder banner, E2E",
           "epic": "bd-9m8z",
           "beads": [
@@ -2939,5 +2939,5 @@
     }
   ],
   "next_sprint_number": 258,
-  "last_updated": "2026-10-14T05:50:59Z"
+  "last_updated": "2026-10-14T10:32:34Z"
 }

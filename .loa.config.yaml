@@ -81,6 +81,13 @@ simstim:
       - prd
       - sdd
       - sprint
+# cycle-129 FR-4 (DEC-0126, DEC-0168): this repository runs the implement gate in deny mode —
+# an App-Zone Write/Edit outside /implement, /bug or a sanctioned run is denied, not asked.
+# Flipped in the cycle's last commit after the E2E derive showed no run-position drift (G-5a).
+# Rollback: mode: ask.
+implement_gate:
+  mode: deny
+
 run_mode:
   enabled: true
   defaults:
