@@ -9397,7 +9397,7 @@ decisions:
     prior_requests: []
   - id: "DEC-0294"
     created_at: "2026-10-14T03:26:40Z"
-    updated_at: "2026-10-14T03:26:40Z"
+    updated_at: "2026-10-14T03:27:55Z"
     phase: "implementation"
     category: "process"
     summary: "S2 lead: the disallowed-tools probe ran in the lead session and cost it Write/Edit for the session (KF-043); future probes use a throwaway session"
@@ -9417,13 +9417,50 @@ decisions:
     cycle: "cycle-129"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "rejected"
     transitions:
       - at: "2026-10-14T03:26:40Z"
         from: null
         to: "proposed"
         by: "agent:lead-seed"
         evidence: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-13)"
+      - at: "2026-10-14T03:27:55Z"
+        from: "proposed"
+        to: "rejected"
+        by: "agent:lead-seed"
+        evidence: "duplicate of DEC-0292: the same lead-13 decision was re-seeded after a summary-length failure of a different row was misattributed"
+    rejection_rationale: "duplicate of DEC-0292: the same lead-13 decision was re-seeded after a summary-length failure of a different row was misattributed"
+    follow_up: "none; DEC-0292 is the live row"
+    prior_requests: []
+  - id: "DEC-0295"
+    created_at: "2026-10-14T03:27:25Z"
+    updated_at: "2026-10-14T03:27:25Z"
+    phase: "implementation"
+    category: "review"
+    summary: "S2 lead: review r256-1 CHANGES_REQUIRED (0/1/0/7): a backtick span is inert to the fence while the dollar-paren form blocks; B79/B84 pinned it as allowed"
+    decision: "Review round r256-1 is CHANGES_REQUIRED with one HIGH: the fence treats a backtick span as inert text while it treats the dollar-paren form as a substitution, in heredoc bodies under an unquoted delimiter and inside double-quoted arguments and assignments (probed under the new hook, b6802e4f and main 864069f2: identical). The fix round makes a backtick pair outside single quotes a substitution wherever the dollar-paren form is one, flips B79/B84 to quoted delimiters and adds D-rows for the executing shapes (dissent DISS-C-001 confirmed and widened)."
+    rationale: "lead review call for cycle-129 sprint-256 round 1, recorded in engineer-feedback.md HIGH-1"
+    alternatives_considered:
+      - option: "approve with the backtick rows as written"
+        rejected_because: "two allow rows would pin the fence to pass the SP-1 and P2 actions it exists to stop"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "35e23881"
+    source: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-11)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:27:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-11)"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
