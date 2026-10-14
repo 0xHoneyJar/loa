@@ -11256,3 +11256,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0352"
+    created_at: "2026-10-14T10:55:38Z"
+    updated_at: "2026-10-14T10:55:38Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "BB #1282: The session-cap dispatcher treats a Bridgebuilder exit 3 as completed-degraded only when stdout carries a run JSON with a verdicts array; an exit 3..."
+    decision: "The session-cap dispatcher treats a Bridgebuilder exit 3 as completed-degraded only when stdout carries a run JSON with a verdicts array; an exit 3 without one is a failure (ERROR said, degraded false, exit 3), and incomplete_voices is recorded as an array."
+    rationale: "Only the exit code was consulted; an empty or non-JSON stdout still yielded degraded true and exit 0 (Bridgebuilder PR #1282 F-001)."
+    alternatives_considered:
+      - option: "Trust the exit code alone"
+        rejected_because: "a wrapper or shell error that happens to exit 3 would be reported as a completed review"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "2fb03b5c"
+    source: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:55:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0353"
+    created_at: "2026-10-14T10:55:39Z"
+    updated_at: "2026-10-14T10:55:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "BB #1282: The profile-governed SessionStart hooks (soul, handoffs, decisions surfaces) keep the never-block contract (surface off, exit 0) when profile-lib.s..."
+    decision: "The profile-governed SessionStart hooks (soul, handoffs, decisions surfaces) keep the never-block contract (surface off, exit 0) when profile-lib.sh cannot be sourced, but say so with one ASCII WARNING line on stderr."
+    rationale: "An explicit enabled: true was ignored silently when the copied hook and the library had drifted (#842 copy set); other degraded paths in these hooks already warn (Bridgebuilder PR #1282 F-002, gpt F001/F002)."
+    alternatives_considered:
+      - option: "Fall back to a direct yq read of the key"
+        rejected_because: "a direct read of a profile key outside profile-lib is exactly what check-knob-readers.sh forbids (FR-9 one reader)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "2fb03b5c"
+    source: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:55:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0354"
+    created_at: "2026-10-14T10:55:41Z"
+    updated_at: "2026-10-14T10:55:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "BB #1282: The generated hooks-reference registration table renders hook matchers with slashes (Write/Edit/MultiEdit/NotebookEdit), the human format the hand-..."
+    decision: "The generated hooks-reference registration table renders hook matchers with slashes (Write/Edit/MultiEdit/NotebookEdit), the human format the hand-written table used and hook-wiring W6 pins; guard-yield.bats follows."
+    rationale: "The FR-1 generator rendered matchers with escaped pipes, which hook-wiring W6 read as a changed registration; two tests pinned two formats (found while verifying Bridgebuilder PR #1282 F-002)."
+    alternatives_considered:
+      - option: "Update W6 to accept escaped pipes"
+        rejected_because: "the slash form is the documented format readers already know; the generator is the one place to fix"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "2fb03b5c"
+    source: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T10:55:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/bb-triage.md#findings (BB #1282 item 3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
