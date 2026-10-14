@@ -29,6 +29,8 @@ out/
 # shipping infrastructure — un-ignore it explicitly.
 !.claude/skills/bridgebuilder-review/dist/
 !.claude/skills/bridgebuilder-review/dist/**
+!evals/fixtures/review-prs/*/*/.claude/skills/bridgebuilder-review/dist/
+!evals/fixtures/review-prs/*/*/.claude/skills/bridgebuilder-review/dist/**
 
 # Environment variables
 .env

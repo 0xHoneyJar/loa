@@ -50,10 +50,14 @@ _Aliases_: Flatline Protocol
 **Jack in**: To start an autonomous run under run mode; a run that has finished or been stopped for good has jacked out.
 _Aliases_: jack out
 
+**Judgment**: The task kind for work that needs reading and a decision; it ships as prose or a reviewed artifact, and its sprint task line ends with kind: judgment.
+
 **Kaironic**: Stopping at the right moment rather than after a fixed count: an iterative review loop ends when successive passes stop finding material issues.
 _Avoid_: converged
 
 **Karpathy principles**: The four working rules applied on every code-touching turn: think before coding, simplicity first, surgical changes and goal-driven verification.
+
+**Kind counts**: The release-notes line that counts a cycle's sprint tasks by kind (mechanical, judgment and operator), read from the tagged task lines of its sprint plan.
 
 **Known failure**: A recorded degradation with its symptom, the attempts made and a reading guide, consulted before triage so that prior dead ends are not retried.
 _Aliases_: KF
@@ -61,6 +65,10 @@ _Aliases_: KF
 **Lore**: The mythic and narrative background of the framework's names, kept apart from this glossary, which defines only working meanings.
 
 **Map epic**: The epic bead that parents an effort's decision tickets, paired with a map document of its destination, decisions so far, fog and exclusions; run mode never implements it.
+
+**Mechanical**: The task kind for work a script could do reliably; it ships as code with tests, and a review flags a mechanical task delivered as prose the model re-executes.
+
+**Operator**: The human who owns the project and its decisions; as a task kind, work that belongs to that human, which a review flags when it was completed unattended without a decision:unblock ticket or a DEC row.
 
 **Round**: One frontier of interview questions asked together and answered together.
 
@@ -77,5 +85,7 @@ _Aliases_: RUNNING, HALTED, JACKED_OUT
 _Aliases_: LOA-VERDICT
 
 **Voice**: The party a decision or finding is attributed to: the operator, the agent, Flatline or dissent.
+
+**Volume ratio**: The release-notes line that sets a cycle's script lines changed against its prose bytes changed and its model calls; the model-call count is local to the host that ran the cycle.
 
 **Zone**: One of the three permission regions of a repository: the System zone holds the framework and is never edited by hand, the State zone is read and written freely, and the App zone needs confirmation before a write.

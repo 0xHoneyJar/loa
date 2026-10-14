@@ -1,0 +1,37 @@
+# approved-by: lead 2026-10-14
+# fixture pr-11 | sprint-247 | record origin/record/cycle-126-a2a | base a775f14ddc63 | head 7246ae55a4fe | fix 4b289413cc23
+# seeded by evals/harness/seed-corpus-from-record.sh; curate must_match (one row per anchor), then --approve
+# L01 high review: the unverified-zone flag is computed once for the head entry and reused for every hop, so an ordinary 429 on a fallback hop ends the chain as `RATE_LIMIT_UNVER… [quoted snippet + fix hunk inside cmd_invoke()]
+# L02 high review: the read → append → `os.replace` cycle takes no interprocess lock, so two concurrent chevals that hit a provider limit can each load the same old store and the… [quoted snippet + fix hunk inside record_observed()]
+# L03 high review: the premium multiplies already-floored per-category micro-USD costs, discarding each category's remainder before the multiply and truncating again after it. [fix hunk inside calculate_total_cost()]
+# L04 low audit: Store and catalog paths are read through a symlink [curated: the seeded --write-catalog row is the probe-command constant above the store, not the symlinked read]
+# L05 low audit: Local filesystem path in the envelope [fix hunk inside _calibration_needed_exit()]
+defect_id	severity	category	file	must_match	label_source	source
+L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	RATE_LIMIT_UNVERIFIED	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
+L01-the-unverified-zone-flag-is-computed-onc	high	logic	.claude/adapters/cheval.py	_last_walk_extra: Dict[str, Any] = {}	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L22
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	record_observed	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	fresh mount)."""	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L02-the-read-append-cycle-takes-no-interproc	high	concurrency	.claude/adapters/loa_cheval/routing/ceiling.py	directory = os.path.dirname(os.path.abspath(path)) or "."	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L30
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	# traffic; output-side: output + reasoning).	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L03-the-premium-multiplies-already-floored-p	high	logic	.claude/adapters/loa_cheval/metering/pricing.py	inp_cost = int(inp_cost * im)	review	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/engineer-feedback-round-1.md#L38
+L04-store-and-catalog-paths-are-read-through	low	security	.claude/adapters/loa_cheval/routing/ceiling.py	def load_observed(path: Optional[str] = None)	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L59
+L05-local-filesystem-path-in-the-envelope	low	logic	.claude/adapters/cheval.py	nonlocal _last_walk_exit_code	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65
+L05-local-filesystem-path-in-the-envelope	low	logic	.claude/adapters/cheval.py	"message_redacted": str(_exc), "observed_input_tokens": _obs, "provider_limit": provider_limit,	audit	record/cycle-126-a2a:grimoires/loa/a2a/sprint-247/auditor-sprint-feedback.md#L65
+F001	-	fix	.claude/adapters/cheval.py	_last_walk_extra: Dict[str, Any] = {}	fix	fix/4b289413cc23:1992-1992
+F002	-	fix	.claude/adapters/cheval.py	nonlocal _last_walk_exit_code	fix	fix/4b289413cc23:2004-2004
+F003	-	fix	.claude/adapters/cheval.py	"message_redacted": str(_exc), "observed_input_tokens": _obs, "provider_limit": provider_limit,	fix	fix/4b289413cc23:2022-2022
+F004	-	fix	.claude/adapters/cheval.py	f"{_exc} — not walked: the same payload would fail the next voice; calibrate: {_calib['calibrate']}",	fix	fix/4b289413cc23:2032-2032
+F005	-	fix	.claude/adapters/cheval.py	if not os.environ.get("LOA_CHEVAL_DISABLE_INPUT_GATE"):	fix	fix/4b289413cc23:2110-2110
+F006	-	fix	.claude/adapters/cheval.py	error_class=("CEILING_UNVERIFIED_LIMIT" if _ceiling_unverified else "PROVIDER_CONTEXT_LIMIT"),	fix	fix/4b289413cc23:2256-2256
+F007	-	fix	.claude/adapters/cheval.py	if _ceiling_unverified:	fix	fix/4b289413cc23:2297-2297
+F008	-	fix	.claude/adapters/loa_cheval/metering/pricing.py	def calculate_total_cost(	fix	fix/4b289413cc23:111-111
+F009	-	fix	.claude/adapters/loa_cheval/metering/pricing.py	# traffic; output-side: output + reasoning).	fix	fix/4b289413cc23:165-165
+F010	-	fix	.claude/adapters/loa_cheval/metering/pricing.py	inp_cost = int(inp_cost * im)	fix	fix/4b289413cc23:171-175
+F011	-	fix	.claude/adapters/loa_cheval/metering/pricing.py	def _mult(value: Any) -> float:	fix	fix/4b289413cc23:290-290
+F012	-	fix	.claude/adapters/loa_cheval/metering/pricing.py	return m if m > 0 else 1.0	fix	fix/4b289413cc23:295-295
+F013	-	fix	.claude/adapters/loa_cheval/routing/ceiling.py	import datetime as _dt	fix	fix/4b289413cc23:30-30
+F014	-	fix	.claude/adapters/loa_cheval/routing/ceiling.py	fresh mount)."""	fix	fix/4b289413cc23:278-278
+F015	-	fix	.claude/adapters/loa_cheval/routing/ceiling.py	directory = os.path.dirname(os.path.abspath(path)) or "."	fix	fix/4b289413cc23:292-293
+F016	-	fix	.claude/adapters/tests/test_ceiling_e2e.py	assert "[preflight] max_tokens shrunk 64000" in err	fix	fix/4b289413cc23:267-267
+F017	-	fix	.claude/adapters/tests/test_ceiling_policy.py	"legacy: no I1, no count, the literal"	fix	fix/4b289413cc23:272-272
+F018	-	fix	.claude/adapters/tests/test_long_context_pricing.py	assert c.long_context_applied is True and c.total_cost_micro == 2_000	fix	fix/4b289413cc23:66-66

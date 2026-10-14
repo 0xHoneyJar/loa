@@ -1,0 +1,14 @@
+{
+  "C-PROC-001": "Code outside /implement bypasses review+audit; /run wraps the cycle with a circuit breaker. Mechanical stack: implement-gate.sh fail-asks Write/Edit-tool App-Zone writes outside /implement//bug; disallowed-tools strips write tools from pure-review skills; the adversarial gates catch the rest. Bash-path App-Zone writes remain review-territory (accepted fence gap, same class as the spiral guard's).",
+  "C-PROC-002": "Beads is the single source of truth for task lifecycle; TaskCreate is for session progress display only",
+  "C-PROC-004": "These are the only validation that code meets acceptance criteria and security standards",
+  "C-PROC-005": "Ensures the implement→review→audit cycle with circuit-breaker protection and requirements traceability (absorbs the former separate check-sprint-plan row; implement-gate.sh asks on ungated App-Zone writes).",
+  "C-PROC-015": "Prevents feature work from bypassing PRD/SDD gates via `/bug`. Must reference observed failure, regression, or stack trace.",
+  "C-PROC-017": "`/spiraling` loads as context, not as an orchestrator. Without mechanical dispatch, the agent bypasses all quality gates (Flatline, Review, Audit, Bridgebuilder) — the fox-guarding-the-henhouse antipattern that the harness was built to prevent.",
+  "C-PROC-018": "The Write tool rejects writes to un-Read existing files (hundreds of failed writes a month across mounts) and blind writes clobber cross-session state.",
+  "C-TEAM-001": "Planning skills produce single artifacts (PRD, SDD, sprint plan) that assume single-writer semantics; concurrent invocation would corrupt state",
+  "C-TEAM-002": "Beads uses SQLite with single-writer semantics; concurrent br sync or br close causes lock contention and potential corruption",
+  "C-TEAM-003": "State files use read-modify-write pattern; concurrent writes cause lost updates and inconsistent reads",
+  "C-TEAM-004": "Git's working tree and index are shared mutable state; concurrent commits or pushes cause merge conflicts, index lock failures, and corrupted state",
+  "C-TEAM-005": "System Zone modifications by a teammate could alter constraint definitions, hook behavior, or skill configurations for all agents in the team, breaking the coordination invariants that other C-TEAM constraints depend on"
+}

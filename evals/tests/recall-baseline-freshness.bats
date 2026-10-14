@@ -177,3 +177,65 @@ mk_arm() {  # mk_arm <dir> <model> <tree_sha> <dirty> <recall_pr01> <fp_clean> <
   [ "$(yq -r '.model_version' "$T/out.yaml")" = "m1" ]
   [ "$(yq -r '.recorded_from_run' "$T/out.yaml")" = "r" ]
 }
+
+# ---- control arms (cycle-129 FR-2, SDD D-2.3) --------------------------------
+
+# Stamp every row of an arm dir with an arm id and per-row source commits.
+stamp_arm() {  # stamp_arm <dir> <arm> <source-row1> [<source-row2>]
+  local d="$1" arm="$2" s1="$3" s2="${4:-$3}"
+  jq -c --arg arm "$arm" --arg s1 "$s1" --arg s2 "$s2" \
+    '. + {arm: $arm, source_commit: (if .task_id == "review-pr-01" then $s1 else $s2 end)}' \
+    "$d/results.jsonl" > "$d/r.tmp" && mv "$d/r.tmp" "$d/results.jsonl"
+}
+
+@test "BF-10 control arms on one pinned source tree compare (the same-tree rule yields to distinct arm ids)" {
+  mk_arm "$T/a" m1 "$TREE_SHA" false 1 0 1000
+  mk_arm "$T/b" m1 "$TREE_SHA" false 1 0 900
+  stamp_arm "$T/a" baseline 864069f2
+  stamp_arm "$T/b" no_rule_files 864069f2
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.valid')" = "true" ]
+  [ "$(echo "$output" | jq -r '.arms.b.arm_ids[0]')" = "no_rule_files" ]
+}
+
+@test "BF-11 --ab refuses mixed source_commit values across control arms (exit 2, named reason)" {
+  mk_arm "$T/a" m1 "$TREE_SHA" false 1 0 1000
+  mk_arm "$T/b" m1 "$TREE_SHA" false 1 0 1000
+  stamp_arm "$T/a" baseline 864069f2
+  stamp_arm "$T/b" no_karpathy ffd25258
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -r '.reasons[]' | grep -q 'source commit skew across arms'
+}
+
+@test "BF-12 --ab refuses mixed source_commit values across one arm's trials, and two arm ids in one arm" {
+  mk_arm "$T/a" m1 "$TREE_SHA" false 1 0 1000
+  mk_arm "$T/b" m1 "$TREE_SHA" false 1 0 1000
+  stamp_arm "$T/a" baseline 864069f2 ffd25258
+  stamp_arm "$T/b" no_karpathy 864069f2
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -r '.reasons[]' | grep -q 'source commit skew across trials'
+  mk_arm "$T/a" m1 "$TREE_SHA" false 1 0 1000
+  jq -c '. + {arm: (if .task_id == "review-pr-01" then "baseline" else "no_karpathy" end), source_commit: "864069f2"}' \
+    "$T/a/results.jsonl" > "$T/a/r.tmp" && mv "$T/a/r.tmp" "$T/a/results.jsonl"
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -r '.reasons[]' | grep -q 'mixes arm ids'
+}
+
+@test "BF-13 control arms still refuse executor model skew, and the same arm on both sides is no control comparison" {
+  mk_arm "$T/a" m1 "$TREE_SHA" false 1 0 1000
+  mk_arm "$T/b" m2 "$TREE_SHA" false 1 0 1000
+  stamp_arm "$T/a" baseline 864069f2
+  stamp_arm "$T/b" no_rule_files 864069f2
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -r '.reasons[]' | grep -q 'model id skew'
+  mk_arm "$T/b" m1 "$TREE_SHA" false 1 0 1000
+  stamp_arm "$T/b" baseline 864069f2
+  run "$COMPARE" --ab --arm-a "$T/a" --arm-b "$T/b" --metric recall --json
+  [ "$status" -eq 2 ]
+  echo "$output" | jq -r '.reasons[]' | grep -q 'same prompt tree'
+}

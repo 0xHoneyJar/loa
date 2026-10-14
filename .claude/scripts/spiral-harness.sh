@@ -687,6 +687,29 @@ _gate_audit() {
     _verify_review_verdict "AUDIT" "$feedback_path"
 }
 
+# _bb_surface_exit <rc> <stdout_json_path> <label>
+#
+# cycle-129 D-7.7 (DEC-0150): Bridgebuilder exits 3 when its review COMPLETED with a DEGRADED consensus (fewer voices
+# completed than planned, or a degraded verdict-quality band; `bridgebuilder.exit_on_degraded: 0` restores exit 0). That is
+# not a failure: say it with one WARN line naming the incomplete voices (read from the run's JSON) and carry on. Any other
+# non-zero exit is logged too; neither blocks the gate (the triage reads the JSON, as before). Always returns 0.
+_bb_surface_exit() {
+    local rc="$1" out="$2" label="$3" voices=""
+    case "$rc" in
+        0) return 0 ;;
+        3)
+            if [[ -s "$out" ]]; then
+                voices=$(jq -r '[.verdicts[]?.voices.incomplete[]?] | unique | join(", ")' "$out" 2>/dev/null) || voices=""
+            fi
+            log "WARN: Bridgebuilder $label completed DEGRADED (exit 3): incomplete voices: ${voices:-none named (degraded verdict quality)}; details: $out"
+            ;;
+        *)
+            log "WARN: Bridgebuilder $label exited $rc (the review did not complete)"
+            ;;
+    esac
+    return 0
+}
+
 _gate_bridgebuilder() {
     log "Gate: Bridgebuilder PR review"
 
@@ -699,9 +722,11 @@ _gate_bridgebuilder() {
 
     local entry_script="$SCRIPT_DIR/../skills/bridgebuilder-review/resources/entry.sh"
     if [[ -x "$entry_script" ]]; then
+        local bb_rc=0
         "$entry_script" --pr "$pr_number" \
             >"$EVIDENCE_DIR/bb-review-iter-1.md" \
-            2>"$EVIDENCE_DIR/bridgebuilder-stderr.log" || true
+            2>"$EVIDENCE_DIR/bridgebuilder-stderr.log" || bb_rc=$?
+        _bb_surface_exit "$bb_rc" "$EVIDENCE_DIR/bb-review-iter-1.md" "review iter 1"
         _record_action "GATE_BRIDGEBUILDER" "bridgebuilder" "pr_review" "" "" "" 0 0 0 "posted"
     else
         log "Bridgebuilder not available, skipping"
@@ -1189,9 +1214,11 @@ _phase_bb_fix_loop() {
         local next_review="$EVIDENCE_DIR/bb-review-iter-${next_iter}.md"
         local entry_script="$SCRIPT_DIR/../skills/bridgebuilder-review/resources/entry.sh"
         if [[ -x "$entry_script" ]]; then
+            local bb_rc=0
             "$entry_script" --pr "$pr_number" \
                 >"$next_review" \
-                2>"$EVIDENCE_DIR/bb-rereview-iter-${next_iter}-stderr.log" || true
+                2>"$EVIDENCE_DIR/bb-rereview-iter-${next_iter}-stderr.log" || bb_rc=$?
+            _bb_surface_exit "$bb_rc" "$next_review" "re-review iter $next_iter"
         else
             log "WARNING: Bridgebuilder entry.sh not available for re-review iter $next_iter"
             printf '' > "$next_review"

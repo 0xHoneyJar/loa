@@ -107,8 +107,8 @@ while circuit_breaker.state == CLOSED:
   4. /review-sprint $target
   5. If `verdict-derive.sh --gate review` on engineer-feedback.md does not exit 0 with
      `.verdict == APPROVED` (anything else — including an inconsistent trailer — counts as
-     findings) → record_cycle(findings), check circuit breaker
-     (see "Circuit Breaker" below); on trip, HALT; else continue loop (back to step 1)
+     findings) → record-round (see "Circuit Breaker" below); exit 10, HALT; else continue
+     loop (back to step 1)
   6. update_state(phase: AUDIT); checkpoint(phase: AUDIT)
   7. /audit-sprint $target
   8. If `verdict-derive.sh --gate audit` on auditor-sprint-feedback.md does not exit 0 with
@@ -128,35 +128,11 @@ Call `check_rate_limit` (see "Rate Limiting" below) before each of steps 1, 4, a
 
 ## Circuit Breaker
 
-Four triggers checked, in this order, against `.run/circuit-breaker.json`:
-
-| Trigger | Default Threshold | Check |
-|---------|-------------------|-------|
-| Same Issue | 3 | `jq '.triggers.same_issue.count' .run/circuit-breaker.json` ≥ threshold |
-| No Progress | 5 | `jq '.triggers.no_progress.count' .run/circuit-breaker.json` ≥ threshold |
-| Cycle Limit | 20 | `jq '.triggers.cycle_count.current' .run/circuit-breaker.json` ≥ limit |
-| Timeout | 8 hours | `$(($(date +%s) - $(date -d "$(jq -r '.triggers.timeout.started' .run/circuit-breaker.json)" +%s)))` ≥ `limit_hours * 3600` |
-
-On the first trigger that fires, trip the breaker:
-1. Atomically update `.run/circuit-breaker.json`:
-   `jq --arg t "$trigger" --arg r "$reason" --arg ts "$timestamp" '.state = "OPEN" | .history += [{"timestamp": $ts, "trigger": $t, "reason": $r}]'`.
-2. Atomically update `.run/state.json`: `jq '.state = "HALTED"'`.
-3. Report: "CIRCUIT BREAKER TRIPPED: $reason" then "Run halted. Use `/run-resume --reset-ice` to
-   continue."
-
-### Issue Hash Tracking (Same-Issue trigger)
-
-1. After each `/review-sprint` or `/audit-sprint`, compute the same-issue hash from the
-   DERIVED verdict when the feedback file carries a `<!-- LOA-VERDICT` trailer:
-   `bash .claude/scripts/verdict-derive.sh --file <feedback-file> --gate review|audit --json 2>/dev/null | jq -Sc '{verdict,counts}' | md5sum | cut -d' ' -f1`
-   No-trailer fallback (legacy files without a trailer): `grep -A 100 "## Findings\|## Issues\|## Changes Required" <feedback-file> | head -50 | md5sum | cut -d' ' -f1`
-   (or `echo "none"` if the feedback file doesn't exist). The derived hash is coarser than the
-   prose hash — identical verdict+counts on different findings collide, so the breaker trips
-   sooner, which HALTs for a human (the loud direction).
-2. Read `last_hash` via `jq -r '.triggers.same_issue.last_hash // "none"' .run/circuit-breaker.json`.
-3. If the new hash equals `last_hash` and is not `"none"`: increment count
-   (`jq '.triggers.same_issue.count += 1'`). Otherwise: reset — set count to 1 and
-   `last_hash` to the new hash in one `jq` call.
+After each `/review-sprint` and `/audit-sprint`, run
+`.claude/scripts/run-checkpoint.sh record-round --gate review|audit --file <feedback-file> --sprint $target`.
+It updates `.run/circuit-breaker.json` (same-issue hash, no-progress, cycle count, timeout; thresholds in that
+file and `run_mode.defaults`); exit 10 has already written `OPEN` and `HALTED` — report its
+`TRIPPED: <trigger>: <reason>` line, then "Run halted. Use `/run-resume --reset-ice` to continue."
 
 ### Red Team Code-vs-Design Circuit Breaker
 

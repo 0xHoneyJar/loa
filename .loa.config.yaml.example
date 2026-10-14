@@ -10,6 +10,35 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# Profile (cycle-129, DEC-0143)
+# -----------------------------------------------------------------------------
+# One knob sets the defaults of the optional surfaces as a set:
+#   known_failures.surface_at_session_start, decisions.surface_at_session_start,
+#   karpathy_principles.surgical_diff_warning,
+#   karpathy_principles.require_success_criteria, guardrails.input.enabled,
+#   guardrails.danger_level.enforce, invisible_retrospective.enabled,
+#   structured_handoff.enabled, soul_identity_doc.enabled
+# `lean` turns them all off, `full` all on, and `standard` (the default) is the
+# per-key default this file shows (soul_identity_doc.enabled, not shown here,
+# is false). A key you set explicitly anywhere in
+# this file wins over the profile. The values per profile live in
+# .claude/data/profiles.yaml; `/loa` prints the effective profile and your
+# explicit overrides. No floor key is reachable through a profile: review,
+# audit, verdict-derive, the dissent artefact gate, the deny list, the
+# destructive-command fence, the System-Zone rules and every other floor
+# config key read the same configuration under every profile
+# (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
+# An unknown value warns and falls back to standard.
+# The nine keys appear in this file only as commented lines at their usual
+# place ("Profile-governed … uncomment to pin it"), so a copied example follows
+# the profile you choose; an uncommented key is an explicit override and wins.
+# Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
+# library at another config file (hooks pass their own test config through it);
+# it is honoured outside bats, so treat it as part of the hook environment.
+loa:
+  profile: standard   # lean | standard | full
+
+# -----------------------------------------------------------------------------
 # Ride Configuration (v1.31.0)
 # -----------------------------------------------------------------------------
 # Controls /ride codebase analysis behavior.
@@ -286,7 +315,8 @@ known_failures:
   # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
   # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
   # (known-failures.md unreadable or zero entries parsed).
-  surface_at_session_start: false
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
 
 # -----------------------------------------------------------------------------
 # Decision ledger (grimoires/loa/decisions.yaml)
@@ -299,7 +329,8 @@ decisions:
   # proposed and open rows (id, status, summary) at session start, inside the L6
   # untrusted-content fence, plus a notice when .run/unattended.json is stale.
   # DEFAULT-OFF: the hook prints nothing while this is false and always exits 0.
-  surface_at_session_start: false
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
   # Hours after which `dec-write-lib.sh context --set-unattended`'s marker is stale
   # and ignored (a marker from another session is stale at once).
   unattended_marker_ttl_hours: 24
@@ -551,6 +582,16 @@ run_mode:
   defaults:
     max_cycles: 20
     timeout_hours: 8
+  # Run position from files (cycle-129 FR-5): `run-checkpoint.sh derive` rebuilds
+  # .run/sprint-plan-state.json (.state canonical, .status mirrored, derived_at) and
+  # .run/circuit-breaker.json from COMPLETED markers, LOA-VERDICT trailers, the ledger
+  # and git at every checkpoint. false = report-only (the caches are written as before;
+  # the rollback key).
+  file_authoritative: true
+  # Hours after which a RUNNING run with no activity derives to INTERRUPTED, and after
+  # which a derived cache (derived_at) no longer counts as a known run position for the
+  # implement gate. Positive integer.
+  stale_hours: 12
   sprint_plan:
     branch_prefix: "feature/"
     default_branch_name: "release"
@@ -575,6 +616,34 @@ run_mode:
     # conventional commit markers like "feat(sprint-1): implementation".
     # Override if your project uses a different commit convention.
     sprint_commit_pattern: '^feat\(sprint-'
+
+# -----------------------------------------------------------------------------
+# Implement gate (cycle-129 FR-4(a); hook: .claude/hooks/compliance/implement-gate.sh)
+# -----------------------------------------------------------------------------
+# PreToolUse check on Write/Edit/NotebookEdit into the App Zone (src/, lib/, app/)
+# outside an implementation run. A write is SANCTIONED (allowed, one audit row each) by:
+#   - a RUNNING run cache (.run/sprint-plan-state.json or .run/state.json, fresh
+#     last_activity, and derived_at within run_mode.stale_hours when present);
+#   - .run/implement-active.json {skill: implement|bug, sprint, started_at} younger than
+#     two hours (`run-checkpoint.sh mark` at the start of /implement and /bug, `unmark`
+#     at the end); a stale or malformed marker is logged and does not sanction;
+#   - LOA_IMPLEMENT_GATE_OVERRIDE=1 in the session environment (audited, one row per write).
+# An unsanctioned App-Zone write is then handled by `mode`:
+#   ask        (default) asks for confirmation, as before, and logs one row per ask
+#   telemetry  logs one row to .run/audit.jsonl and allows silently
+#   deny       refuses the write when the derived run position is known (the cache parses
+#              and its derived_at is within run_mode.stale_hours); an unknown position
+#              (missing, not derived, stale, unparseable) asks instead, never allows.
+#              The hook is a fence only in this mode.
+# Writes to the gate's own inputs (.run state files, .run/audit.jsonl, the marker,
+# .loa.config.yaml) ask in every mode and under every sanction.
+# `claims: authoritative` is a tighten-only modifier for any mode: a model-authored
+# tool_input.active_skill naming a non-implementation skill asks (or, under deny, is
+# denied), and never allows by itself. The legacy `mode: authoritative` means
+# mode: ask + claims: authoritative. /loa prints the effective mode on its Gate line.
+implement_gate:
+  mode: ask                      # ask | telemetry | deny
+  # claims: authoritative        # optional, tighten-only
 
 # -----------------------------------------------------------------------------
 # Notifications (cycle-117 item C)
@@ -743,6 +812,24 @@ hounfour:
   # sub-key below is preserved as an informational audit-log surface
   # (other consumers still read it for telemetry) but does NOT gate
   # dispatch behavior anymore.
+
+  # cycle-129 FR-8 — locality: hosted (default; the rollback) | local_voices. Under local_voices every model hop
+  # of the dissent (primary, companion, advisory voices, the KF-004 repair chain — pinned to the answering voice, no
+  # tiny or claude-headless), Flatline (voices and scorers), Bridgebuilder and the health probe is planned only on a
+  # provider whose model entry says `dispatch_group: local`; each hosted hop is refused by name at plan time, never
+  # rerouted, and cheval records locality_mode / hop_locality in MODELINV. The Claude Code session model is exempt:
+  # it remains the platform.
+  # locality: local_voices — with one local family the companion is not an independent second voice (duplicate_voice, or not planned), so every security audit is DEGRADED_SECURITY_REVIEW; adversarial-review-gate.sh and verdict-derive.sh treat this envelope exactly as they treat any other.
+  locality: hosted
+
+  # cycle-129 FR-7 — advisory-voice promotion (a maintainer decision; unset by default). Promotion of an advisory
+  # voice to a counted one is unreachable this cycle: no voice arm exists in the eval harness, so an alias listed
+  # in both flatline_protocol.<gate>.advisory_voices and companion_chain is refused with "advisory voice <alias>
+  # cannot be counted: no arms report line for the alias (voice arms are a future iteration)". The keys are read
+  # and named so a later cycle adds only the arm.
+  # advisory_promotion:
+  #   min_recall_ratio: 0.8      # the voice's arm recall over the counted voices' recall
+  #   max_refuted_delta: 0.1     # the most extra refuted findings the arm may show
 
   # Per-subsystem feature flags (all default true — opt-out, not opt-in)
   feature_flags:
@@ -1079,7 +1166,14 @@ hounfour:
 
 # Hounfour Examples:
 #
+# Each example sits between a `# @example-begin <name>` and a `# @example-end`
+# marker. .claude/adapters/tests/test_config_examples_load.py uncomments every
+# marked block, merges it over the System defaults with the real cheval loader
+# and asserts it loads, so an example that would not load fails CI.
+#
 # Example 1: Conservative (all native, no remote calls)
+# The Claude Code session itself still runs against Anthropic.
+# @example-begin conservative
 # hounfour:
 #   flatline_routing: false
 #   agents:
@@ -1087,17 +1181,28 @@ hounfour:
 #       model: native
 #     flatline-reviewer:
 #       model: native
+# @example-end
 #
 # Example 2: Budget-conscious (lower daily limit, aggressive downgrade)
+# @example-begin budget-conscious
 # hounfour:
 #   metering:
 #     budget:
 #       daily_micro_usd: 50000000       # $50/day
 #       warn_at_percent: 60
 #       on_exceeded: block              # Hard stop instead of downgrade
+# @example-end
 #
 # Example 3: Custom provider (e.g., Azure OpenAI)
+# Every model of a custom HTTP provider declares endpoint_family, auth_type,
+# dispatch_group and context_window. The key is read from an environment
+# variable, which must match a secret_env_allowlist pattern: only LOA_*,
+# OPENAI_API_KEY, ANTHROPIC_API_KEY, MOONSHOT_API_KEY, GOOGLE_API_KEY and
+# GEMINI_API_KEY are allowed by default.
+# @example-begin azure-openai
 # hounfour:
+#   secret_env_allowlist:
+#     - "^AZURE_OPENAI_KEY$"
 #   providers:
 #     azure-openai:
 #       type: openai
@@ -1105,12 +1210,59 @@ hounfour:
 #       auth: "{env:AZURE_OPENAI_KEY}"
 #       models:
 #         gpt-5-azure:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: azure
 #           capabilities: [chat, tools, function_calling]
+#           context_window: 400000
+#           max_output_tokens: 16000
 #           pricing:
 #             input_per_mtok: 10000000
 #             output_per_mtok: 30000000
 #   aliases:
 #     reviewer: "azure-openai:gpt-5-azure"
+# @example-end
+#
+# Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
+# Threat model: plain http is admitted only to the one host named in
+# allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
+# range. IP literals are never resolved, so the prompt does not cross a public
+# network unencrypted and the address cannot be rebound; localhost is resolved
+# and checked at request time, and any address that is not loopback (or a
+# resolver failure) refuses the request by name. For this provider
+# cheval ignores proxy environment variables, refuses redirects and keeps every
+# request under the declared endpoint path, while every other provider keeps the
+# https, loopback and private-range refusals.
+# keyless: true sends no credential (a literal auth: "local" means the same).
+# secret_env_allowlist: if your server does want a key, use
+# auth: "{env:LOCAL_LLM_KEY}" instead of keyless and add "^LOCAL_LLM_KEY$" to
+# secret_env_allowlist; an environment variable outside the allowlist is refused.
+# A prompt over the declared context_window refuses the hop by name and is never
+# truncated; the zero prices record the hop at cost 0.
+# @example-begin local-openai-compatible
+# hounfour:
+#   providers:
+#     local:
+#       type: openai_compat
+#       endpoint: "http://127.0.0.1:8000/v1"
+#       keyless: true
+#       allow_insecure_endpoint: "127.0.0.1"   # a host string, never a boolean
+#       models:
+#         qwen3-coder-30b:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: local                # marks the hop local (hop_locality: local)
+#           capabilities: [chat]                 # add structured_json if the server enforces response_format
+#           context_window: 32768
+#           max_output_tokens: 8192
+#           streaming_recovery:
+#             first_token_deadline_s: 120        # CPU servers take a while on a large prompt
+#           pricing:
+#             input_per_mtok: 0
+#             output_per_mtok: 0
+#   aliases:
+#     local-reviewer: "local:qwen3-coder-30b"
+# @example-end
 trajectory:
   archive:
     # Maximum export size in MB before LFS warning
@@ -1175,6 +1327,13 @@ destructive_command_guard:
 
   # Timeout for pattern matching (milliseconds)
   timeout_ms: 100
+
+  # Heredoc consumer classifier (cycle-129 FR-6). true (default): the Bash
+  # fence scans a heredoc body in full only when its consumer may execute it,
+  # and scans a non-executing body per segment. false: the pre-cycle scan
+  # (rollback key; turning it off only tightens). See hooks-reference.md,
+  # "Heredoc consumer classification".
+  heredoc_classifier: true
 
   # Security packs to load (core is always loaded)
   # Each pack adds domain-specific patterns
@@ -1277,10 +1436,18 @@ upstream_proposals:
 # Pre-execution validation for skill invocations. Provides PII filtering,
 # injection detection, and relevance checking before skills execute.
 # Based on OpenAI's "A Practical Guide to Building Agents" guardrails pattern.
+#
+# Default OFF since cycle-129 (DEC-0161): across 82 recorded guardrail events
+# the input guardrails caught nothing, and danger-level enforcement blocked
+# the sanctioned skills seven times. Turn them on with
+# `guardrails.input.enabled: true` (the orchestrator then logs PASS/BLOCK
+# events to the trajectory) and `guardrails.danger_level.enforce: true`.
+# Both keys are part of the `loa.profile` set (`full` turns them on).
 guardrails:
   # Input guardrails (pre-execution)
   input:
-    enabled: true
+    # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+    # enabled: false
 
     # PII Filter: Detect and redact sensitive data before processing
     # Actions: redact (replace with placeholder), anonymize (generic value)
@@ -1326,7 +1493,9 @@ guardrails:
   # Danger Level Enforcement: Tool risk classification
   # Levels: safe, moderate, high, critical
   danger_level:
-    enforce: true
+    # Profile-governed (loa.profile; standard = false, full = true); see the
+    # default-off note above the block. Uncomment to pin it:
+    # enforce: false
     interactive:
       safe: execute               # Execute immediately
       moderate: execute_with_notice  # Brief notice in output
@@ -1353,8 +1522,9 @@ guardrails:
 # Uses skill postludes to silently scan for discoveries and extract learnings.
 # Mirrors the invisible prompt enhancement pattern from v1.17.0.
 invisible_retrospective:
-  # Master toggle - set to false to disable all invisible retrospective
-  enabled: true
+  # Master toggle - set to false to disable all invisible retrospective.
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # enabled: true
 
   # Always log to trajectory (even when disabled) - useful for debugging
   log_to_trajectory: true
@@ -1504,6 +1674,17 @@ flatline_protocol:
     # and in the degraded-verdict trajectory record, so findings the
     # dissenter model produced but that were silently dropped for a
     # trivial schema mismatch (KF-004's original complaint) stay visible.
+    # cycle-129 FR-7: advisory voices (aliases — an open-weight or local model, say). They run after the counted
+    # voices on the same prompts, concurrently, under ONE wall clock (advisory_timeout_seconds), with the same schema,
+    # qualification and repair rules; their findings are written ONLY under advisory_voices[].findings in
+    # adversarial-review.json (voice: advisory, counted_as: advisory_voice, duplicate_of: the id of a counted finding
+    # on the same file, overlapping lines, same category) — never in findings[], voices_planned or verdict_quality, so
+    # they cannot change a verdict; a failed or timed-out one is a status in its entry. The budget gate prices every
+    # planned voice (primary, the companion's first hop, each advisory alias) at its catalog price, 10 / 30 USD per
+    # Mtok when the catalog has none (said by name). An alias also listed in companion_chain is refused at plan time:
+    # promotion to a counted voice needs a voice arm (see hounfour.advisory_promotion).
+    advisory_voices: []
+    advisory_timeout_seconds: 600
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
@@ -1516,6 +1697,8 @@ flatline_protocol:
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true);
                                  # a companion_chain is read per block — this block's own, as code_review documents it
+    advisory_voices: []          # cycle-129 FR-7: see code_review — findings under advisory_voices[] only, never tallied
+    advisory_timeout_seconds: 600
   stable_anchors:
     required: true               # Demote anchorless high-severity findings
     preferred_format: "symbol"   # symbol | hunk_header | line_number
@@ -2324,6 +2507,19 @@ bridgebuilder:
   # Falls back to built-in resources/BEAUVOIR.md if file not found.
   persona_path: "grimoires/bridgebuilder/BEAUVOIR.md"
 
+  # Exit code of a multi-model run whose consensus is DEGRADED: fewer voices completed than planned, or a
+  # degraded verdict-quality band (cycle-129, DEC-0150). The JSON and the PR comments are written first;
+  # callers treat 3 as "completed, degraded" and print a WARN naming the voices. 0 restores the pre-cycle-129
+  # exit (rollback key). Two values are meaningful to the callers (spiral-harness.sh, the session-cap dispatcher):
+  # 3 and 0; any other integer 0..125 is accepted but reported by them as "the review did not complete" (4 is
+  # entry.sh's missing-dependency preflight). On a pull request this key is read from the trusted config
+  # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
+  # Trusted config drift: cheval reads the checkout's configuration for the dispatch, so a pull request whose
+  # head changes hounfour.providers, hounfour.aliases, hounfour.locality or the secret allowlist is refused by
+  # name before any voice is planned (exit 5): merge the base branch into the head, or set
+  # BRIDGEBUILDER_TRUSTED_CONFIG to the configuration you vouch for.
+  exit_on_degraded: 3
+
 # =============================================================================
 # QMD Context Query — Unified context retrieval with three-tier fallback
 # =============================================================================
@@ -2854,7 +3050,8 @@ karpathy_principles:
   # G-1 — master switch for the PostToolUse:Write|Edit surgical-diff hook
   # at .claude/hooks/quality/karpathy-surgical-diff-check.sh. When false,
   # the hook fast-paths to exit 0 in <10ms.
-  surgical_diff_warning: true
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # surgical_diff_warning: true
 
   # G-1 — per-session diff-lines threshold. When the session accumulator
   # exceeds this, the hook emits a [karpathy-surgical-warn] stderr line
@@ -2872,7 +3069,8 @@ karpathy_principles:
   # G-3 — when true, /implement refuses to write code if sprint.md lacks a
   # "Success criteria" / "Acceptance criteria" / "Verification" section.
   # Operator can [Skip with rationale] to override per-invocation.
-  require_success_criteria: true
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # require_success_criteria: true
 
   # warn | block. v1 honors only "warn" — block-mode is reserved for v2 to
   # avoid surprise breaking changes during initial rollout. Even with
@@ -2884,7 +3082,8 @@ karpathy_principles:
 # -----------------------------------------------------------------------------
 structured_handoff:
   # Master toggle for the L6 SessionStart surfacing hook.
-  enabled: false
+  # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+  # enabled: false
   # Per-handoff body byte cap at surfacing.
   surface_max_chars: 4000
   # cycle-121: skip UNREAD handoffs older than N days at surfacing (0 = never

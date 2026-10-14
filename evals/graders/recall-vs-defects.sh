@@ -39,6 +39,14 @@
 # The parser runs as `python3 -I -` (audit dissent run 1, n32): a module planted
 # in the invoker's cwd (a forging json.py) is never imported (RG-27).
 #
+# Grader 1.2.0 (cycle-129 FR-2, SDD D-2.3): adds the refuted-share figure;
+# the recall rule and the pass/score contract are unchanged. A FINDING is one
+# distinct cited (path, line-range); it is MATCHED when it overlaps (±3) a
+# defect site or a manifest `fix_regions[]` entry ({file, start, end}: the
+# head-side lines a record fixture's fix commit touched). details gain
+# findings_cited, findings_refuted and refuted_share (refuted / cited; null
+# when nothing is cited).
+#
 # Clean fixtures (0 planted defects) measure FALSE POSITIVES: the LOA-VERDICT
 # trailer's critical+high counts; without a trailer, every file:line citation
 # counts as one.
@@ -60,7 +68,7 @@ review_name="${3:-review.md}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_DIR="${EVAL_MANIFEST_DIR:-$SCRIPT_DIR/../fixtures/review-prs/manifests}"
 
-err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.1.2"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
+err() { printf '{"pass":false,"score":0,"details":{"error":%s},"grader_version":"1.2.0"}\n' "$(jq -Rn --arg m "$1" '$m')"; exit 2; }
 
 [[ -n "$workspace" && -d "$workspace" ]] || err "invalid workspace"
 [[ -n "$fixture" && "$fixture" =~ ^[A-Za-z0-9._-]+$ ]] || err "invalid fixture id"
@@ -72,7 +80,7 @@ review="$workspace/$review_name"
 executor="$workspace/.eval/executor.json"
 
 if [[ ! -f "$review" ]]; then
-  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.1.2"}\n' \
+  printf '{"pass":false,"score":0,"details":{"error":"review file not found: %s","planted":%s,"detected":[],"recall":0},"grader_version":"1.2.0"}\n' \
     "$review_name" "$(jq '.defects | length' "$manifest")"
   exit 1
 fi
@@ -153,6 +161,22 @@ for d in man.get("defects", []):
 planted = len(man.get("defects", []))
 recall = round(len(detected) / planted, 4) if planted else None
 
+# refuted share (1.2.0): distinct cited findings that touch no defect site and
+# no fix region. Regions are (file, lo, hi) on head/ line numbers, widened ±3.
+regions = []
+for d in man.get("defects", []):
+    for s in (d.get("anchors") or [d["anchor_line"]]):
+        regions.append((d["file"], s - 3, s + 3))
+for fr in man.get("fix_regions", []) or []:
+    try:
+        regions.append((fr["file"], int(fr["start"]) - 3, int(fr["end"]) + 3))
+    except (KeyError, TypeError, ValueError):
+        continue
+findings = sorted(set(cites))
+refuted = [c for c in findings
+           if not any(path_matches(c[0], f) and not (c[2] < lo or c[1] > hi) for f, lo, hi in regions)]
+refuted_share = round(len(refuted) / len(findings), 4) if findings else None
+
 # trailer → severity counts (false positives on clean fixtures)
 sev = None
 tm = TRAILER.search(text)
@@ -196,8 +220,10 @@ out = {
         "recall": recall, "planted": planted, "detected": detected, "missed": missed,
         "false_positives": false_positives, "severity_counts": sev,
         "citations": len(cites), "model": model, "effort": effort, "tokens": tokens,
+        "findings_cited": len(findings), "findings_refuted": len(refuted),
+        "refuted_share": refuted_share,
     },
-    "grader_version": "1.1.2",
+    "grader_version": "1.2.0",
 }
 print(json.dumps(out))
 sys.exit(0 if ok else 1)

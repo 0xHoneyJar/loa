@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from loa_cheval.providers.streaming_caps import (
     MAX_ARGS_PART_BYTES,
@@ -42,6 +43,58 @@ from loa_cheval.streaming import (
 from loa_cheval.types import CompletionResult, Usage
 
 logger = logging.getLogger("loa_cheval.providers.openai_streaming")
+
+
+# --- cycle-129 FR-7 (SDD D-7.3): thinking traces from local reasoning models ---
+
+# Delta keys local OpenAI-compatible servers use for a reasoning trace (vLLM and
+# llama.cpp `reasoning_content`; some servers `reasoning`). Progress, never content.
+REASONING_DELTA_KEYS = ("reasoning_content", "reasoning")
+
+_LEADING_THINK_BLOCK = re.compile(r"\A\s*<think>(.*?)</think>\s*", re.IGNORECASE | re.DOTALL)
+_LEADING_THINK_OPEN = re.compile(r"\A\s*<think>", re.IGNORECASE)
+
+
+def strip_thinking_blocks(content: str) -> Tuple[str, str, bool]:
+    """Remove the reasoning a model prefixed to its answer: every leading
+    `<think>…</think>` block, and an unterminated leading `<think>` (the rest of the
+    content is then reasoning). Returns (content, removed_thinking, stripped).
+
+    Only LEADING blocks are removed: a `<think>` string inside the answer itself
+    (a finding that quotes a template, say) is content and stays."""
+    if not content:
+        return content, "", False
+    removed: List[str] = []
+    rest = content
+    while True:
+        m = _LEADING_THINK_BLOCK.match(rest)
+        if not m:
+            break
+        removed.append(m.group(1).strip())
+        rest = rest[m.end():]
+    if _LEADING_THINK_OPEN.match(rest):
+        removed.append(_LEADING_THINK_OPEN.sub("", rest, count=1).strip())
+        rest = ""
+    if not removed:
+        return content, "", False
+    return rest, "\n".join(p for p in removed if p), True
+
+
+def apply_thinking_strip(result: CompletionResult, reasoning_seen: bool = False) -> CompletionResult:
+    """Strip leading `<think>` blocks from `result.content` into `result.thinking`
+    and record `metadata["thinking_stripped"]` (true when a block was removed or a
+    reasoning trace arrived on its own channel). Applied before qualification on
+    the streaming and non-streaming OpenAI paths."""
+    content, removed, stripped = strip_thinking_blocks(result.content or "")
+    meta = dict(result.metadata or {})
+    meta["thinking_stripped"] = bool(stripped or reasoning_seen or meta.get("thinking_stripped"))
+    thinking = result.thinking
+    if removed:
+        thinking = f"{thinking}\n{removed}" if thinking else removed
+    result.content = content
+    result.thinking = thinking
+    result.metadata = meta
+    return result
 
 
 # --- /v1/chat/completions streaming parser ---
@@ -96,6 +149,8 @@ def parse_openai_chat_stream(
     partial_text_seen: List[str] = []
 
     text_parts: List[str] = []
+    # cycle-129 FR-7 (D-7.3): reasoning trace deltas — progress, never content.
+    reasoning_parts: List[str] = []
     # tool_calls accumulator keyed by index. Each entry:
     #   {"id": str, "name": str, "arguments_parts": [str, ...]}
     tool_calls_by_index: Dict[int, Dict[str, Any]] = {}
@@ -150,6 +205,18 @@ def parse_openai_chat_stream(
             finish_reason = choice["finish_reason"]
 
         delta = choice.get("delta") or {}
+
+        # cycle-129 FR-7 (D-7.3): a local reasoning model streams its trace as
+        # `delta.reasoning_content` before any content. It keeps the recovery
+        # tracker alive (first-token deadline) but is never fed to the content
+        # state machine and never reaches `content`; it lands in `thinking`.
+        for _rkey in REASONING_DELTA_KEYS:
+            _rtext = delta.get(_rkey)
+            if isinstance(_rtext, str) and _rtext:
+                recovery_tracker.on_progress(now_provider())
+                accumulate_capped(
+                    reasoning_parts, _rtext, cap=MAX_TEXT_PART_BYTES, kind="reasoning"
+                )
 
         # Text content
         content = delta.get("content")
@@ -242,16 +309,20 @@ def parse_openai_chat_stream(
         "config_applied": config_applied,
     }
 
-    return CompletionResult(
+    # cycle-129 FR-7 (D-7.3): hosted /chat/completions streams no reasoning; a
+    # local reasoning model's `reasoning_content` trace is surfaced as `thinking`,
+    # and leading `<think>` blocks are stripped from content before qualification.
+    result = CompletionResult(
         content=content,
         tool_calls=tool_calls if tool_calls else None,
-        thinking=None,  # /chat/completions does not stream reasoning visibly.
+        thinking="".join(reasoning_parts) or None,
         usage=usage,
         model=final_model or "unknown",
         latency_ms=0,  # adapter re-attaches.
         provider=provider,
         metadata=metadata,
     )
+    return apply_thinking_strip(result, reasoning_seen=bool(reasoning_parts))
 
 
 def _iter_chat_stream_chunks(byte_iter: Iterator[bytes]) -> Iterator[Optional[str]]:
@@ -643,7 +714,9 @@ def parse_openai_responses_stream(
         source="actual" if usage_data else "estimated",
     )
 
-    return CompletionResult(
+    # cycle-129 FR-7 (D-7.3): an OpenAI-compatible server on /v1/responses may
+    # also prefix `<think>` blocks; strip them before qualification.
+    return apply_thinking_strip(CompletionResult(
         content=content,
         tool_calls=tool_calls if tool_calls else None,
         thinking="\n".join(thinking_parts) if thinking_parts else None,
@@ -652,7 +725,7 @@ def parse_openai_responses_stream(
         latency_ms=0,
         provider=provider,
         metadata=metadata,
-    )
+    ))
 
 
 # --- cycle-113 T2.2 + T2.3 — recovery integration helpers ---

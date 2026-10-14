@@ -132,6 +132,20 @@
             }
           },
           "required": ["input_per_mtok", "output_per_mtok"]
+        },
+        "open_weight": {
+          "type": "boolean",
+          "description": "cycle-129 D-7.6: an open-weight model. With a non-zero price it requires price_source and price_date (tests/test_catalog_pricing_provenance.py)."
+        },
+        "price_source": {
+          "type": "string",
+          "pattern": "^(https://\\S+|docs/\\S+)$",
+          "description": "cycle-129 D-7.6: where the price was read — an https:// URL or a path under docs/."
+        },
+        "price_date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "cycle-129 D-7.6: when the price was read (YYYY-MM-DD); older than 90 days the ledger records pricing_source stale_catalog."
         }
       },
       "additionalProperties": true

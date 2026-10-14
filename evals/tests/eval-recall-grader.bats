@@ -177,10 +177,10 @@ JSON
   done
 }
 
-@test "RG-17 grader_version is 1.1.2 (the bd-ewrc parser, sprint-250 hardening through review run 3); the manifest corpus checksum list matches the manifests" {
+@test "RG-17 grader_version is 1.2.0 (the bd-ewrc parser through review run 3, plus the cycle-129 refuted share); the manifest corpus checksum list matches the manifests" {
   review 'a.sh:40'
   run "$GRADER" "$WS" pr-x
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.2" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.2.0" ]
   ( cd "$REPO_ROOT/evals/fixtures/review-prs" && grep ' manifests/' SHA256SUMS | sha256sum -c --quiet - )
 }
 
@@ -338,5 +338,23 @@ PY
   [ "$status" -eq 1 ]
   [ "$(echo "$output" | jq -r '.pass')" = "false" ]
   [ "$(echo "$output" | jq -r 'has("forged")')" = "false" ]
-  [ "$(echo "$output" | jq -r '.grader_version')" = "1.1.2" ]
+  [ "$(echo "$output" | jq -r '.grader_version')" = "1.2.0" ]
+}
+
+@test "RG-28 refuted share (1.2.0): a finding touching neither a defect site nor a fix region is refuted; recall is unchanged" {
+  cat > "$T/manifests/pr-r.json" <<'JSON'
+{"fixture":"pr-r","defects":[
+ {"id":"L1","file":".claude/scripts/a.sh","anchor_line":40,"severity":"high","category":"logic","source_commit":"deadbeef","synthetic":false}
+],"fix_regions":[{"id":"F1","file":".claude/scripts/a.sh","start":100,"end":110}]}
+JSON
+  review 'a.sh:41 the label; a.sh:112 inside the fix region (+3); a.sh:300 nothing; b.sh:40 another file'
+  run "$GRADER" "$WS" pr-r
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.details.recall == 1')" = "true" ]
+  [ "$(echo "$output" | jq -r '.details.findings_cited')" = "4" ]
+  [ "$(echo "$output" | jq -r '.details.findings_refuted')" = "2" ]
+  [ "$(echo "$output" | jq -r '.details.refuted_share')" = "0.5" ]
+  review 'no citations at all'
+  run "$GRADER" "$WS" pr-r
+  [ "$(echo "$output" | jq -r '.details.refuted_share')" = "null" ]
 }

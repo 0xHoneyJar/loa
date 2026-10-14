@@ -3,8 +3,7 @@ name: review-sprint
 description: Validate sprint implementation against acceptance criteria
 role: review
 effort: xhigh
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *)
-# Write/Edit: State-Zone feedback/checkmarks only (C-PROC-001, by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, Bash(git diff *), Bash(git log *), Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(.claude/scripts/qmd-context-query.sh *), Bash(.claude/scripts/red-test-check.sh --red *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/lib/profile-lib.sh knob *)
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -36,6 +35,8 @@ capabilities:
         args: ["comments", "add", "*"]
       - command: "br"
         args: ["label", "add", "*"]
+      - command: ".claude/scripts/lib/profile-lib.sh"
+        args: ["knob", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false
@@ -63,13 +64,11 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:cd3fe039 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:d59facd3 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
-`LOA_GUARDRAILS_ENABLED=false`.
-
-Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+Run only if `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false` prints `true`
+and env `LOA_GUARDRAILS_ENABLED` is not `false`: write the prompt/args to a temp file (Write tool), then run
 `.claude/scripts/guardrails-orchestrator.sh --skill reviewing-code --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
 | Outcome | Action |
@@ -132,7 +131,7 @@ failure scenario.
 <zone_constraints>
 ## Zone Constraints
 
-Three-Zone Model per CLAUDE.loa.md: `.claude/` system = never edit; `grimoires/loa/`, `.beads/` state = read/write; app zone (`src/`, `lib/`, `app/`) = **Read-only**.
+Zones per the frontmatter `zones:` and CLAUDE.loa.md: the app zone is **Read-only**.
 </zone_constraints>
 
 <integrity_precheck>
@@ -209,15 +208,17 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
-5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) as advisory context; a missing script or no output is a no-op.
+5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
 Review the code, not the report: read every modified file and its tests (verify the assertions); check the acceptance criteria, readability and conventions, SDD alignment, security (see `resources/REFERENCE.md` §Security) and performance; run the checks below.
 
+**Task kinds**: A `kind: mechanical` task delivered as skill prose or instructions the model re-executes is a MEDIUM (Karpathy ladder); a `kind: operator` task completed unattended without a `decision:unblock` ticket or a DEC row is a MEDIUM.
+
 Tests exist at each declared `### Seams Under Test` seam. For a `/bug` micro-sprint, run `.claude/scripts/red-test-check.sh --red <Red commit from reviewer.md> --json -- <test command>`, the command from sprint.md or `red_test.command`, never from reviewer.md, and cite its exit code and verdict for 'Test fails with current code' (see `resources/REFERENCE.md` §Red Test Check).
 
-**Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding.
+**Karpathy Principles**: flag violations as `SIMPLICITY:` / `SURGICAL:` / `GOAL-DRIVEN:` feedback; silent assumptions in `reviewer.md` fail Think Before Coding. `SURGICAL:` reads `.run/karpathy-surgical-summary.json` and `.run/karpathy-surgical/<bead>.jsonl` (sprint beads) when present.
 
 **Fast-Gate Parity**: self-checks must match CI's fast gate — verify its formatter check (`prettier --check`, …) and type checker (`tsc --noEmit`, …) ran, per `reviewer.md` or CI. Unrun or failing = `FAST-GATE:` feedback with the weight of a test failure.
 
@@ -228,6 +229,7 @@ Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the 
 Two voices by default (`companion_voice`). One top-level bullet per rejected payload (`rejected_summary`
 or `adversarial-rejected-review*.jsonl` rows, whichever is more) under `## Rejected dissent payloads`, else
 `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Read `advisory_voices[].findings` as advisory input, never counted.
 
 ## Phase 3: Previous Feedback Verification
 
@@ -241,13 +243,13 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 `reviewer.md`'s `## AC Verification` section is missing, shows `✗ Not met` without a
 scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
 Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
-("implemented in src/", "done") instead of `file:line` + a specific symbol.
+instead of `file:line` + a specific symbol.
 
 ## Phase 5: Feedback Generation
 
 Use `resources/templates/review-feedback.md`. An approved file reads `All good`, a blank line, then `Sprint {N} has been reviewed and approved. All acceptance criteria met.` — or, with observations, `Observations documented and non-blocking. See Observations below.`
 
-**LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md` (nothing after it):
+**LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md`:
 `<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
 Prose and trailer MUST agree: approved files have
 first line exactly `All good` and no `## Changes Required` heading. ONE-WAY rule:
@@ -257,7 +259,7 @@ there is a violation.
 
 **MUST self-check**: run
 `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
-and resolve any reported inconsistency before finishing.
+and resolve any inconsistency before finishing.
 </workflow>
 
 <parallel_execution>
@@ -279,13 +281,13 @@ Read the sprint's `grimoires/loa/a2a/subagent-reports/` before approving. Blocki
 </subagent_report_check>
 
 <checklists>
-Checklists, Red Flags (private keys, SQL concatenation, unvalidated input, empty catch blocks, missing tests, N+1 queries) and Mermaid standards: `resources/REFERENCE.md`.
+Checklists, Red Flags and Mermaid standards: `resources/REFERENCE.md`.
 </checklists>
 
 <complexity_review>
 ## Complexity Review (Required)
 
-Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for any function over 50 lines without justification, nesting deeper than 3 without early returns, more than 3 duplicate code blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker naming a ceiling with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
+Review complexity every time (thresholds, tags: `resources/REFERENCE.md` §Complexity). BLOCK approval for a function over 50 lines without justification, nesting over 3 without early returns, over 3 duplicate blocks, or circular dependencies. Tag over-engineering findings `SIMPLICITY[delete|stdlib|native|yagni|shrink]: …`; a `loa:shortcut:` marker with no upgrade trigger is `SIMPLICITY[shrink]`. End an over-engineering pass with `net: -<N> lines possible`, or `Lean already. Ship.` and stop. Never flag the one required acceptance check behind non-trivial logic for deletion (the YAGNI minimum).
 </complexity_review>
 
 <beads_workflow>
@@ -293,15 +295,11 @@ With `br` installed: `resources/BEADS-WORKFLOW.md` (sync, comment, labels); prot
 </beads_workflow>
 
 <retrospective_postlude>
-<!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
-After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
-(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+<!-- @skill-include: start retrospective_postlude | hash:53d44248 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
+After the main skill logic, if `.claude/scripts/lib/profile-lib.sh knob invisible_retrospective.enabled`
+prints `true` (and `invisible_retrospective.skills` does not disable this skill), silently run the
 learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
-`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
-never when the active skill is continuous-learning itself.
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Never when the
+active skill is continuous-learning itself.
 <!-- @skill-include: end retrospective_postlude -->
 </retrospective_postlude>
-
-## Provenance
-
-Folded in from history: AC Verification auto-fail (cycle-057, #475), Fast-Gate Parity (#1086), YAGNI taxonomy (#1012).

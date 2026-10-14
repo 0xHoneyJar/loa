@@ -1,0 +1,914 @@
+# .claude/data/guard-origins.yaml — the guard origin map (cycle-129 SDD D-1.1, §3.1).
+#
+# The one hand-written input of the guard register. `.claude/scripts/guard-yield.sh`
+# enumerates the guards from the repository (hook commands in .claude/settings.json,
+# `# @guard fence:<id>` markers in block-destructive-bash.sh, `# @guard validator:<id>`
+# markers in validate-artifact.sh) and fails (exit 5) when one has no row here, when a
+# row here resolves to nothing, or when a row's origin is empty. It then writes the
+# tracked structural register grimoires/loa/guards.md and the untracked host yield
+# .run/guard-yield.{md,json}. Regenerate after editing: .claude/scripts/guard-yield.sh --hooks-table
+#
+# Row fields:
+#   id             hook:<path under .claude/hooks> (scripts outside it: hook:scripts/<name>),
+#                  fence:<pattern id>, validator:<type>.<rule>, gate:<name>, policy:<name>;
+#                  ^[A-Za-z0-9._/:-]+$
+#   kind           hook | fence | validator | gate | policy
+#   class          harness (the model cannot override it) | script (a script checks or
+#                  reports) | prose (the model is asked to comply)
+#   status         active | dormant (armed only by the env var named in knob) |
+#                  telemetry (observes and logs, never refuses)
+#   origin         {kind: kf|issue|finding|cycle|design, ref: <non-empty>}; design rows
+#                  cite the commit that added the guard (git log --follow --diff-filter=A)
+#   knob           the config key or env var that arms, relaxes or disables it, or none
+#   floor          true exactly for the ids in .claude/data/floor.yaml floor_guards
+#   registrations  hook rows: every "<Event>:<matcher>" (or "<Event>" when the
+#                  registration has no matcher) from .claude/settings.json; [] otherwise
+#   script         gate and policy rows: the file that implements it (must exist)
+#   note           one line; the hooks-reference table's Purpose column for hook rows
+schema_version: 1
+guards:
+  # ---------------------------------------------------------------- hooks
+  - id: hook:scripts/upgrade-health-check.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "v1.5.0 692aa617"}
+    knob: none
+    floor: false
+    registrations: ["Setup"]
+    note: "Post-install and post-upgrade health check of the framework mount"
+  - id: hook:scripts/check-updates.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "v0.14.0 1f448140"}
+    knob: update_check.enabled
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Notify when a newer framework release exists (cached; LOA_DISABLE_UPDATE_CHECK=1 silences it)"
+  - id: hook:session-start/loa-l6-surface-handoffs.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-098 FR-L6 (#771)"}
+    knob: structured_handoff.enabled
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Surface unread L6 structured handoffs inside a data fence"
+  - id: hook:session-start/loa-l7-surface-soul.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-098 FR-L7"}
+    knob: soul_identity_doc.enabled
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Surface the L7 soul identity document inside a data fence"
+  - id: hook:session-start/loa-run-mode-session-title.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-114 FR-9"}
+    knob: none
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Set the session title from the run-mode state for recovery"
+  - id: hook:loa-kf-surface.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-115"}
+    knob: known_failures.surface_at_session_start
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Print the known-failures symptom table at session start (default off)"
+  - id: hook:hook-guard.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1180"}
+    knob: none
+    floor: false
+    registrations: ["SessionStart", "PreToolUse:Bash", "PreToolUse:Write|Edit|MultiEdit|NotebookEdit", "PreToolUse:Skill"]
+    note: "Parse-guard wrapper: runs bash -n on the wrapped hook and fails a broken one open instead of bricking the tool"
+  - id: hook:session-start/loa-decisions-surface.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128"}
+    knob: decisions.surface_at_session_start
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Default off: up to ten proposed or open decision rows inside the L6 data fence, plus a stale unattended-marker notice"
+  - id: hook:session-start/loa-run-state-surface.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-125 FR-3"}
+    knob: none
+    floor: false
+    registrations: ["SessionStart"]
+    note: "One Run line when a run is HALTED or INTERRUPTED or RUNNING idle 12h+, plus a session-limit-reset line; silent otherwise"
+  - id: hook:session-start/loa-context-class.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-126 FR-3.1"}
+    knob: LOA_CONTEXT_CLASS
+    floor: false
+    registrations: ["SessionStart"]
+    note: "Write .run/context-class (long by default, standard for a 200K-or-less model) for the context-discipline thresholds; silent, never blocks"
+  - id: hook:pre-compact-marker.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "v1.28.0 dd8f6bf4 (#181)"}
+    knob: none
+    floor: false
+    registrations: ["PreCompact"]
+    note: "Save a marker before compaction"
+  - id: hook:post-compact-reminder.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "v1.28.0 dd8f6bf4 (#181)"}
+    knob: none
+    floor: false
+    registrations: ["UserPromptSubmit"]
+    note: "Inject the recovery reminder after compaction"
+  - id: hook:post-session-limit-reminder.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: issue, ref: "#1177"}
+    knob: none
+    floor: false
+    registrations: ["UserPromptSubmit"]
+    note: "Inject the resume reminder after a session cap resets"
+  - id: hook:scripts/cleanup-context.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "v0.19.0 b10450fa"}
+    knob: none
+    floor: false
+    registrations: ["PreToolUse:Skill(plan-and-analyze.*)"]
+    note: "Archive the previous cycle's discovery context before /plan-and-analyze"
+  - id: hook:safety/block-destructive-bash.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: ["PreToolUse:Bash"]
+    note: "Block destructive commands and System-Zone shell writes (the fence; per-pattern rows are fence:<id>)"
+  - id: hook:safety/team-role-guard.sh
+    kind: hook
+    class: harness
+    status: dormant
+    origin: {kind: cycle, ref: "cycle-020 (#337)"}
+    knob: LOA_TEAM_MEMBER
+    floor: false
+    registrations: ["PreToolUse:Bash"]
+    note: "Enforce lead-only operations in Agent Teams (armed only when LOA_TEAM_MEMBER is set)"
+  - id: hook:safety/team-role-guard-write.sh
+    kind: hook
+    class: harness
+    status: dormant
+    origin: {kind: cycle, ref: "cycle-020 (#337)"}
+    knob: LOA_TEAM_MEMBER
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "Block teammate writes to the System Zone, state files and append-only files (armed only when LOA_TEAM_MEMBER is set)"
+  - id: hook:safety/spiral-dispatch-guard.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-072"}
+    knob: none
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "Block inline implementation writes under /spiraling until spiral-harness.sh is dispatched"
+  - id: hook:safety/zone-write-guard.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-106"}
+    knob: LOA_ZONE_GUARD_DISABLE
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "Block project-work writes into the framework zone (bounded marker .run/zone-guard-authorization.json for framework development)"
+  - id: hook:compliance/implement-gate.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-050 FR-7"}
+    knob: implement_gate.mode
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "implement_gate.mode ask (default: ask + row) | telemetry (allow + row) | deny (refuse an unsanctioned App Zone write while the run position is known, else ask); sanctions: derived RUNNING cache, fresh .run/implement-active.json, LOA_IMPLEMENT_GATE_OVERRIDE; trust-input writes ask in every mode; a fence only under deny"
+  - id: hook:safety/notes-size-guard.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-124 FR-10"}
+    knob: none
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "Refuse a write that would grow grimoires/loa/NOTES.md at or over 200 KiB (shrinking edits and notes-guard.sh rotate pass)"
+  - id: hook:safety/adversarial-review-gate.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#552"}
+    knob: flatline_protocol.code_review.enabled
+    floor: false
+    registrations: ["PreToolUse:Write|Edit|MultiEdit|NotebookEdit"]
+    note: "Block a COMPLETED marker write when cross-model dissent is enabled and its artefact is missing or invalid (the floor row is gate:adversarial-review-gate)"
+  - id: hook:safety/team-skill-guard.sh
+    kind: hook
+    class: harness
+    status: dormant
+    origin: {kind: cycle, ref: "cycle-020 (#337)"}
+    knob: LOA_TEAM_MEMBER
+    floor: false
+    registrations: ["PreToolUse:Skill"]
+    note: "Block lead-only skill invocations for teammates (armed only when LOA_TEAM_MEMBER is set)"
+  - id: hook:safety/spiral-skill-sentinel.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: design, ref: "cycle-072 598a88ee"}
+    knob: none
+    floor: false
+    registrations: ["PreToolUse:Skill"]
+    note: "Write the spiral sentinel when /spiraling is invoked so the dispatch guard arms itself"
+  - id: hook:audit/mutation-logger.sh
+    kind: hook
+    class: script
+    status: telemetry
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: ["PostToolUse:Bash"]
+    note: "Log mutating shell commands to .run/audit.jsonl"
+  - id: hook:audit/write-mutation-logger.sh
+    kind: hook
+    class: script
+    status: telemetry
+    origin: {kind: cycle, ref: "cycle-020 (#337)"}
+    knob: none
+    floor: false
+    registrations: ["PostToolUse:Write", "PostToolUse:Edit"]
+    note: "Log Write and Edit tool file modifications to .run/audit.jsonl"
+  - id: hook:quality/karpathy-surgical-diff-check.sh
+    kind: hook
+    class: harness
+    status: telemetry
+    origin: {kind: issue, ref: "#961"}
+    knob: karpathy_principles.surgical_diff_warning
+    floor: false
+    registrations: ["PostToolUse:Write|Edit|NotebookEdit"]
+    note: "Warn-only: track per-task diff size against diff_lines_per_task; never blocks"
+  - id: hook:safety/run-mode-stop-guard.sh
+    kind: hook
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: ["Stop"]
+    note: "Soft-block a Stop while an autonomous run is active"
+  - id: hook:hygiene/settings-cleanup.sh
+    kind: hook
+    class: script
+    status: active
+    origin: {kind: issue, ref: "#339"}
+    knob: none
+    floor: false
+    registrations: ["Stop"]
+    note: "Prune one-off permission entries from settings.local.json at session end"
+  - id: hook:scripts/permission-audit.sh
+    kind: hook
+    class: script
+    status: telemetry
+    origin: {kind: design, ref: "v0.19.0 b10450fa"}
+    knob: none
+    floor: false
+    registrations: ["PermissionRequest"]
+    note: "Log permission requests for prompt analysis (async)"
+
+  # ---------------------------------------------------------------- fence pattern ids
+  - id: fence:LEGACY
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: design, ref: "cycle-111 sprint-164 check_and_block back-compat"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "check_and_block back-compat wrapper; no call site invokes it today"
+  - id: fence:FR-GH-1
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-129 sprint-256 audit HIGH-A1 (dissent DISS-C-001)"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "gh api with DELETE, PUT or PATCH against refs, branch protection, tags, releases or the repository: the REST escape hatch of the porcelain forms P2, P5 and SP-1 govern"
+  - id: fence:P2
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git push --force"
+  - id: fence:P2b
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git push -f"
+  - id: fence:P3
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git reset --hard"
+  - id: fence:P4
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git clean -f without a dry run"
+  - id: fence:FR-1.1
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.1"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git branch -D of an unmerged branch"
+  - id: fence:FR-1.2
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.2"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git stash drop or clear"
+  - id: fence:FR-1.2b
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#555"}
+    knob: none
+    floor: true
+    registrations: []
+    note: "stash push/pop/apply with swallowed output; recurred cycle-122"
+  - id: fence:FR-MERGE-2
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122 C-MERGE-002"}
+    knob: LOA_ALLOW_GIT_TAG
+    floor: false
+    registrations: []
+    note: "manual git tag creation (the post-merge pipeline owns tags); the override row is audited"
+  - id: fence:FR-1.3
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.3"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "git checkout -- <path> over uncommitted changes"
+  - id: fence:SP-1
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-5.4"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "spike content entering another branch"
+  - id: fence:FR-1.4
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.4"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "DROP DATABASE, TABLE or SCHEMA under a SQL runner"
+  - id: fence:FR-1.5
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.5"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "TRUNCATE TABLE under a SQL runner"
+  - id: fence:FR-1.6
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.6"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "DELETE FROM without WHERE under a SQL runner"
+  - id: fence:FR-1.7
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.7"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "kubectl delete namespace"
+  - id: fence:FR-1.8
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 sprint-164 FR-1.8"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "kubectl delete --all or -A"
+  - id: fence:FR-SZ
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "State-Zone executable write guard: the audited override (bypass) row"
+  - id: fence:FR-SZ-REDIR
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "redirect write to a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-TEE
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "tee write to a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-COPY
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "copy or move into a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-LINK
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "symlink or hardlink into a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-DD
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "dd write to a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-INPLACE
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "in-place edit of a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-EXTRACT
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "archive extraction into a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ-INTERP
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#1044"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "naive interpreter inline write to a State-Zone executable or lifecycle path"
+  - id: fence:FR-SZ2-REDIR
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "direct shell redirect write into .claude/"
+  - id: fence:FR-SZ2-TEE
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "tee write into .claude/"
+  - id: fence:FR-SZ2-COPY
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "copy or move into .claude/"
+  - id: fence:FR-SZ2-INPLACE
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "in-place edit of a .claude/ file"
+  - id: fence:FR-SZ2-RM
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "rm of a .claude/ path"
+  - id: fence:FR-SZ2
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-122"}
+    knob: LOA_ALLOW_STATE_ZONE_EXEC_WRITE
+    floor: true
+    registrations: []
+    note: "System-Zone shell write guard: the bounded-marker allow row (.run/zone-guard-authorization.json)"
+  - id: fence:FR-2-BLOCK
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 FR-2"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "rm -rf on a catastrophic path (root, home, glob, current dir)"
+  - id: fence:FR-2-AMBIGUOUS
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-111 FR-2"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "rm -rf on a path the fence cannot classify as safe"
+  - id: fence:FR-NOTES
+    kind: fence
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-124 FR-10"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "shell append to grimoires/loa/NOTES.md at or over 200 KiB"
+
+  # ---------------------------------------------------------------- validator rules
+  - id: validator:prd.sections
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type prd: every H2 section is checked"
+  - id: validator:prd.sources
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type prd: each section carries a Sources line"
+  - id: validator:prd.assumption-tags
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-2.5"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type prd: assumption tag classes and the tag-to-row rule"
+  - id: validator:sdd.sections
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sdd: the ten required sections"
+  - id: validator:sdd.open-questions
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-3.16"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sdd: resolved open questions name their DEC row (WARN)"
+  - id: validator:sprint.sections
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: required sections per sprint block"
+  - id: validator:sprint.goal-ids
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: every G-N appears in an appendix goal table"
+  - id: validator:sprint.deferred
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-2.5"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: a task citing a deferred requirement (WARN)"
+  - id: validator:sprint.seams
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-7.2"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: a Seams Under Test table per sprint block from 2026-10-13"
+  - id: validator:sprint.kinds
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-129 D-10.1 (DEC-0144)"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: one kind: mechanical|judgment|operator token per task line for plans dated from 2026-10-14 (WARN before)"
+  - id: validator:sprint.beads-crosscheck
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-4.7"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type sprint: no question bead carries a sprint label"
+  - id: validator:bug-triage.schema
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type bug-triage: the triage handoff fields"
+  - id: validator:translation.citations
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-120 C-D5"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type translation: citations resolve to real files and lines"
+  - id: validator:decisions.schema
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 SDD 3.1"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type decisions: the decision ledger schema (fail closed)"
+  - id: validator:decisions.append-only
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 SDD 3.1"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type decisions: rows are appended, never edited away"
+  - id: validator:map.schema
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-4.8"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type map: the decision-map headers and sections"
+  - id: validator:map.beads
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-4.8"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type map: the map epic and its beads agree"
+  - id: validator:spike.sections
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-5.5"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type spike: the five report sections and the verdict line"
+  - id: validator:glossary.entries
+    kind: validator
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-6.4"}
+    knob: none
+    floor: false
+    registrations: []
+    note: "validate-artifact.sh --type glossary: entry length, aliases and fences"
+
+  # ---------------------------------------------------------------- gates (fixed list, SDD D-1.1)
+  - id: gate:verdict-derive
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: true
+    registrations: []
+    script: .claude/scripts/verdict-derive.sh
+    note: "LOA-VERDICT trailer and prose agree; the review and audit verdict consumers read it"
+  - id: gate:adversarial-review-gate
+    kind: gate
+    class: harness
+    status: active
+    origin: {kind: issue, ref: "#552"}
+    knob: flatline_protocol.code_review.enabled
+    floor: true
+    registrations: []
+    script: .claude/hooks/safety/adversarial-review-gate.sh
+    note: "COMPLETED is refused without the cross-model dissent artefact when dissent is enabled"
+  - id: gate:implement-gate
+    kind: gate
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-050 FR-7"}
+    knob: implement_gate.mode
+    floor: false
+    registrations: []
+    script: .claude/hooks/compliance/implement-gate.sh
+    note: "App Zone writes outside a sanctioned implementation ask (default) or are logged (telemetry); refused only under implement_gate.mode: deny (opt-in; this repository stays on ask until the cycle-129 end flip)"
+  - id: gate:success-criteria
+    kind: gate
+    class: prose
+    status: active
+    origin: {kind: issue, ref: "#961"}
+    knob: karpathy_principles.require_success_criteria
+    floor: false
+    registrations: []
+    script: .claude/skills/implementing-tasks/SKILL.md
+    note: "/implement checks the sprint plan for a non-empty success-criteria section before starting"
+  - id: gate:dissent-budget
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: issue, ref: "#224"}
+    knob: flatline_protocol.code_review.budget_cents
+    floor: false
+    registrations: []
+    script: .claude/scripts/adversarial-review.sh
+    note: "the dissent spend cap; a malformed cap fails closed at 0 cents"
+  - id: gate:seams
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 D-7.2"}
+    knob: none
+    floor: false
+    registrations: []
+    script: .claude/scripts/validate-artifact.sh
+    note: "sprint plans dated from 2026-10-13 carry a Seams Under Test table per sprint"
+  - id: gate:kinds
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-129 D-10.1"}
+    knob: none
+    floor: false
+    registrations: []
+    script: .claude/scripts/validate-artifact.sh
+    note: "sprint task lines carry kind: mechanical, judgment or operator (plans dated from 2026-10-14)"
+  - id: gate:prompt-budget
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: design, ref: "00a6ce1e 2026-09-20"}
+    knob: none
+    floor: false
+    registrations: []
+    script: tools/check-prompt-budget.sh
+    note: "byte budgets for the kernel, the golden skills and the protocols (CI)"
+  - id: gate:guard-origins
+    kind: gate
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-129 D-1.6"}
+    knob: none
+    floor: false
+    registrations: []
+    script: .claude/scripts/guard-yield.sh
+    note: "every guard has an origin row and the generated register is in sync (CI --check)"
+
+  # ---------------------------------------------------------------- floor policies (SDD D-9.2)
+  - id: policy:permission-deny-list
+    kind: policy
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-011"}
+    knob: none
+    floor: true
+    registrations: []
+    script: .claude/hooks/settings.deny.json
+    note: "the permission deny rules (settings.json deny list and the credential template)"
+  - id: policy:verdict-one-way-rule
+    kind: policy
+    class: script
+    status: active
+    origin: {kind: cycle, ref: "cycle-119"}
+    knob: none
+    floor: true
+    registrations: []
+    script: .claude/scripts/verdict-derive.sh
+    note: "critical plus high above zero forces CHANGES_REQUIRED; zero never forces approval"
+  - id: policy:operator-only-commands
+    kind: policy
+    class: harness
+    status: active
+    origin: {kind: cycle, ref: "cycle-128 FR-8"}
+    knob: none
+    floor: true
+    registrations: []
+    script: .claude/data/user-invoked-commands.txt
+    note: "disable-model-invocation on the operator-only commands"

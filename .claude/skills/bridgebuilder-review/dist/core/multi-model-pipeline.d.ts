@@ -30,6 +30,12 @@ export interface MultiModelReviewResult {
         modelId: string;
         reason: "opt_in_required";
     }>;
+    /**
+     * cycle-129 D-7.7: the voices this review was expected to run (`provider/model`), by the same rule as the merge block:
+     * every configured voice minus the opt-in's not-planned ones (a read error removes none). A voice in this list without a
+     * completed result is what makes the run DEGRADED.
+     */
+    voicesPlanned?: string[];
 }
 export interface PipelineAdapters {
     poster: IReviewPoster;

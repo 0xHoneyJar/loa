@@ -1,0 +1,35 @@
+{
+  "fixture": "pr-02",
+  "defects": [
+    {
+      "id": "D04-verify-for-merge-trusts-local-pubkey",
+      "file": ".claude/adapters/loa_cheval/audit_envelope.py",
+      "anchor_line": 468,
+      "must_match": "if status in (\"BOOTSTRAP-PENDING\", \"VERIFIED\"):",
+      "severity": "critical",
+      "category": "authz",
+      "source_commit": "98103de4",
+      "synthetic": false
+    },
+    {
+      "id": "D05-backtick-command-paths",
+      "file": ".claude/scripts/spiral-evidence.sh",
+      "anchor_line": 700,
+      "must_match": "echo \"$content\" | grep -oE \"(^|[^a-zA-Z0-9_/.-])(src|tests|",
+      "severity": "medium",
+      "category": "input-validation",
+      "source_commit": "c8ca3dc3",
+      "synthetic": false
+    },
+    {
+      "id": "D06-prerelease-tags-rejected",
+      "file": ".claude/scripts/semver-bump.sh",
+      "anchor_line": 83,
+      "must_match": "if ! [[ \"$current\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]; then",
+      "severity": "low",
+      "category": "logic",
+      "source_commit": "d94b20d4",
+      "synthetic": false
+    }
+  ]
+}

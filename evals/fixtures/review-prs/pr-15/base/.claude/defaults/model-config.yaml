@@ -1,0 +1,1470 @@
+# Hounfour Default Configuration (SDD §4.1.2)
+#
+# System Zone defaults — ships with the Loa framework.
+# Users override in .loa.config.yaml under hounfour: section.
+# DO NOT EDIT — use project config for customization.
+
+# Provider registry
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    auth: "{env:OPENAI_API_KEY}"
+    models:
+      gpt-5.2:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
+        capabilities: [chat, tools, function_calling]
+        context_window: 128000
+        token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain. NO cross-company.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
+        # cycle-095 Sprint 1 (SDD §3.4): endpoint_family is REQUIRED on every
+        # OpenAI registry entry; loader.py rejects missing/unknown values.
+        # Operators with custom OpenAI entries can use
+        # LOA_LEGACY_ENDPOINT_FAMILY_DEFAULT=chat as a one-shot migration backstop.
+        endpoint_family: chat
+        # cycle-102 Sprint 1 T1.9: per-model output cap. gpt-5.2 is chat-tier
+        # (non-reasoning) so 16K is comfortable for adversarial-review output.
+        max_output_tokens: 16000
+        pricing:
+          # Unit: micro-USD per million tokens (1_000_000 micro-USD = $1).
+          # Unified unit across all entries per sprint-bug-108 / vision-011 —
+          # previously mixed milli-USD (OpenAI/Anthropic) and micro-USD (Gemini).
+          # The Python metering in .claude/adapters/loa_cheval/metering/pricing.py
+          # expects micro-USD; the old milli-USD values undercounted by 1000x.
+          input_per_mtok: 10000000    # $10.00 per million tokens
+          output_per_mtok: 30000000   # $30.00 per million tokens
+      gpt-5.3-codex:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 400000
+        token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:codex-headless
+        endpoint_family: responses    # codex models route to /v1/responses
+        # cycle-102 Sprint 1 T1.9: codex is reasoning-class on /v1/responses
+        # (closes A1 from sprint-bug-143 for codex prompts).
+        max_output_tokens: 32000
+        pricing:
+          input_per_mtok: 1750000     # $1.75 per million tokens
+          output_per_mtok: 14000000   # $14.00 per million tokens
+      # GPT-5.5 latent entries (Sprint-4 T2.3 — closes G6 re-scoped per Flatline
+      # SKP-002 HIGH). probe_required: true keeps the entry latent — probe treats
+      # unlisted models as UNAVAILABLE and adapter fail-fasts. When OpenAI
+      # /v1/models begins returning these IDs, probe transitions them to
+      # AVAILABLE and the entries become usable without a code change.
+      # context_window + pricing are placeholders (R13 ASSUMPTION); update via
+      # single-line edits at ship time.
+      gpt-5.5:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 400000
+        token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
+        endpoint_family: responses      # cycle-095 Sprint 1: gpt-5.5 only routes through /v1/responses
+        # cycle-102 Sprint 1 T1.9: reasoning-class /v1/responses (closes A1).
+        max_output_tokens: 32000
+        # cycle-102 Sprint 1F: parity with gpt-5.5-pro input-size gate. Same
+        # cheval HTTP-asymmetry failure mode (KF-002 layer 3).
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for openai_adapter._complete_streaming, eliminating the 60s
+        # server-side disconnect class by construction. The gate stays as
+        # belt-and-suspenders against future intermediary-timer regressions
+        # AND against context-window overflow (well below 400K). Raised
+        # from 24000 → 200000 to reflect streaming's actual safe range.
+        # Operator override per-call: `--max-input-tokens N` (0 disables);
+        # global: `LOA_CHEVAL_DISABLE_INPUT_GATE=1`. Kill streaming via
+        # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
+        # non-streaming path (which still hits the original 24K wall).
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: split into streaming-default
+        # vs legacy-fallback. When `LOA_CHEVAL_DISABLE_STREAMING=1`, the
+        # gate uses `legacy_max_input_tokens` automatically — operator no
+        # longer has to manually lower the cap after killing streaming.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 24000    # pre-Sprint-4A KF-002 wall
+        # cycle-095 Sprint 2: probe_required dropped — gpt-5.5 is GA on /v1/models
+        # since 2026-04-23. Probe-gated fail-fast still applies via the
+        # generic AVAILABLE/UNAVAILABLE state in .run/model-health-cache.json
+        # (see PRD G-7 + Sprint 1 probe_required clarification block in sprint.md).
+        # Wire-protocol gate: OpenAI's Responses API for gpt-5.5 rejects the
+        # `temperature` parameter with HTTP 400 ("Unsupported parameter:
+        # 'temperature' is not supported with this model"). The cheval adapter
+        # at .claude/adapters/loa_cheval/providers/openai_adapter.py consults
+        # `params.temperature_supported` per request and omits the field when
+        # False (mirrors the claude-opus-4-7 #641 pattern). Verified
+        # 2026-05-07 via direct curl to /v1/responses.
+        params:
+          temperature_supported: false
+        pricing:
+          input_per_mtok: 5000000       # $5.00 per million tokens (confirmed 2026-04-29)
+          output_per_mtok: 30000000     # $30.00 per million tokens (output_tokens INCLUSIVE of reasoning_tokens; SDD §5.5)
+      gpt-5.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: openai-gpt
+        capabilities: [chat, tools, function_calling, code]
+        context_window: 400000
+        token_param: max_completion_tokens
+        # cycle-104 Sprint 2 T2.3: load-bearing chain — KF-003 absorption.
+        # Within-company ONLY. Empty-content on gpt-5.5-pro walks to
+        # gpt-5.5 → gpt-5.3-codex → codex-headless (CLI bypass). No
+        # cross-company entry (G1 — 3-company BB diversity).
+        fallback_chain:
+          - openai:gpt-5.5
+          - openai:gpt-5.3-codex
+          - openai:codex-headless
+        endpoint_family: responses      # cycle-095 Sprint 1
+        # cycle-102 Sprint 1 T1.9 (closes A1 from sprint-bug-143): per-model
+        # max_output_tokens. Reasoning models on /v1/responses charge their
+        # output budget AGAINST internal reasoning tokens (SDD §5.5), so a
+        # bare 8000 cap empties content. 32K provides comfortable headroom
+        # for adversarial-review / flatline dissent on ≥10K-token prompts.
+        max_output_tokens: 32000
+        # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774): empirically-observed
+        # safe input-size threshold. cheval HTTP path on openai disconnected
+        # mid-stream above ~27K input on this model in legacy non-streaming
+        # mode; 24000 left headroom for token-estimator drift.
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for openai_adapter._complete_streaming (server emits first
+        # token immediately, intermediaries never see idle TCP). The 27K
+        # wall is closed by construction. Raised from 24000 → 200000 to
+        # reflect the streaming-default safe range while keeping the gate
+        # in place as belt-and-suspenders. Kill streaming via
+        # `LOA_CHEVAL_DISABLE_STREAMING=1` to fall back to the legacy
+        # path (which still hits 27K).
+        #
+        # Sprint 4A cycle-3 (BB review F7 rationale): the 200K ceiling is
+        # PERMISSIVE BY DESIGN, not empirically tested at full range.
+        # Live smokes during Sprint 4A validated 25K-50K input on the
+        # streaming path. The 4-5x jump to 200K is intentional:
+        #   - Layer 3's structural fix (streaming) makes input-size
+        #     gate-tripping a "may waste 1 LLM call" issue, not a hard
+        #     PROVIDER_DISCONNECT.
+        #   - AC-4A.8 80K live smoke pending operator-driven /review-sprint
+        #     against an arbitrary non-trivial PR (post-merge work).
+        #   - Operators who want a more conservative ceiling override per-call
+        #     via `--max-input-tokens N` or in `.loa.config.yaml::providers.
+        #     openai.models.<id>.max_input_tokens`.
+        # If an operator-side regression surfaces at >100K input, lower the
+        # default to the next conservative band (100K, 50K, then 27K legacy).
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        max_input_tokens: 200000          # backward-compat fallback
+        streaming_max_input_tokens: 200000
+        legacy_max_input_tokens: 27000    # pre-Sprint-4A KF-002 wall
+        # cycle-095 Sprint 2: probe_required dropped (same rationale as gpt-5.5).
+        # Wire-protocol gate: same temperature restriction as gpt-5.5 above.
+        params:
+          temperature_supported: false
+        pricing:
+          input_per_mtok: 30000000      # $30.00 per million tokens (confirmed 2026-04-29)
+          output_per_mtok: 180000000    # $180.00 per million tokens (includes reasoning_tokens — SDD §5.5)
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for OpenAI.
+      # CLI fallback (no rate limit, no API key, no empty-content failure
+      # mode — different transport entirely). Chain terminals MUST NOT
+      # declare fallback_chain (enforced by lint).
+      codex-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: openai-gpt
+        kind: cli                       # NEW field — distinguishes HTTP vs CLI
+        capabilities: [chat, code]      # No tools, no structured_json
+        # #881 close, #914 F-001 correction: declare the real per-CLI context
+        # window so cheval's enforce_context_window does not pull the 128000-
+        # token global default (loa_cheval/types.py:107). The codex CLI
+        # dispatches gpt-5.5 by default — matches the http_api gpt-5.5 entry
+        # in this file (context_window: 400000). The initial PR shipped
+        # 200000 with an inaccurate comment claiming gpt-5.5 was 200000;
+        # corrected post-BB review to the real 400000 capacity.
+        context_window: 400000
+        # No pricing entry — CLI uses operator's Codex subscription.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the model
+        # passed to `codex exec --model <name>`. The CLI doesn't
+        # recognize the Loa alias; this maps to the real codex model.
+        extra:
+          cli_model: gpt-5.5
+
+  google:
+    type: google
+    endpoint: "https://generativelanguage.googleapis.com/v1beta"
+    auth: "{env:GOOGLE_API_KEY}"
+    models:
+      gemini-2.0-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        # Legacy model retained for backward-compat via `gemini-2.0` alias.
+        # Pricing matches gemini-2.5-flash (both are Google flash-tier).
+        capabilities: [chat]
+        context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
+          output_per_mtok: 600000    # $0.60 per million tokens
+      gemini-2.5-flash:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        capabilities: [chat]
+        context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (micro-USD)
+          output_per_mtok: 600000    # $0.60 per million tokens
+      # cycle-095 Sprint 2 (Task 2.4): gemini-3-flash-preview promoted from
+      # OQ-1 default (SDD §10). Pricing live-confirmed 2026-04-29 — Gemini 3
+      # flash-tier preview matches 2.5 flash baseline; revisit on GA.
+      # fallback_chain triggers _resolve_active_model demotion when probe
+      # state goes UNAVAILABLE (SDD §3.5 + §5.8).
+      gemini-3-flash-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        capabilities: [chat]
+        context_window: 1048576
+        # cycle-104 Sprint 2 T2.3: extended existing chain to terminate in
+        # within-company headless. cycle-095 already declared the demotion
+        # to gemini-2.5-flash; we add gemini-headless as the CLI terminal.
+        fallback_chain:
+          - google:gemini-2.5-flash
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 150000     # $0.15 per million tokens (frozen 2026-04-29)
+          output_per_mtok: 600000    # $0.60 per million tokens (frozen 2026-04-29)
+      gemini-2.5-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        capabilities: [chat, thinking_traces]
+        context_window: 1048576
+        # cycle-102 Sprint 1 T1.9 (closes A2): thinking_traces output cap.
+        max_output_tokens: 16000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 1250000    # $1.25 per million tokens
+          output_per_mtok: 10000000  # $10.00 per million tokens
+        extra:
+          thinking_budget: -1        # Dynamic thinking budget
+      # gemini-3-flash, gemini-3-pro removed per #574 — Google v1beta returned
+      # NOT_FOUND at runtime. Re-add with pricing when Google confirms availability.
+      gemini-3.1-pro-preview:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        # Re-added cycle-093 sprint-4 (T2.1 — closes G4). Regulated by the
+        # Sprint-3 health-probe (`model-health-probe.sh`); if Google v1beta
+        # ListModels stops returning this id, the probe gate fails the PR.
+        # Pricing per Google published rates (gemini-2.5-pro tier, no
+        # confirmed Pro pricing for 3.x as of 2026-04-25; matches 2.5-pro).
+        capabilities: [chat, thinking_traces]
+        context_window: 1048576
+        # cycle-102 Sprint 1 T1.9 (closes A2 from sprint-bug-143): Google
+        # legacy adapter previously hardcoded maxOutputTokens=4096 — too low
+        # for thinking_traces models on long prompts. 32K matches the OpenAI
+        # reasoning-class cap.
+        max_output_tokens: 32000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - google:gemini-2.5-pro
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 1250000   # $1.25 per million tokens (micro-USD)
+          output_per_mtok: 10000000  # $10.00 per million tokens
+        extra:
+          thinking_level: high
+          thinking_budget: -1        # Dynamic thinking budget
+      deep-research-pro:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: google-gemini
+        capabilities: [chat, thinking_traces, deep_research]
+        context_window: 1048576
+        api_mode: interactions
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        # Interactions API is a different shape than regular chat; chain
+        # terminates in pro/headless so consensus voice still survives if
+        # the Deep Research endpoint returns empty.
+        fallback_chain:
+          - google:gemini-3.1-pro-preview
+          - google:gemini-headless
+        pricing:
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 20000000  # $20.00 per million tokens
+        extra:
+          polling_interval_s: 5
+          max_poll_time_s: 600
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Google.
+      # CLI fallback via `gemini` binary. Operator must install per
+      # `grimoires/loa/runbooks/headless-mode.md`. Chain terminal — no
+      # further fallback (enforced by lint).
+      gemini-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: google-gemini
+        kind: cli
+        capabilities: [chat]            # No tools, no structured_json, no thinking
+        # FR-5 repoint (loa#1096, #1089): this terminal dispatches via `agy -p`
+        # (Antigravity CLI) after Google retired the gemini-cli's individual Code
+        # Assist tier (IneligibleTier). agy's Gemini models advertise 1048576-token
+        # context (Google's published spec).
+        context_window: 1048576
+        # No pricing entry — agy uses the operator's OAuth-authed Antigravity subscription.
+        # cli_model is the agy `--model` LABEL (human-readable, from `agy models`),
+        # NOT an api id (spike T4.1) — agy rejects gemini-cli model ids. Swap to
+        # "Gemini 3.5 Flash (High)" etc. to change the served Gemini model.
+        extra:
+          cli_model: "Gemini 3.1 Pro (High)"
+
+  anthropic:
+    type: anthropic
+    endpoint: "https://api.anthropic.com/v1"
+    auth: "{env:ANTHROPIC_API_KEY}"
+    models:
+      claude-fable-5-1:
+        # cycle-124 FR-3 (SDD §2.1): Fable 5.1 — the current top intelligence
+        # tier (Mythos-class; `fable` alias target, 5 → 5.1). Same wire surface
+        # as Fable 5: adaptive thinking is the only thinking shape (omit the
+        # param rather than disable it), sampling params and
+        # thinking.budget_tokens are HTTP 400, forced tool_choice (any/tool)
+        # is HTTP 400. Cache reads are 0.025× input — the reference's Fable
+        # 5.1 exception to the 0.1× rule. Every value here is `reference`
+        # (claude-api model table cached 2026-06-24) until live-floor-check
+        # flips it to `probed`: grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        # Within-company chain: 5.1 → 5 → Opus 5 → headless. HTTP 404 on an
+        # id the account does not serve yet is chain-walkable (anthropic_adapter).
+        fallback_chain:
+          - anthropic:claude-fable-5
+          - anthropic:claude-opus-5
+          - anthropic:claude-headless
+        max_output_tokens: 128000
+        # Input gate (cycle-124 FR-3): effective_input_ceiling =
+        # min(180000, context_window − default_max_tokens). 180K is the
+        # streaming-probed KF-002 ceiling (cycle-102 Sprint 4A) — the SAME
+        # constant every Anthropic HTTP entry carries, so the catalog test
+        # asserts the computed value per entry, not this literal. When
+        # streaming is killed (LOA_CHEVAL_DISABLE_STREAMING=1) cheval applies
+        # its 36K legacy wall (_LEGACY_TRANSPORT_INPUT_WALL) instead; the v2
+        # max_input_tokens / streaming_* / legacy_* fields are gone from every
+        # Anthropic entry. `kf_derived` + calibrated_at null ⇒ non-stale;
+        # tools/ceiling-probe-live.py (Sprint 1 Task 1.8) sets calibrated_at.
+        effective_input_ceiling: 180000
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+          reprobe_trigger: "first KF entry referencing model OR 90d elapsed OR operator-forced"
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
+        pricing:
+          # Unit: micro-USD per million tokens. ($10/$50 per MTok; cache read $0.25.)
+          input_per_mtok: 10000000
+          output_per_mtok: 50000000
+          cache_read_per_mtok: 250000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
+      claude-fable-5:
+        # 2026-06-10 (intel-routing review): the top intelligence tier — a class
+        # ABOVE Opus. Same API surface as Opus 4.7/4.8 (adaptive thinking only;
+        # sampling params + thinking.budget_tokens REJECTED with HTTP 400) with
+        # one extra: an explicit thinking.type=disabled also 400s — omit the
+        # thinking param instead (anthropic_adapter concern). PRICING
+        # REGISTERED BEFORE ROUTABILITY (review fix-plan #2): an unpriced model
+        # meters as $0 and becomes invisible to the budget governor.
+        # cycle-124 FR-3: envelope raised to the actual 1M / 128K; the input
+        # gate is `effective_input_ceiling` (see claude-fable-5-1 above).
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        # Within-company chain: degrade to the Opus class, then headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-8
+          - anthropic:claude-sonnet-5
+          - anthropic:claude-headless
+        max_output_tokens: 128000
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
+        pricing:
+          # Unit: micro-USD per million tokens. ($10/$50 per MTok; cache read 0.1×.)
+          input_per_mtok: 10000000
+          output_per_mtok: 50000000
+          cache_read_per_mtok: 1000000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
+      claude-opus-5-5:
+        # cycle-126 sprint-250 (bead bd-2fti): Opus 5.5 — the `opus` alias
+        # target (retargeted 5 → 5.5). Vendor reference, read 2026-10-05:
+        # https://platform.claude.com/docs/en/about-claude/models/overview
+        # (1M context, 128K output, adaptive thinking always on) and
+        # https://platform.claude.com/docs/en/about-claude/pricing ($4/$20 per
+        # MTok; cache hit 0.05× = $0.20; "Claude 4.6 and later models … include
+        # the full 1M token context window at standard pricing", so no
+        # long_context tier). structured_json per the structured-outputs page.
+        # The other 5-family entries (claude-fable-5-1, claude-fable-5,
+        # claude-opus-5, claude-sonnet-5) keep their unverified 2.0×/1.5×
+        # long_context tier above 200K until an invoice confirms which reading
+        # holds (sprint-250 review run 1, n3).
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        # Within-company chain: 5.5 → 5 → Sonnet 5 → headless.
+        fallback_chain:
+          - anthropic:claude-opus-5
+          - anthropic:claude-sonnet-5
+          - anthropic:claude-headless
+        max_output_tokens: 128000
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # loa:shortcut: Opus 5's measured bound, not probed on 5.5; 180000 — rerun
+        # tools/ceiling-probe-live.py --write-catalog on the operator's account.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: conservative_default
+          calibrated_at: null
+          stale_after_days: 90
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+          beta_headers: []
+        pricing:
+          # Unit: micro-USD per million tokens.
+          input_per_mtok: 4000000    # $4.00 per million tokens
+          output_per_mtok: 20000000  # $20.00 per million tokens
+          cache_read_per_mtok: 200000
+      claude-opus-5:
+        # cycle-124 FR-3 (SDD §2.1): Opus 5 — the `opus` alias target
+        # (retargeted 4-8 → 5). Adaptive thinking is DEFAULT-ON server-side;
+        # the adapter still emits `thinking: {type: adaptive}` explicitly
+        # (params.thinking_adaptive) so the 4.6–4.8 hops in the chain, where
+        # it is OFF unless requested, behave the same (FR-1). structured_json:
+        # output_config.format json_schema is supported. Pricing == Opus 4.8
+        # ($5/$25; cache read $0.50). Values `reference` until probed
+        # (grimoires/loa/reports/2026-09-17-cycle-124-catalog-evidence.md).
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        # Within-company chain: 5 → 4.8 → Sonnet 5 → headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-8
+          - anthropic:claude-sonnet-5
+          - anthropic:claude-headless
+        max_output_tokens: 128000
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
+        pricing:
+          # Unit: micro-USD per million tokens.
+          input_per_mtok: 5000000    # $5.00 per million tokens (== 4.8)
+          output_per_mtok: 25000000  # $25.00 per million tokens (== 4.8)
+          cache_read_per_mtok: 500000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
+      claude-opus-4-8:
+        # cycle-114 (harness-modernization-opus-4.8): newest Opus class.
+        # Released 2026-05-28 (Claude Code 2.1.154). Pricing == 4.7
+        # ($5/$25 per Mtok; fast-mode $10/$50). Adaptive-thinking model:
+        # effort is controlled via output_config.effort (low|medium|high|
+        # xhigh|max); manual thinking.budget_tokens is REJECTED with HTTP
+        # 400 — see anthropic_adapter.py (cycle-114 FR-2).
+        # cycle-124 FR-3: superseded as the `opus` target by claude-opus-5;
+        # stays pinnable and is Opus 5's first fallback hop. Envelope raised
+        # to the actual 1M / 128K; thinking must be requested explicitly on
+        # this model (params.thinking_adaptive).
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        # cycle-114: within-company chain → 4.7 → sonnet-4.6 → headless.
+        fallback_chain:
+          - anthropic:claude-opus-4-7
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        max_output_tokens: 128000
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        # Anthropic deprecated `temperature` for Opus 4 (#641); omit it.
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+        pricing:
+          # Unit: micro-USD per million tokens.
+          input_per_mtok: 5000000    # $5.00 per million tokens (== 4.7)
+          output_per_mtok: 25000000  # $25.00 per million tokens (== 4.7)
+          cache_read_per_mtok: 500000
+      claude-opus-4-7:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 1000000           # cycle-124 FR-3: actual 1M (was the 200K conservative envelope)
+        token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-opus-4-6
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        # cycle-102 Sprint 1 T1.9: Anthropic legacy adapter previously
+        # hardcoded max_tokens=4096 — too low for opus-class adversarial-
+        # review on ≥10K-token prompts. 32K matches reasoning-class cap.
+        # cycle-124 FR-3: raised to the model's 128K; default_max_tokens()
+        # clamps the per-hop default to 64K streaming / 16K legacy.
+        max_output_tokens: 128000
+        # cycle-102 Sprint 1F (KF-002 layer 3 / Loa #774, vision-024): empty-
+        # content / disconnect threshold for cheval anthropic HTTP path was
+        # ~40K input on this model (Issue #823) in legacy non-streaming mode.
+        # Sprint 4A (cycle-102, AC-4.5e): streaming transport now defaults
+        # on for anthropic_adapter._complete_streaming. Server emits the
+        # first token immediately; intermediaries never observe idle TCP.
+        # Raised from 36000 → 180000 to reflect streaming's actual safe
+        # range (just below context_window=200000 for max_tokens headroom).
+        # Layer 1 (empty content from reasoning-budget exhaustion) is a
+        # separate upstream bug — mitigate via `max_output_tokens >= 8000`
+        # in the reviewer config or by enabling extended thinking.
+        # Kill streaming via `LOA_CHEVAL_DISABLE_STREAMING=1` to revert
+        # to the 36K wall.
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        # cycle-124 FR-3: the v2 split fields are replaced by the v3 ceiling;
+        # the 36K legacy wall is now cheval's _LEGACY_TRANSPORT_INPUT_WALL.
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        # Wire-protocol gates (#641): Anthropic deprecated `temperature` for
+        # Opus 4 and rejects requests carrying it with HTTP 400. The cheval
+        # adapter consults `params.temperature_supported` per request and
+        # omits the field when False. See
+        # .claude/adapters/loa_cheval/providers/anthropic_adapter.py
+        params:
+          temperature_supported: false
+          thinking_adaptive: true       # cycle-124 FR-1: off unless requested on 4.7
+        pricing:
+          # Unit: micro-USD per million tokens (see gpt-5.2 note above).
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 25000000  # $25.00 per million tokens
+          cache_read_per_mtok: 500000
+      claude-opus-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        # Retained as pinnable fallback (PRD cycle-082 §13).
+        # Operators who want exact 4.6 behavior use `anthropic:claude-opus-4-6` in .loa.config.yaml.
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 1000000           # cycle-124 FR-3: actual 1M
+        token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-headless
+        # cycle-102 Sprint 1 T1.9: parity with claude-opus-4-7.
+        max_output_tokens: 128000         # cycle-124 FR-3: parity with 4-7
+        # cycle-102 Sprint 1F + Sprint 4A: parity with claude-opus-4-7
+        # input-size gate. Streaming default raised the safe ceiling from
+        # 36000 → 180000. See claude-opus-4-7 entry above for context.
+        # cycle-103 Sprint 3 T3.4 / AC-3.4: streaming-vs-legacy split.
+        # cycle-124 FR-3: v2 split fields → v3 ceiling (see claude-opus-4-7).
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        # cycle-124 FR-1: adaptive thinking must be requested explicitly on
+        # 4.6, and thinking models reject sampling params (HTTP 400).
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+        pricing:
+          input_per_mtok: 5000000    # $5.00 per million tokens
+          output_per_mtok: 25000000  # $25.00 per million tokens
+          cache_read_per_mtok: 500000
+      claude-sonnet-5:
+        # cycle-120 C-D2: cheval catalog entry for Claude Sonnet 5.
+        # cycle-124 FR-3: 128K output (was a 16K envelope), adaptive thinking
+        # default-on (emitted explicitly for chain parity — FR-1),
+        # structured_json supported, priced at the reference's $2/$10.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces, structured_json]
+        context_window: 1000000
+        token_param: max_tokens
+        max_output_tokens: 128000
+        fallback_chain:
+          - anthropic:claude-sonnet-4-6
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+          # cycle-126 FR-1.2 (SDD D-1.2): dated beta flags joined into ONE
+          # `anthropic-beta` header; allowlist ^[a-z0-9]+(-[a-z0-9]+)*-YYYY-MM-DD$,
+          # operator-set only (e.g. context-1m-2025-08-07 where an account needs it).
+          beta_headers: []
+        pricing:
+          # cycle-124 FR-3: claude-api reference (cached 2026-06-24) lists
+          # Sonnet 5 at $2/$10 (cache read $0.20). The cycle-120 entry carried
+          # $3/$15 as the post-intro rate; the reference table is the SoT
+          # until a probe says otherwise — see catalog-evidence.md.
+          input_per_mtok: 2000000    # $2.00 per million tokens
+          output_per_mtok: 10000000  # $10.00 per million tokens
+          cache_read_per_mtok: 200000
+          # cycle-126 FR-1.9 (SDD D-1.9): published long-context tier for the
+          # 1M-window family — above the threshold the whole request is billed
+          # at the multipliers. `reference` (verified: false) until the operator
+          # confirms it on an invoice.
+          long_context:
+            threshold_tokens: 200000
+            input_multiplier: 2.0
+            output_multiplier: 1.5
+            verified: false
+      claude-sonnet-4-6:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        # cycle-124 FR-3: actual 1M / 128K envelope; adaptive thinking must be
+        # requested explicitly on 4.6 (FR-1). No structured_json on 4.6.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 1000000
+        token_param: max_tokens
+        max_output_tokens: 128000
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-sonnet-4-5-20250929
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        params:
+          temperature_supported: false
+          thinking_adaptive: true
+        pricing:
+          input_per_mtok: 3000000    # $3.00 per million tokens
+          output_per_mtok: 15000000  # $15.00 per million tokens
+          cache_read_per_mtok: 300000
+      # Retained as pinnable fallback for legacy callers — cycle-099 sprint-1A
+      # restored this entry after the bridgebuilder TOKEN_BUDGETS in
+      # resources/core/truncation.ts (cycle-098 baseline) was found to reference
+      # it while the registry did not. Operators who pin to a specific 4-5
+      # snapshot (e.g., for repro on dated benchmarks) use
+      # `anthropic:claude-sonnet-4-5-20250929` in .loa.config.yaml.
+      claude-sonnet-4-5-20250929:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-haiku-4-5-20251001
+          - anthropic:claude-headless
+        # cycle-124 FR-3: 200K − 4096 default > 180K ⇒ the 180K cap applies.
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        pricing:
+          input_per_mtok: 3000000    # $3.00 per million tokens (same tier as sonnet-4-6)
+          output_per_mtok: 15000000  # $15.00 per million tokens
+          cache_read_per_mtok: 300000
+      # cycle-095 Sprint 2 (Task 2.3): Haiku 4.5 ships as the new `tiny` tier.
+      # Pricing live-fetched ONCE at sprint execution (2026-04-29) and frozen
+      # in YAML per PRD FR-3 AC + SDD §5.7. Refresh cadence: quarterly or on
+      # release-bound reminder per Sprint 2 risks (Flatline iter-2 SKP-004).
+      claude-haiku-4-5-20251001:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: http_api
+        dispatch_group: anthropic-claude
+        capabilities: [chat, tools, function_calling, structured_json]   # cycle-124 FR-3: json_schema output supported
+        context_window: 200000
+        token_param: max_tokens
+        # cycle-104 Sprint 2 T2.3: within-company chain.
+        fallback_chain:
+          - anthropic:claude-headless
+        effective_input_ceiling: 180000   # cycle-124 FR-3 (SDD §2.1): see claude-fable-5-1
+        # cycle-126 FR-1.1 (SDD D-1.1): the last measured bound the catalog
+        # ships; the default input bound while `calibrated_at` is null. The
+        # derived bound (context_window − max_tokens) applies only after
+        # calibration or under LOA_CHEVAL_UNCALIBRATED_CEILING=derived.
+        probed_ceiling: 180000
+        ceiling_calibration:
+          source: kf_derived
+          calibrated_at: null
+          stale_after_days: 90
+        # cycle-126 FR-1.1 (SDD D-1.1): filled by tools/ceiling-probe-live.py
+        # --write-catalog on the operator's account (tier / input-tokens-per-
+        # minute); `unverified` until then.
+        account_limits:
+          tier: unverified
+          itpm: null
+        pricing:
+          input_per_mtok: 1000000    # $1.00 per million tokens (frozen 2026-04-29)
+          output_per_mtok: 5000000   # $5.00 per million tokens (frozen 2026-04-29)
+          cache_read_per_mtok: 100000
+
+      # cycle-104 Sprint 2 T2.4: within-company headless terminal for Anthropic.
+      # CLI fallback via `claude` binary (Claude Code subscription auth).
+      # Operator must install per `grimoires/loa/runbooks/headless-mode.md`.
+      # Chain terminal — no further fallback (enforced by lint).
+      claude-headless:
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: headless
+        dispatch_group: anthropic-claude
+        kind: cli
+        capabilities: [chat]            # No tool_use, no thinking
+        # cycle-126 sprint-248 (review round 1): a dissent on `claude -p` takes 6–10 min for a
+        # ~30 KB chunk; the adapter's 600 s read floor timed the companion voice out twice. This
+        # raises that hop's bound (connect 10 s + 900 s); adversarial-review.sh sizes its wait cap from it.
+        # CLI hops only (`kind: cli`, or a model of a `*-headless` provider type — ignored with a warning on any other
+        # model); capped at 3600 s at load.
+        headless_timeout_seconds: 900
+        # #881 close: claude CLI dispatches whatever cli_model names below;
+        # context_window mirrors that model's http_api sibling (bug-881-1b
+        # invariant). cycle-124 FR-3: fable → claude-fable-5-1 = 1M.
+        context_window: 1000000
+        # No static pricing: record CLI-reported total_cost_usd when available.
+        # OAuth does not establish zero cost or actual billing; see KF-020.
+        # cycle-104 sprint-2 T2.11 amendment: cli_model is the literal
+        # model name passed to `claude --model <name>` (the CLI doesn't
+        # recognize the Loa alias). Operator-overridable to switch
+        # tiers per subscription.
+        # 2026-06-11 operator decision: fable (was sonnet) — headless
+        # dispatch runs the TOP intelligence tier on the subscription.
+        # NOTE the adapter always passes --model explicitly, so the
+        # operator's Claude Code session default does NOT apply here;
+        # this pin is the single source of the headless model. Applies
+        # to every claude-headless consumer (BB, council claude voice,
+        # chain-walk fallbacks — fallbacks now silently UPGRADE rather
+        # than downgrade; per-request honesty is loa#1006).
+        extra:
+          cli_model: fable
+
+  # ===========================================================================
+  # AWS Bedrock — cycle-096 (issue #652)
+  # ===========================================================================
+  # Provider plugin contract: SDD §1.4 + §3.1 + §5.1.
+  # Auth: Bearer-token API key (FR-3); SigV4 designed-not-built (FR-4 v2).
+  # Required for Day-1 Anthropic models — bare anthropic.* IDs return HTTP 400
+  # ("on-demand throughput isn't supported"); inference profile IDs (us.* or
+  # global.*) are mandatory. Verified live 2026-05-02 via Sprint 0 G-S0-2
+  # probes; capture at tests/fixtures/bedrock/contract/v1.json.
+  bedrock:
+    type: bedrock                                    # Adapter discriminator (NEW)
+    endpoint: "https://bedrock-runtime.{region}.amazonaws.com"
+    region_default: us-east-1                        # Override via .loa.config.yaml or AWS_BEDROCK_REGION
+    auth: "{env:AWS_BEARER_TOKEN_BEDROCK}"           # v1: Bearer-token API key
+    auth_modes:
+      - api_key                                      # v1 implemented (Task 1.4)
+      - sigv4                                        # v2 designed only — loader rejects with documented error
+    compliance_profile: null                         # 4-step defaulting in loader (PRD §G-S0-3 / SDD §5.6)
+                                                     # Allowed: bedrock_only | prefer_bedrock | none
+    connect_timeout: 10
+    read_timeout: 120                                # Vision-capable; matches base default
+    models:
+      # Day-1 inference profile IDs (from Sprint 0 G-S0-2 probe #1 ListInferenceProfiles)
+      "us.anthropic.claude-opus-4-8":                # cycle-114: newest Opus on Bedrock
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          thinking_traces: converse                  # Bedrock requires `thinking.type: adaptive`
+          function_calling: converse
+        params:
+          temperature_supported: false               # Mirrors direct Anthropic Opus 4 (#641)
+        pricing:
+          input_per_mtok: 5000000                    # $5.00/Mtok (matches direct Anthropic on-demand)
+          output_per_mtok: 25000000                  # $25.00/Mtok
+        fallback_to: "anthropic:claude-opus-4-8"
+        fallback_mapping_version: 1
+      "us.anthropic.claude-opus-4-7":                # Newest convention: no -v1:0 suffix
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
+        capabilities: [chat, tools, function_calling, thinking_traces]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:                                  # Per-capability dispatch (PRD FR-1 / SDD §3.1)
+          chat: converse
+          tools: converse
+          thinking_traces: converse                  # Bedrock requires `thinking.type: adaptive` (NOT direct-Anthropic `enabled`+budget_tokens)
+          function_calling: converse
+        params:
+          temperature_supported: false               # Mirrors direct Anthropic Opus 4 (#641)
+        pricing:
+          input_per_mtok: 5000000                    # $5.00/Mtok (matches direct Anthropic on-demand; verify quarterly per NFR-Sec6)
+          output_per_mtok: 25000000                  # $25.00/Mtok
+        # NEW v1.1 (Flatline BLOCKER SKP-003): Versioned fallback mapping for
+        # compliance_profile: prefer_bedrock. Loader rejects prefer_bedrock if
+        # fallback_to is missing — no heuristic name matching.
+        fallback_to: "anthropic:claude-opus-4-7"
+        fallback_mapping_version: 1
+      "us.anthropic.claude-sonnet-4-6":              # No -v1:0 suffix on newest
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          function_calling: converse
+        pricing:
+          input_per_mtok: 3000000                    # $3.00/Mtok
+          output_per_mtok: 15000000                  # $15.00/Mtok
+        fallback_to: "anthropic:claude-sonnet-4-6"
+        fallback_mapping_version: 1
+      "us.anthropic.claude-haiku-4-5-20251001-v1:0": # Older convention: keeps datestamp + v1:0 suffix (colon-bearing!)
+        # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
+        auth_type: aws_iam
+        dispatch_group: bedrock-anthropic
+        capabilities: [chat, tools, function_calling]
+        context_window: 200000
+        token_param: max_tokens
+        api_format:
+          chat: converse
+          tools: converse
+          function_calling: converse
+        pricing:
+          input_per_mtok: 1000000                    # $1.00/Mtok (frozen 2026-05-02)
+          output_per_mtok: 5000000                   # $5.00/Mtok
+        fallback_to: "anthropic:claude-haiku-4-5-20251001"
+        fallback_mapping_version: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # xAI grok — a CLI-only headless provider (no HTTP sibling; auth is grok's
+  # OIDC subscription, `grok login`). `type: grok-headless` maps directly to
+  # GrokHeadlessAdapter. A headless CLI is a multi-model client, NOT a single-
+  # company port: grounded 2026-06-13, `grok models` → grok-build (default) +
+  # grok-composer-2.5-fast, while `cursor-agent models` spans Claude/GPT/Gemini/
+  # Grok/Kimi/Composer (CLIs cross-serve). Declaring BOTH grok models lets the
+  # tier router target grok's served stack via `cli_model` (the real id `grok
+  # --model` expects); do NOT collapse to one pin. Both kind:cli, chain-terminal
+  # (NO fallback_chain — lint-enforced), NO pricing (subscription → metered $0).
+  xai:
+    type: grok-headless
+    # endpoint + auth are ignored; auth is grok's own OIDC login (`grok login`).
+    endpoint: ""
+    models:
+      grok-build:
+        auth_type: headless
+        dispatch_group: xai-grok
+        kind: cli
+        capabilities: [chat, code]      # No tools, no structured_json
+        # grok's default model; 256K context per xAI's published spec.
+        context_window: 256000
+        # No pricing entry — CLI uses the operator's xAI/Grok subscription.
+        extra:
+          cli_model: grok-build
+      grok-composer-2.5-fast:
+        auth_type: headless
+        dispatch_group: xai-grok
+        kind: cli
+        capabilities: [chat, code]
+        context_window: 256000
+        extra:
+          cli_model: grok-composer-2.5-fast
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Cursor Composer — a CLI-only headless provider (no HTTP sibling; auth is
+  # Cursor's subscription, `cursor-agent login`). `type: cursor-headless` maps
+  # directly to CursorHeadlessAdapter. A headless CLI is a multi-model client,
+  # NOT a single-company port: `cursor-agent models` spans Claude/GPT/Gemini/
+  # Grok/Kimi/Composer (CLIs cross-serve). Cheval pins this `cursor` entry to
+  # Cursor's OWN distinct-corpus models — the Composer line (Moonshot-Kimi base
+  # + agentic RL) — via cli_model; cross-served models are reached through their
+  # own company providers. `cursor-agent models` → composer-2.5 (current) +
+  # composer-2.5-fast (default). Both kind:cli, chain-terminal (NO fallback_chain
+  # — lint-enforced), NO pricing (subscription → metered $0).
+  cursor:
+    type: cursor-headless
+    # endpoint + auth are ignored; auth is cursor-agent's own login.
+    endpoint: ""
+    models:
+      composer-2.5:
+        auth_type: headless
+        dispatch_group: cursor-composer
+        kind: cli
+        capabilities: [chat, code]      # No tools, no structured_json
+        # Cursor Composer 2.5 (current). Declared window is a conservative floor
+        # so cheval's enforce_context_window does not fall back to the 128000
+        # global default; refine when Cursor publishes the Composer 2.5 spec.
+        context_window: 200000
+        # No pricing entry — CLI uses the operator's Cursor subscription.
+        extra:
+          cli_model: composer-2.5
+      composer-2.5-fast:
+        auth_type: headless
+        dispatch_group: cursor-composer
+        kind: cli
+        capabilities: [chat, code]
+        context_window: 200000
+        extra:
+          cli_model: composer-2.5-fast
+
+# Aliases (short names → provider:model-id)
+aliases:
+  gemini-2.0: "google:gemini-2.0-flash"  # Backward-compat alias
+  native: "claude-code:session"         # Reserved — Claude Code native runtime
+  # cycle-095 Sprint 2 (Task 2.1): reviewer + reasoning flip from gpt-5.3-codex
+  # to gpt-5.5 (cost-safe non-pro default). Pro tier opt-in only via Sprint 3's
+  # prefer_pro_models flag (defaults false). Pre-cycle-095 state preserved in
+  # .claude/defaults/aliases-legacy.yaml (LOA_FORCE_LEGACY_ALIASES kill-switch).
+  reviewer: "openai:gpt-5.5"
+  reasoning: "openai:gpt-5.5"
+  cheap: "anthropic:claude-sonnet-5"    # Budget-conscious model (sonnet-4-6 → sonnet-5 cycle-126 D-4.1)
+  claude-sonnet-5: "anthropic:claude-sonnet-5"  # Bare alias (cycle-120 C-D2)
+  fable: "anthropic:claude-fable-5-1"   # Top intelligence tier (2026-06-10 intel-routing review; 5→5.1 cycle-124)
+  opus: "anthropic:claude-opus-5-5"     # High-quality model (4-6→4-7 cycle-082; 4-7→4-8 cycle-114; 4-8→5 cycle-124; 5→5.5 cycle-126 bd-2fti)
+  # cycle-095 Sprint 2 (Task 2.3): tiny tier alias points at Haiku 4.5.
+  tiny: "anthropic:claude-haiku-4-5-20251001"
+  # Gemini 3.1 Pro Preview re-added cycle-093 sprint-4 (T2.1 — closes G4)
+  # via the SSOT generator. Sprint-3 health-probe gates runtime use.
+  deep-thinker: "google:gemini-3.1-pro-preview"  # Thinking-traces tier
+  gemini-3.1-pro: "google:gemini-3.1-pro-preview"  # Bare alias (parity with gemini-2.5-pro)
+  # Bare aliases for gemini-2.5 tier — agent bindings (deep-thinker, fast-thinker)
+  # were retargeted to these per #574 (phantom gemini-3-pro/flash pruned), but
+  # the alias entries were missing, causing `model-invoke --validate-bindings`
+  # to fail with "Unknown alias: gemini-2.5-pro/flash". Restored here so the
+  # bindings resolve cleanly.
+  gemini-2.5-pro: "google:gemini-2.5-pro"
+  gemini-2.5-flash: "google:gemini-2.5-flash"
+  # cycle-095 Sprint 2 (Task 2.4): gemini-3-flash bare alias for the new
+  # fast-thinker target. Backed by gemini-3-flash-preview with
+  # fallback_chain to gemini-2.5-flash on probe demotion.
+  gemini-3-flash: "google:gemini-3-flash-preview"
+  researcher: "google:deep-research-pro" # Deep Research model
+  # cycle-099 Sprint 2E (T2.7): OpenAI bare aliases needed for
+  # `tier_groups.mappings` lookup per SDD §3.1.2. The cycle-099 FR-3.9
+  # resolver consults the `aliases:` block; tier-tag entries in
+  # `tier_groups.mappings` must reference alias NAMES that this block
+  # defines. `gpt-5.3-codex` is also kept in `backward_compat_aliases`
+  # below as an immutable self-map (operators pinning `gpt-5.3-codex`
+  # literally must continue resolving to that exact model). Both
+  # entries point to the same `openai:gpt-5.3-codex` so no ambiguity
+  # at resolution time.
+  #
+  # SCOPE NOTE: the FR-3.9 resolver consults `aliases:` ONLY;
+  # `backward_compat_aliases:` is consumed by the legacy bash-adapter
+  # codegen path (`gen-adapter-maps.sh` → `generated-model-maps.sh`).
+  # The codegen emits the duplicate self-map twice into the bash assoc
+  # arrays (last-write-wins, behaviorally identical), which surfaces as
+  # `WARN: key 'gpt-5.3-codex' appears in both aliases and backward_compat_aliases`
+  # at codegen time — informational only.
+  #
+  # BEHAVIORAL CHANGE: pre-Sprint-2E a bare-form `gpt-5.3-codex` reference
+  # in `skill_models.<skill>.<role>` would cascade through S2 → S3 and emit
+  # `[TIER-NO-MAPPING]` (no S2 alias hit, no S3 tier_groups mapping). After
+  # Sprint 2E it resolves at S2 directly. The resolved model is the same
+  # one the alias name implies (`openai:gpt-5.3-codex`), so semantically
+  # aligned, but operators relying on the failure to surface
+  # misconfiguration may want to switch to explicit `provider:model_id`
+  # form (S1 explicit pin) for hard-pinned bindings.
+  gpt-5.5: "openai:gpt-5.5"
+  gpt-5.5-pro: "openai:gpt-5.5-pro"
+  gpt-5.3-codex: "openai:gpt-5.3-codex"
+
+  # cycle-104 Sprint 2 T2.4: headless aliases (kind: cli). Each terminates
+  # its company's fallback_chain. Operator must install the underlying CLI
+  # binary (`claude`, `codex`, `gemini`) per the headless-mode runbook.
+  claude-headless: "anthropic:claude-headless"
+  codex-headless: "openai:codex-headless"
+  gemini-headless: "google:gemini-headless"
+
+  # #1089: key-based Gemini terminal — the HTTP / GOOGLE_API_KEY path (auth_type
+  # http_api) as an alternative to the deprecated `gemini-headless` CLI ("Gemini
+  # Code Assist for individuals" retired → IneligibleTierError; see KF-018).
+  # Operators swap `gemini-headless` → `gemini-api` (e.g. the Flatline tertiary
+  # voice) where the CLI is unavailable. Targets the capable thinking HTTP model;
+  # re-point to a cheaper google:gemini-* if cost-sensitive.
+  gemini-api: "google:gemini-2.5-pro"
+
+  # xAI Grok aliases (kind: cli) — one company-port, two models. Operator must
+  # `grok login` (OIDC subscription). `grok-build` (default) + a `grok-fast`
+  # alias for the composer model; `grok-headless` mirrors the *-headless family
+  # naming. These names are what tier_groups.mappings + skill bindings reference.
+  grok-build: "xai:grok-build"
+  grok-composer: "xai:grok-composer-2.5-fast"
+  grok-fast: "xai:grok-composer-2.5-fast"
+  grok-headless: "xai:grok-build"
+
+  # Cursor Composer aliases (kind: cli) — one company-port, two Composer models.
+  # Operator must `cursor-agent login`. `cursor-headless` mirrors the *-headless
+  # family naming (→ composer-2.5, the current Composer); `cursor-fast` exposes
+  # the fast variant. These names are what tier_groups.mappings + skill bindings
+  # reference.
+  cursor-composer: "cursor:composer-2.5"
+  cursor-fast: "cursor:composer-2.5-fast"
+  cursor-headless: "cursor:composer-2.5"
+
+# Backward-compat aliases (legacy model IDs → canonical provider:model-id)
+# Used by gen-adapter-maps.sh to reproduce the hand-maintained bash map
+# entries that retarget historical IDs to current canonical models.
+# Added in sprint-bug-108 (issue #548, vision-011) so the YAML is the
+# single source of truth for bash adapter maps.
+backward_compat_aliases:
+  # OpenAI legacy alias
+  "gpt-5.2-codex": "openai:gpt-5.3-codex"
+  # cycle-095 Sprint 2 (Task 2.2): immutable self-map. Operators / configs
+  # pinning `gpt-5.3-codex` literally must continue resolving to that exact
+  # model — NOT silently retargeted to gpt-5.5. Loader emits one INFO log
+  # per process on first resolution to surface the legacy pin (Flatline
+  # cluster 1 / SKP-001 CRITICAL).
+  "gpt-5.3-codex": "openai:gpt-5.3-codex"
+  # Anthropic Opus history — all retarget to 4-7 (cycle-082).
+  # claude-opus-4-6 is ALSO listed in providers.anthropic.models but the
+  # legacy bash adapter retargets the BASH-level resolution to 4-7 per
+  # PR #207 pattern. The YAML/Python path preserves 4-6 for pinning.
+  # Self-map for the dash form of the current default (parity with
+  # gpt-5.3-codex self-map above). BB tool config.generated.js hardcodes
+  # the dash form `claude-opus-4-7` as modelId and passes it to cheval
+  # without a provider prefix — cheval's resolver expects an alias entry,
+  # so the bare dash form must self-map. Without this, BB review fails
+  # with "Unknown alias: 'claude-opus-4-7'" across all 3 substrate models.
+  # cycle-114: 4-8 self-maps (dash + dot). The BB tool config.generated.js
+  # passes the bare dash form to cheval without a provider prefix, so both
+  # forms must self-map (parity with the 4-7 entries below).
+  # cycle-124 FR-3: bare self-maps for the new generation (same reason as
+  # the 4-8 pair below — BB and advisor tier_aliases pass the bare id).
+  "claude-opus-5-5": "anthropic:claude-opus-5-5"
+  "claude-opus-5.5": "anthropic:claude-opus-5-5"
+  "claude-opus-5": "anthropic:claude-opus-5"
+  "claude-fable-5-1": "anthropic:claude-fable-5-1"
+  "claude-opus-4-8": "anthropic:claude-opus-4-8"
+  "claude-opus-4.8": "anthropic:claude-opus-4-8"
+  "claude-opus-4-7": "anthropic:claude-opus-4-7"
+  "claude-opus-4.7": "anthropic:claude-opus-4-7"
+  "claude-opus-4.6": "anthropic:claude-opus-4-7"
+  "claude-opus-4-6": "anthropic:claude-opus-4-7"
+  "claude-opus-4.5": "anthropic:claude-opus-4-7"
+  "claude-opus-4-5": "anthropic:claude-opus-4-7"
+  "claude-opus-4.1": "anthropic:claude-opus-4-7"
+  "claude-opus-4-1": "anthropic:claude-opus-4-7"
+  "claude-opus-4.0": "anthropic:claude-opus-4-7"
+  "claude-opus-4-0": "anthropic:claude-opus-4-7"
+  # NOTE: gemini-3.1-pro is NOT listed here — it's already in the main
+  # `aliases` section. Duplicates across aliases + backward_compat_aliases
+  # emit the same key twice into the generated bash maps (behaviorally
+  # harmless since last-write-wins, but unnecessary noise).
+  #
+  # Self-map for `gemini-3.1-pro-preview` (the API model_id). Same pattern as
+  # `claude-opus-4-7` above + `gpt-5.3-codex` self-map: BB tool config passes
+  # the bare model_id to cheval, which expects an alias. Without this
+  # entry BB google leg fails with "Unknown alias: 'gemini-3.1-pro-preview'".
+  "gemini-3.1-pro-preview": "google:gemini-3.1-pro-preview"
+
+# Agent bindings (agent name → model + requirements)
+# Conservative profile: maximize quality, most agents on native (PRD FR-4)
+agents:
+  implementing-tasks:
+    model: native
+    requires:
+      native_runtime: true
+  riding-codebase:
+    model: native
+    requires:
+      native_runtime: true
+  designing-architecture:
+    model: native
+  planning-sprints:
+    model: native
+  discovering-requirements:
+    model: native
+  reviewing-code:
+    model: reviewer
+    temperature: 0.3
+  auditing-security:
+    model: native
+  translating-for-executives:
+    model: cheap
+    temperature: 0.5
+  flatline-reviewer:
+    model: reviewer
+    temperature: 0.3
+  flatline-skeptic:
+    model: reasoning
+    temperature: 0.5
+    requires:
+      thinking_traces: preferred
+  # cycle-102 sprint-1F (T1.8 / Issue #780): flatline-attacker is the
+  # red-team-pipeline.sh `--role attacker` agent. Distinct from skeptic
+  # because the output schema is `attacks: [...]` not `concerns: [...]`,
+  # and the pipeline's downstream `.attacks[]?` parser silently dropped
+  # everything when the adapter pointed at flatline-skeptic. See
+  # .claude/skills/flatline-attacker/persona.md for the schema contract.
+  flatline-attacker:
+    model: reasoning
+    temperature: 0.6
+    requires:
+      thinking_traces: preferred
+  flatline-scorer:
+    # cycle-114 FR-13: convergence/severity scoring is structured work — bind to
+    # the cheap tier (Sonnet 5 since cycle-126), not the expensive reviewer (gpt-5.5). Sonnet
+    # (not Haiku) preserves scoring quality for the FLATLINE convergence gate.
+    model: cheap
+    temperature: 0.2
+  flatline-dissenter:
+    model: reasoning
+    temperature: 0.6
+    requires:
+      thinking_traces: preferred
+  gpt-reviewer:
+    model: reviewer
+    temperature: 0.3
+  deep-researcher:
+    model: researcher
+    temperature: 0.3
+    requires:
+      deep_research: required
+  deep-thinker:
+    # gemini-2.5-pro per #574 (phantom gemini-3-pro pruned); cycle-126 D-4.3:
+    # the served gemini-3.1-pro alias (→ gemini-3.1-pro-preview, thinking_traces).
+    model: gemini-3.1-pro
+    temperature: 0.4
+    requires:
+      thinking_traces: required
+  fast-thinker:
+    # cycle-095 Sprint 2 (Task 2.4): retargeted from gemini-2.5-flash to
+    # gemini-3-flash. Backed by gemini-3-flash-preview with fallback_chain
+    # to gemini-2.5-flash — _resolve_active_model demotes to fallback when
+    # probe state goes UNAVAILABLE (SDD §5.8). cycle-126 D-4.3: kept — the
+    # catalog serves no gemini-3.1-flash.
+    model: gemini-3-flash
+    temperature: 0.5
+  literature-reviewer:
+    model: researcher
+    temperature: 0.2
+    requires:
+      deep_research: required
+
+  # Jam geometry roles (cycle-026 sprint-9)
+  # Feature flag: hounfour.feature_flags.jam_geometry (default false)
+  jam-reviewer-claude:
+    model: native
+    requires:
+      native_runtime: true
+      thinking_traces: true
+  jam-reviewer-gpt:
+    model: reviewer
+    temperature: 0.3
+  jam-reviewer-kimi:
+    model: reasoning
+    temperature: 0.5
+    requires:
+      thinking_traces: preferred
+  jam-synthesizer:
+    model: cheap
+    temperature: 0.3
+
+# cycle-095 Sprint 2 (Task 2.6): tier_groups schema (FR-5a foundation).
+# cycle-099 Sprint 2E (T2.7): mappings populated per SDD §3.1.2 with
+# probe-confirmed defaults across 4 tiers × 3 providers. Each value
+# is an alias name resolved via the `aliases:` block above. The
+# cycle-099 FR-3.9 6-stage resolver consults these mappings at
+# stage 3 (framework default tier) when an operator's `skill_models`
+# entry uses a tier-tag like `max`/`cheap`/`mid`/`tiny` and there is
+# no operator override at stage 2. Operator overrides via
+# `.loa.config.yaml::tier_groups.mappings.<tier>.<provider>` always win.
+#
+# Probe verification:
+#   .github/workflows/cycle099-sprint-2e-tests.yml runs a dry-run
+#   `model-health-probe.sh` cross-check that asserts every (tier,
+#   provider) → alias → model_id resolves to a model declared in
+#   `providers.<provider>.models`. Live probe (with API keys) is the
+#   operator's responsibility on opt-in.
+tier_groups:
+  # cycle-114 FR-8: informational-only effort hints per tier. NOT consumed by
+  # the FR-3.9 resolver or any dispatch path this cycle — purely advisory for
+  # operators and the Empirical Model Economy roll-up (which reports cost by
+  # effort). A future cycle may wire binding behavior; until then these values
+  # MUST NOT change model resolution. Pinned by tests/unit/cycle-114-tier-effort-hints.bats.
+  effort_hints:
+    max: xhigh
+    mid: medium
+    cheap: low
+    tiny: low
+  # The nested {tier: {company: alias}} form. Consumer = model-resolver.py
+  # _stage3_tier_groups, which picks `sorted(mapping.keys())[0]` deterministically
+  # (anthropic always first). The `xai` column (added 2026-06-13) sorts LAST, so
+  # it is ZERO-behavior-change to existing default tier resolution — it just makes
+  # xAI's stack a selectable company-port for any per-company router (the
+  # router-of-routers / composition-deployment hook). max/mid → grok-build (the
+  # reasoning default); cheap/tiny → grok-fast (the composer model). Each value is
+  # an ALIAS NAME defined in the aliases: block above.
+  mappings:
+    max:
+      anthropic: fable             # → claude-fable-5-1 (cycle-124; 2026-06-10 intel-routing review moved max opus→fable)
+      openai: gpt-5.5-pro          # top-of-OpenAI per probe-confirmation
+      google: gemini-3.1-pro       # → gemini-3.1-pro-preview
+      xai: grok-build              # → xai:grok-build
+    cheap:
+      anthropic: cheap             # → claude-sonnet-5
+      openai: gpt-5.3-codex        # cost-safe codex tier
+      google: gemini-3-flash       # → gemini-3-flash-preview
+      xai: grok-fast               # → xai:grok-composer-2.5-fast
+    mid:
+      anthropic: cheap             # sonnet (→ claude-sonnet-5) is the mid choice
+      openai: gpt-5.5
+      google: gemini-2.5-pro
+      xai: grok-build              # → xai:grok-build
+    tiny:
+      anthropic: tiny              # → claude-haiku-4-5-20251001
+      openai: gpt-5.3-codex        # no smaller OpenAI in registry (SDD §10 open question)
+      google: gemini-3-flash
+      xai: grok-fast               # → xai:grok-composer-2.5-fast
+  denylist: []                          # operator opt-out — alias names; populated in user .loa.config.yaml
+  max_cost_per_session_micro_usd: null  # null = no enforcement; integer >= 0 for hard cap
+
+# Routing
+routing:
+  fallback:
+    openai: [anthropic]           # If OpenAI down, try Anthropic
+    anthropic: [openai]           # If Anthropic down, try OpenAI
+    google: [openai]              # If Google down, try OpenAI
+  downgrade:
+    reviewer: [cheap]             # If budget exceeded, downgrade
+
+  # Circuit breaker defaults
+  circuit_breaker:
+    failure_threshold: 5          # Consecutive failures to trip
+    reset_timeout_seconds: 60     # Time in OPEN before probing
+    half_open_max_probes: 1       # Concurrent probes in HALF_OPEN
+    count_window_seconds: 300     # Rolling window for failure count
+
+# Retry defaults
+retry:
+  max_retries: 3                  # Per-provider retries
+  max_total_attempts: 6           # Global hard cap (SDD §4.2.7)
+  max_provider_switches: 2        # Maximum fallback chain depth
+  base_delay_seconds: 1.0         # Exponential backoff base
+
+# Metering
+metering:
+  enabled: true
+  ledger_path: ".run/cost-ledger.jsonl"   # cycle-124 FR-6: the tripwire and the runbook scan .run/; a2a/ is sprint-scoped and gitignored only here
+  budget:
+    daily_micro_usd: 500000000    # $500/day default (effectively unlimited)
+    warn_at_percent: 80
+    on_exceeded: downgrade        # downgrade | block | warn
+
+# Default timeouts (per provider, overridable)
+defaults:
+  connect_timeout: 10             # seconds
+  read_timeout: 120               # seconds
+  write_timeout: 30               # seconds
+
+  # cycle-113 sprint-170 T3.4 (FR-C-2; SDD §5.4) — streaming-recovery thresholds.
+  # Library applies these defaults when per-model `streaming_recovery` blocks
+  # are absent (the cycle-113 default-safe state). Operators can override
+  # per-model under `providers.<p>.models.<m>.streaming_recovery: {...}`.
+  #
+  # Field names match the shipped loa_cheval.streaming.recovery library API
+  # per operator-approved lib-wins naming (C113.OP-AUTH-1):
+  #   - first_token_deadline_s: time-window before abort if no token arrives
+  #     (default 30.0 for non-reasoning; 60.0 for reasoning_class=True)
+  #   - empty_content_window_tokens: abort if first N tokens are all
+  #     empty/whitespace (KF-002 class detection)
+  #   - cot_budget_tokens: abort reasoning-class models that runaway-CoT
+  #     beyond N tokens without visible content (gated on reasoning_class)
+  #
+  # The reasoning_class flag itself is derived per-model from
+  # `providers.<p>.models.<m>.reasoning_class` (additive field; sprint-170
+  # ships this layer documented; per-model population is operator carry
+  # for cycle-114). Until per-model reasoning_class is populated, the
+  # library defaults to reasoning_class=False, which is safe (non-reasoning
+  # thresholds apply, CoT-budget enforcement skipped).
+  streaming_recovery:
+    first_token_deadline_s: 30.0
+    empty_content_window_tokens: 200
+    cot_budget_tokens: 500

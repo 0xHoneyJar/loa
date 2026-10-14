@@ -87,11 +87,22 @@ describe("ProgressReporter", () => {
   it("emits completion report", () => {
     const reporter = new ProgressReporter({ verbose: false });
     reporter.start();
-    reporter.reportComplete(5000, 3);
+    reporter.reportComplete(5000, 3, 3);
     reporter.stop();
 
     assert.ok(captured.some((l) => l.includes("Done in 5s")));
-    assert.ok(captured.some((l) => l.includes("3 model(s)")));
+    assert.ok(captured.some((l) => l.includes("3/3 model(s) completed")));
+  });
+
+  // cycle-129 D-7.7: the banner counts the voices that completed against the voices planned, never the configured count
+  it("prints completed/planned when a voice did not complete", () => {
+    const reporter = new ProgressReporter({ verbose: false });
+    reporter.start();
+    reporter.reportComplete(2000, 1, 3);
+    reporter.stop();
+
+    assert.ok(captured.some((l) => l.includes("1/3 model(s) completed")));
+    assert.ok(!captured.some((l) => l.includes("— 3 model(s)")));
   });
 
   it("uses bridgebuilder prefix in output", () => {

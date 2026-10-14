@@ -58,7 +58,10 @@ else
   config_path="${REPO_ROOT}/.loa.config.yaml"
   # No yq or no config -> the feature is opt-in and unconfigurable here: silent.
   if command -v yq >/dev/null 2>&1 && [[ -f "$config_path" ]]; then
-    enabled="$(yq '.known_failures.surface_at_session_start // false' "$config_path" 2>/dev/null || echo false)"
+    # Explicit key, else the loa.profile default (cycle-129 D-9.1).
+    # shellcheck source=scripts/lib/profile-lib.sh
+    source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null &&
+      enabled="$(loa_knob known_failures.surface_at_session_start false 2>/dev/null || echo false)"
   fi
 fi
 

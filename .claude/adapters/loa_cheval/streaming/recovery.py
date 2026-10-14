@@ -161,6 +161,16 @@ class StreamingRecoveryTracker:
             )
         return StreamingRecoveryDecision.proceed()
 
+    def on_progress(self, now_s: float) -> None:
+        """Record stream progress that is NOT visible content (cycle-129 FR-7, SDD D-7.3):
+        a `reasoning_content` delta from a local reasoning model. It satisfies the
+        first-token deadline (the only wall-clock deadline the tracker keeps; the read
+        timeout bounds a stall after the first byte) but leaves the content state
+        machine alone: it does not count toward the empty-content window or mark
+        visible content, and it is never part of the answer."""
+        if self.first_token_time_s is None:
+            self.first_token_time_s = now_s
+
     def on_token(self, text: str, now_s: float) -> StreamingRecoveryDecision:
         """Feed one token (or token-batch) of text. Returns abort
         decision when one of the empty-content or CoT-budget thresholds

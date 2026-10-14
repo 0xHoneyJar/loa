@@ -1354,6 +1354,11 @@ repaired_count schema_enforced shared_hops sid sidecar sidecar_reject_reason sin
 tokens_in tokens_out try_model type until valid_categories valid_severities violated_clause violated_field why 1
 api_exit_code _pf_rc mc _cd _r _e""".split())   # (mc: _companion_ledger_message's canonical hop id, like m — thirty-sixth run, a3)
 # (_r, _e: _adv_vq_as_dropped's drop-reason enum word and its exit code, a whole number clamped to 255 — round 1ao)
+# (cycle-129 Sprint 3: _bv_*: the budget gate's role word, validated hop name, pricing-source word and whole-number rates and
+# cents; _ADV_BUDGET_VOICES: one small object per planned voice (≤ 1 + 1 + 99 advisory); _av_*: the advisory block's
+# validated alias, provider word, error cut to 200 characters, exit code and index; _ADV_LOC_DEGRADED_SENTENCE: a constant)
+SMALL |= set("""_bv_role _bv_hop _bv_src _bv_cents _bv_in _bv_out _ADV_BUDGET_VOICES _av_alias _av_alias_r _av_prov_r _av_err
+_av_rc _av_n _ADV_LOC_DEGRADED_SENTENCE""".split())
 # ($2: _adv_refuse_json's dynamic --arg "$1" "$2" — its callers pass TMPDIR, the --diff-range value and a workdir path)
 SMALL |= {"2"}
 # (thirty-fourth run, c2b DISS-C-001: a positional parameter is small only in the function reviewed for it — _adv_refuse_json's

@@ -5,19 +5,44 @@
 # Checks whether Write/Edit to App Zone files occurs within an active
 # /implement or /bug skill invocation.
 #
-# Two detection modes:
-#   1. HEURISTIC (ADVISORY, the default): reads .run/ state files for RUNNING state
-#   2. AUTHORITATIVE: reads tool_input.active_skill from hook stdin, only when
-#      .loa.config.yaml sets implement_gate.mode: authoritative. The PreToolUse
+# Modes (cycle-129 D-4.1, DEC-0163; .loa.config.yaml implement_gate.mode):
+#   ask (default; unset or any other value): an unsanctioned App-Zone write asks,
+#       exactly as before, and now logs one row (decision "ask").
+#   telemetry: an unsanctioned App-Zone write logs one row (action "telemetry",
+#       decision "outside_run") and is allowed silently.
+#   deny: an unsanctioned App-Zone write is DENIED when the run position is
+#       known: .run/sprint-plan-state.json parses and its derived_at is within
+#       run_mode.stale_hours (12). The gate is a fence only in this mode. An
+#       unknown position (cache missing, not derived, stale or unparseable)
+#       falls back to ask (decision "unknown_position"), never to allow.
+# Sanction (any mode; first match wins; one row each, action "allow"):
+#   sanctioned_run    — the heuristic below: a fresh RUNNING cache, and its
+#                       derived_at (when present) within run_mode.stale_hours
+#   sanctioned_marker — .run/implement-active.json {skill: implement|bug, sprint,
+#                       started_at} with started_at within two hours (written by
+#                       `run-checkpoint.sh mark`, removed by `unmark`); a stale or
+#                       malformed marker logs decision "stale_marker" and does not sanction
+#   override          — LOA_IMPLEMENT_GATE_OVERRIDE=1 in the hook's environment
+# Rows go to .run/audit.jsonl as {ts, hook: "implement-gate", action, decision,
+# mode, path} with path control-stripped and cut to 256 bytes; LOA_AUDIT_REPLAY=1
+# adds replay: true to every row this gate writes (DEC-0167).
+#
+# Claims modifier (implement_gate.claims: authoritative; the legacy
+# implement_gate.mode: authoritative means mode ask + claims authoritative):
+#   reads tool_input.active_skill from hook stdin. The PreToolUse
 #      payload carries no harness-set skill field (cycle-126 D-4.4) and tool_input
-#      is model-authored, so nothing in .run/ selects this mode.
+#      is model-authored, so nothing in .run/ selects this modifier.
 #      TIGHTEN-ONLY (sprint-250 audit n17/n18): the model-authored claim can only
 #      add an ask, never grant an allow. A claimed implementation skill falls
 #      through to the heuristic exactly like an absent field; a claimed
-#      non-implementation skill asks and logs compliance.mode.model_signal to
+#      non-implementation skill asks (or, under deny with a known position and no
+#      sanction, is denied) and logs compliance.mode.model_signal to
 #      .run/audit.jsonl (plain hook log, not the signed audit_emit chain). Every
-#      claim leaves one row per invocation: decision "ask" for a non-implementation
+#      claim leaves one row per invocation: decision "ask"/"deny" for a non-implementation
 #      claim, decision "heuristic" for an implementation claim (run-2 finding 6).
+#
+# `implement-gate.sh --effective-mode [CONFIG]` prints the effective mode (and the
+# claims modifier) without reading stdin — the /loa Gate line.
 #
 # Evidence recorder (cycle-126 D-4.4): a lead-session payload carrying
 # tool_input.active_skill records active_skill_seen_at once in
@@ -33,13 +58,15 @@
 # (<root>/.claude/hooks/compliance/), never the process cwd, which follows
 # Claude's `cd` (audit MED-001); RUN_DIR defaults to <root>/.run.
 # Trust inputs: a write to .run/state.json, .run/sprint-plan-state.json,
-# .run/simstim-state.json, .run/platform-features.json, .run/audit.jsonl or
-# .loa.config.yaml asks and logs compliance.state_write (run-3 finding 3).
+# .run/simstim-state.json, .run/platform-features.json, .run/audit.jsonl,
+# .run/implement-active.json or .loa.config.yaml asks in every mode and under
+# every sanction, and logs compliance.state_write (run-3 finding 3).
 # Other non-App-Zone writes always allowed.
 #
 # Output (Claude Code PreToolUse contract, sprint-250 audit n20): allow = silent
 # exit 0 with empty stdout; ask = exit 0 with
 #   {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}
+# deny = the same shape with "permissionDecision":"deny".
 # A top-level "decision" accepts approve|block only, so "ask" never goes there.
 # file_path and active_skill reach stderr only through strip_controls (n21;
 # run-2 findings 3/12; run-3 finding 5): cut to 256 bytes without splitting a
@@ -58,8 +85,11 @@
 # Sprint-108 T4.5: Path normalization
 # =============================================================================
 
-# Read tool input from stdin
-input=$(cat 2>/dev/null) || input=""
+# Read tool input from stdin (not for --effective-mode, which reads no payload)
+input=""
+if [[ "${1:-}" != "--effective-mode" ]]; then
+    input=$(cat 2>/dev/null) || input=""
+fi
 
 # The ask reply; jq builds it so any reason is a well-formed JSON string (run-3 finding 7); the printf literal is only
 # for the jq-missing branch, whose reason is a fixed string
@@ -144,6 +174,44 @@ strip_controls() {
 PROJECT_ROOT="${PROJECT_ROOT:-${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)}}"
 RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/.run}"
 FEATURES_FILE="$RUN_DIR/platform-features.json"
+
+# ---------------------------------------------------------------------------
+# Mode and claims (cycle-129 D-4.1): one yq call, read only when a decision
+# needs it. Unset, unreadable or unknown values are ask; the legacy
+# mode: authoritative is ask + claims: authoritative. run_mode.stale_hours
+# bounds derived_at (positive integer, default 12).
+# ---------------------------------------------------------------------------
+gate_mode="ask"
+gate_claims="plain"
+gate_stale_hours=12
+load_gate_config() {
+    local cfg="${1:-$PROJECT_ROOT/.loa.config.yaml}" raw m c s
+    command -v yq &>/dev/null && command -v jq &>/dev/null && [[ -f "$cfg" ]] || return 0
+    # mikefarah yq v4 first; the python yq wrapper (jq syntax, JSON out) second
+    raw=$(yq -o json -I 0 '{"m": .implement_gate.mode, "c": .implement_gate.claims, "s": .run_mode.stale_hours}' "$cfg" 2>/dev/null) \
+        || raw=$(yq -c '{"m": .implement_gate.mode, "c": .implement_gate.claims, "s": .run_mode.stale_hours}' "$cfg" 2>/dev/null) \
+        || return 0
+    m=$(jq -r '.m | strings' <<<"$raw" 2>/dev/null) || m=""
+    c=$(jq -r '.c | strings' <<<"$raw" 2>/dev/null) || c=""
+    s=$(jq -r '.s | numbers | tostring' <<<"$raw" 2>/dev/null) || s=""
+    case "$m" in
+        ask|telemetry|deny) gate_mode="$m" ;;
+        authoritative) gate_claims="authoritative" ;;
+    esac
+    [[ "$c" == "authoritative" ]] && gate_claims="authoritative"
+    if [[ "$s" =~ ^[0-9]{1,4}$ ]] && (( 10#$s > 0 && 10#$s <= 8760 )); then gate_stale_hours=$(( 10#$s )); fi
+    return 0
+}
+
+if [[ "${1:-}" == "--effective-mode" ]]; then
+    load_gate_config "${2:-}"
+    if [[ "$gate_claims" == "authoritative" ]]; then echo "$gate_mode (claims: authoritative)"; else echo "$gate_mode"; fi
+    exit 0
+fi
+
+# Row helpers: LOA_AUDIT_REPLAY=1 marks every row this gate writes (DEC-0167)
+_ig_replay_json='{}'
+[[ "${LOA_AUDIT_REPLAY:-}" == "1" ]] && _ig_replay_json='{"replay":true}'
 
 # Evidence recorder: lead session only (no teammate role, no subagent agent_id), once, atomic.
 if [[ -z "${LOA_TEAM_MEMBER:-}" && -d "$RUN_DIR" ]] \
@@ -269,12 +337,17 @@ cut_utf8_256 audit_file_path "$file_path"
 # ---------------------------------------------------------------------------
 for rel in "${rel_forms[@]}"; do
     case "$rel" in
-        .run/state.json|.run/sprint-plan-state.json|.run/simstim-state.json|.run/platform-features.json|.run/audit.jsonl|.loa.config.yaml)
+        .run/state.json|.run/sprint-plan-state.json|.run/simstim-state.json|.run/platform-features.json|.run/audit.jsonl|.run/implement-active.json|.loa.config.yaml)
             echo "[GATE] write to an implement-gate trust input '$(strip_controls "$file_path")'." >&2
+            # Asks in every mode and under every sanction; the row is counted as an ask by the register
+            load_gate_config
             jq -nca \
                 --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
                 --arg path "$audit_file_path" \
-                '{timestamp: $ts, event: "compliance.state_write", file_path: $path}' \
+                --arg mode "$gate_mode" \
+                --argjson replay "$_ig_replay_json" \
+                '{timestamp: $ts, event: "compliance.state_write", file_path: $path,
+                  hook: "implement-gate", action: "ask", decision: "trust_input", mode: $mode} + $replay' \
                 >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
             emit_ask "[GATE] write to an implement-gate trust input. Verify this write is intentional."
             exit 0
@@ -305,18 +378,31 @@ fi
 safe_file_path=$(strip_controls "$file_path")
 
 # ---------------------------------------------------------------------------
-# Mode: heuristic unless the operator opts in through .loa.config.yaml (cycle-126 D-4.4)
+# Mode and claims from .loa.config.yaml (cycle-129 D-4.1; cycle-126 D-4.4)
 # ---------------------------------------------------------------------------
-compliance_mode="heuristic"
-if command -v yq &>/dev/null && [[ -f "$PROJECT_ROOT/.loa.config.yaml" ]]; then
-    configured_mode=$(yq '.implement_gate.mode // ""' "$PROJECT_ROOT/.loa.config.yaml" 2>/dev/null) || configured_mode=""
-    [[ "${configured_mode//\"/}" == "authoritative" ]] && compliance_mode="authoritative"
-fi
+load_gate_config
+
+# One decision row per App-Zone write: {ts, hook, action, decision, mode, path}; path is the display copy
+# (control-stripped, at most 256 bytes) and jq -a escapes any non-ASCII left in it
+log_gate_row() {
+    jq -nca \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
+        --arg action "$1" \
+        --arg decision "$2" \
+        --arg mode "$gate_mode" \
+        --arg claims "$gate_claims" \
+        --arg path "$safe_file_path" \
+        --argjson replay "$_ig_replay_json" \
+        '{ts: $ts, hook: "implement-gate", action: $action, decision: $decision, mode: $mode, path: $path}
+         + (if $claims == "authoritative" then {claims: $claims} else {} end) + $replay' \
+        >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
+}
 
 # ---------------------------------------------------------------------------
-# Authoritative mode: read active_skill from hook input
+# Claims modifier: read active_skill from hook input (tighten-only)
 # ---------------------------------------------------------------------------
-if [[ "$compliance_mode" == "authoritative" ]]; then
+claim_ask=0
+if [[ "$gate_claims" == "authoritative" ]]; then
     active_skill=$(jq -j '.tool_input.active_skill // empty' <<<"$input" 2>/dev/null && printf x) || active_skill="x"
     active_skill=${active_skill%x}
 
@@ -324,14 +410,18 @@ if [[ "$compliance_mode" == "authoritative" ]]; then
         safe_skill=$(strip_controls "$active_skill")
         cut_utf8_256 audit_skill "$active_skill"
         # One model_signal row per invocation that carries a claim; the harness never sets the field,
-        # so a row means a model wrote it (run-2 finding 6). The row holds the raw claim, ASCII-escaped (run-3 finding 4)
+        # so a row means a model wrote it (run-2 finding 6). The row holds the raw claim, ASCII-escaped (run-3 finding 4).
+        # An ask or deny row also carries hook/action so the register counts it as the write's decision row
         log_model_signal() {
             jq -nca \
                 --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" \
                 --arg skill "$audit_skill" \
                 --arg path "$audit_file_path" \
                 --arg decision "$1" \
-                '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: $decision}' \
+                --arg gmode "$gate_mode" \
+                --argjson replay "$_ig_replay_json" \
+                '{timestamp: $ts, event: "compliance.mode.model_signal", mode: "authoritative", active_skill: $skill, file_path: $path, decision: $decision}
+                 + (if $decision == "ask" or $decision == "deny" then {hook: "implement-gate", action: $decision, gate_mode: $gmode} else {} end) + $replay' \
                 >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
         }
         case "$active_skill" in
@@ -341,29 +431,22 @@ if [[ "$compliance_mode" == "authoritative" ]]; then
                 log_model_signal heuristic
                 ;;
             *)
-                # Non-implementation skill — log the model signal and ask
-                echo "[AUTHORITATIVE] App Zone write to '$safe_file_path' detected during /$safe_skill (not an implementation skill)." >&2
-                log_model_signal ask
-                emit_ask "[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."
-                exit 0
+                # Non-implementation skill: asks whatever the sanction (decided below, where deny can still apply)
+                claim_ask=1
                 ;;
         esac
     else
-        # active_skill field absent despite authoritative mode — fall back to heuristic
+        # active_skill field absent despite the claims modifier — fall back to heuristic
         # Log the downgrade
         log_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || log_ts="unknown"
-        if command -v jq &>/dev/null; then
-            jq -nc \
-                --arg ts "$log_ts" \
-                --arg from "authoritative" \
-                --arg to "heuristic" \
-                --arg reason "active_skill field absent in hook input" \
-                '{timestamp: $ts, event: "compliance.mode.fallback", from_mode: $from, to_mode: $to, reason: $reason}' \
-                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
-        else
-            echo "{\"timestamp\":\"$log_ts\",\"event\":\"compliance.mode.fallback\",\"from_mode\":\"authoritative\",\"to_mode\":\"heuristic\",\"reason\":\"active_skill field absent in hook input\"}" \
-                >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
-        fi
+        jq -nc \
+            --arg ts "$log_ts" \
+            --arg from "authoritative" \
+            --arg to "heuristic" \
+            --arg reason "active_skill field absent in hook input" \
+            --argjson replay "$_ig_replay_json" \
+            '{timestamp: $ts, event: "compliance.mode.fallback", from_mode: $from, to_mode: $to, reason: $reason} + $replay' \
+            >> "$RUN_DIR/audit.jsonl" 2>/dev/null || true
     fi
     # Fall through to heuristic check below
 fi
@@ -387,6 +470,23 @@ _ig_fresh() {
     (( last_epoch > 0 && now - last_epoch <= 86400 && last_epoch - now <= 86400 ))
 }
 
+# True when the ISO-8601 timestamp $2 parses, is at most $1 seconds old and at most 300 s ahead (clock skew);
+# jq's fromdateiso8601 keeps it portable (no GNU date -d). Fractional seconds are dropped first
+_ig_within() {
+    [[ -n "$2" && "$1" =~ ^[0-9]+$ ]] || return 1
+    jq -en --arg t "$2" --argjson w "$1" \
+        '($t | sub("\\.[0-9]+Z$"; "Z") | try fromdateiso8601 catch null) as $e | $e != null and (now - $e) <= $w and ($e - now) <= 300' \
+        >/dev/null 2>&1
+}
+
+# derived_at, when a cache carries one, must be within run_mode.stale_hours (cycle-129 D-4.1)
+_ig_derived_ok() {
+    local da
+    da=$(jq -r '.derived_at // empty | strings' "$1" 2>/dev/null) || da=""
+    [[ -z "$da" ]] && return 0
+    _ig_within $(( gate_stale_hours * 3600 )) "$da"
+}
+
 check_implementation_active() {
     # Check sprint-plan state
     if [[ -f "$RUN_DIR/sprint-plan-state.json" ]]; then
@@ -404,6 +504,11 @@ check_implementation_active() {
         last_activity=$(jq -r '.timestamps.last_activity // empty' "$RUN_DIR/sprint-plan-state.json" 2>/dev/null) || last_activity=""
         if ! _ig_fresh "$last_activity"; then
             return 1  # Stale, future-dated or unstamped state
+        fi
+
+        # A derived cache older than run_mode.stale_hours is not a run position (cycle-129 D-4.1)
+        if ! _ig_derived_ok "$RUN_DIR/sprint-plan-state.json"; then
+            return 1
         fi
 
         if [[ "$state" == "RUNNING" ]]; then
@@ -428,7 +533,7 @@ check_implementation_active() {
         local run_state run_activity
         run_state=$(jq -r '.state // empty' "$RUN_DIR/state.json" 2>/dev/null) || return 1
         run_activity=$(jq -r '.timestamps.last_activity // .updated_at // empty | strings' "$RUN_DIR/state.json" 2>/dev/null) || run_activity=""
-        if [[ "$run_state" == "RUNNING" ]] && _ig_fresh "$run_activity"; then
+        if [[ "$run_state" == "RUNNING" ]] && _ig_fresh "$run_activity" && _ig_derived_ok "$RUN_DIR/state.json"; then
             return 0
         fi
     fi
@@ -436,16 +541,109 @@ check_implementation_active() {
     return 1
 }
 
+# The implementing skills' marker (run-checkpoint.sh mark): 0 fresh and well-formed, 1 absent, 2 stale or malformed
+check_implement_marker() {
+    local f="$RUN_DIR/implement-active.json" started
+    [[ -f "$f" ]] || return 1
+    jq -e '(.skill == "implement" or .skill == "bug") and (.sprint | type == "string" and test("^[A-Za-z0-9._-]{1,64}$"))' "$f" >/dev/null 2>&1 || return 2
+    started=$(jq -r '.started_at // empty | strings' "$f" 2>/dev/null) || started=""
+    _ig_within 7200 "$started" || return 2
+    return 0
+}
+
+# The derived run position for deny: known only when .run/sprint-plan-state.json parses and carries a derived_at
+# within run_mode.stale_hours; sets position_state (display copy) or position_why
+position_state=""
+position_why=""
+read_position() {
+    local f="$RUN_DIR/sprint-plan-state.json" da st
+    if [[ ! -f "$f" ]]; then position_why="cache missing"; return 1; fi
+    if ! jq -e 'type == "object"' "$f" >/dev/null 2>&1; then position_why="cache unparseable"; return 1; fi
+    da=$(jq -r '.derived_at // empty | strings' "$f" 2>/dev/null) || da=""
+    if [[ -z "$da" ]]; then position_why="cache not derived"; return 1; fi
+    if ! _ig_within $(( gate_stale_hours * 3600 )) "$da"; then position_why="cache older than run_mode.stale_hours"; return 1; fi
+    st=$(jq -r '.state // .status // empty | strings' "$f" 2>/dev/null) || st=""
+    position_state=$(strip_controls "${st:-unknown}")
+    [[ -n "$position_state" ]] || position_state="unknown"
+    return 0
+}
+
+emit_deny() {
+    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+}
+deny_reason() {
+    printf 'App Zone write with no active implementation run (derived position: %s); run /implement or /bug, or set implement_gate.mode: ask' "$position_state"
+}
+
 # ---------------------------------------------------------------------------
-# Decision: allow or ask
+# Sanction: a fresh RUNNING cache, a fresh implementing-skill marker, or the
+# operator's override, in that order — one row for the path that sanctioned
 # ---------------------------------------------------------------------------
+sanction=""
 if check_implementation_active; then
-    # Implementation is active — allow the write
-    exit 0
+    sanction="sanctioned_run"
 else
-    # No active implementation detected — ADVISORY ask
-    echo "[ADVISORY] App Zone write to '$safe_file_path' detected outside active /implement or /bug." >&2
-    echo "No RUNNING state found in .run/ state files. This may bypass review gates." >&2
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"[ADVISORY] App Zone write outside active implementation. Verify this is intentional."}}'
+    check_implement_marker
+    marker_rc=$?
+    if (( marker_rc == 0 )); then
+        sanction="sanctioned_marker"
+    elif [[ "${LOA_IMPLEMENT_GATE_OVERRIDE:-}" == "1" ]]; then
+        sanction="override"
+    fi
+    (( marker_rc == 2 )) && log_gate_row note stale_marker
+fi
+
+# ---------------------------------------------------------------------------
+# A non-implementation claim asks whatever the sanction; under deny with a
+# known position and no sanction it is denied (tighten-only: never looser)
+# ---------------------------------------------------------------------------
+if (( claim_ask )); then
+    if [[ "$gate_mode" == "deny" && -z "$sanction" ]] && read_position; then
+        echo "[AUTHORITATIVE] App Zone write to '$safe_file_path' denied during /$safe_skill (not an implementation skill; derived position: $position_state)." >&2
+        log_model_signal deny
+        emit_deny "$(deny_reason)"
+        exit 0
+    fi
+    echo "[AUTHORITATIVE] App Zone write to '$safe_file_path' detected during /$safe_skill (not an implementation skill)." >&2
+    log_model_signal ask
+    emit_ask "[AUTHORITATIVE] App Zone write outside implementation skill. Verify this is intentional."
     exit 0
 fi
+
+# ---------------------------------------------------------------------------
+# Decision
+# ---------------------------------------------------------------------------
+if [[ -n "$sanction" ]]; then
+    # Implementation is active (or the operator overrode) — allow the write, one row
+    log_gate_row allow "$sanction"
+    exit 0
+fi
+
+case "$gate_mode" in
+    telemetry)
+        # Log and allow, silently
+        log_gate_row telemetry outside_run
+        exit 0
+        ;;
+    deny)
+        if read_position; then
+            echo "[GATE] App Zone write to '$safe_file_path' denied: no active implementation run (derived position: $position_state)." >&2
+            log_gate_row deny deny
+            emit_deny "$(deny_reason)"
+            exit 0
+        fi
+        # Unknown position: ask, never allow
+        echo "[GATE] App Zone write to '$safe_file_path' outside an active run; run position unknown ($position_why), asking instead of denying." >&2
+        log_gate_row ask unknown_position
+        emit_ask "[ADVISORY] App Zone write outside active implementation; run position unknown ($position_why). Verify this is intentional."
+        exit 0
+        ;;
+    *)
+        # No active implementation detected — ADVISORY ask (unchanged), now counted
+        echo "[ADVISORY] App Zone write to '$safe_file_path' detected outside active /implement or /bug." >&2
+        echo "No RUNNING state found in .run/ state files. This may bypass review gates." >&2
+        log_gate_row ask ask
+        echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"[ADVISORY] App Zone write outside active implementation. Verify this is intentional."}}'
+        exit 0
+        ;;
+esac

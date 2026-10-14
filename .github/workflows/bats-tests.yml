@@ -89,6 +89,12 @@ jobs:
       # PINNING: SHA verified against actions/checkout v4.3.1 tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      # cycle-129 FR-1: tests/unit/floor-snapshot.bats compares the floor files and
+      # corpus rows with origin/main; the depth-1 checkout has no origin/main, so
+      # fetch that one ref (no tags) or the floor proof would skip in CI.
+      - name: Fetch origin/main for the floor snapshot
+        run: git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+
       - name: Configure git identity for tests
         run: |
           git config --global user.name "CI Bot"
@@ -152,6 +158,16 @@ jobs:
           sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64
           echo "0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c  /usr/local/bin/yq" | sha256sum -c -
           sudo chmod +x /usr/local/bin/yq
+
+      # cycle-129 FR-1: the structural guard register and the generated hooks table
+      # must match what guard-yield.sh writes (no audit log is read in --check).
+      - name: Guard register drift gate (guard-yield.sh --check)
+        run: bash .claude/scripts/guard-yield.sh --check
+
+      # cycle-129 FR-9 (r256-1 LOW-1): every optional-surface knob is read through
+      # profile-lib.sh; a bare `yq '.key // default'` read of a profile key fails here.
+      - name: Knob readers go through profile-lib (check-knob-readers.sh)
+        run: bash tools/check-knob-readers.sh
 
       - name: Run adapter and maintenance Python regressions
         run: |

@@ -51,6 +51,65 @@ export interface BridgebuilderConfig {
   pass1Cache?: { enabled: boolean };
   /** Multi-model review configuration. When enabled, multiple models review in parallel. */
   multiModel?: MultiModelConfig;
+  /**
+   * cycle-129 D-7.5 (DEC-0170): the provider declarations, locality and exit key read from TRUSTED configuration only
+   * (the base branch's config or repository settings on a pull request, the working tree locally). Set by main.ts.
+   */
+  trusted?: TrustedConfig;
+}
+
+/** One `hounfour.providers.<name>` declaration as Bridgebuilder reads it (cycle-129 D-7.5, D-8.0 canonical keys). */
+export interface ProviderDecl {
+  /** `keyless: true`, or a literal `auth` value (normalised to keyless, D-8.0): no credential env var is required. */
+  keyless: boolean;
+  /** `allow_insecure_endpoint` is set (any non-null, non-false value). */
+  insecure: boolean;
+  /** The env var named by an `auth: "{env:VAR}"` template, when the declaration has one. */
+  authEnv?: string;
+  /** Provider-level `dispatch_group`, when declared. */
+  dispatchGroup?: string;
+  /** `models.<model_id>.dispatch_group` per declared model. */
+  modelGroups: Record<string, string | undefined>;
+  /** The declared `endpoint` (a string), when there is one — the local-hop rule reads its host (D-8.1, r257-1). */
+  endpoint?: string;
+  /** A CLI provider (`type: *-headless`, or every model `kind: cli`): never local (D-8.1, r257-1). */
+  cli?: boolean;
+  /**
+   * `models.<model_id>.fallback_chain` per declared model that has one (audit a257-1 MEDIUM-A1 (c)): cheval walks it
+   * inside one call, so a local voice is local only when every entry is. A non-string entry is kept as "" (unresolvable).
+   */
+  modelFallbacks?: Record<string, string[]>;
+}
+
+/** Where the trusted provider configuration was read from. */
+export type TrustedConfigSource = "working-tree" | "base-ref" | "repository-settings" | "none";
+
+/** The trusted configuration view (cycle-129 D-7.5, D-7.7, D-8.1). */
+export interface TrustedConfig {
+  /** `pull-request` when run on a PR (`--pr`, `GITHUB_EVENT_NAME`, `GITHUB_BASE_REF`); `local` otherwise. */
+  mode: "local" | "pull-request";
+  source: TrustedConfigSource;
+  /** The git ref the base config was read from (`source: base-ref`). */
+  ref?: string;
+  /** `hounfour.providers` from the trusted source only. */
+  providers: Record<string, ProviderDecl>;
+  /** Providers the head checkout declares keyless or insecure that the trusted source does not: refused by name. */
+  headOnlyRefused: string[];
+  /** `hounfour.locality` (default `hosted`). */
+  locality: "hosted" | "local_voices";
+  /** `bridgebuilder.exit_on_degraded` (default 3; 0 restores the pre-cycle-129 exit). */
+  exitOnDegraded: number;
+  /** Lines to log once at startup (read failures, refusals, invalid values). */
+  warnings: string[];
+  /** `hounfour.aliases` from the trusted source (string targets only) — resolves `fallback_chain` aliases (MEDIUM-A1 (c)). */
+  aliases?: Record<string, string>;
+  /**
+   * Pull-request mode only (audit a257-1 MEDIUM-A2): the dotted keys among `hounfour.providers.<name>`,
+   * `hounfour.aliases.<alias>`, `hounfour.locality` and the secret allowlists that differ between the PR head and the
+   * trusted source. cheval reads the checkout's configuration for the dispatch, so a non-empty list refuses the
+   * multi-model run (main.ts, exit 5). Always `[]` in local mode.
+   */
+  headDrift?: string[];
 }
 
 /** Multi-model provider configuration entry. */

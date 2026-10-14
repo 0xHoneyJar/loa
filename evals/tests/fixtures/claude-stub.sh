@@ -9,7 +9,36 @@
 #   STUB_EVENTS_FILE stream-json lines to emit (default: a 2-write transcript)
 #   STUB_WRITE_<n>   "relative/path::content" files to create in the cwd
 #   STUB_EXIT        exit code (default 0)
+#   STUB_SNAPSHOT_DIR  copy the cwd's CLAUDE.md, .claude/, .loa.config.yaml and
+#                    the --append-system-prompt-file there at start: the
+#                    sandbox exactly as the executor sees it (arm-toggles.bats)
+#   STUB_FAIL_COUNTER  a file holding N: while N > 0, decrement it and exit 1
+#                    with no result event (a transport failure; run-arms.bats)
 set -euo pipefail
+
+# `--version` (run-arms.sh records it in MANIFEST.json) has no side effects
+if [[ "${1:-}" == "--version" ]]; then echo "0.0.0 (claude-stub)"; exit 0; fi
+
+if [[ -n "${STUB_FAIL_COUNTER:-}" && -f "$STUB_FAIL_COUNTER" ]]; then
+  n="$(cat "$STUB_FAIL_COUNTER")"
+  if [[ "$n" -gt 0 ]]; then
+    echo $((n - 1)) > "$STUB_FAIL_COUNTER"
+    echo "stub: simulated transport failure (socket hang up)" >&2
+    exit 1
+  fi
+fi
+
+if [[ -n "${STUB_SNAPSHOT_DIR:-}" ]]; then
+  mkdir -p "$STUB_SNAPSHOT_DIR"
+  for p in CLAUDE.md .claude .loa.config.yaml; do
+    [[ -e "$p" ]] && cp -a "$p" "$STUB_SNAPSHOT_DIR/"
+  done
+  prev=""
+  for a in "$@"; do
+    [[ "$prev" == "--append-system-prompt-file" ]] && cp "$a" "$STUB_SNAPSHOT_DIR/system-prompt.md"
+    prev="$a"
+  done
+fi
 
 if [[ -n "${STUB_ARGV_FILE:-}" ]]; then
   printf '%s\n' "$@" > "$STUB_ARGV_FILE"
@@ -17,7 +46,8 @@ fi
 if [[ -n "${STUB_ENV_FILE:-}" ]]; then
   {
     printf 'PWD=%s\n' "$PWD"
-    for k in LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH HOME EVAL_MODEL TMPDIR GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY AWS_SECRET_ACCESS_KEY; do
+    for k in LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH HOME EVAL_MODEL TMPDIR GH_TOKEN GITHUB_TOKEN OPENAI_API_KEY AWS_SECRET_ACCESS_KEY \
+             CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_SESSION_ID CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS; do
       printf '%s=%s\n' "$k" "${!k:-}"
     done
   } > "$STUB_ENV_FILE"

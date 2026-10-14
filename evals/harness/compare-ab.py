@@ -12,7 +12,11 @@ run-eval.sh for the same suite and applies the gates the PRD names:
 Validity (exit 2 — the run is not a comparison at all):
   * every completed trial in both arms reports the same executor model id
   * neither arm ran on a dirty prompt tree
-  * the two arms ran on different prompt trees
+  * the two arms ran on different prompt trees — except a control-arm
+    comparison (cycle-129 FR-2): rows carry distinct `arm` ids, both arms ran
+    on ONE pinned source tree and the sandbox toggles are what vary
+  * no arm mixes `source_commit` values across its trials, and a control-arm
+    comparison has one `source_commit` across both arms (SDD D-2.3)
 
 Exit 0 when valid and every gate passes, 1 when valid and a gate fails.
 Trials with status != completed are excluded from the means and reported
@@ -55,14 +59,26 @@ def summarize(rows):
     errors = [r for r in rows if r.get("status") != "completed"]
     models = set()
     trees = set()
+    sources = set()
+    arms = set()
     dirty = False
     per_task = defaultdict(lambda: {"recall": [], "fp": [], "tokens": [], "pass": [], "planted": 0})
     per_defect = defaultdict(lambda: [0, 0])  # id -> [detected, seen]
     for r in completed:
         ex = r.get("executor") or {}
         models.add(ex.get("model_id") or r.get("model_version"))
+        # cycle-129: an auxiliary model that produced output in the call is skew too
+        for mid, out in (ex.get("models_used") or {}).items():
+            if out:
+                models.add(mid)
         if ex.get("prompt_tree_sha"):
             trees.add(ex["prompt_tree_sha"])
+        src = r.get("source_commit") or ex.get("source_commit")
+        if src:
+            sources.add(src)
+        arm = r.get("arm") or ex.get("arm")
+        if arm:
+            arms.add(arm)
         dirty = dirty or bool(ex.get("prompt_tree_dirty"))
         t = per_task[r["task_id"]]
         t["pass"].append(1.0 if (r.get("composite") or {}).get("pass") else 0.0)
@@ -100,6 +116,8 @@ def summarize(rows):
         "error_trials": len(errors),
         "models": sorted(m for m in models if m),
         "prompt_trees": sorted(trees),
+        "source_commits": sorted(sources),
+        "arm_ids": sorted(arms),
         "dirty": dirty,
         "recall": mean([v["recall"] for v in defect_tasks]),
         "false_positives": mean([v["false_positives"] for v in clean_tasks]),
@@ -123,10 +141,19 @@ def main():
         reasons.append(f"executor model id skew: A={A['models']} B={B['models']}")
     if A["dirty"] or B["dirty"]:
         reasons.append("an arm ran on a prompt tree with uncommitted .claude/ changes")
-    if A["prompt_trees"] and B["prompt_trees"] and set(A["prompt_trees"]) & set(B["prompt_trees"]):
+    # control-arm comparison: each side is one declared arm, and they differ
+    control = (len(A["arm_ids"]) == 1 and len(B["arm_ids"]) == 1 and A["arm_ids"] != B["arm_ids"])
+    if (not control and A["prompt_trees"] and B["prompt_trees"]
+            and set(A["prompt_trees"]) & set(B["prompt_trees"])):
         reasons.append("both arms ran on the same prompt tree (nothing was varied)")
     if len(A["prompt_trees"]) > 1 or len(B["prompt_trees"]) > 1:
         reasons.append("an arm mixes prompt trees across trials")
+    if len(A["arm_ids"]) > 1 or len(B["arm_ids"]) > 1:
+        reasons.append(f"an arm mixes arm ids across trials: A={A['arm_ids']} B={B['arm_ids']}")
+    if len(A["source_commits"]) > 1 or len(B["source_commits"]) > 1:
+        reasons.append(f"source commit skew across trials: A={A['source_commits']} B={B['source_commits']}")
+    elif control and set(A["source_commits"]) != set(B["source_commits"]):
+        reasons.append(f"source commit skew across arms: A={A['source_commits']} B={B['source_commits']}")
     valid = not reasons
 
     gates = []
@@ -157,8 +184,8 @@ def main():
         "reasons": reasons,
         "metric": metric,
         "arms": {
-            "a": {k: A[k] for k in ("trials_completed", "error_trials", "models", "prompt_trees", "recall", "false_positives", "tokens_mean", "pass_rate")},
-            "b": {k: B[k] for k in ("trials_completed", "error_trials", "models", "prompt_trees", "recall", "false_positives", "tokens_mean", "pass_rate")},
+            "a": {k: A[k] for k in ("trials_completed", "error_trials", "models", "prompt_trees", "source_commits", "arm_ids", "recall", "false_positives", "tokens_mean", "pass_rate")},
+            "b": {k: B[k] for k in ("trials_completed", "error_trials", "models", "prompt_trees", "source_commits", "arm_ids", "recall", "false_positives", "tokens_mean", "pass_rate")},
         },
         "gates": gates,
         "per_defect": per_defect,

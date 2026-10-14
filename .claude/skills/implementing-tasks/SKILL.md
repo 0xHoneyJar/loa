@@ -25,7 +25,7 @@ zones:
     permission: read-write
   app:
     paths: [src, lib, app]
-    permission: read
+    permission: read-write
 inputs:
   # ICM Layer-2 advisory manifest; a missing path WARNs, never fails.
   - path: grimoires/loa/known-failures.md
@@ -35,13 +35,11 @@ inputs:
 ---
 
 <input_guardrails>
-<!-- @skill-include: start input_guardrails | hash:d1045b3c | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
+<!-- @skill-include: start input_guardrails | hash:69098d71 | DO NOT EDIT — generated from .claude/data/skill-includes/input_guardrails.md -->
 ## Pre-Execution Guardrails (mechanized)
 
-Skip this section when `.loa.config.yaml` has `guardrails.input.enabled: false` or env
-`LOA_GUARDRAILS_ENABLED=false`.
-
-Otherwise: write the user's invocation prompt/args to a temp file (Write tool), then run
+Run only if `.claude/scripts/lib/profile-lib.sh knob guardrails.input.enabled false` prints `true`
+and env `LOA_GUARDRAILS_ENABLED` is not `false`: write the prompt/args to a temp file (Write tool), then run
 `.claude/scripts/guardrails-orchestrator.sh --skill implementing-tasks --mode ${LOA_RUN_MODE:-interactive} --file <temp-file>`
 
 | Outcome | Action |
@@ -189,7 +187,7 @@ Before implementing, in order:
 <karpathy_goal_driven_gate>
 ## Goal-Driven Gate
 
-Before Phase -2 runs, check `grimoires/loa/sprint.md` for a non-empty "Success criteria" / "Acceptance criteria" / "Verification" section (case-insensitive heading match — a heading with no body fails the check). Config: `yq eval '.karpathy_principles.require_success_criteria // true' .loa.config.yaml`.
+Before Phase -2 runs, check `grimoires/loa/sprint.md` for a non-empty "Success criteria" / "Acceptance criteria" / "Verification" section (case-insensitive heading match; a heading with no body fails). Config: `.claude/scripts/lib/profile-lib.sh knob karpathy_principles.require_success_criteria true`.
 
 Section present → proceed to Phase -2. Absent with config `false` → proceed and log `verdict: skipped_by_config` to `grimoires/loa/a2a/trajectory/karpathy-{date}.jsonl`. Absent with config `true` (default) → **AskUserQuestion** before any tool call, offering: provide criteria now (append a "Success Criteria" section to sprint.md, then proceed), skip with a one-line rationale (log and proceed), or abort (no tool calls; re-invoke after updating sprint.md).
 
@@ -201,7 +199,7 @@ Every gate decision logs one event to the trajectory file above (`verdict`: `pas
 
 ### Task Tracking: Beads vs TaskCreate
 
-Use `br` (beads_rust) exclusively for sprint task lifecycle — `br update <id> --status in_progress`, `br close <id>`, `br list`. Claude's `TaskCreate`/`TaskUpdate` are for session-level progress display only; tasks tracked only there are invisible to cross-session recovery, `/run-resume`, and beads health checks. If beads is unavailable, fall back to markdown tracking in NOTES.md.
+Use `br` (beads_rust) exclusively for sprint task lifecycle (commands below). Claude's `TaskCreate`/`TaskUpdate` are for session-level progress display only; tasks tracked only there are invisible to cross-session recovery, `/run-resume`, and beads health checks.
 
 ```bash
 health=$(.claude/scripts/beads/beads-health.sh --quick --json)
@@ -228,7 +226,7 @@ Work through `<grounding_requirements>` above before any new work.
 
 ## Phase 1: Implementation
 
-Study the existing architecture, patterns, conventions and test patterns first. Then, per task: implement to spec following those patterns (Karpathy principles govern style), with tests for the happy path, error conditions and edge cases — the runnable-check floor from CLAUDE.loa.md applies. Report per Verification above.
+First `.claude/scripts/run-checkpoint.sh mark --skill implement --sprint sprint-N` (`.run/implement-active.json`, run-mode `state-schemas.md`; also `derive --write`), last `run-checkpoint.sh unmark`. Study the existing architecture, conventions and test patterns first. Then, per task: implement to spec following those patterns (Karpathy principles govern style), with tests for the happy path, error conditions and edge cases — the runnable-check floor from CLAUDE.loa.md applies. Report per Verification above.
 
 ## Phase 2: Feedback Integration Loop
 
@@ -242,12 +240,12 @@ Checklists (Pre-Implementation, Code Quality, Testing, Documentation, Versioning
 </checklists>
 
 <retrospective_postlude>
-<!-- @skill-include: start retrospective_postlude | hash:44ec4643 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
-After main skill logic completes, if `.loa.config.yaml` `invisible_retrospective.enabled: true`
-(and not disabled for this skill under `invisible_retrospective.skills`), silently run the
+<!-- @skill-include: start retrospective_postlude | hash:53d44248 | DO NOT EDIT — generated from .claude/data/skill-includes/retrospective_postlude.md -->
+After the main skill logic, if `.claude/scripts/lib/profile-lib.sh knob invisible_retrospective.enabled`
+prints `true` (and `invisible_retrospective.skills` does not disable this skill), silently run the
 learning-signal scan per `.claude/skills/continuous-learning/SKILL.md` and its
-`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Recursion guard:
-never when the active skill is continuous-learning itself.
+`resources/RETROSPECTIVE.md` (quality gates, sanitization, trajectory logging). Never when the
+active skill is continuous-learning itself.
 <!-- @skill-include: end retrospective_postlude -->
 </retrospective_postlude>
 

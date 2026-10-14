@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_comment": "Hook configuration for Loa. Merge into ~/.claude/settings.json",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/scripts/check-updates.sh --notify",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-l6-surface-handoffs.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-l7-surface-soul.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-run-mode-session-title.sh",
+            "async": true,
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/loa-kf-surface.sh",
+            "once": true
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/session-start/loa-run-state-surface.sh",
+            "once": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/pre-compact-marker.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/post-compact-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/post-session-limit-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/block-destructive-bash.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/team-role-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/team-role-guard-write.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/spiral-dispatch-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/zone-write-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/compliance/implement-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/notes-size-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/adversarial-review-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/team-skill-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hook-guard.sh \"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/spiral-skill-sentinel.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/audit/mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/audit/write-mutation-logger.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/audit/write-mutation-logger.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/safety/run-mode-stop-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/.claude/hooks/hygiene/settings-cleanup.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

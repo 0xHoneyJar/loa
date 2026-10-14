@@ -22,7 +22,15 @@ LIB="${REPO_ROOT}/.claude/scripts/lib/structured-handoff-lib.sh"
 
 # Gate on config.
 if command -v yq >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/.loa.config.yaml" ]]; then
-    enabled="$(yq '.structured_handoff.enabled // false' "${REPO_ROOT}/.loa.config.yaml" 2>/dev/null || echo false)"
+    # Explicit key, else the loa.profile default (cycle-129 D-9.1).
+    enabled="false"
+    # shellcheck source=../../scripts/lib/profile-lib.sh
+    if source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null; then
+        enabled="$(loa_knob structured_handoff.enabled false 2>/dev/null || echo false)"
+    else
+        # Bridgebuilder PR #1282 F-002: off, but said (an explicit structured_handoff.enabled is not read then).
+        echo "WARNING: [loa-l6-surface-handoffs] profile-lib.sh could not be sourced: the handoff surface is off this session" >&2
+    fi
     [[ "$enabled" == "true" ]] || exit 0
 else
     # No config → silent (the primitive is opt-in).

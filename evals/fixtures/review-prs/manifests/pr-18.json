@@ -1,0 +1,945 @@
+{
+  "fixture": "pr-18",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "254",
+    "record_ref": "origin/record/cycle-128-a2a",
+    "head_commit": "efacf754c32a416dd40d41878ce5a10f3bd55398",
+    "fix_commit": "3758ddd0edecb00c459fe5ab26405d6b4fd8e75f"
+  },
+  "defects": [
+    {
+      "id": "L01-validate-artifact-shvalidate-glossary-al",
+      "file": "tools/check-glossary-terms.sh",
+      "anchor_line": 131,
+      "anchors": [
+        131,
+        148
+      ],
+      "must_match": "FILENAME == ARGV[1] { if ($1 == \"term\") add(term, $2, $3); else add(alias, $2, $3); next }",
+      "severity": "medium",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L26",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L02-glossary-pass-an-line-before-any-is-stor",
+      "file": "tools/check-glossary-terms.sh",
+      "anchor_line": 183,
+      "anchors": [
+        131,
+        148,
+        183
+      ],
+      "must_match": "entry == \"\"",
+      "severity": "low",
+      "category": "error-handling",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L46",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L03-rtc-9-the-no-shim-symlinks-and",
+      "file": "tests/unit/red-test-check.bats",
+      "anchor_line": 143,
+      "must_match": "/usr/local/bin",
+      "severity": "low",
+      "category": "security",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L50",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L05-a-red-run-with-no-output-prints-an-empty",
+      "file": ".claude/scripts/red-test-check.sh",
+      "anchor_line": 133,
+      "anchors": [
+        133,
+        160
+      ],
+      "must_match": "finish()",
+      "severity": "low",
+      "category": "concurrency",
+      "label_source": "review",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/engineer-feedback-r1.md#L58",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L06-is-an-unbounded-credentialed-execution-p",
+      "file": ".claude/scripts/red-test-check.sh",
+      "anchor_line": 250,
+      "anchors": [
+        237,
+        248,
+        250
+      ],
+      "must_match": "exec \"$@\"",
+      "severity": "high",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L33",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L07-the-temporary-worktrees-share-with-the-l",
+      "file": ".claude/scripts/red-test-check.sh",
+      "anchor_line": 216,
+      "anchors": [
+        214,
+        216
+      ],
+      "must_match": "-c core.hooksPath=/dev/null",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L54",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L08-the-seams-rule-s-fence-tracking-and-date",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "anchor_line": 869,
+      "must_match": "validate_sprint_seams() {",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L61",
+      "source_commit": "efacf754",
+      "synthetic": false
+    },
+    {
+      "id": "L09-manifest-coverage-of-the-new-framework-f",
+      "file": ".claude/scripts/lib/symlink-manifest.sh",
+      "anchor_line": 79,
+      "must_match": "\".claude/loa/GLOSSARY.md:../../${submodule}/.claude/loa/GLOSSARY.md\"",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-128-a2a:grimoires/loa/a2a/sprint-254/auditor-sprint-feedback-r1.md#L71",
+      "source_commit": "efacf754",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/loa/GLOSSARY.md",
+      "start": 7,
+      "end": 7,
+      "source": "fix/3758ddd0edec:7-7"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/scripts/lib/symlink-manifest.sh",
+      "start": 79,
+      "end": 82,
+      "source": "fix/3758ddd0edec:79-82"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 6,
+      "end": 14,
+      "source": "fix/3758ddd0edec:6-14"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 18,
+      "end": 18,
+      "source": "fix/3758ddd0edec:18-18"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 23,
+      "end": 42,
+      "source": "fix/3758ddd0edec:23-42"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 46,
+      "end": 48,
+      "source": "fix/3758ddd0edec:46-48"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 75,
+      "end": 75,
+      "source": "fix/3758ddd0edec:75-75"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 87,
+      "end": 87,
+      "source": "fix/3758ddd0edec:87-87"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 93,
+      "end": 93,
+      "source": "fix/3758ddd0edec:93-93"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 98,
+      "end": 98,
+      "source": "fix/3758ddd0edec:98-98"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 116,
+      "end": 153,
+      "source": "fix/3758ddd0edec:116-153"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 160,
+      "end": 160,
+      "source": "fix/3758ddd0edec:160-160"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 178,
+      "end": 178,
+      "source": "fix/3758ddd0edec:178-178"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 196,
+      "end": 196,
+      "source": "fix/3758ddd0edec:196-196"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 205,
+      "end": 205,
+      "source": "fix/3758ddd0edec:205-205"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 212,
+      "end": 216,
+      "source": "fix/3758ddd0edec:212-216"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 233,
+      "end": 233,
+      "source": "fix/3758ddd0edec:233-233"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 237,
+      "end": 239,
+      "source": "fix/3758ddd0edec:237-239"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 248,
+      "end": 250,
+      "source": "fix/3758ddd0edec:248-250"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 292,
+      "end": 294,
+      "source": "fix/3758ddd0edec:292-294"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 304,
+      "end": 304,
+      "source": "fix/3758ddd0edec:304-304"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 308,
+      "end": 316,
+      "source": "fix/3758ddd0edec:308-316"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/scripts/red-test-check.sh",
+      "start": 345,
+      "end": 345,
+      "source": "fix/3758ddd0edec:345-345"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 33,
+      "end": 33,
+      "source": "fix/3758ddd0edec:33-33"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 70,
+      "end": 71,
+      "source": "fix/3758ddd0edec:70-71"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 546,
+      "end": 550,
+      "source": "fix/3758ddd0edec:546-550"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 585,
+      "end": 585,
+      "source": "fix/3758ddd0edec:585-585"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 595,
+      "end": 596,
+      "source": "fix/3758ddd0edec:595-596"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 629,
+      "end": 629,
+      "source": "fix/3758ddd0edec:629-629"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 633,
+      "end": 635,
+      "source": "fix/3758ddd0edec:633-635"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 642,
+      "end": 642,
+      "source": "fix/3758ddd0edec:642-642"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 651,
+      "end": 651,
+      "source": "fix/3758ddd0edec:651-651"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 658,
+      "end": 658,
+      "source": "fix/3758ddd0edec:658-658"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 670,
+      "end": 670,
+      "source": "fix/3758ddd0edec:670-670"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 697,
+      "end": 707,
+      "source": "fix/3758ddd0edec:697-707"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 866,
+      "end": 876,
+      "source": "fix/3758ddd0edec:866-876"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 919,
+      "end": 919,
+      "source": "fix/3758ddd0edec:919-919"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1251,
+      "end": 1254,
+      "source": "fix/3758ddd0edec:1251-1254"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1260,
+      "end": 1260,
+      "source": "fix/3758ddd0edec:1260-1260"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1266,
+      "end": 1266,
+      "source": "fix/3758ddd0edec:1266-1266"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1270,
+      "end": 1271,
+      "source": "fix/3758ddd0edec:1270-1271"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1299,
+      "end": 1299,
+      "source": "fix/3758ddd0edec:1299-1299"
+    },
+    {
+      "id": "F043",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1310,
+      "end": 1310,
+      "source": "fix/3758ddd0edec:1310-1310"
+    },
+    {
+      "id": "F044",
+      "file": ".claude/scripts/validate-artifact.sh",
+      "start": 1318,
+      "end": 1318,
+      "source": "fix/3758ddd0edec:1318-1318"
+    },
+    {
+      "id": "F045",
+      "file": ".claude/skills/planning-sprints/SKILL.md",
+      "start": 285,
+      "end": 289,
+      "source": "fix/3758ddd0edec:285-289"
+    },
+    {
+      "id": "F046",
+      "file": ".claude/skills/planning-sprints/SKILL.md",
+      "start": 350,
+      "end": 352,
+      "source": "fix/3758ddd0edec:350-352"
+    },
+    {
+      "id": "F047",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 6,
+      "end": 6,
+      "source": "fix/3758ddd0edec:6-6"
+    },
+    {
+      "id": "F048",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 28,
+      "end": 28,
+      "source": "fix/3758ddd0edec:28-28"
+    },
+    {
+      "id": "F049",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 88,
+      "end": 88,
+      "source": "fix/3758ddd0edec:88-88"
+    },
+    {
+      "id": "F050",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 113,
+      "end": 113,
+      "source": "fix/3758ddd0edec:113-113"
+    },
+    {
+      "id": "F051",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 128,
+      "end": 129,
+      "source": "fix/3758ddd0edec:128-129"
+    },
+    {
+      "id": "F052",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 136,
+      "end": 136,
+      "source": "fix/3758ddd0edec:136-136"
+    },
+    {
+      "id": "F053",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 198,
+      "end": 198,
+      "source": "fix/3758ddd0edec:198-198"
+    },
+    {
+      "id": "F054",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 213,
+      "end": 213,
+      "source": "fix/3758ddd0edec:213-213"
+    },
+    {
+      "id": "F055",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 219,
+      "end": 219,
+      "source": "fix/3758ddd0edec:219-219"
+    },
+    {
+      "id": "F056",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 223,
+      "end": 223,
+      "source": "fix/3758ddd0edec:223-223"
+    },
+    {
+      "id": "F057",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 239,
+      "end": 242,
+      "source": "fix/3758ddd0edec:239-242"
+    },
+    {
+      "id": "F058",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 259,
+      "end": 259,
+      "source": "fix/3758ddd0edec:259-259"
+    },
+    {
+      "id": "F059",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 293,
+      "end": 293,
+      "source": "fix/3758ddd0edec:293-293"
+    },
+    {
+      "id": "F060",
+      "file": ".claude/skills/reviewing-code/resources/REFERENCE.md",
+      "start": 321,
+      "end": 321,
+      "source": "fix/3758ddd0edec:321-321"
+    },
+    {
+      "id": "F061",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 92,
+      "end": 92,
+      "source": "fix/3758ddd0edec:92-92"
+    },
+    {
+      "id": "F062",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 100,
+      "end": 100,
+      "source": "fix/3758ddd0edec:100-100"
+    },
+    {
+      "id": "F063",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 108,
+      "end": 108,
+      "source": "fix/3758ddd0edec:108-108"
+    },
+    {
+      "id": "F064",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 156,
+      "end": 156,
+      "source": "fix/3758ddd0edec:156-156"
+    },
+    {
+      "id": "F065",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 270,
+      "end": 270,
+      "source": "fix/3758ddd0edec:270-270"
+    },
+    {
+      "id": "F066",
+      "file": "tests/fixtures/glossary/ok/GLOSSARY.md",
+      "start": 9,
+      "end": 9,
+      "source": "fix/3758ddd0edec:9-9"
+    },
+    {
+      "id": "F067",
+      "file": "tests/unit/glossary-terms.bats",
+      "start": 38,
+      "end": 38,
+      "source": "fix/3758ddd0edec:38-38"
+    },
+    {
+      "id": "F068",
+      "file": "tests/unit/glossary-terms.bats",
+      "start": 101,
+      "end": 101,
+      "source": "fix/3758ddd0edec:101-101"
+    },
+    {
+      "id": "F069",
+      "file": "tests/unit/glossary-terms.bats",
+      "start": 105,
+      "end": 105,
+      "source": "fix/3758ddd0edec:105-105"
+    },
+    {
+      "id": "F070",
+      "file": "tests/unit/glossary-terms.bats",
+      "start": 199,
+      "end": 199,
+      "source": "fix/3758ddd0edec:199-199"
+    },
+    {
+      "id": "F071",
+      "file": "tests/unit/glossary-validator.bats",
+      "start": 165,
+      "end": 165,
+      "source": "fix/3758ddd0edec:165-165"
+    },
+    {
+      "id": "F072",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 4,
+      "end": 4,
+      "source": "fix/3758ddd0edec:4-4"
+    },
+    {
+      "id": "F073",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 8,
+      "end": 8,
+      "source": "fix/3758ddd0edec:8-8"
+    },
+    {
+      "id": "F074",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 20,
+      "end": 20,
+      "source": "fix/3758ddd0edec:20-20"
+    },
+    {
+      "id": "F075",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 24,
+      "end": 24,
+      "source": "fix/3758ddd0edec:24-24"
+    },
+    {
+      "id": "F076",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 34,
+      "end": 38,
+      "source": "fix/3758ddd0edec:34-38"
+    },
+    {
+      "id": "F077",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 45,
+      "end": 45,
+      "source": "fix/3758ddd0edec:45-45"
+    },
+    {
+      "id": "F078",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 49,
+      "end": 55,
+      "source": "fix/3758ddd0edec:49-55"
+    },
+    {
+      "id": "F079",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 61,
+      "end": 67,
+      "source": "fix/3758ddd0edec:61-67"
+    },
+    {
+      "id": "F080",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 74,
+      "end": 77,
+      "source": "fix/3758ddd0edec:74-77"
+    },
+    {
+      "id": "F081",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 81,
+      "end": 87,
+      "source": "fix/3758ddd0edec:81-87"
+    },
+    {
+      "id": "F082",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 91,
+      "end": 91,
+      "source": "fix/3758ddd0edec:91-91"
+    },
+    {
+      "id": "F083",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 100,
+      "end": 103,
+      "source": "fix/3758ddd0edec:100-103"
+    },
+    {
+      "id": "F084",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 108,
+      "end": 112,
+      "source": "fix/3758ddd0edec:108-112"
+    },
+    {
+      "id": "F085",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 118,
+      "end": 124,
+      "source": "fix/3758ddd0edec:118-124"
+    },
+    {
+      "id": "F086",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 129,
+      "end": 129,
+      "source": "fix/3758ddd0edec:129-129"
+    },
+    {
+      "id": "F087",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 133,
+      "end": 135,
+      "source": "fix/3758ddd0edec:133-135"
+    },
+    {
+      "id": "F088",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 143,
+      "end": 149,
+      "source": "fix/3758ddd0edec:143-149"
+    },
+    {
+      "id": "F089",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 153,
+      "end": 155,
+      "source": "fix/3758ddd0edec:153-155"
+    },
+    {
+      "id": "F090",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 169,
+      "end": 172,
+      "source": "fix/3758ddd0edec:169-172"
+    },
+    {
+      "id": "F091",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 178,
+      "end": 178,
+      "source": "fix/3758ddd0edec:178-178"
+    },
+    {
+      "id": "F092",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 191,
+      "end": 197,
+      "source": "fix/3758ddd0edec:191-197"
+    },
+    {
+      "id": "F093",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 201,
+      "end": 203,
+      "source": "fix/3758ddd0edec:201-203"
+    },
+    {
+      "id": "F094",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 210,
+      "end": 214,
+      "source": "fix/3758ddd0edec:210-214"
+    },
+    {
+      "id": "F095",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 218,
+      "end": 218,
+      "source": "fix/3758ddd0edec:218-218"
+    },
+    {
+      "id": "F096",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 228,
+      "end": 233,
+      "source": "fix/3758ddd0edec:228-233"
+    },
+    {
+      "id": "F097",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 241,
+      "end": 241,
+      "source": "fix/3758ddd0edec:241-241"
+    },
+    {
+      "id": "F098",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 252,
+      "end": 252,
+      "source": "fix/3758ddd0edec:252-252"
+    },
+    {
+      "id": "F099",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 260,
+      "end": 263,
+      "source": "fix/3758ddd0edec:260-263"
+    },
+    {
+      "id": "F100",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 274,
+      "end": 274,
+      "source": "fix/3758ddd0edec:274-274"
+    },
+    {
+      "id": "F101",
+      "file": "tests/unit/red-test-check.bats",
+      "start": 280,
+      "end": 283,
+      "source": "fix/3758ddd0edec:280-283"
+    },
+    {
+      "id": "F102",
+      "file": "tests/unit/sprint-seams.bats",
+      "start": 117,
+      "end": 117,
+      "source": "fix/3758ddd0edec:117-117"
+    },
+    {
+      "id": "F103",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 8,
+      "end": 10,
+      "source": "fix/3758ddd0edec:8-10"
+    },
+    {
+      "id": "F104",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 16,
+      "end": 16,
+      "source": "fix/3758ddd0edec:16-16"
+    },
+    {
+      "id": "F105",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 28,
+      "end": 28,
+      "source": "fix/3758ddd0edec:28-28"
+    },
+    {
+      "id": "F106",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 41,
+      "end": 41,
+      "source": "fix/3758ddd0edec:41-41"
+    },
+    {
+      "id": "F107",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 59,
+      "end": 64,
+      "source": "fix/3758ddd0edec:59-64"
+    },
+    {
+      "id": "F108",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 74,
+      "end": 82,
+      "source": "fix/3758ddd0edec:74-82"
+    },
+    {
+      "id": "F109",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 88,
+      "end": 93,
+      "source": "fix/3758ddd0edec:88-93"
+    },
+    {
+      "id": "F110",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 99,
+      "end": 99,
+      "source": "fix/3758ddd0edec:99-99"
+    },
+    {
+      "id": "F111",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 131,
+      "end": 131,
+      "source": "fix/3758ddd0edec:131-131"
+    },
+    {
+      "id": "F112",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 149,
+      "end": 149,
+      "source": "fix/3758ddd0edec:149-149"
+    },
+    {
+      "id": "F113",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 163,
+      "end": 163,
+      "source": "fix/3758ddd0edec:163-163"
+    },
+    {
+      "id": "F114",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 171,
+      "end": 174,
+      "source": "fix/3758ddd0edec:171-174"
+    },
+    {
+      "id": "F115",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 186,
+      "end": 186,
+      "source": "fix/3758ddd0edec:186-186"
+    },
+    {
+      "id": "F116",
+      "file": "tools/check-glossary-terms.sh",
+      "start": 194,
+      "end": 194,
+      "source": "fix/3758ddd0edec:194-194"
+    }
+  ]
+}

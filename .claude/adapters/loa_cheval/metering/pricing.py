@@ -6,6 +6,7 @@ No floating-point anywhere in the cost path.
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 import re
 
@@ -64,6 +65,13 @@ class PricingEntry:
     long_context_threshold: Optional[int] = None
     long_context_input_multiplier: float = 1.0
     long_context_output_multiplier: float = 1.0
+    # cycle-129 FR-7 (SDD D-7.6): catalog provenance, read from the model entry
+    # (siblings of `pricing`). `price_date` is `YYYY-MM-DD`; a date older than
+    # STALE_PRICE_DAYS marks the price stale (ledger `pricing_source:
+    # stale_catalog`). Absent on every entry today — no behaviour change.
+    open_weight: bool = False
+    price_source: Optional[str] = None
+    price_date: Optional[str] = None
 
 
 @dataclass
@@ -303,7 +311,66 @@ def _exact_pricing(
         cache_read_per_mtok=_int_rate(pricing.get("cache_read_per_mtok"), input_per_mtok // 10),
         cache_write_per_mtok=_int_rate(pricing.get("cache_write_per_mtok"), input_per_mtok * 5 // 4),
         **_long_context_fields(pricing.get("long_context")),
+        **_provenance_fields(model_config),
     )
+
+
+def _provenance_fields(model_config: Dict[str, Any]) -> Dict[str, Any]:
+    """cycle-129 D-7.6: `open_weight`, `price_source`, `price_date` from the model entry (strings kept as given;
+    a non-string is dropped — the catalog test is where a malformed value fails, never the cost path)."""
+    out: Dict[str, Any] = {"open_weight": model_config.get("open_weight") is True}
+    for key in ("price_source", "price_date"):
+        value = model_config.get(key)
+        if isinstance(value, _dt.date):   # YAML reads an unquoted 2026-10-14 as a date
+            value = value.isoformat()
+        if isinstance(value, str) and value.strip():
+            out[key] = value.strip()
+    return out
+
+
+# cycle-129 D-7.6: a catalog price older than this is stale.
+STALE_PRICE_DAYS = 90
+_PRICE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_STALE_WARNED: set = set()
+
+
+def price_date_of(entry: Optional[PricingEntry]) -> Optional[_dt.date]:
+    """The entry's `price_date` as a date, or None when absent or not a valid `YYYY-MM-DD`."""
+    raw = getattr(entry, "price_date", None)
+    if not isinstance(raw, str) or not _PRICE_DATE_RE.match(raw):
+        return None
+    try:
+        return _dt.date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def price_is_stale(entry: Optional[PricingEntry], today: Optional[_dt.date] = None) -> bool:
+    """True when the entry carries a `price_date` older than STALE_PRICE_DAYS (an entry without one is not stale:
+    provenance is required only of open-weight non-zero prices, and the catalog test enforces that)."""
+    date = price_date_of(entry)
+    if date is None:
+        return False
+    today = today or _dt.datetime.now(_dt.timezone.utc).date()
+    return (today - date).days > STALE_PRICE_DAYS
+
+
+def pricing_source_for(entry: Optional[PricingEntry], today: Optional[_dt.date] = None) -> str:
+    """`config` for a catalog price, `stale_catalog` for one whose `price_date` is past STALE_PRICE_DAYS (WARNed once
+    per entry per process), `unknown` for no price."""
+    if entry is None:
+        return "unknown"
+    if price_is_stale(entry, today):
+        key = (entry.provider, entry.model)
+        if key not in _STALE_WARNED:
+            _STALE_WARNED.add(key)
+            logger.warning(
+                "pricing: the catalog price of %s:%s is dated %s, older than %d days — recorded as stale_catalog; "
+                "re-check it against its price_source (%s)",
+                entry.provider, entry.model, entry.price_date, STALE_PRICE_DAYS, entry.price_source or "none given",
+            )
+        return "stale_catalog"
+    return "config"
 
 
 def _long_context_fields(block: Any) -> Dict[str, Any]:
@@ -408,3 +475,131 @@ def find_pricing(
                 return replace(via_hop, resolution="hop")
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# cycle-129 FR-7 (SDD D-7.6): the price lookup CLI the dissent budget gate asks.
+#
+#   python3 -m loa_cheval.metering.pricing --alias <alias> [--alias <alias>…] [--json]
+#                                          [--catalog <model-config.yaml>] [--config <.loa.config.yaml>]
+#
+# One line per alias: `alias=<a> input_per_mtok=<n> output_per_mtok=<n> pricing_source=<config|stale_catalog|unknown>`
+# (with --json, one JSON object per line). Rates are the catalog's unit: micro-USD per million tokens. An alias with
+# no catalog price prints `-` for both rates and `pricing_source=unknown` — the caller decides the fallback; no price
+# is ever invented here. The catalog is the System Zone file beside this package, overlaid with the project
+# config's `hounfour.providers` / `hounfour.aliases` (the same two layers cheval merges). Exit 0 on any lookup,
+# 2 on a usage error or an unreadable catalog.
+# ---------------------------------------------------------------------------
+_MAX_ALIAS_DEPTH = 10
+
+
+def _merge(base: Any, overlay: Any) -> Any:
+    if isinstance(base, dict) and isinstance(overlay, dict):
+        out = dict(base)
+        for key, value in overlay.items():
+            out[key] = _merge(base.get(key), value) if key in base else value
+        return out
+    return overlay
+
+
+def load_pricing_config(catalog_path: str, config_path: Optional[str]) -> Dict[str, Any]:
+    """The catalog's providers / aliases / backward_compat_aliases overlaid with the project's `hounfour:` ones."""
+    import yaml  # the package's own dependency (the loader reads YAML the same way)
+
+    with open(catalog_path, "r", encoding="utf-8") as fh:
+        catalog = yaml.safe_load(fh) or {}
+    if not isinstance(catalog, dict):
+        raise ValueError(f"catalog {catalog_path} is not a mapping")
+    merged: Dict[str, Any] = {k: catalog.get(k) or {} for k in ("providers", "aliases", "backward_compat_aliases")}
+    if config_path:
+        try:
+            with open(config_path, "r", encoding="utf-8") as fh:
+                project = yaml.safe_load(fh) or {}
+        except FileNotFoundError:
+            project = {}
+        hounfour = project.get("hounfour") if isinstance(project, dict) else None
+        if isinstance(hounfour, dict):
+            for key in ("providers", "aliases"):
+                if isinstance(hounfour.get(key), dict):
+                    merged[key] = _merge(merged.get(key) or {}, hounfour[key])
+    return merged
+
+
+def resolve_alias_target(alias: str, config: Dict[str, Any]) -> Optional[tuple]:
+    """`provider:model` → (provider, model); an alias → its chain's target; a bare model id → its one provider.
+    None when nothing (or more than one provider) matches."""
+    name = (alias or "").strip()
+    if not name:
+        return None
+    if ":" in name:
+        provider, _, model = name.partition(":")
+        return (provider, model) if provider and model else None
+    current, seen = name, set()
+    for _ in range(_MAX_ALIAS_DEPTH):
+        target = _alias_target(current, config)
+        if not target:
+            break
+        if ":" in target:
+            provider, _, model = target.partition(":")
+            return (provider, model) if provider and model else None
+        if target in seen:
+            return None
+        seen.add(current)
+        current = target
+    providers = config.get("providers") or {}
+    matches = [p for p, block in providers.items()
+               if isinstance(block, dict) and current in (block.get("models") or {})]
+    return (matches[0], current) if len(matches) == 1 else None
+
+
+def lookup_alias(alias: str, config: Dict[str, Any], today: Optional[_dt.date] = None) -> Dict[str, Any]:
+    """The budget gate's view of one alias: rates (micro-USD per Mtok) or None, and the pricing source."""
+    target = resolve_alias_target(alias, config)
+    entry = find_pricing(target[0], target[1], config) if target else None
+    return {
+        "alias": alias,
+        "provider": target[0] if target else None,
+        "model": target[1] if target else None,
+        "input_per_mtok": entry.input_per_mtok if entry else None,
+        "output_per_mtok": entry.output_per_mtok if entry else None,
+        "pricing_source": pricing_source_for(entry, today),
+        "resolution": entry.resolution if entry else None,
+        "open_weight": bool(entry.open_weight) if entry else False,
+        "price_date": entry.price_date if entry else None,
+    }
+
+
+def _main(argv: Optional[list] = None) -> int:
+    import argparse
+    import json
+    import sys
+    from pathlib import Path
+
+    here = Path(__file__).resolve()
+    parser = argparse.ArgumentParser(prog="python3 -m loa_cheval.metering.pricing",
+                                     description="Print an alias's catalog price (micro-USD per million tokens).")
+    parser.add_argument("--alias", action="append", required=True, help="model alias, id or provider:id (repeatable)")
+    parser.add_argument("--json", action="store_true", help="one JSON object per alias")
+    parser.add_argument("--catalog", default=str(here.parents[3] / "defaults" / "model-config.yaml"))
+    parser.add_argument("--config", default=str(here.parents[4] / ".loa.config.yaml"),
+                        help="project config whose hounfour.providers / hounfour.aliases overlay the catalog")
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.WARNING, format="[pricing] %(message)s")
+    try:
+        config = load_pricing_config(args.catalog, args.config)
+    except Exception as exc:  # noqa: BLE001 — an unreadable catalog is a usage error, said
+        print(f"pricing: cannot read the catalog: {type(exc).__name__}: {exc}"[:300], file=sys.stderr)
+        return 2
+    for alias in args.alias:
+        row = lookup_alias(alias, config)
+        if args.json:
+            print(json.dumps(row, sort_keys=True))
+        else:
+            rate = lambda v: "-" if v is None else str(v)  # noqa: E731
+            print(f"alias={alias} input_per_mtok={rate(row['input_per_mtok'])} "
+                  f"output_per_mtok={rate(row['output_per_mtok'])} pricing_source={row['pricing_source']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

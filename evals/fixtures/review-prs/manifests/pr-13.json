@@ -1,0 +1,438 @@
+{
+  "fixture": "pr-13",
+  "approved": true,
+  "approved_by": "lead 2026-10-14",
+  "record": {
+    "sprint": "249",
+    "record_ref": "origin/record/cycle-126-a2a",
+    "head_commit": "41b783a1e1ac6a03c80303b6d6a113b9515a9cf3",
+    "fix_commit": "36b71e4e62ae3ddffdb7317b23f2657778a65b20"
+  },
+  "defects": [
+    {
+      "id": "L01-is-discarded-silently",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "anchor_line": 90,
+      "anchors": [
+        90,
+        92
+      ],
+      "must_match": "if [[ \"${LOA_CONTEXT_CLASS:-}\" == \"standard\" ]]; then",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "review",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-249/engineer-feedback.md#L74",
+      "source_commit": "41b783a1",
+      "synthetic": false
+    },
+    {
+      "id": "L02-the-model-id-shape-this-host-s-harness-e",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "anchor_line": 81,
+      "anchors": [
+        78,
+        81,
+        89
+      ],
+      "must_match": "m=\"${m#anthropic:}\"; m=\"${m#openai:}\"; m=\"${m#google:}\"",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-249/auditor-sprint-feedback.md#L50",
+      "source_commit": "41b783a1",
+      "synthetic": false
+    },
+    {
+      "id": "L03-the-alias-target-is-interpolated-into-th",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "anchor_line": 82,
+      "anchors": [
+        78,
+        82,
+        83,
+        89
+      ],
+      "must_match": "target=\"$(yq eval \".aliases.\\\"$m\\\"\"",
+      "severity": "low",
+      "category": "security",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-249/auditor-sprint-feedback.md#L64",
+      "source_commit": "41b783a1",
+      "synthetic": false
+    },
+    {
+      "id": "L04-the-protocol-s-never-load-a-1-000-line-f",
+      "file": ".claude/protocols/tool-result-clearing.md",
+      "anchor_line": 39,
+      "must_match": "2. **Single large file** (>1000 lines): never load whole; `Read` with offset/limit, synthesize only the relevant \u226450 lines.",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-249/auditor-sprint-feedback.md#L71",
+      "source_commit": "41b783a1",
+      "synthetic": false
+    },
+    {
+      "id": "L05-the-parallelism-sentence-cites-a-number",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "anchor_line": 42,
+      "anchors": [
+        42,
+        71,
+        136
+      ],
+      "must_match": "parallel_threshold: 2000",
+      "severity": "low",
+      "category": "concurrency",
+      "label_source": "audit",
+      "source": "record/cycle-126-a2a:grimoires/loa/a2a/sprint-249/auditor-sprint-feedback.md#L85",
+      "source_commit": "41b783a1",
+      "synthetic": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": ".claude/commands/ride.md",
+      "start": 339,
+      "end": 340,
+      "source": "fix/36b71e4e62ae:339-340"
+    },
+    {
+      "id": "F002",
+      "file": ".claude/data/skill-includes/context_discipline.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F003",
+      "file": ".claude/hooks/README.md",
+      "start": 22,
+      "end": 22,
+      "source": "fix/36b71e4e62ae:22-22"
+    },
+    {
+      "id": "F004",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 14,
+      "end": 14,
+      "source": "fix/36b71e4e62ae:14-14"
+    },
+    {
+      "id": "F005",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 29,
+      "end": 34,
+      "source": "fix/36b71e4e62ae:29-34"
+    },
+    {
+      "id": "F006",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 38,
+      "end": 38,
+      "source": "fix/36b71e4e62ae:38-38"
+    },
+    {
+      "id": "F007",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 70,
+      "end": 72,
+      "source": "fix/36b71e4e62ae:70-72"
+    },
+    {
+      "id": "F008",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 78,
+      "end": 83,
+      "source": "fix/36b71e4e62ae:78-83"
+    },
+    {
+      "id": "F009",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 87,
+      "end": 92,
+      "source": "fix/36b71e4e62ae:87-92"
+    },
+    {
+      "id": "F010",
+      "file": ".claude/hooks/session-start/loa-context-class.sh",
+      "start": 102,
+      "end": 104,
+      "source": "fix/36b71e4e62ae:102-104"
+    },
+    {
+      "id": "F011",
+      "file": ".claude/loa/reference/hooks-reference.md",
+      "start": 176,
+      "end": 176,
+      "source": "fix/36b71e4e62ae:176-176"
+    },
+    {
+      "id": "F012",
+      "file": ".claude/protocols/constructs-integration.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F013",
+      "file": ".claude/protocols/helper-scripts.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F014",
+      "file": ".claude/protocols/recommended-hooks.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F015",
+      "file": ".claude/protocols/reference/session-continuity.md",
+      "start": 97,
+      "end": 97,
+      "source": "fix/36b71e4e62ae:97-97"
+    },
+    {
+      "id": "F016",
+      "file": ".claude/protocols/reference/session-continuity.md",
+      "start": 107,
+      "end": 107,
+      "source": "fix/36b71e4e62ae:107-107"
+    },
+    {
+      "id": "F017",
+      "file": ".claude/protocols/reference/trajectory-evaluation.md",
+      "start": 226,
+      "end": 226,
+      "source": "fix/36b71e4e62ae:226-226"
+    },
+    {
+      "id": "F018",
+      "file": ".claude/protocols/session-continuity.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F019",
+      "file": ".claude/protocols/session-continuity.md",
+      "start": 9,
+      "end": 9,
+      "source": "fix/36b71e4e62ae:9-9"
+    },
+    {
+      "id": "F020",
+      "file": ".claude/protocols/tool-result-clearing.md",
+      "start": 39,
+      "end": 39,
+      "source": "fix/36b71e4e62ae:39-39"
+    },
+    {
+      "id": "F021",
+      "file": ".claude/protocols/trajectory-evaluation.md",
+      "start": 4,
+      "end": 4,
+      "source": "fix/36b71e4e62ae:4-4"
+    },
+    {
+      "id": "F022",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 132,
+      "end": 132,
+      "source": "fix/36b71e4e62ae:132-132"
+    },
+    {
+      "id": "F023",
+      "file": ".claude/skills/auditing-security/SKILL.md",
+      "start": 136,
+      "end": 136,
+      "source": "fix/36b71e4e62ae:136-136"
+    },
+    {
+      "id": "F024",
+      "file": ".claude/skills/autonomous-agent/SKILL.md",
+      "start": 206,
+      "end": 206,
+      "source": "fix/36b71e4e62ae:206-206"
+    },
+    {
+      "id": "F025",
+      "file": ".claude/skills/autonomous-agent/SKILL.md",
+      "start": 210,
+      "end": 210,
+      "source": "fix/36b71e4e62ae:210-210"
+    },
+    {
+      "id": "F026",
+      "file": ".claude/skills/deploying-infrastructure/SKILL.md",
+      "start": 87,
+      "end": 87,
+      "source": "fix/36b71e4e62ae:87-87"
+    },
+    {
+      "id": "F027",
+      "file": ".claude/skills/deploying-infrastructure/SKILL.md",
+      "start": 91,
+      "end": 91,
+      "source": "fix/36b71e4e62ae:91-91"
+    },
+    {
+      "id": "F028",
+      "file": ".claude/skills/designing-architecture/SKILL.md",
+      "start": 79,
+      "end": 79,
+      "source": "fix/36b71e4e62ae:79-79"
+    },
+    {
+      "id": "F029",
+      "file": ".claude/skills/designing-architecture/SKILL.md",
+      "start": 83,
+      "end": 83,
+      "source": "fix/36b71e4e62ae:83-83"
+    },
+    {
+      "id": "F030",
+      "file": ".claude/skills/discovering-requirements/SKILL.md",
+      "start": 160,
+      "end": 160,
+      "source": "fix/36b71e4e62ae:160-160"
+    },
+    {
+      "id": "F031",
+      "file": ".claude/skills/discovering-requirements/SKILL.md",
+      "start": 164,
+      "end": 164,
+      "source": "fix/36b71e4e62ae:164-164"
+    },
+    {
+      "id": "F032",
+      "file": ".claude/skills/implementing-tasks/SKILL.md",
+      "start": 120,
+      "end": 120,
+      "source": "fix/36b71e4e62ae:120-120"
+    },
+    {
+      "id": "F033",
+      "file": ".claude/skills/implementing-tasks/SKILL.md",
+      "start": 124,
+      "end": 124,
+      "source": "fix/36b71e4e62ae:124-124"
+    },
+    {
+      "id": "F034",
+      "file": ".claude/skills/implementing-tasks/context-retrieval.md",
+      "start": 108,
+      "end": 108,
+      "source": "fix/36b71e4e62ae:108-108"
+    },
+    {
+      "id": "F035",
+      "file": ".claude/skills/planning-sprints/SKILL.md",
+      "start": 78,
+      "end": 78,
+      "source": "fix/36b71e4e62ae:78-78"
+    },
+    {
+      "id": "F036",
+      "file": ".claude/skills/planning-sprints/SKILL.md",
+      "start": 82,
+      "end": 82,
+      "source": "fix/36b71e4e62ae:82-82"
+    },
+    {
+      "id": "F037",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 172,
+      "end": 172,
+      "source": "fix/36b71e4e62ae:172-172"
+    },
+    {
+      "id": "F038",
+      "file": ".claude/skills/reviewing-code/SKILL.md",
+      "start": 176,
+      "end": 176,
+      "source": "fix/36b71e4e62ae:176-176"
+    },
+    {
+      "id": "F039",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 77,
+      "end": 77,
+      "source": "fix/36b71e4e62ae:77-77"
+    },
+    {
+      "id": "F040",
+      "file": ".claude/skills/riding-codebase/SKILL.md",
+      "start": 81,
+      "end": 81,
+      "source": "fix/36b71e4e62ae:81-81"
+    },
+    {
+      "id": "F041",
+      "file": ".claude/skills/translating-for-executives/SKILL.md",
+      "start": 123,
+      "end": 123,
+      "source": "fix/36b71e4e62ae:123-123"
+    },
+    {
+      "id": "F042",
+      "file": ".claude/skills/translating-for-executives/SKILL.md",
+      "start": 127,
+      "end": 127,
+      "source": "fix/36b71e4e62ae:127-127"
+    },
+    {
+      "id": "F043",
+      "file": "tests/unit/context-class.bats",
+      "start": 48,
+      "end": 48,
+      "source": "fix/36b71e4e62ae:48-48"
+    },
+    {
+      "id": "F044",
+      "file": "tests/unit/context-class.bats",
+      "start": 93,
+      "end": 93,
+      "source": "fix/36b71e4e62ae:93-93"
+    },
+    {
+      "id": "F045",
+      "file": "tests/unit/context-class.bats",
+      "start": 105,
+      "end": 105,
+      "source": "fix/36b71e4e62ae:105-105"
+    },
+    {
+      "id": "F046",
+      "file": "tests/unit/context-class.bats",
+      "start": 115,
+      "end": 115,
+      "source": "fix/36b71e4e62ae:115-115"
+    },
+    {
+      "id": "F047",
+      "file": "tests/unit/skill-includes.bats",
+      "start": 36,
+      "end": 36,
+      "source": "fix/36b71e4e62ae:36-36"
+    },
+    {
+      "id": "F048",
+      "file": "tests/unit/skill-includes.bats",
+      "start": 43,
+      "end": 43,
+      "source": "fix/36b71e4e62ae:43-43"
+    },
+    {
+      "id": "F049",
+      "file": "tests/unit/skill-includes.bats",
+      "start": 49,
+      "end": 49,
+      "source": "fix/36b71e4e62ae:49-49"
+    }
+  ]
+}

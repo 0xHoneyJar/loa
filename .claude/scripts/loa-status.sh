@@ -674,6 +674,7 @@ main() {
       display_run_line
       display_context_line
       display_gate_line
+      display_run_position_lines
 
       echo ""
       echo "───────────────────────────────────────────────────────────────"
@@ -688,6 +689,14 @@ main() {
     echo ""
     echo "───────────────────────────────────────────────────────────────"
     display_providers_section
+
+    # Profile line (cycle-129 FR-9, SDD D-9.3): the effective loa.profile and explicit overrides.
+    echo ""
+    display_profile_line
+
+    # Guards line (cycle-129 FR-1, SDD D-1.5): register counts and the host yield.
+    echo ""
+    display_guards_line
 
     # Agent-Network Primitives section (cycle-098 Sprint 1C, SDD §4.4).
     echo ""
@@ -927,6 +936,63 @@ display_providers_section() {
   return 0
 }
 
+# cycle-129 FR-9 (SDD D-9.3): one Profile line — the effective loa.profile and
+# the explicit keys whose value differs from it. Reads the config the Providers
+# block reads (bats-gated seam LOA_STATUS_CONFIG_FILE); the lib runs in a
+# subshell so its globals stay out of this script.
+display_profile_line() {
+  local lib="$SCRIPT_DIR/lib/profile-lib.sh" cfg line
+  if [[ ! -f "$lib" ]]; then
+    echo -e "${BOLD}Profile:${NC} unknown (lib/profile-lib.sh missing; reinstall the framework with /update-loa)"
+    return 0
+  fi
+  cfg=$(_providers_config_file)
+  line=$(
+    if [[ "$cfg" != "$CONFIG_FILE" ]]; then export LOA_PROFILE_CONFIG_FILE="$cfg"; fi
+    # shellcheck source=lib/profile-lib.sh
+    source "$lib" || exit 0
+    name=$(loa_profile 2>/dev/null) || name=standard
+    note=""
+    if [[ "$(loa_profile_source 2>/dev/null)" == "invalid" ]]; then note="unknown loa.profile, using standard; "; fi
+    ov=$(loa_profile_overrides 2>/dev/null | awk 'NF { printf "%s%s", (n++ ? ", " : ""), $0 }')
+    # cycle-129 audit r256-5 (DEC-0161 mitigation): say so when either guardrail
+    # control resolves to off, whatever turned it off (profile or explicit key).
+    gn=""
+    [[ "$(loa_knob guardrails.input.enabled false 2>/dev/null)" == true ]] || gn="input guardrails off"
+    [[ "$(loa_knob guardrails.danger_level.enforce false 2>/dev/null)" == true ]] || gn="${gn:+$gn, }danger-level enforcement off"
+    printf '%s (%sexplicit overrides: %s)%s' "${name:-standard}" "$note" "${ov:-none}" "${gn:+ · $gn}"
+  ) || line=""
+  echo -e "${BOLD}Profile:${NC} ${line:-standard (explicit overrides: unavailable)}"
+  return 0
+}
+
+# cycle-129 FR-1 (SDD D-1.5): one Guards line. Counts come from the tracked structural
+# register (grimoires/loa/guards.md), the 30-day yield from the untracked
+# .run/guard-yield.json; nothing is recomputed here. Bats-gated seams:
+# LOA_STATUS_GUARDS_FILE and LOA_STATUS_GUARD_YIELD_FILE.
+display_guards_line() {
+  local reg="$PROJECT_ROOT/grimoires/loa/guards.md" yf="$PROJECT_ROOT/.run/guard-yield.json"
+  local hint="regenerate: .claude/scripts/guard-yield.sh" n m d y
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" ]]; then
+    [[ -n "${LOA_STATUS_GUARDS_FILE:-}" ]] && reg="$LOA_STATUS_GUARDS_FILE"
+    [[ -n "${LOA_STATUS_GUARD_YIELD_FILE:-}" ]] && yf="$LOA_STATUS_GUARD_YIELD_FILE"
+  fi
+  if [[ ! -f "$reg" ]]; then
+    echo -e "${BOLD}Guards:${NC} no register (grimoires/loa/guards.md) · $hint"
+    return 0
+  fi
+  n=$(sed -n 's/^- guards: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  m=$(sed -n 's/^- guards_without_origin: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  d=$(sed -n 's/^- dormant: \([0-9][0-9]*\)$/\1/p' "$reg" | head -1)
+  local counts="${n:-?} (${m:-?} without origin, ${d:-?} dormant)"
+  if [[ -f "$yf" ]] && y=$(jq -er '"\(.window_days | tonumber) d: \(.totals.real_blocks_30d | tonumber) real blocks, \(.totals.likely_fp_30d | tonumber) likely FP · scope \(.scope | tostring | gsub("[^A-Za-z0-9_-]"; ""))"' "$yf" 2>/dev/null); then
+    echo -e "${BOLD}Guards:${NC} $counts · $y · $hint"
+  else
+    echo -e "${BOLD}Guards:${NC} $counts · 30 d: no yield file (.run/guard-yield.json) · $hint"
+  fi
+  return 0
+}
+
 # cycle-126 FR-3.1 (SDD D-3.1): the context class this session runs under, as the
 # SessionStart hook recorded it in .run/context-class (`--show` never rewrites it).
 display_context_line() {
@@ -944,6 +1010,25 @@ display_gate_line() {
   [[ -f "$detect" ]] || return 0
   line=$(PROJECT_ROOT="$PROJECT_ROOT" RUN_DIR="$PROJECT_ROOT/.run" bash "$detect" --line < /dev/null 2>/dev/null || true)
   [[ -n "$line" ]] && echo "  $line"
+  return 0
+}
+
+# cycle-129 FR-5 / FR-4(a) (SDD D-5.3): the run position the files derive against
+# the cache (`run-checkpoint.sh derive --json` — report-only, /loa writes no state;
+# printed only on drift) and the implement gate's effective mode, from the gate's
+# own parser. Bats-gated seams: LOA_STATUS_DERIVE_ROOT, LOA_STATUS_CONFIG_FILE.
+display_run_position_lines() {
+  local ck="${SCRIPT_DIR}/run-checkpoint.sh" gate="${SCRIPT_DIR}/../hooks/compliance/implement-gate.sh"
+  local root="$PROJECT_ROOT" dj line mode
+  if [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${LOA_STATUS_DERIVE_ROOT:-}" ]]; then root="$LOA_STATUS_DERIVE_ROOT"; fi
+  if [[ -f "$ck" ]] && dj=$(bash "$ck" derive --json --root "$root" 2>/dev/null) \
+     && line=$(jq -er 'select(.drift == true and .cache_state != null)
+                       | "files say \(.state | tostring | gsub("[^A-Z_]"; "")), cache said \(.cache_state | tostring | gsub("[^A-Z_]"; ""))"' <<<"$dj" 2>/dev/null); then
+    echo "  Run: $line (drift) → run-checkpoint.sh derive --write"
+  fi
+  if [[ -f "$gate" ]] && mode=$(PROJECT_ROOT="$PROJECT_ROOT" bash "$gate" --effective-mode "$(_providers_config_file)" < /dev/null 2>/dev/null) && [[ -n "$mode" ]]; then
+    echo "  Gate: implement_gate.mode $mode"
+  fi
   return 0
 }
 

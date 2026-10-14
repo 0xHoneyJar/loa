@@ -31,8 +31,10 @@ invisible_retrospective:
     {current-skill-name}: true|false
 ```
 
+The effective `enabled` value is the explicit key, else the `loa.profile` default: `.claude/scripts/lib/profile-lib.sh knob invisible_retrospective.enabled true`.
+
 **Exit Conditions** (skip all processing if any are true):
-- `invisible_retrospective.enabled: false` → Log action: DISABLED, exit
+- the effective `invisible_retrospective.enabled` is not `true` → Log action: DISABLED, exit
 - `invisible_retrospective.skills.{this-skill}: false` → Log action: DISABLED, exit
 - **RECURSION GUARD**: This skill is `continuous-learning` → Exit silently (prevent infinite recursion)
   - INVARIANT: The `continuous-learning` skill MUST NEVER have a retrospective postlude

@@ -36,7 +36,7 @@
    `.claude/scripts/run-mode-ice.sh pr-create "[INCOMPLETE] Run Mode: $target" "$body" --draft`.
    PR body template:
    → verbatim block: `resources/render-templates.md` §halt-incomplete-pr-body
-7. Update state atomically: `jq --arg r "$reason" --arg ts "$timestamp" '.state = "HALTED" | .halt = {"reason": $r, "timestamp": $ts} | .timestamps.last_activity = $ts'`.
+7. Update state atomically (`.state` is canonical): `jq --arg r "$reason" --arg ts "$timestamp" '.state = "HALTED" | .halt = {"reason": $r, "timestamp": $ts} | .timestamps.last_activity = $ts'`.
 8. Report the halt summary box:
    → verbatim block: `resources/render-templates.md` §halt-summary-box
 
@@ -46,9 +46,13 @@
 
 0. Run `.claude/scripts/run-preflight.sh --unattended --resume` (P6 inverted: a resumable state
    passes, nothing to resume fails). Non-zero exit → surface its checklist and stop.
+0a. Run `.claude/scripts/run-checkpoint.sh derive --json` (exit 4 = no active cycle: keep the
+   cache and continue). When `.drift` is true, report "files say {state}, cache said
+   {cache_state}" and run `.claude/scripts/run-checkpoint.sh derive --write` before continuing,
+   so the steps below read the file-derived position (cycle-129 FR-5).
 1. If `.run/state.json` doesn't exist: "ERROR: No run state found. Start a new run with `/run
    sprint-N`" → exit 1.
-2. Read `.state`. If not `HALTED`: "ERROR: Run is not halted (state: {state})" — if `RUNNING`, add
+2. Read `.state` (canonical; `.status` is only its mirror). If not `HALTED`: "ERROR: Run is not halted (state: {state})" — if `RUNNING`, add
    "Run is already in progress. Use `/run-status` to check."; if `JACKED_OUT`, add "Run is already
    complete. Start a new run with `/run sprint-N`." → exit 1.
 3. Compare `git branch --show-current` against `.branch` in state. Mismatch → "ERROR: Branch
@@ -74,9 +78,12 @@
    "sprint granularity"). `/implement` resumes at the first open bead (`br ready`) — the
    checkpoint never overrides beads.
 2. If `--reset-ice`: reset the circuit breaker —
-   `jq --arg ts "$timestamp" '.state = "CLOSED" | .triggers.same_issue.count = 0 | .triggers.same_issue.last_hash = null | .triggers.no_progress.count = 0 | .triggers.cycle_count.current = 0 | .triggers.timeout.started = $ts'`
-   on `.run/circuit-breaker.json`.
-3. Update `.run/state.json` atomically: `.state = "RUNNING" | del(.halt) | .timestamps.last_activity = $ts`.
+   `jq --arg ts "$timestamp" '.state = "CLOSED" | .triggers.same_issue.count = 0 | .triggers.same_issue.last_hash = null | .triggers.no_progress.count = 0 | .triggers.cycle_count.current = 0 | .triggers.timeout.started = $ts | .reset_at = $ts'`
+   on `.run/circuit-breaker.json` (`reset_at`: `derive` recomputes the counters only from rounds
+   after it, so the reset holds).
+3. Update `.run/state.json` atomically: `.state = "RUNNING" | del(.halt) | .timestamps.last_activity = $ts`;
+   when `.run/sprint-plan-state.json` says `HALTED`, the same on it with `.status = .state` (HALTED is
+   sticky in the derivation until this step clears it).
 4. Report "✓ State updated to RUNNING" then resume the main loop at the recorded `phase`:
    `INIT` → restart from initialization; `IMPLEMENT` → re-run `/implement $target` then continue
    the loop; `REVIEW` → re-run `/review-sprint $target` then continue; `AUDIT` → re-run

@@ -15,7 +15,7 @@ K-03	.claude/loa/CLAUDE.loa.md	@constraint-generated: start process_compliance_n
 K-04	.claude/loa/CLAUDE.loa.md	@constraint-generated: start process_compliance_always	registry-rendered ALWAYS table
 K-05	.claude/loa/CLAUDE.loa.md	@constraint-generated: start task_tracking_hierarchy	registry-rendered task-tracking table
 K-06	.claude/loa/CLAUDE.loa.md	@constraint-generated: start merge_constraints	registry-rendered merge constraints
-K-07	.claude/loa/CLAUDE.loa.md	@constraint-generated: start agent_teams_constraints	registry-rendered Agent Teams MUST rows
+K-07	.claude/loa/reference/agent-teams-reference.md	^## Rules and arming$	the five team rules and their arming variable (moved out of the kernel by cycle-129 DEC-0140)
 K-08	.claude/loa/CLAUDE.loa.md	LOA-VERDICT	the machine trailer contract is named in the always-loaded surface
 K-09	.claude/loa/CLAUDE.loa.md	verdict-derive\.sh	the mechanical verdict filter is named where the trailer is named
 K-10	.claude/loa/CLAUDE.loa.md	one-way rule	critical+high > 0 forces CHANGES_REQUIRED; zero never forces APPROVED

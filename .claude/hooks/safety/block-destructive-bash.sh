@@ -120,6 +120,658 @@
 # is exec'd only inside emit_block and the FR-SZ bypass audit branch).
 # =============================================================================
 
+# =============================================================================
+# FR-6 heredoc consumer classifier (cycle-129 D-6.1; knob
+# destructive_command_guard.heredoc_classifier, default true; false = the
+# pre-cycle scan, i.e. only the #1245 quoted-cat scrub below).
+# Defined BEFORE the bash-version guard and the stdin read so another script
+# can source this file with BDB_LIB_ONLY=1 and call
+#   _bdb_heredoc_consumer_class <command text>   → prints interpreter|nonexec|none
+#   heredoc_nonexec <command text>               → exit 0 iff nonexec
+# Bash 3.2 compatible (no ${x,,}, no mapfile, no associative arrays) and safe
+# under a caller's `set -u`.
+#
+# Grammar (literal command text; no alias or function expansion; CRLF folded
+# to LF). The command is walked line by line; a line holding an unquoted
+# `<<` / `<<-` (not `<<<`) is a heredoc header, the body runs to the first
+# line equal to the delimiter (leading tabs stripped for `<<-`). FULL SCAN
+# (the whole command as today) on: any other control character, a header the
+# tokenizer cannot read (open quote, trailing backslash, comment), more than
+# one heredoc on a header, a delimiter that is not a plain word ('W', "W",
+# \W or W with W in [A-Za-z0-9_.+:@%-]; `$X` is a variable delimiter), or a
+# missing terminator. Per heredoc the class is:
+#   interpreter — body scanned exactly as today: the header holds `$(`, a
+#     backtick, `<(` or `>(`, a paren or brace group or a shell keyword; it
+#     continues on the next line (`|`, `&&`, `||` last) or an earlier line
+#     opened a substitution, group, quote or pipe; a member of the heredoc's
+#     pipeline is a shell, interpreter, wrapper that runs its argument or SQL
+#     runner (_bdb_hd_is_interp, _bdb_hd_is_runner); an allowlisted form
+#     carries an unknown or exec-shaped flag (-c, -e, -x clusters, --exec,
+#     --eval, --command, in-place); a write target is executable content
+#     (_bdb_hd_exec_dest: script extension, .claude/hooks, .claude/settings*
+#     .json, .git/hooks, .git/config, rc/profile files, /etc, a bin dir or a
+#     directory on PATH, or any non-literal path); the first body line is a
+#     shebang; the body holds `<<` (nested); a target's basename appears
+#     elsewhere in the command outside the safe readers (_bdb_hd_same_line_exec:
+#     `bash x`, `./x`, `source x`, `. x`, `chmod +x x`, `exec x`, cp/mv …).
+#   nonexec — every pipeline member is an exact allowlisted form
+#     (_bdb_hd_member): cat, tee, printf, echo with plain-file or stdout sinks;
+#     gh pr|issue comment -F -; gh pr create --body-file -; git commit -F -;
+#     br create|update reading `-`; jq/yq without in-place; grep; sed -n with
+#     a print-only script; sort; wc. The body is then scanned PER SEGMENT
+#     (_bdb_hd_scan_body): each line split on ; && || | &, wrapper prefixes
+#     stripped (sudo command exec env nice time nohup builtin stdbuf ionice,
+#     a leading backslash, quote, paren or brace, assignments, an absolute
+#     path); a segment whose command word is a fence verb (rm git find dd
+#     mkfs* shred truncate kubectl terraform aws gcloud psql mysql DROP
+#     DELETE TRUNCATE) is kept on its own line for the normal rules, other
+#     segments are dropped. The body falls back to a full scan when it holds
+#     `$(`, a backtick, `<(` or `>(` under an unquoted delimiter, or a segment
+#     word is an interpreter or wrapper, or a variable (`$x -rf /`; such a
+#     segment is ALSO scanned as rm, git and kubectl with the same arguments).
+#     Special case (the #1245 scrub): a standalone quoted-delimiter `cat`
+#     whose header is exactly `cat <<'W' [> path]` drops the whole body.
+#   none — the consumer is on neither list: full scan.
+# Documented gap: a body written to a plain file by one command and executed
+# by a LATER command is outside a per-command fence (the Write tool shares it).
+# =============================================================================
+_bdb_hd_op_re='^[0-9]*(<<<|<<-|&>>|<<|>>|>[|]|&&|[|][|]|[|]&|&>|<>|>&[0-9-]*|<&[0-9-]*|;;|;|&|[|]|<|>|[(]|[)])$'
+_bdb_hd_re_dw='^[A-Za-z0-9_.+:@%-]+$'
+_bdb_hd_re_dsq="^'([A-Za-z0-9_.+:@%-]+)'\$"
+_bdb_hd_re_ddq='^"([A-Za-z0-9_.+:@%-]+)"$'
+_bdb_hd_re_dbs='^\\([A-Za-z0-9_.+:@%-]+)$'
+_bdb_hd_re_psq="^'([^']*)'\$"
+_bdb_hd_re_pdq="^\"([^\"\$\`\\\\]*)\"\$"
+_bdb_hd_re_pbare="^[^'\"\$\`\\\\]+\$"
+_bdb_hd_re_ctl=$'[\x01-\x08\x0b-\x1f\x7f]'
+_bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'
+_bdb_hd_re_exlong='^--(exec|eval|command|in-?place)'
+_bdb_hd_re_ext='\.(sh|bash|zsh|ksh|csh|fish|py|pyw|rb|pl|pm|js|mjs|cjs|ts|mts|cts|ps1|psm1|php|lua|tcl|command|bat|cmd)$'
+_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$|Dockerfile([.][^/]*)?$|\.pre-commit-config\.ya?ml$|\.gitlab-ci\.ya?ml$)'
+_bdb_hd_re_rc='(^|/)\.(bashrc|bash_profile|bash_login|bash_logout|profile|zshrc|zshenv|zprofile|zlogin|zlogout|kshrc|mkshrc|cshrc|tcshrc|login|logout|envrc)$'
+_bdb_hd_re_sedp='^(([0-9]+|[$]|/[^/]*/)(,([0-9]+|[$]|/[^/]*/))?)?p$'
+_bdb_hd_re_assign='^[A-Za-z_][A-Za-z0-9_]*='
+_bdb_hd_re_varw='^[$]([{]|[A-Za-z_])'
+_bdb_hd_re_knob='^[[:space:]]+heredoc_classifier:[[:space:]]*["'"'"']?([A-Za-z]+)["'"'"']?[[:space:]]*(#.*)?$'
+
+# Shells, interpreters and wrappers that run their argument or stdin.
+_bdb_hd_is_interp() {
+  case "$1" in
+    bash|sh|zsh|dash|ksh|mksh|ash|fish|csh|tcsh|busybox|python|python[0-9]*|pypy*|node|nodejs|deno|bun|ruby|irb|perl|php|lua|luajit|tclsh|wish|expect|pwsh|powershell|osascript|Rscript) return 0 ;;
+    eval|source|.|exec|command|builtin|time|awk|gawk|mawk|nawk|make|gmake|m4|ed|ex|vi|vim|nvim|gdb) return 0 ;;
+    sudo|doas|su|runuser|env|xargs|parallel|timeout|nohup|nice|ionice|setsid|stdbuf|chroot|unshare|nsenter|ssh|docker|podman|kubectl|find|watch|script) return 0 ;;
+  esac
+  return 1
+}
+# The SQL runners of the FR-1.4/5/6 precondition (same list).
+_bdb_hd_is_runner() {
+  case "$1" in
+    psql|pgcli|mysql|mariadb|mysqlsh|sqlite3|sqlcmd|sqlplus|isql|usql|litecli|duckdb|clickhouse|clickhouse-client|cockroach|bq|wrangler|prisma|supabase|drizzle-kit|knex|sequelize|typeorm|flyway|liquibase|dbmate|goose|sqitch|rails|manage.py|artisan|alembic|dbt|atlas|mongosh|sqlx) return 0 ;;
+  esac
+  return 1
+}
+# Command words the fence's own rules match.
+_bdb_hd_is_destructive() {
+  case "$1" in
+    rm|git|find|dd|shred|truncate|kubectl|terraform|aws|gcloud|psql|mysql|mkfs|mkfs.*) return 0 ;;
+    [Dd][Rr][Oo][Pp]|[Dd][Ee][Ll][Ee][Tt][Ee]|[Tt][Rr][Uu][Nn][Cc][Aa][Tt][Ee]) return 0 ;;
+  esac
+  return 1
+}
+# Readers that may name a heredoc's target elsewhere on the line.
+_bdb_hd_is_safe_reader() {
+  case "$1" in
+    cat|ls|wc|head|tail|grep|egrep|fgrep|rg|diff|cmp|stat|file|test|'['|echo|printf|sort|uniq|jq|yq|git|gh|br|mkdir|touch|realpath|readlink|basename|dirname|du|md5sum|sha1sum|sha256sum|shasum|b2sum|cksum) return 0 ;;
+  esac
+  return 1
+}
+
+# _bdb_hd_tokenize <line> → _bdb_hd_tok[] (words keep their quotes; operators
+# are separate tokens, an fd number joins its redirect). Returns 1 when the
+# line cannot be read: open quote, trailing backslash, unquoted comment.
+_bdb_hd_tokenize() {
+  local s="${1:-}" n i=0 ch tok="" q="" have=0 op cand
+  n=${#s}
+  _bdb_hd_tok=()
+  while (( i < n )); do
+    ch="${s:i:1}"
+    if [[ -n "$q" ]]; then
+      tok="$tok$ch"
+      if [[ "$q" == "'" ]]; then
+        [[ "$ch" == "'" ]] && q=""
+      elif [[ "$ch" == '\' ]]; then
+        (( i + 1 < n )) || return 1
+        i=$((i + 1)); tok="$tok${s:i:1}"
+      elif [[ "$ch" == '"' ]]; then
+        q=""
+      fi
+      i=$((i + 1)); continue
+    fi
+    case "$ch" in
+      "'"|'"') q="$ch"; tok="$tok$ch"; have=1; i=$((i + 1)) ;;
+      '\')
+        (( i + 1 < n )) || return 1
+        tok="$tok$ch${s:i+1:1}"; have=1; i=$((i + 2)) ;;
+      ' '|$'\t')
+        if (( have )); then _bdb_hd_tok[${#_bdb_hd_tok[@]}]="$tok"; tok=""; have=0; fi
+        i=$((i + 1)) ;;
+      '#')
+        (( have )) || return 1
+        tok="$tok$ch"; i=$((i + 1)) ;;
+      ';'|'&'|'|'|'<'|'>'|'('|')')
+        op=""
+        for cand in '<<<' '<<-' '&>>' '<<' '>>' '>|' '&&' '||' '|&' '&>' '<>' '>&' '<&' ';;' ';' '&' '|' '<' '>' '(' ')'; do
+          if [[ "${s:i:${#cand}}" == "$cand" ]]; then op="$cand"; break; fi
+        done
+        i=$((i + ${#op}))
+        if [[ "$op" == '>&' || "$op" == '<&' ]]; then
+          while (( i < n )) && [[ "${s:i:1}" == [0-9-] ]]; do op="$op${s:i:1}"; i=$((i + 1)); done
+        fi
+        if (( have )); then
+          if [[ "$tok" =~ ^[0-9]+$ ]] && [[ "$op" == '<'* || "$op" == '>'* ]]; then
+            op="$tok$op"
+          else
+            _bdb_hd_tok[${#_bdb_hd_tok[@]}]="$tok"
+          fi
+          tok=""; have=0
+        fi
+        _bdb_hd_tok[${#_bdb_hd_tok[@]}]="$op" ;;
+      *) tok="$tok$ch"; have=1; i=$((i + 1)) ;;
+    esac
+  done
+  [[ -z "$q" ]] || return 1
+  (( have )) && _bdb_hd_tok[${#_bdb_hd_tok[@]}]="$tok"
+  return 0
+}
+
+# _bdb_hd_unq_path <word> → _hd_up; returns 1 for a non-literal path (an
+# expansion, an escape, mixed quoting) or an empty one.
+_bdb_hd_unq_path() {
+  _hd_up=""
+  if [[ "${1:-}" =~ $_bdb_hd_re_psq ]] || [[ "${1:-}" =~ $_bdb_hd_re_pdq ]]; then
+    _hd_up="${BASH_REMATCH[1]}"
+  elif [[ "${1:-}" =~ $_bdb_hd_re_pbare ]]; then
+    _hd_up="$1"
+  else
+    return 1
+  fi
+  [[ -n "$_hd_up" ]]
+}
+
+# _bdb_hd_exec_dest <unquoted path> → 0 when a write there is executable
+# content (or cannot be judged).
+_bdb_hd_exec_dest() {
+  local p="${1:-}" d e b old_ifs
+  case "$p" in
+    *'*'*|*'?'*|*'['*|*'{'*|'~'|'~'[!/]*|'') return 0 ;;
+  esac
+  [[ "$p" == '~/'* ]] && p="${HOME:-}/${p#'~/'}"
+  b="${p##*/}"
+  [[ "$b" =~ $_bdb_hd_re_ext ]] && return 0
+  [[ "$p" =~ $_bdb_hd_re_sys || "$p" =~ $_bdb_hd_re_rc ]] && return 0
+  [[ "$p" == /etc/* ]] && return 0
+  if [[ "$p" == /* ]]; then d="${p%/*}"; [[ -n "$d" ]] || d="/"
+  elif [[ "$p" == */* ]]; then d="${PWD:-.}/${p%/*}"
+  else d="${PWD:-.}"
+  fi
+  old_ifs="$IFS"; IFS=':'
+  for e in ${PATH:-}; do
+    [[ -z "$e" || "$e" == "." ]] && e="${PWD:-.}"
+    [[ "$e" != "/" ]] && e="${e%/}"
+    if [[ "$d" == "$e" ]]; then IFS="$old_ifs"; return 0; fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
+# _bdb_hd_member <tokens…> → _hd_mcls (interpreter|nonexec|none) for one
+# pipeline member; write targets are appended to _hd_dests.
+_bdb_hd_member() {
+  local -a toks argv
+  local t nxt i n stdout_files=0 a0 base fd stdin=0 ops=0 want="" has_n=0 script=""
+  toks=("$@"); n=${#toks[@]}; argv=()
+  _hd_mcls=none
+  for ((i = 0; i < n; i++)); do
+    t="${toks[i]}"
+    if [[ "$t" =~ $_bdb_hd_op_re ]]; then
+      case "$t" in
+        *'<<<') return ;;
+        *'<<'|*'<<-') i=$((i + 1)); continue ;;
+        *'>&'[0-9]*|*'>&-'|*'<&'*) continue ;;
+        *'>'|*'>>'|*'>|'|*'>&'|'&>'|'&>>')
+          nxt="${toks[i+1]:-}"; i=$((i + 1))
+          if [[ -z "$nxt" || "$nxt" =~ $_bdb_hd_op_re ]]; then _hd_mcls=interpreter; return; fi
+          _bdb_hd_unq_path "$nxt" || { _hd_mcls=interpreter; return; }
+          case "$_hd_up" in /dev/null|/dev/stdout|/dev/stderr) continue ;; esac
+          _hd_dests[${#_hd_dests[@]}]="$_hd_up"
+          fd="${t%%[>&]*}"
+          [[ -z "$fd" || "$fd" == 1 || "$t" == '&>'* || "$t" == '>&' ]] && stdout_files=$((stdout_files + 1))
+          continue ;;
+        *) return ;;
+      esac
+    fi
+    argv[${#argv[@]}]="$t"
+  done
+  (( ${#argv[@]} > 0 )) || return
+  a0="${argv[0]}"
+  base="${a0#\\}"; base="${base##*/}"
+  if _bdb_hd_is_interp "$base" || _bdb_hd_is_runner "$base"; then _hd_mcls=interpreter; return; fi
+  [[ "$a0" =~ ^[a-z][a-z0-9]*$ ]] || return
+  (( stdout_files <= 1 )) || return
+  for ((i = 1; i < ${#argv[@]}; i++)); do
+    t="${argv[i]}"
+    if [[ "$t" =~ $_bdb_hd_re_exflag || "$t" =~ $_bdb_hd_re_exlong ]]; then _hd_mcls=interpreter; return; fi
+  done
+  case "$a0" in
+    cat)
+      for ((i = 1; i < ${#argv[@]}; i++)); do [[ "${argv[i]}" == "-" ]] || { _hd_mcls=interpreter; return; }; done ;;
+    tee)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          -a|--append|-p) ;;
+          -*) _hd_mcls=interpreter; return ;;
+          *) _bdb_hd_unq_path "$t" || { _hd_mcls=interpreter; return; }
+             _hd_dests[${#_hd_dests[@]}]="$_hd_up" ;;
+        esac
+      done ;;
+    echo|printf)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        case "${argv[i]}" in -n|-E) ;; -*) _hd_mcls=interpreter; return ;; esac
+      done ;;
+    gh)
+      case "${argv[1]:-} ${argv[2]:-}" in
+        "pr comment"|"issue comment") want=" -F --body-file -R --repo |" ;;
+        "pr create") want=" -F --body-file --title -t --base -B --head -H --repo -R --label -l --reviewer -r --assignee -a --milestone -m --project -p --template -T | --draft -d --fill --fill-first --fill-verbose --no-maintainer-edit --dry-run " ;;
+        *) return ;;
+      esac
+      for ((i = 3; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          --body-file=-) stdin=1 ;;
+          --*=*) [[ "${want%%|*}" == *" ${t%%=*} "* ]] || { _hd_mcls=interpreter; return; } ;;
+          -*)
+            if [[ "${want%%|*}" == *" $t "* ]]; then
+              i=$((i + 1))
+              [[ ( "$t" == "-F" || "$t" == "--body-file" ) && "${argv[i]:-}" == "-" ]] && stdin=1
+            elif [[ "${want#*|}" != *" $t "* ]]; then
+              _hd_mcls=interpreter; return
+            fi ;;
+          *) ops=$((ops + 1)); [[ "${argv[2]}" == comment && $ops -le 1 ]] || { _hd_mcls=interpreter; return; } ;;
+        esac
+      done
+      (( stdin )) || { _hd_mcls=interpreter; return; } ;;
+    git)
+      [[ "${argv[1]:-}" == commit ]] || return
+      for ((i = 2; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          -F|--file) i=$((i + 1)); [[ "${argv[i]:-}" == "-" ]] || { _hd_mcls=interpreter; return; }; stdin=1 ;;
+          --file=-|-F-) stdin=1 ;;
+          -q|--quiet|-s|--signoff|-a|--all|--allow-empty|--allow-empty-message|-v|--verbose|--no-edit|--amend) ;;
+          *) _hd_mcls=interpreter; return ;;
+        esac
+      done
+      (( stdin )) || { _hd_mcls=interpreter; return; } ;;
+    br)
+      case "${argv[1]:-}" in create|update) ;; *) return ;; esac
+      for ((i = 2; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          -d|--description|--body) [[ "${argv[i+1]:-}" == "-" ]] && stdin=1 ;;
+          -f|--file) [[ "${argv[1]}" == create && "${argv[i+1]:-}" == "-" ]] && stdin=1 ;;
+          --description=-|--body=-) stdin=1 ;;
+        esac
+      done
+      (( stdin )) || { _hd_mcls=interpreter; return; } ;;
+    jq|yq)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        # In-place flags: --inplace/--in-place, -i, -i=…, and any short-flag cluster holding an i
+        # (corpus D114/D115: `-i` alone did not match `-[A-Za-z]*i*`, which needs a letter before the i).
+        case "${argv[i]}" in --inplace|--in-place|-i*|-[A-Za-z]*i*) _hd_mcls=interpreter; return ;; esac
+      done ;;
+    grep|egrep|fgrep) ;;
+    sed)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          -n|--quiet|--silent) has_n=1 ;;
+          -E|-r|--regexp-extended|-s|--separate|-u|--unbuffered|-z|--null-data) ;;
+          -*) _hd_mcls=interpreter; return ;;
+          *) if [[ -z "$script" ]]; then
+               script="$t"; [[ "$script" =~ $_bdb_hd_re_psq || "$script" =~ $_bdb_hd_re_pdq ]] && script="${BASH_REMATCH[1]}"
+               [[ "$script" =~ $_bdb_hd_re_sedp ]] || { _hd_mcls=interpreter; return; }
+             fi ;;
+        esac
+      done
+      (( has_n )) && [[ -n "$script" ]] || { _hd_mcls=interpreter; return; } ;;
+    sort)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        t="${argv[i]}"
+        case "$t" in
+          -o) i=$((i + 1)); _bdb_hd_unq_path "${argv[i]:-}" || { _hd_mcls=interpreter; return; }; _hd_dests[${#_hd_dests[@]}]="$_hd_up" ;;
+          -k|-t) i=$((i + 1)) ;;
+          -k*|-t*) ;;
+          --*) _hd_mcls=interpreter; return ;;
+          -*) [[ "$t" =~ ^-[bdfghiMnRrsuVz]+$ ]] || { _hd_mcls=interpreter; return; } ;;
+        esac
+      done ;;
+    wc)
+      for ((i = 1; i < ${#argv[@]}; i++)); do
+        case "${argv[i]}" in -*) [[ "${argv[i]}" =~ ^-[lwmL]+$ ]] || { _hd_mcls=interpreter; return; } ;; esac
+      done ;;
+    *) return ;;
+  esac
+  _hd_mcls=nonexec
+}
+
+# _bdb_hd_ctx_bad <line> → 0 when a line before (or the header itself) leaves
+# the next text inside a substitution, group, quote, compound command or
+# pipeline: a later heredoc there is interpreter-class.
+_bdb_hd_ctx_bad() {
+  local l="${1:-}" k last
+  case "$l" in *'$('*|*'`'*|*'<('*|*'>('*) return 0 ;; esac
+  _bdb_hd_tokenize "$l" || return 0
+  for ((k = 0; k < ${#_bdb_hd_tok[@]}; k++)); do
+    case "${_bdb_hd_tok[k]}" in
+      '('|')'|'{'|'}'|do|done|then|else|elif|if|fi|while|until|for|case|esac|select|function|coproc) return 0 ;;
+    esac
+  done
+  (( ${#_bdb_hd_tok[@]} > 0 )) || return 1
+  last="${_bdb_hd_tok[${#_bdb_hd_tok[@]}-1]}"
+  case "$last" in '|'|'|&'|'&&'|'||') return 0 ;; esac
+  return 1
+}
+
+# _bdb_hd_header <line> — parse one header line. Sets _hd_ops (heredoc count,
+# -1 = unreadable), _hd_delim, _hd_quoted, _hd_tabs, _hd_cls, _hd_dests[],
+# _hd_pipe (pipeline id of the heredoc on this line).
+_bdb_hd_header() {
+  local line="${1:-}" k nt t opi=-1 w seg=0 pipe=0
+  local -a tpipe mtoks
+  _hd_ops=0 _hd_delim="" _hd_quoted=0 _hd_tabs=0 _hd_cls=none _hd_pipe=-1
+  _hd_dests=()
+  if ! _bdb_hd_tokenize "$line"; then _hd_ops=-1; return; fi
+  nt=${#_bdb_hd_tok[@]}
+  tpipe=()
+  for ((k = 0; k < nt; k++)); do
+    t="${_bdb_hd_tok[k]}"
+    case "$t" in
+      ';'|';;'|'&'|'&&'|'||'|'('|')') pipe=$((pipe + 1)); tpipe[k]=-1; continue ;;
+      '|'|'|&') tpipe[k]=-1; continue ;;
+    esac
+    tpipe[k]=$pipe
+    if [[ "$t" =~ ^[0-9]*'<<'-?$ ]]; then _hd_ops=$((_hd_ops + 1)); opi=$k; fi
+  done
+  (( _hd_ops == 1 )) || return
+  w="${_bdb_hd_tok[opi+1]:-}"
+  [[ "${_bdb_hd_tok[opi]}" == *'<<-' ]] && _hd_tabs=1
+  if [[ "$w" =~ $_bdb_hd_re_dsq || "$w" =~ $_bdb_hd_re_ddq || "$w" =~ $_bdb_hd_re_dbs ]]; then
+    _hd_delim="${BASH_REMATCH[1]}"; _hd_quoted=1
+  elif [[ "$w" =~ $_bdb_hd_re_dw ]]; then
+    _hd_delim="$w"
+  else
+    _hd_ops=-1; return        # variable-expanded, mixed or missing delimiter
+  fi
+  _hd_pipe="${tpipe[opi]}"
+  if _bdb_hd_ctx_bad "$line"; then _hd_cls=interpreter; return; fi
+  _bdb_hd_tokenize "$line"    # _bdb_hd_ctx_bad reused the token buffer
+  # Classify every member of the heredoc's pipeline; the most executing wins.
+  local cls=nonexec
+  k=0
+  while (( k < nt )); do
+    if [[ "${tpipe[k]}" != "$_hd_pipe" ]]; then k=$((k + 1)); continue; fi
+    mtoks=()
+    while (( k < nt )) && [[ "${tpipe[k]}" == "$_hd_pipe" ]]; do mtoks[${#mtoks[@]}]="${_bdb_hd_tok[k]}"; k=$((k + 1)); done
+    _bdb_hd_member "${mtoks[@]}"
+    case "$_hd_mcls" in
+      interpreter) cls=interpreter ;;
+      none) [[ "$cls" == interpreter ]] || cls=none ;;
+    esac
+    k=$((k + 1))
+  done
+  _hd_cls="$cls"
+}
+
+# _bdb_hd_segword <segment> → _hd_w (command word after wrapper stripping,
+# quotes and an absolute path removed) and _hd_rest (the text after it).
+_bdb_hd_segword() {
+  local s="${1:-}" w guard=0
+  _hd_w="" _hd_rest=""
+  while (( guard < 64 )); do
+    guard=$((guard + 1))
+    s="${s#"${s%%[![:space:]]*}"}"
+    [[ -n "$s" ]] || return
+    case "${s:0:1}" in
+      '('|'{'|'!'|'\'|'"'|"'") s="${s:1}"; continue ;;
+    esac
+    w="${s%%[[:space:]]*}"
+    s="${s:${#w}}"
+    if [[ "$w" =~ $_bdb_hd_re_assign ]]; then continue; fi
+    # Shell reserved words are transparent prefixes: `if :; then rm …; fi` keeps its rm
+    # segment (audit r256-5, dissent DISS-C-002).
+    case "$w" in
+      if|then|elif|else|do|done|while|until|fi|esac|coproc|function) continue ;;
+    esac
+    case "$w" in
+      sudo|doas|command|exec|env|nice|time|nohup|builtin|stdbuf|ionice)
+        while :; do
+          s="${s#"${s%%[![:space:]]*}"}"
+          case "$s" in
+            -S|-S[[:space:]]*|--split-string*) _hd_w="sh"; _hd_rest="$s"; return ;;
+            -[ugnCphUrtTDc]|-[ugnCphUrtTDc][[:space:]]*)
+              s="${s:2}"; s="${s#"${s%%[![:space:]]*}"}"; w="${s%%[[:space:]]*}"; s="${s:${#w}}" ;;
+            -*) w="${s%%[[:space:]]*}"; s="${s:${#w}}" ;;
+            *) break ;;
+          esac
+        done
+        continue ;;
+    esac
+    w="${w%%[\"\']*}"
+    [[ "$w" == */* && "$w" != '$'* ]] && w="${w##*/}"
+    _hd_w="$w"; _hd_rest="$s"
+    return
+  done
+}
+
+# _bdb_hd_scan_body <first> <last> <quoted> — per-segment scan of
+# _bdb_hd_L[first..last]. Sets _hd_kept (fence-verb segments, one per line),
+# _hd_synth (variable-command segments rewritten as rm/git/kubectl) and
+# _hd_full (1 = the body needs the full scan).
+_bdb_hd_scan_body() {
+  local k l t seg
+  _hd_kept="" _hd_synth="" _hd_full=0
+  for ((k = $1; k <= $2; k++)); do
+    l="${_bdb_hd_L[k]}"
+    [[ "$l" == *'<<'* ]] && _hd_full=1
+    if (( ! $3 )); then
+      case "$l" in *'$('*|*'`'*|*'<('*|*'>('*) _hd_full=1 ;; esac
+    fi
+    t="${l//'&&'/$'\n'}"; t="${t//'||'/$'\n'}"; t="${t//'|'/$'\n'}"; t="${t//';'/$'\n'}"; t="${t//'&'/$'\n'}"
+    while :; do
+      seg="${t%%$'\n'*}"
+      _bdb_hd_segword "$seg"
+      if [[ -n "$_hd_w" ]]; then
+        # Under a quoted delimiter a backtick is literal text (r256-1): strip it from
+        # the kept segment so the later backtick normalisation cannot turn prose such
+        # as "git merge main; see `git merge spike/x` later" into a substitution.
+        (( $3 )) && _hd_rest="${_hd_rest//\`/}"
+        if [[ "$_hd_w" =~ $_bdb_hd_re_varw ]]; then
+          _hd_full=1
+          _hd_synth="${_hd_synth}rm${_hd_rest}"$'\n'"git${_hd_rest}"$'\n'"kubectl${_hd_rest}"$'\n'
+        elif _bdb_hd_is_destructive "$_hd_w"; then
+          _hd_kept="${_hd_kept}${_hd_w}${_hd_rest}"$'\n'
+        elif _bdb_hd_is_interp "$_hd_w" || _bdb_hd_is_runner "$_hd_w"; then
+          _hd_full=1
+        fi
+      fi
+      [[ "$t" == *$'\n'* ]] || break
+      t="${t#*$'\n'}"
+    done
+  done
+}
+
+# _bdb_hd_same_line_exec <basename> <header idx> <body first> <body last>
+# → 0 when the target is named anywhere else in the command outside a safe
+# reader (it may be executed, sourced, made executable, copied or moved).
+_bdb_hd_same_line_exec() {
+  local b="$1" hi="$2" bf="$3" bl="$4" k nt t u c cw seg_has pipe start j own
+  for ((k = 0; k < _bdb_hd_n; k++)); do
+    (( k >= bf && k <= bl )) && continue
+    [[ "${_bdb_hd_L[k]}" == *"$b"* ]] || continue
+    _bdb_hd_tokenize "${_bdb_hd_L[k]}" || return 0
+    nt=${#_bdb_hd_tok[@]}
+    start=0 pipe=0
+    for ((j = 0; j <= nt; j++)); do
+      t="${_bdb_hd_tok[j]:-}"
+      if (( j < nt )) && ! [[ "$t" =~ ^(';'|';;'|'&'|'&&'|'||'|'('|')'|'|'|'|&')$ ]]; then continue; fi
+      # segment [start, j)
+      own=0
+      (( k == hi && pipe == _hd_pipe_saved )) && own=1
+      if (( ! own )); then
+        seg_has=0 cw=""
+        for ((c = start; c < j; c++)); do
+          u="${_bdb_hd_tok[c]}"; u="${u//[\"\']/}"; u="${u##*/}"
+          [[ "$u" == "$b" ]] && seg_has=1
+        done
+        if (( seg_has )); then
+          _bdb_hd_segword "${_bdb_hd_tok[*]:start:j-start}"
+          cw="$_hd_w"
+          if ! _bdb_hd_is_safe_reader "$cw" || [[ "$cw" == "$b" ]]; then return 0; fi
+        fi
+      fi
+      case "$t" in '|'|'|&') ;; *) pipe=$((pipe + 1)) ;; esac
+      start=$((j + 1))
+    done
+  done
+  return 1
+}
+
+# _bdb_heredoc_scrub <command> — print the scrub copy (non-executing heredoc
+# bodies reduced to their fence-verb segments) and set _bdb_hd_class to the
+# most executing class seen (interpreter > none > nonexec; none if no heredoc).
+_bdb_heredoc_scrub() {
+  local text="${1:-}" out="" i j found l cls ctx=0 seen="" d first
+  _bdb_hd_class=none
+  text="${text//$'\r\n'/$'\n'}"
+  if [[ "$text" =~ $_bdb_hd_re_ctl ]]; then _bdb_hd_class=interpreter; printf '%s' "${1:-}"; return; fi
+  text="${text%$'\n'}"
+  _bdb_hd_L=()
+  while IFS= read -r l; do _bdb_hd_L[${#_bdb_hd_L[@]}]="$l"; done <<< "$text"
+  _bdb_hd_n=${#_bdb_hd_L[@]}
+  i=0
+  while (( i < _bdb_hd_n )); do
+    l="${_bdb_hd_L[i]}"
+    if [[ "$l" != *'<<'* ]]; then
+      out="$out$l"$'\n'
+      (( ctx )) || ! _bdb_hd_ctx_bad "$l" || ctx=1
+      i=$((i + 1)); continue
+    fi
+    _bdb_hd_header "$l"
+    if (( _hd_ops == 0 )); then
+      out="$out$l"$'\n'
+      (( ctx )) || ! _bdb_hd_ctx_bad "$l" || ctx=1
+      i=$((i + 1)); continue
+    fi
+    if (( _hd_ops != 1 )); then _bdb_hd_class=interpreter; printf '%s' "${1:-}"; return; fi
+    found=-1
+    for ((j = i + 1; j < _bdb_hd_n; j++)); do
+      d="${_bdb_hd_L[j]}"
+      if (( _hd_tabs )); then while [[ "$d" == $'\t'* ]]; do d="${d#$'\t'}"; done; fi
+      if [[ "$d" == "$_hd_delim" ]]; then found=$j; break; fi
+    done
+    if (( found < 0 )); then _bdb_hd_class=interpreter; printf '%s' "${1:-}"; return; fi
+    cls="$_hd_cls"
+    (( ctx )) && cls=interpreter
+    _hd_pipe_saved="$_hd_pipe"
+    if [[ "$cls" == nonexec ]]; then
+      first="${_bdb_hd_L[i+1]:-}"
+      (( i + 1 < found )) || first=""
+      first="${first#"${first%%[![:blank:]]*}"}"
+      [[ "$first" == '#!'* ]] && cls=interpreter
+    fi
+    if [[ "$cls" == nonexec ]]; then
+      local -a dests
+      dests=(${_hd_dests[@]+"${_hd_dests[@]}"})
+      for d in ${dests[@]+"${dests[@]}"}; do
+        if _bdb_hd_exec_dest "$d" || _bdb_hd_same_line_exec "${d##*/}" "$i" $((i + 1)) $((found - 1)); then
+          cls=interpreter; break
+        fi
+      done
+    fi
+    _bdb_hd_scan_body $((i + 1)) $((found - 1)) "$_hd_quoted"
+    out="$out$l"$'\n'
+    if [[ "$cls" == nonexec ]] && (( ! _hd_full )); then
+      # #1245 special case: a standalone quoted `cat <<'W' [> path]` drops it all.
+      if ! (( i == 0 && found == _bdb_hd_n - 1 && _hd_quoted )) || ! _bdb_hd_plain_cat "$l"; then
+        out="$out$_hd_kept"
+      fi
+    else
+      [[ "$cls" == nonexec ]] && cls=interpreter
+      for ((j = i + 1; j < found; j++)); do out="$out${_bdb_hd_L[j]}"$'\n'; done
+      out="$out$_hd_synth"
+    fi
+    out="$out${_bdb_hd_L[found]}"$'\n'
+    (( ctx )) || ! _bdb_hd_ctx_bad "$l" || ctx=1
+    case "$cls" in
+      interpreter) seen=interpreter ;;
+      none) [[ "$seen" == interpreter ]] || seen=none ;;
+      nonexec) [[ -n "$seen" ]] || seen=nonexec ;;
+    esac
+    i=$((found + 1))
+  done
+  _bdb_hd_class="${seen:-none}"
+  printf '%s' "${out%$'\n'}"
+}
+
+# The #1245 header grammar (byte-identical to _bdb_scrub_cat_heredoc's).
+_bdb_hd_plain_cat() {
+  local header="${1:-}" marker candidate
+  local delimiter_re="<<(-?)('([[:alnum:]_]+)'|\"([[:alnum:]_]+)\")"
+  local path_re="([[:alnum:]_./-]+|'[[:alnum:]_ ./-]+'|\"[[:alnum:]_ ./-]+\")"
+  local header_re="^[[:blank:]]*cat[[:blank:]]+(HEREDOC([[:blank:]]+>>?[[:blank:]]*${path_re})?|>>?[[:blank:]]*${path_re}[[:blank:]]+HEREDOC)[[:blank:]]*$"
+  [[ "$header" =~ $delimiter_re ]] || return 1
+  marker="${BASH_REMATCH[0]}"
+  candidate="${header/"$marker"/HEREDOC}"
+  [[ "$candidate" =~ $header_re ]]
+}
+
+# Knob: destructive_command_guard.heredoc_classifier in the repo's
+# .loa.config.yaml (read once, no fork, only for commands holding `<<`).
+# Only an explicit false|no|off turns it off; turning it off only tightens.
+_bdb_heredoc_knob_on() {
+  local cfg="${LOA_REPO_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.loa.config.yaml" content="" l in_blk=0
+  [[ -f "$cfg" && -r "$cfg" ]] || return 0
+  IFS= read -r -d '' content < "$cfg" || true
+  [[ "$content" == *heredoc_classifier* ]] || return 0
+  while IFS= read -r l; do
+    case "$l" in
+      destructive_command_guard:*) in_blk=1; continue ;;
+      [A-Za-z_]*) in_blk=0; continue ;;
+    esac
+    if (( in_blk )) && [[ "$l" =~ $_bdb_hd_re_knob ]]; then
+      case "${BASH_REMATCH[1]}" in false|False|FALSE|no|No|NO|off|Off|OFF) return 1 ;; esac
+    fi
+  done <<< "$content"
+  return 0
+}
+
+# Exported entry points (source with BDB_LIB_ONLY=1).
+_bdb_heredoc_consumer_class() {
+  local LC_ALL=C
+  _bdb_heredoc_scrub "${1:-}" >/dev/null
+  printf '%s\n' "$_bdb_hd_class"
+}
+heredoc_nonexec() {
+  [[ "$(_bdb_heredoc_consumer_class "${1:-}")" == nonexec ]]
+}
+
+# Library mode: only when SOURCED. Executed with BDB_LIB_ONLY=1 the hook runs
+# normally — an environment variable can never switch the fence off.
+if [[ "${BDB_LIB_ONLY:-}" == "1" && "${BASH_SOURCE[0]:-}" != "${0:-}" ]]; then
+  return 0
+fi
+
 # -----------------------------------------------------------------------------
 # jq presence probe (SDD §6.5 — SKP-008 mitigation, not full fix).
 # If jq is absent, the input parse on line ~120 returns empty → existing
@@ -403,16 +1055,132 @@ _bdb_scrub_literal_program() {
   printf '%s' "$text"
 }
 
-# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).
-# The echo scrub must run last: it can otherwise consume a closing quote in
-# metadata containing "; echo ..." and make a later live write look quoted.
-# (bash loops, each guarded by a cheap literal test so the benign path pays
-# nothing beyond the substring check).
+# -----------------------------------------------------------------------------
+# cycle-129 r256-1 (sprint-256 review HIGH-1): a backtick pair outside single
+# quotes is a command substitution exactly like `$( … )` — in plain text, inside
+# double quotes, in an assignment and in an unquoted heredoc body — but every
+# rule anchors on `(`, `;`, `&&`, `|`, whitespace or a quote and none on a
+# backtick, so `echo "see \`git push --force origin main\`"` matched nothing
+# while its `$( )` twin blocked (identical on main 864069f2). Normalise before
+# the rules run: the 1st, 3rd, … backtick outside single quotes becomes `$(`,
+# the 2nd, 4th, … becomes `)`; a backslash escapes the next character outside
+# single quotes (an escaped backtick stays literal); inside single quotes
+# nothing changes. Kept segments of a quoted-delimiter heredoc body have their
+# literal backticks stripped by _bdb_hd_scan_body before this runs. Fast path
+# (no single quote, no backslash in the text): alternate by position; the
+# char loop runs only when quoting has to be tracked. Costs one substring test
+# on the common path.
+# -----------------------------------------------------------------------------
+# Heredoc bodies are raw text (no shell quoting applies inside them): under an
+# unquoted delimiter every backtick is a substitution, under a quoted one every
+# backtick is literal — so the normaliser walks the command line by line, uses
+# _bdb_hd_header to find each heredoc's delimiter and quoting, and applies the
+# body rule to body lines and shell-quote tracking (_bt_q) to the rest. If the
+# shell text's quotes do not balance at the end (an apostrophe in prose, an
+# unreadable header, two heredocs on one line) the whole shell text is redone
+# with quoting ignored: fail closed, never literal by accident.
+# _bdb_bt_alt_line <line>  → _bt_out: plain alternation (state _bt_open)
+# _bdb_bt_shell_line <line> → _bt_out: alternation outside single quotes
+_bt_out="" _bt_open=0 _bt_q="" _bt_force=0
+_bdb_bt_alt_line() {
+  local s="${1:-}" i n ch
+  _bt_out=""
+  [[ "$s" == *'`'* ]] || { _bt_out="$s"; return; }
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$ch" == '\' ]]; then
+      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
+    fi
+    if [[ "$ch" == '`' ]]; then
+      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
+      continue
+    fi
+    _bt_out+="$ch"
+  done
+}
+_bdb_bt_shell_line() {
+  local s="${1:-}" i n ch
+  if (( _bt_force )); then _bdb_bt_alt_line "$s"; return; fi
+  if [[ "$s" != *'`'* && "$s" != *"'"* && "$s" != *'"'* && "$s" != *'\'* ]]; then _bt_out="$s"; return; fi
+  _bt_out=""
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$_bt_q" == "'" ]]; then
+      [[ "$ch" == "'" ]] && _bt_q=""
+      _bt_out+="$ch"; continue
+    fi
+    if [[ "$ch" == '\' ]]; then
+      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
+    fi
+    if [[ "$ch" == '`' ]]; then
+      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
+      continue
+    fi
+    if [[ -z "$_bt_q" && "$ch" == "'" ]]; then _bt_q="'"
+    elif [[ "$ch" == '"' ]]; then
+      if [[ "$_bt_q" == '"' ]]; then _bt_q=""; else _bt_q='"'; fi
+    fi
+    _bt_out+="$ch"
+  done
+}
+_bdb_backtick_norm() {
+  local s="${1:-}"
+  [[ "$s" == *'`'* ]] || { printf '%s' "$s"; return; }
+  local -a L
+  local l n i out="" body=0 delim="" quoted=0 tabs=0 d pass
+  L=()
+  while IFS= read -r l || [[ -n "$l" ]]; do L[${#L[@]}]="$l"; done <<< "$s"
+  n=${#L[@]}
+  for pass in 1 2; do
+    out="" body=0 _bt_open=0 _bt_q="" _bt_force=0
+    (( pass == 2 )) && _bt_force=1
+    for ((i = 0; i < n; i++)); do
+      l="${L[i]}"
+      if (( body )); then
+        d="$l"
+        if (( tabs )); then while [[ "$d" == $'\t'* ]]; do d="${d#$'\t'}"; done; fi
+        if [[ "$d" == "$delim" ]]; then body=0; _bt_open=0; out+="$l"$'\n'; continue; fi
+        if (( quoted )); then out+="$l"$'\n'; else _bdb_bt_alt_line "$l"; out+="$_bt_out"$'\n'; fi
+        continue
+      fi
+      _bdb_bt_shell_line "$l"; out+="$_bt_out"$'\n'
+      if [[ "$l" == *'<<'* ]]; then
+        _bdb_hd_header "$l"
+        if (( _hd_ops == 1 )); then body=1; delim="$_hd_delim"; quoted=$_hd_quoted; tabs=$_hd_tabs; _bt_open=0
+        elif (( _hd_ops != 0 )); then _bt_force=1   # unreadable header or several heredocs: fail closed from here
+        fi
+      fi
+    done
+    [[ -z "$_bt_q" ]] && break          # balanced quotes: done; else pass 2 ignores quoting
+  done
+  out="${out%$'\n'}"
+  [[ "$s" == *$'\n' ]] && out+=$'\n'
+  printf '%s' "$out"
+}
+
+# Heredoc scrub, then backtick normalisation, then quoted-value carriers, then
+# echo/printf (sed). The echo scrub must run last: it can otherwise consume a
+# closing quote in metadata containing "; echo ..." and make a later live write
+# look quoted. (bash loops, each guarded by a cheap literal test so the benign
+# path pays nothing beyond the substring check).
 _cmd_match="$command"
 if [[ "$_cmd_match" == *"for "* || "$_cmd_match" == *"python"* ]]; then
   _cmd_match=$(_bdb_scrub_literal_program "$_cmd_match")
 fi
-[[ "$_cmd_match" == *"<<"* ]] && _cmd_match=$(_bdb_scrub_cat_heredoc "$_cmd_match")
+# cycle-129 FR-6: with destructive_command_guard.heredoc_classifier on (the
+# default) the fail-closed consumer classifier above replaces the #1245 scrub,
+# which survives unchanged as its special case and as the knob-off path.
+if [[ "$_cmd_match" == *"<<"* ]]; then
+  if _bdb_heredoc_knob_on; then
+    _cmd_match=$(_bdb_heredoc_scrub "$_cmd_match")
+  else
+    _cmd_match=$(_bdb_scrub_cat_heredoc "$_cmd_match")
+  fi
+fi
+# cycle-129 r256-1: backtick substitutions take the `$( )` form the rules anchor on
+[[ "$_cmd_match" == *'`'* ]] && _cmd_match=$(_bdb_backtick_norm "$_cmd_match")
 [[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
 if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
   _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
@@ -525,7 +1293,8 @@ emit_block() {
       --arg team_member "${LOA_TEAM_MEMBER:-}" \
       --arg pattern_id "$pattern_id" \
       --arg matched "$sanitized_match" \
-      '{ts: $ts, tool: "Bash", command: $cmd, exit_code: 2, cwd: $cwd, model: $model, provider: $provider, trace_id: $trace_id, team_id: $team_id, team_member: $team_member, hook: "block-destructive-bash", action: "block", pattern_id: $pattern_id, matched: $matched}' \
+      --arg replay "${LOA_AUDIT_REPLAY:-}" \
+      '{ts: $ts, tool: "Bash", command: $cmd, exit_code: 2, cwd: $cwd, model: $model, provider: $provider, trace_id: $trace_id, team_id: $team_id, team_member: $team_member, hook: "block-destructive-bash", action: "block", pattern_id: $pattern_id, matched: $matched} + (if $replay == "1" then {replay: true} else {} end)' \
       >> "${LOA_REPO_ROOT:-.}/.run/audit.jsonl" 2>/dev/null || true
   } 2>/dev/null || true
 
@@ -541,6 +1310,7 @@ check_and_block() {
   if echo "$command" | grep -qE "$pattern" 2>/dev/null; then
     local matched
     matched=$(echo "$command" | grep -oE "$pattern" | head -1)
+    # @guard fence:LEGACY
     emit_block "LEGACY" "$matched" "$message"
   fi
 }
@@ -550,6 +1320,40 @@ check_and_block() {
 # =============================================================================
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# FR-GH-1 — gh api with a destructive method (DELETE, PUT, PATCH; `-X`, `-XDELETE`,
+# `--method`, `--method=`) against refs, branch protection, tags, releases or the
+# repository itself (cycle-129 sprint-256 audit HIGH-A1). The porcelain twins are
+# governed by P2 (force push), P5 (branch force-delete) and SP-1 (spike pushes);
+# the REST escape hatch was not. GET, POST and PATCH on issues or pulls stay allowed.
+# Judged on the carrier-scrubbed command: the gh scrub redacts --body/--title
+# values only, so the path and the method remain visible. Placed OUTSIDE the
+# git-family pre-filter below: a gh api call need not contain the word git.
+# -----------------------------------------------------------------------------
+if [[ "$command" == *"gh"* && "$command" == *"api"* ]]; then
+  # REST form: a destructive method — literal DELETE|PUT|PATCH, or a NON-literal value
+  # (`-X "$M"`, `--method=$m`), which cannot be judged and is treated as destructive —
+  # against a protected path. The path may carry an optional https://HOST(/api/v3)
+  # prefix or a leading slash (audit r256-5, dissent DISS-C-003).
+  _ghapi_path='(https?://[^/[:space:];&|]+(/api/v3)?)?/?repos/[^/[:space:];&|]+/[^/[:space:];&|]+'
+  if { _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
+       || _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?[$]'; } \
+     && _match 'gh[[:space:]]+api[[:space:]][^;&|]*'"${_ghapi_path}"'(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|(["'"'"'[:space:];&|]|$))'; then
+    matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+    # @guard fence:FR-GH-1
+    emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH (or a method the fence cannot read) on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+  fi
+  # GraphQL form: the mutations that delete or rewrite refs, branch protection or the
+  # repository (audit r256-5, dissent DISS-C-003).
+  if [[ "$command" == *"graphql"* ]] \
+     && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?graphql([[:space:]]|$)' \
+     && _match_ci '(deleteref|deletebranchprotectionrule|updatebranchprotectionrule|createbranchprotectionrule|deleterepository|updaterepository|deleterelease)[[:space:]]*\('; then
+    matched=$(echo "$command" | grep -oiE '(deleteRef|deleteBranchProtectionRule|updateBranchProtectionRule|createBranchProtectionRule|deleteRepository|updateRepository|deleteRelease)[[:space:]]*\(' | head -1)
+    # @guard fence:FR-GH-1
+    emit_block "FR-GH-1" "gh api graphql ${matched}" "gh api graphql with a mutation that deletes or rewrites refs, branch protection, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+  fi
+fi
+
 # pass-8 git-family pre-filter (wraps P2, P2b, P3, P4, P5, P6, P7).
 # NECESSITY PROOF (`git`): each of the eight EREs inside this block contains
 # the literal run `git` as a mandatory concatenation element (it sits outside
@@ -573,11 +1377,13 @@ if [[ "$command" == *"push"* ]]; then
   if [[ "$command" == *"--force"* ]] \
      && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+push[[:space:]]+.*--force($|[^-])'; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]]+push[[:space:]]+.*--force[^-]?' | head -1)
+    # @guard fence:P2
     emit_block "P2" "$matched" "git push --force detected. Use --force-with-lease for safer force push, or push to a feature branch."
   fi
   if [[ "$command" == *"-f"* ]] \
      && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+push[[:space:]]+.*-f($|[[:space:]])'; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]]+push[[:space:]]+.*-f' | head -1)
+    # @guard fence:P2b
     emit_block "P2b" "$matched" "git push -f detected. Use --force-with-lease for safer force push, or push to a feature branch."
   fi
 fi
@@ -590,6 +1396,7 @@ fi
 if [[ "$command" == *"reset"* && "$command" == *"--hard"* ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+reset[[:space:]]+--hard'; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+reset[[:space:]]+--hard[^[:space:]]*' | head -1)
+  # @guard fence:P3
   emit_block "P3" "$matched" "git reset --hard discards uncommitted work. Use 'git stash' to save changes, or 'git reset --soft' to keep them staged."
 fi
 
@@ -612,6 +1419,7 @@ if [[ "$command" == *"clean"* ]]; then
 fi
 if [[ "$has_clean_f" == "true" && "$has_clean_n" == "false" ]]; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]+' | head -1)
+  # @guard fence:P4
   emit_block "P4" "$matched" "git clean -f without dry-run. Run 'git clean -nd' first to preview what would be deleted."
 fi
 
@@ -713,6 +1521,7 @@ if [[ "$command" == *"branch"* && "$command" == *"-"* ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+branch[[:space:]]+(-[a-zA-Z]*D[a-zA-Z]*|--delete[[:space:]]+--force|--force[[:space:]]+--delete|-d[[:space:]]+-f|-f[[:space:]]+-d|--delete([^[:alnum:]_].*)?--force|--force([^[:alnum:]_].*)?--delete)' \
    && ! _fr11_all_merged; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+branch[[:space:]]+[^[:space:]&|;]+([[:space:]]+[^[:space:]&|;]+)?' | head -1)
+  # @guard fence:FR-1.1
   emit_block "FR-1.1" "$matched" "git branch -D loses unmerged work. Use 'git branch -d' (lowercase) — it refuses to drop branches with unmerged commits. A branch already merged into main/master is allowed, and so is a spike/<slug> branch that is fully pushed to origin and whose verdict row (source grimoires/loa/spikes/<slug>.md) is decided; for squash-merged branches use .claude/scripts/git-branch-prune.sh."
 fi
 
@@ -729,6 +1538,7 @@ fi
 if [[ "$command" == *"stash"* && ( "$command" == *"drop"* || "$command" == *"clear"* ) ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+stash[[:space:]]+(drop|clear)($|[^[:alnum:]_])'; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+stash[[:space:]]+(drop|clear)([[:space:]]+[^[:space:]&|;]+)?' | head -1)
+  # @guard fence:FR-1.2
   emit_block "FR-1.2" "$matched" "git stash {drop,clear} permanently destroys stashed work. Run 'git stash list' first; consider 'git stash show' / 'git stash apply' before dropping."
 fi
 
@@ -743,6 +1553,7 @@ fi
 # alternation order + explicit true operand.
 # pass-8 pre-filter: `stash` plus one of the swallow literals.
 # -----------------------------------------------------------------------------
+# @guard fence:FR-1.2b
 if [[ "$command" == *"stash"* && ( "$command" == *"tail"* || "$command" == *"head"* || "$command" == *"/dev/null"* || "$command" == *"true"* ) ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+stash[[:space:]]+(push|pop|apply)[^;&|]*(\|[[:space:]]*(tail|head)([[:space:]]|$)|\|\|[[:space:]]*true([[:space:]]*([;&|#]|$))|(&|[0-9]*)>>?[[:space:]]*/dev/null)'; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+stash[[:space:]]+(push|pop|apply)[^;&|]*.{0,20}' | head -1)
@@ -769,11 +1580,13 @@ if [[ "$command" == *"tag"* ]] \
       echo "WARNING: block-destructive-bash: LOA_ALLOW_GIT_TAG=1 — manual git tag guard bypassed this session." >&2
       export LOA_GIT_TAG_BYPASS_WARNED=1
     fi
-    jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg cwd "$PWD" \
-      '{ts: $ts, tool: "Bash", exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "allow-override", pattern_id: "FR-MERGE-2", override: "LOA_ALLOW_GIT_TAG"}' \
+    # @guard fence:FR-MERGE-2
+    jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg cwd "$PWD" --arg replay "${LOA_AUDIT_REPLAY:-}" \
+      '{ts: $ts, tool: "Bash", exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "allow-override", pattern_id: "FR-MERGE-2", override: "LOA_ALLOW_GIT_TAG"} + (if $replay == "1" then {replay: true} else {} end)' \
       >> "${LOA_REPO_ROOT:-.}/.run/audit.jsonl" 2>/dev/null || true
   else
     matched=$(echo "$command" | grep -oE 'git[[:space:]]+tag[[:space:]]+[^[:space:]&|;]+([[:space:]]+[^[:space:]&|;]+)?' | head -1)
+    # @guard fence:FR-MERGE-2
     emit_block "FR-MERGE-2" "$matched" "Manual tags bypass semver-bump.sh version computation (C-MERGE-002) — the post-merge pipeline owns tag creation. Listing forms (git tag / git tag -l) are allowed. Sanctioned override: LOA_ALLOW_GIT_TAG=1 (audited)."
   fi
 fi
@@ -821,6 +1634,7 @@ if [[ "$command" == *"checkout"* && "$command" == *"--"* ]] \
    && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^-][^[:space:]]*' \
    && ! _fr13_all_generated; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]]+checkout[[:space:]]+--[[:space:]]+[^[:space:]&|;]+' | head -1)
+  # @guard fence:FR-1.3
   emit_block "FR-1.3" "$matched" "git checkout -- <file> overwrites uncommitted changes irreversibly. Use 'git stash push <file>' to save first, or 'git restore --source=HEAD <file>' (explicit source). Generated paths (dist/, build/, coverage/, _generated/, lockfiles, linguist-generated) are allowed."
 fi
 
@@ -1083,6 +1897,7 @@ if [[ "$command" == *"git"* && "$command" == *"alias."* ]]; then
   if _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?git[[:space:]]([^;&|]*[[:space:]])?(-c[[:space:]]*|--config-env[=[:space:]])["'"'"']?alias\.' \
      || _sp1_alias_def; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*alias\.[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_alias_msg"
   fi
 fi
@@ -1091,6 +1906,7 @@ if [[ "$command" == *"git"* && "$command" == *"push"* ]] \
    && [[ "$command" == *":"* || "$command" == *"spike/"* ]] \
    && _sp1_push_refspec; then
   matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*push[^;&|]*' | head -1)
+  # @guard fence:SP-1
   emit_block "SP-1" "$matched" "$_sp1_msg"
 fi
 
@@ -1098,36 +1914,43 @@ if [[ "$command" == *"spike/"* ]]; then
   if [[ "$command" == *"git"* ]] \
      && _sp1_match "${_sp1_git}"'(merge|rebase|pull|cherry-pick|reset|read-tree|update-ref)'"${_sp1_span}"'[^[:alnum:]_]["'"'"']?spike/'; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]].*(merge|rebase|pull|cherry-pick|reset|read-tree|update-ref)[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"git"* && "$command" == *"checkout"* ]] \
      && { _sp1_match "${_sp1_git}"'checkout[[:space:]]([^;&|]*[[:space:]])?'"${_sp1_ref}"'[^;&|]*[[:space:]]--([[:space:]]|$)' \
           || _sp1_checkout_copies; }; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]].*checkout[^;&|]*spike/[^;&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"git"* && "$command" == *"restore"* ]] \
      && _sp1_match "${_sp1_git}"'restore([[:space:]][^;&|]*)?[[:space:]](--source[=[:space:]]+|-s[[:space:]]*)'"${_sp1_ref}"; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]].*restore[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"git"* && "$command" == *"branch"* ]] && _sp1_branch_moves; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*branch[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"git"* && "$command" == *"fetch"* && "$command" == *"FETCH_HEAD"* ]] && _sp1_fetch_head; then
     matched=$(echo "$command" | grep -oE 'git[[:space:]][^;&|]*fetch[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"gh"* ]] \
      && _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]][^;&|]*)?[[:space:]](--head[=[:space:]]+|-H[[:space:]]*)["'"'"']?([^[:space:];&|"'"'"']*:)?spike/'; then
     matched=$(echo "$command" | grep -oE 'gh[[:space:]]+pr[[:space:]]+create[^;&|]*spike/[^[:space:];&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
   if [[ "$command" == *"gh"* && "$command" == *"/pulls"* && "$command" == *"head="* ]] \
      && { _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]][^;&|]*/pulls[^;&|]*[^[:alnum:]_]head=["'"'"']?([^[:space:];&|"'"'"']*:)?spike/' \
           || _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]][^;&|]*[^[:alnum:]_]head=["'"'"']?([^[:space:];&|"'"'"']*:)?spike/[^;&|]*/pulls'; }; then
     matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+    # @guard fence:SP-1
     emit_block "SP-1" "$matched" "$_sp1_msg"
   fi
 fi
@@ -1136,6 +1959,7 @@ if [[ "$command" == *"gh"* && "$command" == *"create"* ]] \
    && ! _sp1_match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+pr[[:space:]]+create[^;&|]*[[:space:]](--head|-H)([=[:space:]]|[^[:space:]])'; then
   _sp1_cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
   if [[ "$_sp1_cur" == spike/* ]]; then
+    # @guard fence:SP-1
     emit_block "SP-1" "gh pr create (on $_sp1_cur)" "$_sp1_msg"
   fi
 fi
@@ -1180,6 +2004,7 @@ fi
 if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"drop"* ]] \
    && _match_ci '(^|[^[:alnum:]_])(drop[[:space:]]+(database|table|schema))($|[^[:alnum:]_])'; then
   matched=$(echo "$command" | grep -oiE '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))[[:space:]]+[^;]*' | head -1)
+  # @guard fence:FR-1.4
   emit_block "FR-1.4" "$matched" "DROP {DATABASE,TABLE,SCHEMA} is irreversible. If this is a migration, run via your migration tool with explicit confirmation; otherwise temporarily disable the hook for the next command only."
 fi
 
@@ -1197,6 +2022,7 @@ fi
 if [[ $_sql_runner -eq 1 && "$_cmd_lc" == *"truncate"* ]] \
    && _match_ci '(^|[^[:alnum:]_])truncate[[:space:]]+(table[[:space:]]+)?("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)'; then
   matched=$(echo "$command" | grep -oiE '\bTRUNCATE[[:space:]]+(TABLE[[:space:]]+)?("[^"]+"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)' | head -1)
+  # @guard fence:FR-1.5
   emit_block "FR-1.5" "$matched" "TRUNCATE wipes the table. Use 'DELETE FROM <table> WHERE ...' for scoped row removal, or run in a transaction with explicit operator approval."
 fi
 
@@ -1229,6 +2055,7 @@ if [[ -n "$delete_stmts" ]]; then
   while IFS= read -r delete_stmt; do
     [[ -z "$delete_stmt" ]] && continue
     if ! echo "$delete_stmt" | grep -qiE '\bWHERE\b' 2>/dev/null; then
+      # @guard fence:FR-1.6
       emit_block "FR-1.6" "$delete_stmt" "DELETE FROM without WHERE removes all rows. Add a WHERE clause."
     fi
   done <<<"$delete_stmts"
@@ -1251,6 +2078,7 @@ if [[ "$command" == *"kubectl"* && "$command" == *"delete"* ]]; then  # ── p
 # -----------------------------------------------------------------------------
 if _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?kubectl([[:space:]]+(-[a-zA-Z]+([[:space:]]+|=)[^[:space:]]+|--[a-zA-Z][a-zA-Z0-9-]*(=[^[:space:]]+|[[:space:]]+[^[:space:]-]+)?))*[[:space:]]+delete[[:space:]]+(ns|namespace|namespaces)[[:space:]]+[a-zA-Z0-9_-]+'; then
   matched=$(echo "$command" | grep -oE 'kubectl[^;&|]*delete[[:space:]]+(ns|namespace|namespaces)[[:space:]]+[a-zA-Z0-9_-]+' | head -1)
+  # @guard fence:FR-1.7
   emit_block "FR-1.7" "$matched" "kubectl delete namespace wipes the entire namespace and everything inside it. Use 'kubectl delete -n <ns> -l <selector>' for scoped deletion, or temporarily disable the hook."
 fi
 
@@ -1265,6 +2093,7 @@ fi
 # -----------------------------------------------------------------------------
 if _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*(sudo[[:space:]]+)?kubectl([[:space:]]+(-[a-zA-Z]+([[:space:]]+|=)[^[:space:]]+|--[a-zA-Z][a-zA-Z0-9-]*(=[^[:space:]]+|[[:space:]]+[^[:space:]-]+)?))*[[:space:]]+delete[[:space:]]+[^[:space:]]+[^;&|]*([[:space:]]--all($|[^[:alnum:]_])|[[:space:]]-A($|[^[:alnum:]_]))'; then
   matched=$(echo "$command" | grep -oE 'kubectl[^;&|]*delete[^;&|]*(--all|-A)' | head -1)
+  # @guard fence:FR-1.8
   emit_block "FR-1.8" "$matched" "kubectl delete --all / -A removes all resources in scope. Use label selectors instead: 'kubectl delete <type> -l app=<X>'."
 fi
 
@@ -1336,8 +2165,9 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
       [[ ${#_sz_cmd} -gt 2048 ]] && _sz_cmd="${_sz_cmd:0:2048}[...TRUNCATED]"
       mkdir -p "${LOA_REPO_ROOT:-.}/.run" 2>/dev/null || true
       TZ=UTC0 printf -v _sz_ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1
-      jq -cn --arg ts "$_sz_ts" --arg cmd "$_sz_cmd" --arg cwd "$PWD" \
-        '{ts: $ts, tool: "Bash", command: $cmd, exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "bypass", pattern_id: "FR-SZ"}' \
+      # @guard fence:FR-SZ
+      jq -cn --arg ts "$_sz_ts" --arg cmd "$_sz_cmd" --arg cwd "$PWD" --arg replay "${LOA_AUDIT_REPLAY:-}" \
+        '{ts: $ts, tool: "Bash", command: $cmd, exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "bypass", pattern_id: "FR-SZ"} + (if $replay == "1" then {replay: true} else {} end)' \
         >> "${LOA_REPO_ROOT:-.}/.run/audit.jsonl" 2>/dev/null || true
     } 2>/dev/null || true
   else
@@ -1347,12 +2177,14 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     # SZ-REDIR: redirect (any fd / append / noclobber-override) INTO a protected file.
     if echo "$_cmd_match" | grep -qE "([0-9]*|&)?>>?\\|?[[:space:]]*['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE ">>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}" | head -1)
+      # @guard fence:FR-SZ-REDIR
       emit_block "FR-SZ-REDIR" "$matched" "Redirect-write to a State-Zone executable/lifecycle path. These are generator/approval-only. Run the owning generator/skill, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 for an audited override."
     fi
 
     # SZ-TEE: tee writes ALL its file operands (any position, short or long flags).
     if echo "$_cmd_match" | grep -qE "\\btee\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "${_sz_file}" | head -1)
+      # @guard fence:FR-SZ-TEE
       emit_block "FR-SZ-TEE" "$matched" "tee-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
@@ -1362,18 +2194,21 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     if echo "$_cmd_match" | grep -qE "\\b(cp|mv|install|rsync)\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null \
        || echo "$_cmd_match" | grep -qE "\\b(cp|mv|install|ln)\\b[^|;&]*[[:space:]](-t|--target-directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}" | head -1)
+      # @guard fence:FR-SZ-COPY
       emit_block "FR-SZ-COPY" "$matched" "copy/move into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-LINK: ln with a protected linkname as last operand (positional dest).
     if echo "$_cmd_match" | grep -qE "\\bln\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}" | head -1)
+      # @guard fence:FR-SZ-LINK
       emit_block "FR-SZ-LINK" "$matched" "symlink/hardlink into a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
     # SZ-DD: dd of=<protected file>.
     if echo "$_cmd_match" | grep -qE "\\bdd\\b[^|;&]*of=['\"]?${_sz_pre}${_sz_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "of=['\"]?${_sz_pre}${_sz_file}" | head -1)
+      # @guard fence:FR-SZ-DD
       emit_block "FR-SZ-DD" "$matched" "dd-write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
@@ -1383,6 +2218,7 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     # another file is NOT blocked.
     if echo "$_cmd_match" | grep -qE "\\b(sed|perl|awk|gawk)\\b[^|;&]*[[:space:]](-[a-zA-Z]*i[a-zA-Z.]*|--in-place)(=|[[:space:]]|['\"])[^|;&]*[[:space:]]['\"]?${_sz_pre}${_sz_tgt}['\"]?${_sz_end}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "${_sz_tgt}['\"]?${_sz_end}" | head -1)
+      # @guard fence:FR-SZ-INPLACE
       emit_block "FR-SZ-INPLACE" "$matched" "in-place edit of a State-Zone executable/lifecycle path (tamper with an approved skill or the sourced overlay). Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
@@ -1390,6 +2226,7 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     if echo "$_cmd_match" | grep -qE "\\btar\\b[^|;&]*[[:space:]](-C|--directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null \
        || echo "$_cmd_match" | grep -qE "\\bunzip\\b[^|;&]*[[:space:]]-d(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_cmd_match" | grep -oE "(-C|--directory|-d)(=|[[:space:]]+)['\"]?${_sz_pre}${_sz_tgt}" | head -1)
+      # @guard fence:FR-SZ-EXTRACT
       emit_block "FR-SZ-EXTRACT" "$matched" "archive extraction into a State-Zone executable/lifecycle path (drops cron-eligible / lifecycle files). Extract elsewhere, or set LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
 
@@ -1397,6 +2234,7 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
     # obfuscated/variable-built interpreter writes remain an accepted bypass).
     if echo "$_cmd_match" | grep -qE "\\b(python3?|python|perl|ruby|node|bash|sh)\\b[^|;&]*[[:space:]]-[ce].*(${_sz_sh}|\\.run/cron\\.d|grimoires/loa/skills)" 2>/dev/null \
        && echo "$_cmd_match" | grep -qE "(,[[:space:]]*['\"][wax]|>>?[[:space:]]*['\"]?${_sz_pre}${_sz_file}|write_text|\\.write\\b|O_WRONLY|O_CREAT|write_bytes|copyfile|copy2|shutil.copy)" 2>/dev/null; then
+      # @guard fence:FR-SZ-INTERP
       emit_block "FR-SZ-INTERP" "interpreter-inline" "naive interpreter inline write to a State-Zone executable/lifecycle path. Use the owning generator/skill, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1. (Obfuscated interpreter writes are an accepted bypass — fence, not boundary.)"
     fi
   fi
@@ -1454,29 +2292,35 @@ if [[ "$_c2_cmd" == *".claude/"* ]]; then
   if [[ -z "$_c2_authorized" ]]; then
     if echo "$_c2_cmd" | grep -qE "([0-9]*|&)?>>?\\|?[[:space:]]*['\"]?${_sz_pre}${_c2_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_c2_cmd" | grep -oE ">>?[[:space:]]*['\"]?${_sz_pre}${_c2_file}" | head -1)
+      # @guard fence:FR-SZ2-REDIR
       emit_block "FR-SZ2-REDIR" "$matched" "Direct shell write into .claude/ (System Zone — framework-managed). Use .claude/overrides/ or .loa.config.yaml for customization; upstream framework dev uses the bounded marker (.run/zone-guard-authorization.json) or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 (audited)."
     fi
     if echo "$_c2_cmd" | grep -qE "\\btee\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_c2_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_c2_cmd" | grep -oE "${_c2_file}" | head -1)
+      # @guard fence:FR-SZ2-TEE
       emit_block "FR-SZ2-TEE" "$matched" "tee-write into .claude/ (System Zone). Use overrides/config, the bounded marker, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
     if echo "$_c2_cmd" | grep -qE "\\b(cp|mv|install|rsync)\\b[^|;&]+[[:space:]]['\"]?${_sz_pre}${_c2_tgt}['\"]?${_sz_end}" 2>/dev/null \
        || echo "$_c2_cmd" | grep -qE "\\b(cp|mv|install|ln)\\b[^|;&]*[[:space:]](-t|--target-directory)(=|[[:space:]]+)['\"]?${_sz_pre}${_c2_tgt}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_c2_cmd" | grep -oE "${_c2_tgt}" | head -1)
+      # @guard fence:FR-SZ2-COPY
       emit_block "FR-SZ2-COPY" "$matched" "copy/move into .claude/ (System Zone). Use overrides/config, the bounded marker, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
     if echo "$_c2_cmd" | grep -qE "\\b(sed|perl)\\b[[:space:]][^|;&]*(-[a-zA-Z]*i[a-zA-Z]*|--in-place(=[^[:space:]]*)?)[^|;&]*[[:space:]]['\"]?${_sz_pre}${_c2_file}['\"]?" 2>/dev/null; then
       matched=$(echo "$_c2_cmd" | grep -oE "${_c2_file}" | head -1)
+      # @guard fence:FR-SZ2-INPLACE
       emit_block "FR-SZ2-INPLACE" "$matched" "in-place edit of a .claude/ file (System Zone — hook/skill tamper shape). Use overrides/config, the bounded marker, or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1."
     fi
     if echo "$_c2_cmd" | grep -qE "\\brm\\b[^|;&]*[[:space:]]['\"]?${_sz_pre}${_c2_file}${_sz_b}" 2>/dev/null; then
       matched=$(echo "$_c2_cmd" | grep -oE "rm\\b[^|;&]*${_c2_file}" | head -1 | cut -c1-80)
+      # @guard fence:FR-SZ2-RM
       emit_block "FR-SZ2-RM" "$matched" "rm of a .claude/ path (System Zone). Framework files are managed by mount/update tooling; use the bounded marker or LOA_ALLOW_STATE_ZONE_EXEC_WRITE=1 for upstream dev."
     fi
   elif [[ "$_c2_authorized" == "marker" && -z "${LOA_SZ2_MARKER_NOTED:-}" ]]; then
     export LOA_SZ2_MARKER_NOTED=1
-    jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg cwd "$PWD" \
-      '{ts: $ts, tool: "Bash", exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "allow-marker", pattern_id: "FR-SZ2"}' \
+    # @guard fence:FR-SZ2
+    jq -cn --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg cwd "$PWD" --arg replay "${LOA_AUDIT_REPLAY:-}" \
+      '{ts: $ts, tool: "Bash", exit_code: 0, cwd: $cwd, hook: "block-destructive-bash", action: "allow-marker", pattern_id: "FR-SZ2"} + (if $replay == "1" then {replay: true} else {} end)' \
       >> "${LOA_REPO_ROOT:-.}/.run/audit.jsonl" 2>/dev/null || true
   fi
 fi
@@ -1956,8 +2800,10 @@ if [[ "$command" == *"rm"* && "$command" == *"-"* ]] \
   done <<<"$rm_segments"
 
   if [[ $any_block -eq 1 ]]; then
+    # @guard fence:FR-2-BLOCK
     emit_block "FR-2-BLOCK" "$matched_arg" "rm -rf on catastrophic path '$matched_arg' (system root / home / glob / current-dir) refused. Accepted: an explicit relative VISIBLE subdirectory ('./name/'). Alternatives: 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only)."
   elif [[ $any_ambiguous -eq 1 ]]; then
+    # @guard fence:FR-2-AMBIGUOUS
     emit_block "FR-2-AMBIGUOUS" "$matched_arg" "rm -rf on an unclear path '$matched_arg'. Accepted: explicit relative VISIBLE subdirs ('./name/'), build/cache dirs by name at any depth (dist, build, coverage, node_modules, .venv, .terraform, …), bare names after a statement-initial 'cd /tmp/…', /tmp|/var/tmp paths, \$TMPDIR/<name> with a real temp TMPDIR, and a variable bound once to \$(mktemp -d) or such a path. Hidden paths ('./.name') and dot-roots are conservatively blocked — use 'trash <path>' (recoverable) or 'find <path> -mindepth 1 -delete' (contents only, works on hidden dirs too)."
   fi
   # else: every arg matched the allow list → fall through.
@@ -1983,6 +2829,7 @@ if [[ "$command" == *"NOTES.md"* ]] \
     "$_notes_guard" check --file "$_notes_file" >/dev/null 2>&1 || _notes_rc=$?
     if [[ $_notes_rc -eq 3 ]]; then
       matched=$(echo "$command" | grep -oE '>>[[:space:]]*[^;&|]*grimoires/loa/NOTES\.md' | head -1)
+      # @guard fence:FR-NOTES
       emit_block "FR-NOTES" "$matched" "grimoires/loa/NOTES.md is at or over 200 KiB — appends are refused until it is rotated. Run .claude/scripts/notes-guard.sh rotate (archives the whole file, keeps Blockers + the latest Session Continuity + the 3 newest Decision Logs) or /compound; shrinking edits and rotate itself are never blocked."
     fi
   fi

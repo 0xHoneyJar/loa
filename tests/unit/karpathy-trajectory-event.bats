@@ -17,7 +17,14 @@ setup() {
     command -v yq >/dev/null 2>&1 || skip "yq not available"
 
     TMP_DIR="$(mktemp -d)"
-    export KARPATHY_TASK_STATE="$TMP_DIR/task-state.jsonl"
+    # cycle-129 D-4.3: per-task state under KARPATHY_STATE_DIR; with no run in
+    # progress (empty LOA_RUN_DIR) the key is the session id.
+    export KARPATHY_STATE_DIR="$TMP_DIR/state"
+    export KARPATHY_SUMMARY_FILE="$TMP_DIR/summary.json"
+    export KARPATHY_LEGACY_STATE="$TMP_DIR/legacy-task-state.jsonl"
+    export LOA_RUN_DIR="$TMP_DIR/run"
+    export LOA_SESSION_ID="test-session"
+    KARPATHY_TASK_STATE="$KARPATHY_STATE_DIR/test-session.jsonl"
     export KARPATHY_TRAJECTORY_DIR="$TMP_DIR/trajectory"
     export LOA_CONFIG_OVERRIDE="$TMP_DIR/config.yaml"
     cat > "$LOA_CONFIG_OVERRIDE" <<EOF

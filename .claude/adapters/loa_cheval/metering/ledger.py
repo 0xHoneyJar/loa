@@ -23,6 +23,7 @@ from loa_cheval.metering.pricing import (
     PricingEntry,
     calculate_total_cost,
     find_pricing,
+    pricing_source_for,
 )
 from loa_cheval.types import ConfigError
 
@@ -165,7 +166,8 @@ def create_ledger_entry(
             cache_creation_tokens=cache_creation_tokens,
         )
         cost_micro_usd = breakdown.total_cost_micro
-        pricing_source = "config"
+        # cycle-129 D-7.6: `stale_catalog` when the entry's price_date is past the freshness window (WARNed once)
+        pricing_source = pricing_source_for(pricing)
         pricing_mode = pricing.pricing_mode
         long_context_applied = bool(getattr(breakdown, "long_context_applied", False))
     else:
@@ -195,7 +197,7 @@ def create_ledger_entry(
 
     if interaction_id:
         entry["interaction_id"] = interaction_id
-    if pricing_source == "config" and pricing is not None:
+    if pricing_source in ("config", "stale_catalog") and pricing is not None:
         entry["pricing_resolution"] = pricing.resolution
         if usage_source != "actual":
             entry["cost_estimated"] = True

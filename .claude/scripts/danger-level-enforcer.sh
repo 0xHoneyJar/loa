@@ -131,15 +131,15 @@ get_danger_level() {
     echo "critical"
 }
 
-# Check if enforcement is enabled in config
+# Check if enforcement is enabled: the explicit key, else the loa.profile
+# default (cycle-129 D-9.1; `standard` reads false). The old
+# `// true` read an explicit false as true.
+# shellcheck source=lib/profile-lib.sh
+source "$SCRIPT_DIR/lib/profile-lib.sh"
 is_enforcement_enabled() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        local enforce
-        enforce=$(yq -r '.guardrails.danger_level.enforce // true' "$CONFIG_FILE" 2>/dev/null || echo "true")
-        [[ "$enforce" == "true" ]]
-    else
-        return 0  # Default to enabled
-    fi
+    local enforce
+    enforce=$(loa_knob guardrails.danger_level.enforce false)
+    [[ "$enforce" == "true" ]]
 }
 
 # Log decision to trajectory (M-5 fix: use jq for safe JSON construction)

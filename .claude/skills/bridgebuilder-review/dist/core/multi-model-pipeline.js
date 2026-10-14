@@ -10,7 +10,7 @@ import path from "node:path";
 import { summarizeReviewVerdict } from "./review-verdict.js";
 import { scoreFindings } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
-import { PROVIDER_API_KEY_ENV, isHeadlessModelId, loaConfigPathFor, readAgyGate, validateApiKeys } from "../config.js";
+import { isHeadlessModelId, loaConfigPathFor, providerKeyEnv, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
 /**
  * Per-model timeout derivation — reasoning-class predicate (multi-provider).
@@ -95,7 +95,8 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
     const { poster, sanitizer, logger } = adapters;
     // Validate API keys (cycle-127 FR-1: and the agy opt-in, read from the repo's Loa config)
     const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
-    const keyStatus = validateApiKeys(multiConfig, agyGate);
+    // (cycle-129 D-7.5: keyless providers and head-only refusals come from the trusted config main.ts loaded)
+    const keyStatus = validateApiKeys(multiConfig, agyGate, config.trusted);
     // (r251-1 G12/G14: an unreadable config or a non-boolean opt-in is said once, with its reason — not as "opt-in off")
     const notPlannedList = keyStatus.notPlanned.map((np) => `${np.provider}/${np.modelId}`).join(", ");
     if (agyGate.readError !== undefined) {
@@ -128,10 +129,12 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
     // Create adapters for available providers
     const modelAdapters = [];
     for (const entry of keyStatus.valid) {
-        const envVar = PROVIDER_API_KEY_ENV[entry.provider];
-        // (a headless entry is valid without a key — validateApiKeys — and cheval's CLI hop never reads one)
+        const envVar = providerKeyEnv(entry.provider, config.trusted);
+        // (a headless entry is valid without a key — validateApiKeys — and cheval's CLI hop never reads one; nor does a
+        // provider the trusted config declares keyless: cycle-129 D-7.5)
         const apiKey = (envVar ? process.env[envVar] : undefined) ?? "";
-        if (!apiKey && !isHeadlessModelId(entry.modelId, entry.provider))
+        const keyless = config.trusted?.providers[entry.provider]?.keyless === true;
+        if (!apiKey && !keyless && !isHeadlessModelId(entry.modelId, entry.provider))
             continue;
         const costRates = multiConfig.cost_rates?.[entry.provider];
         const adapter = createAdapter({
@@ -342,6 +345,10 @@ export async function executeMultiModelReview(item, systemPrompt, userPrompt, co
         combinedContent,
         reviewVerdict,
         notPlanned: keyStatus.notPlanned,
+        voicesPlanned: multiConfig.models
+            .filter((m) => agyGate.readError !== undefined ||
+            !keyStatus.notPlanned.some((np) => np.provider === m.provider && np.modelId === m.model_id))
+            .map((m) => `${m.provider}/${m.model_id}`),
     };
 }
 /**

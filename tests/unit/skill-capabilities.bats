@@ -494,6 +494,7 @@ name: effort-good
 description: skill with valid effort
 role: review
 effort: high
+disallowed-tools: Write, Edit, NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
@@ -518,6 +519,7 @@ name: effort-bad
 description: skill with bogus effort
 role: review
 effort: turbo
+disallowed-tools: Write, Edit, NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
@@ -543,6 +545,7 @@ name: effort-mismatch
 description: cheap-tier skill asking for deepest reasoning
 role: review
 effort: xhigh
+disallowed-tools: Write, Edit, NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
@@ -905,4 +908,126 @@ cost-profile: moderate
     [[ "$output" == *"agent type 'Plan'"* ]]
     run "$VALIDATOR" --help
     [[ "$output" == *"--agent-types-file"* ]]
+}
+
+# =========================================================================
+# cycle-129 D-4.2 (AC-2.2): a pure-review skill (role: review,
+# capabilities.write_files: false) strips Write, Edit and NotebookEdit
+# =========================================================================
+
+# pure_review_skill <name> [disallowed-tools block lines...]
+pure_review_skill() {
+    local name="$1"; shift
+    local dis=""
+    [[ $# -gt 0 ]] && dis="$(printf '%s\n' "$@")"
+    create_skill "$name" "---
+name: $name
+description: pure review fixture
+role: review
+allowed-tools: Read, Grep, Glob
+${dis}
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: false
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: lightweight
+---
+# Pure review: review and verify findings"
+}
+
+@test "c129-D4.2: a pure-review skill without disallowed-tools fails by name" {
+    pure_review_skill bare-review
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill bare-review
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pure-review skill (role: review, capabilities.write_files: false) must carry disallowed-tools: Write, Edit, NotebookEdit — missing: Write, Edit, NotebookEdit"* ]]
+}
+
+@test "c129-D4.2: a pure-review skill missing one of the three fails naming it" {
+    pure_review_skill partial-review "disallowed-tools:" "  - Write" "  - Edit"
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill partial-review --json
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e '.results[] | select(.skill == "partial-review" and .level == "error" and (.message | endswith("missing: NotebookEdit (cycle-129 D-4.2)")))' >/dev/null
+}
+
+@test "c129-D4.2: the strip passes in list form and in comma-string form" {
+    pure_review_skill list-review "disallowed-tools:" "  - Write" "  - Edit" "  - NotebookEdit"
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill list-review
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"pure-review skill"* ]]
+    pure_review_skill string-review "disallowed-tools: Write, Edit, NotebookEdit"
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill string-review
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"pure-review skill"* ]]
+}
+
+@test "c129-D4.2: an explicit write_files: false is read as false (not through yq's //)" {
+    # A review skill that declares write_files: true is outside the rule.
+    create_skill "writer-review" "---
+name: writer-review
+description: report writer fixture
+role: review
+allowed-tools: Read, Write
+disallowed-tools:
+  - Write
+capabilities:
+  schema_version: 1
+  read_files: true
+  search_code: true
+  write_files: true
+  execute_commands: false
+  web_access: false
+  user_interaction: false
+  agent_spawn: false
+  task_management: false
+cost-profile: moderate
+---
+# Writer review: review findings"
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill writer-review
+    [[ "$output" != *"pure-review skill"* ]]
+    pure_review_skill bare-review2
+    SKILLS_DIR="$FIXTURE_DIR" run "$VALIDATOR" --skill bare-review2
+    [[ "$output" == *"pure-review skill"* ]]
+}
+
+@test "c129-D4.2: the three pure-review skills carry the strip; rtfm-testing is a report author" {
+    local s fm
+    for s in eval-running flatline-knowledge validating-construct-manifest; do
+        fm=$(awk '/^---$/{if(n++) exit; next} n' "$PROJECT_ROOT/.claude/skills/$s/SKILL.md" | yq -o=json '.')
+        echo "$fm" | jq -e '.role == "review" and .capabilities.write_files == false
+            and ((."disallowed-tools" | sort) == ["Edit","NotebookEdit","Write"])' >/dev/null || { echo "$s"; return 1; }
+        run "$VALIDATOR" --skill "$s"
+        [ "$status" -eq 0 ]
+    done
+    # rtfm-testing writes its Phase 4 report (grimoires/loa/a2a/rtfm/), so it
+    # keeps Write and strips the other two.
+    fm=$(awk '/^---$/{if(n++) exit; next} n' "$PROJECT_ROOT/.claude/skills/rtfm-testing/SKILL.md" | yq -o=json '.')
+    echo "$fm" | jq -e '.capabilities.write_files == true and (."disallowed-tools" | sort) == ["Edit","NotebookEdit"]
+        and (."allowed-tools" | contains("Write"))' >/dev/null
+    grep -q 'grimoires/loa/a2a/rtfm/report-' "$PROJECT_ROOT/.claude/skills/rtfm-testing/SKILL.md"
+    run "$VALIDATOR" --skill rtfm-testing --strict
+    [ "$status" -eq 0 ]
+}
+
+@test "c129-D4.2: every role: review skill with write_files: false in the tree carries the strip" {
+    local f fm n=0
+    for f in "$PROJECT_ROOT"/.claude/skills/*/SKILL.md; do
+        fm=$(awk '/^---$/{if(n++) exit; next} n' "$f" | yq -o=json '.' 2>/dev/null) || continue
+        if echo "$fm" | jq -e '.role == "review" and .capabilities.write_files == false' >/dev/null 2>&1; then
+            n=$((n + 1))
+            echo "$fm" | jq -e '(."disallowed-tools" // []) as $d | ["Write","Edit","NotebookEdit"] | all(. as $t | $d | index($t))' >/dev/null \
+                || { echo "$f lacks the strip"; return 1; }
+        fi
+    done
+    [ "$n" -ge 3 ]
+}
+
+@test "c129-D4.2: skill-invariants.md names the Bash gap" {
+    tr '\n' ' ' < "$PROJECT_ROOT/.claude/rules/skill-invariants.md" | grep -qi 'shell-redirection writes remain fence territory'
+    grep -q 'eval-running' "$PROJECT_ROOT/.claude/rules/skill-invariants.md"
 }

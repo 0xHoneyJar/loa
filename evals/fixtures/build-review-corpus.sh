@@ -24,6 +24,13 @@
 # `must_match` is a literal substring that must occur on exactly ONE line of
 # the head/ file: that line is the defect's anchor (the grader accepts ±3).
 #
+# cycle-129: corpus.tsv also carries `record` rows (pr-11 … pr-18, sprints
+# 247–254) and `#` gap comments; those fixtures are built by
+# evals/harness/seed-corpus-from-record.sh (labels in the hidden labels/ dir)
+# and skipped here. The freeze below still covers every file in the corpus.
+# A rebuild here regenerates pr-01 … pr-10 from scratch; their hand-added
+# anchors[] (pr-02 D06, pr-05 D13) are not in corpus.tsv and must be re-added.
+#
 # Usage:
 #   build-review-corpus.sh            # (re)build everything + SHA256SUMS
 #   build-review-corpus.sh --verify   # sha256sum -c against the committed freeze
@@ -86,7 +93,10 @@ def added_comment_lines(commit, path):
         # '-' lines do not advance the new-file counter
     return out
 
-rows = list(csv.DictReader(open(spec, encoding="utf-8"), delimiter="\t", quoting=csv.QUOTE_NONE))
+# cycle-129: `#` lines are comments (record-fixture gaps) and `record` rows are
+# built by evals/harness/seed-corpus-from-record.sh, not here
+_spec_lines = [l for l in open(spec, encoding="utf-8").read().splitlines() if l and not l.startswith("#")]
+rows = [r for r in csv.DictReader(_spec_lines, delimiter="\t", quoting=csv.QUOTE_NONE) if r["kind"] != "record"]
 prmeta = {r["fixture"]: r for r in csv.DictReader(open(prs, encoding="utf-8"), delimiter="\t", quoting=csv.QUOTE_NONE)}
 fixtures = {}
 for r in rows:

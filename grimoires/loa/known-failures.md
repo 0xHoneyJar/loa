@@ -83,13 +83,14 @@ actually tried, not just what someone *said* was tried.
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 2 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
-| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 3 |
+| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 4 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 9 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 1 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 3 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 4 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
+| [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 
 ---
 
@@ -1535,7 +1536,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 **Feature**: .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition)
 **Symptom**: npm test in .claude/skills/bridgebuilder-review reports 1 failing file: not ok - __tests__/persona.test.ts with location persona.test.ts:1:1 and the log line Fatal: ANTHROPIC_API_KEY required. Set it in your environment ... (or set BRIDGEBUILDER_MODEL=<provider>-headless ...). Every subtest inside the file passes; the file-level failure is the process exit.
 **First observed**: 2026-09-25 (cycle-126 sprint-247; identical on main in a throwaway worktree at HEAD)
-**Recurrence count**: 3
+**Recurrence count**: 4
 **Current workaround**: Run the BB suite in a shell where the key is present (never a fake value in tracked state), or set BRIDGEBUILDER_MODEL=claude-headless for the test run; treat the failure as environmental when the other 754 tests pass.
 **Upstream issue**: cycle-126 residue: the test should be hermetic — the precondition belongs behind the config resolution the test does not exercise, or the test should stub the API-key check
 **Related visions / lore**: none
@@ -1547,6 +1548,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 | 2026-09-25 | worktree at main HEAD with the same node_modules, npx tsx --test __tests__/persona.test.ts | REPRODUCED on main — pre-existing, not the cycle-126 diff | grimoires/loa/a2a/sprint-247/reviewer.md test-first record; NOTES.md 2026-09-25 Decision Log |
 | 2026-10-05 | npm test in bridgebuilder-review after the round-1an build on a keyless host | 759/760 pass; persona.test.ts fails at :1:1 with the Fatal ANTHROPIC_API_KEY line (presence-only check: no key set) — this entry, not a regression | round 1an on 332f254c, /tmp/bb-test.log |
 | 2026-10-07 | cycle-127 PR #1275: persona.test.ts stayed the single failing Bridgebuilder vitest file on every run (785 → 837 passing around it); the cycle did not touch it | unchanged; recorded as the known pre-existing failure in every round's suite summary | PR #1275, commits 059e26be…304a2480 |
+| 2026-10-14 | npm test in bridgebuilder-review on the sprint-257 tree after implementer I's patch (865 pass) | the one failure is persona.test.ts again (API-key precondition in a shell without ANTHROPIC_API_KEY); every other file passes, so the Sprint 3 Bridgebuilder changes are not the cause | cycle-129 sprint-257 lead smoke run, worktree ../loa-wt-s3c patch s3-i.patch applied at a7682ba4 |
 
 ### Reading guide
 
@@ -1657,9 +1659,9 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 3
+**Recurrence count**: 4
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
-**Upstream issue**: none yet — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
+**Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
 
 ### Attempts
@@ -1667,6 +1669,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-07 | three planning-doc reviews in one session (prd, sdd, sprint) with CLAUDE_HEADLESS_BIN=claude-bedrock | all three degraded the same way; integrated the 33 + 33 + sprint improvements by judgment into SDD §1.5 / PRD FR-x.5 | ~/.cache/loa/cycle-127/flatline-127.log; grimoires/loa/a2a/flatline/{prd,sdd,sprint}-final_consensus.json; commit 6daf2e06 |
+| 2026-10-14 | cycle-129 planning: three Flatline runs (prd flatline-24474-6736, sdd, sprint) with codex-headless + claude-headless, Phase 1 2/2 voices | all three degraded the same way (Phase 2 cross-scoring null, exit 6); blockers and per-voice improvements integrated by lead judgment into PRD App. G, SDD §11.4/§11.5, sprint App. D; routed to an upstream issue (sprint-255 Task 1.10) per DEC-0134, no retry | ~/.cache/loa/cycle-129/flatline/{prd,sdd,sprint}.{json,log}; grimoires/loa/a2a/flatline/*-final_consensus.json |
 
 ### Reading guide
 
@@ -1692,3 +1695,25 @@ If both Phase 1 voices succeeded and the scorer shows gpt_score null on every it
 ### Reading guide
 
 If a cycle kickoff shows this denial text, stop the cycle: it is the harness permission mode, not a Loa defect. Record the plan decisions in NOTES, leave the branch, and ask the operator to switch permission mode or add allow rules; run-preflight P1 is the mechanical check once the mode allows it. Do not retry the same outcome via sub-agents, other paths or later turns.
+
+## KF-043: Invoking a skill with disallowed-tools in the main session removes Write/Edit/NotebookEdit for the WHOLE session, including subagents
+
+**Status**: active
+**Feature**: skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe)
+**Symptom**: After the Skill tool loads a skill whose frontmatter has disallowed-tools: Write, Edit, NotebookEdit (e.g. flatline-knowledge), the next Write fails with 'Permission to use Write has been denied'; later calls report 'Edit is disabled for this session, in subagents as well as here'. Invoking a write-capable skill (implementing-tasks) does not restore them. Bash redirects keep working (the Bash gap).
+**First observed**: 2026-10-14 cycle-129 sprint-256 Task 2.2 live harness probe, Claude Code 2.1.296
+**Recurrence count**: 1
+**Current workaround**: Never probe or invoke a disallowed-tools skill in a working lead session; use a throwaway session or a subagent (where the key is NOT enforced at all). If it happens: finish state-zone writes through Bash (a2a, grimoires, .run; the fence FR-SZ2 blocks shell writes into .claude), run-halt the run with the reason in NOTES, and start a fresh session for anything that needs Write/Edit.
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-14 | re-invoked the write-capable implementing-tasks skill to reset the tool policy | no effect: Write/Edit stayed disabled for the session | grimoires/loa/NOTES.md 2026-10-14 ~14:30 entry; a2a/sprint-256/reviewer.md §Harness probe; cycle-129 sprint-256 commit |
+| 2026-10-14 | waited for the operator's next prompt (the next human turn) instead of restarting the session | the harness restored Write, Edit and NotebookEdit at the next user prompt: the loss is scoped to the agentic turn that invoked the skill (which in an unattended run is the rest of the session), not to the session as such | session 9abd2e2d turn after the operator's 'eli5 exec summary' message, 2026-10-14; grimoires/loa/a2a/sprint-256/reviewer.md §Harness probe |
+
+### Reading guide
+
+This is harness behaviour, not a Loa defect: the key IS enforced in the main session (good) but session-scoped (surprising) and unenforced in subagents (recorded in skill-invariants.md). Do not retry Write/Edit, do not re-invoke skills hoping to reset, do not ask a peer session to write for you (permission laundering). Halt and resume in a new session.

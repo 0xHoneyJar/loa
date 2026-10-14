@@ -212,7 +212,8 @@ def test_the_modelinv_schema_declares_models_not_planned():
     root = Path(__file__).resolve().parents[3]
     schema = json.loads((root / ".claude/data/trajectory-schemas/model-events/model-invoke-complete.payload.schema.json").read_text())
     prop = schema["properties"]["models_not_planned"]
-    assert prop["items"]["properties"]["reason"]["enum"] == ["opt_in_required"]
+    # (cycle-129 audit a257-1 MEDIUM-A1: locality_refused — a hosted hop planned around under local_voices)
+    assert prop["items"]["properties"]["reason"]["enum"] == ["opt_in_required", "locality_refused"]
 
 
 def test_the_emitted_payloads_validate_against_the_payload_schema(capsys, monkeypatch):

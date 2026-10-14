@@ -1,0 +1,3 @@
+# feat(cycle-126): sprint-249 tasks 3.2–3.4 — context class and instruction diet: tool-result-clearing.md carries two classes (long default 20K/50K/30K/150K, standard 2K/5K/3K/15K) and the selection ru…
+
+Sprint 249 (global), 54 file(s) in scope.

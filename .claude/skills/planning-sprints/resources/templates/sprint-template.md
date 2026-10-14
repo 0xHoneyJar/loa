@@ -52,10 +52,12 @@
 <!-- Annotate each task's blockers: ⇐ {Task 1.1} or ⇐ none. This line becomes the
      --deps flag when the task is created as a bead (edge-or-none rule) — it is what
      makes the sprint an executable DAG instead of prose. -->
+<!-- End each task with · kind: mechanical (a script could do it reliably; ships as code with tests),
+     judgment (needs reading and a decision) or operator (the human's; unattended completion is flagged). -->
 
-- [ ] Task 1.1: {Specific technical task 1} → **[G-1]** ⇐ none
-- [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]** ⇐ Task 1.1
-- [ ] {Additional tasks...} → **[G-N]** ⇐ {blockers | none}
+- [ ] Task 1.1: {Specific technical task 1} → **[G-1]** ⇐ none · kind: mechanical
+- [ ] Task 1.2: {Specific technical task 2} → **[G-1, G-2]** ⇐ Task 1.1 · kind: judgment
+- [ ] {Additional tasks...} → **[G-N]** ⇐ {blockers | none} · kind: {mechanical|judgment|operator}
 
 ### Seams Under Test
 <!-- One row per interface the tests drive (a CLI exit code, a function's output, a file
@@ -134,8 +136,8 @@ Validate that all PRD goals are achieved through the complete implementation.
 - [ ] {Testable criterion 2}
 
 ### Technical Tasks
-- [ ] {Specific technical task 1}
-- [ ] {Specific technical task 2}
+- [ ] {Specific technical task 1} · kind: mechanical
+- [ ] {Specific technical task 2} · kind: judgment
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |

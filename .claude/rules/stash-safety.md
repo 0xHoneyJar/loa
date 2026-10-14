@@ -1,3 +1,14 @@
+---
+paths:
+  - "**/*.sh"
+  - "**/*.bats"
+  - ".claude/scripts/**"
+  - ".claude/hooks/**"
+origin: enacted
+version: 1
+enacted_by: cycle-083
+---
+
 # Git Stash Safety
 
 `git stash push / pop` wraps are risky inside Loa skill execution: pre-commit hooks run their own internal `git stash --keep-index`, an overlapping outer stash shifts the indexes, and `pop` can land on the wrong entry. Combined with output-swallowing (`| tail -N`, `|| true`, `2>/dev/null`) this produces silent data loss that looks like success.

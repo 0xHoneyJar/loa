@@ -1,0 +1,168 @@
+# Loa Hooks
+
+This directory contains Claude Code hooks for the Loa framework.
+
+## Installation
+
+**Option 1: Automatic (via /mount)**
+
+The `/mount` command will offer to install hooks during framework setup.
+
+**Option 2: Manual**
+
+Merge `settings.hooks.json` into your `~/.claude/settings.json`. The template includes all hook registrations.
+
+## Hook Registry
+
+| Event | Matcher | Script | Purpose |
+|-------|---------|--------|---------|
+| PreCompact | (all) | `pre-compact-marker.sh` | Save state before compaction |
+| UserPromptSubmit | (all) | `post-compact-reminder.sh` | Inject recovery after compaction |
+| UserPromptSubmit | (all) | `post-session-limit-reminder.sh` | Inject resume reminder after a session cap resets |
+| SessionStart | (all) | `hook-guard.sh session-start/loa-context-class.sh` | Record the context class (`.run/context-class`: `long` default, `standard` for a ≤ 200K model or `LOA_CONTEXT_CLASS=standard`) |
+| PreToolUse | Bash | `safety/block-destructive-bash.sh` | Block destructive commands |
+| PostToolUse | Bash | `audit/mutation-logger.sh` | Log mutating commands |
+| Stop | (all) | `safety/run-mode-stop-guard.sh` | Guard against premature exit |
+
+## Post-Compact Recovery Hooks
+
+Context recovery after compaction events.
+
+1. **PreCompact** (`pre-compact-marker.sh`):
+   - Runs before context compaction
+   - Writes marker file with current state (run mode, simstim, skill, etc.)
+   - Marker locations: `.run/compact-pending` (project) and `~/.local/state/loa-compact/compact-pending` (global)
+
+2. **UserPromptSubmit** (`post-compact-reminder.sh`):
+   - Runs on each user message
+   - Checks for compaction marker
+   - If found: injects recovery reminder into context, deletes marker
+   - One-shot delivery (won't repeat)
+
+## Session-Limit Recovery Hooks
+
+Recovery after a Claude session/usage cap resets.
+
+1. **Capture** (`../scripts/session-limit-capture.sh --raw '<error text>'`):
+   - Agent-invoked when a session-limit / usage-cap error string appears
+   - Parses the reset time (TZ-aware) and snapshots live run state into
+     `.run/session-limit-state.json`
+
+2. **UserPromptSubmit** (`post-session-limit-reminder.sh`):
+   - Runs on each user message; stays **silent while the cap is still in
+     effect** (leaves the marker in place, re-checked each prompt)
+   - Once the reset time has passed: injects a one-shot resume reminder
+     (sprint id + state) and deletes the marker
+
+## Safety Hooks (v1.37.0)
+
+Defense-in-depth via Claude Code hooks. Active in ALL modes.
+
+### PreToolUse:Bash — Destructive Command Blocking
+
+**Script**: `safety/block-destructive-bash.sh`
+
+Blocks dangerous patterns and suggests safer alternatives:
+
+| Pattern | Blocked | Suggested Alternative |
+|---------|---------|----------------------|
+| `rm -rf` | Yes | Use `trash` or remove individually |
+| `git push --force` | Yes | Use `--force-with-lease` |
+| `git reset --hard` | Yes | Use `git stash` |
+| `git clean -f` (no `-n`) | Yes | Run with `-n` first to preview |
+
+Does NOT block: `rm file.txt`, `git push origin feature`, `git reset HEAD`, `git clean -nd`, `git push --force-with-lease`.
+
+### Stop — Run Mode Guard
+
+**Script**: `safety/run-mode-stop-guard.sh`
+
+Checks for active autonomous runs before allowing stop:
+- `.run/sprint-plan-state.json` (state=RUNNING)
+- `.run/bridge-state.json` (state=ITERATING/FINALIZING)
+- `.run/simstim-state.json` (state=RUNNING, phase=implementation)
+
+Uses JSON `decision` field for soft block (context injection, not hard block).
+
+### PostToolUse:Bash — Audit Logger
+
+**Script**: `audit/mutation-logger.sh`
+
+Logs mutating shell commands to `.run/audit.jsonl` in compact JSONL format:
+
+```jsonl
+{"ts":"2026-02-13T10:05:00Z","tool":"Bash","command":"git push","exit_code":0,"cwd":"/home/user/repo"}
+```
+
+Only logs: git, npm, pip, cargo, rm, mv, cp, mkdir, chmod, chown, docker, kubectl, make, yarn, pnpm, npx.
+
+Auto-rotates at 10MB (keeps last 1000 entries).
+
+## Deny Rules
+
+**Template**: `settings.deny.json`
+**Installer**: `.claude/scripts/install-deny-rules.sh`
+
+Blocks agent access to credential stores at the Claude Code platform level:
+
+| Path | Read | Edit |
+|------|------|------|
+| `~/.ssh/**` | Blocked | Blocked |
+| `~/.aws/**` | Blocked | Blocked |
+| `~/.kube/**` | Blocked | Blocked |
+| `~/.gnupg/**` | Blocked | Blocked |
+| `~/.npmrc` | Blocked | Blocked |
+| `~/.pypirc` | Blocked | Blocked |
+| `~/.git-credentials` | Blocked | Blocked |
+| `~/.config/gh/**` | Blocked | Blocked |
+| `~/.bashrc` | Allowed | Blocked |
+| `~/.zshrc` | Allowed | Blocked |
+| `~/.profile` | Allowed | Blocked |
+
+Install: `bash .claude/scripts/install-deny-rules.sh --auto`
+
+## Troubleshooting
+
+**Hooks not firing?**
+- Verify hooks are registered in `~/.claude/settings.json`
+- Check scripts are executable: `chmod +x .claude/hooks/**/*.sh`
+- Ensure scripts are run from project root
+
+**Safety hook false positive?**
+- The hook blocks `rm -rf` but allows `rm file.txt` — check your command
+- `git push --force-with-lease` is explicitly allowed
+- File an issue if a legitimate command is blocked
+
+**Recovery message appearing incorrectly?**
+- Delete stale markers: `rm -f .run/compact-pending ~/.local/state/loa-compact/compact-pending`
+
+**Audit log too large?**
+- Auto-rotates at 10MB
+- Manually clear: `> .run/audit.jsonl`
+
+## Files
+
+### Active (registered in settings.hooks.json)
+
+| Path | Event | Purpose |
+|------|-------|---------|
+| `pre-compact-marker.sh` | PreCompact | Creates marker before compaction |
+| `post-compact-reminder.sh` | UserPromptSubmit | Injects reminder after compaction |
+| `post-session-limit-reminder.sh` | UserPromptSubmit | Injects resume reminder after a session cap resets |
+| `safety/block-destructive-bash.sh` | PreToolUse:Bash | Destructive command blocker |
+| `safety/run-mode-stop-guard.sh` | Stop | Premature exit guard |
+| `audit/mutation-logger.sh` | PostToolUse:Bash | Mutation audit logger |
+
+### Optional (separate installation)
+
+| Path | Event | Purpose |
+|------|-------|---------|
+| `safety/stop-input-probe.sh` | Stop | DIAGNOSTIC: dumps raw Stop input to `.run/stop-input-probe.jsonl`. Gated by `LOA_STOP_INPUT_PROBE=1`; merge into `settings.local.json` for ONE cap-hitting session to answer whether Stop input carries the session-limit text, then remove. Never in `settings.hooks.json`. |
+
+### Configuration
+
+| Path | Purpose |
+|------|---------|
+| `settings.hooks.json` | Hook configuration template |
+| `settings.deny.json` | Deny rules template |
+| `README.md` | This documentation |

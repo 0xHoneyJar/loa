@@ -22,6 +22,7 @@ from loa_cheval.types import (
     ConfigError,
     ConnectionLostError,
     ContextTooLargeError,
+    InvalidConfigError,
     ModelConfig,
     ProviderConfig,
     Usage,
@@ -108,6 +109,108 @@ def _reset_http_client_detection_for_tests() -> None:
     global _HTTP_CLIENT, _HTTP2_AVAILABLE
     _HTTP_CLIENT = None
     _HTTP2_AVAILABLE = None
+
+
+# --- cycle-129 FR-7 (SDD D-7.2): request-time rules for an opted-in / local provider ---
+
+
+@dataclass(frozen=True)
+class TransportPolicy:
+    """The request-time half of D-7.2 for a provider with `allow_insecure_endpoint`
+    (or a model with dispatch_group `local`): proxy environment variables are
+    ignored, an HTTP redirect is an error and is never followed, and every request
+    URL must keep the declared endpoint's scheme, host and port and start with its
+    path. The load-time half lives in config/endpoint_policy.py.
+
+    `local` (D-8.1, r257-1) marks a hop whose model says dispatch_group `local`: the
+    request host must then also pass the local-hop rule (a loopback or RFC1918 IP
+    literal or `localhost`, endpoint_policy.local_host), so a declared locality is
+    enforced even when a config reaches the adapter by another loader."""
+
+    endpoint: str
+    provider: str
+    local: bool = False
+
+    def check_url(self, url: str) -> None:
+        # URL parsing stays in the canonical endpoint validator (cycle-099 import guard).
+        from loa_cheval.config.endpoint_policy import LOCAL_RULE_TEXT, local_host, split_url
+
+        try:
+            d_scheme, d_host, d_port, d_path = split_url(self.endpoint)
+            r_scheme, r_host, r_port, r_path = split_url(url)
+        except ValueError as exc:
+            raise InvalidConfigError(f"request URL for provider '{self.provider}' does not parse: {exc}") from None
+        if self.local and (r_scheme not in ("http", "https") or local_host(r_host) is None):
+            raise InvalidConfigError(
+                f"request host {r_host or '(none)'} for provider '{self.provider}' is not {LOCAL_RULE_TEXT} "
+                f"(dispatch_group local, D-7.2)"
+            )
+        if str(local_host(r_host)).lower() == "localhost":
+            # audit a257-1 LOW-A1: an IP literal is never resolved, but `localhost` is resolved by the system resolver
+            # (/etc/hosts, nsswitch) when the request is sent — so it is resolved here first and every address it
+            # yields must be loopback. Fail closed: a resolver failure refuses too. (Every policy hop — a local one or
+            # an `allow_insecure_endpoint: localhost` opt-in, whose plain http must stay on this machine.)
+            self._check_localhost_resolves_to_loopback()
+        prefix = d_path.rstrip("/")
+        same_origin = (r_scheme, r_host, r_port) == (d_scheme, d_host, d_port)
+        in_path = (r_path == prefix or r_path.startswith(prefix + "/")) if prefix else True
+        if not same_origin or not in_path or "/../" in r_path or r_path.endswith("/.."):
+            raise InvalidConfigError(
+                f"request URL path {r_path!r} on {r_host!r} is outside the declared endpoint "
+                f"{self.endpoint!r} for provider '{self.provider}' (D-7.2 path-prefix rule)"
+            )
+
+    def _check_localhost_resolves_to_loopback(self) -> None:
+        import ipaddress
+
+        try:
+            infos = socket.getaddrinfo("localhost", None)
+        except Exception as exc:  # noqa: BLE001 — any resolver failure refuses (fail closed)
+            raise InvalidConfigError(
+                f"request host localhost for provider '{self.provider}' could not be resolved "
+                f"({type(exc).__name__}) (dispatch_group local, D-7.2)"
+            ) from None
+        addrs = []
+        for info in infos or ():
+            try:
+                addrs.append(str(info[4][0]))
+            except (IndexError, TypeError):
+                addrs.append("(unreadable)")
+        if not addrs:
+            raise InvalidConfigError(
+                f"request host localhost for provider '{self.provider}' could not be resolved "
+                f"(no address) (dispatch_group local, D-7.2)"
+            )
+        for addr in addrs:
+            try:
+                ip = ipaddress.ip_address(addr.split("%", 1)[0])
+                mapped = getattr(ip, "ipv4_mapped", None)
+                loopback = ip.is_loopback or bool(mapped is not None and mapped.is_loopback)
+            except ValueError:
+                loopback = False
+            if not loopback:
+                raise InvalidConfigError(
+                    f"request host localhost for provider '{self.provider}' resolves to {addr[:64]}, not a loopback "
+                    f"address (dispatch_group local, D-7.2)"
+                )
+
+    def refuse_redirect(self, status: int) -> None:
+        if 300 <= int(status) < 400:
+            raise InvalidConfigError(
+                f"HTTP {status} redirect refused for provider '{self.provider}': an opted-in or local "
+                f"endpoint never follows redirects (D-7.2)"
+            )
+
+
+def _policy_urllib_opener():
+    """urllib opener for a TransportPolicy: no proxy handler, no redirect following."""
+    import urllib.request
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+            return None  # urllib then raises HTTPError(code) — refused by the caller
+
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 
 # Sprint 4A (cycle-102, AC-4.5e): centralized kill-switch detection.
@@ -215,13 +318,18 @@ def http_post(
     body: Dict[str, Any],
     connect_timeout: float = 10.0,
     read_timeout: float = 120.0,
+    policy: Optional[TransportPolicy] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Send HTTP POST and return (status_code, response_json).
 
-    Uses httpx if available, falls back to urllib.request.
+    Uses httpx if available, falls back to urllib.request. With a
+    `TransportPolicy` (cycle-129 D-7.2) the URL is checked against the declared
+    endpoint, proxy env vars are ignored and a 3xx is refused, never followed.
     """
     client = _detect_http_client()
     encoded = json.dumps(body).encode("utf-8")
+    if policy is not None:
+        policy.check_url(url)
 
     if client == "httpx":
         import httpx
@@ -239,7 +347,12 @@ def http_post(
         # attached; raw body, headers, and auth are NEVER carried on the
         # exception (they remain in the local `encoded`/`headers` scope).
         try:
-            resp = httpx.post(url, headers=headers, content=encoded, timeout=timeout)
+            if policy is not None:
+                with httpx.Client(trust_env=False, follow_redirects=False, timeout=timeout) as _c:
+                    resp = _c.post(url, headers=headers, content=encoded)
+                policy.refuse_redirect(resp.status_code)
+            else:
+                resp = httpx.post(url, headers=headers, content=encoded, timeout=timeout)
         except (
             httpx.RemoteProtocolError,
             httpx.ReadError,
@@ -267,11 +380,14 @@ def http_post(
         )
         # urllib only supports a single timeout value
         total_timeout = connect_timeout + read_timeout
+        _open = _policy_urllib_opener().open if policy is not None else urllib.request.urlopen
         try:
-            with urllib.request.urlopen(req, timeout=total_timeout) as resp:
+            with _open(req, timeout=total_timeout) as resp:
                 resp_body = resp.read().decode("utf-8")
                 return resp.status, json.loads(resp_body)
         except urllib.error.HTTPError as e:
+            if policy is not None:
+                policy.refuse_redirect(e.code)
             resp_body = e.read().decode("utf-8") if e.fp else "{}"
             try:
                 return e.code, json.loads(resp_body)
@@ -310,21 +426,30 @@ def http_get(
     headers: Dict[str, str],
     connect_timeout: float = 5.0,
     read_timeout: float = 10.0,
+    policy: Optional[TransportPolicy] = None,
 ) -> Tuple[int, Dict[str, Any]]:
     """Send HTTP GET and return (status_code, response_json).
 
     cycle-126 FR-1.7 (SDD D-1.7): the health probes ask a provider's models
     endpoint before spending a message. Same client detection as `http_post`;
     transport failures come back as a 503/504 envelope rather than an
-    exception because a probe is answered, never retried.
+    exception because a probe is answered, never retried. A `TransportPolicy`
+    applies the cycle-129 D-7.2 request-time rules (as in `http_post`).
     """
     client = _detect_http_client()
+    if policy is not None:
+        policy.check_url(url)
     if client == "httpx":
         import httpx
 
         timeout = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=10.0, pool=10.0)
         try:
-            resp = httpx.get(url, headers=headers, timeout=timeout)
+            if policy is not None:
+                with httpx.Client(trust_env=False, follow_redirects=False, timeout=timeout) as _c:
+                    resp = _c.get(url, headers=headers)
+                policy.refuse_redirect(resp.status_code)
+            else:
+                resp = httpx.get(url, headers=headers, timeout=timeout)
         except httpx.TimeoutException:
             return 504, {"error": {"message": "Request timed out"}}
         except httpx.HTTPError as exc:
@@ -337,14 +462,17 @@ def http_get(
     import urllib.request
 
     req = urllib.request.Request(url, headers=headers, method="GET")
+    _open = _policy_urllib_opener().open if policy is not None else urllib.request.urlopen
     try:
-        with urllib.request.urlopen(req, timeout=connect_timeout + read_timeout) as resp:
+        with _open(req, timeout=connect_timeout + read_timeout) as resp:
             raw = resp.read().decode("utf-8")
             try:
                 return resp.status, json.loads(raw) if raw else {}
             except json.JSONDecodeError:
                 return resp.status, {}
     except urllib.error.HTTPError as e:
+        if policy is not None:
+            policy.refuse_redirect(e.code)
         raw = e.read().decode("utf-8") if e.fp else "{}"
         try:
             return e.code, json.loads(raw)
@@ -388,6 +516,7 @@ def http_post_stream(
     body: Dict[str, Any],
     connect_timeout: float = 10.0,
     read_timeout: float = 120.0,
+    policy: Optional[TransportPolicy] = None,
 ) -> Iterator[StreamingResponse]:
     """Stream an HTTP POST response — Sprint 4A structural fix for KF-002 layer 3.
 
@@ -429,9 +558,16 @@ def http_post_stream(
     Sanitization: only `type(exc).__name__` and the request-body byte size
     are attached to the raised `ConnectionLostError`. Raw body, headers,
     and auth never escape the local scope.
+
+    cycle-129 D-7.2: with a `TransportPolicy` the URL is checked against the
+    declared endpoint, proxy environment variables are ignored (httpx
+    `trust_env=False`; urllib without a ProxyHandler) and a 3xx response is an
+    `InvalidConfigError`, never followed.
     """
     client = _detect_http_client()
     encoded = json.dumps(body).encode("utf-8")
+    if policy is not None:
+        policy.check_url(url)
 
     if client == "httpx":
         import httpx
@@ -444,7 +580,10 @@ def http_post_stream(
         )
 
         http2_enabled = _detect_http2_available()
-        session = httpx.Client(http2=http2_enabled, timeout=timeout)
+        if policy is not None:
+            session = httpx.Client(http2=http2_enabled, timeout=timeout, trust_env=False, follow_redirects=False)
+        else:
+            session = httpx.Client(http2=http2_enabled, timeout=timeout)
         stream_cm = None
         try:
             try:
@@ -472,6 +611,9 @@ def http_post_stream(
                     request_size_bytes=len(encoded),
                     message=f"{type(exc).__name__}: {exc}",
                 ) from exc
+
+            if policy is not None:
+                policy.refuse_redirect(resp.status_code)
 
             def _byte_iter() -> Iterator[bytes]:
                 try:
@@ -526,9 +668,12 @@ def http_post_stream(
             url, data=encoded, headers=headers, method="POST"
         )
         total_timeout = connect_timeout + read_timeout
+        _open = _policy_urllib_opener().open if policy is not None else urllib.request.urlopen
         try:
-            handle = urllib.request.urlopen(req, timeout=total_timeout)
+            handle = _open(req, timeout=total_timeout)
         except urllib.error.HTTPError as e:
+            if policy is not None:
+                policy.refuse_redirect(e.code)
             # 4xx/5xx — drain body so callers can still parse the error JSON.
             body_bytes = e.read() if e.fp else b""
 
@@ -1009,7 +1154,9 @@ def enforce_context_window(
 ) -> CompletionRequest:
     """Check input fits within model context window (SDD §4.2.4).
 
-    Raises ContextTooLargeError if not.
+    Raises ContextTooLargeError if not — the hop is refused, the input is never
+    truncated (cycle-129 D-7.2: the message names `<n> > <limit>` and the alias;
+    cheval records the refusal as `failure_class: context_window_refused`).
     """
     context_window = model_config.context_window
     reserved_output = request.max_tokens
@@ -1017,10 +1164,12 @@ def enforce_context_window(
 
     estimated = estimate_tokens(request.messages)
     if estimated > available:
+        meta = request.metadata if isinstance(request.metadata, dict) else {}
         raise ContextTooLargeError(
             estimated_tokens=estimated,
             available=available,
             context_window=context_window,
+            alias=str(meta.get("alias") or request.model),
         )
     return request
 

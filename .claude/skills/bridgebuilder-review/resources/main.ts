@@ -18,7 +18,14 @@ import {
   readAgyGate,
   agyGateStartupLines,
   loaConfigPathFor,
+  loadTrustedConfig,
+  trustedConfigStartupLine,
+  applyLocality,
+  singleModelLocalityRefusal,
+  headDriftRefusal,
+  EXIT_TRUSTED_CONFIG_DRIFT,
 } from "./config.js";
+import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine, type VoiceOutcome } from "./core/run-outcome.js";
 import type { BridgebuilderConfig, RunSummary } from "./core/types.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
@@ -449,6 +456,25 @@ async function main(): Promise<void> {
   // Log effective config with provenance annotations
   console.error(formatEffectiveConfig(config, provenance));
 
+  // cycle-129 D-7.5 (DEC-0170): provider declarations, locality and the DEGRADED exit key come from TRUSTED configuration
+  // only — the base branch's config (or repository settings) on a pull request, the working tree locally.
+  const trusted = loadTrustedConfig({
+    pr: cliArgs.pr,
+    repoRoot: config.repoRoot,
+    repo: config.repos.length === 1 ? `${config.repos[0].owner}/${config.repos[0].repo}` : undefined,
+  });
+  config.trusted = trusted;
+  console.error(trustedConfigStartupLine(trusted));
+  for (const line of trusted.warnings) console.error(line);
+  // audit a257-1 MEDIUM-A2: cheval (every voice's transport) reads the CHECKOUT's configuration, so on a pull request a
+  // head whose providers, aliases, locality or secret allowlist differ from the trusted source's is refused by name
+  // before any voice is planned — exit 5, distinct from 0, 3 (DEGRADED) and 4 (FAILED). Local mode is unchanged.
+  const driftRefusal = headDriftRefusal(trusted);
+  if (driftRefusal !== undefined) {
+    console.error(driftRefusal);
+    process.exit(EXIT_TRUSTED_CONFIG_DRIFT);
+  }
+
   // Load persona via 5-level precedence chain
   const personaResult = await loadPersona(config, {
     warn: (msg: string) => console.error(`[bridgebuilder] WARN: ${msg}`),
@@ -465,10 +491,15 @@ async function main(): Promise<void> {
   // Load multi-model config (Sprint 1: T1.4)
   const multiModelConfig = loadMultiModelConfig();
   if (multiModelConfig.enabled) {
+    // cycle-129 D-8.1: under hounfour.locality: local_voices every hosted voice is dropped from the plan, by name; never
+    // rerouted. The dropped voices are not planned, so they do not count against completed/planned.
+    const locality = applyLocality(multiModelConfig.models, trusted);
+    for (const r of locality.refused) console.error(`[bridgebuilder] ${r.reason}`);
+    multiModelConfig.models = locality.kept;
     config.multiModel = multiModelConfig;
     // (r251-1 G15: the same .loa.config.yaml the pipeline's gate reads — the repo root's when one is configured)
     const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
-    const keyStatus = validateApiKeys(multiModelConfig, agyGate);
+    const keyStatus = validateApiKeys(multiModelConfig, agyGate, trusted);
     console.error(
       `[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
       `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`,
@@ -480,6 +511,10 @@ async function main(): Promise<void> {
         `[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`,
       );
     }
+  } else {
+    // cycle-129 D-8.1: the single-model voice is a Bridgebuilder hop too — under local_voices it must be local.
+    const refusal = singleModelLocalityRefusal(config.model, trusted);
+    if (refusal !== undefined) throw new Error(refusal);
   }
 
   // Create adapters
@@ -569,6 +604,7 @@ async function main(): Promise<void> {
     }
 
     const verdicts = [];
+    const outcomes: VoiceOutcome[] = [];
     for (const item of items) {
       // Use convergence prompt so models return findings JSON parseable by
       // extractFindingsFromContent() (bug-20260413-9f9b39).
@@ -649,9 +685,19 @@ async function main(): Promise<void> {
         // depth_5.lore_active_weaving, so passing [] is a safe no-op.
         { template, persona, loreEntries },
       );
+      // cycle-129 D-7.7: the voices that completed against the voices planned, per item (callers read `voices`)
+      const outcome = summarizeVoices(mmResult);
+      outcomes.push(outcome);
       verdicts.push({
         repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha,
         ...mmResult.reviewVerdict,
+        voices: {
+          planned: outcome.planned,
+          completed: outcome.completed,
+          band: outcome.band,
+          incomplete: outcome.incomplete,
+          degraded: outcome.degraded,
+        },
       });
 
       for (const mr of mmResult.modelResults) {
@@ -671,7 +717,9 @@ async function main(): Promise<void> {
       });
     }
 
-    progress.reportComplete(Date.now() - now.getTime(), config.multiModel.models.length);
+    // cycle-129 D-7.7: completed/planned — the voices whose result completed, never the number configured
+    const totals = totalVoices(outcomes);
+    progress.reportComplete(Date.now() - now.getTime(), totals.completed, totals.planned);
     progress.stop();
 
     // Rating prompt — non-blocking, respects timeout (Issue #464 A1)
@@ -699,7 +747,17 @@ async function main(): Promise<void> {
       }
     }
 
-    console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length, verdicts }, null, 2));
+    // cycle-129 D-7.7 (DEC-0150): a DEGRADED run exits bridgebuilder.exit_on_degraded (default 3; 0 restores the old exit)
+    // AFTER its JSON and comments are written; callers treat 3 as "completed, degraded".
+    const exitCode = decideExitCode(totals.degraded, trusted.exitOnDegraded);
+    console.log(JSON.stringify({
+      runId, mode: "multi-model", items: items.length, verdicts,
+      degraded: totals.degraded, voicesCompleted: totals.completed, voicesPlanned: totals.planned, exitCode,
+    }, null, 2));
+    if (totals.degraded) {
+      console.error(degradedWarnLine(totals, outcomes.map((o) => o.band), exitCode));
+    }
+    process.exitCode = exitCode;
   } else {
     // Single-model path — existing behavior, unchanged
     const summary = await pipeline.run(runId);

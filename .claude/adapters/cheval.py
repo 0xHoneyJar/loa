@@ -83,6 +83,7 @@ from loa_cheval.metering.budget import BudgetEnforcer
 from loa_cheval.audit.modelinv import (
     RedactionFailure as _ModelinvRedactionFailure,
     emit_model_invoke_complete as _emit_modelinv,
+    hop_telemetry as _modelinv_hop_telemetry,
 )
 
 # cycle-109 Sprint 2 T2.3 — verdict-quality envelope (PRODUCER #1 per
@@ -419,6 +420,43 @@ def _plan_around_agy(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Di
     return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
 
 
+def _entry_is_local(entry: Any, hounfour: Dict[str, Any]) -> bool:
+    """The local-hop rule (SDD D-8.1) for one resolved hop: `endpoint_policy.hop_is_local` on the merged view, and a
+    `kind: cli` hop (the resolver's adapter_kind) is hosted whatever its label says."""
+    from loa_cheval.config.endpoint_policy import hop_is_local
+    if getattr(entry, "adapter_kind", "http") == "cli":
+        return False
+    return hop_is_local(hounfour, getattr(entry, "provider", ""), getattr(entry, "model_id", ""))
+
+
+def _plan_around_locality(chain: Any, hounfour: Dict[str, Any]) -> Tuple[Any, List[Dict[str, Any]]]:
+    """cycle-129 audit a257-1 MEDIUM-A1 (a), SDD D-8.1: under `hounfour.locality: local_voices` cheval — the process
+    that sends the prompt — plans around every hop that fails the local-hop rule, the way `_plan_around_agy` plans
+    around the agy opt-in: the hop is dropped before the walk (never dispatched, not in models_requested) with one
+    stderr line naming it, and returned as `[{model, provider, reason: locality_refused}]` for MODELINV
+    `models_not_planned`. A chain left empty raises `LocalityRefusedError` — never a silent reroute. Under `hosted` (or
+    unset) the chain is returned unchanged."""
+    if not isinstance(hounfour, dict) or hounfour.get("locality") != "local_voices":
+        return chain, []
+    from loa_cheval.types import LocalityRefusedError
+    primary = chain.entries[0] if chain.entries else None
+    hosted = [e for e in chain.entries if not _entry_is_local(e, hounfour)]
+    if not hosted:
+        return chain, []
+    for e in hosted:
+        where = "primary" if e is primary else f"fallback of {chain.primary_alias}"
+        print(f"locality: local_voices refuses hosted hop {e.provider}:{e.model_id} ({where})", file=sys.stderr)
+    if len(hosted) == len(chain.entries):
+        raise LocalityRefusedError(
+            f"locality: local_voices refuses every hop of {chain.primary_alias} "
+            f"({', '.join(e.canonical for e in hosted)}): none passes the local-hop rule (dispatch_group local on an "
+            f"HTTP provider whose endpoint host is a loopback or RFC1918 IP literal or localhost)"
+        )
+    kept = [e for e in chain.entries if e not in hosted]
+    skipped = [{"model": e.canonical, "provider": e.provider, "reason": "locality_refused"} for e in hosted]
+    return _dc_replace(chain, entries=type(chain.entries)(kept)), skipped
+
+
 def _get_adapter_for_entry(entry: Any, hounfour: Dict[str, Any]):
     """Select the adapter for a single ResolvedEntry honoring `adapter_kind`.
 
@@ -536,7 +574,24 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
             headless_concurrency_limit=model_data.get("headless_concurrency_limit"),
             headless_timeout_seconds=_ht_effective,
             headless_timeout_note=_ht_note,
+            # cycle-129 FR-7: locality group and per-model streaming_recovery deadlines.
+            dispatch_group=model_data.get("dispatch_group"),
+            streaming_recovery=(model_data.get("streaming_recovery")
+                                if isinstance(model_data.get("streaming_recovery"), dict) else None),
         )
+
+    # cycle-129 FR-7 (SDD D-7.2): the loader (endpoint_policy.validate_providers)
+    # is the gate for every provider; an opted-in provider is re-checked here so a
+    # hand-built config cannot carry an opt-in the rule refuses, and so the adapter
+    # receives the canonical opt-in host.
+    from loa_cheval.config.endpoint_policy import check_endpoint as _check_endpoint
+    _optin_raw = prov.get("allow_insecure_endpoint")
+    _optin = None
+    if _optin_raw is not None:
+        _optin = _check_endpoint(str(prov.get("endpoint") or ""), _optin_raw, provider_name) \
+            if prov.get("endpoint") else None
+    _keyless = prov.get("keyless") is True or (
+        isinstance(prov.get("auth"), str) and prov["auth"].strip().lower() == "local")
 
     return ProviderConfig(
         name=provider_name,
@@ -551,6 +606,8 @@ def _build_provider_config(provider_name: str, config: Dict[str, Any]) -> Provid
         region_default=prov.get("region_default"),
         auth_modes=prov.get("auth_modes"),
         compliance_profile=prov.get("compliance_profile"),
+        keyless=_keyless,
+        allow_insecure_endpoint=_optin,
     )
 
 
@@ -1791,6 +1848,33 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     # the full resolved chain (cycle-127 review r251-1 G1: a gated agy hop is
     # planned around before models_requested is taken; r251-4 S8, audit n2).
     _chain, _models_not_planned = _plan_around_agy(_chain, hounfour)
+    # cycle-129 audit a257-1 MEDIUM-A1 (a): under hounfour.locality local_voices the hosted hops are planned around;
+    # a chain with no local hop is refused before any dispatch, with a MODELINV row (failure_class locality_refused).
+    from loa_cheval.types import LocalityRefusedError as _LocalityRefusedError
+    try:
+        _chain, _models_not_planned_loc = _plan_around_locality(_chain, hounfour)
+    except _LocalityRefusedError as _e:
+        print(_error_json(_e.code, _e.detail, retryable=False, failure_class=_e.failure_class), file=sys.stderr)
+        try:
+            _emit_modelinv(
+                models_requested=[e.canonical for e in _chain.entries],
+                models_succeeded=[],
+                models_failed=[{"model": e.canonical, "provider": e.provider, "error_class": "INVALID_CONFIG",
+                                "failure_class": _e.failure_class, "message_redacted": _e.detail}
+                               for e in _chain.entries],
+                operator_visible_warn=True,
+                capability_class=getattr(binding, "capability_class", None),
+                calling_primitive=(getattr(args, "skill", None) or agent_name),
+                models_not_planned=_models_not_planned or None,
+                **_modelinv_hop_telemetry(_chain.entries[0].canonical, hounfour),
+            )
+        except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask the refusal
+            print(f"[AUDIT-EMIT-FAILED] {type(_emit_err).__name__}: {_emit_err}", file=sys.stderr)
+        return EXIT_CODES["INVALID_CONFIG"]
+    if _models_not_planned_loc:
+        _models_not_planned = list(_models_not_planned) + _models_not_planned_loc
+        if _auth_type_resolved is not None:
+            _auth_type_resolved = _chain.entries[0].auth_type
     if _models_not_planned and _auth_type_resolved is not None:
         _auth_type_resolved = _chain.entries[0].auth_type
     _modelinv_capability_class = getattr(binding, "capability_class", None)
@@ -2171,6 +2255,8 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     capability_evaluation=_modelinv_state.get("capability_evaluation"),
                     calling_primitive=(getattr(args, "skill", None) or agent_name),
                     models_not_planned=_models_not_planned or None,
+                    # cycle-129 FR-7 / FR-8: every MODELINV row carries destination + locality.
+                    **_modelinv_hop_telemetry(_preflight_head.canonical, hounfour),
                 )
             except Exception as _emit_err:  # noqa: BLE001 — fail-soft; never mask exit 7
                 print(
@@ -2523,11 +2609,20 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                 # Walk to next entry — a different entry may have a different
                 # max_input_tokens ceiling. (cheval's OWN estimate against the
                 # hop's window — walkable, unlike the provider's verdict above.)
+                # cycle-129 FR-7 (SDD D-7.2): the refusal is named — `context_window
+                # exceeded (<n> > <limit>) for <alias>` — and recorded as
+                # failure_class context_window_refused; the input is never truncated.
+                _ctx = getattr(_e, "context", None) or {}
                 _modelinv_state["models_failed"].append({
                     "model": _entry_target,
                     "provider": _entry.provider,
                     "error_class": "ROUTING_MISS",
-                    "message_redacted": str(_e),
+                    "failure_class": "context_window_refused",
+                    "message_redacted": (
+                        f"context_window exceeded ({_ctx.get('estimated_tokens')} > "
+                        f"{_ctx.get('available')}) for {_primary_alias} "
+                        f"(hop {_entry_target}, context_window={_ctx.get('context_window')})"
+                    ),
                 })
                 _last_walk_exit_code = EXIT_CODES["CONTEXT_TOO_LARGE"]
                 _last_walk_exception = _e
@@ -2740,6 +2835,13 @@ def cmd_invoke(args: argparse.Namespace) -> int:
             if _output_schema is not None:
                 _modelinv_state["schema_enforced"] = bool(_result_meta.get("schema_enforced", False))
                 _modelinv_state["output_schema_sha256"] = _output_schema_sha
+                # cycle-129 SDD §6: a server 400 naming response_format, retried once without it.
+                if _result_meta.get("schema_rejected_by_server"):
+                    _modelinv_state["schema_rejected_by_server"] = True
+            # cycle-129 FR-7 (D-7.3): reasoning trace or leading <think> removed
+            # from content before qualification (OpenAI-type adapters report it).
+            if isinstance(_result_meta.get("thinking_stripped"), bool):
+                _modelinv_state["thinking_stripped"] = _result_meta["thinking_stripped"]
             # cycle-124 FR-1/FR-4 (SDD §3.3): a thinking-enabled response that
             # stopped at max_tokens spent the budget on reasoning — the
             # visible answer is truncated. Flag it on the envelope and to the
@@ -2986,6 +3088,16 @@ def cmd_invoke(args: argparse.Namespace) -> int:
                     # cycle-124 FR-7: structured-output telemetry (schema requested only).
                     schema_enforced=_modelinv_state.get("schema_enforced"),
                     output_schema_sha256=_modelinv_state.get("output_schema_sha256"),
+                    # cycle-129 FR-7 / FR-8: thinking strip, schema rejection, and the
+                    # destination + locality of the answering (or last tried) hop.
+                    schema_rejected_by_server=_modelinv_state.get("schema_rejected_by_server"),
+                    thinking_stripped=_modelinv_state.get("thinking_stripped"),
+                    **_modelinv_hop_telemetry(
+                        _modelinv_state.get("final_model_id")
+                        or (_modelinv_state["models_failed"][-1].get("model") if _modelinv_state["models_failed"] else None)
+                        or (_modelinv_models_requested[0] if _modelinv_models_requested else None),
+                        hounfour,
+                    ),
                     streaming=_modelinv_state["streaming"],
                     final_model_id=_modelinv_state["final_model_id"],
                     transport=_modelinv_state["transport"],
@@ -3192,7 +3304,9 @@ def main() -> int:
         "--json-schema", dest="json_schema", metavar="FILE", default=None,
         help=(
             "JSON Schema file the answer must conform to (cycle-124 FR-7). Enforced "
-            "on Anthropic `structured_json` entries (output_config.format) and on "
+            "on Anthropic `structured_json` entries (output_config.format), on "
+            "OpenAI /v1/responses (text.format), on OpenAI-compatible chat entries "
+            "declaring `structured_json` (response_format, cycle-129 FR-7) and on "
             "claude-headless (--json-schema); other hops run unenforced and the "
             "MODELINV envelope records schema_enforced=false. Object root, <= 64 KB."
         ),

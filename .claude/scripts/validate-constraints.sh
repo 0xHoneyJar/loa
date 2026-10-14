@@ -22,6 +22,7 @@ readonly -a SECTIONS=(
   "simstim_constraints|.claude/skills/simstim-workflow/SKILL.md|skill-md-constraints.jq|[\"C-PHASE-002\",\"C-PHASE-003\",\"C-PHASE-004\",\"C-PHASE-007\",\"C-PHASE-008\",\"C-PROC-005\",\"C-PHASE-005\",\"C-PROC-002\",\"C-PROC-006\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "implementing_tasks_constraints|.claude/skills/implementing-tasks/SKILL.md|skill-md-constraints.jq|[.constraints[] | select(.layers[] | select(.target == \"skill-md\" and (.skills | index(\"implementing-tasks\"))))] | sort_by(.order)"
   "merge_constraints|.claude/loa/CLAUDE.loa.md|claude-loa-md-table.jq|[.constraints[] | select(.layers[] | select(.section == \"merge_constraints\"))] | sort_by(.order)"
+  "agent_teams_constraints|.claude/loa/CLAUDE.loa.md|claude-loa-md-table.jq|[.constraints[] | select(.layers[] | select(.section == \"agent_teams_constraints\"))] | sort_by(.order)"
   "discovering_requirements_grants|.claude/skills/discovering-requirements/SKILL.md|skill-md-constraints.jq|[\"C-PERM-001\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "reviewing_code_grants|.claude/skills/reviewing-code/SKILL.md|skill-md-constraints.jq|[\"C-PERM-003\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"
   "bridgebuilder_review_grants|.claude/skills/bridgebuilder-review/SKILL.md|skill-md-constraints.jq|[\"C-PERM-001\",\"C-PERM-003\",\"C-PERM-004\"] as \$o | [\$o[] as \$id | .constraints[] | select(.id == \$id)]"

@@ -19,7 +19,7 @@ seams_block() {
 }
 sprint_body() {
     printf '### Sprint Goal\ng\n\n### Deliverables\n- [ ] d\n\n### Acceptance Criteria\n- [ ] c\n\n'
-    printf '### Technical Tasks\n- [ ] Task %s → **[G-1]**\n\n' "$2"
+    printf '### Technical Tasks\n- [ ] Task %s → **[G-1]** · kind: mechanical\n\n' "$2"
     seams_block "$1"
     printf '### Dependencies\n- none\n\n### Security Considerations\n- none\n\n'
     printf '### Risks & Mitigation\n| Risk | Probability | Impact | Mitigation |\n|---|---|---|---|\n| r | Low | Low | m |\n\n'

@@ -1,0 +1,6 @@
+# pr-17 sprint-253: findings that did not become labels
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/engineer-feedback-r1.md#L60 [low] no locator (20 fix hunks in tests/unit/charting-decisions.bats): the gate itself holds: `op_handoff` (chart-ticket.sh:351-360) refuses on any ledger row still `open`, and a claim changes the bead, not the row, so a claimed-b…
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L51 [medium] no locator (9 fix hunks in .claude/hooks/safety/block-destructive-bash.sh): SP-1 does not look at `git push` refspecs
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L58 [medium] cites no file: One-line verbs beyond the SP-1 set move spike content
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L98 [low] pre-existing site: neither the change nor the fix touched .claude/hooks/safety/block-destructive-bash.sh:452: The r253-1 SP-1 span is a nested quantifier under bash `=~`
+record/cycle-128-a2a:grimoires/loa/a2a/sprint-253/auditor-sprint-feedback-r1.md#L114 [low] no locator (6 fix hunks in .claude/agents/chart-researcher.md): The researcher holds unrestricted Read and WebFetch (carried)

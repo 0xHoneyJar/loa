@@ -1,4 +1,4 @@
-<!-- @loa-managed: true | version: 2.0.0-rc.3 | hash: 99948d56555ca216166444cb5688c4af90f05703b36f15ad11daf208b4a45667 -->
+<!-- @loa-managed: true | version: 2.0.0-rc.3 | hash: a7a0470cb8c7f82699fe7e359920aa8e37e2bdab9c02b323b601ad8df673822d -->
 <!-- WARNING: This file is managed by the Loa Framework. Do not edit directly. -->
 
 # Loa Framework Instructions
@@ -116,19 +116,6 @@ Feedback files end with a `LOA-VERDICT` trailer; `verdict-derive.sh` enforces pr
 | ALWAYS use `post-merge-orchestrator.sh` for pipeline execution, not ad-hoc commands | Orchestrator provides state tracking, idempotency, and audit trail |
 | NEVER create tags manually — always use semver-bump.sh for version computation | Manual tags bypass conventional commit parsing and may produce incorrect versions |
 <!-- @constraint-generated: end merge_constraints -->
-
-## Agent Teams
-
-| Rule | Why |
-|------|-----|
-<!-- @constraint-generated: start agent_teams_constraints | hash:c020-teamcreate -->
-<!-- DO NOT EDIT — generated from .claude/data/constraints.json -->
-| MUST restrict planning skills to team lead only — teammates implement, review, and audit only | Planning skills assume single-writer semantics |
-| MUST serialize all beads operations through team lead — teammates report via SendMessage | SQLite single-writer prevents lock contention |
-| MUST only let team lead write to `.run/` state files — teammates report via SendMessage | Read-modify-write pattern prevents lost updates |
-| MUST coordinate git commit/push through team lead — teammates report completed work via SendMessage | Git working tree and index are shared mutable state |
-| MUST NOT modify .claude/ (System Zone) — framework files are lead-only, enforced by PreToolUse:Write/Edit hook | System Zone changes alter constraints/hooks for all agents |
-<!-- @constraint-generated: end agent_teams_constraints -->
 
 ## Agent-Network Primitives
 

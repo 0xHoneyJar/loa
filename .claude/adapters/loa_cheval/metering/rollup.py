@@ -118,7 +118,7 @@ def rollup_entries(
         g["tokens_out"] += int(e.get("tokens_out") or 0)
         g["tokens_reasoning"] += int(e.get("tokens_reasoning") or 0)
         g["cost_micro_usd"] += int(e.get("cost_micro_usd") or 0)
-        if e.get("pricing_source") not in ("config", "cli_reported"):
+        if e.get("pricing_source") not in ("config", "cli_reported", "stale_catalog"):   # (cycle-129 D-7.6: a stale price is a price)
             g["unpriced_calls"] += 1
         if e.get("model"):
             g["models"].add(str(e["model"]))

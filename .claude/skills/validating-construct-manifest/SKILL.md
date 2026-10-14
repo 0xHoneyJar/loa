@@ -2,6 +2,10 @@
 name: validating-construct-manifest
 description: Pre-install / pre-publish manifest linter for construct packs. Emits Verdict stream rows on findings. Checks required manifest fields, path resolution, route declarations, and the CLAUDE.md grimoires-section convention.
 role: review
+disallowed-tools:
+  - Write
+  - Edit
+  - NotebookEdit
 capabilities:
   schema_version: 1
   read_files: true
