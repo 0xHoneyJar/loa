@@ -9331,3 +9331,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0292"
+    created_at: "2026-10-14T03:25:28Z"
+    updated_at: "2026-10-14T03:25:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S2 lead: the disallowed-tools harness probe ran in the lead session and cost it Write/Edit for the session (KF-043); future probes use a throwaway session"
+    decision: "The Task 2.2 harness probe was run in the lead session after the subagent probe showed no enforcement; the main-session result (enforced, session-scoped, Bash unaffected) is recorded in reviewer.md, CHANGELOG and KF-043, and the cost (no Write/Edit for the rest of the session; subagents included) is why the run halts here. Future probes of tool-policy keys run in a throwaway session."
+    rationale: "lead process call, cycle-129 sprint-256"
+    alternatives_considered:
+      - option: "the alternative the finding names or implies"
+        rejected_because: "see the review round; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "40df53ed"
+    source: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:25:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0293"
+    created_at: "2026-10-14T03:26:38Z"
+    updated_at: "2026-10-14T03:26:38Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S2 lead: run halted after review round 1 without the [INCOMPLETE] draft PR the halt flow prescribes; one ICE PR at cycle end; HEAD pushed"
+    decision: "The run is halted after review round r256-1 without creating the [INCOMPLETE] draft PR that the run-halt flow prescribes: the cycle plan ships a single ICE PR at the cycle end, HEAD 40df53ed is pushed, and the halt reason (the session-scoped loss of Write/Edit, KF-043) is recorded in .run/state.json and NOTES; /run-resume continues at phase REVIEW."
+    rationale: "lead call at the halt; an intermediate draft PR would be an outward-facing artefact the saved plan did not authorise"
+    alternatives_considered:
+      - option: "the alternative the finding names or implies"
+        rejected_because: "see the review round; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "40df53ed"
+    source: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-12)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:26:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0294"
+    created_at: "2026-10-14T03:26:40Z"
+    updated_at: "2026-10-14T03:26:40Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S2 lead: the disallowed-tools probe ran in the lead session and cost it Write/Edit for the session (KF-043); future probes use a throwaway session"
+    decision: "The Task 2.2 harness probe was run in the lead session after the subagent probe showed no enforcement; the main-session result (enforced, session-scoped, Bash unaffected) is recorded in reviewer.md, CHANGELOG and KF-043, and the cost (no Write/Edit for the rest of the session, subagents included) is why the run halts here. Future probes of tool-policy keys run in a throwaway session."
+    rationale: "lead process call, cycle-129 sprint-256"
+    alternatives_considered:
+      - option: "the alternative the finding names or implies"
+        rejected_because: "see the review round; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "40df53ed"
+    source: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-13)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:26:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/engineer-feedback.md#findings (lead-13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
