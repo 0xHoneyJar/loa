@@ -2501,9 +2501,9 @@
         {
           "global_id": 256,
           "local_label": "sprint-2",
-          "status": "in_progress",
+          "status": "completed",
           "created": "2026-10-13T21:27:40Z",
-          "completed": null,
+          "completed": "2026-10-14T05:50:59Z",
           "theme": "Inert controls retired or repaired, file-authoritative run position, heredoc false positives, profile knob, prose diet",
           "epic": "bd-hjlv",
           "beads": [
@@ -2522,7 +2522,7 @@
         {
           "global_id": 257,
           "local_label": "sprint-3",
-          "status": "planned",
+          "status": "in_progress",
           "created": "2026-10-13T21:27:40Z",
           "completed": null,
           "theme": "Advisory open-weight voices, local_voices posture, Bridgebuilder banner, E2E",
@@ -2939,5 +2939,5 @@
     }
   ],
   "next_sprint_number": 258,
-  "last_updated": "2026-10-14T01:15:45Z"
+  "last_updated": "2026-10-14T05:50:59Z"
 }
