@@ -9560,3 +9560,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0299"
+    created_at: "2026-10-14T04:23:36Z"
+    updated_at: "2026-10-14T04:23:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: the example ships the nine profile keys only as commented lines, so a copied example follows loa.profile; an uncommented key is an explicit override"
+    decision: "Review round 2 HIGH-2: the eight profile-governed keys the example pinned explicitly are now commented lines with their standard value and the note that loa.profile governs them; soul_identity_doc.enabled was already absent. PL-4 asserts every profile key is null in the raw example and that the effective value under the example equals standard, and that a copy under lean or full resolves every key to that profile with no override. AC-2.4 is restated as the effective value under standard."
+    rationale: "an explicit key beats the profile by design (D-9.1), so the only way a copied example can follow the profile is for the example not to pin the keys; the comments keep the documentation value of each key"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6030e5b"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-17)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T04:23:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-17)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0300"
+    created_at: "2026-10-14T04:23:40Z"
+    updated_at: "2026-10-14T04:23:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: run-corpus.sh --knob-off requires the D122 sentinel row (exit 3 without it) unless --no-self-check is passed; probe corpora pass the flag"
+    decision: "The knob-off self-check treats an unseen D122 as a failure (exit 3) so a probe corpus cannot silently compare the hook with itself; --no-self-check is the documented escape for probe corpora without the sentinel; the header states that the knob reaches the hook through LOA_REPO_ROOT."
+    rationale: "dissent DISS-C-004 of round 2; the probe corpora are the one legitimate case and the flag makes the skip explicit"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6030e5b"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-18)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T04:23:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-18)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0301"
+    created_at: "2026-10-14T04:23:44Z"
+    updated_at: "2026-10-14T04:23:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: negated bats assertions are written as run plus a status check; a bare mid-test '! cmd' is exempt from errexit and cannot fail (LI-2/3/5/8, PL-1)"
+    decision: "Every mid-test negated assertion in lint-invariants.bats and profile-lib.bats is a run invocation followed by a status assertion; LI-8 captures the lint JSON in a local before the run so later lines keep reading it."
+    rationale: "dissent DISS-C-002 of round 2; the pattern the old IG-11 comment had recorded"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "b6030e5b"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-19)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T04:23:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-2 (lead-19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

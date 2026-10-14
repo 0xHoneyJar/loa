@@ -56,8 +56,11 @@ gen() { (cd "$F" && bash "$GEN" --section "${1:-agent_teams_constraints}"); }
 }
 
 @test "LI-2 the live kernel carries neither the Agent Teams heading nor its marker" {
-    ! grep -qxF '## Agent Teams' "$R/.claude/loa/CLAUDE.loa.md"
-    ! grep -q 'agent_teams_constraints' "$R/.claude/loa/CLAUDE.loa.md"
+    # `run` + status, never a bare mid-test `! cmd` (exempt from errexit, so it cannot fail).
+    run grep -qxF '## Agent Teams' "$R/.claude/loa/CLAUDE.loa.md"
+    [ "$status" -ne 0 ]
+    run grep -q 'agent_teams_constraints' "$R/.claude/loa/CLAUDE.loa.md"
+    [ "$status" -ne 0 ]
 }
 
 @test "LI-3 the generator removes a leftover Agent Teams block when the class is empty" {
@@ -65,8 +68,10 @@ gen() { (cd "$F" && bash "$GEN" --section "${1:-agent_teams_constraints}"); }
     grep -qxF '## Agent Teams' "$F/.claude/loa/CLAUDE.loa.md"
     run gen
     [ "$status" -eq 0 ]
-    ! grep -qxF '## Agent Teams' "$F/.claude/loa/CLAUDE.loa.md"
-    ! grep -q 'agent_teams_constraints' "$F/.claude/loa/CLAUDE.loa.md"
+    run grep -qxF '## Agent Teams' "$F/.claude/loa/CLAUDE.loa.md"
+    [ "$status" -ne 0 ]
+    run grep -q 'agent_teams_constraints' "$F/.claude/loa/CLAUDE.loa.md"
+    [ "$status" -ne 0 ]
     # The neighbouring sections survive with one blank line between them.
     grep -qF '<!-- @constraint-generated: end merge_constraints -->' "$F/.claude/loa/CLAUDE.loa.md"
     run grep -c '^## Agent-Network Primitives$' "$F/.claude/loa/CLAUDE.loa.md"
@@ -92,7 +97,8 @@ gen() { (cd "$F" && bash "$GEN" --section "${1:-agent_teams_constraints}"); }
     [ "$status" -eq 0 ]
     grep -qxF '## Agent Teams' "$F/.claude/loa/CLAUDE.loa.md"
     grep -qxF '| MUST fixture rule | fixture why |' "$F/.claude/loa/CLAUDE.loa.md"
-    ! grep -qF 'MUST stale row' "$F/.claude/loa/CLAUDE.loa.md"
+    run grep -qF 'MUST stale row' "$F/.claude/loa/CLAUDE.loa.md"
+    [ "$status" -ne 0 ]
 }
 
 @test "LI-6 rows without the heading block fail loudly and leave the kernel untouched" {
@@ -122,11 +128,15 @@ PY
 
 @test "LI-8 lint-invariants passes the optional-table invariant on the live tree" {
     run bash -c "cd '$R' && bash '$LINT' --json"
-    echo "$output" | jq -e '.results[] | select(.message | test("agent_teams_constraints: table presence matches"))' >/dev/null
-    ! echo "$output" | jq -e '.results[] | select(.level == "ERROR" and (.message | test("agent_teams")))' >/dev/null
+    local report="$output"
+    jq -e '.results[] | select(.message | test("agent_teams_constraints: table presence matches"))' >/dev/null <<<"$report"
+    # The negative check is a `run` with a status assertion: a bare mid-test `! cmd`
+    # is exempt from errexit and could never fail (review r256-2 LOW-8).
+    run jq -e '.results[] | select(.level == "ERROR" and (.message | test("agent_teams")))' <<<"$report"
+    [ "$status" -ne 0 ]
     # The field name is load-bearing: the negative check above is vacuous if
     # the report shape ever renames `level`.
-    echo "$output" | jq -e '[.results[] | has("level")] | all' >/dev/null
+    jq -e '[.results[] | has("level")] | all' >/dev/null <<<"$report"
 }
 
 @test "LI-9 the lint self-test (test-lint-invariants.sh) is green" {

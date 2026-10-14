@@ -3,8 +3,7 @@ name: audit
 description: Security and quality audit of application codebase
 role: review
 effort: medium
-allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *)
-# Write/Edit: State-Zone feedback/COMPLETED markers only (C-PROC-001, by zones).
+allowed-tools: Read, Grep, Glob, Write, Edit, WebFetch, WebSearch, Bash(.claude/scripts/verdict-derive.sh *), Bash(.claude/scripts/adversarial-review.sh *), Bash(br sync --import-only), Bash(br sync --flush-only), Bash(br comments add *), Bash(br label add *), Bash(.claude/scripts/beads/log-discovered-issue.sh *), Bash(.claude/scripts/guardrails-orchestrator.sh *), Bash(.claude/scripts/security-audit-scope.sh *), Bash(.claude/scripts/lib/profile-lib.sh knob *)
 disallowed-tools:
   - NotebookEdit
 capabilities:
@@ -32,6 +31,8 @@ capabilities:
         args: ["*"]
       - command: ".claude/scripts/security-audit-scope.sh"
         args: ["*"]
+      - command: ".claude/scripts/lib/profile-lib.sh"
+        args: ["knob", "*"]
     deny_raw_shell: true
   web_access: true
   user_interaction: false

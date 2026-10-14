@@ -35,14 +35,25 @@ command -v yq >/dev/null 2>&1 || { echo "check-knob-readers.sh: yq v4 required" 
 
 keys=$(yq -r '.profiles[] | keys | .[]' "$PROFILES" | sort -u)
 [[ -n "$keys" ]] || { echo "check-knob-readers.sh: no profile keys in $PROFILES" >&2; exit 2; }
-# Alternation of the dot-escaped keys; each must be preceded by a dot that is
-# not itself part of an identifier (start of line, quote, space, paren, ...).
-alt=$(printf '%s\n' "$keys" | sed 's/\./\\./g' | paste -sd'|' -)
+# Alternation of the ERE-escaped keys (every metacharacter, not only the dot —
+# r256-2 LOW-9); each must be preceded by a dot that is not itself part of an
+# identifier (start of line, quote, space, paren, ...).
+alt=$(printf '%s\n' "$keys" | sed 's/[]^$.*+?(){}|[]/\\&/g' | paste -sd'|' -)
 pattern="(^|[^A-Za-z0-9_])\\.(${alt})([^A-Za-z0-9_]|$)"
 
-hits=$(cd "$ROOT" && grep -rnE "$pattern" .claude tools 2>/dev/null \
+# grep: -I skips binaries (no "Binary file matches" pseudo-hits); exit 1 is "no
+# match", exit 2 is a grep error (a bad pattern) and is a hard failure, never an
+# empty hit list.
+grc=0
+raw=$(cd "$ROOT" && grep -rnIE "$pattern" .claude tools 2>&1) || grc=$?
+if (( grc >= 2 )); then
+  echo "check-knob-readers.sh: grep failed (exit $grc) — the key alternation did not compile: $raw" >&2
+  exit 2
+fi
+hits=$(printf '%s\n' "$raw" \
   | grep -v -E '^(\./)?\.claude/scripts/lib/profile-lib\.sh:' \
-  | grep -v -E '^(\./)?tools/check-knob-readers\.sh:' || true)
+  | grep -v -E '^(\./)?tools/check-knob-readers\.sh:' \
+  | sed '/^$/d' || true)
 if [[ -n "$hits" ]]; then
   echo "check-knob-readers.sh: direct read(s) of a profile key; use loa_knob from .claude/scripts/lib/profile-lib.sh:" >&2
   printf '%s\n' "$hits" | cut -c1-240 >&2

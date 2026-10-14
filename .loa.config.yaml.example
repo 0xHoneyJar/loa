@@ -29,6 +29,9 @@
 # config key read the same configuration under every profile
 # (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
 # An unknown value warns and falls back to standard.
+# The nine keys appear in this file only as commented lines at their usual
+# place ("Profile-governed … uncomment to pin it"), so a copied example follows
+# the profile you choose; an uncommented key is an explicit override and wins.
 # Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
 # library at another config file (hooks pass their own test config through it);
 # it is honoured outside bats, so treat it as part of the hook environment.
@@ -312,7 +315,8 @@ known_failures:
   # NOTHING while this flag is false. When true it is loud-but-nonblocking: it
   # warns visibly ([KF-SURFACE] WARNING) if the surface is enabled-but-degraded
   # (known-failures.md unreadable or zero entries parsed).
-  surface_at_session_start: false
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
 
 # -----------------------------------------------------------------------------
 # Decision ledger (grimoires/loa/decisions.yaml)
@@ -325,7 +329,8 @@ decisions:
   # proposed and open rows (id, status, summary) at session start, inside the L6
   # untrusted-content fence, plus a notice when .run/unattended.json is stale.
   # DEFAULT-OFF: the hook prints nothing while this is false and always exits 0.
-  surface_at_session_start: false
+  # Profile-governed (loa.profile; standard = false). Uncomment to pin it:
+  # surface_at_session_start: false
   # Hours after which `dec-write-lib.sh context --set-unattended`'s marker is stale
   # and ignored (a marker from another session is stale at once).
   unattended_marker_ttl_hours: 24
@@ -1358,7 +1363,8 @@ upstream_proposals:
 guardrails:
   # Input guardrails (pre-execution)
   input:
-    enabled: false
+    # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+    # enabled: false
 
     # PII Filter: Detect and redact sensitive data before processing
     # Actions: redact (replace with placeholder), anonymize (generic value)
@@ -1404,7 +1410,9 @@ guardrails:
   # Danger Level Enforcement: Tool risk classification
   # Levels: safe, moderate, high, critical
   danger_level:
-    enforce: false                # see the default-off note above the block
+    # Profile-governed (loa.profile; standard = false, full = true); see the
+    # default-off note above the block. Uncomment to pin it:
+    # enforce: false
     interactive:
       safe: execute               # Execute immediately
       moderate: execute_with_notice  # Brief notice in output
@@ -1431,8 +1439,9 @@ guardrails:
 # Uses skill postludes to silently scan for discoveries and extract learnings.
 # Mirrors the invisible prompt enhancement pattern from v1.17.0.
 invisible_retrospective:
-  # Master toggle - set to false to disable all invisible retrospective
-  enabled: true
+  # Master toggle - set to false to disable all invisible retrospective.
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # enabled: true
 
   # Always log to trajectory (even when disabled) - useful for debugging
   log_to_trajectory: true
@@ -2932,7 +2941,8 @@ karpathy_principles:
   # G-1 — master switch for the PostToolUse:Write|Edit surgical-diff hook
   # at .claude/hooks/quality/karpathy-surgical-diff-check.sh. When false,
   # the hook fast-paths to exit 0 in <10ms.
-  surgical_diff_warning: true
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # surgical_diff_warning: true
 
   # G-1 — per-session diff-lines threshold. When the session accumulator
   # exceeds this, the hook emits a [karpathy-surgical-warn] stderr line
@@ -2950,7 +2960,8 @@ karpathy_principles:
   # G-3 — when true, /implement refuses to write code if sprint.md lacks a
   # "Success criteria" / "Acceptance criteria" / "Verification" section.
   # Operator can [Skip with rationale] to override per-invocation.
-  require_success_criteria: true
+  # Profile-governed (loa.profile; standard = true, lean = false). Uncomment to pin it:
+  # require_success_criteria: true
 
   # warn | block. v1 honors only "warn" — block-mode is reserved for v2 to
   # avoid surprise breaking changes during initial rollout. Even with
@@ -2962,7 +2973,8 @@ karpathy_principles:
 # -----------------------------------------------------------------------------
 structured_handoff:
   # Master toggle for the L6 SessionStart surfacing hook.
-  enabled: false
+  # Profile-governed (loa.profile; standard = false, full = true). Uncomment to pin it:
+  # enabled: false
   # Per-handoff body byte cap at surfacing.
   surface_max_chars: 4000
   # cycle-121: skip UNREAD handoffs older than N days at surfacing (0 = never

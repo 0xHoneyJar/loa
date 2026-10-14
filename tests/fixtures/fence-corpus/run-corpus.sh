@@ -9,7 +9,10 @@
 #   residual → accepted false positive: counted, never gated
 # --knob-off  writes destructive_command_guard.heredoc_classifier: false into the
 #             replay root's .loa.config.yaml (cycle-129 FR-6: the pre-cycle scan);
-#             compare it with the pre-change hook through --rows.
+#             compare it with the pre-change hook through --rows. The hook reads
+#             that file through LOA_REPO_ROOT, which this runner exports as the
+#             replay root; the self-check below proves the knob reached the hook.
+# --no-self-check  skip the --knob-off self-check (for a probe corpus without D122).
 # --rows      prints "<id> <exit code>" per row instead of the summary (for diffs).
 # Output (text): one line per mismatch, then
 #   "benign P/T dangerous B/T residual R/T runtime_ms N p95_ms M";
@@ -22,15 +25,16 @@ export LC_ALL=C
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 hook="$root/.claude/hooks/safety/block-destructive-bash.sh"
 corpus="$root/tests/fixtures/fence-corpus/corpus.jsonl"
-json=0 knob_off=0 rows_out=0
+json=0 knob_off=0 rows_out=0 no_self_check=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --hook) hook="$2"; shift 2 ;;
     --corpus) corpus="$2"; shift 2 ;;
     --json) json=1; shift ;;
     --knob-off) knob_off=1; shift ;;
+    --no-self-check) no_self_check=1; shift ;;
     --rows) rows_out=1; shift ;;
-    *) echo "usage: run-corpus.sh [--hook PATH] [--corpus PATH] [--json] [--knob-off] [--rows]" >&2; exit 2 ;;
+    *) echo "usage: run-corpus.sh [--hook PATH] [--corpus PATH] [--json] [--knob-off] [--no-self-check] [--rows]" >&2; exit 2 ;;
   esac
 done
 [[ -x "$hook" || -f "$hook" ]] || { echo "hook not found: $hook" >&2; exit 2; }
@@ -95,9 +99,15 @@ fi
 # --knob-off self-check (r256-1 LOW-2): D122 (a .sh-target quoted heredoc) is blocked only
 # by the classifier; the pre-cycle scan lets it through. If it still blocks, the knob did not
 # reach the hook and the comparison would compare the hook with itself.
-if (( knob_off )) && [[ -n "${rc_d122:-}" && "$rc_d122" != 0 ]]; then
-  echo "run-corpus: --knob-off did not take effect (D122 exited $rc_d122, expected 0): the hook did not read $work/.loa.config.yaml" >&2
-  exit 3
+if (( knob_off )) && (( ! ${no_self_check:-0} )); then
+  if [[ -z "${rc_d122:-}" ]]; then
+    echo "run-corpus: --knob-off self-check impossible: the corpus has no D122 row (pass --no-self-check for a probe corpus)" >&2
+    exit 3
+  fi
+  if [[ "$rc_d122" != 0 ]]; then
+    echo "run-corpus: --knob-off did not take effect (D122 exited $rc_d122, expected 0): the hook did not read $work/.loa.config.yaml via LOA_REPO_ROOT" >&2
+    exit 3
+  fi
 fi
 (( rows_out )) && exit 0
 if (( json )); then

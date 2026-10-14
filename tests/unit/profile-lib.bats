@@ -36,7 +36,8 @@ knob() { bash "$LIB" knob "$@"; }
     done
     [ "$(yq -r '.profiles | keys | .[]' "$PROFILES" | sort | paste -sd, -)" = "full,lean,standard" ]
     [ "$(yq -r '.schema_version' "$PROFILES")" = "1" ]
-    ! yq -r '.profiles[] | keys | .[]' "$PROFILES" | grep -qx 'interview.pacing'
+    run bash -c "yq -r '.profiles[] | keys | .[]' '$PROFILES' | grep -qx 'interview.pacing'"
+    [ "$status" -ne 0 ]
 }
 
 @test "PL-2 every profile value is a boolean; lean is all false and full all true" {
@@ -61,21 +62,35 @@ knob() { bash "$LIB" knob "$@"; }
     [ "$output" = "$(printf 'true/false\ntrue/false')" ]
 }
 
-@test "PL-4 standard equals the post-cycle example defaults (explicit example value, else the reader's fallback)" {
-    local k ex st
+@test "PL-4 the example pins no profile key (r256-2): every key is null in the raw file and standard is its effective value" {
+    local k ex st eff
     while IFS= read -r k; do
+        # r256-2 (review round 2 HIGH-2): a copied example must follow loa.profile, so the
+        # raw key is absent (a commented line) — an explicit key would beat every profile.
         ex=$(yq -r ".$k" "$R/.loa.config.yaml.example")
+        [ "$ex" = "null" ] || { echo "example pins $k = $ex (must be commented: profile-governed)"; return 1; }
         st=$(yq -r ".profiles.standard[\"$k\"]" "$PROFILES")
-        if [ "$ex" = "null" ]; then
-            ex=$(jq -r --arg k "$k" '.keys[$k].empty_config_today' "$ORACLE")
-        fi
-        [ "$ex" = "$st" ] || { echo "example $k = $ex, standard $st"; return 1; }
+        eff=$(LOA_PROFILE_CONFIG_FILE="$R/.loa.config.yaml.example" bash "$LIB" knob "$k" "unset")
+        [ "$eff" = "$st" ] || { echo "effective $k under the example = $eff, standard $st"; return 1; }
     done < <(yq -r '.profiles.standard | keys | .[]' "$PROFILES")
     [ "$(yq -r '.loa.profile' "$R/.loa.config.yaml.example")" = "standard" ]
     # Under the example config the lib resolves standard and no override.
     LOA_PROFILE_CONFIG_FILE="$R/.loa.config.yaml.example" run bash "$LIB" overrides
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+    # A copy of the example under lean and full changes every key, with no override listed.
+    local copy="$T/copy.yaml"
+    for p in lean full; do
+        sed "s/^  profile: standard /  profile: $p /" "$R/.loa.config.yaml.example" > "$copy"
+        [ "$(yq -r '.loa.profile' "$copy")" = "$p" ]
+        LOA_PROFILE_CONFIG_FILE="$copy" run bash "$LIB" overrides
+        [ "$status" -eq 0 ]
+        [ -z "$output" ]
+        while IFS= read -r k; do
+            eff=$(LOA_PROFILE_CONFIG_FILE="$copy" bash "$LIB" knob "$k" "unset")
+            [ "$eff" = "$(yq -r ".profiles.$p[\"$k\"]" "$PROFILES")" ] || { echo "$p: $k = $eff"; return 1; }
+        done < <(yq -r '.profiles.standard | keys | .[]' "$PROFILES")
+    done
 }
 
 @test "PL-5 precedence: explicit key beats the profile, the profile beats the fallback" {

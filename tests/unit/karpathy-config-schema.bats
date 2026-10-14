@@ -17,12 +17,20 @@ setup() {
     grep -q "^karpathy_principles:" "$EXAMPLE"
 }
 
-@test "#961 K-1: example exposes all 7 keys" {
-    for key in surface_assumptions surgical_diff_warning diff_lines_per_task \
-               simplicity_check max_abstraction_depth require_success_criteria enforce; do
+@test "#961 K-1: example exposes all 7 keys (two as commented, profile-governed lines since cycle-129 FR-9)" {
+    for key in surface_assumptions diff_lines_per_task simplicity_check max_abstraction_depth enforce; do
         run yq eval ".karpathy_principles.${key}" "$EXAMPLE"
         [ "$status" -eq 0 ]
         [ "$output" != "null" ]
+    done
+    # surgical_diff_warning and require_success_criteria are loa.profile keys: the
+    # example documents them as commented lines so a copied example follows the
+    # profile (sprint-256 review r256-2 HIGH-2); the raw key must be absent.
+    for key in surgical_diff_warning require_success_criteria; do
+        grep -qE "^  # ${key}: (true|false)" "$EXAMPLE"
+        run yq eval ".karpathy_principles.${key}" "$EXAMPLE"
+        [ "$status" -eq 0 ]
+        [ "$output" = "null" ]
     done
 }
 
@@ -34,6 +42,9 @@ setup() {
     tmp="$(mktemp -d)"
     export LOA_CONFIG_OVERRIDE="$tmp/cfg.yaml"
     export KARPATHY_TASK_STATE="$tmp/state.jsonl"
+    # cycle-129 Task 2.3: per-task state lives under KARPATHY_STATE_DIR; without this
+    # seam the test reads the repository's live accumulator and inherits its lines.
+    export KARPATHY_STATE_DIR="$tmp/state"
     export KARPATHY_TRAJECTORY_DIR="$tmp/traj"
 
     # Config with master switch on but threshold UNSET — should default to 100
