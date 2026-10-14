@@ -217,9 +217,11 @@ class OpenAIAdapter(ProviderAdapter):
     def _transport_policy(self, model_config: ModelConfig) -> Optional[TransportPolicy]:
         """The D-7.2 TransportPolicy when the provider carries an insecure-endpoint
         opt-in or the model's dispatch_group is `local`; None otherwise (hosted
-        providers keep today's transport unchanged)."""
-        if getattr(self.config, "allow_insecure_endpoint", None) or getattr(model_config, "dispatch_group", None) == "local":
-            return TransportPolicy(endpoint=self.config.endpoint, provider=self.provider)
+        providers keep today's transport unchanged). A local hop also carries the
+        local-hop host rule (D-8.1, r257-1)."""
+        local = getattr(model_config, "dispatch_group", None) == "local"
+        if getattr(self.config, "allow_insecure_endpoint", None) or local:
+            return TransportPolicy(endpoint=self.config.endpoint, provider=self.provider, local=local)
         return None
 
     def _dispatch(

@@ -70,6 +70,10 @@ export interface ProviderDecl {
   dispatchGroup?: string;
   /** `models.<model_id>.dispatch_group` per declared model. */
   modelGroups: Record<string, string | undefined>;
+  /** The declared `endpoint` (a string), when there is one — the local-hop rule reads its host (D-8.1, r257-1). */
+  endpoint?: string;
+  /** A CLI provider (`type: *-headless`, or every model `kind: cli`): never local (D-8.1, r257-1). */
+  cli?: boolean;
 }
 
 /** Where the trusted provider configuration was read from. */

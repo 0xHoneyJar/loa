@@ -16,6 +16,7 @@ import {
   isPullRequestContext,
   isSafeRefName,
   loadTrustedConfig,
+  localEndpointHost,
   localityRefusal,
   providerKeyEnv,
   singleModelLocalityRefusal,
@@ -296,11 +297,13 @@ describe("hounfour.locality: local_voices in Bridgebuilder (D-8.1)", () => {
     "  locality: local_voices",
     "  providers:",
     "    local-vllm:",
+    "      endpoint: \"http://127.0.0.1:8000/v1\"",
     "      keyless: true",
     "      models:",
     "        qwen3-coder:",
     "          dispatch_group: local",
     "    lan-box:",
+    "      endpoint: \"https://192.168.1.10:8443/v1\"",
     "      keyless: true",
     "      dispatch_group: local",
     "    openai:",
@@ -363,6 +366,65 @@ describe("hounfour.locality: local_voices in Bridgebuilder (D-8.1)", () => {
     assert.match(singleModelLocalityRefusal("opus", t) ?? "", /^locality: local_voices refuses hosted hop opus \(/);
     const hosted: TrustedConfig = { ...t, locality: "hosted" };
     assert.equal(singleModelLocalityRefusal("opus", hosted), undefined);
+  });
+
+  it("a dispatch_group local voice whose endpoint host is not local (or a CLI provider) is hosted and dropped by name (r257-1)", () => {
+    const mislabelled = yaml + [
+      "    hostedbox:",
+      "      endpoint: \"https://api.acme.example/v1\"",
+      "      models:",
+      "        qwen-hosted:",
+      "          dispatch_group: local",
+      "    metabox:",
+      "      endpoint: \"https://169.254.169.254/v1\"",
+      "      dispatch_group: local",
+      "    noend:",
+      "      models:",
+      "        n1:",
+      "          dispatch_group: local",
+      "    clibox:",
+      "      type: claude-headless",
+      "      models:",
+      "        c1:",
+      "          dispatch_group: local",
+      "",
+    ].join("\n");
+    const t = loadTrustedConfig({}, fakeDeps({ head: mislabelled }));
+    assert.equal(t.providers.hostedbox.endpoint, "https://api.acme.example/v1", "the trusted reader carries the endpoint");
+    const models = mm([
+      { provider: "hostedbox", model_id: "qwen-hosted" },
+      { provider: "metabox", model_id: "m" },
+      { provider: "noend", model_id: "n1" },
+      { provider: "clibox", model_id: "c1" },
+      { provider: "local-vllm", model_id: "qwen3-coder" },
+    ]).models;
+    const r = applyLocality(models, t);
+    assert.deepEqual(r.kept.map((m) => `${m.provider}/${m.model_id}`), ["local-vllm/qwen3-coder"]);
+    assert.deepEqual(r.refused.map((x) => x.reason), [
+      "locality: local_voices refuses hosted hop qwen-hosted (hostedbox): dispatch_group local but endpoint host api.acme.example is not a loopback or RFC1918 IP literal or localhost",
+      "locality: local_voices refuses hosted hop m (metabox): dispatch_group local but endpoint host 169.254.169.254 is not a loopback or RFC1918 IP literal or localhost",
+      "locality: local_voices refuses hosted hop n1 (noend): dispatch_group local but endpoint host (none declared) is not a loopback or RFC1918 IP literal or localhost",
+      "locality: local_voices refuses hosted hop c1 (clibox): dispatch_group local but clibox is a CLI provider",
+    ]);
+    assert.match(singleModelLocalityRefusal("hostedbox:qwen-hosted", t) ?? "", /endpoint host api\.acme\.example is not a loopback/);
+  });
+
+  it("the local-hop host rule matches the cheval validator's ranges (localEndpointHost)", () => {
+    const local = [
+      "http://127.0.0.1:8000/v1", "https://127.9.9.9/v1", "http://[::1]:8000/v1", "https://[0:0:0:0:0:0:0:1]/v1",
+      "http://localhost:11434/v1", "http://LOCALHOST./v1", "https://10.0.0.5/v1", "https://172.16.0.1/v1",
+      "https://172.31.255.255/v1", "https://192.168.1.10:8443/v1",
+    ];
+    for (const e of local) assert.equal(localEndpointHost(e).ok, true, e);
+    const hosted = [
+      "https://api.acme.example/v1", "https://169.254.169.254/v1", "https://169.254.1.1/v1", "http://[fe80::1]/v1",
+      "http://[fd12::1]/v1", "https://203.0.113.5/v1", "https://8.8.8.8/v1", "https://172.32.0.1/v1",
+      "https://0x7f.1/v1", "https://127.000.0.1/v1", "http://[::ffff:127.0.0.1]/v1", "ftp://127.0.0.1/v1",
+      "https://localhost.example/v1", "not a url", "", "http://127.0.0.1:99999/v1",
+    ];
+    for (const e of hosted) assert.equal(localEndpointHost(e).ok, false, e);
+    assert.equal(localEndpointHost(undefined).host, "");
+    assert.equal(localEndpointHost("https://[0:0:0:0:0:0:0:1]:8443/v1").host, "::1");
   });
 });
 

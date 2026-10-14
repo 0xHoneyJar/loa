@@ -120,20 +120,31 @@ class TransportPolicy:
     (or a model with dispatch_group `local`): proxy environment variables are
     ignored, an HTTP redirect is an error and is never followed, and every request
     URL must keep the declared endpoint's scheme, host and port and start with its
-    path. The load-time half lives in config/endpoint_policy.py."""
+    path. The load-time half lives in config/endpoint_policy.py.
+
+    `local` (D-8.1, r257-1) marks a hop whose model says dispatch_group `local`: the
+    request host must then also pass the local-hop rule (a loopback or RFC1918 IP
+    literal or `localhost`, endpoint_policy.local_host), so a declared locality is
+    enforced even when a config reaches the adapter by another loader."""
 
     endpoint: str
     provider: str
+    local: bool = False
 
     def check_url(self, url: str) -> None:
         # URL parsing stays in the canonical endpoint validator (cycle-099 import guard).
-        from loa_cheval.config.endpoint_policy import split_url
+        from loa_cheval.config.endpoint_policy import LOCAL_RULE_TEXT, local_host, split_url
 
         try:
             d_scheme, d_host, d_port, d_path = split_url(self.endpoint)
             r_scheme, r_host, r_port, r_path = split_url(url)
         except ValueError as exc:
             raise InvalidConfigError(f"request URL for provider '{self.provider}' does not parse: {exc}") from None
+        if self.local and (r_scheme not in ("http", "https") or local_host(r_host) is None):
+            raise InvalidConfigError(
+                f"request host {r_host or '(none)'} for provider '{self.provider}' is not {LOCAL_RULE_TEXT} "
+                f"(dispatch_group local, D-7.2)"
+            )
         prefix = d_path.rstrip("/")
         same_origin = (r_scheme, r_host, r_port) == (d_scheme, d_host, d_port)
         in_path = (r_path == prefix or r_path.startswith(prefix + "/")) if prefix else True

@@ -23,9 +23,19 @@ operator-declared https host is not on) for the endpoint. The refusal codes are 
 codes, and URL parsing stays confined to that module (the cycle-099 import guard).
 ``tests/test_endpoint_validator_optin.py`` runs one case table through both entry points.
 
+THE LOCAL-HOP RULE (D-8.1, review round r257-1): a hop is ``local`` only when its provider is an HTTP provider
+(not ``kind: cli`` / ``*-headless``) whose endpoint host is an IP literal in a loopback (``127.0.0.0/8``, ``::1``)
+or RFC1918 (``10/8``, ``172.16/12``, ``192.168/16``) range, or the literal ``localhost`` — exactly the host
+acceptance of the validator's ``check_insecure_optin`` (``local_host`` / ``local_endpoint_host`` below). A
+``dispatch_group: local`` on a model entry or the provider block of any other provider is refused at load; an
+``https`` endpoint on such a host needs no ``allow_insecure_endpoint`` (an ``http`` one still does). The same rule
+is applied at request time (``TransportPolicy.local``), in the planner (``.claude/scripts/lib/hop-locality.py``,
+stdlib mirror) and in Bridgebuilder (``config.ts`` ``localEndpointHost``, TypeScript mirror).
+
 Request-time half (``TransportPolicy`` in ``providers/base.py``): for an opted-in provider, or a model whose
 ``dispatch_group`` is ``local``, the adapter ignores proxy environment variables, refuses HTTP redirects and
-requires every request URL to stay under the declared endpoint path.
+requires every request URL to stay under the declared endpoint path; for a local hop the request host must also
+pass the local-hop rule.
 
 CLI (used by ``model-health-probe.sh --provider <name>``; reads the merged config, never prints a secret)::
 
@@ -110,6 +120,70 @@ def check_endpoint(endpoint: str, allow_insecure_endpoint: Any = None, provider:
     return optin
 
 
+# --- the local-hop rule (D-8.1, r257-1) -------------------------------------------------------------------
+
+LOCAL_RULE_TEXT = "a loopback or RFC1918 IP literal or localhost"
+
+
+def local_host(host: Any) -> Optional[str]:
+    """The canonical host when ``host`` passes the local-hop rule, else None. ONE implementation: the
+    validator's ``check_insecure_optin`` host acceptance (brackets stripped, IP literals canonicalised)."""
+    if not isinstance(host, str) or not host.strip():
+        return None
+    ok, _code, _detail, canonical = _validator().check_insecure_optin(host)
+    return canonical if ok else None
+
+
+def endpoint_host(endpoint: Any) -> str:
+    """The endpoint's canonical host for a refusal message ('' when absent; the raw text when it does not parse)."""
+    if not isinstance(endpoint, str) or not endpoint:
+        return ""
+    try:
+        return split_url(endpoint)[1]
+    except ValueError:
+        return endpoint[:128]
+
+
+def local_endpoint_host(endpoint: Any) -> Optional[str]:
+    """The canonical host when ``endpoint`` is an http(s) URL whose host passes the local-hop rule, else None."""
+    if not isinstance(endpoint, str) or not endpoint:
+        return None
+    try:
+        scheme, host, _port, _path = split_url(endpoint)
+    except ValueError:
+        return None
+    if scheme not in ("http", "https"):
+        return None
+    return local_host(host)
+
+
+def _local_labels(prov: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    """(provider block says local, [model ids whose entry says local])."""
+    models = prov.get("models") if isinstance(prov.get("models"), dict) else {}
+    return (
+        prov.get("dispatch_group") == "local",
+        [m for m, entry in models.items() if isinstance(entry, dict) and entry.get("dispatch_group") == "local"],
+    )
+
+
+def _local_label_refusal(name: str, prov: Dict[str, Any]) -> Optional[ConfigError]:
+    """The refusal for a ``dispatch_group: local`` (model entry or provider block) the provider cannot honour —
+    a CLI provider, or an endpoint host that fails the local-hop rule — or None (not labelled, or it passes)."""
+    block_local, local_models = _local_labels(prov)
+    if not block_local and not local_models:
+        return None
+    if _is_cli_provider(prov):
+        return ConfigError(f"[CONFIG-INVALID] providers.{name}: dispatch_group local is not admitted on a CLI provider")
+    endpoint = prov.get("endpoint")
+    if local_endpoint_host(endpoint) is not None:
+        return None
+    where = f"providers.{name}" if block_local else f"providers.{name}.models.{local_models[0]}"
+    shown = endpoint_host(endpoint) or "missing"
+    return ConfigError(
+        f"[CONFIG-INVALID] {where}: dispatch_group local requires an endpoint on {LOCAL_RULE_TEXT} (host {shown})"
+    )
+
+
 # --- the merged view --------------------------------------------------------------------------------------
 
 
@@ -137,11 +211,16 @@ def normalise_keyless(merged: Dict[str, Any]) -> None:
             )
         auth = prov.get("auth")
         if isinstance(auth, str) and auth.strip().lower() in KEYLESS_AUTH_LITERALS:
+            if prov.get("keyless") is False:
+                raise ConfigError(
+                    f"[CONFIG-INVALID] providers.{name}: keyless: false conflicts with the literal auth "
+                    f"\"{auth.strip()}\""
+                )
             prov["keyless"] = True
 
 
 def validate_providers(merged: Dict[str, Any]) -> None:
-    """Post-interpolation step: endpoint rule and keyless preconditions for every provider."""
+    """Post-interpolation step: the local-hop rule, the endpoint rule and keyless preconditions for every provider."""
     providers = merged.get("providers")
     if not isinstance(providers, dict):
         return
@@ -150,13 +229,30 @@ def validate_providers(merged: Dict[str, Any]) -> None:
             continue
         optin = prov.get("allow_insecure_endpoint")
         endpoint = prov.get("endpoint")
+        # D-8.1 (r257-1): a declared locality is enforced, not trusted. The D-7.2 endpoint checks run first (their
+        # codes are the more specific reason); a labelled provider they admit is then held to the local-hop rule.
+        block_local, local_models = _local_labels(prov)
+        labelled = block_local or bool(local_models)
+        local = local_endpoint_host(endpoint) if labelled and not _is_cli_provider(prov) else None
         if not _is_cli_provider(prov) and endpoint not in (None, ""):
             if not isinstance(endpoint, str):
                 raise ConfigError(f"[CONFIG-INVALID] providers.{name}.endpoint must be a string")
-            check_endpoint(endpoint, optin, name)
+            # (local is set only when the endpoint parsed, so split_url cannot raise here)
+            if local is not None and optin is None and split_url(endpoint)[0] == "https":
+                # An https endpoint on a local host needs no opt-in: the full pipeline runs with the host
+                # admitted for this provider only (the scheme is https, so nothing is sent in the clear).
+                result = _validator().validate_declared_endpoint(endpoint, allow_insecure_endpoint=local)
+                if not result.valid:
+                    raise EndpointPolicyError(result.code or "ENDPOINT-INVALID", result.detail or "endpoint refused",
+                                              name)
+            else:
+                check_endpoint(endpoint, optin, name)
         elif optin is not None:
             # An opt-in with nothing to apply to is still validated, so a typo never sits silent.
             canonical_optin_host(optin, name)
+        refusal = _local_label_refusal(name, prov)
+        if refusal is not None:
+            raise refusal
         if prov.get("keyless") is True:
             models = prov.get("models") or {}
             if not isinstance(models, dict) or not models:
@@ -218,19 +314,28 @@ def _main(argv: Optional[List[str]] = None) -> int:
 
     from loa_cheval.config.loader import load_config
 
+    # Exit-code contract (model-health-probe.sh greps "error" from stderr): every load failure — a ConfigError,
+    # unparseable YAML, a failed interpolation — is one JSON line and 78; never a traceback.
     try:
         merged, _sources = load_config(project_root=args.project_root)
     except ConfigError as exc:
         print(json.dumps({"error": "config_load_failed", "detail": str(exc)}), file=sys.stderr)
         return 78
+    except Exception as exc:  # noqa: BLE001 — the contract above
+        print(json.dumps({"error": "config_load_failed", "detail": f"{type(exc).__name__}: {exc}"}), file=sys.stderr)
+        return 78
     if args.cmd == "list-providers":
         print("\n".join(sorted((merged.get("providers") or {}).keys())))
         return 0
     try:
-        print(json.dumps(describe_provider(merged, args.name), sort_keys=True))
+        described = describe_provider(merged, args.name)
     except KeyError:
         print(json.dumps({"error": "provider_not_configured", "provider": args.name}), file=sys.stderr)
         return 64
+    except ConfigError as exc:
+        print(json.dumps({"error": "config_load_failed", "detail": str(exc)}), file=sys.stderr)
+        return 78
+    print(json.dumps(described, sort_keys=True))
     return 0
 
 

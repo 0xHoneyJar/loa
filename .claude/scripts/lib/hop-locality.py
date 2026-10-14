@@ -13,6 +13,12 @@ config's `hounfour.providers` / `hounfour.aliases`, the two layers cheval merges
   * it resolves (a `provider:id` pin, an alias chain, or a bare id that exactly one provider declares) to a model entry
     that exists;
   * that model entry, or its provider block, says `dispatch_group: local` (the canonical key, D-8.0);
+  * the provider is an HTTP provider (not `kind: cli` / `*-headless`) whose `endpoint` host is an IP literal in a
+    loopback (127.0.0.0/8, ::1) or RFC1918 (10/8, 172.16/12, 192.168/16) range, or the literal `localhost` — the
+    local-hop rule (D-8.1, review round r257-1), the same host acceptance as the endpoint validator's
+    `check_insecure_optin`, mirrored here in stdlib `ipaddress` because this script cannot import the validator.
+    A declared locality is enforced, not trusted: otherwise the hop is hosted with reason `cli_provider`,
+    `endpoint_missing` or `endpoint_not_local:<host>`;
   * every hop on the entry's own `fallback_chain` is local by the same rule — cheval walks that chain inside one call,
     so a local entry that falls back to a hosted one would leave the declared providers without the planner seeing it.
 Everything else is `hosted`: an unresolved hop, an unreadable config, a headless CLI hop (its dispatch group is the
@@ -25,10 +31,57 @@ or localhost endpoint, no DNS, redirects refused, proxy env ignored, destination
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import sys
+import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 MAX_DEPTH = 10
+
+# The local-hop rule's ranges — the same as endpoint-validator.py `_OPTIN_LOOPBACK` / `_OPTIN_RFC1918`.
+_LOCAL_NETS = tuple(ipaddress.ip_network(n) for n in (
+    "127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
+
+
+def _canonical_host(host: str) -> str:
+    h = str(host).strip().lower()
+    if h.startswith("[") and h.endswith("]"):
+        h = h[1:-1]
+    if h.endswith(".") and not h.endswith(".."):
+        h = h[:-1]
+    try:
+        return str(ipaddress.ip_address(h))
+    except ValueError:
+        return h
+
+
+def endpoint_locality(endpoint: Any) -> Tuple[bool, str]:
+    """(passes the local-hop rule, canonical host for the reason) for a provider endpoint."""
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        return False, ""
+    try:
+        parts = urllib.parse.urlsplit(endpoint.strip())
+        parts.port  # noqa: B018 — a bad port is a parse failure, as in the validator's split_url
+    except ValueError:
+        return False, "unparseable"
+    host = _canonical_host(parts.hostname or "")
+    if parts.scheme.lower() not in ("http", "https") or not host:
+        return False, host or "unparseable"
+    if host == "localhost":
+        return True, host
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False, host
+    return any(addr.version == net.version and addr in net for net in _LOCAL_NETS), host
+
+
+def _is_cli(block: Dict[str, Any], entry: Dict[str, Any]) -> bool:
+    if str(block.get("type") or "").endswith("-headless") or entry.get("kind") == "cli":
+        return True
+    models = block.get("models")
+    return isinstance(models, dict) and bool(models) and all(
+        isinstance(m, dict) and m.get("kind") == "cli" for m in models.values())
 
 
 def _merge(base: Any, overlay: Any) -> Any:
@@ -116,6 +169,11 @@ def classify(hop: str, merged: Dict[str, Any], _depth: int = 0, _seen: Optional[
     group = entry.get("dispatch_group") or block.get("dispatch_group") or ""
     if group != "local":
         return provider, "hosted", f"dispatch_group={group or 'unset'}"
+    if _is_cli(block, entry):
+        return provider, "hosted", "cli_provider"
+    ok, host = endpoint_locality(block.get("endpoint"))
+    if not ok:
+        return provider, "hosted", (f"endpoint_not_local:{host}" if host else "endpoint_missing")
     key = f"{provider}:{model}"
     if key in seen:
         return provider, "local", "dispatch_group=local"

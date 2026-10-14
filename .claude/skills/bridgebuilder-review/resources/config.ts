@@ -2,6 +2,7 @@ import { execFile, execFileSync, execSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { closeSync, existsSync, fstatSync, openSync, readFileSync, statSync } from "node:fs";
+import { isIPv6 } from "node:net";
 import { join } from "node:path";
 import { z } from "zod/v4";
 import type {
@@ -454,6 +455,8 @@ const ProviderEntrySchema = z.looseObject({
   auth: z.unknown().optional(),
   allow_insecure_endpoint: z.unknown().optional(),
   dispatch_group: z.unknown().optional(),
+  endpoint: z.unknown().optional(),
+  type: z.unknown().optional(),
   models: z.unknown().optional(),
 });
 
@@ -481,18 +484,25 @@ export function parseProviderDecls(raw: unknown, label: string, warnings: string
     const envMatch = auth !== undefined ? ENV_AUTH_RE.exec(auth) : null;
     const literalAuth = auth !== undefined && auth !== "" && !auth.includes("{env:");
     const modelGroups: Record<string, string | undefined> = {};
+    let modelCount = 0;
+    let cliModels = 0;
     if (e.models !== null && typeof e.models === "object" && !Array.isArray(e.models)) {
       for (const [mid, m] of Object.entries(e.models as Record<string, unknown>)) {
         const g = m !== null && typeof m === "object" ? (m as { dispatch_group?: unknown }).dispatch_group : undefined;
         modelGroups[mid] = typeof g === "string" ? g : undefined;
+        modelCount += 1;
+        if (m !== null && typeof m === "object" && (m as { kind?: unknown }).kind === "cli") cliModels += 1;
       }
     }
+    const cli = (typeof e.type === "string" && e.type.endsWith("-headless")) || (modelCount > 0 && cliModels === modelCount);
     out[name] = {
       keyless: e.keyless === true || literalAuth,
       insecure: e.allow_insecure_endpoint !== undefined && e.allow_insecure_endpoint !== null && e.allow_insecure_endpoint !== false,
       ...(envMatch ? { authEnv: envMatch[1] } : {}),
       ...(typeof e.dispatch_group === "string" ? { dispatchGroup: e.dispatch_group } : {}),
       modelGroups,
+      ...(typeof e.endpoint === "string" ? { endpoint: e.endpoint } : {}),
+      ...(cli ? { cli: true } : {}),
     };
   }
   return out;
@@ -719,17 +729,102 @@ export function trustedConfigStartupLine(t: TrustedConfig): string {
     (keyless.length > 0 ? `; keyless providers: ${keyless.join(", ")}` : "");
 }
 
+/** The local-hop rule's wording, shared with cheval (endpoint_policy.LOCAL_RULE_TEXT) and the planner. */
+export const LOCAL_RULE_TEXT = "a loopback or RFC1918 IP literal or localhost";
+
+function ipv4Octets(host: string): number[] | undefined {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!m) return undefined;
+  const parts = m.slice(1).map((s) => (s.length > 1 && s.startsWith("0") ? NaN : Number(s)));  // no leading zeros, as Python ipaddress
+  return parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) ? parts : undefined;
+}
+
 /**
- * True when the trusted config marks this voice's provider `dispatch_group: local` (D-8.0): the model's own entry when
- * declared, else the provider-level key, else every declared model of the provider. Anything undeclared is hosted.
+ * The local-hop rule (D-8.1, review round r257-1) on a provider endpoint: `ok` when it is an http(s) URL whose host is an
+ * IP literal in a loopback (127.0.0.0/8, ::1) or RFC1918 (10/8, 172.16/12, 192.168/16) range, or the literal `localhost`.
+ * Link-local, metadata, unique-local IPv6, public ranges and every other DNS name fail. A stdlib mirror of the canonical
+ * validator's `check_insecure_optin` host acceptance (the generated TypeScript port does not export it): the authority is
+ * split by hand, not by WHATWG `URL`, so a host such as `0x7f.1` stays a DNS name here exactly as it does in Python.
+ * `host` is the canonical host for a refusal message ("" when there is no endpoint).
  */
-export function isLocalVoice(provider: string, modelId: string, trusted: TrustedConfig): boolean {
+export function localEndpointHost(endpoint: unknown): { ok: boolean; host: string } {
+  if (typeof endpoint !== "string" || endpoint.trim() === "") return { ok: false, host: "" };
+  const m = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)/.exec(endpoint.trim());
+  if (!m) return { ok: false, host: "unparseable" };
+  const scheme = m[1].toLowerCase();
+  let authority = m[2];
+  const at = authority.lastIndexOf("@");
+  if (at >= 0) authority = authority.slice(at + 1);
+  let host: string;
+  let port: string;
+  if (authority.startsWith("[")) {
+    const close = authority.indexOf("]");
+    if (close < 0) return { ok: false, host: "unparseable" };
+    host = authority.slice(1, close);
+    port = authority.slice(close + 1);
+  } else {
+    const colon = authority.indexOf(":");
+    host = colon >= 0 ? authority.slice(0, colon) : authority;
+    port = colon >= 0 ? authority.slice(colon) : "";
+  }
+  if (port !== "" && !/^:\d*$/.test(port)) return { ok: false, host: "unparseable" };
+  if (port.length > 1 && Number(port.slice(1)) > 65535) return { ok: false, host: "unparseable" };
+  host = host.toLowerCase();
+  if (host.endsWith(".") && !host.endsWith("..")) host = host.slice(0, -1);
+  if (host === "") return { ok: false, host: "unparseable" };
+  if (scheme !== "http" && scheme !== "https") return { ok: false, host };
+  if (host === "localhost") return { ok: true, host };
+  const v4 = ipv4Octets(host);
+  if (v4) {
+    const [a, b] = v4;
+    const ok = a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+    return { ok, host: v4.join(".") };
+  }
+  if (isIPv6(host)) {
+    let canonical = host;
+    try {
+      canonical = new URL(`http://[${host}]/`).hostname.replace(/^\[|\]$/g, "");
+    } catch {
+      return { ok: false, host };
+    }
+    return { ok: canonical === "::1", host: canonical };
+  }
+  return { ok: false, host };
+}
+
+/**
+ * The locality decision for one voice. `declared`: the trusted config marks it `dispatch_group: local` (the model's own
+ * entry when declared, else the provider-level key, else every declared model of the provider). `local`: declared AND
+ * the provider honours it — not a CLI provider, and its endpoint host passes the local-hop rule (D-8.1, r257-1: a
+ * declared locality is enforced, not trusted). `reason` names why a declared voice is still hosted.
+ */
+export function localVoiceDecision(
+  provider: string,
+  modelId: string,
+  trusted: TrustedConfig,
+): { local: boolean; declared: boolean; reason?: string } {
   const decl = Object.hasOwn(trusted.providers, provider) ? trusted.providers[provider] : undefined;
-  if (!decl) return false;
-  if (Object.hasOwn(decl.modelGroups, modelId) && decl.modelGroups[modelId] !== undefined) return decl.modelGroups[modelId] === "local";
-  if (decl.dispatchGroup !== undefined) return decl.dispatchGroup === "local";
-  const groups = Object.values(decl.modelGroups);
-  return groups.length > 0 && groups.every((g) => g === "local");
+  if (!decl) return { local: false, declared: false };
+  let declared: boolean;
+  if (Object.hasOwn(decl.modelGroups, modelId) && decl.modelGroups[modelId] !== undefined) declared = decl.modelGroups[modelId] === "local";
+  else if (decl.dispatchGroup !== undefined) declared = decl.dispatchGroup === "local";
+  else {
+    const groups = Object.values(decl.modelGroups);
+    declared = groups.length > 0 && groups.every((g) => g === "local");
+  }
+  if (!declared) return { local: false, declared: false };
+  const head = `locality: local_voices refuses hosted hop ${modelId} (${provider}): dispatch_group local but`;
+  if (decl.cli === true) return { local: false, declared: true, reason: `${head} ${provider} is a CLI provider` };
+  const verdict = localEndpointHost(decl.endpoint);
+  if (!verdict.ok) {
+    return { local: false, declared: true, reason: `${head} endpoint host ${verdict.host || "(none declared)"} is not ${LOCAL_RULE_TEXT}` };
+  }
+  return { local: true, declared: true };
+}
+
+/** True when the voice is local by `localVoiceDecision` (declared `dispatch_group: local` AND the endpoint honours it). */
+export function isLocalVoice(provider: string, modelId: string, trusted: TrustedConfig): boolean {
+  return localVoiceDecision(provider, modelId, trusted).local;
 }
 
 /**
@@ -744,8 +839,9 @@ export function applyLocality(
   const kept: MultiModelProviderEntry[] = [];
   const refused: Array<{ provider: string; modelId: string; reason: string }> = [];
   for (const m of models) {
-    if (isLocalVoice(m.provider, m.model_id, trusted)) kept.push(m);
-    else refused.push({ provider: m.provider, modelId: m.model_id, reason: localityRefusal(m.model_id, m.provider) });
+    const d = localVoiceDecision(m.provider, m.model_id, trusted);
+    if (d.local) kept.push(m);
+    else refused.push({ provider: m.provider, modelId: m.model_id, reason: d.reason ?? localityRefusal(m.model_id, m.provider) });
   }
   return { kept, refused };
 }
@@ -772,8 +868,10 @@ export function singleModelLocalityRefusal(model: string, trusted: TrustedConfig
   if (trusted.locality !== "local_voices") return undefined;
   const provider = resolveModelProvider(model, trusted);
   const bare = provider !== undefined && model.startsWith(`${provider}:`) ? model.slice(provider.length + 1) : model;
-  if (provider !== undefined && isLocalVoice(provider, bare, trusted)) return undefined;
-  return localityRefusal(model, provider ?? "unresolved provider");
+  if (provider === undefined) return localityRefusal(model, "unresolved provider");
+  const d = localVoiceDecision(provider, bare, trusted);
+  if (d.local) return undefined;
+  return d.reason ?? localityRefusal(model, provider);
 }
 
 /**

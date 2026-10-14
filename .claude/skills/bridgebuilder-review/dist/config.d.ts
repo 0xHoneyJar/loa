@@ -198,10 +198,32 @@ export declare function loadTrustedConfig(opts: {
 }, deps?: TrustedConfigDeps): TrustedConfig;
 /** One startup line naming where the trusted config was read from (main.ts prints it with the warnings). */
 export declare function trustedConfigStartupLine(t: TrustedConfig): string;
+/** The local-hop rule's wording, shared with cheval (endpoint_policy.LOCAL_RULE_TEXT) and the planner. */
+export declare const LOCAL_RULE_TEXT = "a loopback or RFC1918 IP literal or localhost";
 /**
- * True when the trusted config marks this voice's provider `dispatch_group: local` (D-8.0): the model's own entry when
- * declared, else the provider-level key, else every declared model of the provider. Anything undeclared is hosted.
+ * The local-hop rule (D-8.1, review round r257-1) on a provider endpoint: `ok` when it is an http(s) URL whose host is an
+ * IP literal in a loopback (127.0.0.0/8, ::1) or RFC1918 (10/8, 172.16/12, 192.168/16) range, or the literal `localhost`.
+ * Link-local, metadata, unique-local IPv6, public ranges and every other DNS name fail. A stdlib mirror of the canonical
+ * validator's `check_insecure_optin` host acceptance (the generated TypeScript port does not export it): the authority is
+ * split by hand, not by WHATWG `URL`, so a host such as `0x7f.1` stays a DNS name here exactly as it does in Python.
+ * `host` is the canonical host for a refusal message ("" when there is no endpoint).
  */
+export declare function localEndpointHost(endpoint: unknown): {
+    ok: boolean;
+    host: string;
+};
+/**
+ * The locality decision for one voice. `declared`: the trusted config marks it `dispatch_group: local` (the model's own
+ * entry when declared, else the provider-level key, else every declared model of the provider). `local`: declared AND
+ * the provider honours it — not a CLI provider, and its endpoint host passes the local-hop rule (D-8.1, r257-1: a
+ * declared locality is enforced, not trusted). `reason` names why a declared voice is still hosted.
+ */
+export declare function localVoiceDecision(provider: string, modelId: string, trusted: TrustedConfig): {
+    local: boolean;
+    declared: boolean;
+    reason?: string;
+};
+/** True when the voice is local by `localVoiceDecision` (declared `dispatch_group: local` AND the endpoint honours it). */
 export declare function isLocalVoice(provider: string, modelId: string, trusted: TrustedConfig): boolean;
 /**
  * D-8.1: under `hounfour.locality: local_voices` drop every planned voice whose provider is not local, each with the named

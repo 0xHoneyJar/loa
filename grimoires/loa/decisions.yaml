@@ -10584,3 +10584,291 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0331"
+    created_at: "2026-10-14T08:44:00Z"
+    updated_at: "2026-10-14T08:44:00Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S3 r257-1: A hop is local only when its HTTP provider's endpoint host is a loopback or RFC1918 IP literal or localhost: dispatch_group local is refused at lo..."
+    decision: "A hop is local only when its HTTP provider's endpoint host is a loopback or RFC1918 IP literal or localhost: dispatch_group local is refused at load otherwise, refused again at request time by TransportPolicy, classified hosted by hop-locality.py (endpoint_not_local) and dropped by Bridgebuilder applyLocality; a CLI provider never carries dispatch_group local."
+    rationale: "SDD D-8.1 promises a declared locality that is enforced, not trusted; before this rule a hosted https provider whose model entry said dispatch_group local was planned under local_voices, dispatched with the proxy environment ignored and recorded as hop_locality local (review r257-1 HIGH-1, from dissent DISS-C-001)."
+    alternatives_considered:
+      - option: "Keep locality a pure declaration (dispatch_group local alone) and document the operator's responsibility"
+        rejected_because: "contradicts D-8.1 and PRD AC-8.1; the posture would hold only by declaration and a copied catalog entry would silently send a local-posture run to a hosted host"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T08:44:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0332"
+    created_at: "2026-10-14T08:44:01Z"
+    updated_at: "2026-10-14T08:44:01Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S3 r257-1: keyless: false declared beside the literal auth local is refused at load by name instead of being overwritten to keyless: true."
+    decision: "keyless: false declared beside the literal auth local is refused at load by name instead of being overwritten to keyless: true."
+    rationale: "normalise_keyless silently flipped an explicit false; the module refuses every other conflicting or ambiguous declaration by name (review r257-1 LOW-2, from dissent DISS-C-004)."
+    alternatives_considered:
+      - option: "Keep the literal auth authoritative and overwrite keyless silently"
+        rejected_because: "a silent overwrite of an explicit operator value is the one shape the endpoint policy otherwise never allows"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T08:44:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0333"
+    created_at: "2026-10-14T08:44:02Z"
+    updated_at: "2026-10-14T08:44:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "S3 r257-1: The sprint-257 review ordered a fix round on an advisory-only dissent envelope (APPROVED quality) because the lead's reading raised DISS-C-001 to ..."
+    decision: "The sprint-257 review ordered a fix round on an advisory-only dissent envelope (APPROVED quality) because the lead's reading raised DISS-C-001 to HIGH; the review dissent is rerun on the committed fix range as run 2 of the sprint's three."
+    rationale: "An advisory severity from the companion voice does not bind the reviewer; the one-way rule makes a confirmed HIGH a CHANGES_REQUIRED verdict regardless of the envelope's status (cycle-119 verdict contract)."
+    alternatives_considered:
+      - option: "Approve on the envelope's APPROVED quality and file the advisories as follow-up beads"
+        rejected_because: "would ship a posture the SDD calls enforced while it is only declared; the fix is small and the dissent budget (three runs) allows a rerun"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T08:44:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/engineer-feedback.md#findings (r257-1 item 3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0334"
+    created_at: "2026-10-14T09:09:58Z"
+    updated_at: "2026-10-14T09:09:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: A provider is labelled local when its block or any model entry says dispatch_group: local; the provider-block refusal names providers.<p>, the model-en..."
+    decision: "A provider is labelled local when its block or any model entry says dispatch_group: local; the provider-block refusal names providers.<p>, the model-entry refusal names the first labelled model; at request time only the model's dispatch_group sets TransportPolicy.local (ProviderConfig has no dispatch_group), which leaves no gap because a provider-block label that fails the rule never loads."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:09:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0335"
+    created_at: "2026-10-14T09:09:59Z"
+    updated_at: "2026-10-14T09:09:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: At load the D-7.2 endpoint checks run before the local-label refusal so their more specific codes still fire (public http, metadata, TEST-NET, ULA); th..."
+    decision: "At load the D-7.2 endpoint checks run before the local-label refusal so their more specific codes still fire (public http, metadata, TEST-NET, ULA); the local-label refusal fires for what D-7.2 admits (hosted DNS names, public literals such as 8.8.8.8)."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:09:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0336"
+    created_at: "2026-10-14T09:10:00Z"
+    updated_at: "2026-10-14T09:10:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: An https endpoint on a local host with a local label loads with no allow_insecure_endpoint: the provider's own canonical local host is passed as the pe..."
+    decision: "An https endpoint on a local host with a local label loads with no allow_insecure_endpoint: the provider's own canonical local host is passed as the per-call opt-in to validate_declared_endpoint, only for https; http still needs the explicit opt-in; unlabelled providers keep the loopback and private refusal on https."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:10:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0337"
+    created_at: "2026-10-14T09:10:01Z"
+    updated_at: "2026-10-14T09:10:01Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: A CLI provider is type *-headless or every model kind: cli (as _is_cli_provider); the planner also treats an entry with kind: cli as CLI; Bridgebuilder..."
+    decision: "A CLI provider is type *-headless or every model kind: cli (as _is_cli_provider); the planner also treats an entry with kind: cli as CLI; Bridgebuilder's cli flag uses the provider-level form; a CLI provider never carries dispatch_group local."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:10:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0338"
+    created_at: "2026-10-14T09:10:02Z"
+    updated_at: "2026-10-14T09:10:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: MODELINV hop_locality_of applies the local-hop rule too (beyond the four places the review named) so the record never says local for a hop the rule cal..."
+    decision: "MODELINV hop_locality_of applies the local-hop rule too (beyond the four places the review named) so the record never says local for a hop the rule calls hosted."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:10:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0339"
+    created_at: "2026-10-14T09:10:03Z"
+    updated_at: "2026-10-14T09:10:03Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 J: The planner and Bridgebuilder read the raw config text, so an endpoint written as a template such as {env:LOCAL_URL} is classified hosted (endpoint_not..."
+    decision: "The planner and Bridgebuilder read the raw config text, so an endpoint written as a template such as {env:LOCAL_URL} is classified hosted (endpoint_not_local) — fail closed; cheval applies the rule to the interpolated value at load."
+    rationale: "implementer J call for cycle-129 sprint-257 fix round r257-1, recorded in reviewer-j.md"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "163656ff"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T09:10:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-j.md#assumptions (J-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

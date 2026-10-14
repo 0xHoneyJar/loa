@@ -131,7 +131,9 @@ def _local(**overrides: Any) -> Dict[str, Any]:
     cfg = copy.deepcopy(_BY_NAME["local-openai-compatible"])
     prov = cfg["providers"]["local"]
     for k, v in overrides.items():
-        if v is None:
+        if k == "model_dispatch_group":   # relabel the example's one model (r257-1: a local label changes the rule)
+            prov["models"]["qwen3-coder-30b"]["dispatch_group"] = v
+        elif v is None:
             prov.pop(k, None)
         else:
             prov[k] = v
@@ -155,10 +157,12 @@ REFUSALS = [
      "ENDPOINT-OPTIN-NOT-LOCAL"),
     ("mismatched-host", dict(endpoint="http://localhost:8000/v1", allow_insecure_endpoint="127.0.0.1"),
      "ENDPOINT-INSECURE-HOST-MISMATCH"),
-    ("https-loopback-without-optin", dict(endpoint="https://127.0.0.1:8000/v1", allow_insecure_endpoint=None),
-     "ENDPOINT-IP-BLOCKED"),
-    ("https-private-without-optin", dict(endpoint="https://10.0.0.5/v1", allow_insecure_endpoint=None),
-     "ENDPOINT-IP-BLOCKED"),
+    # A provider NOT labelled dispatch_group local keeps the loopback/private refusal on https; a local-labelled one
+    # is admitted without an opt-in (tests/test_local_dispatch_group_rule.py, r257-1).
+    ("https-loopback-without-optin", dict(endpoint="https://127.0.0.1:8000/v1", allow_insecure_endpoint=None,
+                                          model_dispatch_group="lab-gpu"), "ENDPOINT-IP-BLOCKED"),
+    ("https-private-without-optin", dict(endpoint="https://10.0.0.5/v1", allow_insecure_endpoint=None,
+                                         model_dispatch_group="lab-gpu"), "ENDPOINT-IP-BLOCKED"),
     ("https-metadata-without-optin", dict(endpoint="https://169.254.169.254/v1", allow_insecure_endpoint=None),
      "ENDPOINT-IP-BLOCKED"),
     ("userinfo", dict(endpoint="http://u:p@127.0.0.1:8000/v1"), "ENDPOINT-USERINFO-PRESENT"),

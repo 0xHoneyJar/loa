@@ -15,7 +15,9 @@ load adversarial-review-s3-helpers
 setup() { export XDG_RUNTIME_DIR="$BATS_TEST_TMPDIR"; s3_setup sprint-s3loc; }   # (the CLI lock is this test's own — CMP-121)
 teardown() { s3_teardown; }
 
-# one hosted provider (openai, the catalog's) and one local provider (localbox, declared here)
+# one hosted provider (openai, the catalog's) and one local provider (localbox, declared here — a provider the cheval
+# loader itself admits: keyless, opted in to its loopback host, every model with endpoint_family/auth_type/context_window;
+# LOC-10 loads it through loa_cheval.config.loader)
 _cfg() {  # <locality value | absent> [extra code_review / security_audit lines]
     local loc=""; [[ "$1" == absent ]] || loc="  locality: $1"
     s3_config "hounfour:
@@ -24,16 +26,30 @@ $loc
     localbox:
       type: openai_compat
       endpoint: \"http://127.0.0.1:8000/v1\"
+      allow_insecure_endpoint: \"127.0.0.1\"
+      keyless: true
       models:
         qwen-local:
+          endpoint_family: chat
+          auth_type: http_api
+          context_window: 32768
           dispatch_group: local
           pricing: {input_per_mtok: 0, output_per_mtok: 0}
         qwen-local-b:
+          endpoint_family: chat
+          auth_type: http_api
+          context_window: 32768
           dispatch_group: local
           pricing: {input_per_mtok: 0, output_per_mtok: 0}
         qwen-local-c:
+          endpoint_family: chat
+          auth_type: http_api
+          context_window: 32768
           dispatch_group: local
         qwen-leaky:
+          endpoint_family: chat
+          auth_type: http_api
+          context_window: 32768
           dispatch_group: local
           fallback_chain: [\"openai:gpt-5.5\"]
   aliases:
@@ -210,4 +226,46 @@ _hosted_in() {  # <file of hop names, one per line> → the hosted ones, as hop-
 @test "LOC-8 the multi-model reference says the Claude Code session model is exempt and remains the platform" {
     grep -q "hounfour.locality: local_voices" "$PROJECT_ROOT/.claude/loa/reference/multi-model-reference.md"
     grep -qi "Claude Code session model is exempt" "$PROJECT_ROOT/.claude/loa/reference/multi-model-reference.md"
+}
+
+@test "LOC-9 a declared dispatch_group local on a hosted DNS endpoint (or a CLI provider) is hosted and refused by name (r257-1)" {
+    _cfg local_voices
+    yq -i '.hounfour.providers.hostedbox = {"type": "openai_compat", "endpoint": "https://api.acme.example/v1",
+             "models": {"qwen-hosted": {"dispatch_group": "local"}}}
+           | .hounfour.providers.blockbox = {"type": "openai_compat", "endpoint": "https://203.0.113.5/v1", "dispatch_group": "local",
+             "models": {"qwen-b": {}}}
+           | .hounfour.providers.clibox = {"type": "claude-headless", "models": {"c1": {"kind": "cli", "dispatch_group": "local"}}}
+           | .hounfour.providers.noend = {"type": "openai_compat", "models": {"n1": {"dispatch_group": "local"}}}
+           | .hounfour.aliases.hb = "hostedbox:qwen-hosted"
+           | .flatline_protocol.code_review.fallback_chain = ["hb", "lq"]' "$CONFIG_FILE"
+    run python3 -I "$PROJECT_ROOT/.claude/scripts/lib/hop-locality.py" --catalog "$PROJECT_ROOT/.claude/defaults/model-config.yaml" \
+        --config "$CONFIG_FILE" -- hb blockbox:qwen-b clibox:c1 noend:n1 lq "localbox:qwen-local"
+    [ "$status" -eq 0 ]
+    [ "$(sed -n 1p <<<"$output" | cut -f2-4)" = "hostedbox	hosted	endpoint_not_local:api.acme.example" ] || { echo "$output"; return 1; }
+    [ "$(sed -n 2p <<<"$output" | cut -f2-4)" = "blockbox	hosted	endpoint_not_local:203.0.113.5" ]
+    [ "$(sed -n 3p <<<"$output" | cut -f2-4)" = "clibox	hosted	cli_provider" ]
+    [ "$(sed -n 4p <<<"$output" | cut -f2-4)" = "noend	hosted	endpoint_missing" ]
+    [ "$(sed -n 5p <<<"$output" | cut -f2-4)" = "localbox	local	dispatch_group=local" ]
+    [ "$(sed -n 6p <<<"$output" | cut -f3)" = "local" ]
+    # the whole run: the mislabelled hop is refused by name at plan time and never dispatched; the local hop answers
+    result=$(s3_run review)
+    [ "$(cat "$T/rc")" = "0" ] || { cat "$T/stderr.log"; return 1; }
+    grep -qxF "[adversarial-review] locality: local_voices refuses hosted hop hb (hostedbox)" "$T/stderr.log"
+    ! grep -qx "hb" "$CALLS" || { echo "the mislabelled hosted hop was dispatched"; return 1; }
+    [ "$(sort -u "$CALLS" | tr '\n' ' ')" = "lq " ]
+}
+
+@test "LOC-10 the suite's localbox fixture is a provider the cheval loader admits (LOW-1, r257-1)" {
+    _cfg local_voices
+    mkdir -p "$T/proj/.claude/defaults"
+    cp "$PROJECT_ROOT/.claude/defaults/model-config.yaml" "$T/proj/.claude/defaults/"
+    cp "$CONFIG_FILE" "$T/proj/.loa.config.yaml"
+    run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[2] + "/.claude/adapters")
+from loa_cheval.config.loader import load_config
+merged, _ = load_config(project_root=sys.argv[1])
+p = merged["providers"]["localbox"]
+assert p["keyless"] is True and p["allow_insecure_endpoint"] == "127.0.0.1", p
+print("loaded", " ".join(sorted(p["models"])))' "$T/proj" "$PROJECT_ROOT"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"loaded qwen-leaky qwen-local qwen-local-b qwen-local-c"* ]]
 }

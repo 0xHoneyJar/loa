@@ -23,8 +23,14 @@ _cfg() {  # <locality | absent> <primary> <secondary> [tertiary] [extra top-leve
     {
         printf 'hounfour:\n'
         [[ "$1" == absent ]] || printf '  locality: %s\n' "$1"
-        printf '  providers:\n    localbox:\n      type: openai_compat\n      endpoint: "http://127.0.0.1:8000/v1"\n      models:\n'
-        printf '        qwen-local:\n          dispatch_group: local\n        qwen-local-b:\n          dispatch_group: local\n'
+        # a localbox the cheval loader itself admits (LOW-1, r257-1; FLL-9 loads it through loa_cheval.config.loader)
+        printf '  providers:\n    localbox:\n      type: openai_compat\n      endpoint: "http://127.0.0.1:8000/v1"\n'
+        printf '      allow_insecure_endpoint: "127.0.0.1"\n      keyless: true\n      models:\n'
+        local m
+        for m in qwen-local qwen-local-b; do
+            printf '        %s:\n          endpoint_family: chat\n          auth_type: http_api\n' "$m"
+            printf '          context_window: 32768\n          dispatch_group: local\n'
+        done
         printf '  aliases:\n    lq: "localbox:qwen-local"\n    lqb: "localbox:qwen-local-b"\n'
         printf 'flatline_protocol:\n  enabled: true\n  models:\n    primary: %s\n    secondary: %s\n' "$2" "$3"
         [[ -z "${4:-}" ]] || printf '    tertiary: %s\n' "$4"
@@ -118,4 +124,42 @@ _cfg() {  # <locality | absent> <primary> <secondary> [tertiary] [extra top-leve
     run --separate-stderr bash -c 'source "$1/.claude/scripts/flatline-orchestrator.sh"; CONFIG_FILE="$2"; main --doc "$3" --phase prd --dry-run --json' _ "$REPO" "$CONFIG_FILE" "$doc"
     [ "$status" -eq 0 ] || { echo "$stderr" | tail; return 1; }
     [ "$(jq -r '.status' <<<"$output")" = "dry_run" ]
+}
+
+@test "FLL-8 a voice labelled dispatch_group local on a hosted DNS endpoint is hosted and refused by name (r257-1)" {
+    _cfg local_voices hb lqb lqc
+    yq -i '.hounfour.providers.hostedbox = {"type": "openai_compat", "endpoint": "https://api.acme.example/v1",
+             "models": {"qwen-hosted": {"dispatch_group": "local"}}}
+           | .hounfour.providers.localbox.models.qwen-local-c = {"dispatch_group": "local"}
+           | .hounfour.providers.localbox.endpoint = "https://api.acme.example/v1"
+           | .hounfour.aliases.hb = "hostedbox:qwen-hosted"
+           | .hounfour.aliases.lqc = "localbox:qwen-local-c"' "$CONFIG_FILE"
+    run python3 -I "$REPO/.claude/scripts/lib/hop-locality.py" --catalog "$REPO/.claude/defaults/model-config.yaml" \
+        --config "$CONFIG_FILE" -- hb lqb
+    [ "$(sed -n 1p <<<"$output" | cut -f2-4)" = "hostedbox	hosted	endpoint_not_local:api.acme.example" ] || { echo "$output"; return 1; }
+    [ "$(sed -n 2p <<<"$output" | cut -f2-4)" = "localbox	hosted	endpoint_not_local:api.acme.example" ]
+    run --separate-stderr flatline_locality_gate
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"locality: local_voices refuses hosted hop hb (hostedbox)"* ]] || { echo "$stderr"; return 1; }
+    [[ "$stderr" == *"locality: local_voices refuses hosted hop lqb (localbox)"* ]]
+    [[ "$stderr" == *"refuses a hosted Flatline primary or secondary voice — nothing was dispatched"* ]]
+    # the same voices on the loopback endpoint are planned
+    _cfg local_voices lq lqb
+    flatline_locality_gate 2> "$BATS_TEST_TMPDIR/err"
+    ! grep -q "refuses hosted hop" "$BATS_TEST_TMPDIR/err" || { cat "$BATS_TEST_TMPDIR/err"; return 1; }
+}
+
+@test "FLL-9 the suite's localbox fixture is a provider the cheval loader admits (LOW-1, r257-1)" {
+    _cfg local_voices lq lqb
+    mkdir -p "$BATS_TEST_TMPDIR/proj/.claude/defaults"
+    cp "$REPO/.claude/defaults/model-config.yaml" "$BATS_TEST_TMPDIR/proj/.claude/defaults/"
+    cp "$CONFIG_FILE" "$BATS_TEST_TMPDIR/proj/.loa.config.yaml"
+    run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[2] + "/.claude/adapters")
+from loa_cheval.config.loader import load_config
+merged, _ = load_config(project_root=sys.argv[1])
+p = merged["providers"]["localbox"]
+assert p["keyless"] is True and p["allow_insecure_endpoint"] == "127.0.0.1", p
+print("loaded", " ".join(sorted(p["models"])))' "$BATS_TEST_TMPDIR/proj" "$REPO"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"loaded qwen-local qwen-local-b"* ]]
 }
