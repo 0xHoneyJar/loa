@@ -168,7 +168,7 @@ g() { jq -c --arg id "$1" '.guards[] | select(.id == $id) | [.blocks_30d, .likel
     grep -qF "$s" <<<"$block" || { echo "hooks table misses $s" >&2; false; }
   done
   grep -qE '^\| PreToolUse \| Bash \| `hook-guard.sh safety/team-role-guard.sh` \| dormant \| LOA_TEAM_MEMBER \|' <<<"$block"
-  grep -qE '^\| PreToolUse \| Write\\\|Edit\\\|MultiEdit\\\|NotebookEdit \|' <<<"$block"
+  grep -qE '^\| PreToolUse \| Write/Edit/MultiEdit/NotebookEdit \|' <<<"$block"   # (matchers render with / — the human format hook-wiring W6 pins; PR #1282)
 }
 
 @test "GY-9 --json prints the yield object (header, totals and one row per guard)" {

@@ -73,20 +73,28 @@ cat "$BB_OUT"
 
 # cycle-129 D-7.7 (DEC-0150): exit 3 = the review COMPLETED with a DEGRADED consensus (bridgebuilder.exit_on_degraded;
 # 0 restores the old exit). Not a failure: one WARN naming the incomplete voices, `degraded: true` in the handoff, exit 0.
+# Bridgebuilder PR #1282 F-001: exit 3 is "completed, degraded" ONLY when the run JSON is there to prove it — a
+# non-empty stdout that parses with a `verdicts` array. An exit 3 with no run JSON (a wrapper, a shell error inside
+# entry.sh, a reassigned exit code) stays a failure: the handoff records it and the dispatcher exits 3.
 degraded=false
-voices=""
+voices_json="[]"
 if [[ "$rc" -eq 3 ]]; then
-    degraded=true
-    voices=$(jq -r '[.verdicts[]?.voices.incomplete[]?] | unique | join(", ")' "$BB_OUT" 2>/dev/null) || voices=""
-    echo "dispatcher: WARN: bridgebuilder completed DEGRADED (exit 3): incomplete voices: ${voices:-none named (degraded verdict quality)}" >&2
+    if [[ -s "$BB_OUT" ]] && jq -e '.verdicts | type == "array"' "$BB_OUT" >/dev/null 2>&1; then
+        degraded=true
+        voices_json=$(jq -c '[.verdicts[]?.voices.incomplete[]? | strings] | unique' "$BB_OUT" 2>/dev/null) || voices_json="[]"
+        voices=$(jq -r 'join(", ")' <<<"$voices_json" 2>/dev/null) || voices=""
+        echo "dispatcher: WARN: bridgebuilder completed DEGRADED (exit 3): incomplete voices: ${voices:-none named (degraded verdict quality)}" >&2
+    else
+        echo "dispatcher: ERROR: bridgebuilder exited 3 without a run JSON (no verdicts array on stdout) — not a completed review; treated as a failure" >&2
+    fi
 fi
 
 write_out "$(jq -nc --arg cid "$cycle_id" --arg sid "$schedule_id" \
-    --arg repo "$repo" --argjson ec "$rc" --argjson degraded "$degraded" --arg voices "$voices" \
+    --arg repo "$repo" --argjson ec "$rc" --argjson degraded "$degraded" --argjson voices "$voices_json" \
     '{cycle_id:$cid, schedule_id:$sid, dispatched:true, repo:$repo,
       bb_exit_code:$ec, degraded:$degraded}
      + (if $degraded then {incomplete_voices: $voices} else {} end)')"
-if [[ "$rc" -eq 3 ]]; then
+if [[ "$rc" -eq 3 && "$degraded" == true ]]; then
     exit 0
 fi
 exit "$rc"

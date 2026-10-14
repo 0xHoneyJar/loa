@@ -72,6 +72,10 @@ if source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null; then
     else
         enabled="$(loa_knob soul_identity_doc.enabled false 2>/dev/null || echo false)"
     fi
+else
+    # Bridgebuilder PR #1282 F-002: the surface stays off (never-block contract), but say so — an explicit
+    # soul_identity_doc.enabled: true is otherwise ignored silently when the library and this copied hook have drifted.
+    echo "WARNING: [loa-l7-surface-soul] profile-lib.sh could not be sourced: the soul surface is off this session (an explicit soul_identity_doc.enabled is not read)" >&2
 fi
 [[ "$enabled" == "true" ]] || exit 0
 

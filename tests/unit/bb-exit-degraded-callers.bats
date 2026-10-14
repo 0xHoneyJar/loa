@@ -43,7 +43,7 @@ run_dispatcher() {
     [[ "$output" == *"WARN: bridgebuilder completed DEGRADED (exit 3): incomplete voices: openai/gpt-5.5"* ]]
     [ "$(jq -r '.bb_exit_code' "$DISPATCHER_JSON")" = "3" ]
     [ "$(jq -r '.degraded' "$DISPATCHER_JSON")" = "true" ]
-    [ "$(jq -r '.incomplete_voices' "$DISPATCHER_JSON")" = "openai/gpt-5.5" ]
+    [ "$(jq -c '.incomplete_voices' "$DISPATCHER_JSON")" = '["openai/gpt-5.5"]' ]   # (PR #1282 F-001: an array, never a joined string)
 }
 
 @test "dispatcher: Bridgebuilder's run JSON still reaches stdout" {
@@ -68,6 +68,22 @@ run_dispatcher() {
     [ "$status" -eq 1 ]
     [ "$(jq -r '.bb_exit_code' "$DISPATCHER_JSON")" = "1" ]
     [ "$(jq -r '.degraded' "$DISPATCHER_JSON")" = "false" ]
+}
+
+@test "dispatcher: exit 3 without a run JSON is NOT completed-degraded — ERROR said, degraded false, exit 3 (PR #1282 F-001)" {
+    cat > "$STUB" <<'STUB_EOF'
+#!/usr/bin/env bash
+echo "bridgebuilder: something went wrong before any voice ran" >&2
+exit 3
+STUB_EOF
+    chmod +x "$STUB"
+    run_dispatcher e
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"ERROR: bridgebuilder exited 3 without a run JSON"* ]]
+    [[ "$output" != *"completed DEGRADED"* ]]
+    [ "$(jq -r '.bb_exit_code' "$DISPATCHER_JSON")" = "3" ]
+    [ "$(jq -r '.degraded' "$DISPATCHER_JSON")" = "false" ]
+    [ "$(jq -r 'has("incomplete_voices")' "$DISPATCHER_JSON")" = "false" ]
 }
 
 # --- spiral-harness.sh _gate_bridgebuilder ---------------------------------------------------------------------------

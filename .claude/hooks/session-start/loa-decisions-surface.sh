@@ -47,8 +47,12 @@ elif [[ -f "$config_path" ]]; then
   if [[ $have_yq4 -eq 1 ]]; then
     # Explicit key, else the loa.profile default (cycle-129 D-9.1).
     # shellcheck source=../../scripts/lib/profile-lib.sh
-    source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null &&
+    if source "${REPO_ROOT}/.claude/scripts/lib/profile-lib.sh" 2>/dev/null; then
       enabled="$(loa_knob decisions.surface_at_session_start false 2>/dev/null || echo false)"
+    else
+      # Bridgebuilder PR #1282 F-002: off, but said (an explicit decisions.surface_at_session_start is not read then).
+      echo "WARNING: [loa-decisions-surface] profile-lib.sh could not be sourced: the decisions surface is off this session" >&2
+    fi
   else
     # top-level `decisions:` block, then an indented `surface_at_session_start: true`
     enabled="$(awk '

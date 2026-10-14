@@ -399,7 +399,7 @@ render_hooks_block() {
         "| Event | Matcher | Script | Status | Knob | Purpose |",
         "|-------|---------|--------|--------|------|---------|",
         ($hooks[] | . as $h | $by[$h.id] as $r
-          | "| \($h.event | cell) | \(if $h.matcher == "" then "(all)" else ($h.matcher | cell) end) | `\(if $h.wrapped then "hook-guard.sh " else "" end)\($h.id | ltrimstr("hook:") | cell)` | \($r.status | cell) | \($r.knob | cell) | \($r.note // "" | cell) |"),
+          | "| \($h.event | cell) | \(if $h.matcher == "" then "(all)" else ($h.matcher | gsub("\\|"; "/") | cell) end) | `\(if $h.wrapped then "hook-guard.sh " else "" end)\($h.id | ltrimstr("hook:") | cell)` | \($r.status | cell) | \($r.knob | cell) | \($r.note // "" | cell) |"),
         "<!-- guard-register:end -->"
     ' <<<"$MAP_JSON"
 }
