@@ -42,8 +42,8 @@ hook consults them).
 These hooks write state when they run: `block-destructive-bash.sh` and the
 two mutation loggers append `.run/audit.jsonl`; `zone-write-guard.sh` and
 `karpathy-surgical-diff-check.sh` append trajectory JSONL under
-`grimoires/loa/a2a/trajectory/`; `karpathy` appends
-`.run/karpathy-task-state.jsonl`; `post-compact-reminder.sh` DELETES the
+`grimoires/loa/a2a/trajectory/`; `karpathy` writes a per-task state file under
+`.run/karpathy-surgical/` (cycle-129 D-4.3; the session-long `.run/karpathy-task-state.jsonl` is legacy); `post-compact-reminder.sh` DELETES the
 compact marker; `settings-cleanup.sh` rewrites `settings.local.json` (>64KB
 path); `cleanup-context.sh` archives and deletes the context dir. All of
 that happens inside the disposable mirror (`bench-env.sh`), never in the
@@ -56,7 +56,7 @@ why the live hook files are *copied into* the mirror on every build.
 |-------|--------------------------------|
 | `adversarial-gate__write-completed` | reads live `.loa.config.yaml` (`flatline_protocol.*.enabled`, both `true` at capture time) |
 | `zone-write-guard__*` | reads live `grimoires/loa/zones.yaml` zone globs |
-| `karpathy-diff__*` | reads live `.loa.config.yaml` (`karpathy_principles` absent at capture time → enabled, threshold 100); warn lines embed the running line total (deterministic given the seeded fixture) |
+| `karpathy-diff__*` | reads live `.loa.config.yaml` (`karpathy_principles` absent at capture time → enabled, threshold 100). Since cycle-129 D-4.3 the hook sizes the diff per task, so the two `*-warn` combos — which seed the LEGACY session-long total — no longer warn (the running total that warned on every write was the defect FR-4 repaired); their goldens were recaptured 2026-10-14 and record exit 0 with empty stderr |
 | `settings-cleanup__large` | log line embeds entry counts from the synthetic fixture (941 → 940) |
 
 If one of those repo files changes for unrelated reasons, regenerate the

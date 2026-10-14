@@ -10,6 +10,7 @@ capabilities:
   write_files: false
 allowed-tools:
   - Read
+disallowed-tools: Write, Edit, NotebookEdit
 ---
 
 # Positive Review Fixture
