@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-14T10:28:33Z",
+  "generated": "2026-10-14T10:39:58Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -972,7 +972,7 @@
     ".claude/data/zones.schema.yaml": "02196687542124d276373b8be46e0ef8c6444d33f2407a5efb7be736977eb2d4",
     ".claude/defaults/aliases-legacy.yaml": "1788c0f621159c4cbc4be1f7d7efc0e6d0c26675c3a6685c6596cfd9971f5fb2",
     ".claude/defaults/model-config.yaml": "35d5f6d2e7914a20f8b92c23fb45822df5adcbbb4a614f39ca632d7cbbd1e46c",
-    ".claude/defaults/model-config.yaml.checksum": "0bbae975060ec2e83b91a2fba2b2bbd5a8ee7450c1b48322063d917a99c34ebe",
+    ".claude/defaults/model-config.yaml.checksum": "9c3a829d61778f380055d1c0592d4f45985d8a3345d16dbc1df79b4030cff518",
     ".claude/docs/runbooks/model-health-probe-incident.md": "64b8b607430a3525a863a66f8daa76b43bdb16f05388b4527c88302a475bee0c",
     ".claude/evals/flatline-3model.sh": "5e1f10389980c4f52bd79e1d81befb414a4c7aea9eb6bb9310aa5e5c9e194ebe",
     ".claude/hooks/README.md": "9bf2efcf0e514176c3265fe9ab1cdeb93e28937b9de79a620bdd268384d90d4e",
@@ -3379,7 +3379,7 @@
     ".claude/adapters/tests/test_openai_chat_schema.py": "0d9034c76f070b7fdeace4d6531fa5c85714940dd48e02ed44806ecee0f4da48",
     ".claude/adapters/tests/test_openai_local_hop_e2e.py": "6379df2cf39bbdfa09edb86a19006495e93ba9ac2d87c91636c7167cbba3ac5f",
     ".claude/adapters/tests/test_openai_thinking_strip.py": "8ecae315812690f3300205d7331b11ffe295bddd89a841125cf3f3ab44782b2b",
-    ".claude/scripts/lib/hop-locality.py": "e0bb2e621b5a0b3230bf84f10f3c49a3ab0b601588d653dc328d0f8e70792835",
+    ".claude/scripts/lib/hop-locality.py": "9a8a27b4edf2ec76b0e5823efbfce2e48d5569f7610feef6b7f61d29746e8c44",
     ".claude/skills/bridgebuilder-review/dist/core/run-outcome.d.ts": "2ad75a35ee8113f949d4aef25de156b3338b78172cf3e6ff182fd90c4db5cf5c",
     ".claude/skills/bridgebuilder-review/dist/core/run-outcome.d.ts.map": "8c36c74ddcc9c9fbf78aa621a7766c4a894ecb0837b3f92a8bbc90da2e3bed97",
     ".claude/skills/bridgebuilder-review/dist/core/run-outcome.js": "8d6918d60be68de1ade19fc85fef95894d3c95a267235ddc9c2a7e74ab928d8f",

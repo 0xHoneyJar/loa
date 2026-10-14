@@ -33,7 +33,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import sys
-import urllib.parse
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 MAX_DEPTH = 10
@@ -55,17 +55,36 @@ def _canonical_host(host: str) -> str:
         return h
 
 
+_URL_RE = re.compile(r"^([A-Za-z][A-Za-z0-9+.-]*)://([^/?#]*)")  # scheme://authority
+
+
 def endpoint_locality(endpoint: Any) -> Tuple[bool, str]:
     """(passes the local-hop rule, canonical host for the reason) for a provider endpoint."""
     if not isinstance(endpoint, str) or not endpoint.strip():
         return False, ""
-    try:
-        parts = urllib.parse.urlsplit(endpoint.strip())
-        parts.port  # noqa: B018 — a bad port is a parse failure, as in the validator's split_url
-    except ValueError:
+    # The authority is split by hand (no URL library: URL parsing is confined to the endpoint validator by the
+    # cycle-099 import guard, and this stdlib mirror runs where the validator cannot be imported) — the same split as
+    # Bridgebuilder's localEndpointHost: scheme://[userinfo@]host[:port], a bracketed IPv6 host, a numeric port.
+    m = _URL_RE.match(endpoint.strip())
+    if not m:
         return False, "unparseable"
-    host = _canonical_host(parts.hostname or "")
-    if parts.scheme.lower() not in ("http", "https") or not host:
+    scheme, authority = m.group(1).lower(), m.group(2)
+    if "@" in authority:
+        authority = authority.rsplit("@", 1)[1]
+    if authority.startswith("["):
+        close = authority.find("]")
+        if close < 0:
+            return False, "unparseable"
+        raw_host, port = authority[1:close], authority[close + 1:]
+    else:
+        raw_host, sep, rest = authority.partition(":")
+        port = (":" + rest) if sep else ""
+    if port and not re.fullmatch(r":[0-9]*", port):
+        return False, "unparseable"
+    if len(port) > 1 and int(port[1:]) > 65535:
+        return False, "unparseable"
+    host = _canonical_host(raw_host)
+    if scheme not in ("http", "https") or not host:
         return False, host or "unparseable"
     if host == "localhost":
         return True, host
