@@ -160,9 +160,19 @@ fi
 
 # The arm's toggles: explicit JSON, else the suite's ab.arms[] entry.
 resolve_toggles() {
+  # audit r1 DISS-C-001: toggles exist only in arm mode (LOA_EVAL_ARM set); a stale
+  # LOA_EVAL_ARM_TOGGLES in a non-arm environment is ignored, and the baseline arm
+  # never carries toggles.
+  if [[ "$ARM_MODE" != "true" ]]; then
+    [[ -z "${LOA_EVAL_ARM_TOGGLES:-}" ]] || echo "WARN: LOA_EVAL_ARM_TOGGLES is set but LOA_EVAL_ARM is not: ignored (not an arm run)" >&2
+    printf '{}'; return 0
+  fi
   if [[ -n "${LOA_EVAL_ARM_TOGGLES:-}" ]]; then
     jq -ce 'if type == "object" then . else error("not an object") end' <<<"$LOA_EVAL_ARM_TOGGLES" 2>/dev/null \
       || { echo "ERROR: LOA_EVAL_ARM_TOGGLES is not a JSON object" >&2; return 2; }
+    if [[ "$ARM" == "baseline" && "$(jq -c 'length' <<<"$LOA_EVAL_ARM_TOGGLES")" != "0" ]]; then
+      echo "ERROR: the baseline arm takes no toggles (LOA_EVAL_ARM_TOGGLES=$LOA_EVAL_ARM_TOGGLES)" >&2; return 2
+    fi
     return 0
   fi
   local suite_file="${LOA_EVAL_SUITE_FILE:-}"
@@ -251,11 +261,16 @@ apply_toggles() {
         if [[ "${n:-0}" -eq 0 ]] || grep -q '^## Karpathy Principles' "$k"; then
           echo "ERROR: karpathy_block toggle: no '## Karpathy Principles' section removed" >&2; return 2
         fi
-        local cj="$WORKSPACE/.claude/data/constraints.json"
+        local cj="$WORKSPACE/.claude/data/constraints.json" cjn="none"
         if [[ -f "$cj" ]]; then
-          jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" && mv "$cj.tmp" "$cj"
+          # audit r1 DISS-C-008: a failed rewrite is exit 2, not a silent pass; verify afterwards
+          jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" \
+            || { rm -f "$cj.tmp"; echo "ERROR: karpathy_block toggle: constraints.json could not be rewritten" >&2; return 2; }
+          mv "$cj.tmp" "$cj"
+          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"
+          [[ "$cjn" == "0" ]] || { echo "ERROR: karpathy_block toggle: constraints.json still carries Karpathy rows ($cjn)" >&2; return 2; }
         fi
-        _evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md"
+        _evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md; constraints.json karpathy rows after: ${cjn}"
         ;;
       rule_files)
         local r gone=""
@@ -287,6 +302,16 @@ awk 'BEGIN{fm=0} NR==1 && $0=="---"{fm=1; next} fm==1 && $0=="---"{fm=2; next} f
 # Prompt-tree identity (what the A/B is actually varying).
 prompt_tree_sha="$(git -C "$PROMPT_TREE" rev-parse HEAD:.claude 2>/dev/null || echo unknown)"
 prompt_tree_commit="$(git -C "$PROMPT_TREE" rev-parse HEAD 2>/dev/null || echo unknown)"
+# audit r1 DISS-C-009: a declared source commit is a hex id and, when the prompt tree's
+# HEAD is known, the same commit — otherwise two trials from different trees could
+# present one source_commit and pass compare.sh's skew check.
+if [[ -n "${LOA_EVAL_SOURCE_COMMIT:-}" ]]; then
+  [[ "$LOA_EVAL_SOURCE_COMMIT" =~ ^[0-9a-f]{7,40}$ ]] \
+    || { echo "ERROR: LOA_EVAL_SOURCE_COMMIT is not a hex commit id" >&2; exit 2; }
+  if [[ "$prompt_tree_commit" != "unknown" && "$prompt_tree_commit" != "$LOA_EVAL_SOURCE_COMMIT"* ]]; then
+    echo "ERROR: LOA_EVAL_SOURCE_COMMIT ($LOA_EVAL_SOURCE_COMMIT) is not the prompt tree's HEAD ($prompt_tree_commit)" >&2; exit 2
+  fi
+fi
 prompt_tree_dirty=false
 if [[ -n "$(git -C "$PROMPT_TREE" status --porcelain -- .claude 2>/dev/null)" ]]; then
   prompt_tree_dirty=true

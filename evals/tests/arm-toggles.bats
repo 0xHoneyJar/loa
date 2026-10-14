@@ -191,10 +191,32 @@ run_arm() {  # run_arm <arm> <suite-file> <skill>
 }
 
 @test "AT-11 explicit LOA_EVAL_ARM_TOGGLES and LOA_EVAL_SOURCE_COMMIT are honoured and recorded" {
-  LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT=864069f2 \
+  head_sha="$(git -C "$PT" rev-parse HEAD)"
+  LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT="$head_sha" \
     run "$EXEC" --task-yaml "$T/task-reviewing-code.yaml" --workspace "$WS"
   [ "$status" -eq 0 ]
   [ ! -e "$SNAP/.claude/rules/stash-safety.md" ]
   [ "$(jq -r '.arm' "$WS/.eval/executor.json")" = "custom" ]
-  [ "$(jq -r '.source_commit' "$WS/.eval/executor.json")" = "864069f2" ]
+  [ "$(jq -r '.source_commit' "$WS/.eval/executor.json")" = "$head_sha" ]
+}
+
+@test "AT-12 a source commit that is not the prompt tree's HEAD, a non-hex one, toggles outside arm mode and baseline toggles are refused or ignored (audit r1 DISS-C-001, DISS-C-009)" {
+  LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT=864069f2 \
+    run "$EXEC" --task-yaml "$T/task-reviewing-code.yaml" --workspace "$WS"
+  [ "$status" -eq 2 ]
+  grep -q "not the prompt tree's HEAD" <<<"$output"
+  LOA_EVAL_ARM=custom LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' LOA_EVAL_SOURCE_COMMIT='not-a-sha' \
+    run "$EXEC" --task-yaml "$T/task-reviewing-code.yaml" --workspace "$WS"
+  [ "$status" -eq 2 ]
+  # baseline never carries toggles
+  LOA_EVAL_ARM=baseline LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' \
+    run "$EXEC" --task-yaml "$T/task-reviewing-code.yaml" --workspace "$WS"
+  [ "$status" -eq 2 ]
+  grep -q "baseline arm takes no toggles" <<<"$output"
+  # outside arm mode a stale LOA_EVAL_ARM_TOGGLES is ignored: the rule file stays
+  rm -rf "$WS"; mkdir -p "$WS"
+  LOA_EVAL_ARM_TOGGLES='{"rule_files":false}' run "$EXEC" --task-yaml "$T/task-reviewing-code.yaml" --workspace "$WS"
+  [ "$status" -eq 0 ]
+  grep -q "LOA_EVAL_ARM_TOGGLES is set but LOA_EVAL_ARM is not" <<<"$output"
+  [ -e "$SNAP/.claude/rules/stash-safety.md" ]
 }

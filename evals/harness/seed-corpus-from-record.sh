@@ -108,10 +108,18 @@ def clean(s, cap=160):
     s = re.sub(r"\s+", " ", s).strip()
     return s if len(s) <= cap else s[: cap - 1].rstrip() + "…"
 
+# audit r1 DISS-C-007: shapes beyond the original nine (PEM blocks, JWTs, GitHub
+# fine-grained/app/user tokens, Google and Stripe keys, generic key/token assignments);
+# the generic patterns stay on ONE line so a redaction never joins lines.
 SECRET_RX = [re.compile(p) for p in (
     r"AKIA[0-9A-Z]{16}", r"sk-[a-zA-Z0-9]{20,}", r"ghp_[a-zA-Z0-9]{36}", r"gho_[a-zA-Z0-9]{36}",
+    r"github_pat_[A-Za-z0-9_]{20,}", r"gh[su]_[a-zA-Z0-9]{36}",
     r"glpat-[a-zA-Z0-9\-]{20,}", r"xox[bpors]-[a-zA-Z0-9\-]+", r"sk-ant-[a-zA-Z0-9\-]{20,}",
-    r"password\s*[:=]\s*[\"'][^\"']{8,}", r"secret\s*[:=]\s*[\"'][^\"']{8,}")]
+    r"AIza[0-9A-Za-z\-_]{35}", r"(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{20,}",
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----[^-]*-----END [A-Z ]*PRIVATE KEY-----",
+    r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}",
+    r"password[ \t]*[:=][ \t]*[\"'][^\"'\n]{8,}", r"secret[ \t]*[:=][ \t]*[\"'][^\"'\n]{8,}",
+    r"(?:api[_-]?key|access[_-]?token|auth[_-]?token)[ \t]*[:=][ \t]*[\"'][^\"'\n]{16,}")]
 def has_secret(s):
     return any(r.search(s) for r in SECRET_RX)
 
@@ -304,7 +312,10 @@ if subprocess.run(["git", "-C", REPO, "rev-parse", "--verify", "--quiet", record
 record_name = record_ref.split("origin/", 1)[-1]
 
 # --- scope -------------------------------------------------------------------
-EXCL = re.compile(r"^(grimoires/|\.beads/|\.run/|evals/results/|CHANGELOG\.md$|\.claude/checksums\.json$|(.*/)?REPO-MAP\.md$|.*\.lock$|(.*/)?package-lock\.json$)")
+# audit r1 DISS-C-003 (defensive): a root CLAUDE.md copy inside a fixture would be an
+# instruction file Claude Code may load for the agent under test; the sandbox's own
+# CLAUDE.md points at the pinned prompt tree and is the only one allowed.
+EXCL = re.compile(r"^(grimoires/|\.beads/|\.run/|evals/results/|CLAUDE\.md$|CHANGELOG\.md$|\.claude/checksums\.json$|(.*/)?REPO-MAP\.md$|.*\.lock$|(.*/)?package-lock\.json$)")
 binary = set()
 for l in git("diff", "--numstat", "-M", base, head).splitlines():
     a, d, p = l.split("\t", 2)

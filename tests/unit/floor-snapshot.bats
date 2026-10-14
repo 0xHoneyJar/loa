@@ -41,13 +41,26 @@ base_show() { git -C "$ROOT" show "$BASE:$1"; }
   diff <(base_show "$corpus" | jq -c --argjson rules "$rules" "$sel") <(jq -c --argjson rules "$rules" "$sel" "$ROOT/$corpus")
 }
 
-@test "FS-3 the register disables nothing: settings.json hook registrations are identical to origin/main" {
-  diff <(base_show .claude/settings.json | jq -c '.hooks') <(jq -c '.hooks' "$ROOT/.claude/settings.json")
+@test "FS-3 the register disables nothing: the registrations of the hooks that run floor guards are identical to origin/main" {
+  # audit r1: pin the FLOOR hooks' registrations (the fence host and the dissent artefact gate),
+  # not every registration — a later task may add a non-floor hook without touching the floor.
+  floor_regs() { jq -c '[.hooks | to_entries[] | .key as $e | .value[] | .matcher as $m | .hooks[] | select(.command | test("safety/(block-destructive-bash|adversarial-review-gate)\\.sh")) | {event: $e, matcher: $m, command}] | sort_by(.command, .event, .matcher)'; }
+  diff <(base_show .claude/settings.json | floor_regs) <(floor_regs < "$ROOT/.claude/settings.json")
+  [ "$(floor_regs < "$ROOT/.claude/settings.json" | jq 'length')" -ge 2 ]
 }
 
-@test "FS-4 the fence's pattern-id call-site list (in order) is identical to origin/main" {
-  ids() { grep -oE 'emit_block "[A-Za-z0-9._-]+"|pattern_id(: |=)"[A-Za-z0-9._-]+"'; }
-  diff <(base_show .claude/hooks/safety/block-destructive-bash.sh | ids) <(ids < "$ROOT/.claude/hooks/safety/block-destructive-bash.sh")
+@test "FS-4 every floor fence id (FR-1.2b, FR-SZ*, FR-SZ2*) keeps at least the call sites it has on origin/main" {
+  # audit r1: count the floor ids' sites rather than diffing the whole ordered list, so a
+  # non-floor fence change (FR-6 in Sprint 2) does not fail the floor proof.
+  ids() { grep -oE 'emit_block "[A-Za-z0-9._-]+"|pattern_id(: |=)"[A-Za-z0-9._-]+"' | grep -oE '"[A-Za-z0-9._-]+"' | tr -d '"'; }
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    case "$id" in fence:*) id="${id#fence:}" ;; *) continue ;; esac
+    before="$(base_show .claude/hooks/safety/block-destructive-bash.sh | ids | grep -cx -- "$id" || true)"
+    now="$(ids < "$ROOT/.claude/hooks/safety/block-destructive-bash.sh" | grep -cx -- "$id" || true)"
+    [ "$now" -ge "$before" ] || { echo "floor fence id $id has $now call site(s), origin/main has $before" >&2; return 1; }
+    [ "$before" -ge 1 ] || { echo "floor fence id $id has no call site on origin/main (floor.yaml names a non-existent guard)" >&2; return 1; }
+  done < <(yq -r '.floor_guards[]' "$FLOOR")
 }
 
 @test "FS-5 the live permission deny list (policy:permission-deny-list) is identical to origin/main" {

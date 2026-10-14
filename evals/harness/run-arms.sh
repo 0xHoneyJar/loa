@@ -129,6 +129,7 @@ WORKTREE="$CACHE_ROOT/arms-src-$SRC12"
 
 [[ -n "$BATCH" ]] || BATCH="batch-${FIXTURES[0]}-${FIXTURES[${#FIXTURES[@]}-1]}-n${#FIXTURES[@]}"
 [[ "$BATCH" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || die "invalid --batch '$BATCH'"
+case "$BATCH" in .|..) die "invalid --batch '$BATCH' (a batch is one child directory)" ;; esac   # audit r1 DISS-C-004
 SUITE_DIR="$RESULTS_ROOT/$SUITE"
 BATCH_DIR="$SUITE_DIR/$BATCH"
 
@@ -152,6 +153,29 @@ for line in raw.decode("utf-8").splitlines():
     p = os.path.join(corpus, rel)
     if not os.path.isfile(p) or hashlib.sha256(open(p, "rb").read()).hexdigest() != digest:
         bad.append(rel)
+# audit r1 DISS-C-002: a file present on disk but absent from SHA256SUMS is drift too
+# (the seed's --check already says so; the runner must agree), else an added file
+# would reach the sandbox under an unchanged corpus digest.
+listed = {l.split("  ", 1)[1] for l in raw.decode("utf-8").splitlines() if l.strip()}
+walk_root = os.path.join(corpus, only) if only else corpus
+for root, _d, files in os.walk(walk_root):
+    for f in files:
+        rel = os.path.relpath(os.path.join(root, f), corpus)
+        if rel == "SHA256SUMS" or rel in listed:
+            continue
+        if only and not (rel.startswith(only + "/")):
+            continue
+        bad.append(rel + " (not listed)")
+if only:
+    for extra in (f"manifests/{only}.json", "corpus.tsv"):
+        if os.path.isfile(os.path.join(corpus, extra)) and extra not in listed:
+            bad.append(extra + " (not listed)")
+    ldir = os.path.join(corpus, "labels")
+    if os.path.isdir(ldir):
+        for f in os.listdir(ldir):
+            rel = f"labels/{f}"
+            if f.startswith(only + ".") and rel not in listed:
+                bad.append(rel + " (not listed)")
 if bad:
     print("corpus drift: " + ", ".join(bad[:10]), file=sys.stderr)
     sys.exit(1)
@@ -232,8 +256,10 @@ mkdir -p "$CACHE_ROOT"
 if [[ -e "$WORKTREE" ]]; then
   [[ "$(git -C "$WORKTREE" rev-parse HEAD 2>/dev/null)" == "$SRC_FULL" ]] \
     || die "$WORKTREE exists but is not at $SRC_FULL; remove it with git worktree remove"
-  [[ -z "$(git -C "$WORKTREE" status --porcelain 2>/dev/null)" ]] \
-    || die "$WORKTREE has local changes; the pinned source must be pristine"
+  # audit r1 DISS-C-006: ignored files count too — an earlier run's .loa.config.yaml or
+  # .run/ in the worktree would be copied into every sandbox under one recorded commit
+  [[ -z "$(git -C "$WORKTREE" status --porcelain --ignored 2>/dev/null)" ]] \
+    || die "$WORKTREE has local or ignored files; the pinned source must be pristine (git -C $WORKTREE status --ignored)"
 else
   git -C "$SOURCE_REPO" worktree add --detach "$WORKTREE" "$SRC_FULL" >/dev/null 2>&1 \
     || die "could not create the source worktree at $WORKTREE"
@@ -315,8 +341,11 @@ is_transport_failure() {  # is_transport_failure <sandbox-ws>
   case "$rc" in 124|137|143) return 0 ;; esac
   [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "missing" ]] && return 0
   [[ -n "$(jq -r '.api_error_status // empty' "$out" 2>/dev/null)" ]] && return 0
-  grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|network|socket hang up|5[0-9][0-9] ' \
-    "$err" "$out" 2>/dev/null && return 0
+  # audit r1 DISS-C-005: classify on the CLI's stderr only, never on the agent's own
+  # output, so the agent under test cannot earn itself a retry by mentioning a network
+  # error; the patterns are the CLI's transport messages, not free text.
+  grep -qiE 'rate.?limit|overloaded|session limit|usage limit|out of extra usage|ECONNRESET|ETIMEDOUT|socket hang up|^(fetch|request) failed|HTTP 5[0-9][0-9]' \
+    "$err" 2>/dev/null && return 0
   return 1
 }
 
@@ -337,7 +366,10 @@ run_trial() {  # run_trial <job-id> <arm> <fixture> <trial>
     ws="$("$SCRIPT_DIR/sandbox.sh" create --fixture "review-prs/$fx" --run-id "$run_id" --trial-id "$trial_id" 2>/dev/null)" \
       || { err_json='{"type":"infrastructure_error","message":"sandbox creation failed"}'; break; }
     ex_rc=0
-    EVAL_PROMPT_TREE="$WORKTREE" EVAL_MODEL="$MODEL" LOA_EVAL_ARM="$arm" LOA_EVAL_SUITE_FILE="$SUITE_FILE" \
+    # audit r1 DISS-C-001: the arm's toggles come from the suite declaration only; a
+    # LOA_EVAL_ARM_TOGGLES inherited from the parent environment never reaches a trial
+    env -u LOA_EVAL_ARM_TOGGLES \
+      EVAL_PROMPT_TREE="$WORKTREE" EVAL_MODEL="$MODEL" LOA_EVAL_ARM="$arm" LOA_EVAL_SUITE_FILE="$SUITE_FILE" \
       LOA_EVAL_SOURCE_COMMIT="$SRC_FULL" LOA_AUDIT_REPLAY=1 \
       "$SCRIPT_DIR/execute-agent.sh" --task-yaml "$task" --workspace "$ws" \
         --run-id "$run_id" --trial-id "$trial_id" --timeout "$per_trial" \
