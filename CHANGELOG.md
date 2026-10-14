@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0-rc.5] — 2026-10-14
+
 > cycle-129 "earned guards and open voices" (sprints 255–257, FR-1 … FR-10): every guard carries its origin and its measured yield, the eval harness gains pre-registered gate-off control arms on a corpus drawn from the cycle-126 to 128 record, sprint tasks say whether they are mechanical, judgment or operator work, and the two always-loaded rule files load only where they apply. The floor (review, audit, verdict-derive, the dissent artefact gate, the deny list, fence FR-1.2b, the System-Zone rules, the operator-only commands) is unchanged.
 
 ### Added
@@ -1536,6 +1538,8 @@ Full convergence trajectory: `grimoires/loa/a2a/trajectory/bridge-triage-2026-04
 - ATK-011: Blocks `unset LOA_TEAM_MEMBER` and `env -u` privilege escalation in Agent Teams
 
 ## [Unreleased]
+
+## [2.0.0-rc.5] — 2026-10-14
 
 ## [1.94.0] — 2026-04-17
 
