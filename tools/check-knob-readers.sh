@@ -42,14 +42,22 @@ alt=$(printf '%s\n' "$keys" | sed 's/[]^$.*+?(){}|[]/\\&/g' | paste -sd'|' -)
 pattern="(^|[^A-Za-z0-9_])\\.(${alt})([^A-Za-z0-9_]|$)"
 
 # grep: -I skips binaries (no "Binary file matches" pseudo-hits); exit 1 is "no
-# match", exit 2 is a grep error (a bad pattern) and is a hard failure, never an
-# empty hit list.
+# match", exit 2 is a grep error (a bad pattern, an unreadable path) and is a
+# hard failure, never an empty hit list. Only directories that exist are
+# searched (.claude is required; tools/ is optional, a fixture root may lack it)
+# and grep's stderr is kept apart from its hits so the message quotes it.
+dirs=()
+for d in .claude tools; do [[ -d "$ROOT/$d" ]] && dirs+=("$d"); done
+[[ " ${dirs[*]} " == *" .claude "* ]] || { echo "check-knob-readers.sh: $ROOT/.claude not found" >&2; exit 2; }
 grc=0
-raw=$(cd "$ROOT" && grep -rnIE "$pattern" .claude tools 2>&1) || grc=$?
+gerr="$(mktemp "${TMPDIR:-/tmp}/knob-readers.XXXXXX")"
+raw=$(cd "$ROOT" && grep -rnIE "$pattern" "${dirs[@]}" 2>"$gerr") || grc=$?
 if (( grc >= 2 )); then
-  echo "check-knob-readers.sh: grep failed (exit $grc) — the key alternation did not compile: $raw" >&2
+  echo "check-knob-readers.sh: grep failed (exit $grc): $(tr '\n' ' ' <"$gerr")" >&2
+  rm -f -- "$gerr"
   exit 2
 fi
+rm -f -- "$gerr"
 hits=$(printf '%s\n' "$raw" \
   | grep -v -E '^(\./)?\.claude/scripts/lib/profile-lib\.sh:' \
   | grep -v -E '^(\./)?tools/check-knob-readers\.sh:' \

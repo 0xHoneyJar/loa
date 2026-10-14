@@ -3,7 +3,12 @@
 # block-destructive-bash hook and summarise (cycle-125 Sprint 1, PRD FR-1).
 #
 # Usage: run-corpus.sh [--hook PATH] [--corpus PATH] [--json] [--knob-off] [--rows]
-# Each row: {id, cmd, expect: allow|block|residual, rule, why, cwd: repo|tmp, env?: {TMPDIR}}
+# Each row: {id, cmd, expect: allow|block|residual|miss, rule, why, cwd: repo|tmp, env?: {TMPDIR}}
+#   allow/block are gated (a mismatch fails the run); residual is an accepted
+#   false positive (counted, reported as R/T where R = rows that now allow);
+#   miss is a documented false negative (M id; counted, reported as M/T where
+#   M = rows the hook still lets through, never a mismatch in either direction,
+#   so a fix never reads as a regression — r256-3).
 #   allow    → benign: the hook must exit 0
 #   block    → dangerous: the hook must exit 2
 #   residual → accepted false positive: counted, never gated
@@ -50,7 +55,7 @@ if (( knob_off )); then
   printf 'destructive_command_guard:\n  heredoc_classifier: false\n' > "$work/.loa.config.yaml"
 fi
 
-bp=0 bt=0 db=0 dt=0 rp=0 rt=0
+bp=0 bt=0 db=0 dt=0 rp=0 rt=0 mp=0 mt=0
 mismatches=()
 durations=()
 # Microsecond clock: $EPOCHREALTIME (bash ≥ 5) everywhere; GNU date fallback.
@@ -78,12 +83,14 @@ while IFS= read -r row; do
   fi
   t1=$(now_us)
   durations+=("$(( (t1 - t0) / 1000 ))")
-  [[ "$id" == D122 ]] && rc_d122=$rc   # knob-off self-check (r256-1 LOW-2)
+  [[ "$id" == D122 ]] && rc_d122=$rc   # knob-off self-check (r256-1 LOW-2): classifier-only block
+  [[ "$id" == D01 ]] && rc_d01=$rc     # knob-off positive control (r256-3): a plain FR-2 block the knob must not touch
   (( rows_out )) && printf '%s %s\n' "$id" "$rc"
   case "$expect" in
     allow)    bt=$((bt+1)); if [[ $rc -eq 0 ]]; then bp=$((bp+1)); else mismatches+=("$id:expected-allow:rc=$rc"); fi ;;
     block)    dt=$((dt+1)); if [[ $rc -eq 2 ]]; then db=$((db+1)); else mismatches+=("$id:expected-block:rc=$rc"); fi ;;
     residual) rt=$((rt+1)); [[ $rc -eq 0 ]] && rp=$((rp+1)) ;;
+    miss)     mt=$((mt+1)); [[ $rc -eq 0 ]] && mp=$((mp+1)) ;;
     *) mismatches+=("$id:unknown-expect:$expect") ;;
   esac
 done < "$corpus"
@@ -108,14 +115,21 @@ if (( knob_off )) && (( ! ${no_self_check:-0} )); then
     echo "run-corpus: --knob-off did not take effect (D122 exited $rc_d122, expected 0): the hook did not read $work/.loa.config.yaml via LOA_REPO_ROOT" >&2
     exit 3
   fi
+  # Positive control: a classifier-independent dangerous row must still block, or the
+  # written config disabled (or broke) the whole fence rather than the classifier.
+  if [[ -z "${rc_d01:-}" || "$rc_d01" != 2 ]]; then
+    echo "run-corpus: --knob-off positive control failed (D01 exited ${rc_d01:-unseen}, expected 2): the config file disabled the fence, not only the classifier" >&2
+    exit 3
+  fi
 fi
 (( rows_out )) && exit 0
 if (( json )); then
   printf '%s\n' "${mismatches[@]+"${mismatches[@]}"}" | jq -R . | jq -s \
     --argjson bp "$bp" --argjson bt "$bt" --argjson db "$db" --argjson dt "$dt" \
     --argjson rp "$rp" --argjson rt "$rt" --argjson ms "$runtime" --argjson p95 "$p95" --argjson n "$n" \
-    '{benign_pass:$bp, benign_total:$bt, dangerous_block:$db, dangerous_total:$dt, residual_pass:$rp, residual_total:$rt, runtime_ms:$ms, p95_ms:$p95, rows:$n, mismatches: map(select(length>0))}'
+    --argjson mp "$mp" --argjson mt "$mt" \
+    '{benign_pass:$bp, benign_total:$bt, dangerous_block:$db, dangerous_total:$dt, residual_pass:$rp, residual_total:$rt, miss_open:$mp, miss_total:$mt, runtime_ms:$ms, p95_ms:$p95, rows:$n, mismatches: map(select(length>0))}'
 else
   printf '%s\n' "${mismatches[@]+"${mismatches[@]}"}" | sed '/^$/d'
-  echo "benign $bp/$bt dangerous $db/$dt residual $rp/$rt runtime_ms $runtime p95_ms $p95"
+  echo "benign $bp/$bt dangerous $db/$dt residual $rp/$rt miss $mp/$mt runtime_ms $runtime p95_ms $p95"
 fi

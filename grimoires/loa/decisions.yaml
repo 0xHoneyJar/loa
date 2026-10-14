@@ -9656,3 +9656,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0302"
+    created_at: "2026-10-14T04:48:39Z"
+    updated_at: "2026-10-14T04:48:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: the fence corpus gains a miss class (M ids, expect: miss) for documented false negatives: counted, never a mismatch; B89 became M01"
+    decision: "A documented fence miss is recorded as expect: miss under an M id: run-corpus.sh counts it (miss M/T, JSON miss_open/miss_total) and never treats it as a mismatch in either direction, so adding a rule later does not read as a regression; the residual class stays for accepted false positives."
+    rationale: "dissent r3 DISS-C-003: an allow row for a known miss pins the miss as required behaviour"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "77455afb"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-3 (lead-20)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T04:48:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-3 (lead-20)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0303"
+    created_at: "2026-10-14T04:48:41Z"
+    updated_at: "2026-10-14T04:48:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: run-corpus.sh --knob-off carries a positive control: D01 (plain FR-2 block) must still exit 2, else the config disabled the fence, not the classifier"
+    decision: "The knob-off self-check requires both D122 to pass (the classifier is off) and D01 to block (the rest of the fence is on); either failure exits 3 with a message naming which; probe corpora pass --no-self-check."
+    rationale: "dissent r3 DISS-C-002: without a positive control a config that disabled the whole fence would certify the comparison"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "77455afb"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-3 (lead-21)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T04:48:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-3 (lead-21)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
