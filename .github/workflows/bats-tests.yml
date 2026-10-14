@@ -164,6 +164,11 @@ jobs:
       - name: Guard register drift gate (guard-yield.sh --check)
         run: bash .claude/scripts/guard-yield.sh --check
 
+      # cycle-129 FR-9 (r256-1 LOW-1): every optional-surface knob is read through
+      # profile-lib.sh; a bare `yq '.key // default'` read of a profile key fails here.
+      - name: Knob readers go through profile-lib (check-knob-readers.sh)
+        run: bash tools/check-knob-readers.sh
+
       - name: Run adapter and maintenance Python regressions
         run: |
           python -m pytest -q -p no:cacheprovider \

@@ -1711,6 +1711,7 @@ If a cycle kickoff shows this denial text, stop the cycle: it is the harness per
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-14 | re-invoked the write-capable implementing-tasks skill to reset the tool policy | no effect: Write/Edit stayed disabled for the session | grimoires/loa/NOTES.md 2026-10-14 ~14:30 entry; a2a/sprint-256/reviewer.md §Harness probe; cycle-129 sprint-256 commit |
+| 2026-10-14 | waited for the operator's next prompt (the next human turn) instead of restarting the session | the harness restored Write, Edit and NotebookEdit at the next user prompt: the loss is scoped to the agentic turn that invoked the skill (which in an unattended run is the rest of the session), not to the session as such | session 9abd2e2d turn after the operator's 'eli5 exec summary' message, 2026-10-14; grimoires/loa/a2a/sprint-256/reviewer.md §Harness probe |
 
 ### Reading guide
 

@@ -74,6 +74,7 @@ while IFS= read -r row; do
   fi
   t1=$(now_us)
   durations+=("$(( (t1 - t0) / 1000 ))")
+  [[ "$id" == D122 ]] && rc_d122=$rc   # knob-off self-check (r256-1 LOW-2)
   (( rows_out )) && printf '%s %s\n' "$id" "$rc"
   case "$expect" in
     allow)    bt=$((bt+1)); if [[ $rc -eq 0 ]]; then bp=$((bp+1)); else mismatches+=("$id:expected-allow:rc=$rc"); fi ;;
@@ -91,6 +92,13 @@ if (( n > 0 )); then
   p95=$(printf '%s\n' "${durations[@]}" | sort -n | sed -n "${idx}p")
 fi
 
+# --knob-off self-check (r256-1 LOW-2): D122 (a .sh-target quoted heredoc) is blocked only
+# by the classifier; the pre-cycle scan lets it through. If it still blocks, the knob did not
+# reach the hook and the comparison would compare the hook with itself.
+if (( knob_off )) && [[ -n "${rc_d122:-}" && "$rc_d122" != 0 ]]; then
+  echo "run-corpus: --knob-off did not take effect (D122 exited $rc_d122, expected 0): the hook did not read $work/.loa.config.yaml" >&2
+  exit 3
+fi
 (( rows_out )) && exit 0
 if (( json )); then
   printf '%s\n' "${mismatches[@]+"${mismatches[@]}"}" | jq -R . | jq -s \

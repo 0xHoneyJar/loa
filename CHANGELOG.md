@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The run-state false alarm (Sprint 256, FR-5 evidence): cycle-128's jack-out wrote `.status: JACKED_OUT` and left `.state: RUNNING`, so the preflight and the SessionStart hooks reported "RUNNING but idle 13 h"; `derive` reads both keys (a disagreement becomes a note) and the jack-out step writes `.state`.
 - Three guardrail and Karpathy knobs (`guardrails.input.enabled`, `guardrails.danger_level.enforce`, `karpathy_principles.require_success_criteria`) could never be turned off: their readers used yq's `//`, which reads an explicit `false` as absent. `loa_knob` tests presence.
 - The fence's in-place check for `jq`/`yq` missed a bare `-i` (corpus D114/D115, caught at integration); fixed before commit.
+- The fence treated a backtick span as inert text while it treated `$( )` as a command substitution, so a force push or a spike merge hidden in backticks inside a double-quoted argument, an assignment or an unquoted heredoc body passed every rule (pre-existing on `main`; surfaced by the sprint-256 review dissent). A backtick pair outside single quotes is now normalised to the `$( )` form before the rules run; literal backticks under a quoted heredoc delimiter or inside single quotes are untouched. Corpus D143–D148 and B90–B91 pin it.
 
 ## [2.0.0-rc.4] — 2026-10-13
 

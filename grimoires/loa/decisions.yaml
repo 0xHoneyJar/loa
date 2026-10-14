@@ -9464,3 +9464,99 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0296"
+    created_at: "2026-10-14T03:54:56Z"
+    updated_at: "2026-10-14T03:54:56Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: the knob-off replay now differs from the pre-change hook on exactly the five backtick D-rows (D143-D147), by design; every other row is identical"
+    decision: "The 'knob off reproduces today's results' check is read as: row-identical to the b6802e4f hook on every row except the five new backtick D-rows (D143-D147), which block under both knob settings because the backtick normalisation is a fence-wide fix, not a classifier feature; the run-corpus.sh --knob-off self-check asserts D122 still passes under the pre-cycle scan so the knob is proven to reach the hook."
+    rationale: "the rollback key disables the classifier, not the backtick fix; a rollback that reopened the backtick hole would be worse than today"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "773fef1c"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-15)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:54:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-15)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0297"
+    created_at: "2026-10-14T03:56:02Z"
+    updated_at: "2026-10-14T03:56:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: KF-043 scope corrected by an attempt row: the write tools returned at the operator's next prompt, so the loss is per agentic turn"
+    decision: "KF-043 is corrected by an attempt row rather than a rewrite (the ledger is append-only): the harness restored Write, Edit and NotebookEdit at the operator's next prompt, so a disallowed-tools skill removes the tools for the agentic turn that invoked it; in an unattended run that is the rest of the session, which is why the run halted. The report, the skill-invariants paragraph and the CHANGELOG say so."
+    rationale: "the first reading (for the whole session) repeated the harness message; the observed restoration is the better evidence"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "773fef1c"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-16)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:56:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0298"
+    created_at: "2026-10-14T03:56:35Z"
+    updated_at: "2026-10-14T03:56:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S2 lead: fence normalises backtick pairs outside single quotes to the dollar-paren form before any rule; heredoc-aware; fail closed on unbalanced quotes"
+    decision: "The fix for review HIGH-1 is a normalisation step after the heredoc scrub and before the carrier scrubs: a backtick pair outside single quotes becomes the dollar-paren form the rules anchor on. The normaliser walks the command line by line, uses the FR-6 header parser to find each heredoc's delimiter and quoting, alternates every backtick in an unquoted body, leaves a quoted body untouched, tracks shell quotes elsewhere, and redoes the shell text with quoting ignored when the quotes do not balance (an apostrophe in prose), when a header is unreadable or when a header holds several heredocs. Kept segments of a quoted body have their literal backticks stripped first."
+    rationale: "a pre-existing hole (identical on main) that every rule shared; one normalisation fixes all of them without touching a pattern id, and heredoc awareness keeps quoted-delimiter prose literal (B79, B81, B84, B86, B91 allow; D143-D148 block)"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "773fef1c"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-14)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T03:56:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#feedback-addressed-review-round-r256-1 (lead-14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

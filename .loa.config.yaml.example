@@ -29,6 +29,9 @@
 # config key read the same configuration under every profile
 # (.claude/data/floor.yaml lists them; tests/unit/profile-floor.bats pins it).
 # An unknown value warns and falls back to standard.
+# Seam: the environment variable LOA_PROFILE_CONFIG_FILE points the profile
+# library at another config file (hooks pass their own test config through it);
+# it is honoured outside bats, so treat it as part of the hook environment.
 loa:
   profile: standard   # lean | standard | full
 

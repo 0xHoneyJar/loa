@@ -109,7 +109,7 @@ write_lines() {
     local i
     for i in $(seq -w 1 25); do
         echo '{"lines_changed":1}' > "$KARPATHY_STATE_DIR/bd-old-$i.jsonl"
-        touch -d "2026-01-01 00:00:$i" "$KARPATHY_STATE_DIR/bd-old-$i.jsonl"
+        touch -t "202601010000.$i" "$KARPATHY_STATE_DIR/bd-old-$i.jsonl"   # POSIX form: GNU and BSD touch (r256-1 LOW-3)
     done
     checkpoint sprint-256 bd-new
     write_lines 1

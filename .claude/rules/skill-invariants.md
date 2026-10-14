@@ -70,6 +70,20 @@ through the shell (`>`, `tee`, `cp`, `sed -i`); shell-redirection writes remain
 fence territory (`block-destructive-bash.sh` and the System-Zone rules), not
 frontmatter territory.
 
+**What the harness enforces (live probe, cycle-129 Sprint 2, Claude Code 2.1.296).**
+In the main session, invoking a skill that carries `disallowed-tools: Write, Edit,
+NotebookEdit` removed the three tools until the next user prompt — the next Write
+was refused ("Permission to use Write has been denied"), later calls reported the
+tools "disabled for this session, in subagents as well", and invoking a write-capable
+skill did not restore them; in an unattended run that is the rest of the session
+(KF-043). A Bash redirect still wrote a file (the Bash gap above). In a subagent
+(`general-purpose`, all tools) the same skill removed nothing: Write, Edit and Bash
+all succeeded, and `allowed-tools: Read, Grep, Glob` did not restrict either. So the
+key is a barrier in the main session only; for subagent work the zones, the fence and
+the implement gate are the barriers. Keep the key (it holds where the review and audit
+skills run) and never invoke such a skill from a lead session that still has writes
+to do.
+
 ## Scope
 
 Applies to every `.claude/skills/**/SKILL.md`. The lint runs as part of the normal validation suite (`bats tests/unit/skill-capabilities.bats`).

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-14T02:51:45Z",
+  "generated": "2026-10-14T03:57:42Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -989,7 +989,7 @@
     ".claude/hooks/pre-compact-marker.sh": "1169d5733087df3df22110cbcbba040d78f5e31cde3cac782da0f071b2c08988",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "906b77d801500130b215ea325b8c25e2d0f5b67141e2b61e631c3b332f71fcc7",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "88c005f7856e3852ac4ca9f972bf463e2fbe10dcf69b01ad92e35b0dc6b30693",
+    ".claude/hooks/safety/block-destructive-bash.sh": "677e2c3dc153e33b16931dbec9e5cdda8f3e607a8e35ddd36c082d0b525baf30",
     ".claude/hooks/safety/notes-size-guard.sh": "9371ef5a7e802e0aec01e117520ad18720f30022cc57b09d11ba739366f9eda4",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "1c0c7eee272a4f5e7bfdb56a148283391054ce312364371420b8d681ac93fcf6",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
@@ -1124,7 +1124,7 @@
     ".claude/loa/reference/context-engineering.md": "8287382d1d4888be8c4d98cfbe2feffe93bdad316b5caf91c47d4844931cd175",
     ".claude/loa/reference/flatline-reference.md": "eaa631fe25ee05de0236e56ee8e191067471726ff0bc755de70f1132d2dba23a",
     ".claude/loa/reference/guardrails-reference.md": "010405ebf30a67015af54341777f7f653bc5f21e69c3046c1cd0dc3591234180",
-    ".claude/loa/reference/hooks-reference.md": "1c1552b025a1e0f19845faf2f303398ffe876d02e72f96e9f5d852c5c8d34749",
+    ".claude/loa/reference/hooks-reference.md": "cbbbaefcd497052e9176a04ec7104d5d45691bac5dcfcd417b1c0725c0e6286e",
     ".claude/loa/reference/multi-model-reference.md": "8379d79a8f3f8ec68bd2619018f10cb2a7a66ccd5c2812f64e87331f31661c44",
     ".claude/loa/reference/protocols-summary.md": "15b9671f9589e3c7648b1571812db46fe71ed484b531868398667c2c72a137f3",
     ".claude/loa/reference/run-bridge-reference.md": "b3821dc635b622b57280859072830662613540286321829f666eb8f9020ef1d5",
@@ -1177,7 +1177,7 @@
     ".claude/protocols/visual-communication.md": "d4d20f71dfba6a2209d49fc6681e70ba43432bd3e8ca541b553514f03e035296",
     ".claude/reserved-commands.yaml": "3a021bdc652af07c80486851f2bd27fb8a42b054304ba2b8a0a2d22d7159fd2d",
     ".claude/rules/shell-conventions.md": "9f40c92f25015d5d0502d1504ecb94a6c930075865ab92fdb8dcb11ecdda6f99",
-    ".claude/rules/skill-invariants.md": "dc5b2b507aca5c33c98b18cfcf4d9197d98bba7347c23e2fd1638456adaddc1d",
+    ".claude/rules/skill-invariants.md": "632eabf95bd0d4e2cca5bf45f37f7b3edd47e51c7144c08826f80d4419c6e1f7",
     ".claude/rules/stash-safety.md": "3179cf15fca070892766d96a2a5e8881fefaaa045a04671e6a8065f53f72ad2d",
     ".claude/rules/zone-state.md": "717df51513666314ad34e5a6c88d1edd7fab90f24b4641e10cacd13b0d197082",
     ".claude/rules/zone-system.md": "3c12ddb3c618535aea99b2f30caef07c4e7e3d0ad960c7d83bd59fc05ad8a954",

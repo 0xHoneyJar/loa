@@ -587,6 +587,10 @@ _bdb_hd_scan_body() {
       seg="${t%%$'\n'*}"
       _bdb_hd_segword "$seg"
       if [[ -n "$_hd_w" ]]; then
+        # Under a quoted delimiter a backtick is literal text (r256-1): strip it from
+        # the kept segment so the later backtick normalisation cannot turn prose such
+        # as "git merge main; see `git merge spike/x` later" into a substitution.
+        (( $3 )) && _hd_rest="${_hd_rest//\`/}"
         if [[ "$_hd_w" =~ $_bdb_hd_re_varw ]]; then
           _hd_full=1
           _hd_synth="${_hd_synth}rm${_hd_rest}"$'\n'"git${_hd_rest}"$'\n'"kubectl${_hd_rest}"$'\n'
@@ -1046,11 +1050,116 @@ _bdb_scrub_literal_program() {
   printf '%s' "$text"
 }
 
-# Heredoc scrub, then quoted-value carriers, then echo/printf (sed).
-# The echo scrub must run last: it can otherwise consume a closing quote in
-# metadata containing "; echo ..." and make a later live write look quoted.
-# (bash loops, each guarded by a cheap literal test so the benign path pays
-# nothing beyond the substring check).
+# -----------------------------------------------------------------------------
+# cycle-129 r256-1 (sprint-256 review HIGH-1): a backtick pair outside single
+# quotes is a command substitution exactly like `$( … )` — in plain text, inside
+# double quotes, in an assignment and in an unquoted heredoc body — but every
+# rule anchors on `(`, `;`, `&&`, `|`, whitespace or a quote and none on a
+# backtick, so `echo "see \`git push --force origin main\`"` matched nothing
+# while its `$( )` twin blocked (identical on main 864069f2). Normalise before
+# the rules run: the 1st, 3rd, … backtick outside single quotes becomes `$(`,
+# the 2nd, 4th, … becomes `)`; a backslash escapes the next character outside
+# single quotes (an escaped backtick stays literal); inside single quotes
+# nothing changes. Kept segments of a quoted-delimiter heredoc body have their
+# literal backticks stripped by _bdb_hd_scan_body before this runs. Fast path
+# (no single quote, no backslash in the text): alternate by position; the
+# char loop runs only when quoting has to be tracked. Costs one substring test
+# on the common path.
+# -----------------------------------------------------------------------------
+# Heredoc bodies are raw text (no shell quoting applies inside them): under an
+# unquoted delimiter every backtick is a substitution, under a quoted one every
+# backtick is literal — so the normaliser walks the command line by line, uses
+# _bdb_hd_header to find each heredoc's delimiter and quoting, and applies the
+# body rule to body lines and shell-quote tracking (_bt_q) to the rest. If the
+# shell text's quotes do not balance at the end (an apostrophe in prose, an
+# unreadable header, two heredocs on one line) the whole shell text is redone
+# with quoting ignored: fail closed, never literal by accident.
+# _bdb_bt_alt_line <line>  → _bt_out: plain alternation (state _bt_open)
+# _bdb_bt_shell_line <line> → _bt_out: alternation outside single quotes
+_bt_out="" _bt_open=0 _bt_q="" _bt_force=0
+_bdb_bt_alt_line() {
+  local s="${1:-}" i n ch
+  _bt_out=""
+  [[ "$s" == *'`'* ]] || { _bt_out="$s"; return; }
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$ch" == '\' ]]; then
+      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
+    fi
+    if [[ "$ch" == '`' ]]; then
+      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
+      continue
+    fi
+    _bt_out+="$ch"
+  done
+}
+_bdb_bt_shell_line() {
+  local s="${1:-}" i n ch
+  if (( _bt_force )); then _bdb_bt_alt_line "$s"; return; fi
+  if [[ "$s" != *'`'* && "$s" != *"'"* && "$s" != *'"'* && "$s" != *'\'* ]]; then _bt_out="$s"; return; fi
+  _bt_out=""
+  n=${#s}
+  for ((i = 0; i < n; i++)); do
+    ch="${s:i:1}"
+    if [[ "$_bt_q" == "'" ]]; then
+      [[ "$ch" == "'" ]] && _bt_q=""
+      _bt_out+="$ch"; continue
+    fi
+    if [[ "$ch" == '\' ]]; then
+      _bt_out+="$ch"; if (( i + 1 < n )); then i=$((i + 1)); _bt_out+="${s:i:1}"; fi; continue
+    fi
+    if [[ "$ch" == '`' ]]; then
+      if (( _bt_open )); then _bt_out+=')'; _bt_open=0; else _bt_out+='$('; _bt_open=1; fi
+      continue
+    fi
+    if [[ -z "$_bt_q" && "$ch" == "'" ]]; then _bt_q="'"
+    elif [[ "$ch" == '"' ]]; then
+      if [[ "$_bt_q" == '"' ]]; then _bt_q=""; else _bt_q='"'; fi
+    fi
+    _bt_out+="$ch"
+  done
+}
+_bdb_backtick_norm() {
+  local s="${1:-}"
+  [[ "$s" == *'`'* ]] || { printf '%s' "$s"; return; }
+  local -a L
+  local l n i out="" body=0 delim="" quoted=0 tabs=0 d pass
+  L=()
+  while IFS= read -r l || [[ -n "$l" ]]; do L[${#L[@]}]="$l"; done <<< "$s"
+  n=${#L[@]}
+  for pass in 1 2; do
+    out="" body=0 _bt_open=0 _bt_q="" _bt_force=0
+    (( pass == 2 )) && _bt_force=1
+    for ((i = 0; i < n; i++)); do
+      l="${L[i]}"
+      if (( body )); then
+        d="$l"
+        if (( tabs )); then while [[ "$d" == $'\t'* ]]; do d="${d#$'\t'}"; done; fi
+        if [[ "$d" == "$delim" ]]; then body=0; _bt_open=0; out+="$l"$'\n'; continue; fi
+        if (( quoted )); then out+="$l"$'\n'; else _bdb_bt_alt_line "$l"; out+="$_bt_out"$'\n'; fi
+        continue
+      fi
+      _bdb_bt_shell_line "$l"; out+="$_bt_out"$'\n'
+      if [[ "$l" == *'<<'* ]]; then
+        _bdb_hd_header "$l"
+        if (( _hd_ops == 1 )); then body=1; delim="$_hd_delim"; quoted=$_hd_quoted; tabs=$_hd_tabs; _bt_open=0
+        elif (( _hd_ops != 0 )); then _bt_force=1   # unreadable header or several heredocs: fail closed from here
+        fi
+      fi
+    done
+    [[ -z "$_bt_q" ]] && break          # balanced quotes: done; else pass 2 ignores quoting
+  done
+  out="${out%$'\n'}"
+  [[ "$s" == *$'\n' ]] && out+=$'\n'
+  printf '%s' "$out"
+}
+
+# Heredoc scrub, then backtick normalisation, then quoted-value carriers, then
+# echo/printf (sed). The echo scrub must run last: it can otherwise consume a
+# closing quote in metadata containing "; echo ..." and make a later live write
+# look quoted. (bash loops, each guarded by a cheap literal test so the benign
+# path pays nothing beyond the substring check).
 _cmd_match="$command"
 if [[ "$_cmd_match" == *"for "* || "$_cmd_match" == *"python"* ]]; then
   _cmd_match=$(_bdb_scrub_literal_program "$_cmd_match")
@@ -1065,6 +1174,8 @@ if [[ "$_cmd_match" == *"<<"* ]]; then
     _cmd_match=$(_bdb_scrub_cat_heredoc "$_cmd_match")
   fi
 fi
+# cycle-129 r256-1: backtick substitutions take the `$( )` form the rules anchor on
+[[ "$_cmd_match" == *'`'* ]] && _cmd_match=$(_bdb_backtick_norm "$_cmd_match")
 [[ "$_cmd_match" == *"git"* ]] && _cmd_match=$(_bdb_scrub "$_bdb_re_git" "$_cmd_match")
 if [[ "$_cmd_match" == *"br "* || "$_cmd_match" == *"bd "* ]]; then
   _cmd_match=$(_bdb_scrub "$_bdb_re_brbd" "$_cmd_match")
