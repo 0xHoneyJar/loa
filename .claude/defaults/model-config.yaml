@@ -3,6 +3,14 @@
 # System Zone defaults — ships with the Loa framework.
 # Users override in .loa.config.yaml under hounfour: section.
 # DO NOT EDIT — use project config for customization.
+#
+# Price provenance (cycle-129 FR-7, SDD D-7.6, DEC-0131): a model entry may carry
+#   open_weight: true          # an open-weight model (hosted or local)
+#   price_source: "https://…"  # where the price was read: an https:// URL or a path under docs/
+#   price_date: "YYYY-MM-DD"   # when it was read; older than 90 days → ledger pricing_source: stale_catalog (WARN)
+# An `open_weight: true` entry with a non-zero price and no price_source / price_date fails
+# .claude/adapters/tests/test_catalog_pricing_provenance.py. No such entry ships yet: an operator
+# declares a local or hosted open-weight model under hounfour.providers in .loa.config.yaml.
 
 # Provider registry
 providers:

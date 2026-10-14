@@ -178,8 +178,14 @@ endpoint_validator__check() {
 #       allowlist out of tree, --config-auth file invalid, smuggling flag
 #       in caller args, etc.)
 #   78  EX_CONFIG — URL rejected by validator
+#
+# cycle-129 FR-7 (SDD D-7.2): `--allow-insecure-endpoint <host>` (optional,
+# before --url) carries the calling provider's opt-in host to the validator,
+# which then admits http to that one loopback/RFC1918 host only. For such a
+# call curl runs with `--proto =http,https --max-redirs 0 --noproxy '*'`: proxy
+# environment variables are ignored and a redirect is never followed.
 endpoint_validator__guarded_curl() {
-    local allowlist="" url="" config_auth=""
+    local allowlist="" url="" config_auth="" insecure_host=""
     # Phase 1: parse our own flags. Stop at the first arg that isn't ours.
     # We intentionally do NOT support intermixed wrapper/curl flags — once
     # we've consumed --allowlist / --config-auth / --url, every remaining arg
@@ -206,6 +212,13 @@ endpoint_validator__guarded_curl() {
             --config-auth=*)
                 config_auth="${1#--config-auth=}"; shift
                 ;;
+            --allow-insecure-endpoint)
+                if [[ $# -lt 2 || -z "$2" ]]; then
+                    printf '[ENDPOINT-VALIDATOR-USAGE] --allow-insecure-endpoint requires a host argument\n' >&2
+                    return 64
+                fi
+                insecure_host="$2"; shift 2
+                ;;
             --url)
                 if [[ $# -lt 2 ]]; then
                     printf '[ENDPOINT-VALIDATOR-USAGE] --url requires a URL argument\n' >&2
@@ -220,7 +233,7 @@ endpoint_validator__guarded_curl() {
                 break
                 ;;
             *)
-                printf '[ENDPOINT-VALIDATOR-USAGE] unexpected arg before --url: %q (allowed wrapper flags: --allowlist, --config-auth, --url)\n' "$1" >&2
+                printf '[ENDPOINT-VALIDATOR-USAGE] unexpected arg before --url: %q (allowed wrapper flags: --allowlist, --config-auth, --allow-insecure-endpoint, --url)\n' "$1" >&2
                 return 64
                 ;;
         esac
@@ -352,7 +365,12 @@ endpoint_validator__guarded_curl() {
     # Phase 2: validate the URL via Python canonical. We discard the JSON
     # acceptance line (callers don't need it on stdout) but preserve the
     # rejection JSON on stderr so operators can diagnose policy failures.
-    if ! endpoint_validator__check --json --allowlist "$allowlist" "$url" >/dev/null; then
+    local _optin_args=()
+    if [[ -n "$insecure_host" ]]; then
+        _optin_args=(--allow-insecure-endpoint "$insecure_host")
+    fi
+    if ! endpoint_validator__check --json --allowlist "$allowlist" \
+        ${_optin_args[@]+"${_optin_args[@]}"} "$url" >/dev/null; then
         # Python canonical already wrote the rejection JSON to its stderr.
         # We don't echo a second line — that would muddy the structured log.
         return 78
@@ -384,6 +402,13 @@ endpoint_validator__guarded_curl() {
     local _config_args=()
     if [[ -n "$config_auth" ]]; then
         _config_args=(--config "$config_auth")
+    fi
+    if [[ -n "$insecure_host" ]]; then
+        # cycle-129 D-7.2: the validator admitted http to the opted-in host only.
+        "$curl_bin" --proto =http,https --max-redirs 0 --noproxy '*' \
+            ${_config_args[@]+"${_config_args[@]}"} \
+            "$@" --url "$url"
+        return $?
     fi
     "$curl_bin" --proto =https --proto-redir =https --max-redirs 10 \
         ${_config_args[@]+"${_config_args[@]}"} \

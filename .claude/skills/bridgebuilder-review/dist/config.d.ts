@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import type { BridgebuilderConfig, MultiModelConfig } from "./core/types.js";
+import type { BridgebuilderConfig, MultiModelConfig, MultiModelProviderEntry, ProviderDecl, TrustedConfig } from "./core/types.js";
 export declare const MultiModelConfigSchema: z.ZodObject<{
     enabled: z.ZodDefault<z.ZodBoolean>;
     models: z.ZodDefault<z.ZodArray<z.ZodObject<{
@@ -123,7 +123,7 @@ export declare function isAgyRouted(provider: string, modelId: string, mode: str
  * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
  * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export declare function validateApiKeys(config: MultiModelConfig, gate: AgyGate): {
+export declare function validateApiKeys(config: MultiModelConfig, gate: AgyGate, trusted?: TrustedConfig): {
     valid: Array<{
         provider: string;
         modelId: string;
@@ -138,6 +138,93 @@ export declare function validateApiKeys(config: MultiModelConfig, gate: AgyGate)
         reason: "opt_in_required";
     }>;
 };
+/** The refusal text for a keyless or insecure provider only the PR head declares (D-7.5; tests pin it). */
+export declare function headOnlyRefusal(provider: string): string;
+/** The locality refusal text — one sentence with the dissent script and Flatline (SDD §4.3, D-8.1). */
+export declare function localityRefusal(modelId: string, provider: string): string;
+/**
+ * The env var holding a provider's credential: the built-in map first, then an `auth: "{env:VAR}"` template from the
+ * TRUSTED config (never the head's, so a head cannot point a credential at a provider of its choosing). Undefined when
+ * neither names one.
+ */
+export declare function providerKeyEnv(provider: string, trusted?: TrustedConfig): string | undefined;
+/** Default `bridgebuilder.exit_on_degraded` (DEC-0150): exit 3 when the consensus verdict is DEGRADED. */
+export declare const DEFAULT_EXIT_ON_DEGRADED = 3;
+/**
+ * Normalise `hounfour.providers` (any JSON) into declarations. A non-mapping value or an entry that is not a mapping is
+ * dropped with a warning — never admitted. D-8.0: `keyless: true` or a literal `auth` (one without `{env:`) is keyless.
+ */
+export declare function parseProviderDecls(raw: unknown, label: string, warnings: string[]): Record<string, ProviderDecl>;
+export interface TrustedView {
+    providers: unknown;
+    locality: unknown;
+    exit: unknown;
+}
+/** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
+export declare function yqTrustedView(text: string): TrustedView;
+/** A branch name safe to place in `refs/remotes/origin/<name>` for `git show` (no option, no `..`, no control chars). */
+export declare function isSafeRefName(name: string): boolean;
+/** I/O seams for loadTrustedConfig (tests replace them; the defaults touch git, gh, the filesystem and yq). */
+export interface TrustedConfigDeps {
+    env: Record<string, string | undefined>;
+    /** The working tree's `.loa.config.yaml` text, or undefined when the file is absent. */
+    readWorkingTree: (path: string) => string | undefined;
+    /** True when `ref` names a commit in the repository. */
+    refExists: (repoRoot: string | undefined, ref: string) => boolean;
+    /** `.loa.config.yaml` at `ref`, or undefined when the ref has no such file. Throws when git cannot answer. */
+    gitShow: (repoRoot: string | undefined, ref: string) => string | undefined;
+    /** The PR's base branch name from its metadata, or undefined when it cannot be read. */
+    prBaseRef: (pr: number, repo: string | undefined) => string | undefined;
+    parse: (text: string) => TrustedView;
+}
+export declare const defaultTrustedConfigDeps: TrustedConfigDeps;
+/** True when Bridgebuilder runs on a pull request (D-7.5): `--pr`, a PR event, or a base ref in the environment. */
+export declare function isPullRequestContext(pr: number | undefined, env: Record<string, string | undefined>): boolean;
+/** The env var a workflow sets from a repository variable to supply trusted config text (YAML or JSON). */
+export declare const TRUSTED_CONFIG_ENV = "BRIDGEBUILDER_TRUSTED_CONFIG";
+/**
+ * Load the trusted configuration (D-7.5, DEC-0170). Precedence:
+ *   local (no PR context):  the working tree's `.loa.config.yaml`.
+ *   pull request:           `BRIDGEBUILDER_TRUSTED_CONFIG` (repository settings) when set, else `.loa.config.yaml` at
+ *                           `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else the PR metadata), else at
+ *                           `refs/remotes/origin/main`; when none can be read, no provider declaration is trusted.
+ * The head checkout is read on a pull request only to find keyless / insecure declarations the trusted source lacks,
+ * which are refused by name. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
+ */
+export declare function loadTrustedConfig(opts: {
+    pr?: number;
+    repoRoot?: string;
+    repo?: string;
+}, deps?: TrustedConfigDeps): TrustedConfig;
+/** One startup line naming where the trusted config was read from (main.ts prints it with the warnings). */
+export declare function trustedConfigStartupLine(t: TrustedConfig): string;
+/**
+ * True when the trusted config marks this voice's provider `dispatch_group: local` (D-8.0): the model's own entry when
+ * declared, else the provider-level key, else every declared model of the provider. Anything undeclared is hosted.
+ */
+export declare function isLocalVoice(provider: string, modelId: string, trusted: TrustedConfig): boolean;
+/**
+ * D-8.1: under `hounfour.locality: local_voices` drop every planned voice whose provider is not local, each with the named
+ * reason; never reroute. `hosted` (the default) returns the list unchanged.
+ */
+export declare function applyLocality(models: MultiModelProviderEntry[], trusted: TrustedConfig): {
+    kept: MultiModelProviderEntry[];
+    refused: Array<{
+        provider: string;
+        modelId: string;
+        reason: string;
+    }>;
+};
+/**
+ * The provider of a single-model `model` value for the locality check: `provider:model`, a generated-registry id, or a
+ * model the trusted config declares; undefined when none says.
+ */
+export declare function resolveModelProvider(model: string, trusted: TrustedConfig): string | undefined;
+/**
+ * Under `local_voices`, the single-model path's voice must be local too: returns the refusal text, or undefined when the
+ * voice may run (or the posture is hosted).
+ */
+export declare function singleModelLocalityRefusal(model: string, trusted: TrustedConfig): string | undefined;
 /**
  * The startup lines for the agy gate (r251-2 K7f): the read error and the type warning each said once, unconditionally —
  * not only when a voice is not planned — and the not-planned voices. main.ts prints them; the pipeline says its own once

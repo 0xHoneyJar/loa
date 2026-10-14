@@ -336,7 +336,7 @@ export function isAgyRouted(provider, modelId, mode) {
  * Returns available and missing provider lists, and the voices not planned because their agy route's opt-in is off
  * (cycle-127 FR-1: neither valid nor missing — a voice that cannot exist on this host is never counted as a failed one).
  */
-export function validateApiKeys(config, gate) {
+export function validateApiKeys(config, gate, trusted) {
     const valid = [];
     const missing = [];
     const notPlanned = [];
@@ -348,9 +348,25 @@ export function validateApiKeys(config, gate) {
             notPlanned.push({ provider: model.provider, modelId: model.model_id, reason: "opt_in_required" });
             continue;
         }
-        const envVar = PROVIDER_API_KEY_ENV[model.provider];
+        // (cycle-129 D-7.5: a keyless or insecure declaration the PR head adds and the trusted config does not carry is refused
+        // by name — before the key map, so a head that re-declares a built-in provider insecure is refused too)
+        if (trusted?.headOnlyRefused.includes(model.provider)) {
+            missing.push({ provider: model.provider, envVar: headOnlyRefusal(model.provider) });
+            continue;
+        }
+        // (cycle-129 D-7.5: a provider the TRUSTED config declares keyless needs no env var; cheval authenticates it)
+        if (trusted?.providers[model.provider]?.keyless === true) {
+            valid.push({ provider: model.provider, modelId: model.model_id });
+            continue;
+        }
+        const envVar = providerKeyEnv(model.provider, trusted);
         if (!envVar) {
-            missing.push({ provider: model.provider, envVar: `Unknown provider: ${model.provider}` });
+            missing.push({
+                provider: model.provider,
+                envVar: trusted?.providers[model.provider] !== undefined
+                    ? `provider ${model.provider} declares no credential (set keyless: true or auth: "{env:VAR}")`
+                    : `Unknown provider: ${model.provider}`,
+            });
             continue;
         }
         // (a `*-headless` entry is a cheval CLI hop that authenticates itself — every voice dispatches through cheval — so
@@ -363,6 +379,335 @@ export function validateApiKeys(config, gate) {
         }
     }
     return { valid, missing, notPlanned };
+}
+// ============================================================================
+// cycle-129 D-7.5 / D-7.7 / D-8.1 — trusted provider configuration
+// ============================================================================
+/** The refusal text for a keyless or insecure provider only the PR head declares (D-7.5; tests pin it). */
+export function headOnlyRefusal(provider) {
+    return `head-only provider declaration refused: ${provider}`;
+}
+/** The locality refusal text — one sentence with the dissent script and Flatline (SDD §4.3, D-8.1). */
+export function localityRefusal(modelId, provider) {
+    return `locality: local_voices refuses hosted hop ${modelId} (${provider}); declare a local provider or set hounfour.locality: hosted`;
+}
+/**
+ * The env var holding a provider's credential: the built-in map first, then an `auth: "{env:VAR}"` template from the
+ * TRUSTED config (never the head's, so a head cannot point a credential at a provider of its choosing). Undefined when
+ * neither names one.
+ */
+export function providerKeyEnv(provider, trusted) {
+    if (Object.hasOwn(PROVIDER_API_KEY_ENV, provider))
+        return PROVIDER_API_KEY_ENV[provider];
+    return trusted?.providers[provider]?.authEnv;
+}
+/** Default `bridgebuilder.exit_on_degraded` (DEC-0150): exit 3 when the consensus verdict is DEGRADED. */
+export const DEFAULT_EXIT_ON_DEGRADED = 3;
+/** The lenient shape of one provider entry (unknown keys pass through: cheval owns the full schema). */
+const ProviderEntrySchema = z.looseObject({
+    keyless: z.unknown().optional(),
+    auth: z.unknown().optional(),
+    allow_insecure_endpoint: z.unknown().optional(),
+    dispatch_group: z.unknown().optional(),
+    models: z.unknown().optional(),
+});
+const ENV_AUTH_RE = /^\{env:([A-Za-z_][A-Za-z0-9_]*)\}$/;
+/**
+ * Normalise `hounfour.providers` (any JSON) into declarations. A non-mapping value or an entry that is not a mapping is
+ * dropped with a warning — never admitted. D-8.0: `keyless: true` or a literal `auth` (one without `{env:`) is keyless.
+ */
+export function parseProviderDecls(raw, label, warnings) {
+    const out = {};
+    if (raw === null || raw === undefined)
+        return out;
+    if (typeof raw !== "object" || Array.isArray(raw)) {
+        warnings.push(`[bridgebuilder] ${label}: hounfour.providers is not a mapping — no provider declaration is read from it`);
+        return out;
+    }
+    for (const [name, entry] of Object.entries(raw)) {
+        const parsed = ProviderEntrySchema.safeParse(entry);
+        if (!parsed.success) {
+            warnings.push(`[bridgebuilder] ${label}: hounfour.providers.${name} is not a mapping — ignored`);
+            continue;
+        }
+        const e = parsed.data;
+        const auth = typeof e.auth === "string" ? e.auth : undefined;
+        const envMatch = auth !== undefined ? ENV_AUTH_RE.exec(auth) : null;
+        const literalAuth = auth !== undefined && auth !== "" && !auth.includes("{env:");
+        const modelGroups = {};
+        if (e.models !== null && typeof e.models === "object" && !Array.isArray(e.models)) {
+            for (const [mid, m] of Object.entries(e.models)) {
+                const g = m !== null && typeof m === "object" ? m.dispatch_group : undefined;
+                modelGroups[mid] = typeof g === "string" ? g : undefined;
+            }
+        }
+        out[name] = {
+            keyless: e.keyless === true || literalAuth,
+            insecure: e.allow_insecure_endpoint !== undefined && e.allow_insecure_endpoint !== null && e.allow_insecure_endpoint !== false,
+            ...(envMatch ? { authEnv: envMatch[1] } : {}),
+            ...(typeof e.dispatch_group === "string" ? { dispatchGroup: e.dispatch_group } : {}),
+            modelGroups,
+        };
+    }
+    return out;
+}
+/** The subtree Bridgebuilder reads from a Loa config, as one yq program (the same yq the agy gate uses). */
+const TRUSTED_VIEW_YQ = '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null)}';
+/** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
+export function yqTrustedView(text) {
+    try {
+        const out = execFileSync("yq", ["eval", "-o=json", "-I=0", TRUSTED_VIEW_YQ, "-"], {
+            encoding: "utf8", timeout: 5000, input: text, stdio: ["pipe", "pipe", "pipe"],
+        });
+        const parsed = JSON.parse(out);
+        return { providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null };
+    }
+    catch (err) {
+        const e = err;
+        const stderr = typeof e.stderr === "string" ? e.stderr.trim() : "";
+        throw new Error((stderr || e.message || String(err)).split("\n")[0].slice(0, 300));
+    }
+}
+/** A branch name safe to place in `refs/remotes/origin/<name>` for `git show` (no option, no `..`, no control chars). */
+export function isSafeRefName(name) {
+    return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(name) && !name.includes("..") && !name.endsWith(".lock") && !name.endsWith("/");
+}
+function gitArgs(repoRoot, rest) {
+    return repoRoot ? ["-C", repoRoot, ...rest] : rest;
+}
+export const defaultTrustedConfigDeps = {
+    env: process.env,
+    readWorkingTree: (path) => (existsSync(path) ? readFileSync(path, "utf8") : undefined),
+    refExists: (repoRoot, ref) => {
+        try {
+            execFileSync("git", gitArgs(repoRoot, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]), {
+                encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"],
+            });
+            return true;
+        }
+        catch {
+            return false;
+        }
+    },
+    gitShow: (repoRoot, ref) => {
+        // (ls-tree first: a base without the file is an EMPTY trusted config, not a read failure)
+        const listed = execFileSync("git", gitArgs(repoRoot, ["ls-tree", "--name-only", ref, "--", ".loa.config.yaml"]), {
+            encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"],
+        }).trim();
+        if (listed === "")
+            return undefined;
+        return execFileSync("git", gitArgs(repoRoot, ["show", `${ref}:.loa.config.yaml`]), {
+            encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024,
+        });
+    },
+    prBaseRef: (pr, repo) => {
+        try {
+            const out = execFileSync("gh", ["pr", "view", String(pr), "--json", "baseRefName", "-q", ".baseRefName", ...(repo ? ["--repo", repo] : [])], {
+                encoding: "utf8", timeout: 15_000, stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+            return out || undefined;
+        }
+        catch {
+            return undefined;
+        }
+    },
+    parse: yqTrustedView,
+};
+/** True when Bridgebuilder runs on a pull request (D-7.5): `--pr`, a PR event, or a base ref in the environment. */
+export function isPullRequestContext(pr, env) {
+    if (pr !== undefined && pr !== null)
+        return true;
+    const ev = env.GITHUB_EVENT_NAME ?? "";
+    if (ev === "pull_request" || ev === "pull_request_target")
+        return true;
+    return (env.GITHUB_BASE_REF ?? "") !== "";
+}
+/** The env var a workflow sets from a repository variable to supply trusted config text (YAML or JSON). */
+export const TRUSTED_CONFIG_ENV = "BRIDGEBUILDER_TRUSTED_CONFIG";
+/**
+ * Load the trusted configuration (D-7.5, DEC-0170). Precedence:
+ *   local (no PR context):  the working tree's `.loa.config.yaml`.
+ *   pull request:           `BRIDGEBUILDER_TRUSTED_CONFIG` (repository settings) when set, else `.loa.config.yaml` at
+ *                           `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else the PR metadata), else at
+ *                           `refs/remotes/origin/main`; when none can be read, no provider declaration is trusted.
+ * The head checkout is read on a pull request only to find keyless / insecure declarations the trusted source lacks,
+ * which are refused by name. Throws on an invalid `hounfour.locality` (a posture typo never runs hosted silently).
+ */
+export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
+    const warnings = [];
+    const mode = isPullRequestContext(opts.pr, deps.env) ? "pull-request" : "local";
+    const wtPath = loaConfigPathFor(opts.repoRoot);
+    let source = "none";
+    let ref;
+    let text;
+    if (mode === "local") {
+        source = "working-tree";
+        text = deps.readWorkingTree(wtPath);
+    }
+    else {
+        const settings = deps.env[TRUSTED_CONFIG_ENV];
+        if (settings !== undefined && settings.trim() !== "") {
+            source = "repository-settings";
+            text = settings;
+        }
+        else {
+            const base = (deps.env.GITHUB_BASE_REF ?? "") !== ""
+                ? deps.env.GITHUB_BASE_REF
+                : opts.pr !== undefined ? deps.prBaseRef(opts.pr, opts.repo) : undefined;
+            const candidates = [];
+            if (base !== undefined) {
+                if (isSafeRefName(base))
+                    candidates.push(`refs/remotes/origin/${base}`);
+                else
+                    warnings.push(`[bridgebuilder] trusted config: base ref name refused (${JSON.stringify(base.slice(0, 80))}) — falling back to origin/main`);
+            }
+            if (!candidates.includes("refs/remotes/origin/main"))
+                candidates.push("refs/remotes/origin/main");
+            const tried = [];
+            for (const c of candidates) {
+                if (!deps.refExists(opts.repoRoot, c)) {
+                    tried.push(`${c} (not found)`);
+                    continue;
+                }
+                try {
+                    text = deps.gitShow(opts.repoRoot, c);
+                    source = "base-ref";
+                    ref = c;
+                    break;
+                }
+                catch (err) {
+                    tried.push(`${c} (${(err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 120)})`);
+                }
+            }
+            if (source === "none") {
+                warnings.push(`[bridgebuilder] trusted config unavailable on a pull request: ${tried.join(", ")} — no keyless or insecure provider ` +
+                    `is admitted (fetch the base branch or set ${TRUSTED_CONFIG_ENV} from a repository variable)`);
+            }
+        }
+    }
+    let view = { providers: null, locality: null, exit: null };
+    if (text !== undefined) {
+        try {
+            view = deps.parse(text);
+        }
+        catch (err) {
+            warnings.push(`[bridgebuilder] trusted config (${source}${ref ? ` ${ref}` : ""}) unreadable: ${err instanceof Error ? err.message : String(err)} — no provider declaration is trusted`);
+            source = "none";
+        }
+    }
+    const providers = parseProviderDecls(view.providers, `trusted config (${source})`, warnings);
+    // Head-only refusal: on a PR the head checkout is attacker-controlled.
+    const headOnlyRefused = [];
+    if (mode === "pull-request") {
+        const headText = deps.readWorkingTree(wtPath);
+        if (headText !== undefined) {
+            let headView;
+            try {
+                headView = deps.parse(headText);
+            }
+            catch {
+                headView = undefined; // (an unparsable head declares nothing Bridgebuilder would admit)
+            }
+            const headWarnings = [];
+            const head = headView ? parseProviderDecls(headView.providers, "head config", headWarnings) : {};
+            for (const [name, decl] of Object.entries(head)) {
+                const t = Object.hasOwn(providers, name) ? providers[name] : undefined;
+                const keylessOnlyInHead = decl.keyless && t?.keyless !== true;
+                const insecureOnlyInHead = decl.insecure && t?.insecure !== true;
+                if (keylessOnlyInHead || insecureOnlyInHead) {
+                    headOnlyRefused.push(name);
+                    warnings.push(`[bridgebuilder] ${headOnlyRefusal(name)} (${[keylessOnlyInHead ? "keyless" : "", insecureOnlyInHead ? "allow_insecure_endpoint" : ""].filter(Boolean).join(", ")} is declared in the PR head, not in the trusted config)`);
+                }
+            }
+        }
+    }
+    // hounfour.locality
+    let locality = "hosted";
+    if (view.locality !== null && view.locality !== undefined) {
+        if (view.locality === "hosted" || view.locality === "local_voices")
+            locality = view.locality;
+        else
+            throw new Error(`hounfour.locality: invalid value ${JSON.stringify(view.locality)} (expected hosted or local_voices)`);
+    }
+    // bridgebuilder.exit_on_degraded
+    let exitOnDegraded = DEFAULT_EXIT_ON_DEGRADED;
+    if (view.exit !== null && view.exit !== undefined) {
+        if (typeof view.exit === "number" && Number.isInteger(view.exit) && view.exit >= 0 && view.exit <= 125) {
+            exitOnDegraded = view.exit;
+        }
+        else {
+            warnings.push(`[bridgebuilder] bridgebuilder.exit_on_degraded: invalid value ${JSON.stringify(view.exit)} (expected an integer 0..125) — using ${DEFAULT_EXIT_ON_DEGRADED}`);
+        }
+    }
+    return { mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings };
+}
+/** One startup line naming where the trusted config was read from (main.ts prints it with the warnings). */
+export function trustedConfigStartupLine(t) {
+    const where = t.source === "base-ref" ? `base-ref ${t.ref}` : t.source;
+    const keyless = Object.entries(t.providers).filter(([, d]) => d.keyless).map(([n]) => n);
+    return `[bridgebuilder] Trusted config: ${where} (mode: ${t.mode}); locality: ${t.locality}; exit_on_degraded: ${t.exitOnDegraded}` +
+        (keyless.length > 0 ? `; keyless providers: ${keyless.join(", ")}` : "");
+}
+/**
+ * True when the trusted config marks this voice's provider `dispatch_group: local` (D-8.0): the model's own entry when
+ * declared, else the provider-level key, else every declared model of the provider. Anything undeclared is hosted.
+ */
+export function isLocalVoice(provider, modelId, trusted) {
+    const decl = Object.hasOwn(trusted.providers, provider) ? trusted.providers[provider] : undefined;
+    if (!decl)
+        return false;
+    if (Object.hasOwn(decl.modelGroups, modelId) && decl.modelGroups[modelId] !== undefined)
+        return decl.modelGroups[modelId] === "local";
+    if (decl.dispatchGroup !== undefined)
+        return decl.dispatchGroup === "local";
+    const groups = Object.values(decl.modelGroups);
+    return groups.length > 0 && groups.every((g) => g === "local");
+}
+/**
+ * D-8.1: under `hounfour.locality: local_voices` drop every planned voice whose provider is not local, each with the named
+ * reason; never reroute. `hosted` (the default) returns the list unchanged.
+ */
+export function applyLocality(models, trusted) {
+    if (trusted.locality !== "local_voices")
+        return { kept: models, refused: [] };
+    const kept = [];
+    const refused = [];
+    for (const m of models) {
+        if (isLocalVoice(m.provider, m.model_id, trusted))
+            kept.push(m);
+        else
+            refused.push({ provider: m.provider, modelId: m.model_id, reason: localityRefusal(m.model_id, m.provider) });
+    }
+    return { kept, refused };
+}
+/**
+ * The provider of a single-model `model` value for the locality check: `provider:model`, a generated-registry id, or a
+ * model the trusted config declares; undefined when none says.
+ */
+export function resolveModelProvider(model, trusted) {
+    const colon = model.indexOf(":");
+    if (colon > 0)
+        return model.slice(0, colon);
+    if (Object.hasOwn(GENERATED_MODEL_REGISTRY, model))
+        return GENERATED_MODEL_REGISTRY[model].provider;
+    for (const [name, decl] of Object.entries(trusted.providers)) {
+        if (Object.hasOwn(decl.modelGroups, model))
+            return name;
+    }
+    return undefined;
+}
+/**
+ * Under `local_voices`, the single-model path's voice must be local too: returns the refusal text, or undefined when the
+ * voice may run (or the posture is hosted).
+ */
+export function singleModelLocalityRefusal(model, trusted) {
+    if (trusted.locality !== "local_voices")
+        return undefined;
+    const provider = resolveModelProvider(model, trusted);
+    const bare = provider !== undefined && model.startsWith(`${provider}:`) ? model.slice(provider.length + 1) : model;
+    if (provider !== undefined && isLocalVoice(provider, bare, trusted))
+        return undefined;
+    return localityRefusal(model, provider ?? "unresolved provider");
 }
 /**
  * The startup lines for the agy gate (r251-2 K7f): the read error and the type warning each said once, unconditionally —

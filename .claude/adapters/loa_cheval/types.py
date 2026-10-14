@@ -125,6 +125,12 @@ class ProviderConfig:
     # compliance_profile: resolved by 4-step loader rule (SDD §5.6) when YAML
     # value is null. Allowed at runtime: "bedrock_only" | "prefer_bedrock" | "none".
     compliance_profile: Optional[str] = None
+    # cycle-129 FR-7 (SDD D-7.2, D-8.0): `keyless` sends no credential (a literal
+    # `auth: "local"` is normalised to it at load); `allow_insecure_endpoint` is the
+    # canonical opt-in host validated by config/endpoint_policy.py. Either one, or a
+    # model with dispatch_group `local`, puts the request under the TransportPolicy.
+    keyless: bool = False
+    allow_insecure_endpoint: Optional[str] = None
 
 
 @dataclass
@@ -197,6 +203,10 @@ class ModelConfig:
     # discards; the adapter appends this to its timeout error instead, so the MODELINV row and the companion diagnostic
     # say why the hop ran on the 600 s floor. None when there was no value or it applied as written.
     headless_timeout_note: Optional[str] = None
+    # cycle-129 FR-7: the billing/locality group (`local` marks a local hop, D-8.0)
+    # and the per-model streaming_recovery block the OpenAI stream parsers apply.
+    dispatch_group: Optional[str] = None
+    streaming_recovery: Optional[Dict[str, Any]] = None
 
 
 # A catalog `headless_timeout_seconds` never buys more than an hour per hop. One constant, clamped at load;
@@ -374,13 +384,19 @@ class BudgetExceededError(ChevalError):
 class ContextTooLargeError(ChevalError):
     """Input exceeds model context window."""
 
-    def __init__(self, estimated_tokens: int, available: int, context_window: int):
+    def __init__(self, estimated_tokens: int, available: int, context_window: int, alias: Optional[str] = None):
+        # cycle-129 FR-7 (SDD D-7.2): the named refusal. <limit> is the input budget,
+        # the declared context_window minus the hop's reserved output tokens.
+        who = f" for {alias}" if alias else ""
         super().__init__(
             "CONTEXT_TOO_LARGE",
-            f"Input ~{estimated_tokens} tokens exceeds available {available} tokens (context_window={context_window})",
+            f"context_window exceeded ({estimated_tokens} > {available}){who} "
+            f"(context_window={context_window}; the hop is refused, the input is never truncated)",
             retryable=False,
-            context={"estimated_tokens": estimated_tokens, "available": available, "context_window": context_window},
+            context={"estimated_tokens": estimated_tokens, "available": available, "context_window": context_window,
+                     "alias": alias, "failure_class": "context_window_refused"},
         )
+        self.alias = alias
 
 
 class ProviderContextLimitError(ChevalError):

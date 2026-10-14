@@ -35,7 +35,7 @@ import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Sprint 4A DISS-001/DISS-002 closure: module-level import of the centralized
 # kill-switch helper. No import cycle exists between providers.base and
@@ -420,6 +420,81 @@ def _reset_writer_version_cache_for_tests() -> None:
     _WRITER_VERSION_CACHE = None
 
 
+# --- cycle-129 FR-7 / FR-8: destination and locality of a hop (SDD D-7.2, D-8.0) ---
+
+LOCALITY_MODES = ("hosted", "local_voices")
+
+
+def _provider_model_entry(provider: str, model_id: Optional[str], hounfour: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    prov = ((hounfour or {}).get("providers") or {}).get(provider) or {}
+    if not isinstance(prov, dict):
+        prov = {}
+    entry = ((prov.get("models") or {}).get(model_id) if model_id else None) or {}
+    return prov, (entry if isinstance(entry, dict) else {})
+
+
+def destination_for(provider: str, model_id: Optional[str], hounfour: Dict[str, Any]) -> Dict[str, str]:
+    """`{host, scheme, provider}` for the hop's endpoint as configured. A CLI hop
+    (a `*-headless` provider type or a `kind: cli` model) records scheme `cli` and
+    host `cli-subprocess`: cheval hands the prompt to a local CLI and does not
+    know which vendor host that CLI reaches."""
+    prov, entry = _provider_model_entry(provider, model_id, hounfour)
+    ptype = str(prov.get("type") or "")
+    endpoint = str(prov.get("endpoint") or "")
+    if ptype.endswith("-headless") or entry.get("kind") == "cli" or not endpoint:
+        return {"host": "cli-subprocess", "scheme": "cli", "provider": provider}
+    # URL parsing stays in the canonical endpoint validator (cycle-099 import guard).
+    from loa_cheval.config.endpoint_policy import split_url
+
+    region = prov.get("region_default")
+    if region and "{region}" in endpoint:
+        endpoint = endpoint.replace("{region}", str(region))
+    try:
+        scheme, host, port, _path = split_url(endpoint)
+        if host and ":" in host:
+            host = f"[{host}]"   # an IPv6 literal, bracketed as in a URL
+        if port:
+            host = f"{host}:{port}"
+    except Exception:  # noqa: BLE001 — telemetry: an unparseable endpoint records "unknown"
+        host, scheme = "", ""
+    return {"host": host or "unknown", "scheme": scheme or "unknown", "provider": provider}
+
+
+def locality_mode_of(hounfour: Dict[str, Any]) -> Optional[str]:
+    """`hounfour.locality` (default `hosted`). An unknown value is not recorded
+    (None) rather than recorded as something it is not; the config reader that
+    owns the switch reports it."""
+    value = (hounfour or {}).get("locality")
+    if value is None:
+        return "hosted"
+    return value if value in LOCALITY_MODES else None
+
+
+def hop_locality_of(provider: str, model_id: Optional[str], hounfour: Dict[str, Any]) -> str:
+    """`local` when the hop's model declares dispatch_group `local` (D-8.0), else `hosted`."""
+    _prov, entry = _provider_model_entry(provider, model_id, hounfour)
+    return "local" if entry.get("dispatch_group") == "local" else "hosted"
+
+
+def hop_telemetry(hop: Optional[str], hounfour: Dict[str, Any]) -> Dict[str, Any]:
+    """The cycle-129 MODELINV kwargs (`destination`, `locality_mode`,
+    `hop_locality`) for a `provider:model_id` hop. Fail-soft: a malformed hop
+    yields only `locality_mode`, never an exception at an emit site."""
+    out: Dict[str, Any] = {}
+    mode = locality_mode_of(hounfour)
+    if mode is not None:
+        out["locality_mode"] = mode
+    if not hop or ":" not in str(hop):
+        return out
+    provider, model_id = str(hop).split(":", 1)
+    try:
+        out["destination"] = destination_for(provider, model_id, hounfour)
+        out["hop_locality"] = hop_locality_of(provider, model_id, hounfour)
+    except Exception:  # noqa: BLE001 — telemetry never costs the envelope
+        logger.warning("MODELINV destination could not be derived for hop %r", hop)
+    return out
+
+
 def emit_model_invoke_complete(
     *,
     models_requested: List[str],
@@ -513,6 +588,14 @@ def emit_model_invoke_complete(
     # only when a schema was requested for the call.
     schema_enforced: Optional[bool] = None,
     output_schema_sha256: Optional[str] = None,
+    # cycle-129 FR-7 (SDD D-7.2, D-7.3) / FR-8 (D-8.0) — destination, locality and
+    # thinking telemetry. Optional/additive; cheval's emit sites pass all of them
+    # (`destination_for`, `locality_mode_of`, `hop_locality_of` below).
+    destination: Optional[Dict[str, str]] = None,
+    locality_mode: Optional[str] = None,
+    hop_locality: Optional[str] = None,
+    thinking_stripped: Optional[bool] = None,
+    schema_rejected_by_server: Optional[bool] = None,
 ) -> None:
     """Emit a model.invoke.complete envelope to the MODELINV audit chain.
 
@@ -601,6 +684,20 @@ def emit_model_invoke_complete(
         payload["schema_enforced"] = bool(schema_enforced)
     if output_schema_sha256 is not None:
         payload["output_schema_sha256"] = output_schema_sha256
+    if schema_rejected_by_server is not None:
+        payload["schema_rejected_by_server"] = bool(schema_rejected_by_server)
+    if thinking_stripped is not None:
+        payload["thinking_stripped"] = bool(thinking_stripped)
+    if destination is not None:
+        payload["destination"] = {k: str(destination[k]) for k in ("host", "scheme", "provider") if k in destination}
+    if locality_mode is not None:
+        if locality_mode not in LOCALITY_MODES:
+            raise ValueError(f"emit_model_invoke_complete: locality_mode must be one of {LOCALITY_MODES}, got {locality_mode!r}")
+        payload["locality_mode"] = locality_mode
+    if hop_locality is not None:
+        if hop_locality not in ("hosted", "local"):
+            raise ValueError(f"emit_model_invoke_complete: hop_locality must be 'hosted' or 'local', got {hop_locality!r}")
+        payload["hop_locality"] = hop_locality
     if tokens_output is not None:
         payload["tokens_output"] = tokens_output
     # cycle-114 FR-11 (sprint-4): per-iteration cost telemetry from the

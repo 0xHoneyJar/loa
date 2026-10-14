@@ -144,12 +144,13 @@ export class ProgressReporter {
   }
 
   /**
-   * Report completion.
+   * Report completion: `completed/planned` voices (cycle-129 D-7.7 — the count of voices whose result completed, never the
+   * number configured).
    */
-  reportComplete(totalMs: number, modelsCompleted: number): void {
+  reportComplete(totalMs: number, completed: number, planned: number): void {
     this.report(
       "complete",
-      `Done in ${Math.round(totalMs / 1000)}s — ${modelsCompleted} model(s) completed`,
+      `Done in ${Math.round(totalMs / 1000)}s — ${completed}/${planned} model(s) completed`,
     );
   }
 

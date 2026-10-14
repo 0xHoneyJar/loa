@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-07T20:31:07Z",
-  "source_hash": "b7ee6626d8931660b817d67e7fe35c912235070b79392b6c2e6fc18d1c5137cc",
-  "file_count": 42,
+  "generated_at": "2026-10-14T07:40:42Z",
+  "source_hash": "ffa2ae2ff364c468d601f0fc7a1ff0f21a1495d138efcc18a0e94c0d7b761d54",
+  "file_count": 43,
   "files": [
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts",
@@ -46,7 +46,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/config.ts",
-      "sha256": "a0b586a502a0015646aa8d0d6450ce74440a699ef9a2e7769d21f1cf6f846161"
+      "sha256": "4a17672d468d763c6eb9dfe24a9c0ecf1327ab2e22c36b1a3cca454c949b0dce"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/cache.ts",
@@ -86,11 +86,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/multi-model-pipeline.ts",
-      "sha256": "752c6c67d0e690cd565e99c027745e81216327476707540a745691979eb2dfbe"
+      "sha256": "c348469b648438b3a2017f7f77ef18517630de9a252020d6f675230cbe6b00d7"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
-      "sha256": "c36a76a459ad2b2365c021d9f581a63685bc61ae4170c9c0593f97b8345afeac"
+      "sha256": "75f7eb0d49afb96fac888d05b1399952da02cb39b8945d7bd3ed1abf17491a80"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/rating.ts",
@@ -103,6 +103,10 @@
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts",
       "sha256": "89b94a402f6591836537b0b23c807c0400ff74177bc56ff54435238644d2e01f"
+    },
+    {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/run-outcome.ts",
+      "sha256": "da5faffcfd99076e1bcfab2e803307f721e089acffb92b20d67bee297c92dfd4"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/schemas.ts",
@@ -126,11 +130,11 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
-      "sha256": "b2550acecccd39fe9c14583742f19870db0835e543995f1208543f82283318fe"
+      "sha256": "b047232236a1219e578fe7151b4aba16ecedcd05ea71931ef9eaf18f9a705af8"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts",
-      "sha256": "d77e64398c184401f8fb1b22ac6868f50c301cc50c38c3d658887738acbee25e"
+      "sha256": "d530416cd95770fb04b28a828932757dae6bcb31dd492914c6061aff3f6b372a"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts",
@@ -138,7 +142,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/main.ts",
-      "sha256": "054a9bd84fd8b668f9bf04ff792711b90d86ff7ecaa9ca25009e88b328777785"
+      "sha256": "8509c88a4038dccde7eeea79f557a0b6cdad74fb2412c2c743ba5bf92281ec27"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/context-store.ts",

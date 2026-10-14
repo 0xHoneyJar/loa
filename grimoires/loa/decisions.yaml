@@ -9976,3 +9976,611 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0312"
+    created_at: "2026-10-14T06:53:39Z"
+    updated_at: "2026-10-14T06:53:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 I: base ref names are validated before git sees them and only refs/remotes/origin/<name> is read; an auth env name comes only from the trusted config"
+    decision: "Ref names reject a leading dash, dot-dot, .lock and characters outside a fixed set; only refs/remotes/origin/<name> is read, never a local branch the checkout could create; the auth {env:VAR} key name is taken from the trusted config only, so a head cannot point a credential at a provider of its choosing."
+    rationale: "security of the trusted-source loader"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T06:53:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0313"
+    created_at: "2026-10-14T06:58:15Z"
+    updated_at: "2026-10-14T06:58:15Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 I: Bridgebuilder's trusted config on a PR is the repository variable, else the base branch's config at origin/<base>, else origin/main; the head only c..."
+    decision: "On a pull request Bridgebuilder reads hounfour.providers, hounfour.locality and bridgebuilder.exit_on_degraded from BRIDGEBUILDER_TRUSTED_CONFIG, else refs/remotes/origin/<base>:.loa.config.yaml, else origin/main; the PR head's config is read only to detect a keyless or insecure provider it alone declares, which is refused by name; a base without a config gives an empty trusted config, never a fallback to the head."
+    rationale: "D-7.5 / DEC-0170: the head is attacker-controlled on a PR"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T06:58:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0314"
+    created_at: "2026-10-14T06:58:17Z"
+    updated_at: "2026-10-14T06:58:17Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 I: entry.sh's dependency preflight exits 4 so exit 3 means DEGRADED only; an invalid locality stops the run; an invalid exit_on_degraded warns and uses 3"
+    decision: "Exit 3 is reserved for a DEGRADED consensus (configurable through bridgebuilder.exit_on_degraded, 0 restores the old exit); the dependency preflight exits 4; an invalid hounfour.locality value stops the run so a typo never runs hosted voices silently; an invalid exit_on_degraded warns and uses 3."
+    rationale: "one meaning per exit code; fail closed on the locality knob"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T06:58:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0315"
+    created_at: "2026-10-14T06:58:18Z"
+    updated_at: "2026-10-14T06:58:18Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 I: the Bridgebuilder suite runs on node:test through tsx (not vitest); one TypeScript edit was a quoted Python replacement from Bash, tsc-checked"
+    decision: "The new tests follow the existing node:test files; the sprint plan's 'vitest' is read as the project's test runner; one TypeScript edit was applied with a Python string replacement run from Bash because it contained no template literals, verified with tsc --noEmit and the suite."
+    rationale: "the brief's tool rule guards template-literal corruption, which this edit could not suffer"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T06:58:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-i.md#tasks-completed (I-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0316"
+    created_at: "2026-10-14T07:33:23Z"
+    updated_at: "2026-10-14T07:33:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: the over-window refusal's limit is the input budget (context_window minus reserved max_tokens), the existing stricter check; the raw window is print..."
+    decision: "The named refusal context_window exceeded (<n> > <limit>) uses the input budget rather than the raw window, keeping the pre-existing stricter check, and prints the raw window beside it."
+    rationale: "the existing check already refused rather than truncated; the message makes it legible"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0317"
+    created_at: "2026-10-14T07:33:24Z"
+    updated_at: "2026-10-14T07:33:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: the schema-rejection retry fires only on HTTP 400 whose body names response_format or json_schema, and only when the sent body carried the schema"
+    decision: "One retry without the schema happens only for a status of exactly 400 whose serialised, lower-cased error body contains response_format or json_schema and only when the request body carried response_format; the retry is recorded as schema_rejected_by_server."
+    rationale: "a narrow heuristic avoids retrying unrelated 400s"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0318"
+    created_at: "2026-10-14T07:33:26Z"
+    updated_at: "2026-10-14T07:33:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: only the literal auth value 'local' is normalised to keyless; any other literal could be a real key and is never silently dropped"
+    decision: "normalise_keyless treats auth: local as the keyless marker; every other literal auth value is kept as a credential reference."
+    rationale: "a literal that might be a key must not be discarded"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0319"
+    created_at: "2026-10-14T07:33:28Z"
+    updated_at: "2026-10-14T07:33:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: <think> stripping removes leading blocks only (plus an unterminated leading block); a <think> inside the answer is content; reasoning deltas from re..."
+    decision: "Leading thinking blocks and reasoning-channel deltas move to the thinking field and set thinking_stripped; a <think> string inside the answer (for example a finding that quotes a template) is kept as content; thinking_stripped is reported by the OpenAI-type adapters and omitted by others."
+    rationale: "content that quotes a template must survive"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0320"
+    created_at: "2026-10-14T07:33:29Z"
+    updated_at: "2026-10-14T07:33:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: a CLI hop's MODELINV destination is {host: cli-subprocess, scheme: cli, provider}; destination is the answering hop's, else the last hop tried"
+    decision: "cheval does not know which vendor host a CLI reaches, so the destination field records the subprocess shape; for a repair chain the destination is that of the hop that answered, else the last attempted."
+    rationale: "honest provenance for CLI hops"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0321"
+    created_at: "2026-10-14T07:33:31Z"
+    updated_at: "2026-10-14T07:33:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: the per-model streaming_recovery block now reaches the stream parsers (before, model_data was always empty, so first_token_deadline_s was ignored)"
+    decision: "The OpenAI adapter passes the model's streaming_recovery configuration to both stream parsers; previously an empty dict was passed, so the example's first_token_deadline_s had no effect."
+    rationale: "a latent defect found while adding the reasoning-delta progress"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0322"
+    created_at: "2026-10-14T07:33:33Z"
+    updated_at: "2026-10-14T07:33:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: cheval now refuses an http, loopback or private-IP endpoint at load for every provider unless allow_insecure_endpoint names the host (the bash path ..."
+    decision: "The Python loader applies the same endpoint rule the bash validator applied, so an operator with an un-opted local proxy now gets a named refusal at load and adds allow_insecure_endpoint; recorded as a Migration note."
+    rationale: "one rule in both places (D-7.2)"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0323"
+    created_at: "2026-10-14T07:33:34Z"
+    updated_at: "2026-10-14T07:33:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 G: one small providers/base.py edit went through a Bash-driven Python one-off instead of the Edit tool (an import and one parenthesised expression)"
+    decision: "Against the brief's authoring rule, one edit to providers/base.py was applied through a Python one-off run from Bash; it added an import and parenthesised one expression, and the suite verified it. Every other file used the Write and Edit tools."
+    rationale: "process deviation recorded; no template-literal risk in a Python file"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-8)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:33:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-g.md#assumptions (G-8)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0324"
+    created_at: "2026-10-14T07:44:24Z"
+    updated_at: "2026-10-14T07:44:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: promoting an advisory alias to a counted role without hounfour.advisory_promotion refuses the whole dissent run (exit 1, advisory_promotion_refused)..."
+    decision: "The promotion refusal exits the run with advisory_promotion_refused rather than keeping the alias advisory or counting it quietly."
+    rationale: "an advisory voice must never change a verdict by configuration drift (DEC-0165)"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-1)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-1)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0325"
+    created_at: "2026-10-14T07:44:26Z"
+    updated_at: "2026-10-14T07:44:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: under local_voices Flatline refuses red-team mode and the advisor_strategy scorer route by name, because those pipelines plan their own hops"
+    decision: "flatline_locality_gate refuses the red-team pipeline whole and the advisor-strategy scorer route under local_voices; pinned voices score instead."
+    rationale: "the posture must not be bypassed by a path that resolves hops outside the inventory"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-2)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0326"
+    created_at: "2026-10-14T07:44:27Z"
+    updated_at: "2026-10-14T07:44:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: an invalid hounfour.locality value refuses the run in both scripts instead of falling back to hosted"
+    decision: "adversarial-review.sh and flatline-orchestrator.sh exit on an unknown locality value with the reason named."
+    rationale: "fail closed on the posture knob"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-3)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-3)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0327"
+    created_at: "2026-10-14T07:44:29Z"
+    updated_at: "2026-10-14T07:44:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: duplicate_of links an advisory finding to a counted one with the same file and category whose anchor line range overlaps; anchors without ranges mus..."
+    decision: "The duplicate rule is file + category + overlapping anchor range (file:N or file:N-M); when either side has no range the anchors must be equal; otherwise the field is null."
+    rationale: "a conservative duplicate rule avoids hiding distinct advisory findings"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-4)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0328"
+    created_at: "2026-10-14T07:44:31Z"
+    updated_at: "2026-10-14T07:44:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: advisory walkers run with the rejected-payload sidecar disabled and reap by pid plus start token on EXIT, INT, TERM and the wall clock"
+    decision: "LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1 inside the advisory walker keeps verdict-derive reading only the counted run's sidecar; rejected payloads are summarised in the advisory entry; the reaper compares pid and start token so a reused pid is never signalled."
+    rationale: "the counted envelope and its sidecars stay byte-identical"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-5)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0329"
+    created_at: "2026-10-14T07:44:32Z"
+    updated_at: "2026-10-14T07:44:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: hop-locality.py is the one fail-closed classifier (unresolved hop, unreadable config, missing interpreter or a local entry whose fallback chain reac..."
+    decision: "The catalog merged with hounfour.providers and hounfour.aliases decides locality; a hop is local only when its model entry or provider says dispatch_group: local; the classifier runs under python3 -I and never imports the package."
+    rationale: "one rule shared by dissent and Flatline; fail closed"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-6)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0330"
+    created_at: "2026-10-14T07:44:34Z"
+    updated_at: "2026-10-14T07:44:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "S3 H: a catalog price older than 90 days is a stale_catalog pricing source (WARN once, counted as priced); provenance fields open_weight, price_source, pr..."
+    decision: "pricing.py gains the three provenance fields, price_is_stale (90 days) and pricing_source_for; the ledger records stale_catalog and the rollup counts it as priced; test_catalog_pricing_provenance.py pins the invariant with fixture cases since the live catalog has no open-weight row."
+    rationale: "DEC-0125: an unverifiable price must not enter the catalog unlabelled"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the call was kept at integration"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "8ead194f"
+    source: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-7)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T07:44:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-257/reviewer-h.md#tasks-completed (H-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -61,9 +61,10 @@ export declare class ProgressReporter {
      */
     reportPosting(model: string, success: boolean): void;
     /**
-     * Report completion.
+     * Report completion: `completed/planned` voices (cycle-129 D-7.7 — the count of voices whose result completed, never the
+     * number configured).
      */
-    reportComplete(totalMs: number, modelsCompleted: number): void;
+    reportComplete(totalMs: number, completed: number, planned: number): void;
     /**
      * Heartbeat — ensures no output gap > 30s in verbose mode.
      */

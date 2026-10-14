@@ -22,6 +22,8 @@ bb_ec="null"
 if [[ -f "$DISPATCHER_FILE" ]] && jq empty "$DISPATCHER_FILE" 2>/dev/null; then
     dispatched="$(jq -r '.dispatched // false' "$DISPATCHER_FILE")"
     repo="$(jq -r '.repo // ""' "$DISPATCHER_FILE")"
+    # (cycle-129 D-7.7: bb_exit_code 3 is a COMPLETED, DEGRADED review — dispatcher.sh already surfaced it and set
+    # `degraded: true`; this phase only records the code)
     bb_ec="$(jq -r '.bb_exit_code // "null"' "$DISPATCHER_FILE")"
 fi
 

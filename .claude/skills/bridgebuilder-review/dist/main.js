@@ -3,7 +3,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, loadTrustedConfig, trustedConfigStartupLine, applyLocality, singleModelLocalityRefusal, } from "./config.js";
+import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine } from "./core/run-outcome.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
 import { detectRefs, parseManualRefs, fetchCrossRepoContext } from "./core/cross-repo.js";
@@ -376,6 +377,17 @@ async function main() {
     }
     // Log effective config with provenance annotations
     console.error(formatEffectiveConfig(config, provenance));
+    // cycle-129 D-7.5 (DEC-0170): provider declarations, locality and the DEGRADED exit key come from TRUSTED configuration
+    // only — the base branch's config (or repository settings) on a pull request, the working tree locally.
+    const trusted = loadTrustedConfig({
+        pr: cliArgs.pr,
+        repoRoot: config.repoRoot,
+        repo: config.repos.length === 1 ? `${config.repos[0].owner}/${config.repos[0].repo}` : undefined,
+    });
+    config.trusted = trusted;
+    console.error(trustedConfigStartupLine(trusted));
+    for (const line of trusted.warnings)
+        console.error(line);
     // Load persona via 5-level precedence chain
     const personaResult = await loadPersona(config, {
         warn: (msg) => console.error(`[bridgebuilder] WARN: ${msg}`),
@@ -390,10 +402,16 @@ async function main() {
     // Load multi-model config (Sprint 1: T1.4)
     const multiModelConfig = loadMultiModelConfig();
     if (multiModelConfig.enabled) {
+        // cycle-129 D-8.1: under hounfour.locality: local_voices every hosted voice is dropped from the plan, by name; never
+        // rerouted. The dropped voices are not planned, so they do not count against completed/planned.
+        const locality = applyLocality(multiModelConfig.models, trusted);
+        for (const r of locality.refused)
+            console.error(`[bridgebuilder] ${r.reason}`);
+        multiModelConfig.models = locality.kept;
         config.multiModel = multiModelConfig;
         // (r251-1 G15: the same .loa.config.yaml the pipeline's gate reads — the repo root's when one is configured)
         const agyGate = readAgyGate(loaConfigPathFor(config.repoRoot));
-        const keyStatus = validateApiKeys(multiModelConfig, agyGate);
+        const keyStatus = validateApiKeys(multiModelConfig, agyGate, trusted);
         console.error(`[bridgebuilder] Multi-model: ${keyStatus.valid.length} provider(s) available, ` +
             `${keyStatus.missing.length} missing (mode: ${multiModelConfig.api_key_mode})`);
         // (r251-2 K7f: the read error and the type warning are said once here, whether or not a voice is not planned)
@@ -402,6 +420,12 @@ async function main() {
         if (keyStatus.missing.length > 0) {
             console.error(`[bridgebuilder] Missing API keys: ${keyStatus.missing.map((m) => `${m.provider} (${m.envVar})`).join(", ")}`);
         }
+    }
+    else {
+        // cycle-129 D-8.1: the single-model voice is a Bridgebuilder hop too — under local_voices it must be local.
+        const refusal = singleModelLocalityRefusal(config.model, trusted);
+        if (refusal !== undefined)
+            throw new Error(refusal);
     }
     // Create adapters
     const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
@@ -461,6 +485,7 @@ async function main() {
                 `(${manualRefContext.errors.length} errors) in ${Date.now() - manualFetchStart}ms`);
         }
         const verdicts = [];
+        const outcomes = [];
         for (const item of items) {
             // Use convergence prompt so models return findings JSON parseable by
             // extractFindingsFromContent() (bug-20260413-9f9b39).
@@ -523,9 +548,19 @@ async function main() {
             // when active weaving is disabled — template inclusion is gated by
             // depth_5.lore_active_weaving, so passing [] is a safe no-op.
             { template, persona, loreEntries });
+            // cycle-129 D-7.7: the voices that completed against the voices planned, per item (callers read `voices`)
+            const outcome = summarizeVoices(mmResult);
+            outcomes.push(outcome);
             verdicts.push({
                 repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha,
                 ...mmResult.reviewVerdict,
+                voices: {
+                    planned: outcome.planned,
+                    completed: outcome.completed,
+                    band: outcome.band,
+                    incomplete: outcome.incomplete,
+                    degraded: outcome.degraded,
+                },
             });
             for (const mr of mmResult.modelResults) {
                 progress.updateModel(mr.provider, mr.model, {
@@ -542,7 +577,9 @@ async function main() {
                 blocker: mmResult.consensus.stats.blocker,
             });
         }
-        progress.reportComplete(Date.now() - now.getTime(), config.multiModel.models.length);
+        // cycle-129 D-7.7: completed/planned — the voices whose result completed, never the number configured
+        const totals = totalVoices(outcomes);
+        progress.reportComplete(Date.now() - now.getTime(), totals.completed, totals.planned);
         progress.stop();
         // Rating prompt — non-blocking, respects timeout (Issue #464 A1)
         if (config.multiModel.rating.enabled) {
@@ -570,7 +607,17 @@ async function main() {
                 console.error(`[bridgebuilder] Rating capture failed: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
-        console.log(JSON.stringify({ runId, mode: "multi-model", items: items.length, verdicts }, null, 2));
+        // cycle-129 D-7.7 (DEC-0150): a DEGRADED run exits bridgebuilder.exit_on_degraded (default 3; 0 restores the old exit)
+        // AFTER its JSON and comments are written; callers treat 3 as "completed, degraded".
+        const exitCode = decideExitCode(totals.degraded, trusted.exitOnDegraded);
+        console.log(JSON.stringify({
+            runId, mode: "multi-model", items: items.length, verdicts,
+            degraded: totals.degraded, voicesCompleted: totals.completed, voicesPlanned: totals.planned, exitCode,
+        }, null, 2));
+        if (totals.degraded) {
+            console.error(degradedWarnLine(totals, outcomes.map((o) => o.band), exitCode));
+        }
+        process.exitCode = exitCode;
     }
     else {
         // Single-model path — existing behavior, unchanged

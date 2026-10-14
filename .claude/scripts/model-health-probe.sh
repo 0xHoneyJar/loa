@@ -18,7 +18,8 @@
 #   --once                    Run once, exit (default behavior)
 #   --dry-run                 Parse config/registry; do NOT call provider APIs
 #   --invalidate [MODEL_ID]   Clear a cache entry (or full cache if omitted)
-#   --provider PROVIDER       Probe only one provider (openai|google|anthropic|bedrock)
+#   --provider PROVIDER       Probe only one provider (openai|google|anthropic|bedrock,
+#                             or a configured hounfour.providers name: <endpoint>/models)
 #   --model MODEL_ID          Probe only one model-id (use with --provider)
 #   --cache-path PATH         Override cache file path
 #   --output FORMAT           "text" (default) | "json"
@@ -43,6 +44,7 @@
 #   LOA_PROBE_MOCK_OPENAI         Fixture path for OpenAI response
 #   LOA_PROBE_MOCK_GOOGLE         Fixture path for Google response
 #   LOA_PROBE_MOCK_ANTHROPIC      Fixture path for Anthropic response
+#   LOA_PROBE_MOCK_CONFIGURED     Fixture path for a configured provider's /models response
 #   LOA_PROBE_MOCK_HTTP_STATUS    Override HTTP status in mock mode
 #   LOA_PROBE_MAX_PROBES          Override per-run probe budget (default 10)
 #   LOA_PROBE_MAX_COST_CENTS      Override cost cap (default 5 = $0.05)
@@ -846,9 +848,65 @@ _spawn_bg_probe_if_none_running() {
 # -----------------------------------------------------------------------------
 # Registry loading — read .claude/defaults/model-config.yaml via yq
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Configured providers (cycle-129 FR-7, SDD D-7.5): `--provider <name>` also
+# accepts a provider declared in the merged hounfour config (System defaults +
+# .loa.config.yaml), read through the cheval loader — so the D-7.2 endpoint rule
+# and the keyless preconditions apply exactly as on the cheval path. The helper
+# prints names and endpoint metadata only, never a secret.
+# -----------------------------------------------------------------------------
+_BUILTIN_PROBE_PROVIDERS="openai google anthropic bedrock"
+_CONFIGURED_NAME_RE='^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
+
+_endpoint_policy_cli() {
+    local adapters_dir="$SCRIPT_DIR/../adapters"
+    python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from loa_cheval.config.endpoint_policy import _main; raise SystemExit(_main(sys.argv[2:]))' \
+        "$adapters_dir" "$@" --project-root "$PROJECT_ROOT"
+}
+
+_is_builtin_provider() {
+    case " $_BUILTIN_PROBE_PROVIDERS " in
+        *" $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+# Names of the providers in the merged config, one per line (safe names only).
+# When the merged config does not load (an endpoint the D-7.2 rule refuses, say),
+# the loader's named reason is logged and no configured name is printed.
+_configured_providers() {
+    local line out errf rc=0
+    errf="$(mktemp)"
+    out="$(_endpoint_policy_cli list-providers 2>"$errf")" || rc=$?
+    if (( rc != 0 )); then
+        log_warn "merged config did not load; configured providers unavailable: $(grep -F '"error"' "$errf" | head -c 400)"
+    fi
+    rm -f "$errf"
+    printf '%s\n' "$out" | while IFS= read -r line; do
+        if [[ "$line" =~ $_CONFIGURED_NAME_RE ]]; then
+            printf '%s\n' "$line"
+        fi
+    done
+    return 0
+}
+
+# JSON description of one configured provider (see endpoint_policy.describe_provider).
+_configured_provider_json() {
+    _endpoint_policy_cli describe-provider "$1"
+}
+
 _registry_models() {
     # Emit lines: "provider model_id"
     local provider="${1:-}"
+    if [[ -n "$provider" ]] && ! _is_builtin_provider "$provider"; then
+        # cycle-129: a configured provider's models come from the merged config.
+        local desc
+        desc="$(_configured_provider_json "$provider" 2>/dev/null)" || return 1
+        printf '%s' "$desc" | jq -r '.models[]' 2>/dev/null | while IFS= read -r m; do
+            [[ -n "$m" ]] && printf '%s %s\n' "$provider" "$m"
+        done
+        return 0
+    fi
     if ! command -v yq >/dev/null 2>&1; then
         log_error "yq not found; required for registry parsing"
         return 1
@@ -887,6 +945,8 @@ _curl_json() {
     local api_key="$3"
     local method="${4:-GET}"
     local body_file="${5:-}"
+    # cycle-129 FR-7 (D-7.2): the configured provider's opt-in host, when set.
+    local insecure_host="${6:-}"
 
     HTTP_STATUS=0
     RESPONSE_BODY=""
@@ -898,6 +958,7 @@ _curl_json() {
             *openai.com*)     fixture="${LOA_PROBE_MOCK_OPENAI:-}" ;;
             *googleapis.com*) fixture="${LOA_PROBE_MOCK_GOOGLE:-}" ;;
             *anthropic.com*)  fixture="${LOA_PROBE_MOCK_ANTHROPIC:-}" ;;
+            *)                fixture="${LOA_PROBE_MOCK_CONFIGURED:-}" ;;
         esac
         if [[ -n "$fixture" && -f "$fixture" ]]; then
             RESPONSE_BODY="$(cat "$fixture")"
@@ -931,6 +992,10 @@ _curl_json() {
         x-goog-api-key)
             cfg=$(write_curl_auth_config "x-goog-api-key" "$api_key") || return 1
             ;;
+        none)
+            # cycle-129 D-8.0: a keyless configured provider sends no credential.
+            cfg=""
+            ;;
         *)
             log_error "unknown auth_type: $auth_type"
             return 1
@@ -954,10 +1019,18 @@ _curl_json() {
     # the rejection breadcrumb survives the 2>/dev/null mute on the curl path.
     local validator_err
     validator_err=$(mktemp)
+    # cycle-129: wrapper flags as an array — no --config-auth for a keyless
+    # provider, and the opt-in host when the configured provider declares one.
+    local _wrap=(--allowlist "$PROBE_PROVIDERS_ALLOWLIST")
+    if [[ -n "$cfg" ]]; then
+        _wrap+=(--config-auth "$cfg")
+    fi
+    if [[ -n "$insecure_host" ]]; then
+        _wrap+=(--allow-insecure-endpoint "$insecure_host")
+    fi
     if [[ "$method" == "POST" && -n "$body_file" ]]; then
         status_line=$(endpoint_validator__guarded_curl \
-            --allowlist "$PROBE_PROVIDERS_ALLOWLIST" \
-            --config-auth "$cfg" \
+            "${_wrap[@]}" \
             --url "$url" \
             -sS -o "$out_body" -w "%{http_code}" \
             --max-time "$PER_CALL_TIMEOUT" \
@@ -966,8 +1039,7 @@ _curl_json() {
             --data-binary "@$body_file" 2>"$validator_err") || curl_rc=$?
     else
         status_line=$(endpoint_validator__guarded_curl \
-            --allowlist "$PROBE_PROVIDERS_ALLOWLIST" \
-            --config-auth "$cfg" \
+            "${_wrap[@]}" \
             --url "$url" \
             -sS -o "$out_body" -w "%{http_code}" \
             --max-time "$PER_CALL_TIMEOUT" 2>"$validator_err") || curl_rc=$?
@@ -1348,6 +1420,129 @@ _probe_bedrock() {
 # -----------------------------------------------------------------------------
 # Probe-one-model orchestrator
 # -----------------------------------------------------------------------------
+# cycle-129 FR-7 (SDD D-7.5): a configured OpenAI-compatible provider —
+# GET <endpoint>/models with the provider's auth ({env:VAR}) or none when
+# keyless, through the endpoint validator with the provider's own opt-in host
+# (so http is admitted only to that loopback/RFC1918 host; redirects and proxy
+# env are refused by the wrapper). The URL is validated in mock mode too.
+_probe_configured() {
+    local provider="$1"
+    local model_id="$2"
+    _reset_probe_result
+    PROBE_HTTP="0"; PROBE_LATENCY_MS="0"
+
+    local desc derr
+    derr="$(mktemp)"
+    if ! desc="$(_configured_provider_json "$provider" 2>"$derr")"; then
+        PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+        PROBE_REASON="configured provider unreadable: $(tail -c 300 "$derr" | tr '\n' ' ')"
+        PROBE_ERROR_CLASS="config"
+        rm -f "$derr"
+        return 0
+    fi
+    rm -f "$derr"
+    local ptype endpoint keyless optin auth_env is_cli
+    ptype="$(printf '%s' "$desc" | jq -r '.type // ""')"
+    endpoint="$(printf '%s' "$desc" | jq -r '.endpoint // ""')"
+    keyless="$(printf '%s' "$desc" | jq -r '.keyless')"
+    optin="$(printf '%s' "$desc" | jq -r '.allow_insecure_endpoint // ""')"
+    auth_env="$(printf '%s' "$desc" | jq -r '.auth_env // ""')"
+    is_cli="$(printf '%s' "$desc" | jq -r '.cli')"
+
+    if [[ "$is_cli" == "true" || -z "$endpoint" ]]; then
+        PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+        PROBE_REASON="provider $provider is a CLI provider; no HTTP models endpoint to probe"
+        PROBE_ERROR_CLASS="not_probeable"
+        return 0
+    fi
+    case "$ptype" in
+        openai|openai_compat) ;;
+        *)
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="provider $provider has type $ptype; the configured-provider probe speaks the OpenAI /models shape only"
+            PROBE_ERROR_CLASS="not_probeable"
+            return 0
+            ;;
+    esac
+
+    local url="${endpoint%/}/models"
+    local _vflags=(--json --allowlist "$PROBE_PROVIDERS_ALLOWLIST")
+    if [[ -n "$optin" ]]; then
+        _vflags+=(--allow-insecure-endpoint "$optin")
+    fi
+    local verr
+    verr="$(mktemp)"
+    if ! endpoint_validator__check "${_vflags[@]}" "$url" >/dev/null 2>"$verr"; then
+        PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+        PROBE_REASON="endpoint refused: $(jq -r '"[" + (.code // "?") + "] " + (.detail // "")' "$verr" 2>/dev/null | head -c 300)"
+        PROBE_ERROR_CLASS="endpoint_refused"
+        log_warn "configured provider $provider: $PROBE_REASON (url=$url)"
+        rm -f "$verr"
+        return 0
+    fi
+    rm -f "$verr"
+
+    local auth_kind="bearer" key=""
+    if [[ "$keyless" == "true" ]]; then
+        auth_kind="none"
+    elif [[ -n "$auth_env" ]]; then
+        key="${!auth_env:-}"
+        if [[ -z "$key" ]]; then
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="$auth_env not set"
+            PROBE_ERROR_CLASS="auth"
+            PROBE_HTTP=""
+            return 0
+        fi
+    else
+        PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+        PROBE_REASON="provider $provider auth is not {env:VAR} and the provider is not keyless; the probe sends no literal credential"
+        PROBE_ERROR_CLASS="auth"
+        PROBE_HTTP=""
+        return 0
+    fi
+
+    log_info "probing configured provider $provider at $url${optin:+ (allow_insecure_endpoint=$optin)}"
+    local t0 t1
+    t0=$(date +%s%3N 2>/dev/null || date +%s000)
+    _curl_json "$url" "$auth_kind" "$key" GET "" "$optin"
+    local body="$RESPONSE_BODY"
+    t1=$(date +%s%3N 2>/dev/null || date +%s000)
+    PROBE_LATENCY_MS=$((t1 - t0))
+    PROBE_HTTP="$HTTP_STATUS"
+
+    case "$HTTP_STATUS" in
+        200)
+            if ! _contract_version_check openai "$body"; then
+                PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+                PROBE_REASON="$provider /models response schema mismatch"
+                PROBE_ERROR_CLASS="schema_mismatch"
+                return 0
+            fi
+            if printf '%s' "$body" | jq -e --arg id "$model_id" '.data | map(.id) | index($id) != null' >/dev/null 2>&1; then
+                PROBE_STATE="AVAILABLE"; PROBE_CONFIDENCE="high"
+                PROBE_REASON="listed in $provider /models"
+                PROBE_ERROR_CLASS="ok"
+            else
+                PROBE_STATE="UNAVAILABLE"; PROBE_CONFIDENCE="high"
+                PROBE_REASON="not present in $provider /models"
+                PROBE_ERROR_CLASS="listing_miss"
+            fi
+            ;;
+        401|403)
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="auth-level failure ($HTTP_STATUS)"
+            PROBE_ERROR_CLASS="auth"
+            ;;
+        *)
+            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+            PROBE_REASON="transient $HTTP_STATUS"
+            PROBE_ERROR_CLASS="transient"
+            ;;
+    esac
+    return 0
+}
+
 _probe_one_model() {
     local provider="$1"
     local model_id="$2"
@@ -1378,11 +1573,16 @@ _probe_one_model() {
         anthropic) _probe_anthropic "$model_id" ;;
         bedrock)   _probe_bedrock "$model_id" ;;
         *)
-            # Unknown provider passthrough (Flatline IMP-006 / SKP-004 #4)
-            PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
-            PROBE_REASON="unknown provider $provider"
-            PROBE_HTTP="0"; PROBE_LATENCY_MS="0"
-            PROBE_ERROR_CLASS="transient"
+            if [[ "$provider" =~ $_CONFIGURED_NAME_RE ]] && _configured_providers | grep -qxF -- "$provider"; then
+                # cycle-129 FR-7: a provider declared in the merged config.
+                _probe_configured "$provider" "$model_id"
+            else
+                # Unknown provider passthrough (Flatline IMP-006 / SKP-004 #4)
+                PROBE_STATE="UNKNOWN"; PROBE_CONFIDENCE="low"
+                PROBE_REASON="unknown provider $provider"
+                PROBE_HTTP="0"; PROBE_LATENCY_MS="0"
+                PROBE_ERROR_CLASS="transient"
+            fi
             ;;
     esac
 
@@ -1588,8 +1788,19 @@ _parse_args() {
         case "$OPT_PROVIDER" in
             openai|google|anthropic|bedrock) ;;
             *)
-                log_error "invalid provider: $OPT_PROVIDER (allowed: openai|google|anthropic|bedrock)"
-                exit 64
+                # cycle-129 FR-7 (D-7.5): a provider declared in the merged config.
+                local _configured _allowed
+                _configured="$(_configured_providers)"
+                if [[ ! "$OPT_PROVIDER" =~ $_CONFIGURED_NAME_RE ]] \
+                    || ! printf '%s\n' "$_configured" | grep -qxF -- "$OPT_PROVIDER"; then
+                    _allowed="openai|google|anthropic|bedrock"
+                    local _n
+                    for _n in $_configured; do
+                        _is_builtin_provider "$_n" || _allowed="$_allowed|$_n"
+                    done
+                    log_error "invalid provider: $OPT_PROVIDER (allowed: $_allowed)"
+                    exit 64
+                fi
                 ;;
         esac
     fi

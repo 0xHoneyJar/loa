@@ -208,7 +208,7 @@ Read, in order:
 2. `grimoires/loa/prd.md`, `grimoires/loa/sdd.md`, `grimoires/loa/sprint.md`
 3. `grimoires/loa/a2a/sprint-N/reviewer.md` — engineer's report
 4. `grimoires/loa/a2a/sprint-N/engineer-feedback.md` if it exists — your previous feedback (Phase 3)
-5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` (paths only) as advisory context; a missing script or no output is a no-op.
+5. Unless `qmd_context.enabled: false`, run `.claude/scripts/qmd-context-query.sh --query "<changed file paths>" --scope grimoires --budget 1500 --format text` as advisory context; a missing script or no output is a no-op.
 
 ## Phase 2: Code Review
 
@@ -229,6 +229,7 @@ Runs when `flatline_protocol.code_review.enabled: true`; skipping it blocks the 
 Two voices by default (`companion_voice`). One top-level bullet per rejected payload (`rejected_summary`
 or `adversarial-rejected-review*.jsonl` rows, whichever is more) under `## Rejected dissent payloads`, else
 `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Read `advisory_voices[].findings` as advisory input, never counted.
 
 ## Phase 3: Previous Feedback Verification
 
@@ -242,13 +243,13 @@ If `engineer-feedback.md` exists, verify each previous issue in the code (not th
 `reviewer.md`'s `## AC Verification` section is missing, shows `✗ Not met` without a
 scope-split to a follow-up sprint task, shows `⏸ [ACCEPTED-DEFERRED]` without a matching
 Decision Log entry in `grimoires/loa/NOTES.md`, or gives vague evidence for a `Met` claim
-("implemented in src/", "done") instead of `file:line` + a specific symbol.
+instead of `file:line` + a specific symbol.
 
 ## Phase 5: Feedback Generation
 
 Use `resources/templates/review-feedback.md`. An approved file reads `All good`, a blank line, then `Sprint {N} has been reviewed and approved. All acceptance criteria met.` — or, with observations, `Observations documented and non-blocking. See Observations below.`
 
-**LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md` (nothing after it):
+**LOA-VERDICT trailer**: append as the LAST line of `engineer-feedback.md`:
 `<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
 Prose and trailer MUST agree: approved files have
 first line exactly `All good` and no `## Changes Required` heading. ONE-WAY rule:
@@ -258,7 +259,7 @@ there is a violation.
 
 **MUST self-check**: run
 `.claude/scripts/verdict-derive.sh --file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md --gate review`
-and resolve any reported inconsistency before finishing.
+and resolve any inconsistency before finishing.
 </workflow>
 
 <parallel_execution>

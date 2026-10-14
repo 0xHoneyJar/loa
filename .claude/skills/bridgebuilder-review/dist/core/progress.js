@@ -95,10 +95,11 @@ export class ProgressReporter {
         this.report("posting", `${model}: ${success ? "posted" : "failed to post"}`);
     }
     /**
-     * Report completion.
+     * Report completion: `completed/planned` voices (cycle-129 D-7.7 — the count of voices whose result completed, never the
+     * number configured).
      */
-    reportComplete(totalMs, modelsCompleted) {
-        this.report("complete", `Done in ${Math.round(totalMs / 1000)}s — ${modelsCompleted} model(s) completed`);
+    reportComplete(totalMs, completed, planned) {
+        this.report("complete", `Done in ${Math.round(totalMs / 1000)}s — ${completed}/${planned} model(s) completed`);
     }
     /**
      * Heartbeat — ensures no output gap > 30s in verbose mode.

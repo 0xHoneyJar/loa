@@ -813,6 +813,24 @@ hounfour:
   # (other consumers still read it for telemetry) but does NOT gate
   # dispatch behavior anymore.
 
+  # cycle-129 FR-8 — locality: hosted (default; the rollback) | local_voices. Under local_voices every model hop
+  # of the dissent (primary, companion, advisory voices, the KF-004 repair chain — pinned to the answering voice, no
+  # tiny or claude-headless), Flatline (voices and scorers), Bridgebuilder and the health probe is planned only on a
+  # provider whose model entry says `dispatch_group: local`; each hosted hop is refused by name at plan time, never
+  # rerouted, and cheval records locality_mode / hop_locality in MODELINV. The Claude Code session model is exempt:
+  # it remains the platform.
+  # locality: local_voices — with one local family the companion is not an independent second voice (duplicate_voice, or not planned), so every security audit is DEGRADED_SECURITY_REVIEW; adversarial-review-gate.sh and verdict-derive.sh treat this envelope exactly as they treat any other.
+  locality: hosted
+
+  # cycle-129 FR-7 — advisory-voice promotion (a maintainer decision; unset by default). Promotion of an advisory
+  # voice to a counted one is unreachable this cycle: no voice arm exists in the eval harness, so an alias listed
+  # in both flatline_protocol.<gate>.advisory_voices and companion_chain is refused with "advisory voice <alias>
+  # cannot be counted: no arms report line for the alias (voice arms are a future iteration)". The keys are read
+  # and named so a later cycle adds only the arm.
+  # advisory_promotion:
+  #   min_recall_ratio: 0.8      # the voice's arm recall over the counted voices' recall
+  #   max_refuted_delta: 0.1     # the most extra refuted findings the arm may show
+
   # Per-subsystem feature flags (all default true — opt-out, not opt-in)
   feature_flags:
     google_adapter: true     # Enable Google provider adapter
@@ -1148,7 +1166,14 @@ hounfour:
 
 # Hounfour Examples:
 #
+# Each example sits between a `# @example-begin <name>` and a `# @example-end`
+# marker. .claude/adapters/tests/test_config_examples_load.py uncomments every
+# marked block, merges it over the System defaults with the real cheval loader
+# and asserts it loads, so an example that would not load fails CI.
+#
 # Example 1: Conservative (all native, no remote calls)
+# The Claude Code session itself still runs against Anthropic.
+# @example-begin conservative
 # hounfour:
 #   flatline_routing: false
 #   agents:
@@ -1156,17 +1181,28 @@ hounfour:
 #       model: native
 #     flatline-reviewer:
 #       model: native
+# @example-end
 #
 # Example 2: Budget-conscious (lower daily limit, aggressive downgrade)
+# @example-begin budget-conscious
 # hounfour:
 #   metering:
 #     budget:
 #       daily_micro_usd: 50000000       # $50/day
 #       warn_at_percent: 60
 #       on_exceeded: block              # Hard stop instead of downgrade
+# @example-end
 #
 # Example 3: Custom provider (e.g., Azure OpenAI)
+# Every model of a custom HTTP provider declares endpoint_family, auth_type,
+# dispatch_group and context_window. The key is read from an environment
+# variable, which must match a secret_env_allowlist pattern: only LOA_*,
+# OPENAI_API_KEY, ANTHROPIC_API_KEY, MOONSHOT_API_KEY, GOOGLE_API_KEY and
+# GEMINI_API_KEY are allowed by default.
+# @example-begin azure-openai
 # hounfour:
+#   secret_env_allowlist:
+#     - "^AZURE_OPENAI_KEY$"
 #   providers:
 #     azure-openai:
 #       type: openai
@@ -1174,12 +1210,57 @@ hounfour:
 #       auth: "{env:AZURE_OPENAI_KEY}"
 #       models:
 #         gpt-5-azure:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: azure
 #           capabilities: [chat, tools, function_calling]
+#           context_window: 400000
+#           max_output_tokens: 16000
 #           pricing:
 #             input_per_mtok: 10000000
 #             output_per_mtok: 30000000
 #   aliases:
 #     reviewer: "azure-openai:gpt-5-azure"
+# @example-end
+#
+# Example 4: Local OpenAI-compatible server (vLLM, llama.cpp, Ollama, LM Studio)
+# Threat model: plain http is admitted only to the one host named in
+# allow_insecure_endpoint, an IP literal or localhost in a loopback or RFC1918
+# range that is never resolved through DNS, so the prompt does not cross a
+# public network unencrypted and the name cannot be rebound. For this provider
+# cheval ignores proxy environment variables, refuses redirects and keeps every
+# request under the declared endpoint path, while every other provider keeps the
+# https, loopback and private-range refusals.
+# keyless: true sends no credential (a literal auth: "local" means the same).
+# secret_env_allowlist: if your server does want a key, use
+# auth: "{env:LOCAL_LLM_KEY}" instead of keyless and add "^LOCAL_LLM_KEY$" to
+# secret_env_allowlist; an environment variable outside the allowlist is refused.
+# A prompt over the declared context_window refuses the hop by name and is never
+# truncated; the zero prices record the hop at cost 0.
+# @example-begin local-openai-compatible
+# hounfour:
+#   providers:
+#     local:
+#       type: openai_compat
+#       endpoint: "http://127.0.0.1:8000/v1"
+#       keyless: true
+#       allow_insecure_endpoint: "127.0.0.1"   # a host string, never a boolean
+#       models:
+#         qwen3-coder-30b:
+#           endpoint_family: chat
+#           auth_type: http_api
+#           dispatch_group: local                # marks the hop local (hop_locality: local)
+#           capabilities: [chat]                 # add structured_json if the server enforces response_format
+#           context_window: 32768
+#           max_output_tokens: 8192
+#           streaming_recovery:
+#             first_token_deadline_s: 120        # CPU servers take a while on a large prompt
+#           pricing:
+#             input_per_mtok: 0
+#             output_per_mtok: 0
+#   aliases:
+#     local-reviewer: "local:qwen3-coder-30b"
+# @example-end
 trajectory:
   archive:
     # Maximum export size in MB before LFS warning
@@ -1591,6 +1672,17 @@ flatline_protocol:
     # and in the degraded-verdict trajectory record, so findings the
     # dissenter model produced but that were silently dropped for a
     # trivial schema mismatch (KF-004's original complaint) stay visible.
+    # cycle-129 FR-7: advisory voices (aliases — an open-weight or local model, say). They run after the counted
+    # voices on the same prompts, concurrently, under ONE wall clock (advisory_timeout_seconds), with the same schema,
+    # qualification and repair rules; their findings are written ONLY under advisory_voices[].findings in
+    # adversarial-review.json (voice: advisory, counted_as: advisory_voice, duplicate_of: the id of a counted finding
+    # on the same file, overlapping lines, same category) — never in findings[], voices_planned or verdict_quality, so
+    # they cannot change a verdict; a failed or timed-out one is a status in its entry. The budget gate prices every
+    # planned voice (primary, the companion's first hop, each advisory alias) at its catalog price, 10 / 30 USD per
+    # Mtok when the catalog has none (said by name). An alias also listed in companion_chain is refused at plan time:
+    # promotion to a counted voice needs a voice arm (see hounfour.advisory_promotion).
+    advisory_voices: []
+    advisory_timeout_seconds: 600
   security_audit:
     enabled: false               # Opt-in: enable for /audit-sprint
     model: "gpt-5.3-codex"      # Dissenter model
@@ -1603,6 +1695,8 @@ flatline_protocol:
     companion_voice: true        # cycle-126 FR-2.1: see code_review — with no route to the other family every audit is
                                  # DEGRADED_SECURITY_REVIEW; false where one voice is the host's shape (an absent key is true);
                                  # a companion_chain is read per block — this block's own, as code_review documents it
+    advisory_voices: []          # cycle-129 FR-7: see code_review — findings under advisory_voices[] only, never tallied
+    advisory_timeout_seconds: 600
   stable_anchors:
     required: true               # Demote anchorless high-severity findings
     preferred_format: "symbol"   # symbol | hunk_header | line_number
@@ -2410,6 +2504,13 @@ bridgebuilder:
   # Path to persona override (project-specific reviewer personality).
   # Falls back to built-in resources/BEAUVOIR.md if file not found.
   persona_path: "grimoires/bridgebuilder/BEAUVOIR.md"
+
+  # Exit code of a multi-model run whose consensus is DEGRADED: fewer voices completed than planned, or a
+  # degraded verdict-quality band (cycle-129, DEC-0150). The JSON and the PR comments are written first;
+  # callers treat 3 as "completed, degraded" and print a WARN naming the voices. 0 restores the pre-cycle-129
+  # exit (rollback key). Integer 0..125. On a pull request this key is read from the trusted config
+  # (the base branch's .loa.config.yaml or BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head.
+  exit_on_degraded: 3
 
 # =============================================================================
 # QMD Context Query — Unified context retrieval with three-tier fallback

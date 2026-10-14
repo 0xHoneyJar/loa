@@ -61,15 +61,32 @@ if [[ ! -f "$BB_ENTRY" ]]; then
 fi
 
 # Fire BB with NO --pr: it self-discovers open PRs and dedups internally.
+# BB's stdout (its run JSON) is kept in the handoff dir and replayed, so a DEGRADED run can name its voices.
+BB_OUT="${HANDOFF_DIR}/bb-stdout.json"
 rc=0
 if [[ -x "$BB_ENTRY" ]]; then
-    "$BB_ENTRY" --repo "$repo" || rc=$?
+    "$BB_ENTRY" --repo "$repo" >"$BB_OUT" || rc=$?
 else
-    bash "$BB_ENTRY" --repo "$repo" || rc=$?
+    bash "$BB_ENTRY" --repo "$repo" >"$BB_OUT" || rc=$?
+fi
+cat "$BB_OUT"
+
+# cycle-129 D-7.7 (DEC-0150): exit 3 = the review COMPLETED with a DEGRADED consensus (bridgebuilder.exit_on_degraded;
+# 0 restores the old exit). Not a failure: one WARN naming the incomplete voices, `degraded: true` in the handoff, exit 0.
+degraded=false
+voices=""
+if [[ "$rc" -eq 3 ]]; then
+    degraded=true
+    voices=$(jq -r '[.verdicts[]?.voices.incomplete[]?] | unique | join(", ")' "$BB_OUT" 2>/dev/null) || voices=""
+    echo "dispatcher: WARN: bridgebuilder completed DEGRADED (exit 3): incomplete voices: ${voices:-none named (degraded verdict quality)}" >&2
 fi
 
 write_out "$(jq -nc --arg cid "$cycle_id" --arg sid "$schedule_id" \
-    --arg repo "$repo" --argjson ec "$rc" \
+    --arg repo "$repo" --argjson ec "$rc" --argjson degraded "$degraded" --arg voices "$voices" \
     '{cycle_id:$cid, schedule_id:$sid, dispatched:true, repo:$repo,
-      bb_exit_code:$ec}')"
+      bb_exit_code:$ec, degraded:$degraded}
+     + (if $degraded then {incomplete_voices: $voices} else {} end)')"
+if [[ "$rc" -eq 3 ]]; then
+    exit 0
+fi
 exit "$rc"

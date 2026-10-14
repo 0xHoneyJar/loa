@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 from loa_cheval.providers.base import (
     ProviderAdapter,
+    TransportPolicy,
     _streaming_disabled,
     enforce_context_window,
     http_post,
@@ -26,6 +27,8 @@ from loa_cheval.providers.base import (
     wire_temperature,
 )
 from loa_cheval.providers.openai_streaming import (
+    REASONING_DELTA_KEYS,
+    apply_thinking_strip,
     parse_openai_chat_stream,
     parse_openai_responses_stream,
 )
@@ -80,9 +83,32 @@ def _output_schema_name(request: CompletionRequest) -> str:
 
 
 def _schema_enforced(body: Dict[str, Any]) -> bool:
-    """True iff the /v1/responses body carried text.format.type == json_schema."""
+    """True iff the body sent carried a json_schema: /v1/responses `text.format`
+    or (cycle-129 FR-7, D-7.3) /chat/completions `response_format`."""
     fmt = ((body.get("text") or {}).get("format") or {})
-    return fmt.get("type") == "json_schema"
+    if fmt.get("type") == "json_schema":
+        return True
+    return ((body.get("response_format") or {}).get("type")) == "json_schema"
+
+
+class _SchemaRejectedByServer(InvalidInputError):
+    """An HTTP 400 whose body names `response_format` or `json_schema`: the server
+    does not accept a structured-output request (cycle-129 FR-7, SDD §6). The
+    adapter retries once without the schema; any other caller sees the
+    InvalidInputError it subclasses."""
+
+
+def _names_response_format(status: int, err: Any) -> bool:
+    """The 400-detection heuristic: HTTP 400 and the error body (any field, any
+    case) mentions `response_format` or `json_schema`."""
+    if status != 400:
+        return False
+    try:
+        text = json.dumps(err) if not isinstance(err, str) else err
+    except (TypeError, ValueError):
+        text = str(err)
+    text = text.lower()
+    return "response_format" in text or "json_schema" in text
 
 
 class OpenAIAdapter(ProviderAdapter):
@@ -140,12 +166,11 @@ class OpenAIAdapter(ProviderAdapter):
         # cycle-095 Sprint 1: registry-metadata-driven endpoint routing.
         family = self._route_decision(model_config, request.model)
 
-        # Build headers
-        auth = self._get_auth_header()
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth}",
-        }
+        # Build headers. cycle-129 FR-7 (D-8.0): a keyless provider sends no
+        # credential at all (no placeholder Bearer token on the wire).
+        headers = {"Content-Type": "application/json"}
+        if not getattr(self.config, "keyless", False):
+            headers["Authorization"] = f"Bearer {self._get_auth_header()}"
 
         if family == "responses":
             url = f"{self.config.endpoint}/responses"
@@ -154,16 +179,68 @@ class OpenAIAdapter(ProviderAdapter):
             url = f"{self.config.endpoint}/chat/completions"
             body = self._build_chat_body(request, model_config)
 
+        # cycle-129 FR-7 (D-7.2): request-time rules for an opted-in or local hop;
+        # (D-7.3) the per-model streaming_recovery block reaches the parsers.
+        policy = self._transport_policy(model_config)
+        model_data = (
+            {"streaming_recovery": model_config.streaming_recovery}
+            if isinstance(getattr(model_config, "streaming_recovery", None), dict) else {}
+        )
+
+        schema_rejected = False
+        try:
+            result = self._dispatch(url, headers, body, family, policy, model_data)
+        except _SchemaRejectedByServer:
+            if "response_format" not in body:
+                raise
+            # cycle-129 SDD §6: the server refused the structured-output request —
+            # one retry without the schema, recorded; the tolerant parser and the
+            # repair loop then apply as for any unenforced voice.
+            logger.warning(
+                "provider '%s' rejected response_format (HTTP 400); retrying once without the schema",
+                self.provider,
+            )
+            body = {k: v for k, v in body.items() if k != "response_format"}
+            schema_rejected = True
+            result = self._dispatch(url, headers, body, family, policy, model_data)
+
+        # cycle-124 FR-7 / cycle-129 D-7.3: derived from the body actually sent
+        # (truthful telemetry) — `text.format` on /v1/responses, `response_format`
+        # on /chat/completions.
+        meta = {**(result.metadata or {}), "schema_enforced": _schema_enforced(body)}
+        if schema_rejected:
+            meta["schema_rejected_by_server"] = True
+        meta.setdefault("thinking_stripped", False)
+        result.metadata = meta
+        return result
+
+    def _transport_policy(self, model_config: ModelConfig) -> Optional[TransportPolicy]:
+        """The D-7.2 TransportPolicy when the provider carries an insecure-endpoint
+        opt-in or the model's dispatch_group is `local`; None otherwise (hosted
+        providers keep today's transport unchanged)."""
+        if getattr(self.config, "allow_insecure_endpoint", None) or getattr(model_config, "dispatch_group", None) == "local":
+            return TransportPolicy(endpoint=self.config.endpoint, provider=self.provider)
+        return None
+
+    def _dispatch(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        body: Dict[str, Any],
+        family: str,
+        policy: Optional[TransportPolicy],
+        model_data: Dict[str, Any],
+    ) -> CompletionResult:
         # Sprint 4A DISS-001 closure: centralized kill-switch detection so
         # the adapter routing and the MODELINV audit field stay consistent.
+        # The cycle-129 keywords travel only when set, so a hosted hop calls the
+        # transport exactly as before.
+        extra: Dict[str, Any] = {"policy": policy} if policy is not None else {}
         if _streaming_disabled():
-            result = self._complete_nonstreaming(url, headers, body, family)
-        else:
-            result = self._complete_streaming(url, headers, body, family)
-        # cycle-124 FR-7: derived from the body actually sent (truthful
-        # telemetry) — only the /v1/responses family can carry a schema.
-        result.metadata = {**(result.metadata or {}), "schema_enforced": _schema_enforced(body)}
-        return result
+            return self._complete_nonstreaming(url, headers, body, family, **extra)
+        if model_data:
+            extra["model_data"] = model_data
+        return self._complete_streaming(url, headers, body, family, **extra)
 
     def _complete_streaming(
         self,
@@ -171,6 +248,8 @@ class OpenAIAdapter(ProviderAdapter):
         headers: Dict[str, str],
         body: Dict[str, Any],
         family: str,
+        policy: Optional[TransportPolicy] = None,
+        model_data: Optional[Dict[str, Any]] = None,
     ) -> CompletionResult:
         """Sprint 4A streaming default path for both endpoint families."""
         body = dict(body)
@@ -188,6 +267,7 @@ class OpenAIAdapter(ProviderAdapter):
             body=body,
             connect_timeout=self.config.connect_timeout,
             read_timeout=self.config.read_timeout,
+            **({"policy": policy} if policy is not None else {}),
         ) as resp:
             status = resp.status_code
 
@@ -208,6 +288,10 @@ class OpenAIAdapter(ProviderAdapter):
                         self.provider,
                         f"HTTP {status}: {_extract_error_message(err_json)}",
                     )
+                if "response_format" in body and _names_response_format(status, err_json):
+                    raise _SchemaRejectedByServer(
+                        f"OpenAI API error (HTTP {status}): {_extract_error_message(err_json)}"
+                    )
                 raise InvalidInputError(
                     f"OpenAI API error (HTTP {status}): {_extract_error_message(err_json)}"
                 )
@@ -224,15 +308,18 @@ class OpenAIAdapter(ProviderAdapter):
                         # cycle-113 T2.4: kwargs forward to recovery
                         # integration. Sprint-170 plumbs the real per-model
                         # streaming_recovery + reasoning_class from
-                        # model-config.yaml.
-                        model_data={},
+                        # model-config.yaml. (cycle-129: the per-model
+                        # streaming_recovery block now travels in model_data.)
+                        model_data=model_data or {},
                         reasoning_class=False,
                     )
                 else:
+                    # cycle-129 FR-7 (D-7.3): the model's streaming_recovery block
+                    # (a local server's longer first-token deadline) is applied.
                     result = parse_openai_chat_stream(
                         resp.iter_bytes(),
                         provider=self.provider,
-                        model_data={},
+                        model_data=model_data or {},
                         reasoning_class=False,
                     )
             except StreamingRecoveryAbort as recovery_err:
@@ -284,6 +371,7 @@ class OpenAIAdapter(ProviderAdapter):
         headers: Dict[str, str],
         body: Dict[str, Any],
         family: str,
+        policy: Optional[TransportPolicy] = None,
     ) -> CompletionResult:
         """Legacy non-streaming path retained behind LOA_CHEVAL_DISABLE_STREAMING=1
         kill switch (Sprint 4A operator backstop)."""
@@ -295,6 +383,7 @@ class OpenAIAdapter(ProviderAdapter):
             body=body,
             connect_timeout=self.config.connect_timeout,
             read_timeout=self.config.read_timeout,
+            **({"policy": policy} if policy is not None else {}),
         )
 
         latency_ms = int((time.monotonic() - start) * 1000)
@@ -313,11 +402,14 @@ class OpenAIAdapter(ProviderAdapter):
 
         if status >= 400:
             msg = _extract_error_message(resp)
+            if "response_format" in body and _names_response_format(status, resp):
+                raise _SchemaRejectedByServer(f"OpenAI API error (HTTP {status}): {msg}")
             raise InvalidInputError(f"OpenAI API error (HTTP {status}): {msg}")
 
-        # Parse response
+        # Parse response. cycle-129 FR-7 (D-7.3): leading `<think>` blocks are
+        # stripped before qualification on this path too.
         if family == "responses":
-            return self._parse_responses_response(resp, latency_ms)
+            return apply_thinking_strip(self._parse_responses_response(resp, latency_ms))
         return self._parse_response(resp, latency_ms)
 
     def _build_chat_body(self, request: CompletionRequest, model_config: ModelConfig) -> Dict[str, Any]:
@@ -337,6 +429,20 @@ class OpenAIAdapter(ProviderAdapter):
             body["tools"] = request.tools
         if request.tool_choice:
             body["tool_choice"] = request.tool_choice
+
+        # cycle-129 FR-7 (SDD D-7.3): the chat-completions body carries the
+        # output schema as a strict json_schema response_format — but only when
+        # the catalog entry declares `structured_json`; a server without the
+        # capability is never sent a field it would reject.
+        if request.output_schema is not None and "structured_json" in (model_config.capabilities or []):
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": _output_schema_name(request),
+                    "schema": request.output_schema,
+                    "strict": True,
+                },
+            }
 
         return body
 
@@ -699,6 +805,12 @@ class OpenAIAdapter(ProviderAdapter):
 
         message = choices[0].get("message", {})
         content = message.get("content", "") or ""
+        # cycle-129 FR-7 (D-7.3): a local reasoning model's trace rides on
+        # `message.reasoning_content`; it is thinking, never content.
+        reasoning = next(
+            (message.get(k) for k in REASONING_DELTA_KEYS if isinstance(message.get(k), str) and message.get(k)),
+            None,
+        )
 
         # Normalize tool calls to canonical format (SDD §4.2.5)
         raw_tool_calls = message.get("tool_calls")
@@ -713,38 +825,48 @@ class OpenAIAdapter(ProviderAdapter):
             source="actual" if usage_data else "estimated",
         )
 
-        return CompletionResult(
+        result = CompletionResult(
             content=content,
             tool_calls=tool_calls,
-            thinking=None,  # OpenAI does not support thinking traces (degrade silently)
+            thinking=reasoning,  # hosted OpenAI sends none; a local reasoning server may
             usage=usage,
             model=resp.get("model", "unknown"),
             latency_ms=latency_ms,
             provider=self.provider,
         )
+        return apply_thinking_strip(result, reasoning_seen=reasoning is not None)
 
     def validate_config(self) -> List[str]:
         """Validate OpenAI-specific configuration."""
         errors = []
         if not self.config.endpoint:
             errors.append(f"Provider '{self.provider}': endpoint is required")
-        if not self.config.auth:
-            errors.append(f"Provider '{self.provider}': auth is required")
+        if not self.config.auth and not getattr(self.config, "keyless", False):
+            errors.append(f"Provider '{self.provider}': auth is required (or keyless: true)")
         if self.config.type not in ("openai", "openai_compat"):
             errors.append(f"Provider '{self.provider}': type must be 'openai' or 'openai_compat'")
         return errors
 
     def health_check(self) -> bool:
-        """Quick health probe via models list endpoint."""
-        auth = self._get_auth_header()
-        headers = {
-            "Authorization": f"Bearer {auth}",
-        }
+        """Quick health probe via models list endpoint. cycle-129 FR-7: a keyless
+        provider sends no credential; an opted-in provider probes under the
+        D-7.2 TransportPolicy (no proxy env, no redirects, declared path)."""
+        headers: Dict[str, str] = {}
+        if not getattr(self.config, "keyless", False):
+            headers["Authorization"] = f"Bearer {self._get_auth_header()}"
+        url = f"{self.config.endpoint}/models"
+        if getattr(self.config, "allow_insecure_endpoint", None):
+            from loa_cheval.providers.base import http_get
+
+            try:
+                status, _ = http_get(url, headers, policy=TransportPolicy(self.config.endpoint, self.provider))
+            except Exception:
+                return False
+            return status == 200
         try:
             from loa_cheval.providers.base import _detect_http_client
 
             client = _detect_http_client()
-            url = f"{self.config.endpoint}/models"
 
             if client == "httpx":
                 import httpx

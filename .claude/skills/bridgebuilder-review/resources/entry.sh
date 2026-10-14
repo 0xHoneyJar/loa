@@ -115,7 +115,9 @@ if [[ ! -d "${SKILL_DIR}/node_modules/zod" ]]; then
   echo "  cd ${SKILL_DIR} && npm ci" >&2
   echo "" >&2
   echo "(package-lock.json is tracked; zod is the only production dependency.)" >&2
-  exit 3
+  # (exit 4, not 3: since cycle-129 D-7.7 exit 3 means "the review completed, DEGRADED" — a missing dependency is a
+  # failure to run and must never read as a completed review)
+  exit 4
 fi
 
 # Run compiled TypeScript via Node (no npx tsx — SKP-002)

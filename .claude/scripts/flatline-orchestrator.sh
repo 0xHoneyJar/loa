@@ -692,6 +692,68 @@ validate_model() {
     return 1
 }
 
+# cycle-129 FR-8 (SDD D-8.1, DEC-0146): hounfour.locality. Under local_voices the Flatline voices — primary, secondary,
+# tertiary, and so every scorer, since a voice cross-scores the others (no separate judge) — are planned only on a
+# provider whose model entry says `dispatch_group: local` in the merged config (lib/hop-locality.py: the catalog
+# overlaid with this config's hounfour.providers; a local entry whose fallback_chain reaches a hosted one is hosted).
+# A hosted voice is refused by name at plan time, never substituted: a hosted primary or secondary refuses the run (a
+# Flatline review needs both), a hosted tertiary is not planned (2-model mode). The advisor_strategy scorer route
+# (stage_routing.flatline_scorer) resolves its tier inside cheval, not as a declared hop, so it is refused too and the
+# scorers stay on the pinned voices. The red-team pipeline plans its own hops and is refused whole. cheval applies the
+# request-time rules to a local hop and records locality_mode / hop_locality in MODELINV from the same config key.
+_FLATLINE_LOCALITY_RESULT=""   # "" not checked yet · ok · refused (memoised: main and run_phase1 both ask)
+flatline_locality_mode() {  # → hosted | local_voices | invalid:<value>
+    local tg v
+    [[ -f "$CONFIG_FILE" ]] && command -v yq >/dev/null 2>&1 || { echo "hosted"; return 0; }
+    tg=$(yq eval '.hounfour.locality | tag' "$CONFIG_FILE" 2>/dev/null || echo "unreadable")
+    case "$tg" in
+        '!!null'|'') echo "hosted" ;;
+        '!!str')
+            v=$(yq eval '.hounfour.locality' "$CONFIG_FILE" 2>/dev/null || echo "")
+            case "$v" in hosted|local_voices) echo "$v" ;; *) echo "invalid:$(printf '%s' "$v" | LC_ALL=C tr -cd 'A-Za-z0-9._-' | cut -c1-40)" ;; esac ;;
+        *) echo "invalid:(a ${tg#!!}, not a string)" ;;
+    esac
+}
+flatline_locality_gate() {  # → 0 when the planned voices are allowed; 1 refused (said). Under local_voices a hosted tertiary
+                             # is dropped from the plan (the tertiary cache) and the advisor_strategy scorer route is turned off
+    case "$_FLATLINE_LOCALITY_RESULT" in ok) return 0 ;; refused) return 1 ;; esac
+    local mode; mode=$(flatline_locality_mode)
+    if [[ "$mode" == hosted ]]; then _FLATLINE_LOCALITY_RESULT=ok; return 0; fi
+    if [[ "$mode" == invalid:* ]]; then
+        error "hounfour.locality='${mode#invalid:}' is neither hosted nor local_voices — no Flatline voice was planned (set hounfour.locality: hosted or local_voices)"
+        _FLATLINE_LOCALITY_RESULT=refused; return 1
+    fi
+    log "locality: local_voices — Flatline voices (and so its scorers) are planned only on dispatch_group: local providers (the Claude Code session model is exempt)"
+    local p s t rows="" role m line prov loc refused_counted=0
+    p=$(get_model_primary); s=$(get_model_secondary); t=$(_get_model_tertiary_configured)
+    rows=$(python3 -I "$SCRIPT_DIR/lib/hop-locality.py" --catalog "${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" \
+        --config "$CONFIG_FILE" -- "$p" "$s" ${t:+"$t"} 2>/dev/null) || rows=""
+    for role in primary secondary tertiary; do
+        case "$role" in primary) m="$p" ;; secondary) m="$s" ;; tertiary) m="$t" ;; esac
+        [[ -n "$m" ]] || continue
+        line=$(awk -F'\t' -v h="$m" '$1 == h && NF >= 4 { print; exit }' <<<"$rows")
+        prov=$(cut -f2 <<<"$line"); loc=$(cut -f3 <<<"$line")
+        [[ "$loc" == local ]] && continue
+        log "locality: local_voices refuses hosted hop $m (${prov:-unknown})"
+        if [[ "$role" == tertiary ]]; then
+            _CACHED_TERTIARY_MODEL=""; _CACHED_TERTIARY_MODEL_SET=true
+            log "Tertiary model '$m' not planned: hounfour.locality is local_voices and it is a hosted hop — 2-model Flatline"
+        else
+            refused_counted=1
+        fi
+    done
+    if is_stage_routing_scorer_enabled; then
+        log "locality: local_voices refuses the advisor_strategy scorer route (advisor_strategy.stage_routing.flatline_scorer: its tier is resolved inside cheval, not a declared local hop) — the scorers stay on the pinned voices"
+        _CACHED_STAGE_ROUTING_SCORER="false"; _CACHED_STAGE_ROUTING_SCORER_SET=true
+    fi
+    if (( refused_counted )); then
+        error "locality: local_voices refuses a hosted Flatline primary or secondary voice — nothing was dispatched; declare local models (dispatch_group: local) for flatline_protocol.models.primary and .secondary, or set hounfour.locality: hosted"
+        _FLATLINE_LOCALITY_RESULT=refused; return 1
+    fi
+    _FLATLINE_LOCALITY_RESULT=ok
+    return 0
+}
+
 is_notebooklm_enabled() {
     local enabled
     enabled=$(read_config '.flatline_protocol.knowledge.notebooklm.enabled' 'false')
@@ -1429,6 +1491,8 @@ run_inquiry() {
     set_state "PHASE1"
     log "Starting Inquiry Mode: 3 parallel collaborative queries"
 
+    flatline_locality_gate || return 3   # (cycle-129 FR-8: memoised plan-time gate)
+
     local primary_model secondary_model tertiary_model
     primary_model=$(get_model_primary)
     secondary_model=$(get_model_secondary)
@@ -1625,6 +1689,9 @@ run_phase1() {
 
     set_state "PHASE1"
     log "Starting Phase 1: Independent reviews (4 parallel calls)"
+
+    # cycle-129 FR-8: the plan-time locality gate (memoised — main asked it first; a direct caller asks it here)
+    flatline_locality_gate || return 3
 
     local primary_model secondary_model
     primary_model=$(get_model_primary)
@@ -1853,6 +1920,8 @@ run_phase2() {
     local tertiary_review_file="${5:-}"
 
     set_state "PHASE2"
+
+    flatline_locality_gate || return 3   # (cycle-129 FR-8: the scorers are the voices — the same memoised plan-time gate)
 
     local primary_model secondary_model tertiary_model
     primary_model=$(get_model_primary)
@@ -2445,6 +2514,20 @@ main() {
         fi
     else
         log "Warning: Mode detection script not found, defaulting to interactive"
+    fi
+
+    # cycle-129 FR-8 (D-8.1): locality at plan time — before the tertiary status line (a hosted tertiary is not planned)
+    # and before the dry run (a dry run validates the plan too)
+    if ! flatline_locality_gate; then
+        [[ "$json_output" == "true" ]] && jq -n --arg doc "$doc" --arg phase "$phase" \
+            '{status: "locality_refused", document: $doc, phase: $phase, reason: "hounfour.locality: local_voices refuses a hosted Flatline voice (or the value is invalid)"}'
+        exit 1
+    fi
+    if [[ "$orchestrator_mode" == "red-team" && "$(flatline_locality_mode)" == "local_voices" ]]; then
+        error "locality: local_voices does not cover the red-team pipeline's own model hops — red-team mode is refused under it (set hounfour.locality: hosted)"
+        [[ "$json_output" == "true" ]] && jq -n --arg doc "$doc" --arg phase "$phase" \
+            '{status: "locality_refused", document: $doc, phase: $phase, reason: "red-team mode under hounfour.locality: local_voices"}'
+        exit 1
     fi
 
     # FR-1 (cycle-045): Log tertiary model status for observability

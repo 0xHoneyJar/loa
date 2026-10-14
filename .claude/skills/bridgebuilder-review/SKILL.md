@@ -114,7 +114,8 @@ working tree, so the reviewed diff is safe; but `.loa.config.yaml` (models, budg
 must therefore be trusted. The auto-detected cross-repo allowlist defaults to the reviewed PR's own
 org (derived from PR metadata, independent of config); `allowed_owners` / `manual_refs` only widen
 that and assume a trusted config source. Investigated + closed as not-applicable in the shipped
-invocation model (no PR-head checkout) — see #1050.
+invocation model (no PR-head checkout) — see #1050. Since cycle-129 the provider, locality and
+exit keys follow the trusted-source precedence below even when the checkout is a PR head.
 
 ## Self-Review Opt-In (#796 / vision-013)
 
@@ -157,3 +158,26 @@ This skill runs `entry.sh` which invokes the compiled Node.js application:
 |------|---------|
 | 0 | All reviews completed successfully |
 | 1 | One or more reviews encountered errors |
+| 3 | Multi-model review completed, consensus DEGRADED: fewer voices completed than planned, or a degraded verdict-quality band. The JSON (`degraded`, `verdicts[].voices.incomplete`) and the comments are written first; callers print a WARN naming the voices and carry on. `bridgebuilder.exit_on_degraded: 0` restores exit 0 (cycle-129, DEC-0150) |
+| 4 | `entry.sh` preflight: `node_modules/zod` missing (`npm ci`); was 3 before cycle-129 |
+
+The completion banner prints `Done in Ns — completed/planned model(s) completed`.
+
+## Trusted provider configuration (cycle-129 D-7.5, DEC-0170)
+
+`hounfour.providers` (keyless and insecure-endpoint declarations, `auth: "{env:VAR}"` key names, `dispatch_group`),
+`hounfour.locality` and `bridgebuilder.exit_on_degraded` are read only from trusted configuration:
+
+| Mode | Detected by | Read from |
+|------|-------------|-----------|
+| local | no PR context | the working tree's `.loa.config.yaml` |
+| pull request | `--pr`, `GITHUB_EVENT_NAME` = `pull_request`/`pull_request_target`, or `GITHUB_BASE_REF` set | 1. `BRIDGEBUILDER_TRUSTED_CONFIG` (YAML or JSON text set from a repository variable); 2. `.loa.config.yaml` at `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else `gh pr view --json baseRefName`); 3. `refs/remotes/origin/main`; 4. none: no keyless or insecure provider is admitted |
+
+On a pull request the head checkout is read only to refuse: a keyless or `allow_insecure_endpoint`
+provider the trusted source does not declare that way fails with
+`head-only provider declaration refused: <name>`. A provider the trusted config does not declare at
+all still fails with `Unknown provider: <name>`. A provider declared `keyless: true` (or with a
+literal `auth`) needs no env var. Under `hounfour.locality: local_voices` every voice whose provider
+is not `dispatch_group: local` in the trusted config is dropped from the plan with
+`locality: local_voices refuses hosted hop <model_id> (<provider>); …` and never rerouted. In CI,
+fetch the base branch (`git fetch origin <base>`) before running so step 2 can answer.

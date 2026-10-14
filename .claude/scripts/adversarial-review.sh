@@ -164,6 +164,14 @@ load_adversarial_config() {
   CONF_SECRET_ALLOWLIST=()  # Patterns that should NOT be redacted
   # cycle-124 FR-7: the KF-004 repair loop has no flag any more — it always
   # runs on the UNENFORCED branch and never on a schema-enforced payload.
+  # cycle-129 FR-7 (D-7.4): advisory voices — run after the counted voices, findings only under advisory_voices[]
+  CONF_ADVISORY_VOICES=""       # space-separated aliases (default none)
+  CONF_ADVISORY_TIMEOUT=600     # one wall clock for all of them
+  CONF_PROMOTION_MIN_RECALL=""  # hounfour.advisory_promotion.* — read and named; promotion is unreachable this cycle
+  CONF_PROMOTION_MAX_REFUTED=""
+  # cycle-129 FR-8 (D-8.1): hounfour.locality — hosted (default, the rollback) | local_voices | invalid (refused in main)
+  CONF_LOCALITY="hosted"
+  CONF_LOCALITY_RAW=""
 
   if [[ ! -f "$CONFIG_FILE" ]]; then
     log "Config file not found, using defaults"
@@ -220,6 +228,25 @@ load_adversarial_config() {
   fi
   CONF_COMPANION_CHAIN_ANTHROPIC=$(_adv_conf_chain_hops "$config_key" anthropic)
   CONF_COMPANION_CHAIN_OPENAI=$(_adv_conf_chain_hops "$config_key" openai)
+  # cycle-129 FR-7 (D-7.4): advisory voices and their one wall clock; FR-8 (D-8.1): the locality switch. Neither is a
+  # profile key — read here, never through loa_knob (sprint.md Sprint 3, Implementers note).
+  CONF_ADVISORY_VOICES=$(_adv_conf_advisory_voices "$config_key")
+  CONF_ADVISORY_TIMEOUT=$(yq eval ".flatline_protocol.${config_key}.advisory_timeout_seconds // 600" "$CONFIG_FILE" 2>/dev/null || echo "600")
+  CONF_ADVISORY_TIMEOUT=$(_conf_uint "flatline_protocol.${config_key}.advisory_timeout_seconds" "$CONF_ADVISORY_TIMEOUT" 600 1)
+  CONF_PROMOTION_MIN_RECALL=$(yq eval '.hounfour.advisory_promotion.min_recall_ratio // ""' "$CONFIG_FILE" 2>/dev/null || true)
+  CONF_PROMOTION_MAX_REFUTED=$(yq eval '.hounfour.advisory_promotion.max_refuted_delta // ""' "$CONFIG_FILE" 2>/dev/null || true)
+  local _loct _locv
+  _loct=$(yq eval '.hounfour.locality | tag' "$CONFIG_FILE" 2>/dev/null || echo "unreadable")
+  case "$_loct" in
+    '!!null'|'') CONF_LOCALITY="hosted" ;;
+    '!!str')
+      _locv=$(yq eval '.hounfour.locality' "$CONFIG_FILE" 2>/dev/null || echo "")
+      case "$_locv" in
+        hosted|local_voices) CONF_LOCALITY="$_locv" ;;
+        *) CONF_LOCALITY="invalid"; CONF_LOCALITY_RAW=$(printf '%s' "$_locv" | LC_ALL=C tr -cd 'A-Za-z0-9._-' | cut -c1-40) ;;
+      esac ;;
+    *) CONF_LOCALITY="invalid"; CONF_LOCALITY_RAW="(a ${_loct#!!}, not a string)" ;;
+  esac
   CONF_ESCALATION_ENABLED=$(yq eval ".flatline_protocol.context_escalation.enabled // true" "$CONFIG_FILE" 2>/dev/null || echo "true")
   CONF_SECONDARY_BUDGET=$(yq eval ".flatline_protocol.context_escalation.secondary_token_budget // $DEFAULT_SECONDARY_TOKEN_BUDGET" "$CONFIG_FILE" 2>/dev/null || echo "$DEFAULT_SECONDARY_TOKEN_BUDGET")
   CONF_MAX_FILE_LINES=$(yq eval ".flatline_protocol.context_escalation.max_file_lines // 500" "$CONFIG_FILE" 2>/dev/null || echo "500")
@@ -657,6 +684,12 @@ _repair_chain_base() {  # <voice that answered> → the repair chain before the 
   # PATH, and the voice that answered ALWAYS last — an OpenAI-only host without `claude` repairs through
   # its own primary (the cycle-119 C14 behaviour) instead of failing every KF-004 payload deterministically.
   # An operator pin (LOA_ADVERSARIAL_REPAIR_MODEL) is the whole chain.
+  # cycle-129 FR-8 (D-8.1): under hounfour.locality: local_voices the chain is the answering voice alone — no tiny, no
+  # claude-headless, no pin — and only when that voice is itself a local hop; otherwise there is no repair hop at all
+  if [[ "${CONF_LOCALITY:-hosted}" == "local_voices" ]]; then
+    if [[ -n "$1" ]] && _adv_hop_is_local "$1"; then echo "$1"; else echo ""; fi
+    return 0
+  fi
   local _pin; _pin=$(_adv_repair_pin)
   if [[ -n "$_pin" ]]; then echo "$_pin"; return 0; fi
   local chain=""
@@ -673,6 +706,9 @@ _repair_chain_base() {  # <voice that answered> → the repair chain before the 
 }
 _repair_model_chain() {  # <voice that answered> → the repair chain, one bounded attempt per hop (the base chain, filtered)
   local chain; chain=$(_repair_chain_base "$1")
+  # (cycle-129 D-8.1: under local_voices the base chain is final — never the `${chain:-$1}` fallback below, which would
+  # name a voice the base refused)
+  if [[ "${CONF_LOCALITY:-hosted}" == "local_voices" ]]; then echo "$chain"; return 0; fi
   if [[ -n "$(_adv_repair_pin)" ]]; then
     # twentieth run, a1 DISS-C-002: a pin is the whole chain, but a pinned hop retired this run is not paid for again — an
     # entirely retired pin is an empty chain (the payload is then repair_skipped_no_hop), never the answering voice
@@ -3757,6 +3793,241 @@ _adv_prev_files_drop() {  # the previous run's envelope and sidecars moved aside
   done <<<"${_ADV_PREV_FILES:-}"
   return 0
 }
+# =============================================================================
+# cycle-129 FR-7 / FR-8 (SDD D-7.4, D-7.6, D-8.1): advisory voices, the catalog-priced budget gate, locality
+# =============================================================================
+
+_adv_conf_advisory_voices() {  # <config key> → flatline_protocol.<key>.advisory_voices' hop names, space-separated (first
+  # occurrence kept); a non-list is said and ignored, an element that is not a hop name is said (by index and tag, never its
+  # value) and dropped — _adv_conf_chain_hops' rule. (Only the gate's own config key is spliced into the yq expressions.)
+  local config_key="$1" label="flatline_protocol.$1.advisory_voices" tg n rows="" out="" i v _nr=0
+  tg=$(yq eval ".flatline_protocol.${config_key}.advisory_voices | tag" "$CONFIG_FILE" 2>/dev/null || true)
+  [[ -z "$tg" || "$tg" == "!!null" ]] && return 0
+  if [[ "$tg" != "!!seq" ]]; then log "WARN: ${label} is a ${tg#!!}, not a list of aliases — ignored"; return 0; fi
+  n=$(yq eval ".flatline_protocol.${config_key}.advisory_voices | length" "$CONFIG_FILE" 2>/dev/null || true)
+  if [[ ! "$n" =~ ^[0-9]{1,2}$ ]]; then log "WARN: ${label} could not be read or has over 99 entries — ignored"; return 0; fi
+  (( n == 0 )) && return 0
+  rows=$(yq -o=json -I=0 eval ".flatline_protocol.${config_key}.advisory_voices[] | [tag, .]" "$CONFIG_FILE" 2>/dev/null \
+    | jq -rn '[inputs] | to_entries[]
+        | (.value[0] | if type == "string" and test("\\A[!A-Za-z0-9._/:-]{1,64}\\z") then . else "unreadable" end) as $tg
+        | if $tg == "!!str" and (.value[1] | type) == "string" and (.value[1] | test("\\A[A-Za-z0-9._/:-]{1,128}\\z"))
+          then "\(.key) ok \(.value[1])" else "\(.key) drop \($tg)" end' 2>/dev/null) || rows=""
+  [[ -z "$rows" ]] || _nr=$(grep -c '' <<<"$rows")
+  if [[ "$_nr" != "$n" ]]; then log "WARN: ${label} could not be read — ignored"; return 0; fi
+  while read -r i tg v; do
+    [[ -n "$i" ]] || continue
+    if [[ "$tg" == ok ]]; then [[ " $out " == *" $v "* ]] || out+="$v "
+    else log "WARN: ${label}[$i] is not a hop name (${v:-unreadable}) — dropped"; fi
+  done <<<"$rows"
+  printf '%s' "${out% }"
+}
+
+# --- locality (D-8.1): one classification per hop, from lib/hop-locality.py over the merged catalog + project config ----
+_ADV_LOC_TSV=""       # "<hop>\t<provider>\t<local|hosted>\t<reason>" lines, this process
+_ADV_LOC_REFUSED=""   # "<role>\t<hop>\t<provider>" lines — every hosted hop refused at plan time (the envelope names them)
+_ADV_LOC_KEPT=""      # _adv_locality_filter's answer (a global: the caller runs it at top level, never in $(...))
+_adv_locality_row() { awk -F'\t' -v h="$1" '$1 == h { print; exit }' <<<"$_ADV_LOC_TSV"; }
+_adv_locality_load() {  # <hop>... — classify the hops this process has not classified yet (one python call); fail closed
+  local -a new=(); local h line rows="" cat="${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}"
+  for h in "$@"; do [[ -n "$h" && -z "$(_adv_locality_row "$h")" ]] && new+=("$h"); done
+  (( ${#new[@]} > 0 )) || return 0
+  rows=$(python3 -I "$PROJECT_ROOT/.claude/scripts/lib/hop-locality.py" --catalog "$cat" --config "${CONFIG_FILE:-}" -- "${new[@]}" 2>/dev/null) || rows=""
+  for h in "${new[@]}"; do
+    line=$(awk -F'\t' -v h="$h" '$1 == h && NF >= 4 { print; exit }' <<<"$rows")
+    [[ -n "$line" ]] || line="${h}"$'\t'"unknown"$'\t'"hosted"$'\t'"classifier_unavailable"   # (no answer is a hosted hop)
+    _ADV_LOC_TSV+="${line}"$'\n'
+  done
+}
+_adv_hop_is_local() { _adv_locality_load "$1"; [[ "$(_adv_locality_row "$1" | cut -f3)" == "local" ]]; }
+_adv_locality_filter() {  # <role> <hop>... → _ADV_LOC_KEPT: the local hops in order; each hosted one is refused by name, once per role
+  local role="$1" h p; shift
+  _ADV_LOC_KEPT=""
+  _adv_locality_load "$@"
+  for h in "$@"; do
+    [[ -n "$h" ]] || continue
+    if [[ "$(_adv_locality_row "$h" | cut -f3)" == "local" ]]; then _ADV_LOC_KEPT+="${_ADV_LOC_KEPT:+ }$h"; continue; fi
+    p=$(_adv_locality_row "$h" | cut -f2); p="${p:-unknown}"
+    if ! grep -qxF "${role}"$'\t'"${h}"$'\t'"${p}" <<<"$_ADV_LOC_REFUSED"; then
+      _ADV_LOC_REFUSED+="${role}"$'\t'"${h}"$'\t'"${p}"$'\n'
+      log "locality: local_voices refuses hosted hop $h ($p)"
+    fi
+  done
+  return 0
+}
+_adv_locality_refused_json() {  # → [{role, alias, provider}] for the envelope
+  printf '%s' "$_ADV_LOC_REFUSED" | jq -R -s 'split("\n") | map(select(length > 0) | split("\t") | {role: .[0], alias: .[1], provider: .[2]})'
+}
+# The one sentence the config comment and the audit output carry (D-8.1).
+_ADV_LOC_DEGRADED_SENTENCE="locality: local_voices — with one local family the companion is not an independent second voice (duplicate_voice, or not planned), so every security audit is DEGRADED_SECURITY_REVIEW; adversarial-review-gate.sh and verdict-derive.sh treat this envelope exactly as they treat any other."
+
+# --- the budget gate (D-7.4, D-7.6): every planned voice at its catalog price ------------------------------------------
+_ADV_BUDGET_TOTAL=0
+_ADV_BUDGET_VOICES="[]"
+_adv_budget_estimate() {  # <estimated input tokens> <role>=<hop>... → _ADV_BUDGET_TOTAL (cents) and _ADV_BUDGET_VOICES (JSON);
+  # each voice: input tokens × input rate + 2000 output tokens × output rate (micro-USD per Mtok → cents: ÷ 10^10, each term
+  # truncated, as the fixed-rate formula was). An alias with no catalog price falls back to 10 / 30 USD per Mtok and is said;
+  # a zero-priced one estimates 0 and is said too.
+  local tokens="$1"; shift
+  local -a roles=() hops=() args=()
+  local rv rows="" line c_in c_out total=0 voices="[]"
+  for rv in "$@"; do roles+=("${rv%%=*}"); hops+=("${rv#*=}"); args+=(--alias "${rv#*=}"); done
+  if (( ${#hops[@]} > 0 )); then
+    rows=$(PYTHONSAFEPATH=1 PYTHONPATH="$PROJECT_ROOT/.claude/adapters" python3 -W ignore::RuntimeWarning -m loa_cheval.metering.pricing \
+      --catalog "${LOA_MODEL_CONFIG:-$PROJECT_ROOT/.claude/defaults/model-config.yaml}" --config "${CONFIG_FILE:-}" "${args[@]}" 2>/dev/null) || rows=""
+  fi
+  local k _bv_role _bv_hop _bv_src _bv_in _bv_out _bv_cents
+  for (( k = 0; k < ${#hops[@]}; k++ )); do
+    _bv_role="${roles[$k]}"; _bv_hop="${hops[$k]}"   # (a role word and a validated hop name — the jq operands below are small)
+    line=$(awk -v a="alias=$_bv_hop" '$1 == a { print; exit }' <<<"$rows")
+    _bv_in=$(sed -n 's/.* input_per_mtok=\([0-9][0-9]*\) .*/\1/p' <<<"$line")
+    _bv_out=$(sed -n 's/.* output_per_mtok=\([0-9][0-9]*\) .*/\1/p' <<<"$line")
+    _bv_src=$(sed -n 's/.* pricing_source=\([a-z_]*\)$/\1/p' <<<"$line")
+    if [[ ! "$_bv_in" =~ ^[0-9]{1,12}$ || ! "$_bv_out" =~ ^[0-9]{1,12}$ || "$_bv_src" == "unknown" || -z "$_bv_src" ]]; then
+      _bv_in=10000000; _bv_out=30000000; _bv_src="fallback"
+      log "budget: no catalog price for $_bv_hop ($_bv_role) — the fixed 10 / 30 USD per Mtok applies to this voice"
+    elif (( _bv_in == 0 && _bv_out == 0 )); then
+      log "budget: $_bv_hop ($_bv_role) is zero-priced in the catalog — estimated 0c"
+    elif [[ "$_bv_src" == "stale_catalog" ]]; then
+      log "budget: $_bv_hop ($_bv_role) has a stale catalog price (price_date older than 90 days) — used as given"
+    fi
+    c_in=$(( tokens * _bv_in / 10000000000 )); c_out=$(( 2000 * _bv_out / 10000000000 )); _bv_cents=$(( c_in + c_out ))
+    total=$(( total + _bv_cents ))
+    voices=$(jq -c --arg r "$_bv_role" --arg h "$_bv_hop" --arg s "$_bv_src" --argjson c "$_bv_cents" --argjson i "$_bv_in" --argjson o "$_bv_out" \
+      '. + [{role: $r, alias: $h, estimated_cents: $c, input_per_mtok: $i, output_per_mtok: $o, pricing_source: $s}]' <<<"$voices")
+  done
+  _ADV_BUDGET_TOTAL="$total"; _ADV_BUDGET_VOICES="$voices"
+  log "budget: estimate ${total}c over ${#hops[@]} planned voice(s) ($(jq -r 'map("\(.role) \(.alias) \(.estimated_cents)c") | join(", ")' <<<"$voices"))"
+}
+
+# --- advisory voices (D-7.4): after the counted voices, concurrently, one wall clock, findings only under advisory_voices[] ---
+_ADV_ADVISORY_PIDS=""   # "pid=token" pairs of the live advisory walkers (the reapers kill only the process forked)
+_adv_reap_advisory() {
+  local e p
+  for e in ${_ADV_ADVISORY_PIDS:-}; do
+    p="${e%%=*}"
+    [[ "$p" =~ ^[0-9]+$ ]] || continue
+    _adv_is_same "$p" "$e" && { _adv_kill_tree "$p" KILL >/dev/null 2>&1 || true; }
+  done
+  _ADV_ADVISORY_PIDS=""
+  return 0
+}
+_adv_advisory_walk() {  # <voice dir> <type> <sprint id> <timeout> <diff files> <alias> — one advisory voice: the hop, then
+  # process_findings (the same schema, qualification and KF-004 repair rules as a counted voice); its rejected payloads never
+  # land beside the envelope (verdict-derive counts those), and the result is published whole
+  local d="$1" type="$2" sprint_id="$3" timeout="$4" diff_files="$5" alias="$6" raw="" rc=0 res="" st=""
+  export LOA_ADVERSARIAL_REJECT_SIDECAR_DISABLE=1
+  export _ADV_SIDECAR_TAG="advisory"
+  raw=$(_adv_invoke_hop "$alias" "$d/system-prompt.txt" "$d/user-prompt.txt" "$alias" "$timeout" "$d/vq-advisory.json" "$type" "$SCRIPT_DIR/../schemas/wire/dissent-${type}.wire.json") || rc=$?
+  printf '%s' "$rc" > "$d/rc"
+  res=$(process_findings "$raw" "$type" "$alias" "$sprint_id" "$rc" "$diff_files") || res=""
+  if [[ -n "$res" ]]; then st=$(_extract_result_status "$res") || st=""; fi
+  [[ -n "$st" ]] || st="malformed_response"
+  printf '%s' "$res" > "$d/result.json.tmp" && mv -f "$d/result.json.tmp" "$d/result.json"
+  printf '%s' "$st" > "$d/status"
+}
+_adv_run_advisory_voices() {  # <type> <sprint id> <timeout> <diff files> <alias>... — every voice started at once under
+  # $CONF_ADVISORY_TIMEOUT seconds of wall clock for all of them; a voice still running then is killed and marked timed_out.
+  # Each voice's files are under $_ADVERSARIAL_WORKDIR/advisory/<n>/
+  local type="$1" sprint_id="$2" timeout="$3" diff_files="$4"; shift 4
+  local root="$_ADVERSARIAL_WORKDIR/advisory" n=0 a d pid tok e deadline alive
+  mkdir -p "$root" 2>/dev/null || return 1
+  for a in "$@"; do
+    n=$((n + 1)); d="$root/$n"
+    mkdir -p "$d" 2>/dev/null || continue
+    printf '%s' "$a" > "$d/alias"
+    if cp -f "$_ADVERSARIAL_WORKDIR/system-prompt.txt" "$_ADVERSARIAL_WORKDIR/user-prompt.txt" "$d/" 2>/dev/null; then
+      ( _adv_advisory_walk "$d" "$type" "$sprint_id" "$timeout" "$diff_files" "$a" ) >"$d/log" 2>&1 &
+      pid=$!
+      tok=$(_adv_fork_token "$pid") || tok=""
+      _ADV_ADVISORY_PIDS+="${pid}=$(_adv_tok_word "$tok") "
+      printf '%s' "$pid" > "$d/pid"
+    else
+      printf 'prompt_copy_failed' > "$d/status"
+    fi
+  done
+  deadline=$(( $(date +%s) + CONF_ADVISORY_TIMEOUT ))
+  while :; do
+    alive=0
+    for e in $_ADV_ADVISORY_PIDS; do _adv_is_same "${e%%=*}" "$e" && { alive=1; break; }; done
+    (( alive )) || break
+    (( $(date +%s) < deadline )) || break
+    sleep 0.2
+  done
+  for (( a = 1; a <= n; a++ )); do
+    d="$root/$a"; [[ -s "$d/pid" ]] || continue
+    pid=$(cat "$d/pid" 2>/dev/null || true)
+    for e in $_ADV_ADVISORY_PIDS; do
+      [[ "${e%%=*}" == "$pid" ]] || continue
+      if _adv_is_same "$pid" "$e"; then
+        : > "$d/timed_out"
+        _adv_kill_tree "$pid" KILL >/dev/null 2>&1 || true
+        log "Advisory voice $(cat "$d/alias"): still running at the ${CONF_ADVISORY_TIMEOUT}s advisory wall clock — killed (timed_out)"
+      fi
+      wait "$pid" 2>/dev/null || true
+    done
+  done
+  _ADV_ADVISORY_PIDS=""
+  return 0
+}
+_adv_advisory_block() {  # <type> <counted result json file> <diff file> <alias>…(planned, in order) — the advisory_voices[]
+  # array on stdout: each planned voice's findings (hallucination-filtered, tagged voice: advisory, linked by duplicate_of to a
+  # counted finding with the same file, overlapping lines and the same category) in config order, then every alias locality refused
+  local type="$1" counted="$2" diff_file="$3"; shift 3
+  # (every jq operand below is a small reviewed scalar — a validated alias, a status word, an error cut to 200 characters, a
+  # whole number; the envelopes travel as files)
+  local root="${_ADVERSARIAL_WORKDIR:-}/advisory" _av_n=0 _av_alias d st res entry _av_rc _av_err
+  mkdir -p "$root" 2>/dev/null || return 1
+  local blk="$root/entries.jsonl"; : > "$blk" || return 1
+  for _av_alias in "$@"; do
+    _av_n=$((_av_n + 1)); d="$root/$_av_n"; st=""; res='{}'; _av_err=""
+    if [[ -e "$d/timed_out" ]]; then st="timed_out"
+    elif [[ -s "$d/result.json" ]] && jq -e 'type == "object"' "$d/result.json" >/dev/null 2>&1; then
+      res=$(cat "$d/result.json")
+      case "$(cat "$d/status" 2>/dev/null || echo malformed_response)" in
+        malformed_response|api_failure) st="failed"; _av_err=$(jq -r '.metadata.error // .metadata.status // ""' <<<"$res" | LC_ALL=C tr -d '\000-\037\177' | cut -c1-200) ;;
+        *) st="succeeded"; res=$(_apply_hallucination_filter "$res" "$diff_file") ;;
+      esac
+    elif [[ "$(cat "$d/status" 2>/dev/null || true)" == "prompt_copy_failed" ]]; then st="failed"; _av_err="prompt_copy_failed"
+    else st="failed"; _av_err="the voice left no result"
+    fi
+    _av_rc=$(cat "$d/rc" 2>/dev/null || echo ""); [[ "$_av_rc" =~ ^[0-9]{1,3}$ ]] || _av_rc="null"
+    printf '%s' "$res" > "$d/block-in.json"
+    entry=$(jq -c -n --slurpfile cf "$counted" --slurpfile af "$d/block-in.json" --arg a "$_av_alias" --arg st "$st" --arg err "$_av_err" \
+      --argjson rc "$_av_rc" --argjson n "$_av_n" '
+      def anc: (.anchor // "") | if type == "string" then . else "" end;
+      def file: anc | split(":")[0];
+      def lines: ([anc | capture(":(?<a>[0-9]+)(-(?<b>[0-9]+))?$")] | .[0]) as $m
+        | if $m == null then null else ([($m.a | tonumber), (($m.b // $m.a) | tonumber)] | sort) end;
+      def overlaps($x; $y): if $x != null and $y != null then ($x[0] <= $y[1] and $y[0] <= $x[1]) else false end;
+      ($cf[0].findings // []) as $top
+      | ($af[0]) as $r
+      | (if $st == "succeeded" then ($r.findings // []) else [] end) as $fs
+      | {alias: $a, status: $st, counted_as: "advisory_voice",
+         findings: ($fs | to_entries | map(.value as $f
+           | ($f | file) as $ff | ($f | lines) as $fl | ($f | anc) as $fa
+           | ($top | map(select((file) == $ff and $ff != "" and ((.category // "") == ($f.category // ""))
+                                and (if (lines) != null and $fl != null then overlaps(lines; $fl) else (anc) == $fa end)))
+                   | (.[0].id // null)) as $dup
+           | $f + {id: ("DISS-A" + ($n | tostring) + "-" + ((.key + 1) | tostring | if length < 3 then ("000" + .)[-3:] else . end)),
+                   voice: "advisory", answered_by: $a, duplicate_of: $dup})),
+         rejected_count: ($r.metadata.rejected_count // 0), repaired_count: ($r.metadata.repaired_count // 0),
+         rejected_summary: ($r.metadata.rejected_summary // []),
+         cost_usd: ($r.metadata.cost_usd // 0), exit_code: $rc}
+        + (if $err == "" then {} else {error: $err} end)' 2>/dev/null) \
+      || entry=$(jq -cn --arg a "$_av_alias" '{alias: $a, status: "failed", counted_as: "advisory_voice", findings: [], error: "the advisory block could not be built"}')
+    printf '%s\n' "$entry" >> "$blk"
+    log "Advisory voice $_av_alias: $st ($(jq -r '.findings | length' <<<"$entry") finding(s), never counted)"
+  done
+  # the aliases refused by locality, named in the block too (never run)
+  local r_role _av_alias_r _av_prov_r
+  while IFS=$'\t' read -r r_role _av_alias_r _av_prov_r; do
+    [[ "$r_role" == "advisory" && -n "$_av_alias_r" ]] || continue
+    jq -cn --arg a "$_av_alias_r" --arg p "$_av_prov_r" '{alias: $a, status: "refused", counted_as: "advisory_voice", findings: [],
+      error: ("locality: local_voices refuses hosted hop " + $a + " (" + $p + ")")}' >> "$blk"
+  done <<<"$_ADV_LOC_REFUSED"
+  jq -cs '.' "$blk"
+}
+
 _adv_cleanup_on_exit() {
   # twenty-second run, a4 DISS-C-004: a second INT / TERM while this runs would exit from inside it — the workdir and the run lock
   # left behind; the process is already exiting, so the signals are ignored until the cleanup is done
@@ -3765,6 +4036,7 @@ _adv_cleanup_on_exit() {
   # must never skip the workdir removal and the lock release below)
   _adv_reap_primary || true
   _adv_reap_companion || true
+  _adv_reap_advisory || true   # (cycle-129 D-7.4: the advisory walkers go with the run on every exit path)
   # (twenty-seventh run, a4 DISS-C-003: the last command of an && list is not errexit-exempt — an unlinkable temp file
   # must not skip the workdir removal and the lock release below)
   [[ -n "${_ADV_RANGE_DIFF:-}" ]] && { command rm -f -- "$_ADV_RANGE_DIFF" 2>/dev/null || true; }
@@ -3912,25 +4184,159 @@ main() {
   # so the run exits 130 / 143, never the reaper's status)
   # (twenty-fourth run, a4 DISS-C-001: bash runs a second signal's trap NESTED inside a running one — each handler first ignores
   # INT / TERM, so one reap runs to the end and the run exits with the first signal's status)
-  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; exit 130" INT
-  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; exit 143" TERM
+  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; _adv_reap_advisory || true; exit 130" INT
+  trap "trap '' INT TERM; _adv_reap_primary || true; _adv_reap_companion || true; _adv_reap_advisory || true; exit 143" TERM
 
   # Extract diff file list
   local diff_files
   diff_files=$(grep -E '^diff --git a/' "$diff_file" | sed 's|^diff --git a/\(.*\) b/.*|\1|' || true)
 
-  # Budget pre-check (before API call per sprint Task 1.3)
+  # cycle-102 sprint-1F: model-fallback chain.
+  #
+  # Invoke the configured primary model. If the result is `malformed_response`
+  # or `api_failure` (the empty-content failure modes that have plagued
+  # cycle-102 — KF-002, Sprint 1B T1B.4 manual swap), retry with the next
+  # model in the fallback chain. Each model is tried at most once. The first
+  # model that returns parseable findings (or `clean` = legitimate
+  # zero-findings response) becomes canonical for the rest of the pipeline
+  # (hallucination filter, output write, trajectory log).
+  #
+  # The fallback chain is built from (in priority order):
+  #   1. The configured primary model (--model arg or
+  #      flatline_protocol.{type}.model)
+  #   2. flatline_protocol.{type}.fallback_chain (operator-curated list,
+  #      optional)
+  #   3. flatline_protocol.models.{secondary, tertiary} (already part of
+  #      the multi-model PRD/SDD review chain — repurposed here as the
+  #      default fallback when no explicit fallback_chain is configured)
+  #
+  # Duplicates are deduped (same model only tried once even if it appears
+  # in multiple sources). Empty/null entries are skipped.
+  #
+  # Operator opt-out: set LOA_ADVERSARIAL_DISABLE_FALLBACK=1 (env) or
+  # flatline_protocol.{type}.fallback_chain: [] (empty list in config).
+  # When opted out, behavior reverts to single-model invocation.
+  #
+  # Result annotation: metadata.model_attempts records [<model>:<status>, …]
+  # for the entire chain that was tried; metadata.final_model records which
+  # model produced the canonical result. Single-model invocations (one entry,
+  # one final) preserve back-compat with consumers that read metadata.model.
+  # (cycle-129: built before the budget gate — the gate prices the planned voices, and locality plans them — and before the
+  # run lock, as before: reading the config has no side effect)
+  local -a fallback_chain=()
+  fallback_chain+=("$model")
+  if [[ -z "${LOA_ADVERSARIAL_DISABLE_FALLBACK:-}" ]]; then
+    # Build extension list from config. yq returns one entry per line for arrays.
+    local fallback_yaml
+    fallback_yaml=$(yq eval -e ".flatline_protocol.${type//-/_}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
+    # Map type→config key (review uses code_review; audit uses security_audit)
+    local config_key="code_review"; [[ "$type" == "audit" ]] && config_key="security_audit"
+    if [[ -z "$fallback_yaml" ]]; then
+      fallback_yaml=$(yq eval -e ".flatline_protocol.${config_key}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
+    fi
+    if [[ -n "$fallback_yaml" ]]; then
+      while IFS= read -r m; do
+        [[ -n "$m" && "$m" != "null" ]] && fallback_chain+=("$m")
+      done <<< "$fallback_yaml"
+    else
+      # No explicit fallback_chain — fall back to flatline_protocol.models.*
+      local m_secondary m_tertiary
+      m_secondary=$(yq eval ".flatline_protocol.models.secondary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+      m_tertiary=$(yq eval ".flatline_protocol.models.tertiary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
+      [[ -n "$m_secondary" && "$m_secondary" != "null" ]] && fallback_chain+=("$m_secondary")
+      [[ -n "$m_tertiary" && "$m_tertiary" != "null" ]] && fallback_chain+=("$m_tertiary")
+    fi
+  fi
+
+  # Dedupe (preserve order)
+  local -a deduped=()
+  local seen=""
+  for m in "${fallback_chain[@]}"; do
+    if [[ ",$seen," != *",$m,"* ]]; then
+      deduped+=("$m")
+      seen="$seen,$m"
+    fi
+  done
+  fallback_chain=("${deduped[@]}")
+
+  # cycle-129 FR-8 (SDD D-8.1, DEC-0146): hounfour.locality. Under local_voices only hops whose provider has
+  # `dispatch_group: local` in the merged config are planned — the primary chain here, the companion chain, the advisory
+  # voices and the KF-004 repair chain below; every hosted hop is refused by name at plan time, never rerouted. The
+  # Claude Code session model is exempt (it is the platform, not a hop of this script). Every hop is dispatched through
+  # cheval, which applies the request-time rules to a local hop (IP-literal or localhost endpoint, no DNS, redirects
+  # refused, proxy env ignored, destination in MODELINV) and records locality_mode / hop_locality from the same config key.
+  if [[ "$CONF_LOCALITY" == "invalid" ]]; then
+    error "hounfour.locality='${CONF_LOCALITY_RAW}' is neither hosted nor local_voices — nothing was planned (set hounfour.locality: hosted or local_voices)"
+    [[ "$json_output" == "true" ]] && _adv_refuse_json locality_invalid value "$CONF_LOCALITY_RAW"
+    exit 1
+  fi
+  if [[ "$CONF_LOCALITY" == "local_voices" ]]; then
+    log "locality: local_voices — only hops whose provider has dispatch_group: local are planned; hosted hops are refused (the Claude Code session model is exempt)"
+    _adv_locality_filter primary "${fallback_chain[@]}"
+    if [[ -z "$_ADV_LOC_KEPT" ]]; then
+      error "locality: local_voices leaves no local hop on the primary chain (flatline_protocol.$([[ "$type" == "audit" ]] && echo security_audit || echo code_review).model / fallback_chain) — nothing was reviewed; declare a local provider (dispatch_group: local) or set hounfour.locality: hosted"
+      [[ "$json_output" == "true" ]] && _adv_refuse_json locality_refused refused "$(printf '%s' "$_ADV_LOC_REFUSED" | awk -F'\t' 'NF >= 3 { printf "%s%s %s (%s)", s, $1, $2, $3; s = ", " }')"
+      exit 1
+    fi
+    read -r -a fallback_chain <<<"$_ADV_LOC_KEPT"
+    model="${fallback_chain[0]}"
+    # the KF-004 repair chain is pinned to the answering voice: tiny and claude-headless are never planned (D-8.1)
+    _adv_locality_filter repair tiny claude-headless
+    [[ -n "${LOA_ADVERSARIAL_REPAIR_MODEL:-}" ]] && log "WARN: locality: local_voices ignores LOA_ADVERSARIAL_REPAIR_MODEL — the KF-004 repair chain is pinned to the answering voice"
+    [[ "$type" == "audit" ]] && log "$_ADV_LOC_DEGRADED_SENTENCE"
+  fi
+
+  # cycle-129 FR-7 (D-7.4, DEC-0165): advisory voices. Promotion to a counted voice is unreachable this cycle (no voice arm in
+  # run-arms.sh): an alias this block also lists in companion_chain — an attempt to count it — is refused at plan time; the
+  # hounfour.advisory_promotion knob is read and named so a later cycle adds only the arm.
+  local -a advisory_planned=()
+  if [[ -n "$CONF_ADVISORY_VOICES" ]]; then
+    local _av _ch
+    for _av in $CONF_ADVISORY_VOICES; do
+      for _ch in ${CONF_COMPANION_CHAIN_ANTHROPIC:-} ${CONF_COMPANION_CHAIN_OPENAI:-}; do
+        if [[ "$(_adv_hop_canon "$_av")" == "$(_adv_hop_canon "$_ch")" ]]; then
+          error "advisory voice ${_av} cannot be counted: no arms report line for the alias (voice arms are a future iteration)"
+          log "(hounfour.advisory_promotion: min_recall_ratio=${CONF_PROMOTION_MIN_RECALL:-unset}, max_refuted_delta=${CONF_PROMOTION_MAX_REFUTED:-unset}; remove ${_av} from companion_chain or from advisory_voices)"
+          [[ "$json_output" == "true" ]] && _adv_refuse_json advisory_promotion_refused alias "$_av"
+          exit 1
+        fi
+      done
+    done
+    if [[ "$CONF_LOCALITY" == "local_voices" ]]; then
+      # shellcheck disable=SC2086
+      _adv_locality_filter advisory $CONF_ADVISORY_VOICES
+      [[ -z "$_ADV_LOC_KEPT" ]] || read -r -a advisory_planned <<<"$_ADV_LOC_KEPT"
+    else
+      read -r -a advisory_planned <<<"$CONF_ADVISORY_VOICES"
+    fi
+  fi
+
+  # Budget pre-check (before API call per sprint Task 1.3). cycle-129 FR-7 (D-7.4, D-7.6): the estimate sums every planned
+  # voice — the primary, the companion's first hop and each advisory voice — at its catalog price
+  # (python3 -m loa_cheval.metering.pricing --alias); an alias with no catalog price falls back to 10 / 30 USD per Mtok,
+  # said by name; a zero-priced one estimates 0, said too. One estimate from the diff's size, before any dispatch.
   local diff_size_bytes
   diff_size_bytes=$(wc -c < "$diff_file")
   local estimated_input_tokens=$(( diff_size_bytes / 3 + 500 ))  # bytes/3 for code, +500 for system prompt
-  # Rough cost estimate: input_tokens * $10/1M + estimated_output * $30/1M
-  local estimated_cost_cents
-  estimated_cost_cents=$(echo "scale=0; ($estimated_input_tokens * 10 / 10000) + (2000 * 30 / 10000)" | bc -l 2>/dev/null || echo "0")
+  local -a _bvoices=("primary=${fallback_chain[0]}")
+  if [[ "${CONF_COMPANION_VOICE:-true}" == "true" ]]; then
+    local _bc
+    _bc=$(_companion_chain "$(_companion_family "$(_adv_family_of "$model")")")
+    if [[ "$CONF_LOCALITY" == "local_voices" && -n "$_bc" ]]; then
+      # shellcheck disable=SC2086
+      _adv_locality_filter companion $_bc; _bc="$_ADV_LOC_KEPT"
+    fi
+    [[ -n "$_bc" ]] && _bvoices+=("companion=${_bc%% *}")
+  fi
+  local _bav
+  for _bav in ${advisory_planned[@]+"${advisory_planned[@]}"}; do _bvoices+=("advisory=$_bav"); done
+  _adv_budget_estimate "$estimated_input_tokens" "${_bvoices[@]}"
+  local estimated_cost_cents="$_ADV_BUDGET_TOTAL"
   if [[ $estimated_cost_cents -gt $budget ]]; then
     error "Estimated cost (${estimated_cost_cents}c) exceeds budget (${budget}c)"
-    jq -n --arg type "$type" --argjson est "$estimated_cost_cents" --argjson bud "$budget" \
+    jq -n --arg type "$type" --argjson est "$estimated_cost_cents" --argjson bud "$budget" --argjson voices "$_ADV_BUDGET_VOICES" \
       '{findings: [], metadata: {type: $type, status: "budget_exceeded",
-        estimated_cents: $est, budget_cents: $bud}}'
+        estimated_cents: $est, budget_cents: $bud, estimate_voices: $voices}}'
     exit 4
   fi
 
@@ -3967,72 +4373,6 @@ main() {
       "$(estimate_tokens "$(cat "$_ADVERSARIAL_WORKDIR/user-prompt.txt")")"
     exit 0
   fi
-
-  # cycle-102 sprint-1F: model-fallback chain.
-  #
-  # Invoke the configured primary model. If the result is `malformed_response`
-  # or `api_failure` (the empty-content failure modes that have plagued
-  # cycle-102 — KF-002, Sprint 1B T1B.4 manual swap), retry with the next
-  # model in the fallback chain. Each model is tried at most once. The first
-  # model that returns parseable findings (or `clean` = legitimate
-  # zero-findings response) becomes canonical for the rest of the pipeline
-  # (hallucination filter, output write, trajectory log).
-  #
-  # The fallback chain is built from (in priority order):
-  #   1. The configured primary model (--model arg or
-  #      flatline_protocol.{type}.model)
-  #   2. flatline_protocol.{type}.fallback_chain (operator-curated list,
-  #      optional)
-  #   3. flatline_protocol.models.{secondary, tertiary} (already part of
-  #      the multi-model PRD/SDD review chain — repurposed here as the
-  #      default fallback when no explicit fallback_chain is configured)
-  #
-  # Duplicates are deduped (same model only tried once even if it appears
-  # in multiple sources). Empty/null entries are skipped.
-  #
-  # Operator opt-out: set LOA_ADVERSARIAL_DISABLE_FALLBACK=1 (env) or
-  # flatline_protocol.{type}.fallback_chain: [] (empty list in config).
-  # When opted out, behavior reverts to single-model invocation.
-  #
-  # Result annotation: metadata.model_attempts records [<model>:<status>, …]
-  # for the entire chain that was tried; metadata.final_model records which
-  # model produced the canonical result. Single-model invocations (one entry,
-  # one final) preserve back-compat with consumers that read metadata.model.
-  local -a fallback_chain=()
-  fallback_chain+=("$model")
-  if [[ -z "${LOA_ADVERSARIAL_DISABLE_FALLBACK:-}" ]]; then
-    # Build extension list from config. yq returns one entry per line for arrays.
-    local fallback_yaml
-    fallback_yaml=$(yq eval -e ".flatline_protocol.${type//-/_}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
-    # Map type→config key (review uses code_review; audit uses security_audit)
-    local config_key="code_review"; [[ "$type" == "audit" ]] && config_key="security_audit"
-    if [[ -z "$fallback_yaml" ]]; then
-      fallback_yaml=$(yq eval -e ".flatline_protocol.${config_key}.fallback_chain[]?" "$CONFIG_FILE" 2>/dev/null || true)
-    fi
-    if [[ -n "$fallback_yaml" ]]; then
-      while IFS= read -r m; do
-        [[ -n "$m" && "$m" != "null" ]] && fallback_chain+=("$m")
-      done <<< "$fallback_yaml"
-    else
-      # No explicit fallback_chain — fall back to flatline_protocol.models.*
-      local m_secondary m_tertiary
-      m_secondary=$(yq eval ".flatline_protocol.models.secondary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
-      m_tertiary=$(yq eval ".flatline_protocol.models.tertiary // \"\"" "$CONFIG_FILE" 2>/dev/null || echo "")
-      [[ -n "$m_secondary" && "$m_secondary" != "null" ]] && fallback_chain+=("$m_secondary")
-      [[ -n "$m_tertiary" && "$m_tertiary" != "null" ]] && fallback_chain+=("$m_tertiary")
-    fi
-  fi
-
-  # Dedupe (preserve order)
-  local -a deduped=()
-  local seen=""
-  for m in "${fallback_chain[@]}"; do
-    if [[ ",$seen," != *",$m,"* ]]; then
-      deduped+=("$m")
-      seen="$seen,$m"
-    fi
-  done
-  fallback_chain=("${deduped[@]}")
 
   log "Fallback chain: ${fallback_chain[*]}"
 
@@ -4112,7 +4452,15 @@ main() {
     if _adv_agy_lib; then agy_gate_warn_once "${CONFIG_FILE:-}"; fi   # (r251-1 G12/G18: once per run, on stderr — top level, not in $(...))
     # shellcheck disable=SC2086  # (a space-separated hop list, as everywhere it is walked)
     [[ -z "$companion_chain_str" ]] || companion_chain_str=$(_adv_agy_filter_chain "$([[ "$type" == "audit" ]] && echo security_audit || echo code_review)" "$companion_family" $companion_chain_str)
-    if [[ -z "$companion_chain_str" && -n "$_agy_pre" ]]; then
+    # cycle-129 FR-8 (D-8.1): under local_voices a hosted companion hop is refused by name; a chain left empty is locality_refused
+    local _loc_comp_pre="$companion_chain_str"
+    if [[ "$CONF_LOCALITY" == "local_voices" && -n "$companion_chain_str" ]]; then
+      # shellcheck disable=SC2086
+      _adv_locality_filter companion $companion_chain_str; companion_chain_str="$_ADV_LOC_KEPT"
+    fi
+    if [[ -z "$companion_chain_str" && -n "$_loc_comp_pre" ]]; then
+      companion_skip_reason="locality_refused"
+    elif [[ -z "$companion_chain_str" && -n "$_agy_pre" ]]; then
       companion_skip_reason="opt_in_required"
     elif [[ -z "$companion_chain_str" ]]; then
       companion_skip_reason="no_route"
@@ -4491,6 +4839,37 @@ main() {
   [[ "$_scope_sha" =~ ^[0-9a-f]{64}$ ]] || _scope_sha=""
   if _scoped=$(jq -c --argjson sc "$(_adv_scope_json "$_scope_sha")" '.metadata.scope = $sc' <<<"$result" 2>/dev/null) && [[ -n "$_scoped" ]]; then
     result="$_scoped"
+  fi
+
+  # cycle-129 FR-8 (D-8.1): a local_voices envelope says so — the refused hops by name and, on the audit gate, the
+  # DEGRADED sentence (absent under hosted: the default envelope is unchanged)
+  if [[ "$CONF_LOCALITY" == "local_voices" ]]; then
+    local _locj _locf="$_ADVERSARIAL_WORKDIR/locality-refused.json"
+    _adv_locality_refused_json > "$_locf" 2>/dev/null || printf '[]' > "$_locf"
+    if _locj=$(jq -c --slurpfile rf "$_locf" --arg t "$type" --arg s "$_ADV_LOC_DEGRADED_SENTENCE" \
+        '.metadata.locality = ({mode: "local_voices", refused: $rf[0]} + (if $t == "audit" then {note: $s} else {} end))' <<<"$result" 2>/dev/null) \
+        && [[ -n "$_locj" ]]; then
+      result="$_locj"
+    fi
+  fi
+
+  # cycle-129 FR-7 (D-7.4, DEC-0165): the advisory voices run now — after the counted voices, on the same prompts, under one
+  # wall clock — and their findings are written ONLY under advisory_voices[]: every other key of the envelope, the voice
+  # counts and verdict_quality are already final and are not touched. A failed or timed-out voice is a status in its entry.
+  if [[ -n "$CONF_ADVISORY_VOICES" ]]; then
+    if (( ${#advisory_planned[@]} > 0 )); then
+      log "Advisory voices: ${advisory_planned[*]} (wall clock ${CONF_ADVISORY_TIMEOUT}s; findings under advisory_voices[] only, never counted)"
+      _adv_run_advisory_voices "$type" "$sprint_id" "$timeout" "$diff_files" "${advisory_planned[@]}" || log "Advisory voices: the advisory workdir could not be made — none ran"
+    fi
+    local _adv_with="" _cr="$_ADVERSARIAL_WORKDIR/counted-result.json" _ab="$_ADVERSARIAL_WORKDIR/advisory-block.json"
+    printf '%s' "$result" > "$_cr" 2>/dev/null || true
+    # (files, never argv: an envelope or a block over 128 KiB fails an exec with E2BIG — the twenty-ninth run's rule)
+    _adv_advisory_block "$type" "$_cr" "$diff_file" ${advisory_planned[@]+"${advisory_planned[@]}"} > "$_ab" || : > "$_ab"
+    if [[ -s "$_ab" ]] && _adv_with=$(jq -c --slurpfile av "$_ab" '. + {advisory_voices: $av[0]}' "$_cr" 2>/dev/null) && [[ -n "$_adv_with" ]]; then
+      result="$_adv_with"
+    else
+      log "Advisory voices: the advisory block could not be assembled — the envelope carries none (the counted envelope is unchanged)"
+    fi
   fi
 
   # Write output

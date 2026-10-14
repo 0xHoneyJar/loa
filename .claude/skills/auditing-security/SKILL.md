@@ -156,7 +156,7 @@ Read the actual implementation (never documentation alone) and cross-reference t
 </grounding_requirements>
 
 <workflow>
-## Phase -1: Scope (do this first)
+## Phase -1: Scope
 
 Parallelise (`parallel_threshold`) when the scope warrants; the lead decides. A large scope splits per category (`<parallel_execution>`); otherwise run the 5 categories sequentially.
 
@@ -174,13 +174,14 @@ Catalog untrusted entry points and dangerous sinks without investigating yet (li
 
 ## Phase 1B: Investigate Pass
 
-Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Record each confirmed or dismissed path in the working file. If tracing outruns the time budget, mark the rest deferred, log it, and continue with what you have.
+Trace each flagged source forward to a sink or sanitizer (is the data validated/escaped first?) and each flagged sink backward to every source that reaches it (authorization and input-validation guards?), including second-order flows where stored data becomes dangerous on retrieval. Record each confirmed or dismissed path in the working file. If tracing outruns the time budget, mark the rest deferred, log it, and continue.
 
 ## Phase 1C: Security Dissenter Analysis
 
 Runs when `flatline_protocol.security_audit.enabled: true` in `.loa.config.yaml`; skipping it blocks the `COMPLETED` marker write (`adversarial-review-gate.sh`). Emergency override: `LOA_ADVERSARIAL_REVIEW_ENFORCE=false`, noted in sprint notes.
 
 Run `.claude/scripts/adversarial-review.sh --type audit --sprint-id <sprint_id> --diff-range main...HEAD --json` — no `--context-file`. Two voices by default (`companion_voice`). Output: `grimoires/loa/a2a/{sprint_id}/adversarial-audit.json`; one top-level bullet per rejected payload (`rejected_summary` or sidecar rows, whichever is more) under `## Rejected dissent payloads`, else `verdict-derive.sh` fails the trailer. Mechanics: `resources/ADVERSARIAL-REVIEW.md`.
+Read `advisory_voices[].findings` as advisory input, never tallied.
 
 ## Phase 1: Systematic Audit
 
@@ -234,7 +235,7 @@ Severity calibration and worked examples: `resources/RUBRICS.md`. These counts d
 - Overall Risk Level: CRITICAL/HIGH/MEDIUM/LOW
 - Recommendations: Immediate (24h), Short-term (1wk), Long-term (1mo)
 
-**LOA-VERDICT trailer**: append as the LAST line of the audit output file (nothing after it):
+**LOA-VERDICT trailer**: append as the LAST line of the audit output file:
 `<!-- LOA-VERDICT {"gate":"audit","verdict":"APPROVED|CHANGES_REQUIRED","counts":{"critical":N,"high":N,"medium":N,"low":N},"excluded":N,"excluded_confirmed":N,"sprint_id":"sprint-N","ts":"<ISO8601>"} -->`
 (both extra fields may be omitted when 0). Prose and trailer MUST agree: approved
 sprint/deployment audits use the exact prose `APPROVED - LET'S FUCKING GO`. `excluded_confirmed`
@@ -242,7 +243,7 @@ must equal the review trailer's `excluded`; the golden path refuses to advance o
 
 **MUST self-check before finishing**: run
 `.claude/scripts/verdict-derive.sh --file <audit-output-file> --gate audit --review-file grimoires/loa/a2a/sprint-{N}/engineer-feedback.md`
-and resolve any reported inconsistency before reporting completion to the user.
+and resolve any inconsistency before reporting completion.
 </workflow>
 
 <parallel_execution>

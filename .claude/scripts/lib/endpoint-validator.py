@@ -50,7 +50,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import idna  # ≥ 3.6, RFC 5891
+# idna (≥ 3.6, RFC 5891) is imported lazily in `_idna_normalize`: only a
+# non-ASCII or punycode host needs it, and the cheval Python path loads this
+# module (cycle-129 D-7.2) where idna is not a declared dependency. Without
+# idna such a host is refused (fail-closed), never passed through.
 
 EXIT_VALID = 0
 EXIT_REJECTED = 78  # EX_CONFIG (sysexits.h)
@@ -937,6 +940,11 @@ def _idna_normalize(host: str) -> str:
     if all(ord(c) < 128 for c in host) and "xn--" not in host.lower():
         return host.lower()
     try:
+        import idna
+    except ImportError as exc:
+        # Caller maps UnicodeError to ENDPOINT-IDN-NOT-ALLOWED (fail-closed).
+        raise UnicodeError(f"idna is not installed; an IDN host cannot be validated ({exc})") from None
+    try:
         encoded = idna.encode(host, uts46=False, transitional=False).decode("ascii")
         return encoded.lower()
     except idna.core.IDNAError:
@@ -984,10 +992,114 @@ def _provider_for_host(
     return None, None
 
 
-def validate(url: str, allowlist: dict[str, list[dict[str, Any]]]) -> ValidationResult:
+# =============================================================================
+# cycle-129 FR-7 (SDD D-7.2): per-provider insecure-endpoint opt-in.
+#
+# `allow_insecure_endpoint` is a host STRING naming one loopback or RFC1918 host
+# as an IP literal or `localhost` (never resolved, so no DNS rebinding). With it,
+# a URL whose host equals the opt-in host is admitted over http or https on any
+# port (the host allowlist and the loopback/private IP block do not apply to that
+# one host); an http URL to any other host is ENDPOINT-INSECURE-HOST-MISMATCH; an
+# https URL to any other host runs the unchanged pipeline. The opt-in is passed
+# per call, so one provider's opt-in never reaches another provider's URL.
+#
+# Twin: .claude/adapters/loa_cheval/config/endpoint_policy.py (the cheval Python
+# path). The refusal codes are the same strings; the cheval test
+# tests/test_endpoint_validator_optin.py runs one case table through both.
+# =============================================================================
+
+_OPTIN_LOOPBACK = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
+_OPTIN_RFC1918 = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
+_OPTIN_METADATA = frozenset({"169.254.169.254", "fd00:ec2::254"})
+_OPTIN_ULA_V6 = ipaddress.ip_network("fc00::/7")
+
+
+def _canonical_host(host: str) -> str:
+    h = str(host).strip().lower()
+    if h.startswith("[") and h.endswith("]"):
+        h = h[1:-1]
+    if h.endswith(".") and not h.endswith(".."):
+        h = h[:-1]
+    try:
+        return str(ipaddress.ip_address(h))
+    except ValueError:
+        return h
+
+
+def check_insecure_optin(value: Any) -> tuple[bool, str | None, str | None, str | None]:
+    """Validate an `allow_insecure_endpoint` value. Returns (ok, code, detail, canonical_host)."""
+    if isinstance(value, bool):
+        return (False, "ENDPOINT-OPTIN-BOOLEAN",
+                f"allow_insecure_endpoint must be a host string (an IP literal or localhost), "
+                f"not the boolean {value!r}", None)
+    if not isinstance(value, str) or not value.strip():
+        return (False, "ENDPOINT-OPTIN-INVALID",
+                f"allow_insecure_endpoint must be a non-empty host string, got {value!r}", None)
+    raw = value.strip()
+    if any(c in raw for c in ("\r", "\n", "\t", "\x00")) or "/" in raw or "@" in raw:
+        return (False, "ENDPOINT-OPTIN-INVALID",
+                f"allow_insecure_endpoint {raw!r} must be a bare host (no scheme, path, port or userinfo)", None)
+    host = _canonical_host(raw)
+    if host == "localhost":
+        return True, None, None, host
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return (False, "ENDPOINT-OPTIN-DNS-NAME",
+                f"allow_insecure_endpoint {raw!r} is a DNS name; only an IP literal or localhost is admitted "
+                "(an insecure endpoint is never resolved, so it cannot be rebound)", None)
+    if str(addr) in _OPTIN_METADATA:
+        return False, "ENDPOINT-OPTIN-METADATA", f"allow_insecure_endpoint {raw!r} is a cloud metadata address", None
+    if addr.is_link_local:
+        return (False, "ENDPOINT-OPTIN-LINK-LOCAL",
+                f"allow_insecure_endpoint {raw!r} is link-local (169.254/16, fe80::/10)", None)
+    if any(addr in net for net in _OPTIN_LOOPBACK + _OPTIN_RFC1918 if addr.version == net.version):
+        return True, None, None, str(addr)
+    if addr.version == 6 and addr in _OPTIN_ULA_V6:
+        return (False, "ENDPOINT-OPTIN-NOT-LOCAL",
+                f"allow_insecure_endpoint {raw!r} is a unique-local IPv6 address; only loopback or RFC1918 is admitted",
+                None)
+    return (False, "ENDPOINT-OPTIN-NOT-LOCAL",
+            f"allow_insecure_endpoint {raw!r} is not a loopback or RFC1918 address", None)
+
+
+def split_url(url: str) -> tuple[str, str, int | None, str]:
+    """(lower-cased scheme, canonical host, explicit port or None, path) of a URL.
+    The host is lower-cased, unbracketed and, for an IP literal, in compressed
+    form. Raises ValueError on a URL that does not parse (bad port included).
+    The cheval Python path uses this so URL parsing stays in this module."""
+    parts = urllib.parse.urlsplit(url)
+    port = parts.port  # raises ValueError for a non-integer or out-of-range port
+    return parts.scheme.lower(), _canonical_host(parts.hostname or ""), port, parts.path or ""
+
+
+def validate_declared_endpoint(url: str, *, allow_insecure_endpoint: Any = None) -> ValidationResult:
+    """cycle-129 D-7.2: the pipeline for an endpoint the OPERATOR declared in the
+    merged hounfour config (the cheval Python path). Every step runs except the
+    step-8 host/port allowlist — an operator-declared https host (Azure, a hosted
+    open-weight API) is the operator's choice — and, because that backstop is
+    absent, a `localhost` name is refused here as loopback unless it is the
+    provider's opt-in host. `allow_insecure_endpoint` works as in `validate`."""
+    return validate(url, {}, allow_insecure_endpoint=allow_insecure_endpoint, _declared_endpoint=True)
+
+
+def validate(
+    url: str,
+    allowlist: dict[str, list[dict[str, Any]]],
+    *,
+    allow_insecure_endpoint: Any = None,
+    _declared_endpoint: bool = False,
+) -> ValidationResult:
     """Run the SDD §6.5 8-step canonicalization pipeline against `url`.
 
     Returns a ValidationResult; pure function, no I/O, no network.
+    `allow_insecure_endpoint` (cycle-129 D-7.2) admits one loopback/RFC1918
+    host over http — see `check_insecure_optin`. `_declared_endpoint` is set
+    only by `validate_declared_endpoint`.
     """
     if not isinstance(url, str):
         return _reject(str(url), "ENDPOINT-PARSE-FAILED", "url must be a string")
@@ -1030,6 +1142,38 @@ def validate(url: str, allowlist: dict[str, list[dict[str, Any]]]) -> Validation
     # parse warning on stdlib that depends on Python version; check explicitly.
     if "[" in url and url.count("[") != url.count("]"):
         return _reject(url, "ENDPOINT-PARSE-FAILED", "unmatched IPv6 brackets")
+
+    # Step 1.5 (cycle-129 D-7.2): the per-provider insecure-endpoint opt-in.
+    if allow_insecure_endpoint is not None:
+        ok, code, detail, optin_host = check_insecure_optin(allow_insecure_endpoint)
+        if not ok:
+            return _reject(url, code or "ENDPOINT-OPTIN-INVALID", detail or "invalid opt-in")
+        url_host = _canonical_host(parts.hostname or "")
+        scheme = parts.scheme.lower()
+        if url_host == optin_host and scheme in ("http", "https"):
+            if parts.username is not None or parts.password is not None:
+                return _reject(
+                    url, "ENDPOINT-USERINFO-PRESENT",
+                    "URL contains userinfo segment; credentials must travel via env vars, not URLs",
+                )
+            try:
+                port = parts.port if parts.port is not None else (443 if scheme == "https" else 80)
+            except ValueError:
+                return _reject(url, "ENDPOINT-PARSE-FAILED", "port is not a valid integer")
+            path_ok, path_detail = _validate_path(parts.path)
+            if not path_ok:
+                return _reject(url, "ENDPOINT-PATH-INVALID", path_detail)
+            return ValidationResult(
+                valid=True, url=url, scheme=scheme, host=optin_host, port=port, path=parts.path,
+                matched_provider=None, extra={"insecure_optin": optin_host},
+            )
+        if scheme != "https":
+            return _reject(
+                url, "ENDPOINT-INSECURE-HOST-MISMATCH",
+                f"endpoint host {url_host!r} does not equal allow_insecure_endpoint {optin_host!r}; "
+                "http is admitted only to the opted-in host",
+            )
+        # https to another host: the unchanged pipeline below.
 
     # Step 2: scheme
     if parts.scheme.lower() != "https":
@@ -1142,6 +1286,16 @@ def validate(url: str, allowlist: dict[str, list[dict[str, Any]]]) -> Validation
     if not path_ok:
         return _reject(url, "ENDPOINT-PATH-INVALID", path_detail)
 
+    # cycle-129 D-7.2: an operator-declared endpoint skips the host allowlist;
+    # with no allowlist backstop a loopback NAME is refused like a loopback IP.
+    if _declared_endpoint:
+        if normalized_host == "localhost" or normalized_host.endswith(".localhost"):
+            return _reject(url, "ENDPOINT-IP-BLOCKED", f"host {normalized_host} is loopback")
+        return ValidationResult(
+            valid=True, url=url, scheme="https", host=normalized_host, port=port, path=parts.path,
+            matched_provider=None, extra={"declared_endpoint": True},
+        )
+
     # Step 8: explicit host + port allowlist match.
     provider_id, allowed_ports = _provider_for_host(normalized_host, port, allowlist)
     if provider_id is None:
@@ -1220,6 +1374,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Emit machine-readable JSON instead of a human-readable line.",
     )
+    parser.add_argument(
+        "--allow-insecure-endpoint",
+        dest="allow_insecure_endpoint",
+        default=None,
+        metavar="HOST",
+        help=(
+            "cycle-129 D-7.2: the calling provider's opt-in host (an IP literal or "
+            "localhost in a loopback or RFC1918 range); admits http to that host only."
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -1228,7 +1392,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[ALLOWLIST-LOAD-FAILED] {exc}", file=sys.stderr)
         return EXIT_USAGE
 
-    result = validate(args.url, allowlist)
+    result = validate(args.url, allowlist, allow_insecure_endpoint=args.allow_insecure_endpoint)
     out = _emit(result, json_mode=args.json)
     if result.valid:
         # Acceptance always to stdout (operator-visible canonicalized JSON).
