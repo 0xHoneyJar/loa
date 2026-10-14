@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-14T05:26:31Z",
+  "generated": "2026-10-14T05:45:43Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
@@ -989,7 +989,7 @@
     ".claude/hooks/pre-compact-marker.sh": "1169d5733087df3df22110cbcbba040d78f5e31cde3cac782da0f071b2c08988",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "906b77d801500130b215ea325b8c25e2d0f5b67141e2b61e631c3b332f71fcc7",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "d20e210b319b99c681611df1479ead63fb3940835cea9ba7995dbd5150ceac70",
+    ".claude/hooks/safety/block-destructive-bash.sh": "506a86c84c43f4320cf93ea2f1697e1c467a57f210d5484728db13b4b853bfe4",
     ".claude/hooks/safety/notes-size-guard.sh": "9371ef5a7e802e0aec01e117520ad18720f30022cc57b09d11ba739366f9eda4",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "1c0c7eee272a4f5e7bfdb56a148283391054ce312364371420b8d681ac93fcf6",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
@@ -1477,7 +1477,7 @@
     ".claude/scripts/loa-learnings-index.sh": "946a17b59146614c8c8e233fb77daffc0b2f45c6cc52133f270f1468475c3853",
     ".claude/scripts/loa-migrate-model-config.py": "ddbbee30bea5f37bed78fe6a651b41ed9020e08a54b990742cd0d64dbffedc3b",
     ".claude/scripts/loa-setup-check.sh": "2872f31e1f9a54f29e255d7ee0cae20dba56351c6ef2fe9954d98d7b7b5086a3",
-    ".claude/scripts/loa-status.sh": "44430c526e05d5eeac8507ac1d02becaeff0d5d190d3e5ae2c7541978fff907a",
+    ".claude/scripts/loa-status.sh": "df979af2ebc86526639e87715d1aafe9bc6af1dedf47fa9c2eacdec858918643",
     ".claude/scripts/loa-substrate-doctor.sh": "601f9aff35afe80d2a01d1a6be4676bf8757d233f28a0b369e44bb0a107973d1",
     ".claude/scripts/loa-substrate-health.sh": "e243e02e2b8d05bca0ca6ec3809da229922f0c160a3693535fe36e9243534c23",
     ".claude/scripts/loa-substrate-recalibrate.sh": "1bc6599f46d1b8cbd5ae2507e98b91d776e9cf0c74dbf53e56463c18d9f99814",
@@ -3371,6 +3371,6 @@
     ".claude/scripts/guard-yield.sh": "e3d982363b199c4b69b4321999d171ec9a0e8004e21936f5c5a5c4b29f383180",
     ".claude/data/profiles.yaml": "de1f225447f5200836590c31836b019ae83401296f99953a393dc56dbb2b9f92",
     ".claude/scripts/lib/heredoc-classifier.sh": "7395b1148db09224654227a917e3048c4348c61bf9b940b0873fefd6408b6cbc",
-    ".claude/scripts/lib/profile-lib.sh": "9e043a64c68bdda0c5e466ea932e900cd476da0ff30fb3de8d060da27d472769"
+    ".claude/scripts/lib/profile-lib.sh": "ec1b1016db616b1ea120ff4c7e139c130c084ba4c4995bde03183550e44bb93e"
   }
 }

@@ -187,7 +187,7 @@ _bdb_hd_re_ctl=$'[\x01-\x08\x0b-\x1f\x7f]'
 _bdb_hd_re_exflag='^-[A-Za-z]*[cex][A-Za-z]*$'
 _bdb_hd_re_exlong='^--(exec|eval|command|in-?place)'
 _bdb_hd_re_ext='\.(sh|bash|zsh|ksh|csh|fish|py|pyw|rb|pl|pm|js|mjs|cjs|ts|mts|cts|ps1|psm1|php|lua|tcl|command|bat|cmd)$'
-_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$)'
+_bdb_hd_re_sys='(^|/)(\.claude/hooks(/|$)|\.claude/settings[^/]*\.json$|\.git/hooks(/|$)|\.git/config$|\.gitconfig$|\.ssh/rc$|\.config/(fish|zsh|bash|git)/|s?bin/[^/]+$|\.github/workflows(/|$)|(GNUm|m|M)akefile$|[Jj]ustfile$|package\.json$|pyproject\.toml$|Cargo\.toml$|Rakefile$|Gemfile$|Dockerfile([.][^/]*)?$|\.pre-commit-config\.ya?ml$|\.gitlab-ci\.ya?ml$)'
 _bdb_hd_re_rc='(^|/)\.(bashrc|bash_profile|bash_login|bash_logout|profile|zshrc|zshenv|zprofile|zlogin|zlogout|kshrc|mkshrc|cshrc|tcshrc|login|logout|envrc)$'
 _bdb_hd_re_sedp='^(([0-9]+|[$]|/[^/]*/)(,([0-9]+|[$]|/[^/]*/))?)?p$'
 _bdb_hd_re_assign='^[A-Za-z_][A-Za-z0-9_]*='
@@ -548,6 +548,11 @@ _bdb_hd_segword() {
     w="${s%%[[:space:]]*}"
     s="${s:${#w}}"
     if [[ "$w" =~ $_bdb_hd_re_assign ]]; then continue; fi
+    # Shell reserved words are transparent prefixes: `if :; then rm …; fi` keeps its rm
+    # segment (audit r256-5, dissent DISS-C-002).
+    case "$w" in
+      if|then|elif|else|do|done|while|until|fi|esac|coproc|function) continue ;;
+    esac
     case "$w" in
       sudo|doas|command|exec|env|nice|time|nohup|builtin|stdbuf|ionice)
         while :; do
@@ -1325,12 +1330,28 @@ check_and_block() {
 # values only, so the path and the method remain visible. Placed OUTSIDE the
 # git-family pre-filter below: a gh api call need not contain the word git.
 # -----------------------------------------------------------------------------
-if [[ "$command" == *"gh"* && "$command" == *"api"* ]] \
-   && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
-   && _match 'gh[[:space:]]+api[[:space:]][^;&|]*(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|repos/[^/[:space:];&|]+/[^/[:space:];&|]+(["'"'"'[:space:];&|]|$))'; then
-  matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
-  # @guard fence:FR-GH-1
-  emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+if [[ "$command" == *"gh"* && "$command" == *"api"* ]]; then
+  # REST form: a destructive method — literal DELETE|PUT|PATCH, or a NON-literal value
+  # (`-X "$M"`, `--method=$m`), which cannot be judged and is treated as destructive —
+  # against a protected path. The path may carry an optional https://HOST(/api/v3)
+  # prefix or a leading slash (audit r256-5, dissent DISS-C-003).
+  _ghapi_path='(https?://[^/[:space:];&|]+(/api/v3)?)?/?repos/[^/[:space:];&|]+/[^/[:space:];&|]+'
+  if { _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?(DELETE|PUT|PATCH)' \
+       || _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?(-X|--method)[=[:space:]]*["'"'"']?[$]'; } \
+     && _match 'gh[[:space:]]+api[[:space:]][^;&|]*'"${_ghapi_path}"'(/git/refs/|/git/tags/|/branches/[^/[:space:];&|]+/protection|/releases(/|["'"'"'[:space:];&|]|$)|/tags(/|["'"'"'[:space:];&|]|$)|(["'"'"'[:space:];&|]|$))'; then
+    matched=$(echo "$command" | grep -oE 'gh[[:space:]]+api[^;&|]*' | head -1)
+    # @guard fence:FR-GH-1
+    emit_block "FR-GH-1" "$matched" "gh api with DELETE, PUT or PATCH (or a method the fence cannot read) on refs, branch protection, tags, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+  fi
+  # GraphQL form: the mutations that delete or rewrite refs, branch protection or the
+  # repository (audit r256-5, dissent DISS-C-003).
+  if [[ "$command" == *"graphql"* ]] \
+     && _match '(^|/|;|&&|\||[[:space:]]|\(|'"'"'|")[[:space:]]*gh[[:space:]]+api[[:space:]]([^;&|]*[[:space:]])?graphql([[:space:]]|$)' \
+     && _match_ci '(deleteref|deletebranchprotectionrule|updatebranchprotectionrule|createbranchprotectionrule|deleterepository|updaterepository|deleterelease)[[:space:]]*\('; then
+    matched=$(echo "$command" | grep -oiE '(deleteRef|deleteBranchProtectionRule|updateBranchProtectionRule|createBranchProtectionRule|deleteRepository|updateRepository|deleteRelease)[[:space:]]*\(' | head -1)
+    # @guard fence:FR-GH-1
+    emit_block "FR-GH-1" "gh api graphql ${matched}" "gh api graphql with a mutation that deletes or rewrites refs, branch protection, releases or the repository is refused: use the git/gh porcelain the fence governs, or an operator-run command."
+  fi
 fi
 
 # pass-8 git-family pre-filter (wraps P2, P2b, P3, P4, P5, P6, P7).

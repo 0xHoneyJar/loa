@@ -39,7 +39,15 @@ keys=$(yq -r '.profiles[] | keys | .[]' "$PROFILES" | sort -u)
 # r256-2 LOW-9); each must be preceded by a dot that is not itself part of an
 # identifier (start of line, quote, space, paren, ...).
 alt=$(printf '%s\n' "$keys" | sed 's/[]^$.*+?(){}|[]/\\&/g' | paste -sd'|' -)
-pattern="(^|[^A-Za-z0-9_])\\.(${alt})([^A-Za-z0-9_]|$)"
+# Also the trailing two components of every three-part key (`.input.enabled`,
+# `.danger_level.enforce`), so a read split across a pipe (`yq '.guardrails | .input.enabled'`)
+# or a bracket form that ends in the dotted tail is caught too (audit r256-5, DISS-C-005).
+suf=$(printf '%s\n' "$keys" | awk -F. 'NF>=3 {print $(NF-1)"."$NF}' | sort -u | sed 's/[]^$.*+?(){}|[]/\\&/g' | paste -sd'|' -)
+if [[ -n "$suf" ]]; then
+  pattern="(^|[^A-Za-z0-9_])\\.((${alt})|(${suf}))([^A-Za-z0-9_]|$)"
+else
+  pattern="(^|[^A-Za-z0-9_])\\.(${alt})([^A-Za-z0-9_]|$)"
+fi
 
 # grep: -I skips binaries (no "Binary file matches" pseudo-hits); exit 1 is "no
 # match", exit 2 is a grep error (a bad pattern, an unreadable path) and is a

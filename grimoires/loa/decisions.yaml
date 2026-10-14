@@ -9816,3 +9816,67 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0307"
+    created_at: "2026-10-14T05:45:25Z"
+    updated_at: "2026-10-14T05:45:25Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: /loa's Profile line says when either guardrail control resolves to off, whatever turned it off (DEC-0161 mitigation; the default stays off)"
+    decision: "The default-off guardrails decision (DEC-0161) stands; as the audit's mitigation, loa-status.sh appends 'input guardrails off' and/or 'danger-level enforcement off' to the Profile line whenever the effective value is not true, so an operator sees the posture on every /loa."
+    rationale: "audit r256-5 DISS-C-001: silence about an off control is the exposure; a notice costs one line"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "81005346"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-25)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:45:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-25)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0308"
+    created_at: "2026-10-14T05:45:27Z"
+    updated_at: "2026-10-14T05:45:27Z"
+    phase: "implementation"
+    category: "security"
+    summary: "S2 lead: shell reserved words are transparent prefixes in the classifier's per-segment scan; Dockerfile, pre-commit and gitlab-ci targets are executable content"
+    decision: "In _bdb_hd_segword the reserved words if, then, elif, else, do, done, while, until, fi, esac, coproc and function are skipped like the wrapper words, so the destructive command after them is the segment's command word; _bdb_hd_re_sys adds Dockerfile, .pre-commit-config.yaml and .gitlab-ci.yml. The #1245 standalone quoted cat still drops its body whole by design (B100)."
+    rationale: "audit r256-5 DISS-C-002"
+    alternatives_considered:
+      - option: "the alternative the report line names or implies"
+        rejected_because: "see the report line; the lead kept this call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "lead-seed/9abd2e2d-8676-49aa-b55d-b5a7a234d719"
+    commit: "81005346"
+    source: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-26)"
+    cycle: "cycle-129"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-14T05:45:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:lead-seed"
+        evidence: "grimoires/loa/a2a/sprint-256/reviewer.md#security-audit-feedback-addressed-round-r256-5 (lead-26)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

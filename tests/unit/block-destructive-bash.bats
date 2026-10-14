@@ -1562,12 +1562,15 @@ corpus_json() {
 @test "cycle-125 corpus lint: rows carry no hostnames, URLs, IPs, credentials or key shapes" {
     local corpus="$PROJECT_ROOT/tests/fixtures/fence-corpus/corpus.jsonl"
     local cmds; cmds=$(jq -r '.cmd' "$corpus")
+    # The one admitted host: GitHub's public API host, needed to pin the full-URL form of
+    # FR-GH-1 (audit r256-5); `.invalid` placeholders are not hostnames the pattern below catches.
+    local cmds_nohost; cmds_nohost=$(grep -vF 'https://api.github.com/' <<<"$cmds")
     # `run` + status, not a bare mid-test `! grep` (exempt from errexit, it could never fail; r256-3).
     local re
     for re in '://' '\b[0-9]{1,3}(\.[0-9]{1,3}){3}\b' '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' \
               '\b(sk-[A-Za-z0-9_-]{8,}|AKIA[0-9A-Z]{8,}|ghp_[A-Za-z0-9]{8,}|s3://)' \
               '\b[a-z0-9-]+\.(com|io|net|fm|dev|org)\b'; do
-        run grep -nE "$re" <<<"$cmds"
+        run grep -nE "$re" <<<"$cmds_nohost"
         [ "$status" -ne 0 ] || { echo "corpus row matches /$re/: $output"; return 1; }
     done
     # every row parses and carries the required keys

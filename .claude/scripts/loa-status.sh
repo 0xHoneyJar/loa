@@ -955,7 +955,12 @@ display_profile_line() {
     note=""
     if [[ "$(loa_profile_source 2>/dev/null)" == "invalid" ]]; then note="unknown loa.profile, using standard; "; fi
     ov=$(loa_profile_overrides 2>/dev/null | awk 'NF { printf "%s%s", (n++ ? ", " : ""), $0 }')
-    printf '%s (%sexplicit overrides: %s)' "${name:-standard}" "$note" "${ov:-none}"
+    # cycle-129 audit r256-5 (DEC-0161 mitigation): say so when either guardrail
+    # control resolves to off, whatever turned it off (profile or explicit key).
+    gn=""
+    [[ "$(loa_knob guardrails.input.enabled false 2>/dev/null)" == true ]] || gn="input guardrails off"
+    [[ "$(loa_knob guardrails.danger_level.enforce false 2>/dev/null)" == true ]] || gn="${gn:+$gn, }danger-level enforcement off"
+    printf '%s (%sexplicit overrides: %s)%s' "${name:-standard}" "$note" "${ov:-none}" "${gn:+ · $gn}"
   ) || line=""
   echo -e "${BOLD}Profile:${NC} ${line:-standard (explicit overrides: unavailable)}"
   return 0

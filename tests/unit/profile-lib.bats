@@ -203,12 +203,20 @@ knob() { bash "$LIB" knob "$@"; }
     run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/srun" LOA_STATUS_ENV_DIR="$T/env" \
         LOA_STATUS_CONFIG_FILE="$CFG" timeout 120 bash "$R/.claude/scripts/loa-status.sh" --no-stale-check
     line=$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep '^Profile:')
-    [ "$line" = "Profile: lean (explicit overrides: guardrails.input.enabled=true)" ]
+    # The line says so when a guardrail control resolves to off (audit r256-5, DEC-0161 mitigation):
+    # under lean with input pinned on, only the danger-level enforcement is off.
+    [ "$line" = "Profile: lean (explicit overrides: guardrails.input.enabled=true) · danger-level enforcement off" ]
     : > "$CFG"
     run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/srun" LOA_STATUS_ENV_DIR="$T/env" \
         LOA_STATUS_CONFIG_FILE="$CFG" timeout 120 bash "$R/.claude/scripts/loa-status.sh" --no-stale-check
     line=$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep '^Profile:')
-    [ "$line" = "Profile: standard (explicit overrides: none)" ]
+    [ "$line" = "Profile: standard (explicit overrides: none) · input guardrails off, danger-level enforcement off" ]
+    # Under full both controls are on and the line carries no notice.
+    printf 'loa:\n  profile: full\n' > "$CFG"
+    run --separate-stderr env CACHE_DIR="$T/wscache" LOA_STATUS_RUN_DIR="$T/srun" LOA_STATUS_ENV_DIR="$T/env" \
+        LOA_STATUS_CONFIG_FILE="$CFG" timeout 120 bash "$R/.claude/scripts/loa-status.sh" --no-stale-check
+    line=$(printf '%s\n' "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep '^Profile:')
+    [ "$line" = "Profile: full (explicit overrides: none)" ]
 }
 
 @test "PL-15 the guardrail readers route through loa_knob (knob on and off)" {
@@ -270,4 +278,17 @@ knob() { bash "$LIB" knob "$@"; }
     [ "$status" -eq 1 ]
     [[ "$output" == *"bad.sh:1"* ]]
     [[ "$output" != *"prose.md"* ]]
+    # Bypass shapes (audit r256-5, DISS-C-005): a read split across a pipe and a bracket
+    # form that ends in the dotted tail are caught through the trailing-components alternation.
+    rm -f -- "$T/fx/.claude/hooks/bad.sh"
+    printf '%s\n' "y=\$(yq '.guardrails | .input.enabled' c.yaml)" > "$T/fx/.claude/hooks/pipe.sh"
+    printf '%s\n' "z=\$(yq '.[\"guardrails\"].danger_level.enforce' c.yaml)" > "$T/fx/.claude/hooks/bracket.sh"
+    run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pipe.sh:1"* ]]
+    [[ "$output" == *"bracket.sh:1"* ]]
+    # A fixture root without tools/ is searched without a misleading exit 2 (r256-3).
+    rm -rf -- "$T/fx/tools" "$T/fx/.claude/hooks/pipe.sh" "$T/fx/.claude/hooks/bracket.sh"
+    run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
+    [ "$status" -eq 0 ]
 }

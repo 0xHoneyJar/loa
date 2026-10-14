@@ -59,6 +59,12 @@ _loa_pl_paths() {
     status_cfg="${LOA_STATUS_CONFIG_FILE:-}"
   fi
   _LOA_PL_CFG="${LOA_PROFILE_CONFIG_FILE:-${status_cfg:-$default_cfg}}"
+  # The seam is honoured outside bats (hooks pass their test config through it); make a
+  # redirected live read visible, once per process (audit r256-5, dissent DISS-C-004).
+  if [[ -n "${LOA_PROFILE_CONFIG_FILE:-}" && -z "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -z "${_LOA_PL_SEAM_WARNED:-}" ]]; then
+    printf 'profile-lib: WARN knob reads come from %s (LOA_PROFILE_CONFIG_FILE is set)\n' "$LOA_PROFILE_CONFIG_FILE" >&2
+    _LOA_PL_SEAM_WARNED=1
+  fi
   _LOA_PL_PROF="${LOA_PROFILES_FILE:-$root/.claude/data/profiles.yaml}"
   _LOA_PL_FLOOR="${LOA_PROFILE_FLOOR_FILE:-$root/.claude/data/floor.yaml}"
   if [[ -n "${LOA_PROFILE_CACHE_FILE:-}" ]]; then
